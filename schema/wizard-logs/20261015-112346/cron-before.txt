@@ -1,0 +1,4 @@
+4|campaign-pulse-sunday-0700|0 4 * * 0|t
+5|autonomous-goal-worker|* * * * *|t
+10|meta-operational-check-2h|15 */2 * * *|t
+11|google-ads-operational-check-2h|25 */2 * * *|t

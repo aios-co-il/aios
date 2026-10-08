@@ -1,0 +1,6 @@
+blocked_http: 0
+key_reconciliations: 0
+managed_rows: 0
+rejected_rows: 0
+safety: 0
+table_state: 0

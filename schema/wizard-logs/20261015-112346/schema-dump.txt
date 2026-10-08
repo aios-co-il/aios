@@ -1,0 +1,142 @@
+Dumping schemas from remote database...
+17.11.0.003: Pulling from supabase/postgres
+ace1621be7ff: Already exists
+a7c5ec296936: Pulling fs layer
+ce22d764be80: Pulling fs layer
+27583c048f86: Pulling fs layer
+41a262b799c1: Pulling fs layer
+f3670639f166: Pulling fs layer
+f4351ef8ae88: Pulling fs layer
+fe2619bb4563: Pulling fs layer
+9052684fb6be: Pulling fs layer
+9f2f2f077c93: Pulling fs layer
+6b40b9ad7e53: Pulling fs layer
+1ba8615d4705: Pulling fs layer
+b23e21d15cbb: Pulling fs layer
+9511ec9f1c34: Pulling fs layer
+a8d0fc177c2f: Pulling fs layer
+b56affef4ce2: Pulling fs layer
+a62e2b2b44ee: Pulling fs layer
+a2d5c2558818: Pulling fs layer
+1ffa38bf6164: Pulling fs layer
+f9036cfcdefe: Pulling fs layer
+abe33e9c5c0f: Pulling fs layer
+7c10a785e769: Pulling fs layer
+5065c51f7117: Pulling fs layer
+c1812c014ad9: Pulling fs layer
+1be6a2e245e3: Pulling fs layer
+aeea77bfb785: Pulling fs layer
+93735a6dc2bd: Pulling fs layer
+49edb8de1171: Pulling fs layer
+c51ddcdde242: Pulling fs layer
+b56affef4ce2: Waiting
+a62e2b2b44ee: Waiting
+a2d5c2558818: Waiting
+1ffa38bf6164: Waiting
+f9036cfcdefe: Waiting
+abe33e9c5c0f: Waiting
+7c10a785e769: Waiting
+5065c51f7117: Waiting
+c1812c014ad9: Waiting
+1be6a2e245e3: Waiting
+aeea77bfb785: Waiting
+93735a6dc2bd: Waiting
+49edb8de1171: Waiting
+c51ddcdde242: Waiting
+9f2f2f077c93: Waiting
+6b40b9ad7e53: Waiting
+1ba8615d4705: Waiting
+b23e21d15cbb: Waiting
+9511ec9f1c34: Waiting
+a8d0fc177c2f: Waiting
+41a262b799c1: Waiting
+f3670639f166: Waiting
+f4351ef8ae88: Waiting
+fe2619bb4563: Waiting
+9052684fb6be: Waiting
+ce22d764be80: Verifying Checksum
+ce22d764be80: Download complete
+41a262b799c1: Verifying Checksum
+41a262b799c1: Download complete
+f3670639f166: Verifying Checksum
+f3670639f166: Download complete
+f4351ef8ae88: Download complete
+fe2619bb4563: Verifying Checksum
+fe2619bb4563: Download complete
+9052684fb6be: Verifying Checksum
+9052684fb6be: Download complete
+a7c5ec296936: Download complete
+9f2f2f077c93: Verifying Checksum
+9f2f2f077c93: Download complete
+a7c5ec296936: Pull complete
+ce22d764be80: Pull complete
+6b40b9ad7e53: Verifying Checksum
+6b40b9ad7e53: Download complete
+1ba8615d4705: Verifying Checksum
+1ba8615d4705: Download complete
+b23e21d15cbb: Verifying Checksum
+b23e21d15cbb: Download complete
+9511ec9f1c34: Verifying Checksum
+9511ec9f1c34: Download complete
+a8d0fc177c2f: Verifying Checksum
+a8d0fc177c2f: Download complete
+b56affef4ce2: Verifying Checksum
+b56affef4ce2: Download complete
+a62e2b2b44ee: Verifying Checksum
+a62e2b2b44ee: Download complete
+a2d5c2558818: Download complete
+1ffa38bf6164: Download complete
+f9036cfcdefe: Verifying Checksum
+f9036cfcdefe: Download complete
+abe33e9c5c0f: Verifying Checksum
+abe33e9c5c0f: Download complete
+7c10a785e769: Verifying Checksum
+7c10a785e769: Download complete
+5065c51f7117: Verifying Checksum
+5065c51f7117: Download complete
+c1812c014ad9: Verifying Checksum
+c1812c014ad9: Download complete
+1be6a2e245e3: Verifying Checksum
+1be6a2e245e3: Download complete
+aeea77bfb785: Verifying Checksum
+aeea77bfb785: Download complete
+93735a6dc2bd: Verifying Checksum
+93735a6dc2bd: Download complete
+49edb8de1171: Verifying Checksum
+49edb8de1171: Download complete
+c51ddcdde242: Verifying Checksum
+c51ddcdde242: Download complete
+27583c048f86: Verifying Checksum
+27583c048f86: Download complete
+27583c048f86: Pull complete
+41a262b799c1: Pull complete
+f3670639f166: Pull complete
+f4351ef8ae88: Pull complete
+fe2619bb4563: Pull complete
+9052684fb6be: Pull complete
+9f2f2f077c93: Pull complete
+6b40b9ad7e53: Pull complete
+1ba8615d4705: Pull complete
+b23e21d15cbb: Pull complete
+9511ec9f1c34: Pull complete
+a8d0fc177c2f: Pull complete
+b56affef4ce2: Pull complete
+a62e2b2b44ee: Pull complete
+a2d5c2558818: Pull complete
+1ffa38bf6164: Pull complete
+f9036cfcdefe: Pull complete
+abe33e9c5c0f: Pull complete
+7c10a785e769: Pull complete
+5065c51f7117: Pull complete
+c1812c014ad9: Pull complete
+1be6a2e245e3: Pull complete
+aeea77bfb785: Pull complete
+93735a6dc2bd: Pull complete
+49edb8de1171: Pull complete
+c51ddcdde242: Pull complete
+Digest: sha256:7374d196da7e301512cc5329e18040e0f7bb856287b323777cdadecccbc6c7e4
+Status: Downloaded newer image for public.ecr.aws/supabase/postgres:17.11.0.003
+public.ecr.aws/supabase/postgres:17.11.0.003
+Dumped schema to /Users/chiptus/repos/david-castel/aios/schema/wizard-logs/20261015-112346/current-schema.sql.
+A new version of Supabase CLI is available: v2.121.0 (currently installed v2.117.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

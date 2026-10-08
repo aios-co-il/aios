@@ -1,0 +1,6 @@
+blocked_http: 14569
+key_reconciliations: 251
+managed_rows: 588616
+rejected_rows: 4586
+safety: 1
+table_state: 160
