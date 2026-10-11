@@ -80,6 +80,7 @@ import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
 import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
+import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
 import {
@@ -106,8 +107,20 @@ import {
 import { isLeadTableColumnVisible, LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY } from "@/lib/leadTableColumns";
 
 
-// Lets nested cards/table rows ask the page to open a lead in the chat view (instead of a modal).
+// Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
+
+function keepCrmLeadDialogOpen(event: { target: EventTarget | null; preventDefault: () => void }) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (
+    target.closest(
+      "[data-radix-popper-content-wrapper], [data-radix-select-content], [role='listbox'], [role='menu'], [role='dialog']",
+    )
+  ) {
+    event.preventDefault();
+  }
+}
 
 const DROP_ANIMATION_MS = 220;
 
@@ -818,12 +831,21 @@ export default function Leads() {
     } catch {}
   };
   const [pendingChatLeadId, setPendingChatLeadId] = useState<string | null>(null);
+  const [tableDialogLeadId, setTableDialogLeadId] = useState<string | null>(null);
 
-  // Editing a lead opens the chat view focused on that lead, instead of a modal dialog.
+  // Table stays put and opens the chat record as a popup. Other views switch to chat.
   const openLeadInChat = (leadId: string) => {
+    if (leadOpenSurface(viewMode) === "popup") {
+      setTableDialogLeadId(leadId);
+      return;
+    }
     setPendingChatLeadId(leadId);
     setViewMode("chat");
   };
+
+  useEffect(() => {
+    if (viewMode !== "table") setTableDialogLeadId(null);
+  }, [viewMode]);
   const [openTables, setOpenTables] = useState<Record<string, boolean>>({});
   const [selectedMobileStage, setSelectedMobileStage] = useState<string>("");
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -3191,6 +3213,50 @@ export default function Leads() {
           onOpenChange={(open) => !open && setAutoOpenLeadId(null)}
         />
       )}
+
+      <Dialog
+        open={!!tableDialogLeadId}
+        onOpenChange={(open) => {
+          if (!open) setTableDialogLeadId(null);
+        }}
+      >
+        <DialogContent
+          className="flex h-[min(92vh,52rem)] max-h-[92vh] w-[min(96vw,72rem)] max-w-[min(96vw,72rem)] flex-col gap-0 overflow-hidden p-0"
+          dir="rtl"
+          onInteractOutside={keepCrmLeadDialogOpen}
+          onPointerDownOutside={keepCrmLeadDialogOpen}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>פרטי ליד</DialogTitle>
+            <DialogDescription>אותו כרטיס ליד כמו בתצוגת הצ׳אט</DialogDescription>
+          </DialogHeader>
+          {tableDialogLeadId && (
+            <div className="min-h-0 flex-1">
+              <LeadsChatView
+                key={tableDialogLeadId}
+                presentation="dialog"
+                initialLeadId={tableDialogLeadId}
+                leads={filteredLeads || []}
+                pipelineStages={PIPELINE_STAGES}
+                leadStatuses={leadStatuses}
+                allTags={allTags}
+                leadsTagsMap={leadsTagsMap}
+                productsLookup={productsLookup}
+                onStatusChange={(leadId, newStatus) => updateLeadStatus.mutate({ leadId, newStatus })}
+                onResponseStatusChange={(leadId, responseStatus) => updateLeadResponseStatus.mutate({ leadId, responseStatus: responseStatus as any })}
+                onFollowUpDateUpdate={(leadId, newDate) => {
+                  queryClient.setQueriesData({ queryKey: ["leads-table"] }, (old: any) => {
+                    if (!old || !Array.isArray(old)) return old;
+                    return old.map((lead: any) => lead.id === leadId ? { ...lead, follow_up_date: newDate } : lead);
+                  });
+                }}
+                isCompanyNameVisible={isFieldVisible("company_name")}
+                searchQuery=""
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </LeadEditContext.Provider>
   );
@@ -3721,10 +3787,15 @@ function TableWithStickyScroll({
               width: 120, 
               sticky: true,
               render: (lead: any) => (
-                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 text-right hover:text-primary"
+                  title="פרטי ליד"
+                  onClick={() => openLeadInChat?.(lead.id)}
+                >
                   <User className="h-4 w-4 shrink-0" />
                   <span className="truncate">{lead.contact_name || "-"}</span>
-                </div>
+                </button>
               )
             },
             ...(isLeadTableColumnVisible("created_at", isFieldVisible) ? [{
@@ -3940,7 +4011,7 @@ function TableWithStickyScroll({
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      title="ערוך ליד"
+                      title="פרטי ליד"
                       onClick={() => openLeadInChat(lead.id)}
                     >
                       <Pencil className="h-4 w-4" />

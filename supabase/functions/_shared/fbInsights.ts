@@ -40,6 +40,8 @@ export interface InsightRecord {
   post_engagements: number;
   results: number | null;
   result_kind: string | null;
+  /** Hebrew label of the campaign's configured result (e.g. "התחלות תשלום"). */
+  result_label: string | null;
   lp_or_form_views: number;
   cpm: number;
   ctr: number;
@@ -61,9 +63,97 @@ export interface InsightRecord {
 
 // Field schema for the Facebook Insights CRM table (keys / Hebrew names / types),
 // kept here so both sync functions create exactly the same columns.
-export const FB_INSIGHTS_FIELD_KEYS = ['date', 'campaign_name', 'campaign_id', 'impressions', 'reach', 'frequency', 'clicks', 'link_clicks', 'conversations', 'video_views', 'post_engagements', 'results', 'result_kind', 'lp_or_form_views', 'cpm', 'ctr', 'leads', 'form_leads', 'cost_per_lead', 'spend', 'purchases', 'purchase_value', 'add_to_cart', 'roas', 'campaign_objective', 'optimization_goal', 'campaign_type', 'effective_status', 'configured_status', 'updated_time'];
-export const FB_INSIGHTS_FIELD_NAMES = ['תאריך', 'שם הקמפיין', 'מזהה קמפיין', 'חשיפות', 'תפוצה', 'תדירות', 'קליקים', 'קליקים על קישור', 'שיחות', 'צפיות וידאו', 'אינטראקציות', 'תוצאות', 'סוג תוצאה', 'צפיות LP / פתיחות טופס', 'עלות ל-1000 חשיפות', 'אחוז קליקים', 'לידים', 'לידים מטופס', 'עלות לליד', 'הוצאה', 'רכישות', 'ערך רכישות', 'הוספות לעגלה', 'ROAS', 'מטרת קמפיין', 'אירוע אופטימיזציה', 'סוג קמפיין', 'סטטוס בפועל', 'סטטוס מוגדר', 'עדכון אחרון בקמפיין'];
-export const FB_INSIGHTS_FIELD_TYPES = ['date', 'text', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'text', 'text', 'text', 'text', 'text'];
+export const FB_INSIGHTS_FIELD_KEYS = ['date', 'campaign_name', 'campaign_id', 'impressions', 'reach', 'frequency', 'clicks', 'link_clicks', 'conversations', 'video_views', 'post_engagements', 'results', 'result_kind', 'lp_or_form_views', 'cpm', 'ctr', 'leads', 'form_leads', 'cost_per_lead', 'spend', 'purchases', 'purchase_value', 'add_to_cart', 'roas', 'campaign_objective', 'optimization_goal', 'campaign_type', 'effective_status', 'configured_status', 'updated_time', 'result_label'];
+export const FB_INSIGHTS_FIELD_NAMES = ['תאריך', 'שם הקמפיין', 'מזהה קמפיין', 'חשיפות', 'תפוצה', 'תדירות', 'קליקים', 'קליקים על קישור', 'שיחות', 'צפיות וידאו', 'אינטראקציות', 'תוצאות', 'סוג תוצאה', 'צפיות LP / פתיחות טופס', 'עלות ל-1000 חשיפות', 'אחוז קליקים', 'לידים', 'לידים מטופס', 'עלות לליד', 'הוצאה', 'רכישות', 'ערך רכישות', 'הוספות לעגלה', 'ROAS', 'מטרת קמפיין', 'אירוע אופטימיזציה', 'סוג קמפיין', 'סטטוס בפועל', 'סטטוס מוגדר', 'עדכון אחרון בקמפיין', 'תווית תוצאה'];
+export const FB_INSIGHTS_FIELD_TYPES = ['date', 'text', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'text', 'text', 'text', 'text', 'text', 'text'];
+
+/** Hebrew labels for each stored `result_kind`. Keep in sync with src/lib/facebookResultMetric.ts. */
+export const RESULT_KIND_LABELS: Record<string, string> = {
+  purchases: 'רכישות',
+  initiate_checkout: 'התחלות תשלום',
+  add_to_cart: 'הוספות לעגלה',
+  add_payment_info: 'הוספת פרטי תשלום',
+  view_content: 'צפיות בתוכן',
+  search: 'חיפושים',
+  leads: 'לידים',
+  conversations: 'שיחות',
+  video_views: 'צפיות וידאו',
+  engagements: 'אינטראקציות',
+  link_clicks: 'קליקים על קישור',
+  landing_page_views: 'צפיות בדף נחיתה',
+};
+
+export interface CampaignResultMetric {
+  kind: string;
+  label: string;
+  /** Equivalent action_types for the same event; the count is the MAX across them. */
+  actionTypes: string[];
+}
+
+// Ecommerce pixel events a sales campaign can optimize for, keyed by
+// promoted_object.custom_event_type. Meta reports one event under several
+// action_types, so each list is treated as aliases (MAX, never SUM).
+const ECOMMERCE_RESULT_EVENTS: Record<string, { kind: string; actionTypes: string[] }> = {
+  PURCHASE: {
+    kind: 'purchases',
+    actionTypes: ['omni_purchase', 'offsite_conversion.fb_pixel_purchase', 'onsite_web_purchase', 'purchase'],
+  },
+  INITIATED_CHECKOUT: {
+    kind: 'initiate_checkout',
+    actionTypes: ['omni_initiated_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'onsite_web_initiate_checkout', 'initiate_checkout'],
+  },
+  ADD_TO_CART: {
+    kind: 'add_to_cart',
+    actionTypes: ['omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart', 'onsite_web_add_to_cart', 'add_to_cart'],
+  },
+  ADD_PAYMENT_INFO: {
+    kind: 'add_payment_info',
+    actionTypes: ['omni_add_payment_info', 'offsite_conversion.fb_pixel_add_payment_info', 'add_payment_info'],
+  },
+  CONTENT_VIEW: {
+    kind: 'view_content',
+    actionTypes: ['omni_view_content', 'offsite_conversion.fb_pixel_view_content', 'onsite_web_view_content', 'view_content'],
+  },
+  SEARCH: {
+    kind: 'search',
+    actionTypes: ['omni_search', 'offsite_conversion.fb_pixel_search', 'search'],
+  },
+};
+
+/**
+ * Resolve the ecommerce event a campaign/ad set is configured to optimize for.
+ * Lead, messaging and custom-event results stay on the existing lead path.
+ */
+export function resolveCampaignResultMetric(promotedObject: any): CampaignResultMetric | null {
+  const po = promotedObject || {};
+  if (po.custom_conversion_id) return null;
+  const cet = String(po.custom_event_type || '').toUpperCase();
+  if (cet === 'CONTENT_VIEW' && (po.custom_event_str || extractPixelRuleEvent(po.pixel_rule))) return null;
+  const event = ECOMMERCE_RESULT_EVENTS[cet];
+  if (!event) return null;
+  return { kind: event.kind, label: RESULT_KIND_LABELS[event.kind], actionTypes: event.actionTypes };
+}
+
+export interface ResultMetricMaps {
+  byCampaign: Record<string, CampaignResultMetric>;
+  byAdset: Record<string, CampaignResultMetric>;
+}
+
+/** Map campaign and ad set ids to their configured ecommerce result metric. */
+export function buildResultMetricMaps(
+  adsets: Array<{ id?: string | null; campaign_id?: string | null; promoted_object?: unknown }>,
+): ResultMetricMaps {
+  const maps: ResultMetricMaps = { byCampaign: {}, byAdset: {} };
+  for (const adset of adsets || []) {
+    const metric = resolveCampaignResultMetric(adset?.promoted_object);
+    if (!metric) continue;
+    const adsetId = String(adset?.id || '');
+    const campaignId = String(adset?.campaign_id || '');
+    if (adsetId) maps.byAdset[adsetId] = metric;
+    if (campaignId && !maps.byCampaign[campaignId]) maps.byCampaign[campaignId] = metric;
+  }
+  return maps;
+}
 
 /** Pick the dominant ad-set optimization goal for each campaign. */
 export function buildCampaignOptimizationGoalMap(
@@ -115,7 +205,64 @@ export const LEAD_ACTION_TYPES = [
   'messaging_conversation_started_7d',
   'onsite_conversion.messaging_first_reply',
   'messaging_first_reply',
+  // Phone calls — Ads Manager "Calls" / "Per call placed"
+  'click_to_call_native_call_placed',
+  'onsite_conversion.messaging_user_call_placed',
+  'click_to_call_native_20s_call_connect',
+  'click_to_call_native_60s_call_connect',
 ];
+
+/** Ad set goals whose Ads Manager Result is a phone call. */
+export const CALL_OPTIMIZATION_GOALS = ['QUALITY_CALL', 'MEANINGFUL_CALL_ATTEMPT'] as const;
+
+/**
+ * Completed calls, highest priority first. Meta reports one call under several
+ * action_types (placed, 20s, 60s). Take the first that fired — never sum them.
+ * `click_to_call_native_call_placed` is the "Calls placed" / "Per call placed" column.
+ */
+export const CALL_PLACED_ACTION_PRIORITY = [
+  'click_to_call_native_call_placed',
+  'onsite_conversion.messaging_user_call_placed',
+  'click_to_call_native_20s_call_connect',
+  'click_to_call_native_60s_call_connect',
+] as const;
+
+/**
+ * Clicks that start a call, not a connected call. Fallback only when Meta
+ * omits a placed-call count (otherwise confirmation clicks inflate CPL).
+ */
+export const CALL_CLICK_FALLBACK_TYPES = [
+  'onsite_conversion.click_to_call',
+  'call_confirm_grouped',
+  'click_to_call_call_confirm',
+  'click_to_call_callback_request_submitted',
+] as const;
+
+export function isCallOptimizationGoal(goal: string | null | undefined): boolean {
+  return (CALL_OPTIMIZATION_GOALS as readonly string[]).includes(String(goal || '').toUpperCase());
+}
+
+function isKnownCallActionType(type: string): boolean {
+  return (CALL_PLACED_ACTION_PRIORITY as readonly string[]).includes(type)
+    || (CALL_CLICK_FALLBACK_TYPES as readonly string[]).includes(type);
+}
+
+/** First non-zero call result. Placed calls win over confirm-click fallbacks. */
+export function countCallLeads(
+  sumByTypes: (types: string[]) => number,
+  options: { includeClickFallbacks?: boolean } = {},
+): number {
+  for (const type of CALL_PLACED_ACTION_PRIORITY) {
+    const value = sumByTypes([type]);
+    if (value > 0) return value;
+  }
+  if (!options.includeClickFallbacks) return 0;
+  for (const type of CALL_CLICK_FALLBACK_TYPES) {
+    const value = sumByTypes([type]);
+    if (value > 0) return value;
+  }
+  return 0;
+}
 
 // Facebook returns the same conversion under multiple action_types (e.g.
 // 'purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase' all refer
@@ -164,6 +311,12 @@ export function resolveResultLeadTypes(
   const goal = String(optimizationGoal || '').toUpperCase();
   const obj = String(objective || '').toUpperCase();
   const cet = String(po.custom_event_type || '').toUpperCase();
+
+  // Phone calls. Ads Manager's Result for these goals is "Calls" / "Per call
+  // placed", even when the ad set also carries a pixel or page promoted_object.
+  if (isCallOptimizationGoal(goal)) {
+    return ['click_to_call_native_call_placed'];
+  }
 
   // 1) Pixel Custom Conversion rule (optimized for a specific custom conversion).
   if (po.custom_conversion_id) {
@@ -232,6 +385,7 @@ export function buildInsightRecord(
   campaignStatuses: Record<string, CampaignStatus>,
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
+  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
 ): InsightRecord {
   // Deduplicate: FB often returns the same event (e.g. leadgen_grouped,
   // offsite_conversion.fb_pixel_lead) in BOTH insight.actions AND
@@ -270,6 +424,9 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(_campaignStatusForLeads?.objective || '').toUpperCase();
   const _isLeadFormObjective = ['OUTCOME_LEADS', 'LEAD_GENERATION'].includes(_objectiveForLeads);
   const _isMessagingObjective = ['OUTCOME_ENGAGEMENT', 'MESSAGES'].includes(_objectiveForLeads);
+  const optimizationGoal = optimizationGoalsByCampaign[String(insight.campaign_id || '')] || null;
+  const optimizationUpper = String(optimizationGoal || '').toUpperCase();
+  const _callOptimized = isCallOptimizationGoal(optimizationUpper);
 
   // Use MAX across overlapping form-lead action types instead of SUM.
   // FB reports the same submission under both leadgen_grouped AND
@@ -338,7 +495,7 @@ export function buildInsightRecord(
   // campaign, or a custom event name that doesn't match the reported action type),
   // fall through to the heuristics so pixel/website leads are still captured.
   const _resultTypes = resultLeadTypesByCampaign[String(insight.campaign_id || '')];
-  let leads: number;
+  let leads = 0;
   let _leadsAuthoritative = false;
   if (_resultTypes && _resultTypes.length > 0) {
     const _authLeads = Math.max(0, ..._resultTypes.map((t) => sumByTypes([t])));
@@ -358,9 +515,23 @@ export function buildInsightRecord(
       // Conversions / Sales / Traffic with pixel — website leads.
       leads = _websiteLeads > 0 ? _websiteLeads : _formLeadsValue;
     }
-    // Final fallback: FB's deduplicated aggregate `lead` total.
-    if (leads === 0) leads = _aggregateLeadValue;
   }
+
+  // Phone calls are a lead. On a call-optimized campaign they ARE the Result
+  // (Ads Manager "Calls" / "Per call placed") — a stray form or aggregate `lead`
+  // must not replace them. Elsewhere, add placed calls on top of form/pixel
+  // leads. Confirm-clicks are only a fallback when nothing else counted.
+  const _callActionCounted = _leadsAuthoritative
+    && (_resultTypes || []).some((type) => isKnownCallActionType(type));
+  const _callLeadsValue = countCallLeads(sumByTypes, {
+    includeClickFallbacks: _callOptimized || leads === 0,
+  });
+  if (!_callActionCounted && _callLeadsValue > 0) {
+    if (_callOptimized || leads === 0) leads = _callLeadsValue;
+    else leads += _callLeadsValue;
+  }
+  // Aggregate `lead` does not include calls. Use it only when no lead signal fired.
+  if (!_leadsAuthoritative && leads === 0) leads = _aggregateLeadValue;
 
   const _spendForLog = parseFloat(insight.spend) || 0;
   if (leads === 0 && _spendForLog > 0) {
@@ -435,13 +606,14 @@ export function buildInsightRecord(
     sumByTypes(['page_engagement']),
   );
   const linkClicks = Math.max(sumByTypes(['link_click']), parseInt(insight.inline_link_clicks) || 0);
-  const optimizationGoal = optimizationGoalsByCampaign[String(insight.campaign_id || '')] || null;
-  const optimizationUpper = String(optimizationGoal || '').toUpperCase();
   let results: number | null = null;
   let resultKind: string | null = null;
   if (optimizationUpper.includes('MESSAGE') || isMessagingObjective) {
     results = conversations;
     resultKind = 'conversations';
+  } else if (_callOptimized) {
+    results = leads > 0 ? leads : null;
+    resultKind = 'leads';
   } else if (optimizationUpper.includes('THRUPLAY')) {
     results = videoViews;
     resultKind = 'video_views';
@@ -466,6 +638,18 @@ export function buildInsightRecord(
     resultKind = 'leads';
   }
 
+  // The ad set's configured event is the campaign's real "Result" in Ads Manager
+  // (e.g. a sales campaign optimized for Initiate Checkout), so it wins over the
+  // objective-based guess above.
+  const configuredMetric =
+    (insight.adset_id && resultMetrics.byAdset[String(insight.adset_id)]) ||
+    resultMetrics.byCampaign[String(insight.campaign_id || '')];
+  if (configuredMetric) {
+    results = Math.max(0, ...configuredMetric.actionTypes.map((type) => sumByTypes([type])));
+    resultKind = configuredMetric.kind;
+  }
+  const resultLabel = resultKind ? (configuredMetric?.label || RESULT_KIND_LABELS[resultKind] || null) : null;
+
   const hasEcommerceSignal =
     purchases > 0 ||
     purchaseValue > 0 ||
@@ -486,24 +670,25 @@ export function buildInsightRecord(
     optimizationUpper.includes('CONVERSATION') ||
     /whatsapp|ווטסאפ|וואטסאפ|מסנג|messenger|click.?to.?message/i.test(campaignName);
 
-  // PRIORITY: Campaign objective is the source of truth. Traffic campaigns get
-  // their own type so they're not shown as lead campaigns with "0 leads".
+  // A configured ecommerce event (Purchase, Initiate Checkout, …) or a sales
+  // objective is the campaign type. Pixel leads or a stray conversation must
+  // not push it into the leads table — those columns are shown alongside it.
+  const configuredEcommerce = !!configuredMetric && configuredMetric.kind in RESULT_KIND_LABELS
+    && !['leads', 'conversations', 'video_views', 'engagements', 'link_clicks', 'landing_page_views'].includes(configuredMetric.kind);
   const campaignType: 'lead' | 'ecommerce' | 'traffic' | 'other' =
-    isTrafficObjective && !isMessagingLeadCampaign
-      ? 'traffic'
-      : isLeadObjective
-        ? 'lead'
-        : isMessagingLeadCampaign
+    isEcommerceObjective || configuredEcommerce
+      ? 'ecommerce'
+      : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
+        ? 'traffic'
+        : isLeadObjective || _callOptimized || isMessagingLeadCampaign
           ? 'lead'
-          : isEcommerceObjective
+          : hasStrongEcommerceSignal && !(hasLeadSignal && purchases === 0 && purchaseValue === 0)
             ? 'ecommerce'
-            : hasStrongEcommerceSignal && !(hasLeadSignal && purchases === 0 && purchaseValue === 0)
-              ? 'ecommerce'
-              : hasLeadSignal
-                ? 'lead'
-                : addToCart > 0 || ADD_TO_CART_ACTION_TYPE_PRIORITY.some((type) => actionTypeSet.has(type))
-                  ? 'ecommerce'
-                  : 'other';
+            : hasLeadSignal
+              ? 'lead'
+              : addToCart > 0 || ADD_TO_CART_ACTION_TYPE_PRIORITY.some((type) => actionTypeSet.has(type))
+                ? 'ecommerce'
+                : 'other';
 
   const entityLevel: AdsEntityLevel = insight.ad_id
     ? 'ad'
@@ -530,6 +715,7 @@ export function buildInsightRecord(
     post_engagements: postEngagements,
     results,
     result_kind: resultKind,
+    result_label: resultLabel,
     lp_or_form_views: lpOrFormViews,
     cpm: parseFloat(insight.cpm) || 0,
     ctr: parseFloat(insight.ctr) || 0,
@@ -594,6 +780,7 @@ export async function buildAllLevelInsightRecords(
   campaignStatuses: Record<string, CampaignStatus>,
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
+  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
 ): Promise<{ records: InsightRecord[]; levelCounts: Record<AdsEntityLevel, number> }> {
   const levels: AdsEntityLevel[] = ['campaign', 'adset', 'ad'];
   const allRows: InsightRecord[] = [];
@@ -608,6 +795,7 @@ export async function buildAllLevelInsightRecords(
           campaignStatuses,
           resultLeadTypesByCampaign,
           optimizationGoalsByCampaign,
+          resultMetrics,
         ));
       }
       levelCounts[level] = raw.length;

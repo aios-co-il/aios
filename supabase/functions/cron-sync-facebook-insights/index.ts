@@ -4,6 +4,7 @@ import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
   buildResultLeadTypeMap,
+  buildResultMetricMaps,
   type CampaignStatus,
   type InsightRecord,
   FB_INSIGHTS_FIELD_KEYS,
@@ -177,7 +178,7 @@ Deno.serve(async (req) => {
         // the lead counts matching Facebook instead of inflating them.
         const adsets: any[] = [];
         {
-          let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
+          let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
           while (next) {
             const r = await fetch(next);
             const d: any = await r.json();
@@ -190,6 +191,7 @@ Deno.serve(async (req) => {
         for (const c of Object.values(campaignStatuses)) campaignObjectives[c.id] = c.objective;
         const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
         const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
+        const resultMetrics = buildResultMetricMaps(adsets);
 
         // Also fetch ad account status
         const accountUrl = `https://graph.facebook.com/v21.0/${adAccountId}?fields=account_status,disable_reason,name&access_token=${accessToken}`;
@@ -238,6 +240,7 @@ Deno.serve(async (req) => {
             campaignStatuses,
             resultLeadTypes,
             optimizationGoals,
+            resultMetrics,
           );
           console.log(`[cron-sync-facebook-insights] ${table.name}: synced ${insights.length} rows ${syncWindow.startDate}..${syncWindow.endDate}`, levelCounts);
           if (insights.length === 0) return insights;

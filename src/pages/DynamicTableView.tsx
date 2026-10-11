@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
-import { ArrowRight, Plus, Trash2, Send, Pencil, Check, X, MoreVertical, Calendar as CalendarIcon, RefreshCw, Facebook, Settings, Link, BarChart3, Search, TrendingUp, Bell, SearchIcon, Sparkles, Info, Copy, Loader2, AlertCircle, Play, ShoppingCart } from "lucide-react";
+import { ArrowRight, Plus, Trash2, Send, Pencil, Check, X, MoreVertical, Calendar as CalendarIcon, RefreshCw, Facebook, Settings, Link, BarChart3, Search, TrendingUp, Bell, SearchIcon, Sparkles, Info, Copy, Loader2, AlertCircle, Play, ShoppingCart, ExternalLink, User } from "lucide-react";
 import { AIAnalysisDialog } from "@/components/dynamic-tables/AIAnalysisDialog";
 import { format, subDays } from "date-fns";
 import { he } from "date-fns/locale";
@@ -60,7 +60,14 @@ import { MaskyooSiblingCard } from "@/components/dynamic-tables/MaskyooSiblingCa
 import { CURRENCY_OPTIONS, getCurrencySymbol, normalizeCurrencyCode, type CurrencyCode } from "@/lib/currency";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
-import { effectiveFacebookCampaignType, getLeadsFromData } from "@/lib/adsMetrics";
+import { effectiveFacebookCampaignType, getLeadsFromData, isFacebookEcommerceCampaign, preferFacebookCampaignType } from "@/lib/adsMetrics";
+import {
+  addFacebookResult,
+  emptyFacebookResultTotals,
+  facebookCostPerResult,
+  facebookResultsColumnLabel,
+  type FacebookResultTotals,
+} from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
@@ -68,6 +75,7 @@ import { fetchWooReportAttribution, getDynamicTableDateRangeIso } from "@/lib/wo
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import { reportQueryOptions, getReportLastSyncAt } from "@/lib/reportQueryOptions";
+import { getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -279,6 +287,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     || table?.integration_settings?.clientId
     || table?.integration_settings?.client_id
     || null;
+  const adAccountUrl = getAdAccountUrl(table);
 
   const isGoogleAdsEcommerceReport = table?.integration_type === 'google_ads'
     && table?.integration_settings?.campaign_type === 'ecommerce';
@@ -1782,6 +1791,28 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
               <ArrowRight className="ml-2 h-4 w-4" />
               חזור
             </Button>
+            {reportClientId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 flex-1 md:flex-none"
+                onClick={() => navigate(buildPath(`/clients?clientId=${reportClientId}&tab=report`))}
+              >
+                <User className="h-4 w-4" />
+                כרטיס לקוח
+              </Button>
+            )}
+            {adAccountUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 flex-1 md:flex-none"
+                onClick={() => window.open(adAccountUrl, "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                פתח חשבון מודעות
+              </Button>
+            )}
             {!table.client_id && (
               <Button
                 variant="outline"
@@ -2559,13 +2590,16 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 purchases: 0,
                 purchase_value: 0,
                 add_to_cart: 0,
+                conversations: 0,
                 campaign_type: 'other' as 'lead' | 'ecommerce' | 'traffic' | 'other',
+                campaign_objective: null as string | null,
+                result: emptyFacebookResultTotals(),
               };
             }
 
             const rowType = effectiveFacebookCampaignType(record.data || {});
             if (rowType === 'ecommerce' || rowType === 'lead' || rowType === 'traffic') {
-              acc[groupKey].campaign_type = rowType as 'lead' | 'ecommerce' | 'traffic';
+              acc[groupKey].campaign_type = preferFacebookCampaignType(acc[groupKey].campaign_type, rowType);
             }
 
             acc[groupKey].impressions += Number(record.data?.impressions) || 0;
@@ -2576,6 +2610,10 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             acc[groupKey].purchases += Number(record.data?.purchases) || 0;
             acc[groupKey].purchase_value += Number(record.data?.purchase_value) || 0;
             acc[groupKey].add_to_cart += Number(record.data?.add_to_cart) || 0;
+            acc[groupKey].conversations += Number(record.data?.conversations) || 0;
+            acc[groupKey].result = addFacebookResult(acc[groupKey].result, record.data);
+            const objective = String(record.data?.campaign_objective || '').toUpperCase();
+            if (objective && !acc[groupKey].campaign_objective) acc[groupKey].campaign_objective = objective;
 
             return acc;
           }, {} as Record<string, {
@@ -2587,7 +2625,10 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             purchases: number;
             purchase_value: number;
             add_to_cart: number;
+            conversations: number;
             campaign_type: 'lead' | 'ecommerce' | 'traffic' | 'other';
+            campaign_objective: string | null;
+            result: FacebookResultTotals;
           }>);
 
           const entries = Object.entries(campaignGroups);
@@ -2596,26 +2637,9 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
           const tableCampaignType = String(table?.integration_settings?.campaign_type || '').toLowerCase();
           const forceLeadsOnly = tableCampaignType === 'leads' || tableCampaignType === 'lead';
           const trafficCampaigns = entries.filter(([, data]) => data.campaign_type === 'traffic');
-          const ecommerceCampaigns = forceLeadsOnly ? [] : entries.filter(([, data]) =>
-            data.campaign_type !== 'traffic' && (
-              (data.campaign_type === 'ecommerce' ||
-              data.purchases > 0 ||
-              data.purchase_value > 0) &&
-              // If campaign has leads but no purchases/revenue, it's a lead campaign
-              // even if it has add_to_cart events
-              !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)
-            )
-          );
-          // Lead campaigns: exclude traffic + ecommerce
-          const leadCampaigns = (forceLeadsOnly ? entries : entries.filter(([, data]) =>
-            data.campaign_type !== 'traffic' &&
-            !(
-              (data.campaign_type === 'ecommerce' ||
-              data.purchases > 0 ||
-              data.purchase_value > 0) &&
-              !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)
-            )
-          )).filter(([, data]) => data.campaign_type !== 'traffic');
+          const ecommerceCampaigns = forceLeadsOnly ? [] : entries.filter(([, data]) => isFacebookEcommerceCampaign(data));
+          const leadCampaigns = (forceLeadsOnly ? entries : entries.filter(([, data]) => !isFacebookEcommerceCampaign(data)))
+            .filter(([, data]) => data.campaign_type !== 'traffic');
 
           const currency = getCurrencySymbol(table.integration_settings?.currency);
 
@@ -2633,7 +2657,9 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             purchases: acc.purchases + campaign.purchases,
             purchase_value: acc.purchase_value + campaign.purchase_value,
             add_to_cart: acc.add_to_cart + campaign.add_to_cart,
-          }), { impressions: 0, clicks: 0, spend: 0, purchases: 0, purchase_value: 0, add_to_cart: 0 });
+            leads: acc.leads + campaign.leads,
+            conversations: acc.conversations + campaign.conversations,
+          }), { impressions: 0, clicks: 0, spend: 0, purchases: 0, purchase_value: 0, add_to_cart: 0, leads: 0, conversations: 0 });
 
           return (
             <>
@@ -2641,6 +2667,17 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 // Dynamic columns: hide ROAS / purchase_value / add_to_cart when the
                 // account doesn't track them (e.g. sales page without cart, no pixel value).
                 const showValueCols = ecommerceTotals.purchase_value > 0 || ecommerceTotals.add_to_cart > 0;
+                const showLeadCols = ecommerceTotals.leads > 0;
+                const showConversationCols = ecommerceTotals.conversations > 0;
+                // Show the configured Meta result only when some campaign optimizes for
+                // something other than purchases (otherwise it duplicates רכישות).
+                const ecommerceResults = ecommerceCampaigns.map(([, data]) => data.result);
+                const showResultCols = ecommerceResults.some((r) => r.result_kind && r.result_kind !== 'purchases');
+                const resultsColumnLabel = facebookResultsColumnLabel(ecommerceResults);
+                const showResultLabelInCell = resultsColumnLabel === 'תוצאות';
+                const totalResults = ecommerceResults.some((r) => r.result_mixed) || new Set(ecommerceResults.map((r) => r.result_kind).filter(Boolean)).size > 1
+                  ? null
+                  : ecommerceResults.reduce((sum, r) => sum + r.results, 0);
                 return (
                 <Card className="mb-4 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -2651,28 +2688,56 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                           <th className="p-2 text-center font-medium">חשיפות</th>
                           <th className="p-2 text-center font-medium">קליקים</th>
                           <th className="p-2 text-center font-medium">הוצאה</th>
+                          {showResultCols && <th className="p-2 text-center font-medium">{resultsColumnLabel}</th>}
+                          {showResultCols && <th className="p-2 text-center font-medium">עלות לתוצאה</th>}
                           {showValueCols && <th className="p-2 text-center font-medium">הוספות לעגלה</th>}
                           <th className="p-2 text-center font-medium">רכישות</th>
                           {showValueCols && <th className="p-2 text-center font-medium">ערך רכישות</th>}
                           {!showValueCols && <th className="p-2 text-center font-medium">עלות לרכישה</th>}
                           {showValueCols && <th className="p-2 text-center font-medium">ROAS</th>}
+                          {showLeadCols && <th className="p-2 text-center font-medium">לידים</th>}
+                          {showLeadCols && <th className="p-2 text-center font-medium">עלות לליד</th>}
+                          {showConversationCols && <th className="p-2 text-center font-medium">שיחות</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {ecommerceCampaigns.map(([groupKey, data]) => {
                           const roas = data.spend > 0 ? data.purchase_value / data.spend : 0;
                           const costPerPurchase = data.purchases > 0 ? data.spend / data.purchases : 0;
+                          const costPerLead = data.leads > 0 ? data.spend / data.leads : 0;
                           return (
                             <tr key={`ecom-${groupKey}`} className="border-b hover:bg-muted/30">
                               <td className="p-2 text-right font-medium">{data.name}</td>
                               <td className="p-2 text-center">{data.impressions.toLocaleString('he-IL')}</td>
                               <td className="p-2 text-center">{data.clicks.toLocaleString('he-IL')}</td>
                               <td className="p-2 text-center">{currency}{data.spend.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
+                              {showResultCols && (
+                                <td className="p-2 text-center text-green-600 font-medium">
+                                  {data.result.result_kind ? (
+                                    <>
+                                      {data.result.results.toLocaleString('he-IL')}
+                                      {showResultLabelInCell && data.result.result_label && (
+                                        <span className="block text-xs font-normal text-muted-foreground">{data.result.result_label}</span>
+                                      )}
+                                    </>
+                                  ) : '—'}
+                                </td>
+                              )}
+                              {showResultCols && (
+                                <td className="p-2 text-center text-blue-600 font-medium">
+                                  {data.result.results > 0
+                                    ? `${currency}${facebookCostPerResult(data.spend, data.result.results).toLocaleString('he-IL', { maximumFractionDigits: 1 })}`
+                                    : '—'}
+                                </td>
+                              )}
                               {showValueCols && <td className="p-2 text-center text-orange-600">{data.add_to_cart.toLocaleString('he-IL')}</td>}
                               <td className="p-2 text-center text-green-600 font-medium">{data.purchases.toLocaleString('he-IL')}</td>
                               {showValueCols && <td className="p-2 text-center text-green-600">{currency}{data.purchase_value.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>}
                               {!showValueCols && <td className="p-2 text-center text-blue-600 font-medium">{currency}{costPerPurchase.toLocaleString('he-IL', { maximumFractionDigits: 1 })}</td>}
                               {showValueCols && <td className="p-2 text-center text-blue-600 font-medium">{roas.toLocaleString('he-IL', { maximumFractionDigits: 1 })}x</td>}
+                              {showLeadCols && <td className="p-2 text-center text-green-600 font-medium">{data.leads.toLocaleString('he-IL')}</td>}
+                              {showLeadCols && <td className="p-2 text-center text-blue-600 font-medium">{currency}{costPerLead.toLocaleString('he-IL', { maximumFractionDigits: 1 })}</td>}
+                              {showConversationCols && <td className="p-2 text-center">{data.conversations.toLocaleString('he-IL')}</td>}
                             </tr>
                           );
                         })}
@@ -2683,11 +2748,20 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                           <td className="p-2 text-center">{ecommerceTotals.impressions.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center">{ecommerceTotals.clicks.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center">{currency}{ecommerceTotals.spend.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
+                          {showResultCols && <td className="p-2 text-center text-green-600">{totalResults === null ? '—' : totalResults.toLocaleString('he-IL')}</td>}
+                          {showResultCols && (
+                            <td className="p-2 text-center text-blue-600">
+                              {totalResults ? `${currency}${facebookCostPerResult(ecommerceTotals.spend, totalResults).toLocaleString('he-IL', { maximumFractionDigits: 1 })}` : '—'}
+                            </td>
+                          )}
                           {showValueCols && <td className="p-2 text-center text-orange-600">{ecommerceTotals.add_to_cart.toLocaleString('he-IL')}</td>}
                           <td className="p-2 text-center text-green-600">{ecommerceTotals.purchases.toLocaleString('he-IL')}</td>
                           {showValueCols && <td className="p-2 text-center text-green-600">{currency}{ecommerceTotals.purchase_value.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>}
                           {!showValueCols && <td className="p-2 text-center text-blue-600">{currency}{(ecommerceTotals.purchases > 0 ? ecommerceTotals.spend / ecommerceTotals.purchases : 0).toLocaleString('he-IL', { maximumFractionDigits: 1 })}</td>}
                           {showValueCols && <td className="p-2 text-center text-blue-600">{(ecommerceTotals.spend > 0 ? ecommerceTotals.purchase_value / ecommerceTotals.spend : 0).toLocaleString('he-IL', { maximumFractionDigits: 1 })}x</td>}
+                          {showLeadCols && <td className="p-2 text-center text-green-600">{ecommerceTotals.leads.toLocaleString('he-IL')}</td>}
+                          {showLeadCols && <td className="p-2 text-center text-blue-600">{currency}{(ecommerceTotals.leads > 0 ? ecommerceTotals.spend / ecommerceTotals.leads : 0).toLocaleString('he-IL', { maximumFractionDigits: 1 })}</td>}
+                          {showConversationCols && <td className="p-2 text-center">{ecommerceTotals.conversations.toLocaleString('he-IL')}</td>}
                         </tr>
                       </tfoot>
                     </table>
