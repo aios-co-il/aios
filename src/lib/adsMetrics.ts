@@ -117,13 +117,36 @@ export type FacebookCampaignRow = {
   campaign_type?: string;
 };
 
-/** Mirrors DynamicTableView ecommerce campaign detection on aggregated rows. */
+const FACEBOOK_CAMPAIGN_TYPE_RANK: Record<string, number> = {
+  ecommerce: 3,
+  lead: 2,
+  traffic: 1,
+  other: 0,
+};
+
+/** Same campaign can be labeled lead on some days and ecommerce on others. Sales wins. */
+export function preferFacebookCampaignType(
+  current: string | undefined,
+  next: string | undefined,
+): 'lead' | 'ecommerce' | 'traffic' | 'other' {
+  const cur = String(current || 'other').toLowerCase();
+  const nxt = String(next || 'other').toLowerCase();
+  const winner = (FACEBOOK_CAMPAIGN_TYPE_RANK[nxt] ?? 0) > (FACEBOOK_CAMPAIGN_TYPE_RANK[cur] ?? 0) ? nxt : cur;
+  if (winner === 'ecommerce' || winner === 'lead' || winner === 'traffic') return winner;
+  return 'other';
+}
+
+/**
+ * Mirrors DynamicTableView ecommerce campaign detection on aggregated rows.
+ * An explicit sales campaign stays ecommerce when the pixel also fires leads
+ * and purchases are still zero, so the report can show both on one row.
+ */
 export function isFacebookEcommerceCampaign(data: FacebookCampaignRow): boolean {
-  if (String(data.campaign_type || '').toLowerCase() === 'traffic') return false;
+  const rowType = String(data.campaign_type || '').toLowerCase();
+  if (rowType === 'traffic') return false;
+  if (rowType === 'ecommerce') return true;
   return (
-    (String(data.campaign_type || '').toLowerCase() === 'ecommerce' ||
-      data.purchases > 0 ||
-      data.purchase_value > 0) &&
+    (data.purchases > 0 || data.purchase_value > 0) &&
     !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)
   );
 }
@@ -217,7 +240,7 @@ export function aggregateFacebookCampaignsFromRecords(
     map[name].add_to_cart += getAddToCartFromData(d);
     const rowType = effectiveFacebookCampaignType(d);
     if (rowType === 'ecommerce' || rowType === 'lead' || rowType === 'traffic') {
-      map[name].campaign_type = rowType;
+      map[name].campaign_type = preferFacebookCampaignType(map[name].campaign_type, rowType);
     }
   });
 
