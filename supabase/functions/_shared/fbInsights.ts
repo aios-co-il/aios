@@ -115,7 +115,64 @@ export const LEAD_ACTION_TYPES = [
   'messaging_conversation_started_7d',
   'onsite_conversion.messaging_first_reply',
   'messaging_first_reply',
+  // Phone calls — Ads Manager "Calls" / "Per call placed"
+  'click_to_call_native_call_placed',
+  'onsite_conversion.messaging_user_call_placed',
+  'click_to_call_native_20s_call_connect',
+  'click_to_call_native_60s_call_connect',
 ];
+
+/** Ad set goals whose Ads Manager Result is a phone call. */
+export const CALL_OPTIMIZATION_GOALS = ['QUALITY_CALL', 'MEANINGFUL_CALL_ATTEMPT'] as const;
+
+/**
+ * Completed calls, highest priority first. Meta reports one call under several
+ * action_types (placed, 20s, 60s). Take the first that fired — never sum them.
+ * `click_to_call_native_call_placed` is the "Calls placed" / "Per call placed" column.
+ */
+export const CALL_PLACED_ACTION_PRIORITY = [
+  'click_to_call_native_call_placed',
+  'onsite_conversion.messaging_user_call_placed',
+  'click_to_call_native_20s_call_connect',
+  'click_to_call_native_60s_call_connect',
+] as const;
+
+/**
+ * Clicks that start a call, not a connected call. Fallback only when Meta
+ * omits a placed-call count (otherwise confirmation clicks inflate CPL).
+ */
+export const CALL_CLICK_FALLBACK_TYPES = [
+  'onsite_conversion.click_to_call',
+  'call_confirm_grouped',
+  'click_to_call_call_confirm',
+  'click_to_call_callback_request_submitted',
+] as const;
+
+export function isCallOptimizationGoal(goal: string | null | undefined): boolean {
+  return (CALL_OPTIMIZATION_GOALS as readonly string[]).includes(String(goal || '').toUpperCase());
+}
+
+function isKnownCallActionType(type: string): boolean {
+  return (CALL_PLACED_ACTION_PRIORITY as readonly string[]).includes(type)
+    || (CALL_CLICK_FALLBACK_TYPES as readonly string[]).includes(type);
+}
+
+/** First non-zero call result. Placed calls win over confirm-click fallbacks. */
+export function countCallLeads(
+  sumByTypes: (types: string[]) => number,
+  options: { includeClickFallbacks?: boolean } = {},
+): number {
+  for (const type of CALL_PLACED_ACTION_PRIORITY) {
+    const value = sumByTypes([type]);
+    if (value > 0) return value;
+  }
+  if (!options.includeClickFallbacks) return 0;
+  for (const type of CALL_CLICK_FALLBACK_TYPES) {
+    const value = sumByTypes([type]);
+    if (value > 0) return value;
+  }
+  return 0;
+}
 
 // Facebook returns the same conversion under multiple action_types (e.g.
 // 'purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase' all refer
@@ -164,6 +221,12 @@ export function resolveResultLeadTypes(
   const goal = String(optimizationGoal || '').toUpperCase();
   const obj = String(objective || '').toUpperCase();
   const cet = String(po.custom_event_type || '').toUpperCase();
+
+  // Phone calls. Ads Manager's Result for these goals is "Calls" / "Per call
+  // placed", even when the ad set also carries a pixel or page promoted_object.
+  if (isCallOptimizationGoal(goal)) {
+    return ['click_to_call_native_call_placed'];
+  }
 
   // 1) Pixel Custom Conversion rule (optimized for a specific custom conversion).
   if (po.custom_conversion_id) {
@@ -270,6 +333,9 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(_campaignStatusForLeads?.objective || '').toUpperCase();
   const _isLeadFormObjective = ['OUTCOME_LEADS', 'LEAD_GENERATION'].includes(_objectiveForLeads);
   const _isMessagingObjective = ['OUTCOME_ENGAGEMENT', 'MESSAGES'].includes(_objectiveForLeads);
+  const optimizationGoal = optimizationGoalsByCampaign[String(insight.campaign_id || '')] || null;
+  const optimizationUpper = String(optimizationGoal || '').toUpperCase();
+  const _callOptimized = isCallOptimizationGoal(optimizationUpper);
 
   // Use MAX across overlapping form-lead action types instead of SUM.
   // FB reports the same submission under both leadgen_grouped AND
@@ -338,7 +404,7 @@ export function buildInsightRecord(
   // campaign, or a custom event name that doesn't match the reported action type),
   // fall through to the heuristics so pixel/website leads are still captured.
   const _resultTypes = resultLeadTypesByCampaign[String(insight.campaign_id || '')];
-  let leads: number;
+  let leads = 0;
   let _leadsAuthoritative = false;
   if (_resultTypes && _resultTypes.length > 0) {
     const _authLeads = Math.max(0, ..._resultTypes.map((t) => sumByTypes([t])));
@@ -358,9 +424,23 @@ export function buildInsightRecord(
       // Conversions / Sales / Traffic with pixel — website leads.
       leads = _websiteLeads > 0 ? _websiteLeads : _formLeadsValue;
     }
-    // Final fallback: FB's deduplicated aggregate `lead` total.
-    if (leads === 0) leads = _aggregateLeadValue;
   }
+
+  // Phone calls are a lead. On a call-optimized campaign they ARE the Result
+  // (Ads Manager "Calls" / "Per call placed") — a stray form or aggregate `lead`
+  // must not replace them. Elsewhere, add placed calls on top of form/pixel
+  // leads. Confirm-clicks are only a fallback when nothing else counted.
+  const _callActionCounted = _leadsAuthoritative
+    && (_resultTypes || []).some((type) => isKnownCallActionType(type));
+  const _callLeadsValue = countCallLeads(sumByTypes, {
+    includeClickFallbacks: _callOptimized || leads === 0,
+  });
+  if (!_callActionCounted && _callLeadsValue > 0) {
+    if (_callOptimized || leads === 0) leads = _callLeadsValue;
+    else leads += _callLeadsValue;
+  }
+  // Aggregate `lead` does not include calls. Use it only when no lead signal fired.
+  if (!_leadsAuthoritative && leads === 0) leads = _aggregateLeadValue;
 
   const _spendForLog = parseFloat(insight.spend) || 0;
   if (leads === 0 && _spendForLog > 0) {
@@ -435,13 +515,14 @@ export function buildInsightRecord(
     sumByTypes(['page_engagement']),
   );
   const linkClicks = Math.max(sumByTypes(['link_click']), parseInt(insight.inline_link_clicks) || 0);
-  const optimizationGoal = optimizationGoalsByCampaign[String(insight.campaign_id || '')] || null;
-  const optimizationUpper = String(optimizationGoal || '').toUpperCase();
   let results: number | null = null;
   let resultKind: string | null = null;
   if (optimizationUpper.includes('MESSAGE') || isMessagingObjective) {
     results = conversations;
     resultKind = 'conversations';
+  } else if (_callOptimized) {
+    results = leads > 0 ? leads : null;
+    resultKind = 'leads';
   } else if (optimizationUpper.includes('THRUPLAY')) {
     results = videoViews;
     resultKind = 'video_views';
@@ -489,9 +570,9 @@ export function buildInsightRecord(
   // PRIORITY: Campaign objective is the source of truth. Traffic campaigns get
   // their own type so they're not shown as lead campaigns with "0 leads".
   const campaignType: 'lead' | 'ecommerce' | 'traffic' | 'other' =
-    isTrafficObjective && !isMessagingLeadCampaign
+    isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
       ? 'traffic'
-      : isLeadObjective
+      : isLeadObjective || _callOptimized
         ? 'lead'
         : isMessagingLeadCampaign
           ? 'lead'
