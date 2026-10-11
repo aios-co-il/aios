@@ -93,7 +93,8 @@
 
     const figure = document.createElement("img");
     figure.className = "carmen-figure";
-    figure.src = "/carmen/carmen-solid.webp";
+    figure.src = "/carmen/carmen-character.webp";
+    figure.onerror = function () { if (!figure.dataset.fallback) { figure.dataset.fallback = "1"; figure.src = "/carmen/carmen-solid.webp"; } };
     figure.alt = "";
     figure.width = 720;
     figure.height = 1180;
@@ -387,10 +388,62 @@
     return section;
   }
 
+  function storySection() {
+    const section = document.createElement("section");
+    section.className = "carmen-story";
+    section.innerHTML = `
+      <div class="carmen-story-chapter carmen-story-chapter--light">
+        <span class="carmen-story-kicker">01 / THE BIG PICTURE</span>
+        <h2>הקמפיין הוא לא התוכנית.<br><span>הוא חלק ממנה.</span></h2>
+        <p>אני מחברת בין האסטרטגיה, הקמפיינים, הלידים והמכירות — כדי שתראה מה קורה בעסק, ולא רק בכלי אחד.</p>
+        <div class="carmen-story-flow" aria-label="תהליך שיווק מחובר">
+          <span>אסטרטגיה</span><b>←</b><span>קמפיינים</span><b>←</b><span>לידים</span><b>←</b><span>CRM</span><b>←</b><span>דוחות</span>
+        </div>
+      </div>
+      <div class="carmen-story-chapter carmen-story-chapter--dark">
+        <span class="carmen-story-kicker">02 / EVERY LEAD MATTERS</span>
+        <h2>ליד נכנס.<br><span>העבודה רק מתחילה.</span></h2>
+        <p>אני מחברת בין קליטת הליד, התקשורת ב־WhatsApp וניהול המשימות. פחות מעברים בין מסכים, יותר רצף עבודה.</p>
+        <div class="carmen-story-process">
+          <div><small>01</small><strong>ליד חדש</strong><span>נקלט במערכת</span></div>
+          <div><small>02</small><strong>WhatsApp</strong><span>הודעה אוטומטית</span></div>
+          <div><small>03</small><strong>CRM</strong><span>ניהול ומעקב</span></div>
+          <div><small>04</small><strong>משימה</strong><span>המשך טיפול</span></div>
+        </div>
+      </div>
+      <div class="carmen-story-chapter carmen-story-chapter--green">
+        <span class="carmen-story-kicker">03 / CLARITY IS POWER</span>
+        <h2>הנתונים לא צריכים<br>לחכות לסוף החודש.</h2>
+        <p>דוחות ודשבורדים שמרכזים את המידע במקום אחד, כדי להבין מה עובד ומה דורש תשומת לב.</p>
+        <div class="carmen-story-analytics" aria-label="המחשה גרפית של דשבורד — נתונים להמחשה בלבד">
+          <div class="carmen-story-chart-head"><span>MARKETING OVERVIEW</span><span>● LIVE VIEW</span></div>
+          <div class="carmen-story-bars"><i style="--h:32%"></i><i style="--h:46%"></i><i style="--h:39%"></i><i style="--h:68%"></i><i style="--h:57%"></i><i style="--h:83%"></i><i style="--h:74%"></i><i style="--h:95%"></i></div>
+          <div class="carmen-story-chart-foot"><span>CAMPAIGNS</span><span>LEADS</span><span>REPORTS</span></div>
+        </div>
+      </div>
+      <div class="carmen-story-final">
+        <span class="carmen-story-kicker">CARMEN MARKETING OS</span>
+        <h2>אני לא עוד מערכת.<br><span>אני מנהלת את התמונה הגדולה.</span></h2>
+        <p>מקום אחד לשיווק, מכירות וניהול העבודה. עכשיו אפשר להתחיל לדבר על העסק שלך.</p>
+        <a class="carmen-btn" href="/contact/">בוא נדבר על העסק שלך <span aria-hidden="true">↗</span></a>
+      </div>
+    `;
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } });
+      }, {threshold: 0.12});
+      section.querySelectorAll(".carmen-story-chapter, .carmen-story-final").forEach(function(el) {observer.observe(el);});
+    } else {
+      section.querySelectorAll(".carmen-story-chapter, .carmen-story-final").forEach(function(el) {el.classList.add("is-visible");});
+    }
+    return section;
+  }
+
   function homeLayer() {
     const wrap = document.createElement("div");
     wrap.appendChild(hero());
     wrap.appendChild(commandSection());
+    wrap.appendChild(storySection());
     return wrap;
   }
 
