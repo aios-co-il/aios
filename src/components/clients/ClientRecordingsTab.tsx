@@ -24,6 +24,8 @@ import SummarizeRecordingDialog from "@/components/SummarizeRecordingDialog";
 import { SummaryViewerDialog } from "@/components/recordings/SummaryViewerDialog";
 import { TranscriptViewerDialog } from "@/components/recordings/TranscriptViewerDialog";
 import { useTenantPath } from "@/hooks/useTenantPath";
+import { recordingNeedsRecallRefresh } from "@/lib/recordingPlayback";
+import { beginExternalOpen, cancelExternalOpen, finishExternalOpen, resolveExternalRecordingUrl } from "@/lib/refreshRecordingPlayback";
 
 interface ClientRecordingsTabProps {
   clientId: string;
@@ -148,7 +150,17 @@ export function ClientRecordingsTab({ clientId, tenantId }: ClientRecordingsTabP
 
   const handlePlay = async (rec: RecordingRow) => {
     if (!rec.file_path) {
-      if (rec.recording_url) window.open(rec.recording_url, "_blank");
+      const pending = recordingNeedsRecallRefresh(rec) ? beginExternalOpen() : null;
+      try {
+        const url = recordingNeedsRecallRefresh(rec)
+          ? await resolveExternalRecordingUrl(rec)
+          : rec.recording_url;
+        if (!url) throw new Error("אין קובץ זמין להפעלה");
+        finishExternalOpen(url, pending);
+      } catch (error) {
+        cancelExternalOpen(pending);
+        toast.error(error instanceof Error ? error.message : "לא הצלחנו לחדש את קישור ההקלטה");
+      }
       return;
     }
     if (playingId === rec.id) {
@@ -181,11 +193,15 @@ export function ClientRecordingsTab({ clientId, tenantId }: ClientRecordingsTabP
       window.open(data.signedUrl, "_blank");
       return;
     }
-    if (rec.recording_url) {
-      window.open(rec.recording_url, "_blank");
-      return;
+    const pending = beginExternalOpen();
+    try {
+      const url = await resolveExternalRecordingUrl(rec);
+      if (!url) throw new Error("אין קובץ זמין להורדה");
+      finishExternalOpen(url, pending);
+    } catch (error) {
+      cancelExternalOpen(pending);
+      toast.error(error instanceof Error ? error.message : "שגיאה בהורדת ההקלטה");
     }
-    toast.error("אין קובץ זמין להורדה");
   };
 
   const transcriptionBadge = (rec: RecordingRow) => {
