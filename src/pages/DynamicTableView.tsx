@@ -69,7 +69,6 @@ import { reportRecordsQuery } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import { reportQueryOptions, getReportLastSyncAt } from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
-import { reportHasSyncedWebsiteLeads } from "@/lib/websiteLeadsColumn";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -372,6 +371,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     },
     enabled: !!table?.id,
   });
+  const reportFields = fields?.filter((field) => field.key !== 'verified_leads' && field.name !== 'לידים באתר');
 
   const {
     data: records,
@@ -2971,7 +2971,6 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                   all_conversions_value: 0,
                   roas_sum: 0,
                   roas_count: 0,
-                  verified_leads: 0,
                 };
               }
               acc[groupKey].impressions += Number(record.data?.impressions) || 0;
@@ -2981,13 +2980,12 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
               acc[groupKey].conversions_value += Number(record.data?.conversions_value) || Number(record.data?.purchase_value) || 0;
               acc[groupKey].all_conversions += Number(record.data?.all_conversions) || 0;
               acc[groupKey].all_conversions_value += Number(record.data?.all_conversions_value) || 0;
-              acc[groupKey].verified_leads += Number(record.data?.verified_leads) || 0;
               if (record.data?.roas) {
                 acc[groupKey].roas_sum += Number(record.data.roas) || 0;
                 acc[groupKey].roas_count += 1;
               }
               return acc;
-            }, {} as Record<string, { name: string; impressions: number; clicks: number; conversions: number; cost: number; conversions_value: number; all_conversions: number; all_conversions_value: number; roas_sum: number; roas_count: number; verified_leads: number }>);
+            }, {} as Record<string, { name: string; impressions: number; clicks: number; conversions: number; cost: number; conversions_value: number; all_conversions: number; all_conversions_value: number; roas_sum: number; roas_count: number }>);
 
             const totals = Object.values(campaignGroups).reduce((acc, campaign) => ({
               impressions: acc.impressions + campaign.impressions,
@@ -2999,12 +2997,8 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
               all_conversions_value: acc.all_conversions_value + campaign.all_conversions_value,
               roas_sum: acc.roas_sum + campaign.roas_sum,
               roas_count: acc.roas_count + campaign.roas_count,
-              verified_leads: acc.verified_leads + campaign.verified_leads,
-            }), { impressions: 0, clicks: 0, conversions: 0, cost: 0, conversions_value: 0, all_conversions: 0, all_conversions_value: 0, roas_sum: 0, roas_count: 0, verified_leads: 0 });
+            }), { impressions: 0, clicks: 0, conversions: 0, cost: 0, conversions_value: 0, all_conversions: 0, all_conversions_value: 0, roas_sum: 0, roas_count: 0 });
 
-            // Detect if any record has verification data (means a WP site is connected and was checked)
-            const hasVerifiedData = reportHasSyncedWebsiteLeads(filteredRecords);
-            
             const displayConversions = useGoogleWooOverlay ? googleWooPaid.paidOrders : totals.conversions;
             const displayRevenue = useGoogleWooOverlay ? googleWooPaid.paidRevenue : totals.conversions_value;
             const totalRoas = totals.cost > 0 ? displayRevenue / totals.cost : 0;
@@ -3068,9 +3062,6 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                       <th className="p-2 text-center font-medium">
                         {useGoogleWooOverlay ? 'המרות (GA)' : isEcommerce ? 'המרות' : 'לידים'}
                       </th>
-                      {hasVerifiedData && (
-                        <th className="p-2 text-center font-medium" title="לידים בפועל באתר (Elementor) — לפי שיוך טופס/עמוד לקמפיין">לידים באתר</th>
-                      )}
                       <th className="p-2 text-center font-medium">עלות</th>
                       {isEcommerce ? (
                         <>
@@ -3090,31 +3081,12 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                       const roas = data.cost > 0 ? data.conversions_value / data.cost : 0;
                       const gaCurrency = getCurrencySymbol(table.integration_settings?.currency);
                       const convInt = Math.round(data.conversions);
-                      const verified = data.verified_leads;
-                      const diff = verified - convInt;
-                      const hasDiscrepancy = hasVerifiedData && Math.abs(diff) >= 1;
                       return (
                         <tr key={data.name} className="border-b hover:bg-muted/30">
                           <td className="p-2 text-right font-medium">{data.name}</td>
                           <td className="p-2 text-center">{data.impressions.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center">{data.clicks.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center text-green-600 font-medium">{convInt.toLocaleString('he-IL')}</td>
-                          {hasVerifiedData && (
-                            <td className="p-2 text-center">
-                              <span
-                                className="font-medium text-foreground"
-                                title={(() => {
-                                  const sources = filteredRecords
-                                    .filter((r) => getEntityDisplayName(r.data, adsEntityLevel) === data.name && r.data?.verified_source)
-                                    .map((r) => r.data?.verified_source as string);
-                                  const uniqueSources = Array.from(new Set(sources));
-                                  return uniqueSources.length > 0 ? `מקור: ${uniqueSources.join(' | ')}` : '';
-                                })()}
-                              >
-                                {verified.toLocaleString('he-IL')}
-                              </span>
-                            </td>
-                          )}
                           <td className="p-2 text-center">{gaCurrency}{data.cost.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
                           {isEcommerce ? (
                             <>
@@ -3132,19 +3104,12 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                     {(() => {
                       const gaCurrency = getCurrencySymbol(table.integration_settings?.currency);
                       const totalConvInt = Math.round(useGoogleWooOverlay ? displayConversions : totals.conversions);
-                      const totalDiff = totals.verified_leads - totalConvInt;
-                      const totalDiscrepancy = hasVerifiedData && Math.abs(totalDiff) >= 1;
                       return (
                     <tr>
                       <td className="p-2 text-right">סה״כ</td>
                       <td className="p-2 text-center">{totals.impressions.toLocaleString('he-IL')}</td>
                       <td className="p-2 text-center">{totals.clicks.toLocaleString('he-IL')}</td>
                       <td className="p-2 text-center text-green-600">{totalConvInt.toLocaleString('he-IL')}</td>
-                      {hasVerifiedData && (
-                        <td className="p-2 text-center text-foreground">
-                          {totals.verified_leads.toLocaleString('he-IL')}
-                        </td>
-                      )}
                       <td className="p-2 text-center">{gaCurrency}{totals.cost.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
                       {isEcommerce ? (
                         <>
@@ -3246,7 +3211,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                   </Button>
                 </div>
                 )}
-                {fields?.map((field) => (
+                {reportFields?.map((field) => (
                   <div key={field.id} className="w-[150px] flex-shrink-0 border-l p-2">
                     {editingFieldId === field.id ? (
                       <div className="flex items-center gap-1">
@@ -3348,7 +3313,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                     </Button>
                   </div>
                   )}
-                  {fields?.map((field) => {
+                  {reportFields?.map((field) => {
                     const cellKey = `${record.id}-${field.key}`;
                     const isEditing = editingCell?.recordId === record.id && editingCell?.fieldKey === field.key;
                     const rawValue = record.data[field.key];
