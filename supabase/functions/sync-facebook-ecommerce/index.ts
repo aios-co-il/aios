@@ -3,6 +3,7 @@ import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
   buildResultLeadTypeMap,
+  buildResultMetricMaps,
   type CampaignStatus,
   FB_INSIGHTS_FIELD_KEYS,
   FB_INSIGHTS_FIELD_NAMES,
@@ -256,9 +257,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    const adsets: Array<{ campaign_id?: string; optimization_goal?: string; promoted_object?: unknown }> = [];
+    const adsets: Array<{ id?: string; campaign_id?: string; optimization_goal?: string; promoted_object?: unknown }> = [];
     {
-      let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
+      let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
       while (next) {
         const r = await fetch(next);
         const d: any = await r.json();
@@ -271,6 +272,7 @@ Deno.serve(async (req) => {
     for (const c of Object.values(campaignStatuses)) campaignObjectives[c.id] = c.objective;
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
+    const resultMetrics = buildResultMetricMaps(adsets);
 
     const { records: insights, levelCounts } = await buildAllLevelInsightRecords(
       adAccountId,
@@ -280,6 +282,7 @@ Deno.serve(async (req) => {
       campaignStatuses,
       resultLeadTypes,
       optimizationGoals,
+      resultMetrics,
     );
     console.log(`[sync-facebook-ecommerce] synced ${insights.length} rows`, levelCounts);
 

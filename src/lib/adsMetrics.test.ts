@@ -10,6 +10,7 @@ import {
   getMessagingLeadsFromData,
   isFacebookMessagingLeadRecord,
   groupFacebookCampaigns,
+  preferFacebookCampaignType,
   summarizeFacebookCampaignGroup,
   getAddToCartFromData,
   getAdsPurchasesFromData,
@@ -189,6 +190,34 @@ test('classifyFacebookCampaignTotals mirrors per-row rules on aggregates', () =>
     classifyFacebookCampaignTotals({ name: 'לידים', purchases: 0, purchase_value: 0, leads: 18 }),
     'leads',
   );
+});
+
+test('sales campaign with pixel leads and zero purchases stays in the ecommerce table', () => {
+  const grouped = groupFacebookCampaigns([{
+    name: 'SmartAir - Genesis - מכירות',
+    impressions: 1000,
+    clicks: 50,
+    spend: 1975,
+    leads: 100,
+    purchases: 0,
+    purchase_value: 0,
+    add_to_cart: 0,
+    campaign_type: 'ecommerce',
+  }]);
+  assert.equal(grouped.ecommerce.length, 1);
+  assert.equal(grouped.ecommerce[0].leads, 100);
+  assert.equal(grouped.leads.length, 0);
+  assert.equal(
+    classifyFacebookCampaignTotals({ campaign_type: 'ecommerce', leads: 100, purchases: 0, purchase_value: 0 }),
+    'ecommerce',
+  );
+});
+
+test('preferFacebookCampaignType keeps a sales label over a later lead day', () => {
+  assert.equal(preferFacebookCampaignType('ecommerce', 'lead'), 'ecommerce');
+  assert.equal(preferFacebookCampaignType('lead', 'ecommerce'), 'ecommerce');
+  assert.equal(preferFacebookCampaignType('other', 'lead'), 'lead');
+  assert.equal(preferFacebookCampaignType('traffic', 'lead'), 'lead');
 });
 
 test('groupFacebookCampaigns splits Avieli-like mixed account like DynamicTableView', () => {
