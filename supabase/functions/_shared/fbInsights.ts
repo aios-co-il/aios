@@ -411,6 +411,22 @@ export function buildInsightRecord(
   const addToCart = getActionCount(effectiveAddToCartTypes);
   const roas = spend > 0 ? purchaseValue / spend : 0;
 
+  // #region agent log
+  const __purchaseDebug = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    const payload = {
+      hypothesisId,
+      location: 'fbInsights.ts:buildInsightRecord',
+      message,
+      data,
+      timestamp: Date.now(),
+      runId: 'pre-fix',
+    };
+    console.log('[agent-dbg]', JSON.stringify(payload));
+    const hook = (globalThis as { __fbInsightsDebug?: (p: unknown) => void }).__fbInsightsDebug;
+    if (typeof hook === 'function') hook(payload);
+  };
+  // #endregion
+
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || '').toUpperCase();
   const isEcommerceObjective = ['OUTCOME_SALES', 'PRODUCT_CATALOG_SALES', 'SALES'].includes(objective);
@@ -461,6 +477,34 @@ export function buildInsightRecord(
   } else if (isEcommerceObjective || optimizationUpper.includes('PURCHASE') || optimizationUpper.includes('VALUE')) {
     results = purchases > 0 ? purchases : null;
     resultKind = 'purchases';
+    // #region agent log
+    if (purchases === 0 && spend > 0) {
+      const websitePurchaseTypes = [
+        'onsite_web_purchase',
+        'onsite_web_app_purchase',
+        'web_in_store_purchase',
+        'offsite_conversion.fb_pixel_purchase',
+        'omni_purchase',
+        'purchase',
+      ];
+      const present = websitePurchaseTypes
+        .filter((type) => actionTypeSet.has(type))
+        .map((type) => ({ type, count: sumByTypes([type]) }));
+      const customPurchaseLike = allActions
+        .filter((a: any) => /purchase|רכיש/i.test(String(a.action_type || '')))
+        .map((a: any) => ({ type: a.action_type, count: parseInt(a.value) || 0 }));
+      __purchaseDebug(present.length ? 'A' : 'D', 'sales row purchases=0', {
+        campaign_id: insight.campaign_id,
+        date: insight.date_start,
+        optimization: optimizationGoal,
+        chosenPurchaseTypes: effectivePurchaseTypes,
+        presentWebsiteTypes: present,
+        customPurchaseLike,
+        leads,
+        actionTypeCount: actionTypeSet.size,
+      });
+    }
+    // #endregion
   } else if (isLeadObjective || optimizationUpper.includes('LEAD')) {
     results = leads > 0 ? leads : null;
     resultKind = 'leads';
