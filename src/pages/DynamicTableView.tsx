@@ -61,6 +61,13 @@ import { CURRENCY_OPTIONS, getCurrencySymbol, normalizeCurrencyCode, type Curren
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
 import { effectiveFacebookCampaignType, getLeadsFromData, isFacebookEcommerceCampaign, preferFacebookCampaignType } from "@/lib/adsMetrics";
+import {
+  addFacebookResult,
+  emptyFacebookResultTotals,
+  facebookCostPerResult,
+  facebookResultsColumnLabel,
+  type FacebookResultTotals,
+} from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
@@ -2586,6 +2593,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 add_to_cart: 0,
                 conversations: 0,
                 campaign_type: 'other' as 'lead' | 'ecommerce' | 'traffic' | 'other',
+                result: emptyFacebookResultTotals(),
               };
             }
 
@@ -2603,6 +2611,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             acc[groupKey].purchase_value += Number(record.data?.purchase_value) || 0;
             acc[groupKey].add_to_cart += Number(record.data?.add_to_cart) || 0;
             acc[groupKey].conversations += Number(record.data?.conversations) || 0;
+            acc[groupKey].result = addFacebookResult(acc[groupKey].result, record.data);
 
             return acc;
           }, {} as Record<string, {
@@ -2616,6 +2625,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             add_to_cart: number;
             conversations: number;
             campaign_type: 'lead' | 'ecommerce' | 'traffic' | 'other';
+            result: FacebookResultTotals;
           }>);
 
           const entries = Object.entries(campaignGroups);
@@ -2656,6 +2666,15 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 const showValueCols = ecommerceTotals.purchase_value > 0 || ecommerceTotals.add_to_cart > 0;
                 const showLeadCols = ecommerceTotals.leads > 0;
                 const showConversationCols = ecommerceTotals.conversations > 0;
+                // Show the configured Meta result only when some campaign optimizes for
+                // something other than purchases (otherwise it duplicates רכישות).
+                const ecommerceResults = ecommerceCampaigns.map(([, data]) => data.result);
+                const showResultCols = ecommerceResults.some((r) => r.result_kind && r.result_kind !== 'purchases');
+                const resultsColumnLabel = facebookResultsColumnLabel(ecommerceResults);
+                const showResultLabelInCell = resultsColumnLabel === 'תוצאות';
+                const totalResults = ecommerceResults.some((r) => r.result_mixed) || new Set(ecommerceResults.map((r) => r.result_kind).filter(Boolean)).size > 1
+                  ? null
+                  : ecommerceResults.reduce((sum, r) => sum + r.results, 0);
                 return (
                 <Card className="mb-4 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -2666,6 +2685,8 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                           <th className="p-2 text-center font-medium">חשיפות</th>
                           <th className="p-2 text-center font-medium">קליקים</th>
                           <th className="p-2 text-center font-medium">הוצאה</th>
+                          {showResultCols && <th className="p-2 text-center font-medium">{resultsColumnLabel}</th>}
+                          {showResultCols && <th className="p-2 text-center font-medium">עלות לתוצאה</th>}
                           {showValueCols && <th className="p-2 text-center font-medium">הוספות לעגלה</th>}
                           <th className="p-2 text-center font-medium">רכישות</th>
                           {showValueCols && <th className="p-2 text-center font-medium">ערך רכישות</th>}
@@ -2687,6 +2708,25 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                               <td className="p-2 text-center">{data.impressions.toLocaleString('he-IL')}</td>
                               <td className="p-2 text-center">{data.clicks.toLocaleString('he-IL')}</td>
                               <td className="p-2 text-center">{currency}{data.spend.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
+                              {showResultCols && (
+                                <td className="p-2 text-center text-green-600 font-medium">
+                                  {data.result.result_kind ? (
+                                    <>
+                                      {data.result.results.toLocaleString('he-IL')}
+                                      {showResultLabelInCell && data.result.result_label && (
+                                        <span className="block text-xs font-normal text-muted-foreground">{data.result.result_label}</span>
+                                      )}
+                                    </>
+                                  ) : '—'}
+                                </td>
+                              )}
+                              {showResultCols && (
+                                <td className="p-2 text-center text-blue-600 font-medium">
+                                  {data.result.results > 0
+                                    ? `${currency}${facebookCostPerResult(data.spend, data.result.results).toLocaleString('he-IL', { maximumFractionDigits: 1 })}`
+                                    : '—'}
+                                </td>
+                              )}
                               {showValueCols && <td className="p-2 text-center text-orange-600">{data.add_to_cart.toLocaleString('he-IL')}</td>}
                               <td className="p-2 text-center text-green-600 font-medium">{data.purchases.toLocaleString('he-IL')}</td>
                               {showValueCols && <td className="p-2 text-center text-green-600">{currency}{data.purchase_value.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>}
@@ -2705,6 +2745,12 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                           <td className="p-2 text-center">{ecommerceTotals.impressions.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center">{ecommerceTotals.clicks.toLocaleString('he-IL')}</td>
                           <td className="p-2 text-center">{currency}{ecommerceTotals.spend.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>
+                          {showResultCols && <td className="p-2 text-center text-green-600">{totalResults === null ? '—' : totalResults.toLocaleString('he-IL')}</td>}
+                          {showResultCols && (
+                            <td className="p-2 text-center text-blue-600">
+                              {totalResults ? `${currency}${facebookCostPerResult(ecommerceTotals.spend, totalResults).toLocaleString('he-IL', { maximumFractionDigits: 1 })}` : '—'}
+                            </td>
+                          )}
                           {showValueCols && <td className="p-2 text-center text-orange-600">{ecommerceTotals.add_to_cart.toLocaleString('he-IL')}</td>}
                           <td className="p-2 text-center text-green-600">{ecommerceTotals.purchases.toLocaleString('he-IL')}</td>
                           {showValueCols && <td className="p-2 text-center text-green-600">{currency}{ecommerceTotals.purchase_value.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</td>}
