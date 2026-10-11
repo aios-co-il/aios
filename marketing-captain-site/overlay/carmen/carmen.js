@@ -96,8 +96,8 @@
     figure.src = "/carmen/carmen-character.webp";
     figure.onerror = function () { if (!figure.dataset.fallback) { figure.dataset.fallback = "1"; figure.src = "/carmen/carmen-solid.webp"; } };
     figure.alt = "";
-    figure.width = 720;
-    figure.height = 1180;
+    figure.width = 1024;
+    figure.height = 1536;
     figure.decoding = "async";
 
     const nodes = pieces.map(function (src) {
@@ -362,18 +362,18 @@
           <div class="carmen-command-tabs" role="group" aria-label="בחירת מודול">
             <button class="is-active" data-command="crm">CRM</button><button data-command="whatsapp">WhatsApp</button><button data-command="reports">דוחות</button><button data-command="tasks">משימות</button><button data-command="finance">כספים</button><button data-command="signature">חתימות</button>
           </div>
-          <div class="carmen-command-note">ליד חדש? אני כבר על זה. הודעות WhatsApp אוטומטיות מחברות בין הליד לתהליך העבודה.</div>
+          <div class="carmen-command-note" id="carmen-command-note">הלקוחות, הלידים והסטטוסים נשארים במקום אחד.</div>
         </div>
       </div>
       <div class="carmen-command-bottom"><h2>אתה מחליט כמה אני עושה לבד.</h2><p>עבודה ידנית, תהליכים עם אישורים ואוטומציות קיימות. אוטונומיה מלאה מקצה לקצה היא חלק מהחזון.</p><a class="carmen-btn" href="/contact/">בוא נדבר על העסק שלך</a></div>
     `;
     const details = {
-      crm: ["אני מכירה את הלקוחות שלך.", "CRM וניהול לקוחות ולידים — במקום אחד, עם היסטוריה וסטטוסים."],
-      whatsapp: ["ליד חדש? אני כבר על זה.", "שליחת WhatsApp אוטומטית לליד נכנס ותהליכי תקשורת מחוברים."],
-      reports: ["אני הופכת נתונים לתמונה ברורה.", "דוחות, דשבורדים ובקרה על הפעילות השיווקית."],
-      tasks: ["אני שומרת על התוכנית בתנועה.", "ניהול משימות, אחריות ומעקב אחרי הביצוע."],
-      finance: ["אני רואה גם את המספרים.", "ניהול הכנסות והוצאות כחלק מתמונת העסק."],
-      signature: ["גם האישורים נשארים מחוברים.", "מודול חתימה דיגיטלית למסמכים ותהליכי אישור."]
+      crm: ["אני מכירה את הלקוחות שלך.", "CRM וניהול לקוחות ולידים — במקום אחד, עם היסטוריה וסטטוסים.", "הלקוחות, הלידים והסטטוסים נשארים במקום אחד."],
+      whatsapp: ["ליד חדש? אני כבר על זה.", "שליחת WhatsApp אוטומטית לליד נכנס ותהליכי תקשורת מחוברים.", "הודעה יוצאת ברגע שהליד נכנס, והשיחה נשארת מחוברת לתהליך."],
+      reports: ["אני הופכת נתונים לתמונה ברורה.", "דוחות, דשבורדים ובקרה על הפעילות השיווקית.", "הדשבורד מתעדכן עם הפעילות, בלי לחכות לדוח חודשי."],
+      tasks: ["אני שומרת על התוכנית בתנועה.", "ניהול משימות, אחריות ומעקב אחרי הביצוע.", "כל משימה יודעת למי היא שייכת ומה הצעד הבא."],
+      finance: ["אני רואה גם את המספרים.", "ניהול הכנסות והוצאות כחלק מתמונת העסק.", "ההכנסות וההוצאות יושבות ליד שאר תמונת העסק."],
+      signature: ["גם האישורים נשארים מחוברים.", "מודול חתימה דיגיטלית למסמכים ותהליכי אישור.", "מסמכים ואישורים נסגרים באותו רצף עבודה."]
     };
     section.querySelectorAll("[data-command]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -383,6 +383,7 @@
         });
         section.querySelector("#carmen-command-title").textContent = details[key][0];
         section.querySelector("#carmen-command-desc").textContent = details[key][1];
+        section.querySelector("#carmen-command-note").textContent = details[key][2];
       });
     });
     return section;
@@ -439,11 +440,33 @@
     return section;
   }
 
+  function siteFooter() {
+    const footer = document.createElement("footer");
+    footer.className = "carmen-foot";
+    footer.innerHTML =
+      '<div class="carmen-foot-brand">' +
+      '<p class="carmen-foot-mark">carmen marketing <span>os</span></p>' +
+      "<p>מערכת הפעלה לשיווק, למכירות ולניהול העבודה.</p>" +
+      "</div>" +
+      '<nav class="carmen-foot-nav" aria-label="ניווט תחתון">' +
+      '<a href="/packages/">חבילות</a>' +
+      '<a href="/about/">אודות</a>' +
+      '<a href="/blog/">בלוג</a>' +
+      '<a href="/contact/">צור קשר</a>' +
+      "</nav>" +
+      '<div class="carmen-foot-meta">' +
+      '<a href="https://api.whatsapp.com/send?phone=972507677610&text=%D7%94%D7%99%D7%99,%20" target="_blank" rel="noopener">WhatsApp</a>' +
+      "<span>© carmen marketing os</span>" +
+      "</div>";
+    return footer;
+  }
+
   function homeLayer() {
     const wrap = document.createElement("div");
     wrap.appendChild(hero());
     wrap.appendChild(commandSection());
     wrap.appendChild(storySection());
+    wrap.appendChild(siteFooter());
     return wrap;
   }
 
