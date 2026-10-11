@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "fps": 30,
+  "width": 540,
+  "height": 960,
+  "totalFrames": 90,
+  "scenes": [
+    {
+      "id": "sink",
+      "order": 0,
+      "startFrame": 0,
+      "frameCount": 45,
+      "title": "האתר שוקע",
+      "overlayText": "העסק שלך טובע בים הדיגיטלי?"
+    },
+    {
+      "id": "rescue",
+      "order": 1,
+      "startFrame": 45,
+      "frameCount": 45,
+      "title": "כרמן מגיעה",
+      "overlayText": "Carmen Marketing OS"
+    }
+  ]
+}
