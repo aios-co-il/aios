@@ -99,6 +99,42 @@ test('ad set rows use their own configured metric', () => {
   assert.equal(row.results, 2)
 })
 
+test('checkout campaign stays ecommerce when the objective lookup is missing', () => {
+  const row = buildInsightRecord(
+    {
+      date_start: '2026-10-07',
+      campaign_id: '120245057091170127',
+      campaign_name: 'SmartAir - Genesis - מכירות',
+      spend: '629',
+      actions: [
+        { action_type: 'omni_initiated_checkout', value: '3' },
+        { action_type: 'offsite_conversion.fb_pixel_lead', value: '34' },
+      ],
+    },
+    {},
+    {},
+    { '120245057091170127': 'OFFSITE_CONVERSIONS' },
+    buildResultMetricMaps(smartAirAdsets),
+  )
+  assert.equal(row.campaign_type, 'ecommerce')
+  assert.equal(row.result_kind, 'initiate_checkout')
+  assert.equal(row.results, 3)
+  assert.equal(row.leads, 34)
+  assert.equal(row.purchases, 0)
+})
+
+test('a conversation action does not pull an OUTCOME_SALES campaign into leads', () => {
+  const row = smartAirRow('120245057091170127', [
+    { action_type: 'omni_initiated_checkout', value: '3' },
+    { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '2' },
+    { action_type: 'offsite_conversion.fb_pixel_lead', value: '34' },
+  ])
+  assert.equal(row.campaign_type, 'ecommerce')
+  assert.equal(row.result_kind, 'initiate_checkout')
+  assert.equal(row.conversations, 2)
+  assert.equal(row.leads, 34)
+})
+
 test('lead and custom-event ad sets keep the existing lead result path', () => {
   assert.equal(resolveCampaignResultMetric({ custom_event_type: 'LEAD' }), null)
   assert.equal(resolveCampaignResultMetric({ custom_event_type: 'OTHER', custom_event_str: 'NewLead' }), null)

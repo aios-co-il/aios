@@ -2592,6 +2592,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 add_to_cart: 0,
                 conversations: 0,
                 campaign_type: 'other' as 'lead' | 'ecommerce' | 'traffic' | 'other',
+                campaign_objective: null as string | null,
                 result: emptyFacebookResultTotals(),
               };
             }
@@ -2611,6 +2612,8 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             acc[groupKey].add_to_cart += Number(record.data?.add_to_cart) || 0;
             acc[groupKey].conversations += Number(record.data?.conversations) || 0;
             acc[groupKey].result = addFacebookResult(acc[groupKey].result, record.data);
+            const objective = String(record.data?.campaign_objective || '').toUpperCase();
+            if (objective && !acc[groupKey].campaign_objective) acc[groupKey].campaign_objective = objective;
 
             return acc;
           }, {} as Record<string, {
@@ -2624,6 +2627,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             add_to_cart: number;
             conversations: number;
             campaign_type: 'lead' | 'ecommerce' | 'traffic' | 'other';
+            campaign_objective: string | null;
             result: FacebookResultTotals;
           }>);
 
