@@ -68,15 +68,15 @@
     const title = document.createElement("h1");
     title.className = "carmen-title";
     title.id = "carmen-hero-title";
-    title.textContent = "מנהלת השיווק של העסק שלך";
+    title.textContent = "היי, אני כרמן. מנהלת השיווק והמכירות שלך.";
     const sub = document.createElement("p");
     sub.className = "carmen-sub";
-    sub.textContent = "מערכת הפעלה לסוכנויות שיווק מבוססת בינה מלאכותית";
+    sub.textContent = "העסק שלך לא צריך עוד קמפיין. הוא צריך מישהי שתחבר את הקמפיינים, הלידים, הלקוחות והמספרים לתמונה אחת.";
     const actions = document.createElement("div");
     actions.className = "carmen-actions";
     actions.innerHTML =
-      '<a class="carmen-btn" href="/contact/">צור קשר</a>' +
-      '<a class="carmen-btn carmen-btn--ghost" href="/packages/">החבילות שלנו</a>';
+      '<a class="carmen-btn" href="/contact/">בואו נכיר</a>' +
+      '<a class="carmen-btn carmen-btn--ghost" href="#carmen-command">גלו מה אני עושה</a>';
     copy.appendChild(logo);
     copy.appendChild(title);
     copy.appendChild(sub);
@@ -331,10 +331,66 @@
     return root;
   }
 
+  function commandSection() {
+    const section = document.createElement("section");
+    section.id = "carmen-command";
+    section.className = "carmen-command";
+    section.innerHTML = `
+      <div class="carmen-command-head">
+        <span class="carmen-eyebrow">CARMEN / ONE CONNECTED SYSTEM</span>
+        <h2>אני לא עוד כלי בארגז.<br><em>אני מחברת את כל הכלים.</em></h2>
+        <p>CRM, לידים, WhatsApp, דיוור, משימות, דוחות, כספים וחתימות. כל מה שקורה בעסק — בתמונה אחת.</p>
+      </div>
+      <div class="carmen-command-grid">
+        <div class="carmen-command-scene" aria-label="מפת המודולים של כרמן">
+          <div class="carmen-command-halo"></div>
+          <div class="carmen-command-core"><div class="carmen-command-cube"><span>C</span><small>MARKETING OS</small></div></div>
+          <span class="carmen-command-beam beam-a"></span><span class="carmen-command-beam beam-b"></span><span class="carmen-command-beam beam-c"></span>
+          <span class="carmen-command-beam beam-d"></span><span class="carmen-command-beam beam-e"></span><span class="carmen-command-beam beam-f"></span>
+          <button class="carmen-command-node node-a is-active" data-command="crm">CRM</button>
+          <button class="carmen-command-node node-b" data-command="whatsapp">WhatsApp</button>
+          <button class="carmen-command-node node-c" data-command="reports">דוחות</button>
+          <button class="carmen-command-node node-d" data-command="tasks">משימות</button>
+          <button class="carmen-command-node node-e" data-command="finance">כספים</button>
+          <button class="carmen-command-node node-f" data-command="signature">חתימות</button>
+        </div>
+        <div class="carmen-command-info" aria-live="polite">
+          <span class="carmen-eyebrow">INSIDE CARMEN</span>
+          <h3 id="carmen-command-title">אני מכירה את הלקוחות שלך.</h3>
+          <p id="carmen-command-desc">CRM וניהול לקוחות ולידים — במקום אחד, עם היסטוריה וסטטוסים.</p>
+          <div class="carmen-command-tabs" role="group" aria-label="בחירת מודול">
+            <button class="is-active" data-command="crm">CRM</button><button data-command="whatsapp">WhatsApp</button><button data-command="reports">דוחות</button><button data-command="tasks">משימות</button><button data-command="finance">כספים</button><button data-command="signature">חתימות</button>
+          </div>
+          <div class="carmen-command-note">ליד חדש? אני כבר על זה. הודעות WhatsApp אוטומטיות מחברות בין הליד לתהליך העבודה.</div>
+        </div>
+      </div>
+      <div class="carmen-command-bottom"><h2>אתה מחליט כמה אני עושה לבד.</h2><p>עבודה ידנית, תהליכים עם אישורים ואוטומציות קיימות. אוטונומיה מלאה מקצה לקצה היא חלק מהחזון.</p><a class="carmen-btn" href="/contact/">בוא נדבר על העסק שלך</a></div>
+    `;
+    const details = {
+      crm: ["אני מכירה את הלקוחות שלך.", "CRM וניהול לקוחות ולידים — במקום אחד, עם היסטוריה וסטטוסים."],
+      whatsapp: ["ליד חדש? אני כבר על זה.", "שליחת WhatsApp אוטומטית לליד נכנס ותהליכי תקשורת מחוברים."],
+      reports: ["אני הופכת נתונים לתמונה ברורה.", "דוחות, דשבורדים ובקרה על הפעילות השיווקית."],
+      tasks: ["אני שומרת על התוכנית בתנועה.", "ניהול משימות, אחריות ומעקב אחרי הביצוע."],
+      finance: ["אני רואה גם את המספרים.", "ניהול הכנסות והוצאות כחלק מתמונת העסק."],
+      signature: ["גם האישורים נשארים מחוברים.", "מודול חתימה דיגיטלית למסמכים ותהליכי אישור."]
+    };
+    section.querySelectorAll("[data-command]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.dataset.command;
+        section.querySelectorAll("[data-command]").forEach(function (el) {
+          el.classList.toggle("is-active", el.dataset.command === key);
+        });
+        section.querySelector("#carmen-command-title").textContent = details[key][0];
+        section.querySelector("#carmen-command-desc").textContent = details[key][1];
+      });
+    });
+    return section;
+  }
+
   function homeLayer() {
     const wrap = document.createElement("div");
     wrap.appendChild(hero());
-    wrap.appendChild(systemSection());
+    wrap.appendChild(commandSection());
     return wrap;
   }
 
