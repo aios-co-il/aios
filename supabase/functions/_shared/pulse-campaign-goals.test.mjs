@@ -598,3 +598,15 @@ test('Google Ads verified_leads=0 must not mask metrics.conversions in pulse', (
   assert.equal(row.outcomes_7d, 9)
   assert.equal(row.spend_7d, 59)
 })
+
+test('one campaign keeps one goal across days instead of splitting into categories', () => {
+  const tables = [{ id: 'g', client_id: 'c1', integration_type: 'google_ads', integration_settings: {} }]
+  const records = [
+    ...['2026-09-11', '2026-09-12', '2026-09-13'].map((date) => ({ table_id: 'g', data: { date, campaign_id: 'pmax', campaign_name: 'PMax', campaign_type: 'ecommerce', spend: 50, clicks: 40, purchases: 1, purchase_value: 300 } })),
+    ...['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17'].map((date) => ({ table_id: 'g', data: { date, campaign_id: 'pmax', campaign_name: 'PMax', spend: 10, clicks: 30 } })),
+  ]
+  const rows = buildPulseCampaignRows({ records, tables, nowYmd: '2026-09-18' })
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].goal, 'ecommerce')
+  assert.equal(rows[0].spend_7d, 190)
+})
