@@ -28,6 +28,9 @@ jobs:
         run: npx remotion compositions src/index.ts --log=error
       - name: Render low-resolution smoke test
         run: npx remotion render src/index.ts CarmenVideo /tmp/carmen-smoke.mp4 --scale=0.25 --frames=0-89 --codec=h264 --concurrency=2 --log=error
+      - name: Install ffprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+        working-directory: .
       - name: Verify MP4 has video frames
         run: |
           test -s /tmp/carmen-smoke.mp4
