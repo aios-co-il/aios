@@ -49,6 +49,8 @@ interface LeadsChatViewProps {
   searchQuery: string;
   onSearchQueryChange?: (value: string) => void;
   initialLeadId?: string;
+  /** `dialog` shows only the lead record, for the CRM table popup. */
+  presentation?: "split" | "dialog";
   onLoadMore?: () => void;
   hasMore?: boolean;
   remainingCount?: number;
@@ -74,6 +76,7 @@ export function LeadsChatView({
   searchQuery,
   onSearchQueryChange,
   initialLeadId,
+  presentation = "split",
   onLoadMore,
   hasMore = false,
   remainingCount = 0,
@@ -95,12 +98,19 @@ export function LeadsChatView({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
-  // Auto-select first lead on desktop only
+  const isDialog = presentation === "dialog";
+
   useEffect(() => {
+    if (initialLeadId) setSelectedLeadId(initialLeadId);
+  }, [initialLeadId]);
+
+  // Auto-select first lead on desktop only. The table popup stays on the opened lead.
+  useEffect(() => {
+    if (isDialog) return;
     if (!isMobile && !selectedLeadId && leads.length > 0) {
       setSelectedLeadId(leads[0].id);
     }
-  }, [isMobile, leads, selectedLeadId]);
+  }, [isDialog, isMobile, leads, selectedLeadId]);
 
   const filteredListLeads = useMemo(() => {
     if (!searchQuery.trim()) return leads;
@@ -227,9 +237,9 @@ export function LeadsChatView({
   const getLeadStatusInfo = (statusKey: string) => findLeadStatus(statusKey, leadStatuses);
 
   return (
-    <div className={cn("flex h-full min-h-0 max-h-full overflow-hidden bg-background w-full max-w-full", isMobile ? "border-0 rounded-none" : "border rounded-lg")} dir="rtl">
+    <div className={cn("flex h-full min-h-0 max-h-full overflow-hidden bg-background w-full max-w-full", isDialog || isMobile ? "border-0 rounded-none" : "border rounded-lg")} dir="rtl">
       {/* Lead list */}
-      {(!isMobile || !selectedLeadId) && (
+      {!isDialog && (!isMobile || !selectedLeadId) && (
       <div className={cn("border-s flex flex-col bg-muted/20 overflow-hidden min-h-0", isMobile ? "w-full flex-1" : "w-[25%] min-w-[240px] max-w-[25%]")} dir="rtl">
         {/* List header with search */}
         <div className={cn("border-b bg-background/80 backdrop-blur-sm shrink-0", isMobile ? "p-2" : "p-3")}>
@@ -450,14 +460,14 @@ export function LeadsChatView({
       </div>
       )}
       {/* Lead detail panel */}
-      {(!isMobile || selectedLeadId) && (
+      {(isDialog || !isMobile || selectedLeadId) && (
       <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
         {selectedLead ? (
           <>
             {/* Toolbar */}
-            <div className={cn("flex items-center gap-2 border-b bg-background/95 backdrop-blur-sm shrink-0 flex-wrap", isMobile ? "p-2" : "p-3")}>
+            <div className={cn("flex items-center gap-2 border-b bg-background/95 backdrop-blur-sm shrink-0 flex-wrap", isMobile ? "p-2" : "p-3", isDialog && "pl-12")}>
               {/* Back button on mobile */}
-              {isMobile && (
+              {isMobile && !isDialog && (
                 <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSelectedLeadId(null)}>
                   <ArrowRight className="h-5 w-5" />
                 </Button>

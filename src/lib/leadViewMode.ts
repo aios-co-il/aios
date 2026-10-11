@@ -14,6 +14,13 @@ export function parseLeadViewMode(value: string | null | undefined): LeadViewMod
   return value === "kanban" || value === "table" || value === "chat" ? value : null;
 }
 
+/** Table keeps the CRM screen and opens the chat record as a popup. */
+export type LeadOpenSurface = "popup" | "chat";
+
+export function leadOpenSurface(viewMode: LeadViewMode): LeadOpenSurface {
+  return viewMode === "table" ? "popup" : "chat";
+}
+
 function getStorage(): Pick<Storage, "getItem" | "setItem"> | null {
   try {
     const storage = (globalThis as { localStorage?: Storage }).localStorage;
