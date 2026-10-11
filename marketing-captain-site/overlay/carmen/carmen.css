@@ -716,3 +716,37 @@ header.elementor-location-header .elementor-element-b95edfe .elementor-icon {
     will-change: auto;
   }
 }
+
+/* Carmen Command Center — Preview homepage experience */
+#carmen-layer .carmen-hero { position:relative; isolation:isolate; background:radial-gradient(ellipse at 75% 42%,#143d38 0%,#0a1526 55%); }
+#carmen-layer .carmen-hero::before {content:"";position:absolute;inset:0;pointer-events:none;opacity:.16;background-image:linear-gradient(#08f46733 1px,transparent 1px),linear-gradient(90deg,#08f46733 1px,transparent 1px);background-size:70px 70px;mask-image:linear-gradient(to bottom,#000,transparent 80%)}
+#carmen-layer .carmen-title {font-size:clamp(2.3rem,4.6vw,5rem);line-height:1.12;max-width:14ch;}
+#carmen-layer .carmen-command {background:#0a1526;color:#fff;direction:rtl;padding:110px max(5vw,20px) 90px;overflow:hidden;position:relative}
+#carmen-layer .carmen-command-head {max-width:1000px;margin:0 auto 60px;text-align:center}
+#carmen-layer .carmen-eyebrow {font:500 12px Outfit,sans-serif;letter-spacing:.19em;color:#08f467}
+#carmen-layer .carmen-command h2 {font-size:clamp(2.3rem,5vw,5.2rem);line-height:1.12;margin:20px 0;font-weight:800;color:white}
+#carmen-layer .carmen-command h2 em {font-style:normal;color:#08f467}
+#carmen-layer .carmen-command p {color:#c9d9d4;font-size:clamp(1rem,1.5vw,1.25rem);line-height:1.7}
+#carmen-layer .carmen-command-grid {max-width:1240px;margin:auto;display:grid;grid-template-columns:1.2fr .8fr;gap:45px;align-items:center}
+#carmen-layer .carmen-command-scene {height:530px;position:relative;perspective:900px;isolation:isolate}
+#carmen-layer .carmen-command-halo {position:absolute;inset:5%;border-radius:50%;background:radial-gradient(circle,#08f46728,transparent 67%);filter:blur(20px);animation:carmenBreathe 6s ease-in-out infinite alternate}
+#carmen-layer .carmen-command-core {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:190px;height:190px;display:grid;place-items:center;z-index:2}
+#carmen-layer .carmen-command-cube {width:155px;height:155px;background:linear-gradient(135deg,#23745c88,#10242fe0 65%);border:1px solid #08f467a8;box-shadow:0 0 90px #08f46736,inset 0 0 50px #08f4671d;transform:rotate(-9deg) rotateY(-14deg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;border-radius:25px;backdrop-filter:blur(15px)}
+#carmen-layer .carmen-command-cube span {font:500 88px Outfit,sans-serif;color:#08f467;line-height:1}
+#carmen-layer .carmen-command-cube small {font:500 9px Outfit,sans-serif;letter-spacing:.14em;color:#e3fae0}
+#carmen-layer .carmen-command-node {position:absolute;z-index:3;border:1px solid #476d65;background:#142c37d9;box-shadow:0 12px 35px #0006;color:#e3fae0;padding:14px 19px;border-radius:15px;cursor:pointer;font:700 15px Assistant,sans-serif;transition:transform .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(12px)}
+#carmen-layer .carmen-command-node:hover,#carmen-layer .carmen-command-node.is-active {border-color:#08f467;box-shadow:0 0 25px #08f46735;transform:translateY(-5px);color:#08f467}
+#carmen-layer .node-a {top:14%;left:8%}#carmen-layer .node-b {top:10%;right:10%}#carmen-layer .node-c {top:46%;left:0}#carmen-layer .node-d {top:49%;right:0}#carmen-layer .node-e {bottom:8%;left:15%}#carmen-layer .node-f {bottom:8%;right:12%}
+#carmen-layer .carmen-command-beam {position:absolute;top:50%;left:50%;width:36%;height:1px;background:linear-gradient(90deg,#08f467,#08f46708);transform-origin:left center;opacity:.6}
+#carmen-layer .beam-a {transform:rotate(205deg)}#carmen-layer .beam-b {transform:rotate(330deg)}#carmen-layer .beam-c {transform:rotate(180deg)}#carmen-layer .beam-d {transform:rotate(0deg)}#carmen-layer .beam-e {transform:rotate(145deg)}#carmen-layer .beam-f {transform:rotate(35deg)}
+#carmen-layer .carmen-command-info {padding:35px;background:linear-gradient(145deg,#18383d99,#0d1d2f);border:1px solid #42675e;border-radius:26px;box-shadow:0 30px 100px #0006}
+#carmen-layer .carmen-command-info h3 {font-size:clamp(1.7rem,3vw,3rem);color:#fff;line-height:1.2;margin:20px 0}
+#carmen-layer .carmen-command-tabs {display:flex;flex-wrap:wrap;gap:9px;margin-top:25px}
+#carmen-layer .carmen-command-tabs button {border:1px solid #40645c;border-radius:100px;background:transparent;color:#e3fae0;padding:9px 15px;cursor:pointer;font:600 14px Assistant,sans-serif}
+#carmen-layer .carmen-command-tabs button.is-active {background:#08f467;color:#0a1526;border-color:#08f467}
+#carmen-layer .carmen-command-note {margin-top:30px;border-top:1px solid #41645b;padding-top:18px;color:#91c7b4;font-size:14px}
+#carmen-layer .carmen-command-bottom {text-align:center;max-width:800px;margin:120px auto 0}
+#carmen-layer .carmen-command-bottom .carmen-btn {display:inline-flex;margin-top:20px}
+@keyframes carmenBreathe {to {transform:scale(1.14);opacity:.65}}
+@media(max-width:800px){#carmen-layer .carmen-command{padding:70px 18px}#carmen-layer .carmen-command-grid{grid-template-columns:1fr;gap:15px}#carmen-layer .carmen-command-scene{height:380px}#carmen-layer .carmen-command-core{transform:translate(-50%,-50%) scale(.75)}#carmen-layer .carmen-command-node{padding:9px 11px;font-size:12px}#carmen-layer .carmen-command-info{padding:24px}#carmen-layer .carmen-command-bottom{margin-top:70px}}
+@media(prefers-reduced-motion:reduce){#carmen-layer .carmen-command-halo{animation:none}#carmen-layer .carmen-command-node{transition:none}}
