@@ -10,6 +10,7 @@ import {
   getMessagingLeadsFromData,
   isFacebookMessagingLeadRecord,
   groupFacebookCampaigns,
+  isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
   summarizeFacebookCampaignGroup,
   getAddToCartFromData,
@@ -211,6 +212,39 @@ test('sales campaign with pixel leads and zero purchases stays in the ecommerce 
     classifyFacebookCampaignTotals({ campaign_type: 'ecommerce', leads: 100, purchases: 0, purchase_value: 0 }),
     'ecommerce',
   );
+});
+
+test('checkout result stays on the ecommerce table beside its leads', () => {
+  const row = {
+    name: 'SmartAir - Genesis - מכירות',
+    impressions: 32925,
+    clicks: 323,
+    spend: 629,
+    leads: 34,
+    purchases: 0,
+    purchase_value: 0,
+    add_to_cart: 0,
+    campaign_type: 'lead',
+    result_kind: 'initiate_checkout',
+  };
+  assert.equal(isFacebookEcommerceCampaign(row), true);
+  const grouped = groupFacebookCampaigns([
+    row,
+    {
+      name: 'SmartAir - Genesis - שווקי חג המולד',
+      impressions: 49539,
+      clicks: 1749,
+      spend: 716,
+      leads: 55,
+      purchases: 0,
+      purchase_value: 0,
+      add_to_cart: 0,
+      campaign_type: 'lead',
+      result_kind: 'purchases',
+    },
+  ]);
+  assert.deepEqual(grouped.ecommerce.map((c) => c.leads), [34, 55]);
+  assert.equal(grouped.leads.length, 0);
 });
 
 test('preferFacebookCampaignType keeps a sales label over a later lead day', () => {

@@ -670,24 +670,25 @@ export function buildInsightRecord(
     optimizationUpper.includes('CONVERSATION') ||
     /whatsapp|ווטסאפ|וואטסאפ|מסנג|messenger|click.?to.?message/i.test(campaignName);
 
-  // PRIORITY: Campaign objective is the source of truth. Traffic campaigns get
-  // their own type so they're not shown as lead campaigns with "0 leads".
+  // A configured ecommerce event (Purchase, Initiate Checkout, …) or a sales
+  // objective is the campaign type. Pixel leads or a stray conversation must
+  // not push it into the leads table — those columns are shown alongside it.
+  const configuredEcommerce = !!configuredMetric && configuredMetric.kind in RESULT_KIND_LABELS
+    && !['leads', 'conversations', 'video_views', 'engagements', 'link_clicks', 'landing_page_views'].includes(configuredMetric.kind);
   const campaignType: 'lead' | 'ecommerce' | 'traffic' | 'other' =
-    isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
-      ? 'traffic'
-      : isLeadObjective || _callOptimized
-        ? 'lead'
-        : isMessagingLeadCampaign
+    isEcommerceObjective || configuredEcommerce
+      ? 'ecommerce'
+      : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
+        ? 'traffic'
+        : isLeadObjective || _callOptimized || isMessagingLeadCampaign
           ? 'lead'
-          : isEcommerceObjective
+          : hasStrongEcommerceSignal && !(hasLeadSignal && purchases === 0 && purchaseValue === 0)
             ? 'ecommerce'
-            : hasStrongEcommerceSignal && !(hasLeadSignal && purchases === 0 && purchaseValue === 0)
-              ? 'ecommerce'
-              : hasLeadSignal
-                ? 'lead'
-                : addToCart > 0 || ADD_TO_CART_ACTION_TYPE_PRIORITY.some((type) => actionTypeSet.has(type))
-                  ? 'ecommerce'
-                  : 'other';
+            : hasLeadSignal
+              ? 'lead'
+              : addToCart > 0 || ADD_TO_CART_ACTION_TYPE_PRIORITY.some((type) => actionTypeSet.has(type))
+                ? 'ecommerce'
+                : 'other';
 
   const entityLevel: AdsEntityLevel = insight.ad_id
     ? 'ad'

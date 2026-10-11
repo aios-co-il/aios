@@ -115,7 +115,22 @@ export type FacebookCampaignRow = {
   purchase_value: number;
   add_to_cart: number;
   campaign_type?: string;
+  campaign_objective?: string | null;
+  result_kind?: string | null;
+  result?: { result_kind?: string | null } | null;
 };
+
+/** Result kinds that belong on the ecommerce table, next to leads when both fire. */
+export const FACEBOOK_ECOMMERCE_RESULT_KINDS = new Set([
+  'purchases',
+  'initiate_checkout',
+  'add_to_cart',
+  'add_payment_info',
+  'view_content',
+  'search',
+]);
+
+const FACEBOOK_SALES_OBJECTIVES = new Set(['OUTCOME_SALES', 'PRODUCT_CATALOG_SALES', 'SALES']);
 
 const FACEBOOK_CAMPAIGN_TYPE_RANK: Record<string, number> = {
   ecommerce: 3,
@@ -145,6 +160,9 @@ export function isFacebookEcommerceCampaign(data: FacebookCampaignRow): boolean 
   const rowType = String(data.campaign_type || '').toLowerCase();
   if (rowType === 'traffic') return false;
   if (rowType === 'ecommerce') return true;
+  if (FACEBOOK_SALES_OBJECTIVES.has(String(data.campaign_objective || '').toUpperCase())) return true;
+  const resultKind = String(data.result_kind || data.result?.result_kind || '').toLowerCase();
+  if (FACEBOOK_ECOMMERCE_RESULT_KINDS.has(resultKind)) return true;
   return (
     (data.purchases > 0 || data.purchase_value > 0) &&
     !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)
@@ -253,17 +271,19 @@ export type FacebookRecordKind = 'ecommerce' | 'leads' | 'traffic';
 export function classifyFacebookRecord(data: any): FacebookRecordKind {
   const rowType = effectiveFacebookCampaignType(data);
   if (rowType === 'traffic') return 'traffic';
-  if (rowType === 'ecommerce') return 'ecommerce';
-
-  const purchases = Number(data?.purchases) || 0;
-  const purchaseValue = Number(data?.purchase_value) || 0;
-  const leads = getLeadsFromData(data);
-
-  const isEcommerce =
-    (purchases > 0 || purchaseValue > 0) &&
-    !(leads > 0 && purchases === 0 && purchaseValue === 0);
-
-  return isEcommerce ? 'ecommerce' : 'leads';
+  return isFacebookEcommerceCampaign({
+    name: '',
+    impressions: 0,
+    clicks: 0,
+    spend: 0,
+    leads: getLeadsFromData(data),
+    purchases: Number(data?.purchases) || 0,
+    purchase_value: Number(data?.purchase_value) || 0,
+    add_to_cart: 0,
+    campaign_type: rowType === 'other' ? data?.campaign_type : rowType,
+    campaign_objective: data?.campaign_objective,
+    result_kind: data?.result_kind,
+  }) ? 'ecommerce' : 'leads';
 }
 
 /** Classify an aggregated Facebook campaign row (same rules as DynamicTableView). */
