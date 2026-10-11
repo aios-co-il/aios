@@ -50,8 +50,25 @@ export async function renderVideo(manifest, outputPath, options = {}) {
     }
     const playlist = path.join(temp, "concat.txt");
     await writeFile(playlist, clips.map(clip => `file '${clip.replaceAll("'", "'\\''")}'`).join("\n"));
+    const intermediate = path.join(temp, "joined.mp4");
     await exec("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "concat",
-      "-safe", "0", "-i", playlist, "-c", "copy", "-movflags", "+faststart", outputPath]);
+      "-safe", "0", "-i", playlist, "-c", "copy", intermediate]);
+    const escapeAss = (value) => String(value || "").replace(/[{}\\\\]/g, "").replace(/\\r?\\n/g, "\\\\N");
+    const assTime = (frames) => {
+      const cs = Math.round(frames * 100 / 30);
+      return `${Math.floor(cs / 360000)}:${String(Math.floor(cs / 6000) % 60).padStart(2, "0")}:${String(Math.floor(cs / 100) % 60).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
+    };
+    const ass = path.join(temp, "captions.ass");
+    const header = `[Script Info]\\nScriptType: v4.00+\\nPlayResX: ${width}\\nPlayResY: ${height}\\nWrapStyle: 0\\n[V4+ Styles]\\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\\nStyle: Caption,Noto Sans Hebrew,${Math.max(20, Math.round(width * 0.047))},&H00FFFFFF,&H00000000,&H0010150A,&H80000000,1,0,0,0,100,100,0,0,1,3,1,2,80,80,${Math.round(height * 0.12)},1\\n[Events]\\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\\n`;
+    const subtitles = manifest.scenes.filter(s => s.overlayText).map(s =>
+      `Dialogue: 0,${assTime(s.startFrame)},${assTime(s.startFrame + s.frameCount)},Caption,,0,0,0,,${escapeAss(s.overlayText)}`).join("\\n");
+    await writeFile(ass, header + subtitles + "\\n");
+    const audio = options.audioPath ? ["-i", options.audioPath] : [];
+    await exec("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-i", intermediate,
+      ...audio, ...(subtitles ? ["-vf", `ass=${ass}`] : []),
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+      ...(audio.length ? ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "160k", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-shortest"] : ["-an"]),
+      "-movflags", "+faststart", outputPath]);
     return { outputPath, width, height, frames: cursor, durationSeconds: cursor / 30 };
   } finally {
     await rm(temp, { recursive: true, force: true });
