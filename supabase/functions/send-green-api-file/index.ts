@@ -1,9 +1,46 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import {
+  resolveGreenApiChatTarget,
+  withTimeout,
+  GREEN_API_UPSTREAM_TIMEOUT_MS,
+  CHAT_MESSAGES_INSERT_TIMEOUT_MS,
+} from '../_shared/send-green-api-file-chat-resolve.mjs';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+function greenApiAbortSignal() {
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      return AbortSignal.timeout(GREEN_API_UPSTREAM_TIMEOUT_MS);
+    }
+  } catch { /* fall through */ }
+  return undefined;
+}
+
+async function fetchGreenApiUpload(endpoint: string, uploadFormData: FormData): Promise<Response> {
+  const signal = greenApiAbortSignal();
+  try {
+    if (signal) {
+      return await fetch(endpoint, { method: 'POST', body: uploadFormData, signal });
+    }
+    // Fallback when AbortSignal.timeout is unavailable — still bounds the await
+    return await withTimeout(
+      fetch(endpoint, { method: 'POST', body: uploadFormData }),
+      GREEN_API_UPSTREAM_TIMEOUT_MS,
+      'green_api_upstream',
+    );
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    const msg = err instanceof Error ? err.message : String(err);
+    if (name === 'TimeoutError' || name === 'AbortError' || msg.includes('timeout')) {
+      throw new Error(`Green API timeout after ${GREEN_API_UPSTREAM_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -87,10 +124,13 @@ Deno.serve(async (req) => {
     } else if (!resolvedTenantId && leadId) {
       const { data: lead } = await supabaseClient.from('leads').select('tenant_id').eq('id', leadId).single();
       resolvedTenantId = lead?.tenant_id;
-    } else if (groupId) {
-      const { data: group } = await supabaseClient.from('whatsapp_groups').select('tenant_id, group_chat_id').eq('id', groupId).single();
+    }
+
+    // Always resolve group_chat_id when groupId is present (do not nest under client/lead else-if).
+    if (groupId) {
+      const { data: group } = await supabaseClient.from('whatsapp_groups').select('tenant_id, group_chat_id').eq('id', groupId).maybeSingle();
       resolvedTenantId = resolvedTenantId || group?.tenant_id;
-      groupChatId = group?.group_chat_id;
+      groupChatId = group?.group_chat_id || undefined;
     }
 
     if (!resolvedTenantId) {
@@ -157,21 +197,23 @@ Deno.serve(async (req) => {
 
     const instanceId = integration.settings.instance_id;
     const apiToken = integration.api_key;
+    const defaultCountryCode = (integration.settings?.country_code || '972').toString();
 
-    // Determine chatId
-    let chatId: string;
-    if (groupChatId) {
-      chatId = groupChatId;
-    } else {
-      const originalPhone = String(phoneNumber || '');
-      let digits = originalPhone.replace(/[^0-9]/g, '');
-      if (digits.startsWith('00')) digits = digits.slice(2);
-      const defaultCountryCode = (integration.settings?.country_code || '972').toString();
-      if (!digits.startsWith(defaultCountryCode)) {
-        digits = digits.startsWith('0') ? defaultCountryCode + digits.slice(1) : defaultCountryCode + digits;
-      }
-      chatId = `${digits}@c.us`;
+    // Determine chatId — reject missing group chat id; phone fallback when provided
+    const chatTarget = resolveGreenApiChatTarget({
+      groupId,
+      groupChatId,
+      phoneNumber,
+      countryCode: defaultCountryCode,
+    });
+    if (!chatTarget.ok) {
+      return new Response(JSON.stringify({ error: chatTarget.message, code: chatTarget.error }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+    const chatId: string = chatTarget.chatId;
+    const usedGroupChat = chatTarget.via === 'group';
 
     // Determine API endpoint based on file type
     let endpoint: string;
@@ -190,11 +232,7 @@ Deno.serve(async (req) => {
       uploadFormData.append('file', uploadBlob, fileName);
       if (caption) uploadFormData.append('caption', caption);
 
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: uploadFormData,
-      });
+      const response = await fetchGreenApiUpload(endpoint, uploadFormData);
 
       const responseData = await response.json();
 
@@ -202,21 +240,29 @@ Deno.serve(async (req) => {
         throw new Error(`Green API error: ${JSON.stringify(responseData)}`);
       }
 
-      // Save to database
-      await supabaseClient.from('chat_messages').insert({
-        client_id: clientId || null,
-        lead_id: leadId || null,
-        group_id: groupId || null,
-        tenant_id: resolvedTenantId,
-        connection_user_id: user.id,
-        message_text: `[הודעה קולית]${caption ? ': ' + caption : ''}`,
-        direction: 'outbound',
-        channel: 'whatsapp',
-        provider: 'green_api',
-        sent_by_user_id: user.id,
-        raw_provider_data: responseData,
-        sender_phone: !groupChatId ? chatId.replace('@c.us', '') : null,
-      });
+      // Save to database (bounded — do not block success if insert hangs)
+      try {
+        await withTimeout(
+          supabaseClient.from('chat_messages').insert({
+            client_id: clientId || null,
+            lead_id: leadId || null,
+            group_id: groupId || null,
+            tenant_id: resolvedTenantId,
+            connection_user_id: user.id,
+            message_text: `[הודעה קולית]${caption ? ': ' + caption : ''}`,
+            direction: 'outbound',
+            channel: 'whatsapp',
+            provider: 'green_api',
+            sent_by_user_id: user.id,
+            raw_provider_data: responseData,
+            sender_phone: !usedGroupChat ? chatId.replace('@c.us', '') : null,
+          }),
+          CHAT_MESSAGES_INSERT_TIMEOUT_MS,
+          'chat_messages_insert',
+        );
+      } catch (insertErr) {
+        console.warn('[send-green-api-file] chat_messages insert skipped after voice send', insertErr);
+      }
 
       return new Response(JSON.stringify({ success: true, messageId: responseData.idMessage }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -238,11 +284,7 @@ Deno.serve(async (req) => {
     uploadFormData.append('file', uploadBlob, fileName);
     if (caption) uploadFormData.append('caption', caption);
 
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      body: uploadFormData,
-    });
+    const response = await fetchGreenApiUpload(endpoint, uploadFormData);
 
     const responseData = await response.json();
 
@@ -260,21 +302,29 @@ Deno.serve(async (req) => {
       messageText = `[מסמך: ${fileName}]${caption ? ' - ' + caption : ''}`;
     }
 
-    // Save to database
-    await supabaseClient.from('chat_messages').insert({
-      client_id: clientId || null,
-      lead_id: leadId || null,
-      group_id: groupId || null,
-      tenant_id: resolvedTenantId,
-      connection_user_id: user.id,
-      message_text: messageText,
-      direction: 'outbound',
-      channel: 'whatsapp',
-      provider: 'green_api',
-      sent_by_user_id: user.id,
-      raw_provider_data: responseData,
-      sender_phone: !groupChatId ? chatId.replace('@c.us', '') : null,
-    });
+    // Save to database (bounded — WA already sent; do not hang the client)
+    try {
+      await withTimeout(
+        supabaseClient.from('chat_messages').insert({
+          client_id: clientId || null,
+          lead_id: leadId || null,
+          group_id: groupId || null,
+          tenant_id: resolvedTenantId,
+          connection_user_id: user.id,
+          message_text: messageText,
+          direction: 'outbound',
+          channel: 'whatsapp',
+          provider: 'green_api',
+          sent_by_user_id: user.id,
+          raw_provider_data: responseData,
+          sender_phone: !usedGroupChat ? chatId.replace('@c.us', '') : null,
+        }),
+        CHAT_MESSAGES_INSERT_TIMEOUT_MS,
+        'chat_messages_insert',
+      );
+    } catch (insertErr) {
+      console.warn('[send-green-api-file] chat_messages insert skipped after file send', insertErr);
+    }
 
     return new Response(JSON.stringify({ success: true, messageId: responseData.idMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -283,8 +333,9 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('❌ Error in send-green-api-file:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
+    const isTimeout = errorMessage.includes('timeout') || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'));
+    return new Response(JSON.stringify({ error: errorMessage, code: isTimeout ? 'timeout' : undefined }), {
+      status: isTimeout ? 504 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
