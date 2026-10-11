@@ -69,6 +69,7 @@ import { reportRecordsQuery } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import { reportQueryOptions, getReportLastSyncAt } from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
+import { reportHasSyncedWebsiteLeads } from "@/lib/websiteLeadsColumn";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -3002,7 +3003,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
             }), { impressions: 0, clicks: 0, conversions: 0, cost: 0, conversions_value: 0, all_conversions: 0, all_conversions_value: 0, roas_sum: 0, roas_count: 0, verified_leads: 0 });
 
             // Detect if any record has verification data (means a WP site is connected and was checked)
-            const hasVerifiedData = filteredRecords.some(r => r.data?.verified_leads !== undefined && r.data?.verified_leads !== null);
+            const hasVerifiedData = reportHasSyncedWebsiteLeads(filteredRecords);
             
             const displayConversions = useGoogleWooOverlay ? googleWooPaid.paidOrders : totals.conversions;
             const displayRevenue = useGoogleWooOverlay ? googleWooPaid.paidRevenue : totals.conversions_value;
