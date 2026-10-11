@@ -5,6 +5,10 @@ on:
     paths:
       - 'workers/creative-video/remotion/**'
       - '.github/workflows/creative-remotion-smoke.yml'
+  pull_request:
+    paths:
+      - 'workers/creative-video/remotion/**'
+      - '.github/workflows/creative-remotion-smoke.yml'
   workflow_dispatch:
 jobs:
   render:
