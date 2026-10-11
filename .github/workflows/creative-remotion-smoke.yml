@@ -33,6 +33,14 @@ jobs:
         working-directory: .
       - name: Render full composition
         run: npx remotion render src/index.ts CarmenVideo /tmp/carmen-full.mp4 --scale=0.5 --codec=h264 --concurrency=2 --log=error
+      - name: Render manifest-driven job
+        run: node render-job.mjs fixtures/demo-manifest.json /tmp/carmen-job.mp4
+      - name: Verify manifest-driven job
+        run: |
+          test -s /tmp/carmen-job.mp4
+          test -s /tmp/carmen-job.mp4.json
+          ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 /tmp/carmen-job.mp4
+        working-directory: .
       - name: Verify full video duration
         run: |
           test -s /tmp/carmen-full.mp4
@@ -51,3 +59,9 @@ jobs:
         with:
           name: carmen-remotion-full
           path: /tmp/carmen-full.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-manifest-job
+          path: |
+            /tmp/carmen-job.mp4
+            /tmp/carmen-job.mp4.json
