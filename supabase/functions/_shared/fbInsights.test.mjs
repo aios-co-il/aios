@@ -7,8 +7,103 @@ import {
   FB_INSIGHTS_FIELD_TYPES,
   buildCampaignOptimizationGoalMap,
   buildInsightRecord,
+  buildResultMetricMaps,
   latestCampaignUpdatedTime,
+  resolveCampaignResultMetric,
 } from './fbInsights.ts'
+
+const smartAirStatuses = {
+  '120245057091170127': {
+    id: '120245057091170127',
+    name: 'SmartAir - Genesis - מכירות',
+    objective: 'OUTCOME_SALES',
+    effective_status: 'ACTIVE',
+    configured_status: 'ACTIVE',
+  },
+  '120253026062570127': {
+    id: '120253026062570127',
+    name: 'SmartAir - Genesis - שווקי חג המולד',
+    objective: 'OUTCOME_SALES',
+    effective_status: 'ACTIVE',
+    configured_status: 'ACTIVE',
+  },
+}
+const smartAirAdsets = [
+  { id: 'as-checkout', campaign_id: '120245057091170127', optimization_goal: 'OFFSITE_CONVERSIONS', promoted_object: { pixel_id: 'p', custom_event_type: 'INITIATED_CHECKOUT' } },
+  { id: 'as-purchase', campaign_id: '120253026062570127', optimization_goal: 'OFFSITE_CONVERSIONS', promoted_object: { pixel_id: 'p', custom_event_type: 'PURCHASE' } },
+]
+const smartAirGoals = { '120245057091170127': 'OFFSITE_CONVERSIONS', '120253026062570127': 'OFFSITE_CONVERSIONS' }
+
+function smartAirRow(campaignId, actions, extra = {}) {
+  return buildInsightRecord(
+    {
+      date_start: '2026-10-07',
+      campaign_id: campaignId,
+      campaign_name: smartAirStatuses[campaignId].name,
+      spend: '629',
+      actions,
+      ...extra,
+    },
+    smartAirStatuses,
+    {},
+    smartAirGoals,
+    buildResultMetricMaps(smartAirAdsets),
+  )
+}
+
+test('sales campaign optimized for Initiate Checkout reports checkouts as its result', () => {
+  const row = smartAirRow('120245057091170127', [
+    { action_type: 'initiate_checkout', value: '3' },
+    { action_type: 'offsite_conversion.fb_pixel_initiate_checkout', value: '3' },
+    { action_type: 'onsite_web_initiate_checkout', value: '3' },
+    { action_type: 'omni_initiated_checkout', value: '3' },
+    { action_type: 'offsite_conversion.fb_pixel_lead', value: '34' },
+  ])
+  assert.equal(row.campaign_type, 'ecommerce')
+  assert.equal(row.result_kind, 'initiate_checkout')
+  assert.equal(row.result_label, 'התחלות תשלום')
+  assert.equal(row.results, 3)
+  assert.equal(row.purchases, 0)
+  assert.equal(row.leads, 34)
+})
+
+test('purchase-optimized campaign keeps purchases as result and does not borrow checkouts', () => {
+  const row = smartAirRow('120253026062570127', [
+    { action_type: 'initiate_checkout', value: '1' },
+    { action_type: 'omni_initiated_checkout', value: '1' },
+  ])
+  assert.equal(row.result_kind, 'purchases')
+  assert.equal(row.result_label, 'רכישות')
+  assert.equal(row.results, 0)
+  assert.equal(row.purchases, 0)
+})
+
+test('purchase result counts onsite_web_purchase and stays deduplicated', () => {
+  const row = smartAirRow('120253026062570127', [
+    { action_type: 'onsite_web_purchase', value: '1' },
+    { action_type: 'offsite_conversion.fb_pixel_purchase', value: '1' },
+  ])
+  assert.equal(row.result_kind, 'purchases')
+  assert.equal(row.results, 1)
+})
+
+test('ad set rows use their own configured metric', () => {
+  const row = smartAirRow(
+    '120245057091170127',
+    [{ action_type: 'omni_initiated_checkout', value: '2' }],
+    { adset_id: 'as-checkout', adset_name: 'Genesis checkout' },
+  )
+  assert.equal(row.entity_level, 'adset')
+  assert.equal(row.result_kind, 'initiate_checkout')
+  assert.equal(row.results, 2)
+})
+
+test('lead and custom-event ad sets keep the existing lead result path', () => {
+  assert.equal(resolveCampaignResultMetric({ custom_event_type: 'LEAD' }), null)
+  assert.equal(resolveCampaignResultMetric({ custom_event_type: 'OTHER', custom_event_str: 'NewLead' }), null)
+  assert.equal(resolveCampaignResultMetric({ custom_conversion_id: '123' }), null)
+  assert.equal(resolveCampaignResultMetric({ custom_event_type: 'ADD_TO_CART' }).kind, 'add_to_cart')
+})
 
 test('Facebook CRM field definitions stay aligned', () => {
   assert.equal(FB_INSIGHTS_FIELD_KEYS.length, FB_INSIGHTS_FIELD_NAMES.length)

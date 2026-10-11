@@ -40,6 +40,8 @@ export interface InsightRecord {
   post_engagements: number;
   results: number | null;
   result_kind: string | null;
+  /** Hebrew label of the campaign's configured result (e.g. "התחלות תשלום"). */
+  result_label: string | null;
   lp_or_form_views: number;
   cpm: number;
   ctr: number;
@@ -61,9 +63,97 @@ export interface InsightRecord {
 
 // Field schema for the Facebook Insights CRM table (keys / Hebrew names / types),
 // kept here so both sync functions create exactly the same columns.
-export const FB_INSIGHTS_FIELD_KEYS = ['date', 'campaign_name', 'campaign_id', 'impressions', 'reach', 'frequency', 'clicks', 'link_clicks', 'conversations', 'video_views', 'post_engagements', 'results', 'result_kind', 'lp_or_form_views', 'cpm', 'ctr', 'leads', 'form_leads', 'cost_per_lead', 'spend', 'purchases', 'purchase_value', 'add_to_cart', 'roas', 'campaign_objective', 'optimization_goal', 'campaign_type', 'effective_status', 'configured_status', 'updated_time'];
-export const FB_INSIGHTS_FIELD_NAMES = ['תאריך', 'שם הקמפיין', 'מזהה קמפיין', 'חשיפות', 'תפוצה', 'תדירות', 'קליקים', 'קליקים על קישור', 'שיחות', 'צפיות וידאו', 'אינטראקציות', 'תוצאות', 'סוג תוצאה', 'צפיות LP / פתיחות טופס', 'עלות ל-1000 חשיפות', 'אחוז קליקים', 'לידים', 'לידים מטופס', 'עלות לליד', 'הוצאה', 'רכישות', 'ערך רכישות', 'הוספות לעגלה', 'ROAS', 'מטרת קמפיין', 'אירוע אופטימיזציה', 'סוג קמפיין', 'סטטוס בפועל', 'סטטוס מוגדר', 'עדכון אחרון בקמפיין'];
-export const FB_INSIGHTS_FIELD_TYPES = ['date', 'text', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'text', 'text', 'text', 'text', 'text'];
+export const FB_INSIGHTS_FIELD_KEYS = ['date', 'campaign_name', 'campaign_id', 'impressions', 'reach', 'frequency', 'clicks', 'link_clicks', 'conversations', 'video_views', 'post_engagements', 'results', 'result_kind', 'lp_or_form_views', 'cpm', 'ctr', 'leads', 'form_leads', 'cost_per_lead', 'spend', 'purchases', 'purchase_value', 'add_to_cart', 'roas', 'campaign_objective', 'optimization_goal', 'campaign_type', 'effective_status', 'configured_status', 'updated_time', 'result_label'];
+export const FB_INSIGHTS_FIELD_NAMES = ['תאריך', 'שם הקמפיין', 'מזהה קמפיין', 'חשיפות', 'תפוצה', 'תדירות', 'קליקים', 'קליקים על קישור', 'שיחות', 'צפיות וידאו', 'אינטראקציות', 'תוצאות', 'סוג תוצאה', 'צפיות LP / פתיחות טופס', 'עלות ל-1000 חשיפות', 'אחוז קליקים', 'לידים', 'לידים מטופס', 'עלות לליד', 'הוצאה', 'רכישות', 'ערך רכישות', 'הוספות לעגלה', 'ROAS', 'מטרת קמפיין', 'אירוע אופטימיזציה', 'סוג קמפיין', 'סטטוס בפועל', 'סטטוס מוגדר', 'עדכון אחרון בקמפיין', 'תווית תוצאה'];
+export const FB_INSIGHTS_FIELD_TYPES = ['date', 'text', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'text', 'text', 'text', 'text', 'text', 'text', 'text'];
+
+/** Hebrew labels for each stored `result_kind`. Keep in sync with src/lib/facebookResultMetric.ts. */
+export const RESULT_KIND_LABELS: Record<string, string> = {
+  purchases: 'רכישות',
+  initiate_checkout: 'התחלות תשלום',
+  add_to_cart: 'הוספות לעגלה',
+  add_payment_info: 'הוספת פרטי תשלום',
+  view_content: 'צפיות בתוכן',
+  search: 'חיפושים',
+  leads: 'לידים',
+  conversations: 'שיחות',
+  video_views: 'צפיות וידאו',
+  engagements: 'אינטראקציות',
+  link_clicks: 'קליקים על קישור',
+  landing_page_views: 'צפיות בדף נחיתה',
+};
+
+export interface CampaignResultMetric {
+  kind: string;
+  label: string;
+  /** Equivalent action_types for the same event; the count is the MAX across them. */
+  actionTypes: string[];
+}
+
+// Ecommerce pixel events a sales campaign can optimize for, keyed by
+// promoted_object.custom_event_type. Meta reports one event under several
+// action_types, so each list is treated as aliases (MAX, never SUM).
+const ECOMMERCE_RESULT_EVENTS: Record<string, { kind: string; actionTypes: string[] }> = {
+  PURCHASE: {
+    kind: 'purchases',
+    actionTypes: ['omni_purchase', 'offsite_conversion.fb_pixel_purchase', 'onsite_web_purchase', 'purchase'],
+  },
+  INITIATED_CHECKOUT: {
+    kind: 'initiate_checkout',
+    actionTypes: ['omni_initiated_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'onsite_web_initiate_checkout', 'initiate_checkout'],
+  },
+  ADD_TO_CART: {
+    kind: 'add_to_cart',
+    actionTypes: ['omni_add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart', 'onsite_web_add_to_cart', 'add_to_cart'],
+  },
+  ADD_PAYMENT_INFO: {
+    kind: 'add_payment_info',
+    actionTypes: ['omni_add_payment_info', 'offsite_conversion.fb_pixel_add_payment_info', 'add_payment_info'],
+  },
+  CONTENT_VIEW: {
+    kind: 'view_content',
+    actionTypes: ['omni_view_content', 'offsite_conversion.fb_pixel_view_content', 'onsite_web_view_content', 'view_content'],
+  },
+  SEARCH: {
+    kind: 'search',
+    actionTypes: ['omni_search', 'offsite_conversion.fb_pixel_search', 'search'],
+  },
+};
+
+/**
+ * Resolve the ecommerce event a campaign/ad set is configured to optimize for.
+ * Lead, messaging and custom-event results stay on the existing lead path.
+ */
+export function resolveCampaignResultMetric(promotedObject: any): CampaignResultMetric | null {
+  const po = promotedObject || {};
+  if (po.custom_conversion_id) return null;
+  const cet = String(po.custom_event_type || '').toUpperCase();
+  if (cet === 'CONTENT_VIEW' && (po.custom_event_str || extractPixelRuleEvent(po.pixel_rule))) return null;
+  const event = ECOMMERCE_RESULT_EVENTS[cet];
+  if (!event) return null;
+  return { kind: event.kind, label: RESULT_KIND_LABELS[event.kind], actionTypes: event.actionTypes };
+}
+
+export interface ResultMetricMaps {
+  byCampaign: Record<string, CampaignResultMetric>;
+  byAdset: Record<string, CampaignResultMetric>;
+}
+
+/** Map campaign and ad set ids to their configured ecommerce result metric. */
+export function buildResultMetricMaps(
+  adsets: Array<{ id?: string | null; campaign_id?: string | null; promoted_object?: unknown }>,
+): ResultMetricMaps {
+  const maps: ResultMetricMaps = { byCampaign: {}, byAdset: {} };
+  for (const adset of adsets || []) {
+    const metric = resolveCampaignResultMetric(adset?.promoted_object);
+    if (!metric) continue;
+    const adsetId = String(adset?.id || '');
+    const campaignId = String(adset?.campaign_id || '');
+    if (adsetId) maps.byAdset[adsetId] = metric;
+    if (campaignId && !maps.byCampaign[campaignId]) maps.byCampaign[campaignId] = metric;
+  }
+  return maps;
+}
 
 /** Pick the dominant ad-set optimization goal for each campaign. */
 export function buildCampaignOptimizationGoalMap(
@@ -232,6 +322,7 @@ export function buildInsightRecord(
   campaignStatuses: Record<string, CampaignStatus>,
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
+  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
 ): InsightRecord {
   // Deduplicate: FB often returns the same event (e.g. leadgen_grouped,
   // offsite_conversion.fb_pixel_lead) in BOTH insight.actions AND
@@ -411,22 +502,6 @@ export function buildInsightRecord(
   const addToCart = getActionCount(effectiveAddToCartTypes);
   const roas = spend > 0 ? purchaseValue / spend : 0;
 
-  // #region agent log
-  const __purchaseDebug = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    const payload = {
-      hypothesisId,
-      location: 'fbInsights.ts:buildInsightRecord',
-      message,
-      data,
-      timestamp: Date.now(),
-      runId: 'pre-fix',
-    };
-    console.log('[agent-dbg]', JSON.stringify(payload));
-    const hook = (globalThis as { __fbInsightsDebug?: (p: unknown) => void }).__fbInsightsDebug;
-    if (typeof hook === 'function') hook(payload);
-  };
-  // #endregion
-
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || '').toUpperCase();
   const isEcommerceObjective = ['OUTCOME_SALES', 'PRODUCT_CATALOG_SALES', 'SALES'].includes(objective);
@@ -477,38 +552,22 @@ export function buildInsightRecord(
   } else if (isEcommerceObjective || optimizationUpper.includes('PURCHASE') || optimizationUpper.includes('VALUE')) {
     results = purchases > 0 ? purchases : null;
     resultKind = 'purchases';
-    // #region agent log
-    if (purchases === 0 && spend > 0) {
-      const websitePurchaseTypes = [
-        'onsite_web_purchase',
-        'onsite_web_app_purchase',
-        'web_in_store_purchase',
-        'offsite_conversion.fb_pixel_purchase',
-        'omni_purchase',
-        'purchase',
-      ];
-      const present = websitePurchaseTypes
-        .filter((type) => actionTypeSet.has(type))
-        .map((type) => ({ type, count: sumByTypes([type]) }));
-      const customPurchaseLike = allActions
-        .filter((a: any) => /purchase|רכיש/i.test(String(a.action_type || '')))
-        .map((a: any) => ({ type: a.action_type, count: parseInt(a.value) || 0 }));
-      __purchaseDebug(present.length ? 'A' : 'D', 'sales row purchases=0', {
-        campaign_id: insight.campaign_id,
-        date: insight.date_start,
-        optimization: optimizationGoal,
-        chosenPurchaseTypes: effectivePurchaseTypes,
-        presentWebsiteTypes: present,
-        customPurchaseLike,
-        leads,
-        actionTypeCount: actionTypeSet.size,
-      });
-    }
-    // #endregion
   } else if (isLeadObjective || optimizationUpper.includes('LEAD')) {
     results = leads > 0 ? leads : null;
     resultKind = 'leads';
   }
+
+  // The ad set's configured event is the campaign's real "Result" in Ads Manager
+  // (e.g. a sales campaign optimized for Initiate Checkout), so it wins over the
+  // objective-based guess above.
+  const configuredMetric =
+    (insight.adset_id && resultMetrics.byAdset[String(insight.adset_id)]) ||
+    resultMetrics.byCampaign[String(insight.campaign_id || '')];
+  if (configuredMetric) {
+    results = Math.max(0, ...configuredMetric.actionTypes.map((type) => sumByTypes([type])));
+    resultKind = configuredMetric.kind;
+  }
+  const resultLabel = resultKind ? (configuredMetric?.label || RESULT_KIND_LABELS[resultKind] || null) : null;
 
   const hasEcommerceSignal =
     purchases > 0 ||
@@ -574,6 +633,7 @@ export function buildInsightRecord(
     post_engagements: postEngagements,
     results,
     result_kind: resultKind,
+    result_label: resultLabel,
     lp_or_form_views: lpOrFormViews,
     cpm: parseFloat(insight.cpm) || 0,
     ctr: parseFloat(insight.ctr) || 0,
@@ -638,6 +698,7 @@ export async function buildAllLevelInsightRecords(
   campaignStatuses: Record<string, CampaignStatus>,
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
+  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
 ): Promise<{ records: InsightRecord[]; levelCounts: Record<AdsEntityLevel, number> }> {
   const levels: AdsEntityLevel[] = ['campaign', 'adset', 'ad'];
   const allRows: InsightRecord[] = [];
@@ -652,6 +713,7 @@ export async function buildAllLevelInsightRecords(
           campaignStatuses,
           resultLeadTypesByCampaign,
           optimizationGoalsByCampaign,
+          resultMetrics,
         ));
       }
       levelCounts[level] = raw.length;
