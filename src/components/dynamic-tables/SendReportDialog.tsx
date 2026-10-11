@@ -20,6 +20,9 @@ import { toast } from "sonner";
 import { Send, Mail, MessageCircle, Loader2, Link2, Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
+const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
+
 interface SendReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -180,17 +183,37 @@ export function SendReportDialog({
         formData.append("tenantId", tenantId);
         formData.append("fileType", "image");
         if (fullCaption) formData.append("caption", fullCaption);
+        // Group preferred; still send phone as fallback if group_chat_id is missing server-side.
         if (hasGroup) {
           formData.append("groupId", selectedGroupId);
-        } else if (directPhone) {
-          formData.append("phoneNumber", directPhone);
+        }
+        if (directPhone.trim()) {
+          formData.append("phoneNumber", directPhone.trim());
         }
         if (clientId) formData.append("clientId", clientId);
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-          { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body: formData }
-        );
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), SEND_REPORT_WA_CLIENT_TIMEOUT_MS);
+        let response: Response;
+        try {
+          response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: formData,
+              signal: controller.signal,
+            }
+          );
+        } catch (fetchErr: unknown) {
+          const name = fetchErr instanceof Error ? fetchErr.name : "";
+          if (name === "AbortError") {
+            throw new Error("שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API");
+          }
+          throw fetchErr;
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
@@ -362,7 +385,7 @@ export function SendReportDialog({
                   dir="ltr"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  אם נבחרה קבוצה — היא תקבל עדיפות. אחרת תישלח הודעה למספר.
+                  אם נבחרה קבוצה — היא תקבל עדיפות. אם חסר מזהה לקבוצה, יישלח למספר כגיבוי.
                 </p>
               </div>
             </div>
