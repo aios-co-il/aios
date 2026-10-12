@@ -403,7 +403,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     isPending: recordsPending,
     isFetching: recordsFetching,
     dataUpdatedAt: recordsUpdatedAt,
-  } = useQuery({
+  } = useQuery<CrmRecord[]>({
     ...reportRecordsQuery(supabase, table?.id || '', dateFilter, customFromStr, customToStr),
     enabled: !!table?.id && isCustomReady,
     ...reportQueryOptions<CrmRecord[]>(),
@@ -416,7 +416,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     || table?.integration_type === 'facebook_ecommerce'
     || table?.integration_type === 'google_ads';
 
-  const { data: weeklyRecords = [], isPending: weeklyRecordsPending } = useQuery({
+  const { data: weeklyRecords = [], isPending: weeklyRecordsPending } = useQuery<CrmRecord[]>({
     ...reportRecordsQuery(supabase, table?.id || '', 'last_365_days'),
     enabled: !!table?.id && isAdsReportTable && adsReportView === 'weekly',
     ...reportQueryOptions<CrmRecord[]>(),
@@ -428,7 +428,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
 
   // Filter records by entity search (campaign / ad set / ad name)
-  const filteredRecords = useMemo<CrmRecord[]>(() => {
+  const filteredRecords = useMemo(() => {
     if (!entityLevelRecords.length) return entityLevelRecords;
     if (!debouncedCampaignSearch.trim()) return entityLevelRecords;
     return entityLevelRecords.filter((record) =>
