@@ -4,9 +4,9 @@ import {
   getLeadCustomFieldInitialValues,
   getMissingRequiredLeadCustomFields,
   getVisibleLeadCustomFields,
-  LeadCustomFieldDefinition,
   mergeLeadCustomFieldValues,
-} from "./leadCustomFields";
+} from "./leadCustomFields.ts";
+import type { LeadCustomFieldDefinition } from "./leadCustomFields.ts";
 
 const fields: LeadCustomFieldDefinition[] = [
   {

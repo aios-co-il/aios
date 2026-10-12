@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -89,7 +89,10 @@ export function AddLeadForm() {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { getFieldLabel, isFieldVisible, fieldDefinitions } = useCustomFieldLabels('lead');
-  const customFields = getVisibleLeadCustomFields(fieldDefinitions);
+  const customFields = useMemo(
+    () => getVisibleLeadCustomFields(fieldDefinitions),
+    [fieldDefinitions],
+  );
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
 
@@ -142,7 +145,7 @@ export function AddLeadForm() {
       ...getLeadCustomFieldInitialValues(customFields, {}),
       ...current,
     }));
-  }, [fieldDefinitions, open]);
+  }, [customFields, open]);
 
   useEffect(() => {
     if (form.getValues("agency_id")) return;

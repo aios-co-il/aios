@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
+import type {
   LeadCustomFieldDefinition,
   LeadCustomFieldValue,
   LeadCustomFieldValues,

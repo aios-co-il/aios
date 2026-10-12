@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
-import { LeadCustomFieldDefinition } from "@/lib/leadCustomFields";
+import type { LeadCustomFieldDefinition } from "@/lib/leadCustomFields";
 
 type EntityType = 'task' | 'client' | 'lead';
 

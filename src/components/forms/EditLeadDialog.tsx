@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -139,7 +139,10 @@ export function EditLeadDialog({ lead: initialLead, open: controlledOpen, onOpen
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
   const { getFieldLabel, isFieldVisible, fieldDefinitions } = useCustomFieldLabels('lead');
-  const customFields = getVisibleLeadCustomFields(fieldDefinitions);
+  const customFields = useMemo(
+    () => getVisibleLeadCustomFields(fieldDefinitions),
+    [fieldDefinitions],
+  );
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
   const { tenantId } = useCurrentTenant();
@@ -272,7 +275,7 @@ export function EditLeadDialog({ lead: initialLead, open: controlledOpen, onOpen
     setCustomFieldValues(getLeadCustomFieldInitialValues(customFields, lead.form_data));
     // Reinitialize for another lead or after field definitions finish loading.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldDefinitions, lead.id, open]);
+  }, [customFields, lead.id, open]);
 
   // Sync selected sales people when dialog opens or data loads
   // Using JSON.stringify to prevent infinite loop from array reference changes
