@@ -68,6 +68,12 @@ permits a coordinated compiler/tooling upgrade against a reviewed revision.
 Once the tools land on `develop`, remove the temporary bootstrap secret and CI
 uses the base automatically. Missing trusted tooling never falls back to PR code.
 
+To verify the rollout, open a small follow-up PR against `develop` without changing
+the checker, baseline, or compiler settings. Confirm that both `typescript` and
+`baseline-review` pass, and that the full frontend TypeScript gate step runs rather
+than being skipped. With the bootstrap secret removed, the trusted checkout should
+use that PR's base commit.
+
 Separate checkouts do not protect a workflow that a PR can edit or skip. Before
 treating this as enforced policy, require the workflow from an independently
 protected source through a repository/organization ruleset (where supported), or
