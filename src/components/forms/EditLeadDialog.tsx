@@ -52,6 +52,14 @@ import {
   unmatchedResponseStatusValue,
 } from "@/lib/leadFields";
 import { ensureLeadOriginTags } from "@/lib/leadOriginTags";
+import { LeadCustomFieldsSection } from "@/components/leads/LeadCustomFieldsSection";
+import {
+  getLeadCustomFieldInitialValues,
+  getMissingRequiredLeadCustomFields,
+  getVisibleLeadCustomFields,
+  LeadCustomFieldValues,
+  mergeLeadCustomFieldValues,
+} from "@/lib/leadCustomFields";
 
 const formSchema = z.object({
   // NOTE: company_name can be hidden by tenant field visibility settings.
@@ -102,6 +110,7 @@ export function EditLeadDialog({ lead: initialLead, open: controlledOpen, onOpen
   }, [open, initialTab]);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
+  const [customFieldValues, setCustomFieldValues] = useState<LeadCustomFieldValues>({});
 
   // Fetch fresh lead data when dialog opens to get latest attachments/folder_links
   const { data: freshLead } = useQuery({
@@ -129,7 +138,8 @@ export function EditLeadDialog({ lead: initialLead, open: controlledOpen, onOpen
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
-  const { getFieldLabel, isFieldVisible } = useCustomFieldLabels('lead');
+  const { getFieldLabel, isFieldVisible, fieldDefinitions } = useCustomFieldLabels('lead');
+  const customFields = getVisibleLeadCustomFields(fieldDefinitions);
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
   const { tenantId } = useCurrentTenant();
@@ -257,6 +267,13 @@ export function EditLeadDialog({ lead: initialLead, open: controlledOpen, onOpen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setCustomFieldValues(getLeadCustomFieldInitialValues(customFields, lead.form_data));
+    // Reinitialize for another lead or after field definitions finish loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldDefinitions, lead.id, open]);
+
   // Sync selected sales people when dialog opens or data loads
   // Using JSON.stringify to prevent infinite loop from array reference changes
   useEffect(() => {
@@ -347,6 +364,7 @@ const updateMutation = useMutation({
         created_at: values.created_at || new Date(),
         folder_links: folderLinks,
         attachments: attachments,
+        form_data: mergeLeadCustomFieldValues(lead.form_data, customFields, customFieldValues),
       };
 
       // Helper function to update sales people assignments
@@ -474,6 +492,14 @@ const updateMutation = useMutation({
   const onSubmit = (values: FormValues) => {
     if (isFieldVisible('company_name') && !(values.company_name || '').trim()) {
       sonnerToast.error("שם העסק הוא שדה חובה");
+      setActiveTab('details');
+      return;
+    }
+    const missingFields = getMissingRequiredLeadCustomFields(customFields, customFieldValues);
+    if (missingFields.length > 0) {
+      sonnerToast.error(
+        `יש למלא שדות חובה: ${missingFields.map((field) => field.field_label).join(", ")}`,
+      );
       setActiveTab('details');
       return;
     }
@@ -940,6 +966,14 @@ const updateMutation = useMutation({
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                <LeadCustomFieldsSection
+                  fields={customFields}
+                  values={customFieldValues}
+                  onChange={(fieldKey, value) =>
+                    setCustomFieldValues((current) => ({ ...current, [fieldKey]: value }))
+                  }
                 />
 
                 <FormField

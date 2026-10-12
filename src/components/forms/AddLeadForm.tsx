@@ -41,6 +41,14 @@ import {
 import { ensureLeadOriginTags } from "@/lib/leadOriginTags";
 import { pickTenantHomeAgencyId } from "@/lib/resolveTenantAgency";
 import { fetchTenantHomeAgencyId } from "@/lib/resolveTenantAgencyDb";
+import { LeadCustomFieldsSection } from "@/components/leads/LeadCustomFieldsSection";
+import {
+  getLeadCustomFieldInitialValues,
+  getMissingRequiredLeadCustomFields,
+  getVisibleLeadCustomFields,
+  LeadCustomFieldValues,
+  mergeLeadCustomFieldValues,
+} from "@/lib/leadCustomFields";
 
 const formSchema = z.object({
   company_name: z.string().optional().default(""),
@@ -74,12 +82,14 @@ export function AddLeadForm() {
   const [agencyPopoverOpen, setAgencyPopoverOpen] = useState(false);
   const [salesPersonPopoverOpen, setSalesPersonPopoverOpen] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [customFieldValues, setCustomFieldValues] = useState<LeadCustomFieldValues>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAgency } = useAgency();
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
-  const { getFieldLabel, isFieldVisible } = useCustomFieldLabels('lead');
+  const { getFieldLabel, isFieldVisible, fieldDefinitions } = useCustomFieldLabels('lead');
+  const customFields = getVisibleLeadCustomFields(fieldDefinitions);
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
 
@@ -125,6 +135,14 @@ export function AddLeadForm() {
   });
 
   const { data: agencies } = useAgencies();
+
+  useEffect(() => {
+    if (!open) return;
+    setCustomFieldValues((current) => ({
+      ...getLeadCustomFieldInitialValues(customFields, {}),
+      ...current,
+    }));
+  }, [fieldDefinitions, open]);
 
   useEffect(() => {
     if (form.getValues("agency_id")) return;
@@ -183,6 +201,7 @@ export function AddLeadForm() {
         agency_id: resolvedAgencyId,
         folder_link: values.folder_link || null,
         created_at: values.created_at || new Date(),
+        form_data: mergeLeadCustomFieldValues({}, customFields, customFieldValues),
         tenant_id: tenantId,
       };
 
@@ -264,6 +283,7 @@ export function AddLeadForm() {
       setOpen(false);
       form.reset();
       setSelectedTags([]);
+      setCustomFieldValues({});
     },
     onError: (error: any) => {
       toast({
@@ -275,6 +295,15 @@ export function AddLeadForm() {
   });
 
   const onSubmit = (values: FormValues) => {
+    const missingFields = getMissingRequiredLeadCustomFields(customFields, customFieldValues);
+    if (missingFields.length > 0) {
+      toast({
+        title: "יש למלא שדות חובה",
+        description: missingFields.map((field) => field.field_label).join(", "),
+        variant: "destructive",
+      });
+      return;
+    }
     createMutation.mutate(values);
   };
 
@@ -831,6 +860,14 @@ export function AddLeadForm() {
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <LeadCustomFieldsSection
+              fields={customFields}
+              values={customFieldValues}
+              onChange={(fieldKey, value) =>
+                setCustomFieldValues((current) => ({ ...current, [fieldKey]: value }))
+              }
             />
 
             <FormField
