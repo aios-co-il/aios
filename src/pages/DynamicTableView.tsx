@@ -428,7 +428,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
 
   // Filter records by entity search (campaign / ad set / ad name)
-  const filteredRecords = useMemo(() => {
+  const filteredRecords = useMemo<CrmRecord[]>(() => {
     if (!entityLevelRecords.length) return entityLevelRecords;
     if (!debouncedCampaignSearch.trim()) return entityLevelRecords;
     return entityLevelRecords.filter((record) =>

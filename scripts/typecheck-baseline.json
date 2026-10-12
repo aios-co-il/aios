@@ -1978,41 +1978,6 @@
       "count": 1
     },
     {
-      "file": "src/pages/DynamicTableView.tsx",
-      "code": 18046,
-      "message": "'acc' is of type 'unknown'.",
-      "source": "acc",
-      "count": 16
-    },
-    {
-      "file": "src/pages/DynamicTableView.tsx",
-      "code": 18046,
-      "message": "'c' is of type 'unknown'.",
-      "source": "c",
-      "count": 3
-    },
-    {
-      "file": "src/pages/DynamicTableView.tsx",
-      "code": 18046,
-      "message": "'campaign' is of type 'unknown'.",
-      "source": "campaign",
-      "count": 26
-    },
-    {
-      "file": "src/pages/DynamicTableView.tsx",
-      "code": 18046,
-      "message": "'data' is of type 'unknown'.",
-      "source": "data",
-      "count": 73
-    },
-    {
-      "file": "src/pages/DynamicTableView.tsx",
-      "code": 18046,
-      "message": "'totals' is of type 'unknown'.",
-      "source": "totals",
-      "count": 35
-    },
-    {
       "file": "src/pages/FacebookSettings.tsx",
       "code": 2345,
       "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string>'.",
