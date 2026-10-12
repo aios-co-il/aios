@@ -5,8 +5,6 @@ import path from "node:path";
 import { test } from "node:test";
 import ts from "typescript";
 import {
-  approvingMaintainer,
-  baselineAdditions,
   collectDiagnostics,
   compareDiagnostics,
   normalizeDiagnosticMessage,
@@ -163,30 +161,6 @@ test("real missing-declaration diagnostics remain identical across different che
   }
 });
 
-test("baseline review is required for creation, increases, replacements, and compiler upgrades", () => {
-  assert.equal(baselineAdditions(baseline([error]), null), true);
-  assert.equal(baselineAdditions(baseline([error]), baseline([error])), false);
-  assert.equal(baselineAdditions(baseline([]), baseline([error])), false);
-  assert.equal(
-    baselineAdditions(baseline([error, error]), baseline([error])),
-    true,
-  );
-  assert.equal(
-    baselineAdditions(
-      baseline([{ ...error, source: "other" }]),
-      baseline([error]),
-    ),
-    true,
-  );
-  assert.equal(
-    baselineAdditions(
-      { ...baseline([error]), typescriptVersion: "other" },
-      baseline([error]),
-    ),
-    true,
-  );
-});
-
 test("malformed and duplicate baseline entries fail closed", () => {
   assert.throws(() => validateBaseline({}));
   assert.throws(() =>
@@ -202,72 +176,6 @@ test("malformed and duplicate baseline entries fail closed", () => {
         { ...error, count: 1 },
         { ...error, count: 1 },
       ],
-    }),
-  );
-});
-
-test("baseline approval requires a current, undismissed maintainer review", async () => {
-  const approved = {
-    user: { login: "reviewer" },
-    state: "APPROVED",
-    commit_id: "head",
-  };
-  assert.equal(
-    await approvingMaintainer([approved], "head", async () => "write"),
-    "reviewer",
-  );
-  assert.equal(
-    await approvingMaintainer([approved], "other-head", async () => "write"),
-    null,
-  );
-  assert.equal(
-    await approvingMaintainer([approved], "head", async () => "read"),
-    null,
-  );
-  assert.equal(
-    await approvingMaintainer([], "head", async () => "admin"),
-    null,
-  );
-  for (const state of ["DISMISSED", "CHANGES_REQUESTED"]) {
-    assert.equal(
-      await approvingMaintainer(
-        [approved, { ...approved, state }],
-        "head",
-        async () => "write",
-      ),
-      null,
-    );
-  }
-  assert.equal(
-    await approvingMaintainer(
-      [approved, { ...approved, state: "COMMENTED" }],
-      "head",
-      async () => "write",
-    ),
-    "reviewer",
-  );
-  await assert.rejects(
-    approvingMaintainer([approved], "head", async () => {
-      throw new Error("API unavailable");
-    }),
-  );
-  const outside = { ...approved, user: { login: "outside" } };
-  const permissionFor = async (login) => {
-    if (login === "outside")
-      throw Object.assign(new Error("Not a collaborator"), { status: 404 });
-    return "write";
-  };
-  assert.equal(
-    await approvingMaintainer([outside, approved], "head", permissionFor),
-    "reviewer",
-  );
-  assert.equal(
-    await approvingMaintainer([outside], "head", permissionFor),
-    null,
-  );
-  await assert.rejects(
-    approvingMaintainer([outside, approved], "head", async () => {
-      throw Object.assign(new Error("Forbidden"), { status: 403 });
     }),
   );
 });

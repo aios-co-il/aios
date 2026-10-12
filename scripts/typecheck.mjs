@@ -8,8 +8,6 @@ import {
   validateBaseline,
 } from "./typecheck-policy.mjs";
 export {
-  approvingMaintainer,
-  baselineAdditions,
   compareDiagnostics,
   diagnosticKey,
   snapshot,
@@ -113,12 +111,10 @@ export function run(args = process.argv.slice(2)) {
     ? validateBaseline(JSON.parse(fs.readFileSync(projectBaselinePath, "utf8")))
     : null;
   if (!baseline && !acceptNew)
-    throw new Error(
-      "Missing baseline; initial capture requires --accept-new and PR review.",
-    );
+    throw new Error("Missing baseline; initial capture requires --accept-new.");
   if (baseline && baseline.typescriptVersion !== ts.version && !acceptNew) {
     throw new Error(
-      `Compiler version changed: baseline ${baseline.typescriptVersion}, installed ${ts.version}. Review a new baseline explicitly.`,
+      `Compiler version changed: baseline ${baseline.typescriptVersion}, installed ${ts.version}. Capture a new baseline explicitly.`,
     );
   }
   const current = collectDiagnostics(projectRoot);
@@ -149,7 +145,7 @@ export function run(args = process.argv.slice(2)) {
       ) + "\n",
     );
     console.log(
-      `Captured ${current.length} diagnostic(s) with TypeScript ${ts.version}.${acceptNew ? " Baseline additions require maintainer approval in CI." : ""}`,
+      `Captured ${current.length} diagnostic(s) with TypeScript ${ts.version}.`,
     );
     return 0;
   }

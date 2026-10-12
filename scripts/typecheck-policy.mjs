@@ -69,38 +69,3 @@ export function compareDiagnostics(current, baseline) {
   });
   return { added, resolved };
 }
-
-export function baselineAdditions(current, previous) {
-  validateBaseline(current);
-  if (!previous) return true;
-  validateBaseline(previous);
-  if (current.typescriptVersion !== previous.typescriptVersion) return true;
-  const counts = new Map(
-    previous.diagnostics.map((entry) => [diagnosticKey(entry), entry.count]),
-  );
-  return current.diagnostics.some(
-    (entry) => entry.count > (counts.get(diagnosticKey(entry)) ?? 0),
-  );
-}
-
-export async function approvingMaintainer(reviews, headSha, permissionFor) {
-  const latest = new Map();
-  for (const review of reviews) {
-    if (["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) {
-      latest.set(review.user.login, review);
-    }
-  }
-  for (const review of latest.values()) {
-    if (review.state !== "APPROVED" || review.commit_id !== headSha) continue;
-    let permission;
-    try {
-      permission = await permissionFor(review.user.login);
-    } catch (error) {
-      if (error.status !== 404) throw error;
-      continue;
-    }
-    if (["admin", "maintain", "write"].includes(permission))
-      return review.user.login;
-  }
-  return null;
-}
