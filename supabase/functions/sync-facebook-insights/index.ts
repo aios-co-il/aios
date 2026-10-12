@@ -3,6 +3,7 @@ import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
   buildResultLeadTypeMap,
+  buildResultMetricMaps,
   type CampaignStatus,
   type InsightRecord,
   FB_INSIGHTS_FIELD_KEYS,
@@ -284,7 +285,7 @@ Deno.serve(async (req) => {
     // "NewLead" rather than the broad fb_pixel_lead — keeping leads from inflating.
     const adsets: any[] = [];
     {
-      let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
+      let next: string | null = `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
       while (next) {
         const r = await fetch(next);
         const d: any = await r.json();
@@ -297,6 +298,7 @@ Deno.serve(async (req) => {
     for (const c of Object.values(campaignStatuses)) campaignObjectives[c.id] = c.objective;
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
+    const resultMetrics = buildResultMetricMaps(adsets);
 
     // Also fetch ad account status
     const accountUrl = `https://graph.facebook.com/v21.0/${adAccountId}?fields=account_status,disable_reason,name&access_token=${accessToken}`;
@@ -329,6 +331,7 @@ Deno.serve(async (req) => {
       campaignStatuses,
       resultLeadTypes,
       optimizationGoals,
+      resultMetrics,
     );
 
     console.log(`[sync-facebook-insights] Got ${insights.length} insight rows from FB`, levelCounts);
