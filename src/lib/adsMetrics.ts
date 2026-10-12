@@ -161,10 +161,10 @@ export function isFacebookEcommerceCampaign(data: FacebookCampaignRow): boolean 
   if (rowType === 'traffic') return false;
   if (rowType === 'ecommerce') return true;
   if (FACEBOOK_SALES_OBJECTIVES.has(String(data.campaign_objective || '').toUpperCase())) return true;
-  // A lead campaign stays a lead campaign even when the pixel reports a stray purchase.
-  if (rowType === 'lead') return false;
   const resultKind = String(data.result_kind || data.result?.result_kind || '').toLowerCase();
   if (FACEBOOK_ECOMMERCE_RESULT_KINDS.has(resultKind)) return true;
+  // A lead campaign stays a lead campaign even when the pixel reports a stray purchase.
+  if (rowType === 'lead') return false;
   return (
     (data.purchases > 0 || data.purchase_value > 0) &&
     !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)

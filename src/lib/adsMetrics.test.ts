@@ -329,8 +329,8 @@ test('WhatsApp campaigns stored as traffic render as leads (אלהם פארמה 
 test('Meta objective decides the Facebook campaign kind over stale stored types', () => {
   // Sales campaign mislabeled "lead" by an older sync (incidental conversations).
   assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'OFFSITE_CONVERSIONS', campaign_type: 'lead' }), 'ecommerce');
-  // Message-optimized sales campaigns are lead campaigns.
-  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'CONVERSATIONS' }), 'lead');
+  // Message-optimized sales campaigns stay ecommerce; their conversations show as leads on the row.
+  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'CONVERSATIONS' }), 'ecommerce');
   // A lead campaign with a stray pixel purchase stays leads.
   assert.equal(classifyFacebookRecord({ campaign_objective: 'OUTCOME_LEADS', purchases: 1, purchase_value: 90, leads: 0 }), 'leads');
   assert.equal(facebookObjectiveKind({ campaign_objective: 'OUTCOME_TRAFFIC' }), null);
