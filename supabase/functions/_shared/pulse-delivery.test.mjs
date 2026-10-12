@@ -129,7 +129,7 @@ test("preview message wraps scoped digest for campaigner", () => {
   const digest = buildPulseWhatsAppDigest(scoped, "https://aios.co.il/t/dmm/dmm-dashboard");
   const preview = buildPulsePreviewMessage("אביעד", digest);
   assert.match(preview, /תצוגה מקדימה — בדיקת דופק לאביעד/);
-  assert.match(preview, /נבדקו 2 יעדי קמפיין/);
+  assert.match(preview, /נבדקו 2 לקוחות/);
   assert.match(preview, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
 });
 

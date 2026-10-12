@@ -51,6 +51,7 @@ import {
   facebookTableUsesMixedRows,
   isFacebookLeadsOnlyTable,
   summarizeFacebookCampaignGroup,
+  facebookObjectiveKind,
 } from "@/lib/adsMetrics";
 import { reportQueryOptions, getReportLastSyncAt, refetchOnMountIfEmpty } from "@/lib/reportQueryOptions";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -546,7 +547,11 @@ export default function DashboardView() {
       if (explicitlySet.has(source)) return; // user explicitly chose — don't override
       if (map[source] === 'ecommerce') return; // already detected
       const d = record.data || {};
-      if (Number(d.purchases) > 0 || Number(d.purchase_value) > 0 || Number(d.add_to_cart) > 0 ||
+      // The Meta objective decides when known; pixel noise (add_to_cart, a stray
+      // purchase) on a lead campaign must not flip the report to ecommerce.
+      const byObjective = isFacebookPlatform(source) ? facebookObjectiveKind(d) : null;
+      if (byObjective === 'lead') return;
+      if (byObjective === 'ecommerce' || Number(d.purchases) > 0 || Number(d.purchase_value) > 0 ||
           String(d.campaign_type || '').toLowerCase() === 'ecommerce') {
         map[source] = 'ecommerce';
       }

@@ -9,6 +9,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.0'
 import { resolveModelId } from '../_shared/models.ts'
 import { isCachedPulseRequest } from '../_shared/pulse-request.mjs'
 import { classifyDirectTool, directToolPool } from '../_shared/carmen-direct-tools.mjs'
+import { compareReportToMeta, facebookReportType } from '../_shared/report-meta-verify.mjs'
 import { assertCallerCanAccessClient, assertCallerCanAccessEntityClient } from '../_shared/auth-helpers.ts'
 import { asUuidOrNull } from '../_shared/uuid.ts'
 import { summarizeAndStoreAgentMemory, recallAgentMemory, recallAgentMemoryFTS, saveAgentMemory } from '../_shared/agent-memory.ts'
@@ -841,6 +842,7 @@ const ALL_TOOLS = [
   { name: 'list_facebook_ad_accounts', description: 'שליפת כל חשבונות המודעות מפייסבוק. מחזיר id, name, status, currency.', parameters: { type: 'object', properties: {} } },
   { name: 'create_facebook_report_table', description: 'חיבור חשבון מודעות פייסבוק ללקוח — יוצר טבלת דוח facebook_insights ב-CRM', parameters: { type: 'object', properties: { client_id: { type: 'string', description: 'מזהה הלקוח' }, ad_account_id: { type: 'string', description: 'מזהה חשבון מודעות פייסבוק (act_XXXXX)' }, ad_account_name: { type: 'string', description: 'שם חשבון המודעות' } }, required: ['client_id', 'ad_account_id', 'ad_account_name'] } },
   { name: 'list_unconnected_clients', description: 'רשימת לקוחות פעילים שאין להם עדיין טבלת דוח פייסבוק (facebook_insights) ב-CRM. שימושי לזיהוי לקוחות שצריכים חיבור.', parameters: { type: 'object', properties: {} } },
+  { name: 'verify_report_vs_meta', description: 'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים וימים — הוצאה לכל קמפיין, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד). ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.', parameters: { type: 'object', properties: { client_id: { type: 'string' }, agency_name: { type: 'string', description: 'סינון לסוכנות (חיפוש חלקי בשם)' }, days: { type: 'integer', description: 'כמה ימים מלאים אחורה (ברירת מחדל 7, עד 30)' } } } },
   { name: 'check_ad_accounts_health', description: 'בדיקת תקינות חשבונות מודעות פייסבוק לכל הלקוחות בסקופ הקורא. מחזיר לכל לקוח: status (active/disabled/closed), has_spend_7d (האם יש הוצאה ב-7 ימים אחרונים), all_paused (האם כל הקמפיינים מושהים), token_ok (האם הטוקן תקף), flags (מערך של בעיות). השתמשי ב-pulse check ובכל בקשת "תקינות/מצב חשבונות מודעות".', parameters: { type: 'object', properties: { client_id: { type: 'string' }, agency_id: { type: 'string' } } } },
   // INTEGRATIONS MANAGEMENT
   { name: 'list_integrations', description: 'רשימת אינטגרציות מוגדרות בטננט (סוג, סטטוס פעיל, הגדרות בסיסיות). שימושי כשרוצים לדעת מה מחובר ומה לא.', parameters: { type: 'object', properties: { type: { type: 'string', description: 'סינון לפי סוג אינטגרציה' }, only_active: { type: 'boolean' } } } },
@@ -5042,6 +5044,77 @@ async function executeTool(name: string, args: Record<string, any>, supabase: an
         integration_settings: { ad_account_id, ad_account_name },
       })
       return { success: true, table_id: table.id, name: table.name, slug: table.slug, ad_account_id, client_name: client.name }
+    }
+    case 'verify_report_vs_meta': {
+      if (args.client_id) await assertCallerCanAccessClient(supabase, args.client_id, callerScope)
+      else if (!isManagerRole) throw new Error('בדיקה לכל הלקוחות זמינה למנהלים בלבד — העבירי client_id')
+      const days = Math.min(Math.max(Number(args.days) || 7, 1), 30)
+      const ymd = (d: Date) => d.toISOString().slice(0, 10)
+      const until = new Date(Date.now() - 86400000)
+      const since = new Date(until.getTime() - (days - 1) * 86400000)
+      const sinceStr = ymd(since)
+      const untilStr = ymd(until)
+
+      let tablesQuery = supabase.from('crm_tables')
+        .select('id, tenant_id, client_id, integration_type, integration_settings, clients!inner(name, status, agencies(name))')
+        .in('integration_type', ['facebook_insights', 'facebook_ecommerce'])
+        .in('tenant_id', accessibleTenantIds)
+        .neq('campaign_active', false)
+      if (args.client_id) tablesQuery = tablesQuery.eq('client_id', args.client_id)
+      else tablesQuery = tablesQuery.eq('clients.status', 'active')
+      const { data: fbTables, error: tablesErr } = await tablesQuery.limit(200)
+      if (tablesErr) throw tablesErr
+      const tables = (fbTables || []).filter((t: any) => {
+        if (!t.integration_settings?.ad_account_id) return false
+        if (!args.agency_name) return true
+        return String(t.clients?.agencies?.name || '').toLowerCase().includes(String(args.agency_name).toLowerCase())
+      }).slice(0, 40)
+      if (!tables.length) return { checked: 0, note: 'לא נמצא דוח פייסבוק פעיל עם חשבון מודעות בסקופ' }
+
+      const results: any[] = []
+      for (const t of tables) {
+        const clientName = t.clients?.name || t.client_id
+        const acct = String(t.integration_settings.ad_account_id).replace(/^act_/, '')
+        const token = await fbGetToken(supabase, t.tenant_id) || await fbGetToken(supabase, accessibleTenantIds[0])
+        if (!token) { results.push({ client: clientName, error: 'אין טוקן פייסבוק פעיל' }); continue }
+        const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign`
+          + `&time_range=${encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }))}`
+          + `&fields=campaign_id,campaign_name,objective,spend&limit=500&access_token=${token}`
+        let metaRows: any[] = []
+        try {
+          const r = await fetch(url)
+          const j = await r.json()
+          if (!r.ok || j?.error) { results.push({ client: clientName, error: `מטא: ${j?.error?.message || r.status}` }); continue }
+          metaRows = (j.data || []).map((d: any) => ({ campaign_id: d.campaign_id, campaign_name: d.campaign_name, objective: d.objective, spend: Number(d.spend || 0) }))
+        } catch (e: any) {
+          results.push({ client: clientName, error: `מטא: ${e?.message || e}` }); continue
+        }
+        const { data: recs } = await supabase.from('crm_records').select('data')
+          .eq('table_id', t.id).eq('data->>entity_level', 'campaign')
+          .gte('data->>date', sinceStr).lte('data->>date', untilStr).limit(5000)
+        const byCampaign = new Map<string, { campaign_id: string; campaign_name: string; spend: number }>()
+        for (const rec of (recs || [])) {
+          const d = rec.data || {}
+          const id = String(d.campaign_id || d.campaign_name || '')
+          const row = byCampaign.get(id) || { campaign_id: id, campaign_name: d.campaign_name, spend: 0 }
+          row.spend += Number(d.spend) || 0
+          byCampaign.set(id, row)
+        }
+        const cmp = compareReportToMeta({
+          metaRows,
+          aiosRows: [...byCampaign.values()],
+          reportType: facebookReportType(t.integration_type, t.integration_settings) as any,
+        })
+        results.push({ client: clientName, agency: t.clients?.agencies?.name || null, ...cmp })
+      }
+      const problems = results.filter((r) => r.error || !r.ok)
+      return {
+        period: `${sinceStr} – ${untilStr}`,
+        checked: results.length,
+        ok_count: results.length - problems.length,
+        ok_clients: results.filter((r) => !r.error && r.ok).map((r) => r.client),
+        problems,
+      }
     }
     case 'check_ad_accounts_health': {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see

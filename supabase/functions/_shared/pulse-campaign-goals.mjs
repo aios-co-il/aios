@@ -699,6 +699,7 @@ export function buildPulseCampaignRows({
   const tableMap = new Map(tables.map((table) => [table.id, table]))
   const deduped = new Map()
 
+  const usable = []
   for (const record of records) {
     const data = record.data || {}
     if (String(data.entity_level || 'campaign').toLowerCase() !== 'campaign') continue
@@ -713,21 +714,40 @@ export function buildPulseCampaignRows({
       integration_settings: table.integration_settings || {},
       category: table.category,
     })
-    const mergeKey = `${canonicalCampaignMergeKey(table.client_id, platform, classification.goal, identity)}:${data.date}`
+    usable.push({ record, table, platform, identity, goal: classification.goal })
+  }
+
+  // One goal per campaign: daily rows can classify differently (e.g. a Google PMax day
+  // with conversions vs. a clicks-only day), which split one campaign across categories.
+  // The goal backed by the most spend wins; 'unknown' only when nothing else is known.
+  const goalSpend = new Map()
+  const campaignOf = (item) => canonicalCampaignMergeKey(item.table.client_id, item.platform, '*', item.identity)
+  for (const item of usable) {
+    const votes = goalSpend.get(campaignOf(item)) || {}
+    votes[item.goal] = (votes[item.goal] || 0) + (Number(item.record.data.spend) || 0) + 1e-6
+    goalSpend.set(campaignOf(item), votes)
+  }
+  const campaignGoal = new Map()
+  for (const [key, votes] of goalSpend) {
+    const ranked = Object.entries(votes).sort((a, b) =>
+      (a[0] === 'unknown') - (b[0] === 'unknown') || b[1] - a[1])
+    campaignGoal.set(key, ranked[0][0])
+  }
+
+  for (const item of usable) {
+    const { record, table, platform, identity } = item
+    const data = record.data
+    const goal = campaignGoal.get(campaignOf(item))
+    const mergeKey = `${canonicalCampaignMergeKey(table.client_id, platform, goal, identity)}:${data.date}`
     const previous = deduped.get(mergeKey)
     if (!previous || recordScore(record, table) > recordScore(previous.record, previous.table)) {
-      deduped.set(mergeKey, { record, table, identity, platform })
+      deduped.set(mergeKey, { record, table, identity, platform, goal })
     }
   }
 
   const campaigns = new Map()
   for (const item of deduped.values()) {
-    const classification = classifyPulseCampaignGoal(item.record.data, {
-      integration_type: item.table.integration_type,
-      integration_settings: item.table.integration_settings || {},
-      category: item.table.category,
-    })
-    const key = canonicalCampaignMergeKey(item.table.client_id, item.platform, classification.goal, item.identity)
+    const key = canonicalCampaignMergeKey(item.table.client_id, item.platform, item.goal, item.identity)
     const list = campaigns.get(key) || []
     list.push(item)
     campaigns.set(key, list)
@@ -740,11 +760,12 @@ export function buildPulseCampaignRows({
   for (const items of campaigns.values()) {
     const sample = items.reduce((best, item) =>
       !best || recordScore(item.record, item.table) > recordScore(best.record, best.table) ? item : best)
-    const classification = classifyPulseCampaignGoal(sample.record.data, {
+    const sampleClassification = classifyPulseCampaignGoal(sample.record.data, {
       integration_type: sample.table.integration_type,
       integration_settings: sample.table.integration_settings || {},
       category: sample.table.category,
     })
+    const classification = { goal: sample.goal, source: sampleClassification.source }
     const outcome = pulseCampaignOutcome(sample.record.data, classification.goal)
     const campaignRecords = items.map((item) => item.record)
     const inWindow = (start, end) => campaignRecords.filter((row) => row.data.date >= start && row.data.date <= end)
