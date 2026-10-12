@@ -163,6 +163,8 @@ export function isFacebookEcommerceCampaign(data: FacebookCampaignRow): boolean 
   if (FACEBOOK_SALES_OBJECTIVES.has(String(data.campaign_objective || '').toUpperCase())) return true;
   const resultKind = String(data.result_kind || data.result?.result_kind || '').toLowerCase();
   if (FACEBOOK_ECOMMERCE_RESULT_KINDS.has(resultKind)) return true;
+  // A lead campaign stays a lead campaign even when the pixel reports a stray purchase.
+  if (rowType === 'lead') return false;
   return (
     (data.purchases > 0 || data.purchase_value > 0) &&
     !(data.leads > 0 && data.purchases === 0 && data.purchase_value === 0)
@@ -182,8 +184,26 @@ export function isFacebookMessagingLeadRecord(data: any): boolean {
   return false;
 }
 
-/** Stored rows may still say traffic until the next Meta sync — WhatsApp/messaging belongs in leads. */
+const SALES_OBJECTIVES = new Set(['OUTCOME_SALES', 'PRODUCT_CATALOG_SALES', 'SALES', 'CONVERSIONS']);
+const LEAD_OBJECTIVES = new Set(['OUTCOME_LEADS', 'LEAD_GENERATION']);
+
+/** Meta campaign objective → report kind; null when the objective does not decide it. */
+export function facebookObjectiveKind(data: any): 'lead' | 'ecommerce' | null {
+  const objective = String(data?.campaign_objective || data?.objective || '').toUpperCase();
+  if (LEAD_OBJECTIVES.has(objective)) return 'lead';
+  // Sales campaigns stay ecommerce; their leads/conversations show on the same row.
+  if (SALES_OBJECTIVES.has(objective)) return 'ecommerce';
+  return null;
+}
+
+/**
+ * The Meta objective decides when it is known (stored campaign_type may be stale or
+ * mislabeled by older syncs). Otherwise: stored rows may still say traffic until the
+ * next Meta sync — WhatsApp/messaging belongs in leads.
+ */
 export function effectiveFacebookCampaignType(data: any): 'lead' | 'ecommerce' | 'traffic' | 'other' {
+  const byObjective = facebookObjectiveKind(data);
+  if (byObjective) return byObjective;
   const rowType = String(data?.campaign_type || '').toLowerCase();
   if (rowType === 'traffic' && isFacebookMessagingLeadRecord(data)) return 'lead';
   if (rowType === 'ecommerce' || rowType === 'lead' || rowType === 'traffic') return rowType;
@@ -211,7 +231,9 @@ export function groupFacebookCampaigns(
   const nonTraffic = campaigns.filter((c) => !isFacebookTrafficCampaign(c));
 
   if (options.singleTableMode === 'ecommerce') {
-    return { ecommerce: nonTraffic, leads: [], traffic };
+    // An ecommerce report can still run lead campaigns (e.g. recruiting) — show them as leads.
+    const isLead = (c: FacebookCampaignRow) => String(c.campaign_type || '').toLowerCase() === 'lead';
+    return { ecommerce: nonTraffic.filter((c) => !isLead(c)), leads: nonTraffic.filter(isLead), traffic };
   }
   if (options.singleTableMode === 'leads') {
     return { ecommerce: [], leads: nonTraffic, traffic };
@@ -296,6 +318,7 @@ export function classifyFacebookCampaignTotals(totals: {
 }): FacebookRecordKind {
   const rowType = String(totals.campaign_type || '').toLowerCase();
   if (rowType === 'traffic') return 'traffic';
+  if (rowType === 'lead') return 'leads';
   const row: FacebookCampaignRow = {
     name: '',
     impressions: 0,

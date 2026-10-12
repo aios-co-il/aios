@@ -19,6 +19,7 @@ import {
   getRevenueFromData,
   getSpendFromData,
   hasAddToCartMetric,
+  facebookObjectiveKind,
 } from './adsMetrics.ts';
 
 // Real record shapes as written by each sync into `crm_records.data`.
@@ -272,9 +273,10 @@ test('groupFacebookCampaigns splits Avieli-like mixed account like DynamicTableV
   assert.equal(leadsOnly.leads.length, 3);
   assert.equal(leadsOnly.traffic.length, 1);
 
+  // Ecommerce-only reports keep known lead campaigns (by objective) in the leads table.
   const singleEcom = groupFacebookCampaigns(campaigns, { singleTableMode: 'ecommerce' });
-  assert.equal(singleEcom.ecommerce.length, 3);
-  assert.equal(singleEcom.leads.length, 0);
+  assert.equal(singleEcom.ecommerce.length, 2);
+  assert.equal(singleEcom.leads.length, 1);
 });
 
 test('summarizeFacebookCampaignGroup totals match campaign rows for All-tab breakdown', () => {
@@ -322,4 +324,23 @@ test('WhatsApp campaigns stored as traffic render as leads (אלהם פארמה 
   }]);
   assert.equal(grouped.traffic.length, 0);
   assert.equal(grouped.leads.length, 1);
+});
+
+test('Meta objective decides the Facebook campaign kind over stale stored types', () => {
+  // Sales campaign mislabeled "lead" by an older sync (incidental conversations).
+  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'OFFSITE_CONVERSIONS', campaign_type: 'lead' }), 'ecommerce');
+  // Message-optimized sales campaigns stay ecommerce; their conversations show as leads on the row.
+  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'CONVERSATIONS' }), 'ecommerce');
+  // A lead campaign with a stray pixel purchase stays leads.
+  assert.equal(classifyFacebookRecord({ campaign_objective: 'OUTCOME_LEADS', purchases: 1, purchase_value: 90, leads: 0 }), 'leads');
+  assert.equal(facebookObjectiveKind({ campaign_objective: 'OUTCOME_TRAFFIC' }), null);
+});
+
+test('ecommerce-only report still lists its lead campaigns as leads', () => {
+  const grouped = groupFacebookCampaigns([
+    { name: 'מכירות', impressions: 0, clicks: 0, spend: 500, leads: 0, purchases: 5, purchase_value: 900, add_to_cart: 0, campaign_type: 'ecommerce' },
+    { name: 'דרושים | לידים', impressions: 0, clicks: 0, spend: 100, leads: 20, purchases: 0, purchase_value: 0, add_to_cart: 0, campaign_type: 'lead' },
+  ], { singleTableMode: 'ecommerce' });
+  assert.deepEqual(grouped.ecommerce.map((c) => c.name), ['מכירות']);
+  assert.deepEqual(grouped.leads.map((c) => c.name), ['דרושים | לידים']);
 });

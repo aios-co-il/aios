@@ -258,6 +258,36 @@ test('sales objective stores purchase results for pulse classification', () => {
   assert.equal(row.purchases, 2)
 })
 
+test('sales objective with incidental messaging stays ecommerce', () => {
+  const row = buildInsightRecord(
+    {
+      date_start: '2026-10-05',
+      campaign_id: 'sale2',
+      campaign_name: 'יוני 26 | מכירות',
+      spend: '203.13',
+      actions: [
+        { action_type: 'omni_purchase', value: '4' },
+        { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '1' },
+      ],
+      action_values: [{ action_type: 'omni_purchase', value: '900' }],
+    },
+    {
+      sale2: {
+        id: 'sale2',
+        name: 'יוני 26 | מכירות',
+        objective: 'OUTCOME_SALES',
+        effective_status: 'ACTIVE',
+        configured_status: 'ACTIVE',
+      },
+    },
+    {},
+    { sale2: 'OFFSITE_CONVERSIONS' },
+  )
+
+  assert.equal(row.campaign_type, 'ecommerce')
+  assert.equal(row.result_kind, 'purchases')
+})
+
 const leadCampaign = (id, name, objective = 'OUTCOME_LEADS') => ({
   [id]: {
     id,
