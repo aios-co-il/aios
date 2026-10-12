@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  leadOpenSurface,
   parseLeadViewMode,
   readStoredLeadViewMode,
   writeStoredLeadViewMode,
   LEAD_DEFAULT_VIEW_STORAGE_KEY,
   LEAD_VIEW_MODE_STORAGE_KEY,
 } from "./leadViewMode.ts";
+
+test("CRM table opens the chat record as a popup", () => {
+  assert.equal(leadOpenSurface("table"), "popup");
+  assert.equal(leadOpenSurface("kanban"), "chat");
+  assert.equal(leadOpenSurface("chat"), "chat");
+});
 
 test("parseLeadViewMode accepts the three CRM views", () => {
   assert.equal(parseLeadViewMode("kanban"), "kanban");

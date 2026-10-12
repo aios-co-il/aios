@@ -40,10 +40,11 @@ Deno.serve(async (req) => {
 
     let executionResult: any = null;
 
-    if (decision === "approved" && approval.tool_name === "create_automation") {
+    if (decision === "approved" && (approval.tool_name === "create_automation" || approval.action_type === "agent_direct_tool")) {
       // Carmen authoring: route to carmen-approval-execute, which materializes the
-      // (disabled) flow automation from the approved spec. Kept as an explicit
-      // special-case so no other tool's behavior changes.
+      // (disabled) flow automation from the approved spec. Direct agent tool calls
+      // (carmen-tools-mcp) also execute there. Kept as explicit special-cases so no
+      // other tool's behavior changes.
       try {
         const { data, error } = await supabase.functions.invoke("carmen-approval-execute", {
           body: { approval_id, approved_by: reviewer_id ?? null },
@@ -88,7 +89,10 @@ Deno.serve(async (req) => {
     await supabase
       .from("agent_approval_queue")
       .update({
-        status: decision === "approved" ? "executed" : "rejected",
+        // A direct agent tool that failed keeps "failed" (carmen-approval-execute already wrote it).
+        status: decision !== "approved"
+          ? "rejected"
+          : approval.action_type === "agent_direct_tool" && executionResult?.ok === false ? "failed" : "executed",
         approved_by: reviewer_id ?? null,
         approved_at: new Date().toISOString(),
         executed_at: decision === "approved" ? new Date().toISOString() : null,

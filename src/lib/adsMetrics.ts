@@ -119,7 +119,9 @@ export type FacebookCampaignRow = {
 
 /** Mirrors DynamicTableView ecommerce campaign detection on aggregated rows. */
 export function isFacebookEcommerceCampaign(data: FacebookCampaignRow): boolean {
-  if (String(data.campaign_type || '').toLowerCase() === 'traffic') return false;
+  const type = String(data.campaign_type || '').toLowerCase();
+  // A lead campaign stays a lead campaign even when the pixel reports a stray purchase.
+  if (type === 'traffic' || type === 'lead') return false;
   return (
     (String(data.campaign_type || '').toLowerCase() === 'ecommerce' ||
       data.purchases > 0 ||
@@ -141,8 +143,28 @@ export function isFacebookMessagingLeadRecord(data: any): boolean {
   return false;
 }
 
-/** Stored rows may still say traffic until the next Meta sync — WhatsApp/messaging belongs in leads. */
+const SALES_OBJECTIVES = new Set(['OUTCOME_SALES', 'PRODUCT_CATALOG_SALES', 'SALES', 'CONVERSIONS']);
+const LEAD_OBJECTIVES = new Set(['OUTCOME_LEADS', 'LEAD_GENERATION']);
+
+/** Meta campaign objective → report kind; null when the objective does not decide it. */
+export function facebookObjectiveKind(data: any): 'lead' | 'ecommerce' | null {
+  const objective = String(data?.campaign_objective || data?.objective || '').toUpperCase();
+  if (LEAD_OBJECTIVES.has(objective)) return 'lead';
+  if (SALES_OBJECTIVES.has(objective)) {
+    const optimization = String(data?.optimization_goal || '').toUpperCase();
+    return /MESSAGE|CONVERSATION/.test(optimization) ? 'lead' : 'ecommerce';
+  }
+  return null;
+}
+
+/**
+ * The Meta objective decides when it is known (stored campaign_type may be stale or
+ * mislabeled by older syncs). Otherwise: stored rows may still say traffic until the
+ * next Meta sync — WhatsApp/messaging belongs in leads.
+ */
 export function effectiveFacebookCampaignType(data: any): 'lead' | 'ecommerce' | 'traffic' | 'other' {
+  const byObjective = facebookObjectiveKind(data);
+  if (byObjective) return byObjective;
   const rowType = String(data?.campaign_type || '').toLowerCase();
   if (rowType === 'traffic' && isFacebookMessagingLeadRecord(data)) return 'lead';
   if (rowType === 'ecommerce' || rowType === 'lead' || rowType === 'traffic') return rowType;
@@ -170,7 +192,9 @@ export function groupFacebookCampaigns(
   const nonTraffic = campaigns.filter((c) => !isFacebookTrafficCampaign(c));
 
   if (options.singleTableMode === 'ecommerce') {
-    return { ecommerce: nonTraffic, leads: [], traffic };
+    // An ecommerce report can still run lead campaigns (e.g. recruiting) — show them as leads.
+    const isLead = (c: FacebookCampaignRow) => String(c.campaign_type || '').toLowerCase() === 'lead';
+    return { ecommerce: nonTraffic.filter((c) => !isLead(c)), leads: nonTraffic.filter(isLead), traffic };
   }
   if (options.singleTableMode === 'leads') {
     return { ecommerce: [], leads: nonTraffic, traffic };
@@ -231,6 +255,7 @@ export function classifyFacebookRecord(data: any): FacebookRecordKind {
   const rowType = effectiveFacebookCampaignType(data);
   if (rowType === 'traffic') return 'traffic';
   if (rowType === 'ecommerce') return 'ecommerce';
+  if (rowType === 'lead') return 'leads';
 
   const purchases = Number(data?.purchases) || 0;
   const purchaseValue = Number(data?.purchase_value) || 0;
@@ -253,6 +278,7 @@ export function classifyFacebookCampaignTotals(totals: {
 }): FacebookRecordKind {
   const rowType = String(totals.campaign_type || '').toLowerCase();
   if (rowType === 'traffic') return 'traffic';
+  if (rowType === 'lead') return 'leads';
   const row: FacebookCampaignRow = {
     name: '',
     impressions: 0,
