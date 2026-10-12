@@ -8,13 +8,13 @@ export const CHAT_MESSAGES_INSERT_TIMEOUT_MS = 15_000;
 export const SEND_REPORT_CLIENT_TIMEOUT_MS = 60_000;
 
 /** Same phone normalization as legacy send-green-api-file when groupChatId is absent. */
-export function normalizeGreenApiPhoneChatId(phoneNumber, countryCode = '972') {
-  const originalPhone = String(phoneNumber || '');
-  let digits = originalPhone.replace(/[^0-9]/g, '');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  const defaultCountryCode = String(countryCode || '972');
+export function normalizeGreenApiPhoneChatId(phoneNumber, countryCode = "972") {
+  const originalPhone = String(phoneNumber || "");
+  let digits = originalPhone.replace(/[^0-9]/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  const defaultCountryCode = String(countryCode || "972");
   if (!digits.startsWith(defaultCountryCode)) {
-    digits = digits.startsWith('0')
+    digits = digits.startsWith("0")
       ? defaultCountryCode + digits.slice(1)
       : defaultCountryCode + digits;
   }
@@ -23,12 +23,12 @@ export function normalizeGreenApiPhoneChatId(phoneNumber, countryCode = '972') {
 
 /** Reject bare/invalid phone chat ids like 972@c.us (country code only). */
 export function isValidGreenApiChatId(chatId) {
-  if (!chatId || typeof chatId !== 'string') return false;
-  if (chatId.endsWith('@g.us')) {
+  if (!chatId || typeof chatId !== "string") return false;
+  if (chatId.endsWith("@g.us")) {
     return chatId.length > 10;
   }
-  if (chatId.endsWith('@c.us')) {
-    const digits = chatId.replace(/@c\.us$/, '');
+  if (chatId.endsWith("@c.us")) {
+    const digits = chatId.replace(/@c\.us$/, "");
     return /^\d{8,15}$/.test(digits);
   }
   return false;
@@ -42,33 +42,36 @@ export function resolveGreenApiChatTarget({
   groupId,
   groupChatId,
   phoneNumber,
-  countryCode = '972',
+  countryCode = "972",
 }) {
   if (groupChatId) {
     const chatId = String(groupChatId);
     if (!isValidGreenApiChatId(chatId)) {
       return {
         ok: false,
-        error: 'invalid_group_chat_id',
-        message: 'קבוצת הוואטסאפ שנבחרה אינה תקינה (חסר מזהה צ׳אט)',
+        error: "invalid_group_chat_id",
+        message: "קבוצת הוואטסאפ שנבחרה אינה תקינה (חסר מזהה צ׳אט)",
       };
     }
-    return { ok: true, chatId, via: 'group' };
+    return { ok: true, chatId, via: "group" };
   }
 
-  if (phoneNumber && String(phoneNumber).replace(/[^0-9]/g, '').length > 0) {
-    const { chatId, digits } = normalizeGreenApiPhoneChatId(phoneNumber, countryCode);
+  if (phoneNumber && String(phoneNumber).replace(/[^0-9]/g, "").length > 0) {
+    const { chatId, digits } = normalizeGreenApiPhoneChatId(
+      phoneNumber,
+      countryCode,
+    );
     if (!isValidGreenApiChatId(chatId)) {
       return {
         ok: false,
-        error: 'invalid_phone',
-        message: 'מספר הטלפון אינו תקין',
+        error: "invalid_phone",
+        message: "מספר הטלפון אינו תקין",
       };
     }
     return {
       ok: true,
       chatId,
-      via: groupId ? 'phone_fallback' : 'phone',
+      via: groupId ? "phone_fallback" : "phone",
       digits,
     };
   }
@@ -76,15 +79,16 @@ export function resolveGreenApiChatTarget({
   if (groupId) {
     return {
       ok: false,
-      error: 'missing_group_chat_id',
-      message: 'לקבוצה שנבחרה חסר מזהה וואטסאפ — בחר קבוצה אחרת או הזן מספר טלפון',
+      error: "missing_group_chat_id",
+      message:
+        "לקבוצה שנבחרה חסר מזהה וואטסאפ — בחר קבוצה אחרת או הזן מספר טלפון",
     };
   }
 
   return {
     ok: false,
-    error: 'missing_recipient',
-    message: 'יש לבחור קבוצה או להזין מספר טלפון',
+    error: "missing_recipient",
+    message: "יש לבחור קבוצה או להזין מספר טלפון",
   };
 }
 
@@ -106,25 +110,28 @@ export function buildSendReportWhatsAppFields({
   directPhone,
   clientId,
 }) {
-  const hasGroup = Boolean(selectedGroupId && selectedGroupId !== '__none__');
-  const phone = directPhone && String(directPhone).trim() ? String(directPhone).trim() : null;
+  const hasGroup = Boolean(selectedGroupId && selectedGroupId !== "__none__");
+  const phone =
+    directPhone && String(directPhone).trim()
+      ? String(directPhone).trim()
+      : null;
   return {
     tenantId,
     groupId: hasGroup ? selectedGroupId : null,
     phoneNumber: phone,
     clientId: clientId || null,
-    fileType: 'image',
+    fileType: "image",
   };
 }
 
 /** Race a promise against a timeout; abort-friendly for fetch. */
-export function withTimeout(promise, ms, label = 'operation') {
+export function withTimeout(promise, ms, label = "operation") {
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => {
       const err = new Error(`${label}_timeout`);
-      err.name = 'TimeoutError';
-      err.code = 'timeout';
+      err.name = "TimeoutError";
+      err.code = "timeout";
       reject(err);
     }, ms);
   });
@@ -133,10 +140,14 @@ export function withTimeout(promise, ms, label = 'operation') {
 
 /** Client-side: map AbortError / TimeoutError to a Hebrew toast message. */
 export function clientSendTimeoutMessage(err) {
-  const name = err?.name || '';
-  const msg = String(err?.message || '');
-  if (name === 'AbortError' || name === 'TimeoutError' || msg.includes('timeout')) {
-    return 'שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API';
+  const name = err?.name || "";
+  const msg = String(err?.message || "");
+  if (
+    name === "AbortError" ||
+    name === "TimeoutError" ||
+    msg.includes("timeout")
+  ) {
+    return "שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API";
   }
   return null;
 }

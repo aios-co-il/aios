@@ -14,10 +14,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { toast } from "sonner";
-import { Send, Mail, MessageCircle, Loader2, Link2, Check, ChevronsUpDown, X } from "lucide-react";
+import {
+  Send,
+  Mail,
+  MessageCircle,
+  Loader2,
+  Link2,
+  Check,
+  ChevronsUpDown,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
@@ -124,7 +144,9 @@ export function SendReportDialog({
   const { data: gmailToken } = useQuery({
     queryKey: ["gmail-token-check"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return null;
       const { data } = await supabase
         .from("gmail_tokens")
@@ -140,7 +162,8 @@ export function SendReportDialog({
     if (client) {
       if (client.phone) setDirectPhone(client.phone);
       if (client.email) setEmailAddress(client.email);
-      if (client.whatsapp_group_id) setSelectedGroupId(client.whatsapp_group_id);
+      if (client.whatsapp_group_id)
+        setSelectedGroupId(client.whatsapp_group_id);
     }
   }, [client]);
 
@@ -162,7 +185,9 @@ export function SendReportDialog({
 
     setIsSending(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
       if (sendWhatsApp) {
@@ -193,7 +218,10 @@ export function SendReportDialog({
         if (clientId) formData.append("clientId", clientId);
 
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), SEND_REPORT_WA_CLIENT_TIMEOUT_MS);
+        const timeoutId = window.setTimeout(
+          () => controller.abort(),
+          SEND_REPORT_WA_CLIENT_TIMEOUT_MS,
+        );
         let response: Response;
         try {
           response = await fetch(
@@ -203,19 +231,22 @@ export function SendReportDialog({
               headers: { Authorization: `Bearer ${session.access_token}` },
               body: formData,
               signal: controller.signal,
-            }
+            },
           );
         } catch (fetchErr: unknown) {
           const name = fetchErr instanceof Error ? fetchErr.name : "";
           if (name === "AbortError") {
-            throw new Error("שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API");
+            throw new Error(
+              "שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API",
+            );
           }
           throw fetchErr;
         } finally {
           window.clearTimeout(timeoutId);
         }
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
+        if (!response.ok)
+          throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
       }
 
@@ -275,18 +306,21 @@ export function SendReportDialog({
                 to: emailAddress,
                 subject,
                 body: html,
-                attachments: [{
-                  filename: `report-${tableName}.png`,
-                  mimeType: "image/png",
-                  data: base64,
-                  disposition: "inline",
-                  cid: "report-screenshot",
-                }],
+                attachments: [
+                  {
+                    filename: `report-${tableName}.png`,
+                    mimeType: "image/png",
+                    data: base64,
+                    disposition: "inline",
+                    cid: "report-screenshot",
+                  },
+                ],
               }),
-            }
+            },
           );
           const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "שגיאה בשליחה ב-Gmail");
+          if (!response.ok)
+            throw new Error(result.error || "שגיאה בשליחה ב-Gmail");
           toast.success(`הדוח נשלח מ-${gmailToken.google_email}`);
         } else {
           // Resend: inline attachment via content_id
@@ -302,17 +336,20 @@ export function SendReportDialog({
                 to: emailAddress,
                 subject,
                 html,
-                attachments: [{
-                  filename: `report-${tableName}.png`,
-                  content: base64,
-                  contentType: "image/png",
-                  content_id: "report-screenshot",
-                }],
+                attachments: [
+                  {
+                    filename: `report-${tableName}.png`,
+                    content: base64,
+                    contentType: "image/png",
+                    content_id: "report-screenshot",
+                  },
+                ],
               }),
-            }
+            },
           );
           const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "שגיאה בשליחת אימייל");
+          if (!response.ok)
+            throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
       }
@@ -385,7 +422,8 @@ export function SendReportDialog({
                   dir="ltr"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  אם נבחרה קבוצה — היא תקבל עדיפות. אם חסר מזהה לקבוצה, יישלח למספר כגיבוי.
+                  אם נבחרה קבוצה — היא תקבל עדיפות. אם חסר מזהה לקבוצה, יישלח
+                  למספר כגיבוי.
                 </p>
               </div>
             </div>
@@ -394,7 +432,9 @@ export function SendReportDialog({
           {sendEmail && (
             <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
               <div>
-                <Label htmlFor="email" className="text-sm">כתובת אימייל של הנמען</Label>
+                <Label htmlFor="email" className="text-sm">
+                  כתובת אימייל של הנמען
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -416,13 +456,19 @@ export function SendReportDialog({
                     <RadioGroupItem value="aios" id="sender-aios" />
                     <span>
                       AIOS{" "}
-                      <span className="text-muted-foreground text-xs">(noreply@aios.co.il)</span>
+                      <span className="text-muted-foreground text-xs">
+                        (noreply@aios.co.il)
+                      </span>
                     </span>
                   </label>
-                  <label className={cn(
-                    "flex items-center gap-2 text-sm",
-                    gmailToken?.google_email ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                  )}>
+                  <label
+                    className={cn(
+                      "flex items-center gap-2 text-sm",
+                      gmailToken?.google_email
+                        ? "cursor-pointer"
+                        : "cursor-not-allowed opacity-50",
+                    )}
+                  >
                     <RadioGroupItem
                       value="gmail"
                       id="sender-gmail"
@@ -430,10 +476,15 @@ export function SendReportDialog({
                     />
                     <span>
                       Gmail שלי{" "}
-                      {gmailToken?.google_email
-                        ? <span className="text-muted-foreground text-xs">({gmailToken.google_email})</span>
-                        : <span className="text-muted-foreground text-xs">(לא מחובר)</span>
-                      }
+                      {gmailToken?.google_email ? (
+                        <span className="text-muted-foreground text-xs">
+                          ({gmailToken.google_email})
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          (לא מחובר)
+                        </span>
+                      )}
                     </span>
                   </label>
                 </RadioGroup>
@@ -449,12 +500,16 @@ export function SendReportDialog({
           ) : (
             <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm text-muted-foreground">
               <Link2 className="h-4 w-4 shrink-0 opacity-50" />
-              <span>אין קישור שיתוף פעיל — צור קישור דרך "שתף טבלה" כדי לצרף לינק</span>
+              <span>
+                אין קישור שיתוף פעיל — צור קישור דרך "שתף טבלה" כדי לצרף לינק
+              </span>
             </div>
           )}
 
           <div>
-            <Label htmlFor="message-text" className="text-sm">טקסט מלווה (אופציונלי)</Label>
+            <Label htmlFor="message-text" className="text-sm">
+              טקסט מלווה (אופציונלי)
+            </Label>
             <Textarea
               id="message-text"
               value={messageText}
@@ -515,13 +570,18 @@ function GroupCombobox({
             aria-expanded={open}
             className="flex-1 justify-between font-normal"
           >
-            <span className={cn("truncate", !selected && "text-muted-foreground")}>
+            <span
+              className={cn("truncate", !selected && "text-muted-foreground")}
+            >
               {selected ? selected.group_name : "חפש קבוצה לפי שם..."}
             </span>
             <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] p-0"
+          align="start"
+        >
           <Command>
             <CommandInput placeholder="חפש שם קבוצה..." />
             <CommandList>
@@ -539,7 +599,7 @@ function GroupCombobox({
                     <Check
                       className={cn(
                         "ml-2 h-4 w-4",
-                        value === group.id ? "opacity-100" : "opacity-0"
+                        value === group.id ? "opacity-100" : "opacity-0",
                       )}
                     />
                     {group.group_name}
