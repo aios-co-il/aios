@@ -53,7 +53,10 @@ import {
   EntityAssignmentDialog,
   type EntityAssignmentSelection,
 } from "@/components/shared/EntityAssignmentDialog";
+import { useToast } from "@/hooks/use-toast";
 import { useTenantPath } from "@/hooks/useTenantPath";
+import { presignedUrlStillValid, recordingNeedsRecallRefresh } from "@/lib/recordingPlayback";
+import { beginExternalOpen, cancelExternalOpen, finishExternalOpen, resolveExternalRecordingUrl } from "@/lib/refreshRecordingPlayback";
 
 export interface FeedRecording {
   id: string;
@@ -146,10 +149,12 @@ export function RecordingCard({
   onRejectSuggestion,
 }: RecordingCardProps) {
   const { buildPath } = useTenantPath();
+  const { toast } = useToast();
   const suggestedClientName = rec.suggested_client_id && !rec.client_id
     ? clients.find((c) => c.id === rec.suggested_client_id)?.name ?? null
     : null;
   const [playOpen, setPlayOpen] = useState(false);
+  const [refreshingPlay, setRefreshingPlay] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
@@ -220,11 +225,37 @@ export function RecordingCard({
     return null;
   };
 
-  const handlePlayClick = () => {
+  const handlePlayClick = async () => {
     if (rec.file_path) {
       setPlayOpen(true);
-    } else if (rec.recording_url) {
-      window.open(rec.recording_url, "_blank");
+      return;
+    }
+    if (!recordingNeedsRecallRefresh(rec)) {
+      if (rec.recording_url) window.open(rec.recording_url, "_blank");
+      return;
+    }
+    if (refreshingPlay) return;
+
+    if (rec.recording_url && presignedUrlStillValid(rec.recording_url)) {
+      finishExternalOpen(rec.recording_url, null);
+      return;
+    }
+
+    const pending = beginExternalOpen();
+    setRefreshingPlay(true);
+    try {
+      const url = await resolveExternalRecordingUrl(rec);
+      if (!url) throw new Error("אין קובץ זמין להפעלה");
+      finishExternalOpen(url, pending);
+    } catch (error) {
+      cancelExternalOpen(pending);
+      toast({
+        title: "לא ניתן לנגן את ההקלטה",
+        description: error instanceof Error ? error.message : "לא הצלחנו לחדש את קישור ההקלטה. נסה שוב.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshingPlay(false);
     }
   };
 
@@ -264,9 +295,14 @@ export function RecordingCard({
                 : <Video className="h-10 w-10 text-primary/50" />}
             </div>
           )}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
+          <div className={cn(
+            "absolute inset-0 flex items-center justify-center transition-opacity bg-black/25",
+            refreshingPlay ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}>
             <div className="rounded-full bg-background/90 p-3 shadow">
-              <Play className="h-6 w-6 text-primary" />
+              {refreshingPlay
+                ? <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                : <Play className="h-6 w-6 text-primary" />}
             </div>
           </div>
           {duration && (
