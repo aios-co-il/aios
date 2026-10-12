@@ -112,40 +112,40 @@ export function ImportAnalyticsDialog({
       skipEmptyLines: true,
       complete: (results) => {
         const rows: ParsedRow[] = [];
-        
+
         results.data.forEach((row: Record<string, string>) => {
           // Try to find date column (flexible mapping)
           const dateKey = Object.keys(row).find(
             (k) =>
-            k.toLowerCase().includes("date") || 
-            k.toLowerCase().includes("תאריך") ||
+              k.toLowerCase().includes("date") ||
+              k.toLowerCase().includes("תאריך") ||
               k.toLowerCase() === "day",
           );
-          
+
           const sessionsKey = Object.keys(row).find(
             (k) =>
               k.toLowerCase().includes("session") ||
               k.toLowerCase().includes("ביקורים"),
           );
-          
+
           const usersKey = Object.keys(row).find(
             (k) =>
               k.toLowerCase().includes("user") ||
               k.toLowerCase().includes("משתמשים"),
           );
-          
+
           const pageviewsKey = Object.keys(row).find(
             (k) =>
               k.toLowerCase().includes("pageview") ||
               k.toLowerCase().includes("צפיות"),
           );
-          
+
           const bounceKey = Object.keys(row).find(
             (k) =>
               k.toLowerCase().includes("bounce") ||
               k.toLowerCase().includes("נטישה"),
           );
-          
+
           const durationKey = Object.keys(row).find(
             (k) =>
               k.toLowerCase().includes("duration") ||
@@ -183,19 +183,19 @@ export function ImportAnalyticsDialog({
   const parseDuration = (duration: string): number => {
     // Parse duration like "02:30" or "2m 30s" to seconds
     if (!duration) return 0;
-    
+
     const colonMatch = duration.match(/(\d+):(\d+)/);
     if (colonMatch) {
       return parseInt(colonMatch[1]) * 60 + parseInt(colonMatch[2]);
     }
-    
+
     const minsMatch = duration.match(/(\d+)\s*m/i);
     const secsMatch = duration.match(/(\d+)\s*s/i);
-    
+
     let seconds = 0;
     if (minsMatch) seconds += parseInt(minsMatch[1]) * 60;
     if (secsMatch) seconds += parseInt(secsMatch[1]);
-    
+
     return seconds;
   };
 
@@ -209,7 +209,7 @@ export function ImportAnalyticsDialog({
       let trackingConfigId = trackingConfigs.find(
         (tc: TrackingConfig) => tc.client_id === selectedClientId,
       )?.id;
-      
+
       if (!trackingConfigId && selectedClientId) {
         // Create a new tracking config for this client
         const { data: newConfig, error } = await supabase
@@ -221,7 +221,7 @@ export function ImportAnalyticsDialog({
           })
           .select("id")
           .single();
-        
+
         if (error) throw error;
         trackingConfigId = newConfig.id;
       }
@@ -242,7 +242,7 @@ export function ImportAnalyticsDialog({
             /(\d{2})\/(\d{2})\/(\d{4})/, // 01/01/2024
             /(\d{2})\/(\d{2})\/(\d{2})/, // 01/01/24
           ];
-          
+
           let matched = false;
           for (const fmt of dateFormats) {
             const match = row.date.match(fmt);
@@ -294,7 +294,7 @@ export function ImportAnalyticsDialog({
               Math.floor(Math.random() * 24),
               Math.floor(Math.random() * 60),
             );
-            
+
             const isBounce = i < bounceCount;
 
             const { error: sessionError } = await supabase
@@ -524,8 +524,8 @@ export function ImportAnalyticsDialog({
             <Button variant="outline" onClick={() => setOpen(false)}>
               סגור
             </Button>
-            <Button 
-              onClick={handleImport} 
+            <Button
+              onClick={handleImport}
               disabled={parsedData.length === 0 || isImporting}
             >
               {isImporting ? "מייבא..." : `ייבא ${parsedData.length} רשומות`}
