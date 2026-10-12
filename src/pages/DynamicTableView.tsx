@@ -75,7 +75,7 @@ import { fetchWooReportAttribution, getDynamicTableDateRangeIso } from "@/lib/wo
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import { reportQueryOptions, getReportLastSyncAt } from "@/lib/reportQueryOptions";
-import { getAdAccountUrl } from "@/lib/adAccountUrl";
+import { adAccountShortcutLabel, getAdAccountLinks, getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -288,6 +288,24 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     || table?.integration_settings?.client_id
     || null;
   const adAccountUrl = getAdAccountUrl(table);
+  const { data: siblingAdLinks = [] } = useQuery({
+    queryKey: ['client-ad-account-links', tenantId, reportClientId],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !reportClientId) return [];
+      const response = await supabase.functions.invoke(
+        `crm-tables?tenant_id=${tenantId}&client_id=${reportClientId}`,
+        { method: 'GET' },
+      );
+      if (response.error) return [];
+      return getAdAccountLinks(Array.isArray(response.data) ? response.data : []);
+    },
+    enabled: !!tenantId && !!reportClientId && !adAccountUrl && !isEmbed,
+    ...reportQueryOptions<ReturnType<typeof getAdAccountLinks>>(),
+  });
+  const adAccountLinks = adAccountUrl
+    ? [{ url: adAccountUrl, label: "פתח חשבון מודעות" }]
+    : siblingAdLinks;
 
   const isGoogleAdsEcommerceReport = table?.integration_type === 'google_ads'
     && table?.integration_settings?.campaign_type === 'ecommerce';
@@ -1802,17 +1820,18 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
                 כרטיס לקוח
               </Button>
             )}
-            {adAccountUrl && (
+            {adAccountLinks.map((link) => (
               <Button
+                key={link.url}
                 variant="outline"
                 size="sm"
                 className="gap-2 flex-1 md:flex-none"
-                onClick={() => window.open(adAccountUrl, "_blank", "noopener,noreferrer")}
+                onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
               >
                 <ExternalLink className="h-4 w-4" />
-                פתח חשבון מודעות
+                {adAccountShortcutLabel(link, adAccountLinks.length)}
               </Button>
-            )}
+            ))}
             {!table.client_id && (
               <Button
                 variant="outline"

@@ -20,7 +20,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowRight, Facebook, ShoppingCart, FileSpreadsheet, TrendingUp, TrendingDown, Minus, RefreshCw, Building2, Globe, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowRight, ExternalLink, Facebook, ShoppingCart, FileSpreadsheet, TrendingUp, TrendingDown, Minus, RefreshCw, Building2, Globe, User, Calendar as CalendarIcon } from "lucide-react";
+import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -220,6 +221,8 @@ export default function DashboardView() {
     // Bust empty lists after permission grants; keep warm cache when data exists.
     refetchOnMount: refetchOnMountIfEmpty,
   });
+
+  const adAccountLinks = useMemo(() => getAdAccountLinks(tables), [tables]);
 
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
@@ -1285,10 +1288,35 @@ export default function DashboardView() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate(buildPath('/dynamic-tables'))} className="mb-2">
-            <ArrowRight className="ml-2 h-4 w-4" />
-            חזרה
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate(buildPath('/dynamic-tables'))}>
+              <ArrowRight className="ml-2 h-4 w-4" />
+              חזרה
+            </Button>
+            {dashboard.client_id && !isAgencyLikeDashboard && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate(buildPath(`/clients?clientId=${dashboard.client_id}&tab=report`))}
+              >
+                <User className="h-4 w-4" />
+                כרטיס לקוח
+              </Button>
+            )}
+            {adAccountLinks.map((link) => (
+              <Button
+                key={link.url}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                {adAccountShortcutLabel(link, adAccountLinks.length)}
+              </Button>
+            ))}
+          </div>
           <div className="flex items-center gap-3">
             <h1 className="text-xl md:text-3xl font-bold">{dashboard.name}</h1>
             {isAgencyDashboard && (
