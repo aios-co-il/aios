@@ -10,6 +10,8 @@ import {
   getMessagingLeadsFromData,
   isFacebookMessagingLeadRecord,
   groupFacebookCampaigns,
+  isFacebookEcommerceCampaign,
+  preferFacebookCampaignType,
   summarizeFacebookCampaignGroup,
   getAddToCartFromData,
   getAdsPurchasesFromData,
@@ -192,6 +194,67 @@ test('classifyFacebookCampaignTotals mirrors per-row rules on aggregates', () =>
   );
 });
 
+test('sales campaign with pixel leads and zero purchases stays in the ecommerce table', () => {
+  const grouped = groupFacebookCampaigns([{
+    name: 'SmartAir - Genesis - מכירות',
+    impressions: 1000,
+    clicks: 50,
+    spend: 1975,
+    leads: 100,
+    purchases: 0,
+    purchase_value: 0,
+    add_to_cart: 0,
+    campaign_type: 'ecommerce',
+  }]);
+  assert.equal(grouped.ecommerce.length, 1);
+  assert.equal(grouped.ecommerce[0].leads, 100);
+  assert.equal(grouped.leads.length, 0);
+  assert.equal(
+    classifyFacebookCampaignTotals({ campaign_type: 'ecommerce', leads: 100, purchases: 0, purchase_value: 0 }),
+    'ecommerce',
+  );
+});
+
+test('checkout result stays on the ecommerce table beside its leads', () => {
+  const row = {
+    name: 'SmartAir - Genesis - מכירות',
+    impressions: 32925,
+    clicks: 323,
+    spend: 629,
+    leads: 34,
+    purchases: 0,
+    purchase_value: 0,
+    add_to_cart: 0,
+    campaign_type: 'lead',
+    result_kind: 'initiate_checkout',
+  };
+  assert.equal(isFacebookEcommerceCampaign(row), true);
+  const grouped = groupFacebookCampaigns([
+    row,
+    {
+      name: 'SmartAir - Genesis - שווקי חג המולד',
+      impressions: 49539,
+      clicks: 1749,
+      spend: 716,
+      leads: 55,
+      purchases: 0,
+      purchase_value: 0,
+      add_to_cart: 0,
+      campaign_type: 'lead',
+      result_kind: 'purchases',
+    },
+  ]);
+  assert.deepEqual(grouped.ecommerce.map((c) => c.leads), [34, 55]);
+  assert.equal(grouped.leads.length, 0);
+});
+
+test('preferFacebookCampaignType keeps a sales label over a later lead day', () => {
+  assert.equal(preferFacebookCampaignType('ecommerce', 'lead'), 'ecommerce');
+  assert.equal(preferFacebookCampaignType('lead', 'ecommerce'), 'ecommerce');
+  assert.equal(preferFacebookCampaignType('other', 'lead'), 'lead');
+  assert.equal(preferFacebookCampaignType('traffic', 'lead'), 'lead');
+});
+
 test('groupFacebookCampaigns splits Avieli-like mixed account like DynamicTableView', () => {
   const campaigns = [
     { name: 'מכירות אוגוסט 2', impressions: 1000, clicks: 50, spend: 572, leads: 0, purchases: 6, purchase_value: 2903, add_to_cart: 10, campaign_type: 'ecommerce' },
@@ -266,8 +329,8 @@ test('WhatsApp campaigns stored as traffic render as leads (אלהם פארמה 
 test('Meta objective decides the Facebook campaign kind over stale stored types', () => {
   // Sales campaign mislabeled "lead" by an older sync (incidental conversations).
   assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'OFFSITE_CONVERSIONS', campaign_type: 'lead' }), 'ecommerce');
-  // Message-optimized sales campaigns are lead campaigns.
-  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'CONVERSATIONS' }), 'lead');
+  // Message-optimized sales campaigns stay ecommerce; their conversations show as leads on the row.
+  assert.equal(effectiveFacebookCampaignType({ campaign_objective: 'OUTCOME_SALES', optimization_goal: 'CONVERSATIONS' }), 'ecommerce');
   // A lead campaign with a stray pixel purchase stays leads.
   assert.equal(classifyFacebookRecord({ campaign_objective: 'OUTCOME_LEADS', purchases: 1, purchase_value: 90, leads: 0 }), 'leads');
   assert.equal(facebookObjectiveKind({ campaign_objective: 'OUTCOME_TRAFFIC' }), null);
