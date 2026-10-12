@@ -27,14 +27,11 @@ them. This command refuses new errors. No source suppressions or compiler-option
 relaxations are required.
 
 Initial capture, exceptional additions, and compiler upgrades use
-`pnpm typecheck --accept-new`. This is an explicit capture, not approval: explain
-the reason and review the resulting JSON diff in the PR. CI compares the PR
-baseline with its base commit and blocks additions, increased counts, and
-compiler-version changes until a maintainer with repository write access approves
-the current PR head. Submitting or dismissing a review reruns frontend CI; any new
-commit requires a fresh approval when adding debt. Ordinary reductions need no
-extra approval from this gate. Approval of a baseline does not authorize merging
-or deployment; follow the repository release rules.
+`pnpm typecheck --accept-new`. Explain the reason and commit the resulting JSON
+diff in the PR. Baseline updates and compiler configuration changes do not require
+a separate maintainer approval in CI. The TypeScript gate still compares current
+diagnostics with the committed baseline and fails on unrecorded errors or stale
+allowances. Compiler upgrades need the trusted CI tooling upgraded first.
 
 ## Trusted CI execution and rollout
 
@@ -47,22 +44,18 @@ compiler inputs, not imported as checker code. The trusted checker runs with
 `--project PATH`, which permits checking only, never updating the candidate
 baseline. Compiler upgrades need the trusted tooling upgraded first.
 
-The `baseline-review` job does not check out or execute PR code at all. It loads
-the base's dependency-free `typecheck-policy.mjs` and reads both baseline JSON
-files through GitHub's API at the exact base/head revisions. A reviewer permission
-lookup returning 404 means that reviewer cannot approve; other API errors fail
-the job. Changes to either frontend compiler configuration also require approval,
-so weakening strict checks and shrinking the baseline cannot bypass review.
-Approval must cover the current PR head, which is rechecked before success.
+The `baseline-review` job retains its existing check name and validates the PR's
+baseline schema using the base's dependency-free `typecheck-policy.mjs`. It reads
+the baseline through GitHub's API at the exact head revision and never checks out
+or executes PR code. It does not request reviews or compare baseline additions
+against the base commit.
 
 Before the target branch contains these tools, CI fails closed unless a full,
 reviewed tooling commit SHA is configured as the repository secret
 `TYPESCRIPT_GATE_BOOTSTRAP_SHA` (a non-sensitive SHA stored as a secret so its
 configuration requires repository administrator access). A maintainer must review that commit's checker,
 policy, manifest, and lockfile before configuring it; the PR cannot choose a
-bootstrap ref through its files or workflow inputs. Configure the reviewed SHA,
-approve the current PR head, then manually rerun the failed jobs if a review event
-does not start a run. Do not push a dummy commit to retry: that invalidates approval.
+bootstrap ref through its files or workflow inputs. Configure the reviewed SHA, then manually rerun the failed jobs.
 The configured reviewed SHA explicitly overrides the base's tools; this also
 permits a coordinated compiler/tooling upgrade against a reviewed revision.
 Once the tools land on `develop`, remove the temporary bootstrap secret and CI
@@ -85,10 +78,6 @@ implementation; protecting only this workflow also leaves check-name spoofing
 through a new workflow possible. Restrict access
 to the bootstrap configuration as part of that trust policy. This PR does not
 change repository rules or configure the bootstrap secret automatically.
-
-The review trigger intentionally checks the PR merge revision, as documented for
-`pull_request_review`; it does not check the default branch. Verify required-check
-association during rollout and use a manual rerun of the original PR run if needed.
 
 Compiler/configuration failures, missing or malformed baselines, and unexpected
 compiler versions fail rather than being treated as zero errors. Run

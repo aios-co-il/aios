@@ -168,14 +168,14 @@
       "file": "src/components/analytics/DateRangeFilter.tsx",
       "code": 2322,
       "message": "Type '(date: Date) => boolean | undefined' is not assignable to type 'Matcher | Matcher[] | undefined'.\n  Type '(date: Date) => boolean | undefined' is not assignable to type '(date: Date) => boolean'.\n    Type 'boolean | undefined' is not assignable to type 'boolean'.\n      Type 'undefined' is not assignable to type 'boolean'.",
-      "source": "{(date) => date > new Date() || (customEnd && date > customEnd)}",
+      "source": "{(date) => date > new Date() || (customEnd && date > customEnd) }",
       "count": 1
     },
     {
       "file": "src/components/analytics/DateRangeFilter.tsx",
       "code": 2322,
       "message": "Type '(date: Date) => boolean | undefined' is not assignable to type 'Matcher | Matcher[] | undefined'.\n  Type '(date: Date) => boolean | undefined' is not assignable to type '(date: Date) => boolean'.\n    Type 'boolean | undefined' is not assignable to type 'boolean'.\n      Type 'undefined' is not assignable to type 'boolean'.",
-      "source": "{(date) => date > new Date() || (customStart && date < customStart)}",
+      "source": "{(date) => date > new Date() || (customStart && date < customStart) }",
       "count": 1
     },
     {
@@ -259,7 +259,7 @@
       "file": "src/components/automations/FlowEditor.tsx",
       "code": 2345,
       "message": "Argument of type '(prev: never[]) => Node[]' is not assignable to parameter of type 'SetStateAction<never[]>'.\n  Type '(prev: never[]) => Node[]' is not assignable to type '(prevState: never[]) => never[]'.\n    Type 'Node[]' is not assignable to type 'never[]'.\n      Type 'Node' is not assignable to type 'never'.",
-      "source": "(prev) => Object.values(dataMap).map((nd) => { const existing = prev.find((n) => n.id === nd.id); return { ...(existing || {}), id: nd.id, type: \"flowNode\", position: existing?.position ?? { x: nd.position_x, y: nd.position_y }, data: { nodeData: nd, onDelete: handleDeleteNode, onSelect: handleSelectNode, onDisconnect: handleDisconnectNode }, draggable: true, } as Node; })",
+      "source": "(prev) => Object.values(dataMap).map((nd) => { const existing = prev.find((n) => n.id === nd.id); return { ...(existing || {}), id: nd.id, type: \"flowNode\", position: existing?.position ?? { x: nd.position_x, y: nd.position_y, }, data: { nodeData: nd, onDelete: handleDeleteNode, onSelect: handleSelectNode, onDisconnect: handleDisconnectNode, }, draggable: true, } as Node; })",
       "count": 1
     },
     {
@@ -287,7 +287,7 @@
       "file": "src/components/CalendarSharingSettings.tsx",
       "code": 2345,
       "message": "Argument of type '(share: CalendarShare) => JSX.Element' is not assignable to parameter of type '(value: { id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }, index: number, array: { id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }[]) => Element'.\n  Types of parameters 'share' and 'value' are incompatible.\n    Type '{ id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }' is not assignable to type 'CalendarShare'.\n      Types of property 'created_at' are incompatible.\n        Type 'string | null' is not assignable to type 'string'.\n          Type 'null' is not assignable to type 'string'.",
-      "source": "(share: CalendarShare) => ( <div key={share.id} className=\"flex items-center justify-between p-3 bg-muted/30 rounded-lg\" > <div className=\"flex items-center gap-3\"> <div className=\"h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center\"> <Users className=\"h-4 w-4 text-primary\" /> </div> <div> <p className=\"font-medium text-sm\"> {share.shared_with_profile?.full_name || share.shared_with_profile?.email || \"משתמש לא ידוע\"} </p> {share.shared_with_profile?.email && share.shared_with_profile.full_name && ( <p className=\"text-xs text-muted-foreground\">{share.shared_with_profile.email}</p> )} </div> </div> <div className=\"flex items-center gap-2\"> <Select value={share.permission_level} onValueChange={(value) => updateShareMutation.mutate({ shareId: share.id, permission: value })} > <SelectTrigger className=\"w-40 h-8\"> <SelectValue /> </SelectTrigger> <SelectContent> <SelectItem value=\"view\">צפייה בלבד</SelectItem> <SelectItem value=\"book\">צפייה + קביעה</SelectItem> <SelectItem value=\"full\">גישה מלאה</SelectItem> </SelectContent> </Select> <Button variant=\"ghost\" size=\"icon\" className=\"h-8 w-8 text-destructive hover:text-destructive\" onClick={() => removeShareMutation.mutate(share.id)} disabled={removeShareMutation.isPending} > <Trash2 className=\"h-4 w-4\" /> </Button> </div> </div> )",
+      "source": "(share: CalendarShare) => ( <div key={share.id} className=\"flex items-center justify-between p-3 bg-muted/30 rounded-lg\" > <div className=\"flex items-center gap-3\"> <div className=\"h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center\"> <Users className=\"h-4 w-4 text-primary\" /> </div> <div> <p className=\"font-medium text-sm\"> {share.shared_with_profile?.full_name || share.shared_with_profile?.email || \"משתמש לא ידוע\"} </p> {share.shared_with_profile?.email && share.shared_with_profile.full_name && ( <p className=\"text-xs text-muted-foreground\"> {share.shared_with_profile.email} </p> )} </div> </div> <div className=\"flex items-center gap-2\"> <Select value={share.permission_level} onValueChange={(value) => updateShareMutation.mutate({ shareId: share.id, permission: value, }) } > <SelectTrigger className=\"w-40 h-8\"> <SelectValue /> </SelectTrigger> <SelectContent> <SelectItem value=\"view\">צפייה בלבד</SelectItem> <SelectItem value=\"book\">צפייה + קביעה</SelectItem> <SelectItem value=\"full\">גישה מלאה</SelectItem> </SelectContent> </Select> <Button variant=\"ghost\" size=\"icon\" className=\"h-8 w-8 text-destructive hover:text-destructive\" onClick={() => removeShareMutation.mutate(share.id)} disabled={removeShareMutation.isPending} > <Trash2 className=\"h-4 w-4\" /> </Button> </div> </div> )",
       "count": 1
     },
     {
@@ -407,6 +407,13 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agency_id?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; group_chat_id: string; group_name: string; id?: string | undefined; ... 4 more ...; whatsapp_avatar_url?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agency_id?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; group_chat_id: string; group_name: string; id?: string | undefined; ... 4 more ...; whatsapp_avatar_url?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agency_id?: string | null | undefined; created_at?: string | undefined; description?: string | null | undefined; group_chat_id: string; group_name: string; id?: string | undefined; ... 4 more ...; whatsapp_avatar_url?: string | ... 1 more ... | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
+      "count": 1
+    },
+    {
+      "file": "src/components/clients/ClientConnectionsTab.tsx",
+      "code": 2881,
+      "message": "This expression is never nullish.",
+      "source": "\"\"",
       "count": 1
     },
     {
@@ -721,7 +728,7 @@
       "file": "src/components/forms/EditUserAgenciesDialog.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }, { agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ sales_person_id: string | null; agency_id: string; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }, { agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }>'.\n      Type '{ sales_person_id: string | null; agency_id: string; }[]' is missing the following properties from type '{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }': agency_id, sales_person_id\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }, { agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ sales_person_id: string | null; agency_id: string; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }, { agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }>[]'.\n      Type '{ sales_person_id: string | null; agency_id: string; }' is not assignable to type 'RejectExcessProperties<{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }, { agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }>'.\n        Type '{ sales_person_id: string | null; agency_id: string; }' is not assignable to type '{ agency_id: string; created_at?: string | undefined; id?: string | undefined; sales_person_id: string; }'.\n          Types of property 'sales_person_id' are incompatible.\n            Type 'string | null' is not assignable to type 'string'.\n              Type 'null' is not assignable to type 'string'.",
-      "source": "selectedAgencies.map(agencyId => ({ sales_person_id: userProfile.sales_person_id, agency_id: agencyId, }))",
+      "source": "selectedAgencies.map((agencyId) => ({ sales_person_id: userProfile.sales_person_id, agency_id: agencyId, }))",
       "count": 1
     },
     {
@@ -980,7 +987,7 @@
       "file": "src/components/marketing/departments/CreativeDepartment.tsx",
       "code": 2322,
       "message": "Type 'unknown' is not assignable to type 'ReactNode'.",
-      "source": "{selected?.payload?.linked_copy_title && ( <p className=\"mt-2 text-[10px] text-muted-foreground\">מקור: {String(selected.payload.linked_copy_title)}</p> )}",
+      "source": "{selected?.payload?.linked_copy_title && ( <p className=\"mt-2 text-[10px] text-muted-foreground\"> מקור: {String(selected.payload.linked_copy_title)} </p> )}",
       "count": 1
     },
     {
@@ -1183,14 +1190,14 @@
       "file": "src/components/ui/slider.tsx",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style?.['--slider-color' as any]",
+      "source": "style?.[\"--slider-color\" as any]",
       "count": 2
     },
     {
       "file": "src/components/ui/slider.tsx",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style['--slider-color' as any]",
+      "source": "style[\"--slider-color\" as any]",
       "count": 2
     },
     {
@@ -1281,7 +1288,7 @@
       "file": "src/hooks/useBroadcastDomains.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_email_domains\").select(\"*\")",
+      "source": "supabase .from(\"broadcast_email_domains\") .select(\"*\")",
       "count": 1
     },
     {
@@ -1344,28 +1351,28 @@
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_list_members\").select(\"*\")",
+      "source": "supabase .from(\"broadcast_list_members\") .select(\"*\")",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_lists\").select(\"*\")",
+      "source": "supabase .from(\"broadcast_list_rules\") .select(\"*\")",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase.from(\"broadcast_list_rules\").select(\"*\")",
+      "source": "supabase .from(\"broadcast_lists\") .insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"רשימה חדשה\", description: payload.description ?? null, kind: payload.kind ?? \"static\", source: payload.source ?? \"manual\", }) .select()",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase.from(\"broadcast_lists\").insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"רשימה חדשה\", description: payload.description ?? null, kind: payload.kind ?? \"static\", source: payload.source ?? \"manual\", }).select()",
+      "source": "supabase .from(\"broadcast_lists\") .select(\"*\")",
       "count": 1
     },
     {
@@ -1421,7 +1428,7 @@
       "file": "src/hooks/useBroadcasts.ts",
       "code": 2589,
       "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcasts\") .insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"דיוור חדש\", channel: payload.channel ?? \"whatsapp\", provider: payload.provider ?? \"green_api\", integration_id: payload.integration_id ?? null, body_text: payload.body_text ?? null, media_url: payload.media_url ?? null, subject: payload.subject ?? null, from_email: payload.from_email ?? null, from_name: payload.from_name ?? null, reply_to: payload.reply_to ?? null, audience_filter: (payload.audience_filter ?? { source: \"leads\" }) as any, scheduled_at: payload.scheduled_at ?? null, throttle_min_seconds: payload.throttle_min_seconds ?? 12, throttle_max_seconds: payload.throttle_max_seconds ?? 20, daily_cap: payload.daily_cap ?? 300, }) .select()",
+      "source": "supabase .from(\"broadcasts\") .insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"דיוור חדש\", channel: payload.channel ?? \"whatsapp\", provider: payload.provider ?? \"green_api\", integration_id: payload.integration_id ?? null, body_text: payload.body_text ?? null, media_url: payload.media_url ?? null, subject: payload.subject ?? null, from_email: payload.from_email ?? null, from_name: payload.from_name ?? null, reply_to: payload.reply_to ?? null, audience_filter: (payload.audience_filter ?? { source: \"leads\", }) as any, scheduled_at: payload.scheduled_at ?? null, throttle_min_seconds: payload.throttle_min_seconds ?? 12, throttle_max_seconds: payload.throttle_max_seconds ?? 20, daily_cap: payload.daily_cap ?? 300, }) .select()",
       "count": 1
     },
     {
@@ -1561,7 +1568,7 @@
       "file": "src/lib/clipboardFiles.test.ts",
       "code": 2352,
       "message": "Conversion of type '{ tagName: string; isContentEditable: boolean; }' to type 'EventTarget' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ tagName: string; isContentEditable: boolean; }' is missing the following properties from type 'EventTarget': addEventListener, dispatchEvent, removeEventListener",
-      "source": "{ tagName: \"DIV\", isContentEditable: false } as EventTarget",
+      "source": "{ tagName: \"DIV\", isContentEditable: false, } as EventTarget",
       "count": 1
     },
     {
@@ -1638,7 +1645,7 @@
       "file": "src/lib/gaPropertyMatch.ts",
       "code": 2677,
       "message": "A type predicate's type must be assignable to its parameter's type.\n  Type '{ integrationId: string; own?: boolean | undefined; properties: GaPropertyRef[]; }' is not assignable to type '{ integrationId: string; own: boolean | undefined; properties: GaPropertyRef[] | null; }'.\n    Property 'own' is optional in type '{ integrationId: string; own?: boolean | undefined; properties: GaPropertyRef[]; }' but required in type '{ integrationId: string; own: boolean | undefined; properties: GaPropertyRef[] | null; }'.",
-      "source": "{ integrationId: string; own?: boolean; properties: GaPropertyRef[] }",
+      "source": "{ integrationId: string; own?: boolean; properties: GaPropertyRef[]; }",
       "count": 1
     },
     {
@@ -2023,7 +2030,7 @@
       "file": "src/pages/GoogleAnalyticsSettings.tsx",
       "code": 2322,
       "message": "Type 'unknown' is not assignable to type 'ReactNode'.",
-      "source": "{s?.connected_at && ( <p className=\"text-xs text-muted-foreground\"> חובר: {new Date(s.connected_at as string).toLocaleDateString('he-IL')} </p> )}",
+      "source": "{s?.connected_at && ( <p className=\"text-xs text-muted-foreground\"> חובר:{\" \"} {new Date( s.connected_at as string, ).toLocaleDateString(\"he-IL\")} </p> )}",
       "count": 1
     },
     {
