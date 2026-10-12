@@ -243,13 +243,25 @@ export function countStoppedCampaignsByClient(issues: PulseCriticalIssue[]): Map
 
 function criticalIssueLines(issues: PulseCriticalIssue[]): string[] {
   if (!issues.length) return []
-  const lines = ['', '🔴 דורש טיפול:']
-  for (const issue of issues.slice(0, PULSE_CRITICAL_LINE_LIMIT)) {
+  // One line per client + alert type: four disapproved ads are one problem, not four.
+  const groups = new Map<string, { client: string; label: string; campaigns: string[]; count: number }>()
+  for (const issue of issues) {
     const client = issue.clientName || 'לקוח לא מזוהה'
-    const campaign = issue.campaignName ? ` — ${issue.campaignName}` : ''
-    lines.push(`• ${client}: ${issue.label}${campaign}`)
+    const key = `${issue.clientId}:${issue.alertType}`
+    const group = groups.get(key) || { client, label: issue.label, campaigns: [], count: 0 }
+    group.count += 1
+    if (issue.campaignName) group.campaigns.push(issue.campaignName)
+    groups.set(key, group)
   }
-  const remaining = issues.length - PULSE_CRITICAL_LINE_LIMIT
+  const grouped = [...groups.values()]
+  const lines = ['', '🔴 דורש טיפול:']
+  for (const group of grouped.slice(0, PULSE_CRITICAL_LINE_LIMIT)) {
+    const detail = group.count > 1
+      ? ` ×${group.count}`
+      : group.campaigns[0] ? ` — ${group.campaigns[0]}` : ''
+    lines.push(`• ${group.client}: ${group.label}${detail}`)
+  }
+  const remaining = grouped.length - PULSE_CRITICAL_LINE_LIMIT
   if (remaining > 0) lines.push(`• ועוד ${remaining} התראות קריטיות בדשבורד`)
   return lines
 }
@@ -760,17 +772,12 @@ export function countPulseStatuses(rows: Array<{ status?: string | null }>): Pul
  * Policy: never paste per-client Markdown tables on WhatsApp.
  */
 export function buildPulseWhatsAppDigest(
-  rows: Array<{ status?: string | null; client_name?: string | null; campaign_goal_mode?: string | null; is_ecommerce?: boolean | null; lead_goal_status?: string | null; ecommerce_goal_status?: string | null; leads_7d?: number | null; purchases_7d?: number | null; cpl_7d?: number | null; roas_7d?: number | null; cpl_change_pct?: number | null; roas_change_pct?: number | null; lead_spend_7d?: number | null; ecommerce_spend_7d?: number | null; spend_7d?: number | null; campaign_breakdown?: PulseCampaignBreakdownRow[] | null }>,
+  rows: Array<{ status?: string | null; client_name?: string | null; agency_name?: string | null; flags?: unknown; campaign_goal_mode?: string | null; is_ecommerce?: boolean | null; lead_goal_status?: string | null; ecommerce_goal_status?: string | null; leads_7d?: number | null; purchases_7d?: number | null; cpl_7d?: number | null; roas_7d?: number | null; cpl_change_pct?: number | null; roas_change_pct?: number | null; lead_spend_7d?: number | null; ecommerce_spend_7d?: number | null; spend_7d?: number | null; campaign_breakdown?: PulseCampaignBreakdownRow[] | null }>,
   dashboardUrl: string,
   criticalIssues: PulseCriticalIssue[] = [],
 ): string {
   const goalRows = expandSnapshotsToGoalRows(rows as SnapshotExpandable[])
   const categoryLines = buildPulseCategoryDigestLines(rows)
-  const counts = countPulseStatuses(goalRows)
-  const hybridClients = rows.filter((row) => snapshotGoalMode(row as SnapshotExpandable) === 'hybrid').length
-  const goalHint = hybridClients > 0
-    ? ` (כולל ${hybridClients} לקוחות משולבים עם יעד לידים + איקומרס)`
-    : ''
   const issueLines = criticalIssueLines(criticalIssues)
   if (goalRows.length === 1) {
     const statusLabel: Record<string, string> = {
@@ -797,19 +804,101 @@ export function buildPulseWhatsAppDigest(
       dashboardUrl,
     ].join('\n')
   }
+  const clients = rows.map((row) => clientPerformance(row as PulseDigestClientRow))
+  const tally = tallyPerformance(clients)
+  const agencies = new Map<string, ClientPerformance[]>()
+  for (const client of clients) {
+    if (!client.agency) continue
+    agencies.set(client.agency, [...(agencies.get(client.agency) || []), client])
+  }
+  const agencyLines: string[] = []
+  for (const [agency, members] of [...agencies.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    const t = tallyPerformance(members)
+    agencyLines.push('', `*${agency}* (${members.length}) — 🔴 ${t.critical} · 🟡 ${t.warning} · 🟢 ${t.healthy}`)
+    agencyLines.push(...performanceDetailLines(members))
+  }
+  if (!agencies.size) agencyLines.push(...(performanceDetailLines(clients).length ? ['', ...performanceDetailLines(clients)] : []))
   return [
     '*בדיקת דופק הושלמה*',
-    `נבדקו ${counts.total} יעדי קמפיין פעילים${goalHint}`,
+    `נבדקו ${clients.length} לקוחות פעילים`,
     '',
-    `🟢 *${counts.healthy}* תקינים`,
-    `🟡 *${counts.attention}* לתשומת לב`,
-    `🔴 *${counts.critical}* קריטיים`,
-    ...(categoryLines.length ? ['', ...categoryLines] : []),
+    `🔴 *${tally.critical}* דורשים טיפול`,
+    `🟡 *${tally.warning}* במגמה שלילית`,
+    `🟢 *${tally.healthy}* תקינים`,
+    ...(tally.ops ? [`⚙️ *${tally.ops}* עם בעיית תפעול (בלי טבלה מחוברת / בלי שיחה / סנכרון ישן) — בדשבורד`] : []),
+    ...agencyLines,
     ...issueLines,
     '',
     'צפה בדשבורד בדיקת דופק:',
     dashboardUrl,
   ].join('\n')
+}
+
+type PulseDigestClientRow = {
+  status?: string | null
+  client_name?: string | null
+  agency_name?: string | null
+  flags?: unknown
+  campaign_breakdown?: PulseCampaignBreakdownRow[] | null
+}
+
+type ClientPerformance = {
+  name: string
+  agency: string | null
+  status: 'critical' | 'warning' | 'healthy' | null
+  reason: string | null
+  ops: boolean
+}
+
+/** Flags about our process (call log, report table, sync), not about campaign results. */
+const OPERATIONAL_FLAG = /שיחה|סנכרון|אין טבלת קמפיין/
+
+/**
+ * Campaign-performance status of one client, with operational gaps set aside so a
+ * missing phone-call log does not paint a healthy account yellow.
+ */
+export function clientPerformance(row: PulseDigestClientRow): ClientPerformance {
+  const flags = (Array.isArray(row.flags) ? row.flags : []).map(String)
+  const perfFlags = flags.filter((flag) => !OPERATIONAL_FLAG.test(flag))
+  const ops = row.status === 'no_data' || flags.length > perfFlags.length
+  let status: ClientPerformance['status'] = null
+  if (row.status === 'critical') status = 'critical'
+  // Only a warning explained entirely by operational flags counts as healthy performance.
+  else if (row.status === 'warning') status = perfFlags.length || !flags.length ? 'warning' : 'healthy'
+  else if (row.status === 'healthy') status = 'healthy'
+  const criticalCampaign = (Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : [])
+    .find((campaign) => campaign.status === 'critical')
+  const campaignReason = criticalCampaign
+    ? `${criticalCampaign.campaign_name || 'קמפיין'}: ${criticalCampaign.status_reason || 'חריגה'}`
+    : null
+  return {
+    name: row.client_name || 'לקוח',
+    agency: row.agency_name || null,
+    status,
+    reason: status === 'critical' ? campaignReason || perfFlags[0] || null : perfFlags[0] || null,
+    ops,
+  }
+}
+
+function tallyPerformance(clients: ClientPerformance[]) {
+  return {
+    critical: clients.filter((c) => c.status === 'critical').length,
+    warning: clients.filter((c) => c.status === 'warning').length,
+    healthy: clients.filter((c) => c.status === 'healthy').length,
+    ops: clients.filter((c) => c.ops).length,
+  }
+}
+
+function performanceDetailLines(clients: ClientPerformance[]): string[] {
+  const lines: string[] = []
+  const critical = clients.filter((c) => c.status === 'critical')
+  for (const c of critical.slice(0, 5)) lines.push(`🔴 ${c.name}${c.reason ? ` — ${c.reason}` : ''}`)
+  if (critical.length > 5) lines.push(`🔴 ועוד ${critical.length - 5}`)
+  const warning = clients.filter((c) => c.status === 'warning').map((c) => c.name)
+  if (warning.length) {
+    lines.push(`🟡 ${warning.slice(0, 6).join(', ')}${warning.length > 6 ? ` ועוד ${warning.length - 6}` : ''}`)
+  }
+  return lines
 }
 
 /** Surfaces that must never receive the full pulse Markdown table. */

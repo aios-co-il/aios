@@ -2622,7 +2622,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
           const forceLeadsOnly = tableCampaignType === 'leads' || tableCampaignType === 'lead';
           const trafficCampaigns = entries.filter(([, data]) => data.campaign_type === 'traffic');
           const ecommerceCampaigns = forceLeadsOnly ? [] : entries.filter(([, data]) =>
-            data.campaign_type !== 'traffic' && (
+            data.campaign_type !== 'traffic' && data.campaign_type !== 'lead' && (
               (data.campaign_type === 'ecommerce' ||
               data.purchases > 0 ||
               data.purchase_value > 0) &&
@@ -2634,7 +2634,7 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
           // Lead campaigns: exclude traffic + ecommerce
           const leadCampaigns = (forceLeadsOnly ? entries : entries.filter(([, data]) =>
             data.campaign_type !== 'traffic' &&
-            !(
+            !(data.campaign_type !== 'lead' &&
               (data.campaign_type === 'ecommerce' ||
               data.purchases > 0 ||
               data.purchase_value > 0) &&

@@ -574,6 +574,10 @@ export function buildInsightRecord(
       ? 'traffic'
       : isLeadObjective || _callOptimized
         ? 'lead'
+        // A sales objective optimized for purchases stays ecommerce even when a few
+        // conversations started; only message-optimized sales campaigns are leads.
+        : isEcommerceObjective && !optimizationUpper.includes('MESSAGE') && !optimizationUpper.includes('CONVERSATION')
+          ? 'ecommerce'
         : isMessagingLeadCampaign
           ? 'lead'
           : isEcommerceObjective

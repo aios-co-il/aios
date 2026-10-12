@@ -446,8 +446,9 @@ test("WhatsApp pulse digest is short counts + dashboard link (no markdown table)
   );
   assert.match(digest, /בדיקת דופק הושלמה/);
   assert.match(digest, /🟢 \*1\* תקינים/);
-  assert.match(digest, /🟡 \*2\* לתשומת לב/);
-  assert.match(digest, /🔴 \*1\* קריטיים/);
+  assert.match(digest, /🟡 \*1\* במגמה שלילית/);
+  assert.match(digest, /🔴 \*1\* דורשים טיפול/);
+  assert.match(digest, /⚙️ \*1\* עם בעיית תפעול/);
   assert.match(digest, /https:\/\/aios\.co\.il\/t\/marketingcaptain\/dmm-dashboard/);
   assert.equal(digest.includes("| סוכנות |"), false);
   assert.equal(digest.includes("חושבה ב־"), false);
@@ -486,7 +487,7 @@ test("filterPulseRowsByClientIds keeps only assigned clients", () => {
     filtered,
     "https://aios.co.il/t/dmm/dmm-dashboard",
   );
-  assert.match(digest, /נבדקו 2 יעדי קמפיין/);
+  assert.match(digest, /נבדקו 2 לקוחות/);
   assert.match(digest, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
   assert.equal(filterPulseRowsByClientIds(rows, []).length, 0);
 });
@@ -553,7 +554,7 @@ test("category digest stays empty for legacy snapshots without breakdown", () =>
   assert.deepEqual(buildPulseCategoryDigestLines([{ client_name: "לקוח", campaign_breakdown: null }]), []);
 });
 
-test("whatsapp digest appends category block and keeps the dashboard link last", () => {
+test("whatsapp digest names red clients and keeps the dashboard link last", () => {
   const digest = buildPulseWhatsAppDigest(
     [
       {
@@ -576,8 +577,32 @@ test("whatsapp digest appends category block and keeps the dashboard link last",
     "https://aios.co.il/t/dmm/dmm-dashboard",
   );
 
-  assert.match(digest, /לפי קטגוריה:/);
-  assert.match(digest, /חריגות מאומתות:/);
+  // Multi-client digest lists the red client with its failing campaign (no category block).
+  assert.match(digest, /🔴 לקוח א — לידים חורף: הוצאה בלי תוצאות/);
   assert.doesNotMatch(digest, /\|/);
   assert.ok(digest.trim().endsWith("https://aios.co.il/t/dmm/dmm-dashboard"));
+});
+
+test("multi-client digest groups by agency and keeps call-log gaps out of the warnings", () => {
+  const digest = buildPulseWhatsAppDigest(
+    [
+      { client_name: "Smart air", agency_name: "DMM-LTD", status: "critical", flags: ["הוצאה ללא רכישות"] },
+      { client_name: "Detailit", agency_name: "DMM-LTD", status: "warning", flags: ["לא תועדה שיחה טלפונית עם הלקוח"] },
+      { client_name: "בילבי", agency_name: "promo", status: "warning", flags: ["CPL עלה ב-40%"] },
+      { client_name: "חדש", agency_name: "promo", status: "no_data", flags: ["אין טבלת קמפיין מחוברת"] },
+    ],
+    "https://aios.co.il/t/dmm/dmm-dashboard",
+    [
+      { clientId: "n", clientName: "נורית אלדר", alertType: "ad_disapproved", label: "מודעה נדחתה", campaignName: "א" },
+      { clientId: "n", clientName: "נורית אלדר", alertType: "ad_disapproved", label: "מודעה נדחתה", campaignName: "ב" },
+    ],
+  );
+  assert.match(digest, /🔴 \*1\* דורשים טיפול/);
+  assert.match(digest, /🟡 \*1\* במגמה שלילית/);
+  assert.match(digest, /🟢 \*1\* תקינים/);
+  assert.match(digest, /⚙️ \*2\* עם בעיית תפעול/);
+  assert.match(digest, /\*DMM-LTD\* \(2\) — 🔴 1 · 🟡 0 · 🟢 1/);
+  assert.match(digest, /🔴 Smart air — הוצאה ללא רכישות/);
+  assert.match(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);
+  assert.match(digest, /• נורית אלדר: מודעה נדחתה ×2/);
 });
