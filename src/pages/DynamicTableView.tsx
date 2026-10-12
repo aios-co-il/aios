@@ -72,7 +72,7 @@ import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
 import { fetchWooReportAttribution, getDynamicTableDateRangeIso } from "@/lib/wooDashboardQueries";
-import { reportRecordsQuery } from "@/lib/reportRecords";
+import { reportRecordsQueryOptions } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import { reportQueryOptions, getReportLastSyncAt } from "@/lib/reportQueryOptions";
 import { adAccountShortcutLabel, getAdAccountLinks, getAdAccountUrl } from "@/lib/adAccountUrl";
@@ -116,11 +116,6 @@ interface CrmField {
   type: string;
   position: number;
   source?: string; // 'facebook' | 'google_ads' | null
-}
-
-interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
 }
 
 interface DynamicTableViewProps {
@@ -403,10 +398,9 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     isPending: recordsPending,
     isFetching: recordsFetching,
     dataUpdatedAt: recordsUpdatedAt,
-  } = useQuery<CrmRecord[]>({
-    ...reportRecordsQuery(supabase, table?.id || '', dateFilter, customFromStr, customToStr),
+  } = useQuery({
+    ...reportRecordsQueryOptions(supabase, table?.id || '', dateFilter, customFromStr, customToStr),
     enabled: !!table?.id && isCustomReady,
-    ...reportQueryOptions<CrmRecord[]>(),
   });
 
   const displayRecords = records ?? [];
@@ -416,10 +410,9 @@ export default function DynamicTableView({ embedTableSlug, embedMode, summaryOnl
     || table?.integration_type === 'facebook_ecommerce'
     || table?.integration_type === 'google_ads';
 
-  const { data: weeklyRecords = [], isPending: weeklyRecordsPending } = useQuery<CrmRecord[]>({
-    ...reportRecordsQuery(supabase, table?.id || '', 'last_365_days'),
+  const { data: weeklyRecords = [], isPending: weeklyRecordsPending } = useQuery({
+    ...reportRecordsQueryOptions(supabase, table?.id || '', 'last_365_days'),
     enabled: !!table?.id && isAdsReportTable && adsReportView === 'weekly',
-    ...reportQueryOptions<CrmRecord[]>(),
   });
 
   const entityLevelRecords = useMemo(() => {

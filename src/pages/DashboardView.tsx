@@ -297,7 +297,7 @@ export default function DashboardView() {
           ...reportRecordsQuery(supabase, table.id, dateFilter, customFromStr, customToStr),
           // Reuse fresh table data when navigating between report views.
         });
-        return records.map((r: any) => ({
+        return records.map((r) => ({
           ...r,
           _source: table.integration_type,
           _tableName: table.name,
@@ -328,7 +328,7 @@ export default function DashboardView() {
         const records = await queryClient.fetchQuery({
           ...reportRecordsQuery(supabase, table.id, 'last_365_days'),
         });
-        return records.map((record: any) => ({
+        return records.map((record) => ({
           ...record,
           _source: table.integration_type,
         }));

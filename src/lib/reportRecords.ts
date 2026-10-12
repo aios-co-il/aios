@@ -1,4 +1,9 @@
-import { REPORT_QUERY_STALE_MS } from './reportQueryOptions.ts';
+import { REPORT_QUERY_STALE_MS, reportQueryOptions } from './reportQueryOptions.ts';
+
+export interface CrmRecord {
+  id: string;
+  data: Record<string, any>;
+}
 
 type ReportClient = {
   functions: {
@@ -30,7 +35,15 @@ export function reportRecordsQuery(
       const response = await client.functions.invoke(`crm-records?${params}`, { method: 'GET', signal });
       if (response.error) throw response.error;
       if (!Array.isArray(response.data)) throw new Error('Invalid report response');
-      return response.data;
+      return response.data as CrmRecord[];
     },
+  };
+}
+
+/** Typed options for report views, with the shared loading/cache policy. */
+export function reportRecordsQueryOptions(...args: Parameters<typeof reportRecordsQuery>) {
+  return {
+    ...reportRecordsQuery(...args),
+    ...reportQueryOptions<CrmRecord[]>(),
   };
 }
