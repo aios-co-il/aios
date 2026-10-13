@@ -1782,3 +1782,21 @@
     .control-dial-stop { transition: none; }
   }
 }
+
+/* Explicit hero layer order: decorative icon < upper marketing card < Carmen < bottom cards. */
+.carmen-site .hero-art .glass-panel.panel-a {
+  z-index: 2;
+}
+.carmen-site .hero-art .hero-carmen-character {
+  z-index: 3;
+}
+.carmen-site .hero-art .glass-panel.panel-b,
+.carmen-site .hero-art .glass-panel.panel-c,
+.carmen-site .hero-art .carmen-hero-metrics {
+  z-index: 6;
+}
+@media (max-width: 900px) {
+  .carmen-site .hero-art .glass-panel.panel-a {
+    z-index: 6;
+  }
+}
