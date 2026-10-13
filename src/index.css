@@ -25,8 +25,8 @@ All colors MUST be HSL.
     --popover-foreground: 209 59% 10%;
 
     /* Turquoise Green - Primary accent color */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 162 74% 81%;
+    --primary-foreground: 209 59% 10%;
 
     /* Light background */
     --secondary: 0 0% 94%;
@@ -36,7 +36,7 @@ All colors MUST be HSL.
     --muted-foreground: 209 19% 40%;
 
     /* Light turquoise - Accent color */
-    --accent: 175 65% 60%;
+    --accent: 162 74% 81%;
     --accent-foreground: 209 59% 10%;
 
     /* Success color */
@@ -48,24 +48,24 @@ All colors MUST be HSL.
 
     --border: 0 0% 89%;
     --input: 0 0% 89%;
-    --ring: 167 70% 55%;
+    --ring: 162 74% 81%;
 
     --radius: 0.75rem;
 
     /* Primary glow - lighter turquoise */
-    --primary-glow: 175 65% 70%;
+    --primary-glow: 162 82% 88%;
 
     /* Turquoise Green gradient */
     --gradient-primary: linear-gradient(
       135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
+      hsl(162, 74%, 81%),
+      hsl(161, 81%, 72%)
     );
     /* Success gradient */
     --gradient-success: linear-gradient(
       135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
+      hsl(162, 74%, 81%),
+      hsl(162, 74%, 81%)
     );
     /* Subtle gradient for backgrounds */
     --gradient-subtle: linear-gradient(
@@ -81,12 +81,12 @@ All colors MUST be HSL.
     /* Turquoise sidebar */
     --sidebar-background: 209 59% 10%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 162 74% 81%;
+    --sidebar-primary-foreground: 209 59% 10%;
     --sidebar-accent: 209 59% 15%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
+    --sidebar-ring: 162 74% 81%;
   }
 
   .dark {
@@ -101,8 +101,8 @@ All colors MUST be HSL.
     --popover-foreground: 0 0% 100%;
 
     /* Turquoise Green - Primary accent in dark mode */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 162 74% 81%;
+    --primary-foreground: 209 59% 10%;
 
     --secondary: 209 59% 15%;
     --secondary-foreground: 0 0% 100%;
@@ -111,7 +111,7 @@ All colors MUST be HSL.
     --muted-foreground: 0 0% 70%;
 
     /* Light turquoise - Accent in dark mode */
-    --accent: 175 65% 60%;
+    --accent: 162 74% 81%;
     --accent-foreground: 0 0% 100%;
 
     /* Success in dark mode */
@@ -123,19 +123,19 @@ All colors MUST be HSL.
 
     --border: 209 59% 18%;
     --input: 209 59% 18%;
-    --ring: 167 70% 55%;
+    --ring: 162 74% 81%;
 
     /* Turquoise Green gradient */
     --gradient-primary: linear-gradient(
       135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
+      hsl(162, 74%, 81%),
+      hsl(161, 81%, 72%)
     );
     /* Success gradient */
     --gradient-success: linear-gradient(
       135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
+      hsl(162, 74%, 81%),
+      hsl(162, 74%, 81%)
     );
     --shadow-card:
       0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
@@ -145,12 +145,12 @@ All colors MUST be HSL.
     /* Turquoise sidebar in dark mode */
     --sidebar-background: 209 59% 8%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 162 74% 81%;
+    --sidebar-primary-foreground: 209 59% 10%;
     --sidebar-accent: 209 59% 13%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
+    --sidebar-ring: 162 74% 81%;
   }
 }
 
@@ -165,7 +165,12 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: Assistant, Arial, sans-serif;
+  }
+
+  h1, h2, h3 {
+    font-family: "Liebling", Assistant, Arial, sans-serif;
   }
 
   h1,
