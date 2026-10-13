@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, Edit } from "lucide-react";
+import TerminologyManagement from "@/components/TerminologyManagement";
 import { isLeadTableColumnPreferenceKey } from "@/lib/leadTableColumns";
 import {
   Table,
