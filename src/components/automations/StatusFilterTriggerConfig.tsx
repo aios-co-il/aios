@@ -1,9 +1,10 @@
 import { Label } from "@/components/ui/label";
 import {
   decodeStatusSelection,
+  encodeStoredTriggerFilters,
   triggerScope,
 } from "../../../supabase/functions/_shared/automation-status.ts";
-import { StatusStageSelect } from "./StatusStageSelect";
+import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
@@ -21,12 +22,11 @@ export default function StatusFilterTriggerConfig({
   onBulkConfigChange,
 }: StatusFilterTriggerConfigProps) {
   const scope = triggerScope(triggerType) || "lead";
-  const stored =
-    configuration?.filter_status_kind &&
-    configuration?.filter_status &&
-    configuration.filter_status !== "any"
-      ? `${configuration.filter_status_kind}:${configuration.filter_status}`
-      : configuration?.filter_status || "any";
+  const selected = encodeStoredTriggerFilters({
+    filter_statuses: configuration?.filter_statuses,
+    filter_status: configuration?.filter_status,
+    filter_status_kind: configuration?.filter_status_kind,
+  });
 
   const write = (updates: Record<string, any>) => {
     if (onBulkConfigChange) {
@@ -41,27 +41,37 @@ export default function StatusFilterTriggerConfig({
   return (
     <div className="space-y-2 bg-muted/40 border rounded-lg p-3" dir="rtl">
       <Label className="text-right block text-sm font-semibold">
-        סינון לפי סטטוס או שלב
+        סטטוסים ושלבים (אפשר כמה)
       </Label>
-      <StatusStageSelect
+      <StatusStageMultiSelect
         tenantId={tenantId}
-        scope={scope}
-        value={stored}
-        includeAny
-        anyLabel="כל שינוי"
-        placeholder="כל שינוי"
-        onChange={(encoded) => {
-          if (encoded === "any") {
-            write({ filter_status: "any", filter_status_kind: null });
+        scopes={[scope]}
+        value={selected}
+        onChange={(encodedValues) => {
+          const parsed = encodedValues
+            .map((encoded) => decodeStatusSelection(encoded))
+            .filter((item) => item.value && item.value !== "any");
+          if (parsed.length === 0) {
+            write({
+              filter_statuses: [],
+              filter_status: "any",
+              filter_status_kind: null,
+            });
             return;
           }
-          const { kind, value } = decodeStatusSelection(encoded);
-          write({ filter_status: value, filter_status_kind: kind });
+          write({
+            filter_statuses: parsed.map((item) => ({
+              value: item.value,
+              kind: item.kind,
+            })),
+            filter_status: parsed[0].value,
+            filter_status_kind: parsed[0].kind,
+          });
         }}
       />
       <p className="text-xs text-muted-foreground text-right">
-        האוטומציה תרוץ רק כשהערך משתנה לסטטוס או לשלב שנבחר. משם אפשר להעביר את
-        הליד לשלב במשפך או לשלוח לו הסכם.
+        אותה פעולה תרוץ אם הסטטוס או השלב הוא אחד מהנבחרים. בלי בחירה — כל
+        שינוי. אפשר להוסיף עוד טריגרים עם הכפתור + טריגר.
       </p>
     </div>
   );

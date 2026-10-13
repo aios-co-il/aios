@@ -32,13 +32,18 @@ import {
 import { toast } from "sonner";
 import { Info, Copy, ExternalLink } from "lucide-react";
 import { MessageTemplateBuilder } from "./MessageTemplateBuilder";
-import { StatusStageSelect } from "@/components/automations/StatusStageSelect";
+import {
+  StatusStageMultiSelect,
+  StatusStageSelect,
+} from "@/components/automations/StatusStageSelect";
+import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
 import {
   applyStatusActionFields,
-  applyTriggerStatusCondition,
+  applyTriggerStatusFilters,
   encodeStoredActionStatus,
-  encodeStoredTriggerStatus,
-  triggerScope,
+  encodeStoredTriggerFilters,
+  readTriggerTypes,
+  scopesForTriggers,
 } from "../../../supabase/functions/_shared/automation-status.ts";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
@@ -96,7 +101,8 @@ const formSchema = z
     conditions: z.string().optional(),
     status_entity: z.enum(["lead", "task"]).optional(),
     status_value: z.string().optional(),
-    trigger_status_value: z.string().optional(),
+    trigger_types: z.array(z.string()).min(1, "בחר לפחות טריגר אחד"),
+    trigger_status_values: z.array(z.string()).optional(),
     update_field_name: z.string().optional(),
     update_field_value: z.string().optional(),
     // ManyChat WhatsApp fields
@@ -138,6 +144,24 @@ const LEAD_DATE_FIELDS = [
 
 const TASK_DATE_FIELDS = [{ value: "due_date", label: "תאריך יעד" }];
 
+const EDIT_TRIGGER_OPTIONS = [
+  { value: "task_assigned", label: "משימה שוייכה" },
+  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
+  { value: "task_update_added", label: "עדכון נוסף למשימה" },
+  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
+  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
+  { value: "lead_created", label: "ליד נוצר" },
+  { value: "client_created", label: "לקוח נוצר" },
+  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
+  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
+  { value: "meeting_created", label: "נוצרה פגישה" },
+  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
+  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
+  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
+  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
+  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
+];
+
 interface EditAutomationDialogProps {
   automation: any;
   open: boolean;
@@ -158,6 +182,7 @@ export function EditAutomationDialog({
       name: automation.name || "",
       description: automation.description || "",
       trigger_type: automation.trigger_type,
+      trigger_types: readTriggerTypes(automation),
       action_type: automation.action_type,
       webhook_method: automation.configuration?.method || "POST",
       webhook_url: automation.configuration?.url || "",
@@ -167,7 +192,7 @@ export function EditAutomationDialog({
         : "",
       status_entity: automation.configuration?.entity || "lead",
       status_value: encodeStoredActionStatus(automation.configuration),
-      trigger_status_value: encodeStoredTriggerStatus(automation.conditions),
+      trigger_status_values: encodeStoredTriggerFilters(automation.conditions),
       update_field_name: automation.configuration?.update_field || "none",
       update_field_value:
         automation.configuration?.update_field_value || "today",
@@ -310,7 +335,7 @@ export function EditAutomationDialog({
         conditions = {};
       }
 
-      applyTriggerStatusCondition(conditions, values.trigger_status_value);
+      applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
       let configuration: any = {};
       if (values.action_type === "webhook") {
@@ -375,12 +400,20 @@ export function EditAutomationDialog({
         };
       }
 
+      const selectedTriggers = values.trigger_types?.length
+        ? values.trigger_types
+        : [values.trigger_type];
+      configuration = {
+        ...(configuration || {}),
+        trigger_types: selectedTriggers,
+      };
+
       const { error } = await supabase
         .from("automations")
         .update({
           name: values.name,
           description: values.description,
-          trigger_type: values.trigger_type as any,
+          trigger_type: selectedTriggers[0] as any,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
@@ -406,7 +439,8 @@ export function EditAutomationDialog({
 
   const actionType = form.watch("action_type");
   const statusEntity = form.watch("status_entity");
-  const triggerType = form.watch("trigger_type");
+  const triggerTypes = form.watch("trigger_types") || [];
+  const statusScopes = scopesForTriggers(triggerTypes);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -453,90 +487,50 @@ export function EditAutomationDialog({
 
             <FormField
               control={form.control}
-              name="trigger_type"
+              name="trigger_types"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>מתי להפעיל? *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="task_assigned">
-                        משימה שוייכה
-                      </SelectItem>
-                      <SelectItem value="task_collaborator_added">
-                        קמפיינר נוסף למשימה
-                      </SelectItem>
-                      <SelectItem value="task_update_added">
-                        עדכון נוסף למשימה
-                      </SelectItem>
-                      <SelectItem value="task_status_changed">
-                        סטטוס משימה השתנה
-                      </SelectItem>
-                      <SelectItem value="lead_status_changed">
-                        סטטוס ליד השתנה
-                      </SelectItem>
-                      <SelectItem value="lead_created">ליד נוצר</SelectItem>
-                      <SelectItem value="client_created">לקוח נוצר</SelectItem>
-                      <SelectItem value="client_status_changed">
-                        סטטוס לקוח השתנה
-                      </SelectItem>
-                      <SelectItem value="onboarding_status_changed">
-                        סטטוס קליטה השתנה
-                      </SelectItem>
-                      <SelectItem value="meeting_created">
-                        נוצרה פגישה
-                      </SelectItem>
-                      <SelectItem value="task_calendar_created">
-                        משימה נוספה ליומן
-                      </SelectItem>
-                      <SelectItem value="task_overdue">
-                        משימה לא הושלמה בזמן
-                      </SelectItem>
-                      <SelectItem value="inbound_webhook_task">
-                        קבלת משימה מ-Webhook
-                      </SelectItem>
-                      <SelectItem value="inbound_webhook_lead">
-                        קליטת ליד מ-Webhook
-                      </SelectItem>
-                      <SelectItem value="report_alert_triggered">
-                        התראת דוח פייסבוק
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
+                  <FormControl>
+                    <TriggerTypeMultiSelect
+                      options={EDIT_TRIGGER_OPTIONS}
+                      value={field.value || []}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        if (next[0]) {
+                          form.setValue("trigger_type", next[0] as any, {
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    אותה פעולה תרוץ אם אחד מהטריגרים קורה
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {triggerScope(triggerType) && (
+            {statusScopes.length > 0 && (
               <FormField
                 control={form.control}
-                name="trigger_status_value"
+                name="trigger_status_values"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>לאיזה סטטוס או שלב השתנה? (אופציונלי)</FormLabel>
+                    <FormLabel>לאילו סטטוסים או שלבים? (אפשר כמה)</FormLabel>
                     <FormControl>
-                      <div>
-                        <StatusStageSelect
-                          tenantId={tenantId}
-                          scope={triggerScope(triggerType) || "lead"}
-                          value={field.value}
-                          onChange={field.onChange}
-                          includeAny
-                          anyLabel="כל שינוי"
-                          placeholder="כל שינוי"
-                        />
-                      </div>
+                      <StatusStageMultiSelect
+                        tenantId={tenantId}
+                        scopes={statusScopes}
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      האוטומציה תרוץ רק כשהערך משתנה לסטטוס או לשלב שנבחר
+                      הפעולה תרוץ אם הסטטוס הוא אחד מהנבחרים. בלי בחירה — כל
+                      שינוי
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -544,7 +538,7 @@ export function EditAutomationDialog({
               />
             )}
 
-            {triggerType === "inbound_webhook_task" && (
+            {triggerTypes.includes("inbound_webhook_task") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -577,7 +571,7 @@ export function EditAutomationDialog({
               </div>
             )}
 
-            {triggerType === "inbound_webhook_lead" && (
+            {triggerTypes.includes("inbound_webhook_lead") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />

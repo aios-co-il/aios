@@ -8,7 +8,12 @@ import {
   leadStatusUpdateColumns,
   resolveStatusRecordId,
   resolveStoredStatusSelection,
+  applyTriggerStatusFilters,
+  encodeStoredTriggerFilters,
+  readStatusFilters,
+  readTriggerTypes,
   statusFilterMatches,
+  statusFiltersMatch,
   statusUpdateTable,
 } from "./automation-status.ts";
 
@@ -51,6 +56,55 @@ test("lead action writes the pipeline column or the response status column", () 
   });
   assert.equal(statusUpdateTable("client"), "clients");
   assert.equal(resolveStatusRecordId("lead", { lead_id: "lead-1" }), "lead-1");
+});
+
+test("several statuses match with OR", () => {
+  const filters = [
+    { value: "no_answer_1", kind: "response_status" },
+    { value: "proposal_sent", kind: "pipeline_stage" },
+  ];
+  assert.equal(
+    statusFiltersMatch(filters, {
+      new_status: "proposal_sent",
+      status_kind: "pipeline_stage",
+    }),
+    true,
+  );
+  assert.equal(
+    statusFiltersMatch(filters, {
+      new_status: "no_answer_1",
+      status_kind: "response_status",
+    }),
+    true,
+  );
+  assert.equal(
+    statusFiltersMatch(filters, {
+      new_status: "closed",
+      status_kind: "pipeline_stage",
+    }),
+    false,
+  );
+  assert.equal(statusFiltersMatch([], { status: "new" }), true);
+
+  const conditions: Record<string, unknown> = {};
+  applyTriggerStatusFilters(conditions, [
+    "response_status:no_answer_1",
+    "pipeline_stage:proposal_sent",
+  ]);
+  assert.deepEqual(readStatusFilters(conditions), filters);
+  assert.deepEqual(encodeStoredTriggerFilters(conditions), [
+    "response_status:no_answer_1",
+    "pipeline_stage:proposal_sent",
+  ]);
+  assert.deepEqual(
+    readTriggerTypes({
+      trigger_type: "lead_status_changed",
+      configuration: {
+        trigger_types: ["lead_status_changed", "client_status_changed"],
+      },
+    }),
+    ["lead_status_changed", "client_status_changed"],
+  );
 });
 
 test("encoded selections keep the raw key for saved automations", () => {

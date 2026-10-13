@@ -81,6 +81,11 @@ export function resolveStoredStatusSelection(
   return stored;
 }
 
+export type StatusFilter = {
+  value: string;
+  kind?: string | null;
+};
+
 export function triggerScope(
   triggerType: string | null | undefined,
 ): StatusStageScope | null {
@@ -89,6 +94,79 @@ export function triggerScope(
   if (triggerType === "client_status_changed") return "client";
   if (triggerType === "onboarding_status_changed") return "onboarding";
   return null;
+}
+
+export function scopesForTriggers(
+  triggerTypes: Array<string | null | undefined>,
+): StatusStageScope[] {
+  const scopes: StatusStageScope[] = [];
+  for (const triggerType of triggerTypes) {
+    const scope = triggerScope(triggerType);
+    if (scope && !scopes.includes(scope)) scopes.push(scope);
+  }
+  return scopes;
+}
+
+export function impliedStatusKind(
+  triggerType: string | null | undefined,
+): AutomationStatusKind | null {
+  if (triggerType === "task_status_changed") return "task_status";
+  if (triggerType === "client_status_changed") return "client_status";
+  if (triggerType === "onboarding_status_changed") return "onboarding_status";
+  return null;
+}
+
+export function readTriggerTypes(automation: {
+  trigger_type?: string | null;
+  configuration?: { trigger_types?: unknown } | null;
+}): string[] {
+  const configured = automation.configuration?.trigger_types;
+  if (Array.isArray(configured)) {
+    const types = configured
+      .map((value) => String(value || ""))
+      .filter(Boolean);
+    if (types.length > 0) return types;
+  }
+  return automation.trigger_type ? [automation.trigger_type] : [];
+}
+
+function isStatusFilter(value: unknown): value is StatusFilter {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as StatusFilter).value === "string"
+  );
+}
+
+export function readStatusFilters(
+  source:
+    | {
+        filter_statuses?: unknown;
+        new_statuses?: unknown;
+        filter_status?: string | null;
+        filter_status_kind?: string | null;
+        new_status?: string | null;
+        status_kind?: string | null;
+      }
+    | null
+    | undefined,
+): StatusFilter[] {
+  const listed = source?.filter_statuses ?? source?.new_statuses;
+  if (Array.isArray(listed)) {
+    return listed
+      .filter(isStatusFilter)
+      .filter((filter) => filter.value && filter.value !== "any");
+  }
+  const single = source?.filter_status || source?.new_status;
+  if (single && single !== "any") {
+    return [
+      {
+        value: single,
+        kind: source?.filter_status_kind || source?.status_kind || null,
+      },
+    ];
+  }
+  return [];
 }
 
 /** A saved filter matches the event key, and the kind when both sides recorded one. */
@@ -108,6 +186,65 @@ export function statusFilterMatches(
     return false;
   }
   return true;
+}
+
+export function statusFiltersMatch(
+  filters: StatusFilter[] | null | undefined,
+  data: {
+    status?: string | null;
+    new_status?: string | null;
+    status_kind?: string | null;
+  },
+): boolean {
+  const active = (filters || []).filter(
+    (filter) => filter.value && filter.value !== "any",
+  );
+  if (active.length === 0) return true;
+  return active.some((filter) =>
+    statusFilterMatches(filter.value, filter.kind, data),
+  );
+}
+
+export function applyTriggerStatusFilters(
+  conditions: Record<string, unknown>,
+  encodedValues: string[] | null | undefined,
+): void {
+  const parsed = (encodedValues || [])
+    .map((encoded) => decodeStatusSelection(encoded))
+    .filter((item) => item.value && item.value !== "any");
+  if (parsed.length === 0) {
+    delete conditions.new_status;
+    delete conditions.status_kind;
+    delete conditions.new_statuses;
+    return;
+  }
+  conditions.new_statuses = parsed.map((item) => ({
+    value: item.value,
+    kind: item.kind,
+  }));
+  conditions.new_status = parsed[0].value;
+  if (parsed[0].kind) conditions.status_kind = parsed[0].kind;
+  else delete conditions.status_kind;
+}
+
+export function encodeStoredTriggerFilters(
+  source:
+    | {
+        filter_statuses?: unknown;
+        new_statuses?: unknown;
+        filter_status?: string | null;
+        filter_status_kind?: string | null;
+        new_status?: string | null;
+        status_kind?: string | null;
+      }
+    | null
+    | undefined,
+): string[] {
+  return readStatusFilters(source).map((filter) =>
+    isAutomationStatusKind(filter.kind)
+      ? encodeStatusSelection(filter.kind, filter.value)
+      : filter.value,
+  );
 }
 
 export function applyTriggerStatusCondition(

@@ -36,11 +36,15 @@ import { Plus, Info, Copy, ExternalLink } from "lucide-react";
 import { MessageTemplateBuilder } from "./MessageTemplateBuilder";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
-import { StatusStageSelect } from "@/components/automations/StatusStageSelect";
+import {
+  StatusStageMultiSelect,
+  StatusStageSelect,
+} from "@/components/automations/StatusStageSelect";
+import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
 import {
   applyStatusActionFields,
-  applyTriggerStatusCondition,
-  triggerScope,
+  applyTriggerStatusFilters,
+  scopesForTriggers,
 } from "../../../supabase/functions/_shared/automation-status.ts";
 
 const formSchema = z
@@ -99,7 +103,8 @@ const formSchema = z
     conditions: z.string().optional(),
     status_entity: z.enum(["lead", "task"]).optional(),
     status_value: z.string().optional(),
-    trigger_status_value: z.string().optional(),
+    trigger_types: z.array(z.string()).min(1, "בחר לפחות טריגר אחד"),
+    trigger_status_values: z.array(z.string()).optional(),
     update_field_name: z.string().optional(),
     update_field_value: z.string().optional(),
     // ManyChat WhatsApp fields
@@ -173,6 +178,7 @@ export function AddAutomationForm() {
       name: "",
       description: "",
       trigger_type: "task_assigned",
+      trigger_types: ["task_assigned"],
       action_type: "webhook",
       webhook_method: "POST",
       webhook_url: "",
@@ -180,7 +186,7 @@ export function AddAutomationForm() {
       conditions: "",
       status_entity: "lead",
       status_value: "",
-      trigger_status_value: "any",
+      trigger_status_values: [],
       update_field_name: "none",
       update_field_value: "today",
       manychat_tag_id: "",
@@ -323,7 +329,7 @@ export function AddAutomationForm() {
         }
       }
 
-      applyTriggerStatusCondition(conditions, values.trigger_status_value);
+      applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
       // Build configuration based on action type
       let configuration: any = {};
@@ -392,12 +398,20 @@ export function AddAutomationForm() {
         configuration = {};
       }
 
+      const selectedTriggers = values.trigger_types?.length
+        ? values.trigger_types
+        : [values.trigger_type];
+      configuration = {
+        ...(configuration || {}),
+        trigger_types: selectedTriggers,
+      };
+
       const { data, error } = await supabase
         .from("automations")
         .insert({
           name: values.name,
           description: values.description,
-          trigger_type: values.trigger_type as any,
+          trigger_type: selectedTriggers[0] as any,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
@@ -432,7 +446,8 @@ export function AddAutomationForm() {
   };
 
   const statusEntity = form.watch("status_entity");
-  const triggerType = form.watch("trigger_type");
+  const triggerTypes = form.watch("trigger_types") || [];
+  const statusScopes = scopesForTriggers(triggerTypes);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -487,54 +502,50 @@ export function AddAutomationForm() {
 
             <FormField
               control={form.control}
-              name="trigger_type"
+              name="trigger_types"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>מתי להפעיל? *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר טריגר" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background z-[100]">
-                      {TRIGGER_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
+                  <FormControl>
+                    <TriggerTypeMultiSelect
+                      options={TRIGGER_OPTIONS}
+                      value={field.value || []}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        if (next[0]) {
+                          form.setValue("trigger_type", next[0] as any, {
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    אותה פעולה תרוץ אם אחד מהטריגרים קורה
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {triggerScope(triggerType) && (
+            {statusScopes.length > 0 && (
               <FormField
                 control={form.control}
-                name="trigger_status_value"
+                name="trigger_status_values"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>לאיזה סטטוס או שלב השתנה? (אופציונלי)</FormLabel>
+                    <FormLabel>לאילו סטטוסים או שלבים? (אפשר כמה)</FormLabel>
                     <FormControl>
-                      <div>
-                        <StatusStageSelect
-                          tenantId={tenantId}
-                          scope={triggerScope(triggerType) || "lead"}
-                          value={field.value}
-                          onChange={field.onChange}
-                          includeAny
-                          anyLabel="כל שינוי"
-                          placeholder="כל שינוי"
-                        />
-                      </div>
+                      <StatusStageMultiSelect
+                        tenantId={tenantId}
+                        scopes={statusScopes}
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      האוטומציה תרוץ רק כשהערך משתנה לסטטוס או לשלב שנבחר
+                      הפעולה תרוץ אם הסטטוס הוא אחד מהנבחרים. בלי בחירה — כל
+                      שינוי
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -542,7 +553,7 @@ export function AddAutomationForm() {
               />
             )}
 
-            {triggerType === "inbound_webhook_task" && (
+            {triggerTypes.includes("inbound_webhook_task") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -588,7 +599,7 @@ export function AddAutomationForm() {
               </div>
             )}
 
-            {triggerType === "inbound_webhook_lead" && (
+            {triggerTypes.includes("inbound_webhook_lead") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
