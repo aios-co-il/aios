@@ -254,20 +254,16 @@ function getStatusColor(statusKey: string | null, statuses: LeadStatus[]) {
 
 function DroppableStage({
   stage,
+  leadCount,
   children,
 }: {
   stage: any;
+  leadCount?: number;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
-
-  const leadsCount = Array.isArray(children)
-    ? children.filter(Boolean).length
-    : children
-      ? 1
-      : 0;
 
   return (
     <div className="flex flex-col min-h-[600px]">
@@ -293,7 +289,18 @@ function DroppableStage({
             }}
             aria-hidden="true"
           />
-          <div className="relative z-10 px-6">{stage.label}</div>
+          <div className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 px-6">
+            <span className="min-w-0 truncate">{stage.label}</span>
+            {typeof leadCount === "number" && (
+              <span
+                className="shrink-0 rounded-full bg-black/20 px-1.5 py-0.5 text-xs font-bold tabular-nums leading-none"
+                title={`${leadCount.toLocaleString()} לידים`}
+              >
+                {leadCount.toLocaleString()}
+                <span className="sr-only"> לידים</span>
+              </span>
+            )}
+          </div>
         </div>
         <div className="bg-muted/30 rounded-b-lg p-4 flex-1 space-y-3 min-h-[550px]">
           {children}
@@ -3516,7 +3523,10 @@ export default function Leads() {
                           </Badge>
                         </h2>
                       </div>
-                      <DroppableStage stage={stage}>
+                      <DroppableStage
+                        stage={stage}
+                        leadCount={kanbanStageData ? totalInStage : undefined}
+                      >
                         <SortableContext
                           id={stage.id}
                           items={stageLeads.map((l: any) => l.id)}
@@ -3661,7 +3671,7 @@ export default function Leads() {
                   <ScrollArea className="h-[320px] mt-6">
                     <div className="grid gap-3 px-1">
                       {PIPELINE_STAGES.map((stage) => {
-                        const stageLeads = getLeadsByStage(stage.id);
+                        const stageCount = getLeadsCountByStage(stage.id);
                         const isSelected = selectedMobileStage === stage.id;
                         return (
                           <Button
@@ -3680,7 +3690,7 @@ export default function Leads() {
                             <Badge
                               variant={isSelected ? "secondary" : "default"}
                             >
-                              {stageLeads.length}
+                              {stageCount.toLocaleString()}
                             </Badge>
                           </Button>
                         );
@@ -3729,7 +3739,10 @@ export default function Leads() {
                         zIndex: PIPELINE_STAGES.length - index,
                       }}
                     >
-                      <DroppableStage stage={stage}>
+                      <DroppableStage
+                        stage={stage}
+                        leadCount={kanbanStageData ? totalInStage : undefined}
+                      >
                         <SortableContext
                           id={stage.id}
                           items={stageLeads.map((l: any) => l.id)}
