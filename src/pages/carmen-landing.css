@@ -242,23 +242,34 @@
   .glass-panel strong {
     font-size: 21px;
   }
+  .glass-panel > p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: #dffbf2;
+  }
   .panel-a {
-    top: 13%;
+    top: 11%;
     right: 0;
-    min-width: 235px;
+    min-width: 300px;
   }
   .panel-b {
     bottom: 12%;
     left: 3%;
-    min-width: 280px;
+    min-width: 300px;
     animation-delay: -2s;
   }
   .panel-c {
     bottom: 17%;
     right: 0;
+    min-width: 255px;
     animation-delay: -4s;
     flex-direction: row;
     align-items: center;
+    justify-content: center;
+  }
+  .panel-c strong {
+    font-size: 22px;
   }
   .signal {
     color: var(--green);
@@ -1288,5 +1299,24 @@
     .hero-carmen-symbol {
       opacity: .28 !important;
     }
+  }
+}
+
+@scope (.carmen-site) {
+  .carmen-hero-metrics b {
+    direction: rtl;
+    font-family: Assistant, Arial, sans-serif;
+    letter-spacing: 0;
+    font-size: 14px;
+    margin-top: 4px;
+    color: #dffbf2;
+  }
+  .panel-a,
+  .panel-b {
+    text-align: right;
+  }
+  .panel-a > p,
+  .panel-b > p {
+    direction: rtl;
   }
 }
