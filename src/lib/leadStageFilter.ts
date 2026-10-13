@@ -26,7 +26,8 @@ export function leadStageIdsFromPreset(
   filters: { stageIds?: unknown; stageId?: unknown } | null | undefined,
 ): string[] {
   if (!filters) return [];
-  if (Array.isArray(filters.stageIds)) return normalizeLeadStageIds(filters.stageIds);
+  if (Array.isArray(filters.stageIds))
+    return normalizeLeadStageIds(filters.stageIds);
   return normalizeLeadStageIds(filters.stageId);
 }
 

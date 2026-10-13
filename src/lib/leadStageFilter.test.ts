@@ -17,17 +17,34 @@ test("empty stage selection means every stage", () => {
 
 test("several stages match any of them", () => {
   assert.deepEqual(
-    normalizeLeadStageIds(["proposal_sent", "negotiation", "proposal_sent", "all", ""]),
+    normalizeLeadStageIds([
+      "proposal_sent",
+      "negotiation",
+      "proposal_sent",
+      "all",
+      "",
+    ]),
     ["proposal_sent", "negotiation"],
   );
-  assert.equal(leadMatchesStageFilter("negotiation", ["proposal_sent", "negotiation"]), true);
-  assert.equal(leadMatchesStageFilter("new", ["proposal_sent", "negotiation"]), false);
+  assert.equal(
+    leadMatchesStageFilter("negotiation", ["proposal_sent", "negotiation"]),
+    true,
+  );
+  assert.equal(
+    leadMatchesStageFilter("new", ["proposal_sent", "negotiation"]),
+    false,
+  );
 });
 
 test("legacy preset stageId still loads, and stageIds wins when both exist", () => {
-  assert.deepEqual(leadStageIdsFromPreset({ stageId: "proposal_sent" }), ["proposal_sent"]);
+  assert.deepEqual(leadStageIdsFromPreset({ stageId: "proposal_sent" }), [
+    "proposal_sent",
+  ]);
   assert.deepEqual(leadStageIdsFromPreset({ stageId: "all" }), []);
-  assert.deepEqual(leadStageIdsFromPreset({ stageIds: ["a", "b"], stageId: "all" }), ["a", "b"]);
+  assert.deepEqual(
+    leadStageIdsFromPreset({ stageIds: ["a", "b"], stageId: "all" }),
+    ["a", "b"],
+  );
   assert.deepEqual(leadStageIdsFromPreset({ stageIds: [] }), []);
 });
 

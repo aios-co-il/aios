@@ -511,7 +511,10 @@ export function LeadFiltersDialog({
             {/* Pipeline Stage - Multi-select with search */}
             <div className="space-y-2">
               <Label>שלב Pipeline</Label>
-              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+              <Popover
+                open={stagePopoverOpen}
+                onOpenChange={setStagePopoverOpen}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -526,7 +529,10 @@ export function LeadFiltersDialog({
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0 bg-popover z-[200]" align="start">
+                <PopoverContent
+                  className="w-[300px] p-0 bg-popover z-[200]"
+                  align="start"
+                >
                   <div className="p-2 border-b">
                     <div className="relative">
                       <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -538,7 +544,10 @@ export function LeadFiltersDialog({
                       />
                     </div>
                   </div>
-                  <div className="max-h-[200px] overflow-y-auto" onWheel={handleScrollWheel}>
+                  <div
+                    className="max-h-[200px] overflow-y-auto"
+                    onWheel={handleScrollWheel}
+                  >
                     <div className="p-2 space-y-1">
                       {filteredStages.map((stage) => (
                         <label
@@ -571,7 +580,9 @@ export function LeadFiltersDialog({
                         variant="ghost"
                         size="sm"
                         className="w-full"
-                        onClick={() => setFilters((prev) => ({ ...prev, stageIds: [] }))}
+                        onClick={() =>
+                          setFilters((prev) => ({ ...prev, stageIds: [] }))
+                        }
                       >
                         <X className="h-4 w-4 ml-2" />
                         נקה בחירה
