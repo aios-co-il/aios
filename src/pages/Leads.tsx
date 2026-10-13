@@ -141,6 +141,7 @@ import {
 import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
 import { ImportLeadsSheet } from "@/components/forms/ImportLeadsSheet";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
+import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
 import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
@@ -5112,6 +5113,14 @@ function TableWithStickyScroll({
                 }
                 if (field.key === "files") {
                   return <LeadPlainCell text={formatLeadFilesColumn(lead)} />;
+                }
+                if (field.key === "notes") {
+                  return (
+                    <LeadNotesCell
+                      leadId={lead.id}
+                      notes={lead.notes ?? null}
+                    />
+                  );
                 }
                 const text = formatLeadTableFieldValue(
                   lead[field.key],
