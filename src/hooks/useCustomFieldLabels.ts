@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
+import type { LeadCustomFieldDefinition } from "@/lib/leadCustomFields";
 
 type EntityType = "task" | "client" | "lead";
 
@@ -15,13 +16,16 @@ export function useCustomFieldLabels(entityType: EntityType) {
   const { data: fieldData, isLoading } = useQuery({
     queryKey: ["custom-field-labels", tenantId, entityType],
     queryFn: async () => {
-      if (!tenantId) return { labels: {}, visibility: {} };
+      if (!tenantId) return { labels: {}, visibility: {}, definitions: [] };
 
       const { data, error } = await supabase
         .from("custom_fields")
-        .select("field_key, field_label, is_visible")
+        .select(
+          "id, field_key, field_label, field_type, is_required, is_visible, options, sort_order",
+        )
         .eq("tenant_id", tenantId)
-        .eq("entity_type", entityType);
+        .eq("entity_type", entityType)
+        .order("sort_order");
 
       if (error) throw error;
 
@@ -34,7 +38,11 @@ export function useCustomFieldLabels(entityType: EntityType) {
         visibilityMap[field.field_key] = field.is_visible;
       });
 
-      return { labels: labelsMap, visibility: visibilityMap };
+      return {
+        labels: labelsMap,
+        visibility: visibilityMap,
+        definitions: (data || []) as LeadCustomFieldDefinition[],
+      };
     },
     enabled: !!tenantId,
   });
@@ -52,6 +60,7 @@ export function useCustomFieldLabels(entityType: EntityType) {
 
   return {
     fieldLabels: fieldData?.labels || {},
+    fieldDefinitions: fieldData?.definitions || [],
     getFieldLabel,
     isFieldVisible,
     isLoading,

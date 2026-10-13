@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -78,6 +78,14 @@ import {
 import { ensureLeadOriginTags } from "@/lib/leadOriginTags";
 import { pickTenantHomeAgencyId } from "@/lib/resolveTenantAgency";
 import { fetchTenantHomeAgencyId } from "@/lib/resolveTenantAgencyDb";
+import { LeadCustomFieldsSection } from "@/components/leads/LeadCustomFieldsSection";
+import {
+  getLeadCustomFieldInitialValues,
+  getMissingRequiredLeadCustomFields,
+  getVisibleLeadCustomFields,
+  type LeadCustomFieldValues,
+  mergeLeadCustomFieldValues,
+} from "@/lib/leadCustomFields";
 
 const formSchema = z.object({
   company_name: z.string().optional().default(""),
@@ -111,12 +119,19 @@ export function AddLeadForm() {
   const [agencyPopoverOpen, setAgencyPopoverOpen] = useState(false);
   const [salesPersonPopoverOpen, setSalesPersonPopoverOpen] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState("");
+  const [customFieldValues, setCustomFieldValues] =
+    useState<LeadCustomFieldValues>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAgency } = useAgency();
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
-  const { getFieldLabel, isFieldVisible } = useCustomFieldLabels("lead");
+  const { getFieldLabel, isFieldVisible, fieldDefinitions } =
+    useCustomFieldLabels("lead");
+  const customFields = useMemo(
+    () => getVisibleLeadCustomFields(fieldDefinitions),
+    [fieldDefinitions],
+  );
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
 
@@ -172,6 +187,14 @@ export function AddLeadForm() {
       fromHeader || pickTenantHomeAgencyId(tenantId, agencies);
     if (homeAgencyId) form.setValue("agency_id", homeAgencyId);
   }, [agencies, form, selectedAgency, tenantId]);
+
+  useEffect(() => {
+    if (!open) return;
+    setCustomFieldValues((current) => ({
+      ...getLeadCustomFieldInitialValues(customFields, {}),
+      ...current,
+    }));
+  }, [customFields, open]);
 
   const { data: salesPeople } = useSalesPeople({ activeOnly: true });
 
@@ -231,6 +254,15 @@ export function AddLeadForm() {
         agency_id: resolvedAgencyId,
         folder_link: values.folder_link || null,
         created_at: values.created_at || new Date(),
+        ...(customFields.length > 0
+          ? {
+              form_data: mergeLeadCustomFieldValues(
+                {},
+                customFields,
+                customFieldValues,
+              ),
+            }
+          : {}),
         tenant_id: tenantId,
       };
 
@@ -313,6 +345,7 @@ export function AddLeadForm() {
       setOpen(false);
       form.reset();
       setSelectedTags([]);
+      setCustomFieldValues({});
     },
     onError: (error: any) => {
       toast({
@@ -324,6 +357,18 @@ export function AddLeadForm() {
   });
 
   const onSubmit = (values: FormValues) => {
+    const missingFields = getMissingRequiredLeadCustomFields(
+      customFields,
+      customFieldValues,
+    );
+    if (missingFields.length > 0) {
+      toast({
+        title: "יש למלא שדות חובה",
+        description: missingFields.map((field) => field.field_label).join(", "),
+        variant: "destructive",
+      });
+      return;
+    }
     createMutation.mutate(values);
   };
 
@@ -1057,6 +1102,17 @@ export function AddLeadForm() {
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <LeadCustomFieldsSection
+              fields={customFields}
+              values={customFieldValues}
+              onChange={(fieldKey, value) =>
+                setCustomFieldValues((current) => ({
+                  ...current,
+                  [fieldKey]: value,
+                }))
+              }
             />
 
             <FormField

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -93,6 +93,14 @@ import {
   unmatchedResponseStatusValue,
 } from "@/lib/leadFields";
 import { ensureLeadOriginTags } from "@/lib/leadOriginTags";
+import { LeadCustomFieldsSection } from "@/components/leads/LeadCustomFieldsSection";
+import {
+  getLeadCustomFieldInitialValues,
+  getMissingRequiredLeadCustomFields,
+  getVisibleLeadCustomFields,
+  type LeadCustomFieldValues,
+  mergeLeadCustomFieldValues,
+} from "@/lib/leadCustomFields";
 
 const formSchema = z.object({
   // NOTE: company_name can be hidden by tenant field visibility settings.
@@ -152,6 +160,8 @@ export function EditLeadDialog({
   }, [open, initialTab]);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
+  const [customFieldValues, setCustomFieldValues] =
+    useState<LeadCustomFieldValues>({});
 
   // Fetch fresh lead data when dialog opens to get latest attachments/folder_links
   const { data: freshLead } = useQuery({
@@ -179,7 +189,12 @@ export function EditLeadDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
-  const { getFieldLabel, isFieldVisible } = useCustomFieldLabels("lead");
+  const { getFieldLabel, isFieldVisible, fieldDefinitions } =
+    useCustomFieldLabels("lead");
+  const customFields = useMemo(
+    () => getVisibleLeadCustomFields(fieldDefinitions),
+    [fieldDefinitions],
+  );
   const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { activeStages: pipelineStages } = useLeadPipelineStages();
   const { tenantId } = useCurrentTenant();
@@ -315,6 +330,15 @@ export function EditLeadDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setCustomFieldValues(
+      getLeadCustomFieldInitialValues(customFields, lead.form_data),
+    );
+    // Reinitialize only when the lead or its field definitions change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customFields, lead.id, open]);
+
   // Sync selected sales people when dialog opens or data loads
   // Using JSON.stringify to prevent infinite loop from array reference changes
   useEffect(() => {
@@ -417,6 +441,15 @@ export function EditLeadDialog({
         created_at: values.created_at || new Date(),
         folder_links: folderLinks,
         attachments: attachments,
+        ...(customFields.length > 0
+          ? {
+              form_data: mergeLeadCustomFieldValues(
+                lead.form_data,
+                customFields,
+                customFieldValues,
+              ),
+            }
+          : {}),
       };
 
       // Helper function to update sales people assignments
@@ -556,6 +589,17 @@ export function EditLeadDialog({
   const onSubmit = (values: FormValues) => {
     if (isFieldVisible("company_name") && !(values.company_name || "").trim()) {
       sonnerToast.error("שם העסק הוא שדה חובה");
+      setActiveTab("details");
+      return;
+    }
+    const missingFields = getMissingRequiredLeadCustomFields(
+      customFields,
+      customFieldValues,
+    );
+    if (missingFields.length > 0) {
+      sonnerToast.error(
+        `יש למלא שדות חובה: ${missingFields.map((field) => field.field_label).join(", ")}`,
+      );
       setActiveTab("details");
       return;
     }
@@ -1129,6 +1173,17 @@ export function EditLeadDialog({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <LeadCustomFieldsSection
+              fields={customFields}
+              values={customFieldValues}
+              onChange={(fieldKey, value) =>
+                setCustomFieldValues((current) => ({
+                  ...current,
+                  [fieldKey]: value,
+                }))
+              }
             />
 
             <FormField
