@@ -149,6 +149,10 @@ import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
 import {
+  leadMatchesStageFilter,
+  leadStageIdsFromPreset,
+} from "@/lib/leadStageFilter";
+import {
   findLeadStatus,
   responseStatusSelectValue,
   unmatchedResponseStatusValue,
@@ -941,7 +945,7 @@ export default function Leads() {
   const [filterSalesPersonIds, setFilterSalesPersonIds] = useState<string[]>(
     [],
   );
-  const [filterStage, setFilterStage] = useState<string>("all");
+  const [filterStageIds, setFilterStageIds] = useState<string[]>([]);
   const [filterResponseStatus, setFilterResponseStatus] = useState<string[]>(
     [],
   );
@@ -1097,10 +1101,10 @@ export default function Leads() {
       return;
     }
     if (skipChatStageDefault.current || activePresetId) return;
-    if (filterStage !== "all") return;
+    if (filterStageIds.length > 0) return;
     if (!pipelineStagesData?.length) return;
-    setFilterStage(pipelineStagesData[0].stage_key);
-  }, [viewMode, pipelineStagesData, activePresetId, filterStage]);
+    setFilterStageIds([pipelineStagesData[0].stage_key]);
+  }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -1111,7 +1115,7 @@ export default function Leads() {
     selectedAgency,
     searchQuery,
     filterSalesPersonIds,
-    filterStage,
+    filterStageIds,
     filterResponseStatus,
     filterTagIds,
     filterFollowUpToday,
@@ -1214,7 +1218,7 @@ export default function Leads() {
       selectedAgency,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1268,9 +1272,9 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters
-      if (filterStage !== "all") {
-        query = query.eq("status", filterStage as any);
+      // Server-side filters. Several stages match any of them (OR).
+      if (filterStageIds.length > 0) {
+        query = query.in("status", filterStageIds as any);
       }
 
       // When viewing as a sales person, force filter to their leads
@@ -1341,7 +1345,7 @@ export default function Leads() {
       selectedAgency,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1361,8 +1365,8 @@ export default function Leads() {
           : agencies?.map((a) => a.id) || null;
 
       const stageIds =
-        filterStage && filterStage !== "all"
-          ? [filterStage]
+        filterStageIds.length > 0
+          ? filterStageIds
           : PIPELINE_STAGES.map((s) => s.id);
 
       // Build sales person filter - support multi-select
@@ -1580,7 +1584,7 @@ export default function Leads() {
       effectiveLimit,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1711,9 +1715,9 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters
-      if (filterStage !== "all") {
-        query = query.eq("status", filterStage as any);
+      // Server-side filters. Several stages match any of them (OR).
+      if (filterStageIds.length > 0) {
+        query = query.in("status", filterStageIds as any);
       }
 
       // When viewing as a sales person, force filter to their leads
@@ -2471,11 +2475,11 @@ export default function Leads() {
 
     let result = secureFilteredLeads;
 
-    if (filterStage && filterStage !== "all") {
+    if (filterStageIds.length > 0) {
       result = result.filter((lead: any) => {
         const effectiveStatus =
           optimisticStatusByLeadId[lead.id] ?? lead.status;
-        return effectiveStatus === filterStage;
+        return leadMatchesStageFilter(effectiveStatus, filterStageIds);
       });
     }
 
@@ -2515,7 +2519,7 @@ export default function Leads() {
     secureFilteredLeads,
     filterTagIds,
     filterResponseStatus,
-    filterStage,
+    filterStageIds,
     leadsTagsMap,
     optimisticStatusByLeadId,
   ]);
@@ -2548,7 +2552,7 @@ export default function Leads() {
   const hasActiveFilters = useMemo(() => {
     return (
       filterSalesPersonIds.length > 0 ||
-      filterStage !== "all" ||
+      filterStageIds.length > 0 ||
       filterResponseStatus.length > 0 ||
       filterTagIds.length > 0 ||
       startDate !== undefined ||
@@ -2557,7 +2561,7 @@ export default function Leads() {
     );
   }, [
     filterSalesPersonIds,
-    filterStage,
+    filterStageIds,
     filterResponseStatus,
     filterTagIds,
     startDate,
@@ -2570,7 +2574,7 @@ export default function Leads() {
     () => ({
       searchQuery,
       salesPersonIds: filterSalesPersonIds,
-      stageId: filterStage,
+      stageIds: filterStageIds,
       responseStatus: filterResponseStatus,
       tagIds: filterTagIds,
       startDate,
@@ -2580,7 +2584,7 @@ export default function Leads() {
     [
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       startDate,
@@ -2593,7 +2597,7 @@ export default function Leads() {
   const handleApplyFilters = (filters: FilterState) => {
     setSearchQuery(filters.searchQuery);
     setFilterSalesPersonIds(filters.salesPersonIds);
-    setFilterStage(filters.stageId);
+    setFilterStageIds(filters.stageIds);
     setFilterResponseStatus(filters.responseStatus);
     setFilterTagIds(filters.tagIds);
     setStartDate(filters.startDate);
@@ -2607,7 +2611,7 @@ export default function Leads() {
     if (!preset) {
       // Reset all filters
       setFilterSalesPersonIds([]);
-      setFilterStage("all");
+      setFilterStageIds([]);
       setFilterResponseStatus([]);
       setFilterTagIds([]);
       setStartDate(undefined);
@@ -2629,7 +2633,7 @@ export default function Leads() {
       } else {
         setFilterSalesPersonIds([]);
       }
-      setFilterStage(f.stageId || "all");
+      setFilterStageIds(leadStageIdsFromPreset(f));
       // Handle legacy string format for responseStatus
       if (typeof f.responseStatus === "string") {
         setFilterResponseStatus(
@@ -2693,7 +2697,7 @@ export default function Leads() {
         userAgencyIds: userAgencyIds || [],
         searchQuery,
         filterSalesPersonIds,
-        filterStage,
+        filterStageIds,
         filterResponseStatus,
         filterTagIds,
         filterFollowUpToday,
@@ -2978,8 +2982,8 @@ export default function Leads() {
   };
 
   const chatStageIds =
-    filterStage && filterStage !== "all"
-      ? [filterStage]
+    filterStageIds.length > 0
+      ? filterStageIds
       : PIPELINE_STAGES.map((stage) => stage.id);
 
   const chatRemainingToLoad = chatStageIds.reduce((sum, stageId) => {
@@ -3024,7 +3028,7 @@ export default function Leads() {
 
   const handleStageSelect = (stageId: string) => {
     skipChatStageDefault.current = true;
-    setFilterStage(stageId);
+    setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
   };
 
@@ -3189,7 +3193,7 @@ export default function Leads() {
                   onEditPreset={handleEditPreset}
                   hasActiveFilters={hasActiveFilters}
                   pipelineStages={PIPELINE_STAGES}
-                  activeStageId={filterStage}
+                  activeStageIds={filterStageIds}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
                 />
@@ -3375,7 +3379,7 @@ export default function Leads() {
               onEditPreset={handleEditPreset}
               hasActiveFilters={hasActiveFilters}
               pipelineStages={PIPELINE_STAGES}
-              activeStageId={filterStage}
+              activeStageIds={filterStageIds}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
             />
@@ -3886,7 +3890,7 @@ export default function Leads() {
                     selectedAgency,
                     searchQuery,
                     filterSalesPersonIds,
-                    filterStage,
+                    filterStageIds,
                     filterResponseStatus,
                     filterTagIds,
                     filterFollowUpToday,
