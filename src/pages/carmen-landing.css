@@ -11,3 +11,27 @@
 @media(max-width:420px) { .carmen-site .carmen-account-actions .nav-cta { font-size:11px; padding:8px; } }
 
 @media(max-width:900px) { .carmen-site .nav nav.open { display:flex; } }
+
+
+/* Carmen approved visual direction: magnetic ribbon, translucent C icon, matte navy. */
+.carmen-site .brand{flex-direction:row;align-items:center;gap:11px;letter-spacing:normal}
+.carmen-site .carmen-brand-icon{width:48px;height:48px;object-fit:contain;flex-shrink:0}
+.carmen-site .carmen-brand-wordmark{display:flex;flex-direction:column;line-height:1;align-items:flex-start;font-family:Outfit,sans-serif}
+.carmen-site .carmen-brand-wordmark strong{font-size:25px;letter-spacing:-.045em}
+.carmen-site .carmen-brand-wordmark small{font-size:12px;letter-spacing:0;margin-top:4px;font-weight:500}
+.carmen-site .hero{background:#0a1526}
+.carmen-site .hero-grid{opacity:.07}
+.carmen-site .hero-glow{background:radial-gradient(ellipse at 68% 43%,#0b554650,transparent 60%)}
+.carmen-site .hero-carmen-symbol{position:absolute;width:min(85%,580px);height:85%;object-fit:contain;top:50%;left:50%;transform:translate(-50%,-50%);filter:drop-shadow(0 25px 50px #0008);opacity:.84}
+.carmen-site .carmen-magnetic-ribbon{position:absolute;pointer-events:none;width:85vw;height:28vw;min-height:220px;max-height:420px;opacity:.38;transform:rotate(-24deg);border-radius:50%;border:55px solid transparent;border-top-color:#33d3a5;border-bottom-color:#e3fae0;filter:blur(1px);mix-blend-mode:screen}
+.carmen-site .ribbon-one{top:-25%;right:-35%}
+.carmen-site .ribbon-two{bottom:-35%;left:-35%;transform:rotate(20deg);opacity:.24}
+.carmen-site .hero h1{font-size:clamp(58px,5.8vw,108px);line-height:1.1}
+.carmen-site .gradient-text{background:linear-gradient(95deg,#e3fae0,#08f467);background-clip:text;color:transparent}
+.carmen-site .carmen-hero-metrics{position:absolute;left:5%;top:16%;display:flex;gap:12px;direction:ltr}
+.carmen-site .carmen-hero-metrics span{display:flex;flex-direction:column;padding:12px 16px;border:1px solid #33d3a566;background:#0a1526d9;border-radius:12px;font:500 10px Outfit,sans-serif;letter-spacing:.1em;color:#a9cfc3}
+.carmen-site .carmen-hero-metrics b{color:#08f467;font-size:13px;letter-spacing:0;margin-top:7px}
+.carmen-site .glass-panel{background:#0b2730d9;border-color:#33d3a555;box-shadow:0 20px 60px #0005}
+.carmen-site .orbit{border-color:#33d3a544;box-shadow:none}
+@media(max-width:900px){.carmen-site .carmen-magnetic-ribbon{border-width:30px}.carmen-site .hero-carmen-symbol{width:70%;height:80%}.carmen-site .carmen-hero-metrics{top:4%;left:0}}
+@media(max-width:550px){.carmen-site .carmen-brand-icon{width:36px;height:36px}.carmen-site .carmen-brand-wordmark strong{font-size:20px}.carmen-site .carmen-brand-wordmark small{font-size:10px}.carmen-site .hero-carmen-symbol{width:65%}.carmen-site .carmen-hero-metrics{display:none}.carmen-site .carmen-magnetic-ribbon{opacity:.17}}
