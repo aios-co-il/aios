@@ -2,8 +2,10 @@
 @scope (.carmen-site) {
   :scope {
     --navy: #0a1526;
-    --green: #08f467;
-    --cream: #f0f5f1;
+    --green: #a7f5de;
+    --mint-strong: #7cf2cf;
+    --mint-soft: #dffbf2;
+    --cream: #e3fae0;
     --muted: #a4b5b6;
   }
   * {
@@ -71,7 +73,7 @@
     color: var(--green);
   }
   .nav-cta {
-    border: 1px solid #9eeab8;
+    border: 1px solid #a7f5de;
     border-radius: 100px;
     padding: 12px 20px;
     font-weight: 700;
@@ -143,9 +145,10 @@
     letter-spacing: -0.05em;
     margin: 25px 0 30px;
     font-weight: 800;
+    font-family: "Liebling", Assistant, Arial, sans-serif;
   }
   .gradient-text {
-    background: linear-gradient(95deg, #fff 10%, #a4ffcc 85%);
+    background: linear-gradient(95deg, #fff 10%, #bdf8e7 85%);
     background-clip: text;
     color: transparent;
   }
@@ -196,7 +199,7 @@
     border-radius: 50%;
     inset: 9%;
     transform: rotate(-23deg) rotateX(65deg);
-    box-shadow: 0 0 110px #08f46720;
+    box-shadow: 0 0 110px #a7f5de20;
   }
   .orbit-two {
     inset: 0;
@@ -211,8 +214,8 @@
     font:
       800 360px Outfit,
       sans-serif;
-    color: #08f46720;
-    text-shadow: 0 0 120px #08f46744;
+    color: #a7f5de20;
+    text-shadow: 0 0 120px #a7f5de44;
     line-height: 1;
   }
   .glass-panel {
@@ -234,7 +237,7 @@
       500 11px Outfit,
       sans-serif;
     letter-spacing: 0.12em;
-    color: #a4f7cc;
+    color: #c9faec;
   }
   .glass-panel strong {
     font-size: 21px;
@@ -269,7 +272,7 @@
   }
   .bars i {
     flex: 1;
-    background: linear-gradient(0deg, #096343, var(--green));
+    background: linear-gradient(0deg, #1b7a67, var(--green));
     border-radius: 5px 5px 0 0;
   }
   .bars i:nth-child(1) {
@@ -323,7 +326,7 @@
   }
   .manifesto .kicker,
   .control-section .kicker {
-    color: #078c51;
+    color: #3aa98c;
   }
   h2 {
     font-size: clamp(54px, 6.7vw, 104px);
@@ -331,13 +334,14 @@
     letter-spacing: -0.055em;
     margin: 24px 0 32px;
     font-weight: 800;
+    font-family: "Liebling", Assistant, Arial, sans-serif;
   }
   h2 span {
     color: var(--green);
   }
   h2 em {
     font-style: normal;
-    color: #078b51;
+    color: #3aa98c;
   }
   .manifesto p,
   .control-section p {
@@ -373,7 +377,7 @@
     box-shadow: 0 14px 40px #001b1510;
   }
   .connection b {
-    color: #0c9c58;
+    color: #55c7a7;
   }
   .modules-section {
     padding: 150px 6% 170px;
@@ -417,7 +421,7 @@
   }
   .module-row.active,
   .module-row:hover {
-    background: #08f46710;
+    background: #a7f5de10;
     color: white;
   }
   .module-row.active {
@@ -448,7 +452,7 @@
     position: absolute;
     width: 550px;
     height: 550px;
-    background: #08f46720;
+    background: #a7f5de20;
     filter: blur(90px);
     border-radius: 50%;
   }
@@ -462,7 +466,7 @@
     font-size: 130px;
     line-height: 1;
     color: var(--green);
-    text-shadow: 0 0 70px #08f46788;
+    text-shadow: 0 0 70px #a7f5de88;
     margin-bottom: 55px;
   }
   .stage-label {
@@ -618,7 +622,7 @@
   }
   .chart-bars i {
     flex: 1;
-    background: linear-gradient(0deg, #12654d, #08f467);
+    background: linear-gradient(0deg, #12654d, #a7f5de);
     border-radius: 5px 5px 0 0;
   }
   .control-section {
@@ -939,9 +943,9 @@
   white-space: nowrap;
 }
 .carmen-site .carmen-whatsapp-nav {
-  background: #08f467;
+  background: #a7f5de;
   color: #0a1526;
-  border-color: #08f467;
+  border-color: #a7f5de;
 }
 .carmen-site .carmen-whatsapp-nav span {
   color: #0a1526;
@@ -1055,7 +1059,7 @@
   line-height: 1.1;
 }
 .carmen-site .gradient-text {
-  background: linear-gradient(95deg, #e3fae0, #08f467);
+  background: linear-gradient(95deg, #e3fae0, #a7f5de);
   background-clip: text;
   color: transparent;
 }
@@ -1081,7 +1085,7 @@
   color: #a9cfc3;
 }
 .carmen-site .carmen-hero-metrics b {
-  color: #08f467;
+  color: #a7f5de;
   font-size: 13px;
   letter-spacing: 0;
   margin-top: 7px;
@@ -1162,7 +1166,7 @@
   height: 100%;
   opacity: 0.92;
   z-index: 0;
-  filter: drop-shadow(0 0 42px #08f4672e);
+  filter: drop-shadow(0 0 42px #a7f5de2e);
   object-fit: contain;
 }
 .carmen-site .hero-art .orbit {
@@ -1177,7 +1181,7 @@
   content: "";
   position: absolute;
   inset: 8% 2%;
-  background: radial-gradient(ellipse at 50% 50%, #08f46722, transparent 67%);
+  background: radial-gradient(ellipse at 50% 50%, #a7f5de22, transparent 67%);
   filter: blur(28px);
   pointer-events: none;
 }
@@ -1187,7 +1191,7 @@
 }
 .carmen-site .hero-art .orbit-one {
   transform: rotate(-27deg) rotateX(68deg);
-  border-color: #08f46777;
+  border-color: #a7f5de77;
 }
 .carmen-site .hero-art .orbit-two {
   transform: rotate(33deg) rotateY(69deg);
@@ -1245,4 +1249,13 @@
     width: 100%;
     opacity: 0.8;
   }
+}
+
+
+/* Carmen 2026 mint refinement */
+@scope (.carmen-site) {
+  .carmen-brand-wordmark-image { filter: drop-shadow(0 0 14px rgba(167,245,222,.22)); }
+  .hero-carmen-symbol { filter: drop-shadow(0 24px 55px rgba(124,242,207,.22)); }
+  .nav-cta, .button.primary { border-color: rgba(167,245,222,.85); }
+  .button.primary { background: linear-gradient(135deg, #dffbf2 0%, #a7f5de 55%, #7cf2cf 100%); box-shadow: 0 10px 34px rgba(124,242,207,.18); }
 }
