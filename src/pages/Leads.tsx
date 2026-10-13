@@ -142,6 +142,7 @@ import {
 import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
 import { ImportLeadsSheet } from "@/components/forms/ImportLeadsSheet";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
+import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
 import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
@@ -149,6 +150,10 @@ import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
 import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
+import {
+  leadMatchesStageFilter,
+  leadStageIdsFromPreset,
+} from "@/lib/leadStageFilter";
 import {
   findLeadStatus,
   responseStatusSelectValue,
@@ -173,9 +178,15 @@ import {
   type SurfaceSalesPerson,
   LEAD_TABLE_LAYOUT_STORAGE_KEY,
 } from "@/lib/leadTableLayout";
+import { LEAD_SYSTEM_FIELD_KEYS } from "@/lib/leadCustomFields";
 import {
+  formatLeadFilesColumn,
+  formatLeadTableFieldValue,
+  getLeadTableCustomColumns,
   isLeadTableColumnVisible,
   LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY,
+  LEAD_TABLE_OPTIONAL_COLUMNS,
+  readLeadCustomColumnValue,
 } from "@/lib/leadTableColumns";
 
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
@@ -251,20 +262,16 @@ function getStatusColor(statusKey: string | null, statuses: LeadStatus[]) {
 
 function DroppableStage({
   stage,
+  leadCount,
   children,
 }: {
   stage: any;
+  leadCount?: number;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
-
-  const leadsCount = Array.isArray(children)
-    ? children.filter(Boolean).length
-    : children
-      ? 1
-      : 0;
 
   return (
     <div className="flex flex-col min-h-[600px]">
@@ -290,7 +297,18 @@ function DroppableStage({
             }}
             aria-hidden="true"
           />
-          <div className="relative z-10 px-6">{stage.label}</div>
+          <div className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 px-6">
+            <span className="min-w-0 truncate">{stage.label}</span>
+            {typeof leadCount === "number" && (
+              <span
+                className="shrink-0 rounded-full bg-black/20 px-1.5 py-0.5 text-xs font-bold tabular-nums leading-none"
+                title={`${leadCount.toLocaleString()} לידים`}
+              >
+                {leadCount.toLocaleString()}
+                <span className="sr-only"> לידים</span>
+              </span>
+            )}
+          </div>
         </div>
         <div className="bg-muted/30 rounded-b-lg p-4 flex-1 space-y-3 min-h-[550px]">
           {children}
@@ -942,7 +960,7 @@ export default function Leads() {
   const [filterSalesPersonIds, setFilterSalesPersonIds] = useState<string[]>(
     [],
   );
-  const [filterStage, setFilterStage] = useState<string>("all");
+  const [filterStageIds, setFilterStageIds] = useState<string[]>([]);
   const [filterResponseStatus, setFilterResponseStatus] = useState<string[]>(
     [],
   );
@@ -1038,7 +1056,7 @@ export default function Leads() {
   const { viewMode, setViewMode, defaultView, setDefaultView } =
     useLeadsViewMode(userId);
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
-    if (typeof window === "undefined") return "by_user";
+    if (typeof window === "undefined") return "by_date";
     return parseLeadTableLayout(
       window.localStorage.getItem(LEAD_TABLE_LAYOUT_STORAGE_KEY),
     );
@@ -1098,10 +1116,10 @@ export default function Leads() {
       return;
     }
     if (skipChatStageDefault.current || activePresetId) return;
-    if (filterStage !== "all") return;
+    if (filterStageIds.length > 0) return;
     if (!pipelineStagesData?.length) return;
-    setFilterStage(pipelineStagesData[0].stage_key);
-  }, [viewMode, pipelineStagesData, activePresetId, filterStage]);
+    setFilterStageIds([pipelineStagesData[0].stage_key]);
+  }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -1112,7 +1130,7 @@ export default function Leads() {
     selectedAgency,
     searchQuery,
     filterSalesPersonIds,
-    filterStage,
+    filterStageIds,
     filterResponseStatus,
     filterTagIds,
     filterFollowUpToday,
@@ -1215,7 +1233,7 @@ export default function Leads() {
       selectedAgency,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1269,9 +1287,9 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters
-      if (filterStage !== "all") {
-        query = query.eq("status", filterStage as any);
+      // Server-side filters. Several stages match any of them (OR).
+      if (filterStageIds.length > 0) {
+        query = query.in("status", filterStageIds as any);
       }
 
       // When viewing as a sales person, force filter to their leads
@@ -1342,7 +1360,7 @@ export default function Leads() {
       selectedAgency,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1362,8 +1380,8 @@ export default function Leads() {
           : agencies?.map((a) => a.id) || null;
 
       const stageIds =
-        filterStage && filterStage !== "all"
-          ? [filterStage]
+        filterStageIds.length > 0
+          ? filterStageIds
           : PIPELINE_STAGES.map((s) => s.id);
 
       // Build sales person filter - support multi-select
@@ -1581,7 +1599,7 @@ export default function Leads() {
       effectiveLimit,
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       filterFollowUpToday,
@@ -1644,6 +1662,15 @@ export default function Leads() {
               agency_id,
               sales_person_id,
               follow_up_date,
+              monthly_budget,
+              three_month_budget,
+              won_date,
+              meeting_date,
+              meeting_time,
+              meeting_location,
+              form_data,
+              attachments,
+              folder_links,
               created_at,
               updated_at,
               agencies (name),
@@ -1684,6 +1711,15 @@ export default function Leads() {
           agency_id,
           sales_person_id,
           follow_up_date,
+          monthly_budget,
+          three_month_budget,
+          won_date,
+          meeting_date,
+          meeting_time,
+          meeting_location,
+          form_data,
+          attachments,
+          folder_links,
           created_at,
           first_created_at,
           first_source,
@@ -1712,9 +1748,9 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters
-      if (filterStage !== "all") {
-        query = query.eq("status", filterStage as any);
+      // Server-side filters. Several stages match any of them (OR).
+      if (filterStageIds.length > 0) {
+        query = query.in("status", filterStageIds as any);
       }
 
       // When viewing as a sales person, force filter to their leads
@@ -2476,11 +2512,11 @@ export default function Leads() {
 
     let result = secureFilteredLeads;
 
-    if (filterStage && filterStage !== "all") {
+    if (filterStageIds.length > 0) {
       result = result.filter((lead: any) => {
         const effectiveStatus =
           optimisticStatusByLeadId[lead.id] ?? lead.status;
-        return effectiveStatus === filterStage;
+        return leadMatchesStageFilter(effectiveStatus, filterStageIds);
       });
     }
 
@@ -2520,7 +2556,7 @@ export default function Leads() {
     secureFilteredLeads,
     filterTagIds,
     filterResponseStatus,
-    filterStage,
+    filterStageIds,
     leadsTagsMap,
     optimisticStatusByLeadId,
   ]);
@@ -2553,7 +2589,7 @@ export default function Leads() {
   const hasActiveFilters = useMemo(() => {
     return (
       filterSalesPersonIds.length > 0 ||
-      filterStage !== "all" ||
+      filterStageIds.length > 0 ||
       filterResponseStatus.length > 0 ||
       filterTagIds.length > 0 ||
       startDate !== undefined ||
@@ -2562,7 +2598,7 @@ export default function Leads() {
     );
   }, [
     filterSalesPersonIds,
-    filterStage,
+    filterStageIds,
     filterResponseStatus,
     filterTagIds,
     startDate,
@@ -2575,7 +2611,7 @@ export default function Leads() {
     () => ({
       searchQuery,
       salesPersonIds: filterSalesPersonIds,
-      stageId: filterStage,
+      stageIds: filterStageIds,
       responseStatus: filterResponseStatus,
       tagIds: filterTagIds,
       startDate,
@@ -2585,7 +2621,7 @@ export default function Leads() {
     [
       searchQuery,
       filterSalesPersonIds,
-      filterStage,
+      filterStageIds,
       filterResponseStatus,
       filterTagIds,
       startDate,
@@ -2598,7 +2634,7 @@ export default function Leads() {
   const handleApplyFilters = (filters: FilterState) => {
     setSearchQuery(filters.searchQuery);
     setFilterSalesPersonIds(filters.salesPersonIds);
-    setFilterStage(filters.stageId);
+    setFilterStageIds(filters.stageIds);
     setFilterResponseStatus(filters.responseStatus);
     setFilterTagIds(filters.tagIds);
     setStartDate(filters.startDate);
@@ -2612,7 +2648,7 @@ export default function Leads() {
     if (!preset) {
       // Reset all filters
       setFilterSalesPersonIds([]);
-      setFilterStage("all");
+      setFilterStageIds([]);
       setFilterResponseStatus([]);
       setFilterTagIds([]);
       setStartDate(undefined);
@@ -2634,7 +2670,7 @@ export default function Leads() {
       } else {
         setFilterSalesPersonIds([]);
       }
-      setFilterStage(f.stageId || "all");
+      setFilterStageIds(leadStageIdsFromPreset(f));
       // Handle legacy string format for responseStatus
       if (typeof f.responseStatus === "string") {
         setFilterResponseStatus(
@@ -2698,7 +2734,7 @@ export default function Leads() {
         userAgencyIds: userAgencyIds || [],
         searchQuery,
         filterSalesPersonIds,
-        filterStage,
+        filterStageIds,
         filterResponseStatus,
         filterTagIds,
         filterFollowUpToday,
@@ -2983,8 +3019,8 @@ export default function Leads() {
   };
 
   const chatStageIds =
-    filterStage && filterStage !== "all"
-      ? [filterStage]
+    filterStageIds.length > 0
+      ? filterStageIds
       : PIPELINE_STAGES.map((stage) => stage.id);
 
   const chatRemainingToLoad = chatStageIds.reduce((sum, stageId) => {
@@ -3029,7 +3065,7 @@ export default function Leads() {
 
   const handleStageSelect = (stageId: string) => {
     skipChatStageDefault.current = true;
-    setFilterStage(stageId);
+    setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
   };
 
@@ -3194,7 +3230,7 @@ export default function Leads() {
                   onEditPreset={handleEditPreset}
                   hasActiveFilters={hasActiveFilters}
                   pipelineStages={PIPELINE_STAGES}
-                  activeStageId={filterStage}
+                  activeStageIds={filterStageIds}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
                 />
@@ -3380,7 +3416,7 @@ export default function Leads() {
               onEditPreset={handleEditPreset}
               hasActiveFilters={hasActiveFilters}
               pipelineStages={PIPELINE_STAGES}
-              activeStageId={filterStage}
+              activeStageIds={filterStageIds}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
             />
@@ -3517,7 +3553,10 @@ export default function Leads() {
                           </Badge>
                         </h2>
                       </div>
-                      <DroppableStage stage={stage}>
+                      <DroppableStage
+                        stage={stage}
+                        leadCount={kanbanStageData ? totalInStage : undefined}
+                      >
                         <SortableContext
                           id={stage.id}
                           items={stageLeads.map((l: any) => l.id)}
@@ -3662,7 +3701,7 @@ export default function Leads() {
                   <ScrollArea className="h-[320px] mt-6">
                     <div className="grid gap-3 px-1">
                       {PIPELINE_STAGES.map((stage) => {
-                        const stageLeads = getLeadsByStage(stage.id);
+                        const stageCount = getLeadsCountByStage(stage.id);
                         const isSelected = selectedMobileStage === stage.id;
                         return (
                           <Button
@@ -3681,7 +3720,7 @@ export default function Leads() {
                             <Badge
                               variant={isSelected ? "secondary" : "default"}
                             >
-                              {stageLeads.length}
+                              {stageCount.toLocaleString()}
                             </Badge>
                           </Button>
                         );
@@ -3730,7 +3769,10 @@ export default function Leads() {
                         zIndex: PIPELINE_STAGES.length - index,
                       }}
                     >
-                      <DroppableStage stage={stage}>
+                      <DroppableStage
+                        stage={stage}
+                        leadCount={kanbanStageData ? totalInStage : undefined}
+                      >
                         <SortableContext
                           id={stage.id}
                           items={stageLeads.map((l: any) => l.id)}
@@ -3891,7 +3933,7 @@ export default function Leads() {
                     selectedAgency,
                     searchQuery,
                     filterSalesPersonIds,
-                    filterStage,
+                    filterStageIds,
                     filterResponseStatus,
                     filterTagIds,
                     filterFollowUpToday,
@@ -4038,6 +4080,25 @@ export default function Leads() {
   );
 }
 
+function LeadPlainCell({ text }: { text: string }) {
+  const empty = !text || text === "—";
+  return (
+    <span
+      className={empty ? "text-muted-foreground" : "block max-w-full truncate"}
+      title={empty ? undefined : text}
+    >
+      {empty ? "—" : text}
+    </span>
+  );
+}
+
+function leadTableOptionalWidth(key: string): number {
+  if (key === "notes") return 240;
+  if (key === "files") return 120;
+  if (key === "call_recording") return 150;
+  return 160;
+}
+
 function TableWithStickyScroll({
   stageLeads,
   totalLeadsCount,
@@ -4064,7 +4125,8 @@ function TableWithStickyScroll({
   const { activeStatuses: leadStatuses, isLoading: isStatusesLoading } =
     useLeadStatuses();
   const { activeStages: pipelineStagesData } = useLeadPipelineStages();
-  const { isFieldVisible, getFieldLabel } = useCustomFieldLabels("lead");
+  const { isFieldVisible, getFieldLabel, fieldDefinitions } =
+    useCustomFieldLabels("lead");
   const { tenantId } = useCurrentTenant();
 
   // Fetch sales people for assignment
@@ -4178,6 +4240,38 @@ function TableWithStickyScroll({
     if (!stageLeads || stageLeads.length === 0) return [];
     return stageLeads.map((lead: any) => lead.id);
   }, [stageLeads]);
+  const showCallRecording = isLeadTableColumnVisible(
+    "call_recording",
+    isFieldVisible,
+  );
+  const customTableColumns = getLeadTableCustomColumns(
+    fieldDefinitions,
+    LEAD_SYSTEM_FIELD_KEYS,
+  ).filter((field) => isFieldVisible(field.visibilityKey, false));
+  const { data: callRecordings = [] } = useQuery({
+    queryKey: ["lead-call-recordings", tenantId, visibleLeadIds],
+    queryFn: async () => {
+      if (!tenantId || visibleLeadIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("call_logs")
+        .select("lead_id, recording_url")
+        .eq("tenant_id", tenantId)
+        .in("lead_id", visibleLeadIds)
+        .not("recording_url", "is", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId && showCallRecording && visibleLeadIds.length > 0,
+  });
+  const recordingsByLead = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const row of callRecordings) {
+      if (!row.lead_id || !row.recording_url) continue;
+      (map[row.lead_id] ??= []).push(row.recording_url);
+    }
+    return map;
+  }, [callRecordings]);
 
   // Fetch lead tags in bulk for visible leads only (avoids 1000 row limit)
   const { data: leadsTagsMap = {} } = useQuery({
@@ -5016,6 +5110,86 @@ function TableWithStickyScroll({
                   },
                 ]
               : []),
+            ...LEAD_TABLE_OPTIONAL_COLUMNS.filter((field) =>
+              isLeadTableColumnVisible(field.key, isFieldVisible),
+            ).map((field) => ({
+              id: field.key,
+              label: getFieldLabel(field.key, field.label),
+              width: leadTableOptionalWidth(field.key),
+              render: (lead: any) => {
+                if (field.key === "call_recording") {
+                  const urls = recordingsByLead[lead.id] || [];
+                  if (urls.length === 0) return <LeadPlainCell text="—" />;
+                  return (
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      {urls.slice(0, 3).map((url, index) => (
+                        <a
+                          key={`${url}-${index}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate text-primary underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {urls.length === 1 ? "הקלטה" : `הקלטה ${index + 1}`}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                }
+                if (field.key === "files") {
+                  return <LeadPlainCell text={formatLeadFilesColumn(lead)} />;
+                }
+                if (field.key === "notes") {
+                  return (
+                    <LeadNotesCell
+                      leadId={lead.id}
+                      notes={lead.notes ?? null}
+                    />
+                  );
+                }
+                const text = formatLeadTableFieldValue(
+                  lead[field.key],
+                  field.type,
+                );
+                const link =
+                  field.key === "email" && text !== "—"
+                    ? `mailto:${text}`
+                    : field.key === "folder_link" && /^https?:\/\//i.test(text)
+                      ? text
+                      : null;
+                if (link) {
+                  return (
+                    <a
+                      href={link}
+                      target={
+                        field.key === "folder_link" ? "_blank" : undefined
+                      }
+                      rel="noreferrer"
+                      className="block truncate hover:underline"
+                      title={text}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {text}
+                    </a>
+                  );
+                }
+                return <LeadPlainCell text={text} />;
+              },
+            })),
+            ...customTableColumns.map((field) => ({
+              id: `cf:${field.field_key}`,
+              label: field.field_label,
+              width: 160,
+              render: (lead: any) => (
+                <LeadPlainCell
+                  text={formatLeadTableFieldValue(
+                    readLeadCustomColumnValue(lead.form_data, field.field_key),
+                    field.field_type,
+                  )}
+                />
+              ),
+            })),
             {
               id: "actions",
               label: getFieldLabel("actions", "פעולות"),

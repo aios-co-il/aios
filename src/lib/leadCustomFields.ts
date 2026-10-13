@@ -65,7 +65,9 @@ export function getVisibleLeadCustomFields(
   return fields
     .filter(
       (field) =>
-        field.is_visible && !LEAD_SYSTEM_FIELD_KEYS.has(field.field_key),
+        field.is_visible &&
+        !LEAD_SYSTEM_FIELD_KEYS.has(field.field_key) &&
+        !field.field_key.startsWith("table_column:"),
     )
     .sort((a, b) => a.sort_order - b.sort_order);
 }

@@ -6,6 +6,7 @@ import {
   type LeadStatusLike,
 } from "./leadFields.ts";
 import { leadSearchOrFilter } from "./leadPhone.ts";
+import { normalizeLeadStageIds } from "./leadStageFilter.ts";
 
 export const LEAD_EXPORT_PAGE_SIZE = 1000;
 const RELATED_IN_CHUNK = 200;
@@ -18,6 +19,8 @@ export type LeadExportFilters = {
   userAgencyIds?: string[] | null;
   searchQuery?: string;
   filterSalesPersonIds?: string[];
+  filterStageIds?: string[];
+  /** Legacy single stage. Used when filterStageIds is absent. */
   filterStage?: string;
   filterResponseStatus?: string[];
   filterTagIds?: string[];
@@ -253,8 +256,11 @@ function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
     query = query.is("archived_at", null);
   }
 
-  if (filters.filterStage && filters.filterStage !== "all") {
-    query = query.eq("status", filters.filterStage);
+  const stageIds = normalizeLeadStageIds(
+    filters.filterStageIds ?? filters.filterStage,
+  );
+  if (stageIds.length > 0) {
+    query = query.in("status", stageIds);
   }
 
   if (filters.viewAsSalesPersonId) {
