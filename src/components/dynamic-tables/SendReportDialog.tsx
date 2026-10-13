@@ -274,8 +274,8 @@ export function SendReportDialog({
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <tr><td style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);padding:24px 32px;">
-          <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">AfterLead · AIOS</h1>
+        <tr><td style="background:linear-gradient(135deg,#0A1526 0%,#1b4d45 100%);padding:24px 32px;">
+          <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Carmen Marketing OS</h1>
           <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">דוח: ${tableName}</p>
         </td></tr>
         <tr><td style="padding:28px 32px;">
@@ -284,7 +284,7 @@ export function SendReportDialog({
           ${linkSection}
         </td></tr>
         <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-          <p style="margin:0;color:#94a3b8;font-size:12px;">נשלח באמצעות AfterLead AIOS</p>
+          <p style="margin:0;color:#94a3b8;font-size:12px;">נשלח באמצעות Carmen Marketing OS</p>
         </td></tr>
       </table>
     </td></tr>
