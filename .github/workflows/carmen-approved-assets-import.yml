@@ -33,7 +33,7 @@ jobs:
           from PIL import Image
           root = Path('public/brand/carmen')
           root.mkdir(parents=True, exist_ok=True)
-          req = urllib.request.Request('https://api.github.com/repos/davidcastelnuovo/aios/issues/comments/6143675311', headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          req = urllib.request.Request('https://api.github.com/repos/davidcastelnuovo/aios/issues/comments/6143715935', headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
           comment = json.load(urllib.request.urlopen(req))['body']
           manifest = json.loads(re.search(r'```json\s*(.*?)\s*```', comment, re.S).group(1))
           approved = {'wordmark': 'f8e25e8d4f20b6c5e5e83ad309f97b09797581fc21a42550cc0dab1fa505aa9c', 'symbol': '080a5964dd8e299f5fcf537485ab161dd3d3dd45b01bdffd611c3c074ef82f6d'}
@@ -80,7 +80,7 @@ jobs:
       - name: Commit approved assets to the feature branch
         run: |
           git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.email '4189828282+github-actions[bot]@users.noreply.github.com'
           git add public/brand/carmen/ src/pages/Landing.tsx src/pages/carmen-landing.css .github/workflows/carmen-approved-assets-import.yml
           git diff --cached --quiet && exit 0
           git commit -m 'fix(brand): install approved soft artwork and use exact original assets'
