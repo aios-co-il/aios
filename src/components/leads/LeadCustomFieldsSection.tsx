@@ -42,7 +42,10 @@ export function LeadCustomFieldsSection({
   if (fields.length === 0) return null;
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4" dir="rtl">
+    <div
+      className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4"
+      dir="rtl"
+    >
       <h3 className="text-sm font-semibold">שדות מותאמים אישית</h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {fields.map((field) => {
@@ -61,7 +64,9 @@ export function LeadCustomFieldsSection({
                 <Checkbox
                   id={id}
                   checked={value === true}
-                  onCheckedChange={(checked) => onChange(field.field_key, checked === true)}
+                  onCheckedChange={(checked) =>
+                    onChange(field.field_key, checked === true)
+                  }
                 />
                 {label}
               </div>
@@ -75,7 +80,9 @@ export function LeadCustomFieldsSection({
                 <Textarea
                   id={id}
                   value={String(value ?? "")}
-                  onChange={(event) => onChange(field.field_key, event.target.value)}
+                  onChange={(event) =>
+                    onChange(field.field_key, event.target.value)
+                  }
                   rows={3}
                   required={field.is_required}
                   className="text-right"
@@ -92,8 +99,10 @@ export function LeadCustomFieldsSection({
                 {label}
                 {options.length > 0 ? (
                   <Select
-                    value={String(value ?? "")}
-                    onValueChange={(nextValue) => onChange(field.field_key, nextValue)}
+                    value={String(value ?? "") || undefined}
+                    onValueChange={(nextValue) =>
+                      onChange(field.field_key, nextValue)
+                    }
                   >
                     <SelectTrigger id={id} className="text-right">
                       <SelectValue placeholder="בחר אפשרות" />
@@ -110,7 +119,9 @@ export function LeadCustomFieldsSection({
                   <Input
                     id={id}
                     value={String(value ?? "")}
-                    onChange={(event) => onChange(field.field_key, event.target.value)}
+                    onChange={(event) =>
+                      onChange(field.field_key, event.target.value)
+                    }
                     required={field.is_required}
                     className="text-right"
                     dir="rtl"
@@ -138,7 +149,9 @@ export function LeadCustomFieldsSection({
                 id={id}
                 type={inputType}
                 value={String(value ?? "")}
-                onChange={(event) => onChange(field.field_key, event.target.value)}
+                onChange={(event) =>
+                  onChange(field.field_key, event.target.value)
+                }
                 required={field.is_required}
                 className="text-right"
                 dir={inputType === "email" ? "ltr" : "rtl"}

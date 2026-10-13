@@ -50,11 +50,23 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function isEditableValue(value: unknown): boolean {
+  return (
+    value == null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
 export function getVisibleLeadCustomFields(
   fields: LeadCustomFieldDefinition[],
 ): LeadCustomFieldDefinition[] {
   return fields
-    .filter((field) => field.is_visible && !LEAD_SYSTEM_FIELD_KEYS.has(field.field_key))
+    .filter(
+      (field) =>
+        field.is_visible && !LEAD_SYSTEM_FIELD_KEYS.has(field.field_key),
+    )
     .sort((a, b) => a.sort_order - b.sort_order);
 }
 
@@ -67,6 +79,7 @@ export function getLeadCustomFieldInitialValues(
   return Object.fromEntries(
     fields.map((field) => {
       const value = stored[field.field_key];
+      if (!isEditableValue(value)) return [field.field_key, ""];
       if (field.field_type === "checkbox") {
         return [field.field_key, value === true || value === "true"];
       }
@@ -82,7 +95,9 @@ export function getMissingRequiredLeadCustomFields(
   return fields.filter((field) => {
     if (!field.is_required) return false;
     const value = values[field.field_key];
-    return field.field_type === "checkbox" ? value !== true : !String(value ?? "").trim();
+    return field.field_type === "checkbox"
+      ? value !== true
+      : !String(value ?? "").trim();
   });
 }
 
@@ -94,6 +109,8 @@ export function mergeLeadCustomFieldValues(
   const merged = { ...asRecord(formData) };
 
   for (const field of fields) {
+    if (!isEditableValue(merged[field.field_key])) continue;
+
     const value = values[field.field_key];
     if (field.field_type === "checkbox") {
       merged[field.field_key] = value === true;

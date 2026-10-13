@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { presignedUrlStillValid, recordingNeedsRecallRefresh } from "@/lib/recordingPlayback";
+import {
+  presignedUrlStillValid,
+  recordingNeedsRecallRefresh,
+} from "@/lib/recordingPlayback";
 
 export interface ExternalRecordingRef {
   id: string;
@@ -10,7 +13,9 @@ export interface ExternalRecordingRef {
 
 const REFRESH_FAILED = "לא הצלחנו לחדש את קישור ההקלטה. נסה שוב.";
 
-async function readInvokeError(error: { context?: { json?: () => Promise<{ error?: string }> } } | null): Promise<string> {
+async function readInvokeError(
+  error: { context?: { json?: () => Promise<{ error?: string }> } } | null,
+): Promise<string> {
   try {
     const body = await error?.context?.json?.();
     if (body?.error) return body.error;
@@ -41,15 +46,21 @@ export function cancelExternalOpen(pending: Window | null) {
 }
 
 /** Re-issue a Recall download URL when the stored one is missing or expired. */
-export async function resolveExternalRecordingUrl(rec: ExternalRecordingRef): Promise<string | null> {
+export async function resolveExternalRecordingUrl(
+  rec: ExternalRecordingRef,
+): Promise<string | null> {
   const stored = rec.recording_url;
   if (!recordingNeedsRecallRefresh(rec)) return stored;
   if (stored && presignedUrlStillValid(stored)) return stored;
 
-  const { data, error } = await supabase.functions.invoke("refresh-recording-playback", {
-    body: { recording_id: rec.id },
-  });
+  const { data, error } = await supabase.functions.invoke(
+    "refresh-recording-playback",
+    {
+      body: { recording_id: rec.id },
+    },
+  );
   if (typeof data?.url === "string" && data.url) return data.url;
-  if (typeof data?.error === "string" && data.error) throw new Error(data.error);
+  if (typeof data?.error === "string" && data.error)
+    throw new Error(data.error);
   throw new Error(await readInvokeError(error));
 }

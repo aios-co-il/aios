@@ -3,10 +3,14 @@
 // row keeps the last URL, so playback has to ask Recall again.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { corsHeaders } from "../_shared/cors.ts";
-import { extractRecallDownloads, retrieveRecallBot } from "../_shared/recall.ts";
+import {
+  extractRecallDownloads,
+  retrieveRecallBot,
+} from "../_shared/recall.ts";
 
 const headers = { ...corsHeaders, "Content-Type": "application/json" };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,7 +37,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) return json({ error: "אין הרשאה" }, 401);
 
     const body = await req.json().catch(() => ({}));
@@ -49,24 +56,38 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (recError) throw recError;
     if (!rec) return json({ error: "ההקלטה לא נמצאה" }, 404);
-    if ((rec.source !== "meeting_bot" && !isRecallHost(rec.recording_url)) || !rec.meeting_id) {
+    if (
+      (rec.source !== "meeting_bot" && !isRecallHost(rec.recording_url)) ||
+      !rec.meeting_id
+    ) {
       return json({ error: "אין מקור Recall להקלטה הזו" }, 422);
     }
 
     const bot = await retrieveRecallBot(String(rec.meeting_id));
     const { videoUrl, audioUrl } = extractRecallDownloads(bot);
-    const url = rec.recording_type === "audio_only" ? (audioUrl || videoUrl) : (videoUrl || audioUrl);
+    const url =
+      rec.recording_type === "audio_only"
+        ? audioUrl || videoUrl
+        : videoUrl || audioUrl;
     if (!url) return json({ error: "אין קובץ וידאו זמין אצל Recall" }, 404);
 
     const { error: updateError } = await supabase
       .from("zoom_recordings")
       .update({ recording_url: url })
       .eq("id", rec.id);
-    if (updateError) console.error("[refresh-recording-playback] url persist failed", rec.id, updateError.message);
+    if (updateError)
+      console.error(
+        "[refresh-recording-playback] url persist failed",
+        rec.id,
+        updateError.message,
+      );
 
     return json({ url });
   } catch (error) {
-    console.error("[refresh-recording-playback]", error instanceof Error ? error.message : "refresh_failed");
+    console.error(
+      "[refresh-recording-playback]",
+      error instanceof Error ? error.message : "refresh_failed",
+    );
     return json({ error: "לא הצלחנו לחדש את קישור ההקלטה. נסה שוב." }, 500);
   }
 });

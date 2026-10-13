@@ -1,11 +1,16 @@
 /** External Ads Manager URL for a report table, matching the client-card reports tab. */
-export function getAdAccountUrl(table: {
-  integration_type?: string | null;
-  integration_settings?: {
-    ad_account_id?: string | null;
-    customer_id?: string | null;
-  } | null;
-} | null | undefined): string | null {
+export function getAdAccountUrl(
+  table:
+    | {
+        integration_type?: string | null;
+        integration_settings?: {
+          ad_account_id?: string | null;
+          customer_id?: string | null;
+        } | null;
+      }
+    | null
+    | undefined,
+): string | null {
   if (!table) return null;
   const settings = table.integration_settings || {};
   const type = table.integration_type;
@@ -15,7 +20,9 @@ export function getAdAccountUrl(table: {
     return `https://business.facebook.com/adsmanager/manage/campaigns?act=${id}`;
   }
   if (type === "google_ads") {
-    const id = String(settings.customer_id || settings.ad_account_id || "").replace(/-/g, "");
+    const id = String(
+      settings.customer_id || settings.ad_account_id || "",
+    ).replace(/-/g, "");
     if (!id) return null;
     return `https://ads.google.com/aw/overview?__e=${id}`;
   }
@@ -35,7 +42,14 @@ const AD_ACCOUNT_LABELS: Record<string, string> = {
 
 /** Distinct ads-account shortcuts for a client dashboard or a non-ads report. */
 export function getAdAccountLinks(
-  tables: Array<Parameters<typeof getAdAccountUrl>[0] & { integration_type?: string | null }> | null | undefined,
+  tables:
+    | Array<
+        Parameters<typeof getAdAccountUrl>[0] & {
+          integration_type?: string | null;
+        }
+      >
+    | null
+    | undefined,
 ): AdAccountShortcut[] {
   const seen = new Set<string>();
   const links: AdAccountShortcut[] = [];
@@ -45,12 +59,16 @@ export function getAdAccountLinks(
     seen.add(url);
     links.push({
       url,
-      label: AD_ACCOUNT_LABELS[table?.integration_type || ""] || "פתח חשבון מודעות",
+      label:
+        AD_ACCOUNT_LABELS[table?.integration_type || ""] || "פתח חשבון מודעות",
     });
   }
   return links;
 }
 
-export function adAccountShortcutLabel(link: AdAccountShortcut, total: number): string {
+export function adAccountShortcutLabel(
+  link: AdAccountShortcut,
+  total: number,
+): string {
   return total > 1 ? link.label : "פתח חשבון מודעות";
 }
