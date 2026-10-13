@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Save, Edit } from "lucide-react";
 import TerminologyManagement from "@/components/TerminologyManagement";
+import { isLeadTableColumnPreferenceKey } from "@/lib/leadTableColumns";
 import {
   Table,
   TableBody,
@@ -570,7 +571,7 @@ export default function FieldsManagement() {
                     (f) =>
                       !SYSTEM_FIELDS[selectedEntity].some(
                         (sf) => sf.key === f.field_key,
-                      ),
+                      ) && !isLeadTableColumnPreferenceKey(f.field_key),
                   ).length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       לא הוגדרו שדות מותאמים אישית עבור{" "}
@@ -594,7 +595,7 @@ export default function FieldsManagement() {
                             (f) =>
                               !SYSTEM_FIELDS[selectedEntity].some(
                                 (sf) => sf.key === f.field_key,
-                              ),
+                              ) && !isLeadTableColumnPreferenceKey(f.field_key),
                           )
                           .map((field) => (
                             <TableRow key={field.id}>
