@@ -5081,7 +5081,7 @@ async function executeCreateManychatSubscriber(
     `972${last9Digits}`,
     `0${last9Digits}`,
     cleanPhone,
-    contactPhone.replace(/[\s\-\(\)]/g, ""),
+    contactPhone.replace(/[\s\-()]/g, ""),
   ];
 
   // Step 1: Try to find existing subscriber by phone in ManyChat
@@ -7022,7 +7022,7 @@ async function executeCreateLead(
 
   // Check for duplicate by phone
   if (phone) {
-    const cleanPhone = phone.replace(/[\s\-\(\)\.+]/g, "").replace(/^0/, "972");
+    const cleanPhone = phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
 
     const { data: existingLeads } = await supabase
       .from("leads")
@@ -7032,7 +7032,7 @@ async function executeCreateLead(
     const duplicateLead = existingLeads?.find((l: any) => {
       if (!l.phone) return false;
       const existingClean = l.phone
-        .replace(/[\s\-\(\)\.+]/g, "")
+        .replace(/[\s\-().+]/g, "")
         .replace(/^0/, "972");
       return existingClean === cleanPhone;
     });

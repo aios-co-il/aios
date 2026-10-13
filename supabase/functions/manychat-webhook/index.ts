@@ -9,7 +9,7 @@ const corsHeaders = {
 // Phone normalization helper
 function normalizePhone(phone: string): string {
   if (!phone) return "";
-  return phone.replace(/[\s\-\(\)\+]/g, "");
+  return phone.replace(/[\s\-()+]/g, "");
 }
 
 // Generate phone variations for matching

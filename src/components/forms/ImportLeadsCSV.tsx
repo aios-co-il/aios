@@ -91,7 +91,7 @@ export function ImportLeadsCSV() {
         (s || "")
           .toString()
           .trim()
-          .replace(/[\s_\-\/'"]/g, "")
+          .replace(/[\s_\-/'"]/g, "")
           .toLowerCase();
 
       const isUUID = (s: string) =>
