@@ -356,7 +356,11 @@ export function AppSidebar() {
                 className="h-8 w-8 object-contain"
               />
             ) : (
-              <Building2 className="h-8 w-8" />
+              <img
+                src="/brand/carmen/symbol-soft.webp"
+                alt="Carmen"
+                className="h-8 w-8 object-contain"
+              />
             )}
             {/* Tab icons in collapsed mode */}
             {effectiveTabs.map((tab) => {
