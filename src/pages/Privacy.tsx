@@ -10,9 +10,9 @@ export default function Privacy() {
           <CardHeader>
             <CardTitle className="text-3xl">מדיניות פרטיות</CardTitle>
             <p className="text-muted-foreground mt-2">
-              AfterLead ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על פרטיותך.
+              Carmen Marketing OS ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על פרטיותך.
               מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים ומגנים
-              על המידע שלך בעת השימוש בפלטפורמת AfterLead.
+              על המידע שלך בעת השימוש בפלטפורמת Carmen Marketing OS.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
@@ -319,7 +319,7 @@ export default function Privacy() {
               <p className="mb-3">לשאלות, בקשות או תלונות בנוגע לפרטיות:</p>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
-                  <strong>AfterLead</strong>
+                  <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
                   אימייל:{" "}
