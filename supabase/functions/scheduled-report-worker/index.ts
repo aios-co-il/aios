@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              from: `${Deno.env.get("RESEND_FROM_NAME") || "AfterLead"} <${Deno.env.get("RESEND_FROM_EMAIL") || "noreply@aios.co.il"}>`,
+              from: `${Deno.env.get("RESEND_FROM_NAME") || "Carmen Marketing OS"} <${Deno.env.get("RESEND_FROM_EMAIL") || "noreply@aios.co.il"}>`,
               to: recipients,
               subject: schedule.email_subject || `דוח ${clientName}`,
               html: `<div dir="rtl" style="font-family:Arial,sans-serif"><p>${htmlEscape(schedule.message || `הדוח החדש של ${clientName} מוכן לצפייה`)}</p><p><a href="${shareUrl}">לצפייה בדוח המלא</a></p></div>`,
