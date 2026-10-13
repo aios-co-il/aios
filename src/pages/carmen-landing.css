@@ -35,3 +35,8 @@
 .carmen-site .orbit{border-color:#33d3a544;box-shadow:none}
 @media(max-width:900px){.carmen-site .carmen-magnetic-ribbon{border-width:30px}.carmen-site .hero-carmen-symbol{width:70%;height:80%}.carmen-site .carmen-hero-metrics{top:4%;left:0}}
 @media(max-width:550px){.carmen-site .carmen-brand-icon{width:36px;height:36px}.carmen-site .carmen-brand-wordmark strong{font-size:20px}.carmen-site .carmen-brand-wordmark small{font-size:10px}.carmen-site .hero-carmen-symbol{width:65%}.carmen-site .carmen-hero-metrics{display:none}.carmen-site .carmen-magnetic-ribbon{opacity:.17}}
+
+/* Brand usage: the wordmark and the symbol are never joined. */
+.carmen-site .carmen-brand-wordmark-image{display:block;width:174px;height:auto;max-height:65px;object-fit:contain}
+.carmen-site .hero-carmen-symbol{opacity:.2;filter:none}
+@media(max-width:550px){.carmen-site .carmen-brand-wordmark-image{width:130px}}
