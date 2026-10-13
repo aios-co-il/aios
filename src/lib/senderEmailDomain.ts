@@ -3,8 +3,8 @@ export function normalizeSenderEmailParts(
   local: string,
   domain: string,
 ): { default_local: string; domain: string; wasSwapped: boolean } {
-  let default_local = (local || "noreply").trim().toLowerCase();
-  let domainNorm = (domain || "")
+  const default_local = (local || "noreply").trim().toLowerCase();
+  const domainNorm = (domain || "")
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")

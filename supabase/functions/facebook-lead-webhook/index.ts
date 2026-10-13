@@ -153,7 +153,7 @@ serve(async (req) => {
               }
 
               // Find matching integration by form_id in form_mappings first, then by page_id
-              let integration = integrations?.find((i) => {
+              const integration = integrations?.find((i) => {
                 const settings = i.settings as any;
                 // Check if form_id exists in form_mappings
                 if (settings?.form_mappings?.[formId]) {

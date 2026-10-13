@@ -46,18 +46,19 @@ serve(async (req) => {
     }
 
     // Get integration (may be repointed to another org email below)
-    let { data: integration, error: integrationError } = await supabase
+    const { data: initialIntegration, error: integrationError } = await supabase
       .from("tenant_integrations")
       .select("*")
       .eq("id", integrationId)
       .single();
+    let integration = initialIntegration;
 
     if (integrationError || !integration) {
       throw new Error("Integration not found");
     }
 
     let accessToken = integration.api_key;
-    let integrationSettings = { ...((integration.settings as any) || {}) };
+    const integrationSettings = { ...((integration.settings as any) || {}) };
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
 

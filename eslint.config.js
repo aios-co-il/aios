@@ -27,17 +27,14 @@ export default tseslint.config(
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
       "no-empty": "warn", // AIO-53
-      "prefer-const": "warn", // AIO-54
       "no-useless-escape": "warn", // AIO-55
       "no-case-declarations": "warn", // AIO-56
       "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
       "@typescript-eslint/no-unsafe-function-type": "warn", // AIO-58
       "@typescript-eslint/no-unused-expressions": "warn", // AIO-59
-      "no-var": "warn", // AIO-60
       "react-hooks/rules-of-hooks": "warn", // AIO-61
       "@typescript-eslint/no-empty-object-type": "warn", // AIO-62
       "@typescript-eslint/no-require-imports": "warn", // AIO-63
-      "no-irregular-whitespace": "warn", // AIO-64
       "no-constant-binary-expression": "warn", // AIO-65
     },
   },

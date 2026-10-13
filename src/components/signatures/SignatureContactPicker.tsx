@@ -85,7 +85,7 @@ export default function SignatureContactPicker({
       if (clientsError) throw clientsError;
 
       const clientIds = (clients || []).map((c) => c.id);
-      let contactsByClient: Record<
+      const contactsByClient: Record<
         string,
         Array<{
           id: string;

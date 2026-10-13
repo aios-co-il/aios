@@ -924,7 +924,7 @@ serve(async (req) => {
                   // Update the body/data with new table_id (fallback for other template formats)
                   if (module.mapper.data) {
                     try {
-                      let dataObj =
+                      const dataObj =
                         typeof module.mapper.data === "string"
                           ? JSON.parse(module.mapper.data)
                           : module.mapper.data;

@@ -389,7 +389,7 @@ serve(async (req) => {
           integration_settings,
         } = body;
         let agency_id = body.agency_id ?? body.agencyId ?? null;
-        let client_id = body.client_id ?? body.clientId ?? null;
+        const client_id = body.client_id ?? body.clientId ?? null;
 
         // If client provided but agency missing, derive agency from client
         if (!agency_id && client_id) {

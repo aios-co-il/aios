@@ -11323,7 +11323,7 @@ async function executeTool(
       const limit = Math.min(args.limit || 5, 20);
       const q = String(args.query || "").trim();
       // Try FTS first; fall back to ILIKE
-      let { data, error } = await supabase
+      const { data: matchedSkills, error } = await supabase
         .from("ai_skills")
         .select(
           "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
@@ -11336,6 +11336,7 @@ async function executeTool(
           { type: "websearch", config: "simple" },
         )
         .limit(limit);
+      let data = matchedSkills;
       if (error || !data || data.length === 0) {
         const { data: fb } = await supabase
           .from("ai_skills")
@@ -13194,7 +13195,7 @@ async function executeTool(
       const clientIds = [
         ...new Set((snapshots || []).map((s: any) => s.client_id)),
       ];
-      let clientNames: Record<string, string> = {};
+      const clientNames: Record<string, string> = {};
       if (clientIds.length) {
         const { data: clients } = await supabase
           .from("clients")
@@ -13371,8 +13372,8 @@ async function handleRunAgent(
     console.log(`[AGENT] token_optimize=${tokenOptimize} for ${agent.name}`);
 
     // 2. Resolve tenant
-    let resolvedTenantId = tenant_id || agent.tenant_id;
-    let resolvedUserId = user_id || "system";
+    const resolvedTenantId = tenant_id || agent.tenant_id;
+    const resolvedUserId = user_id || "system";
 
     // 2.5. Resolve caller identity from phone number (WhatsApp sessions)
     let callerCampaignerId: string | null = null;
@@ -14623,7 +14624,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       promotedToolNames = routed.fullSchemaNames;
     }
 
-    let exposedMcpTools: Array<{
+    const exposedMcpTools: Array<{
       name: string;
       description?: string;
       parameters?: any;
@@ -14677,7 +14678,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 4b. Load MCP tools for this tenant + agent (Phase 3)
-    let mcpExecutors = new Map<string, (args: any) => Promise<any>>();
+    const mcpExecutors = new Map<string, (args: any) => Promise<any>>();
     try {
       if (!pinSkillsOnly) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
@@ -15138,7 +15139,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Build messages with conversation history
-    let messages: any[] = [{ role: "system", content: systemPrompt }];
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
 
     // Add conversation history from Carmen WhatsApp sessions
     const history = serverConversationId

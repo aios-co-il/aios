@@ -317,7 +317,7 @@ export default function Gmail() {
   // Filter blocked senders and by category
   const filteredMessages = useMemo(() => {
     if (!messagesData?.messages) return [];
-    let msgs = messagesData.messages.filter((m) => {
+    const msgs = messagesData.messages.filter((m) => {
       const fromEmail =
         m.from.match(/<(.+?)>/)?.[1]?.toLowerCase() || m.from.toLowerCase();
       if ((blockedSenders as string[]).includes(fromEmail)) return false;

@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
 
     // Process this batch, then one retry pass for anything the runtime still
     // rate-limited (should be rare at this low concurrency).
-    let rateLimitedTables = await runInChunks(directBatch);
+    const rateLimitedTables = await runInChunks(directBatch);
     if (rateLimitedTables.length > 0) {
       await new Promise((r) => setTimeout(r, 20000));
       const stillFailing = await runInChunks(rateLimitedTables);

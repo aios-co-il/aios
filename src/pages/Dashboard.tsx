@@ -260,7 +260,7 @@ export default function Dashboard() {
       } else {
         clientQuery = clientQuery.eq("tenant_id", tenantId);
       }
-      let campaignerQuery = supabase
+      const campaignerQuery = supabase
         .from("campaigners")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId);

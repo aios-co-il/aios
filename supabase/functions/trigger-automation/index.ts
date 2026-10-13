@@ -6420,7 +6420,7 @@ async function executeGreenApiToCampaigner(
   // Get campaigner data from the trigger data
   let campaignerPhone = data.campaigner_phone;
   let campaignerGroupId = data.campaigner_whatsapp_group_id;
-  let campaignerId = data.campaigner_id;
+  const campaignerId = data.campaigner_id;
 
   // If no data from trigger, try to fetch from database
   if (campaignerId && (!campaignerPhone || !campaignerGroupId)) {

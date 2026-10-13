@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         .join("");
       // Allow either raw hex or sha256= prefix
       const norm = signature.replace(/^sha256=/, "");
-      let ok = norm.length === expected.length;
+      const ok = norm.length === expected.length;
       let diff = 0;
       if (ok)
         for (let i = 0; i < expected.length; i++)

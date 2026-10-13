@@ -254,7 +254,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       source !== "wa_groups",
     queryFn: async () => {
       if (source === "clients") {
-        let q = supabase
+        const q = supabase
           .from("clients")
           .select("id, contact_name, name, phone, email, status")
           .eq("tenant_id", tenantId);
@@ -274,7 +274,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         }));
       }
       if (source === "leads") {
-        let q = supabase
+        const q = supabase
           .from("leads")
           .select(
             "id, contact_name, company_name, phone, email, status, response_status",

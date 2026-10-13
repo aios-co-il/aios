@@ -2939,7 +2939,7 @@ export default function Leads() {
       if (!stageData) return 0;
 
       // Adjust for optimistic moves
-      let count = stageData.totalCount;
+      const count = stageData.totalCount;
 
       // Count optimistic moves out of this stage
       const movedOut = Object.entries(optimisticStatusByLeadId).filter(

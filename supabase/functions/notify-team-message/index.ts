@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     const campaignerIds = profiles
       .filter((p) => p.campaigner_id && !p.phone)
       .map((p) => p.campaigner_id!);
-    let campaignerPhoneMap: Record<string, string> = {};
+    const campaignerPhoneMap: Record<string, string> = {};
     if (campaignerIds.length > 0) {
       const { data: campaigners } = await supabaseAdmin
         .from("campaigners")
