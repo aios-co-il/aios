@@ -87,3 +87,38 @@
    - רשומת עבודה אחת (`dev_tasks`), dispatcher אחד ונתיב החזרה אחד.
 6. **בסיס הידע:** מקור אחד לזהות, סקילים שנלמדים באמת (`slug`), הגנה על הזיכרון המשותף, ומחיקת V1 ו-`run-ai-agent-v2`.
 7. **ווטסאפ, איחוד:** שולח אחד לכל ספק, מקור הרשאות אחד ומאמת טלפונים אחד.
+
+## איחוד ניהול כרמן: מסך אחד (תכנית, מאושרת לביצוע בשלבים)
+
+שרטוט אינטראקטיבי: https://claude.ai/artifact/44E2jUiw3fkHgd2PrQ9z6Z
+
+**המסך:** צ׳אט נקי במרכז. בצד ימין היסטוריית צ׳אטים בפאנל נפתח (`ChatTopicRail`). בצד שמאל גלגל שיניים של **הגדרות**, ולידו תפריט נפתח של **משימות**. יש כניסה אחת בתפריט, "כרמן". הדפים `agents`, `skins`, `agent-tasks` ו-`command-center` יפנו אליו.
+
+**⚙️ הגדרות: כל מה שמפוזר היום, ממופה לאזורים**
+
+| אזור | מה נכנס (מקור היום) |
+|---|---|
+| זהות ופרסונה | ProfileTab: פרסונה, מצב רוח, סגנון כתיבה, אורך תשובה, שפה, קול, system_prompt |
+| מוח ומנוע | BrainSelector ומנוע ברירת מחדל, מפתחות AI (`llm-settings`) |
+| סקינים | SkinsManager (`/skins`), סקינים שכרמן למדה |
+| ידע וזיכרון | Knowledge, Memory ו-MemoryLayers, User profiles, Learning ו-CarmenInsights |
+| כלים, MCP וגישות | ToolsTab, ToolRegistryTab, McpConnectionsTab, AgentAccessTab (חסימת כלים, סקינים ואינטגרציות) |
+| חיבורי ווטסאפ | חיבור **ראשי** (Manus, הטלפון של כרמן) וחיבורים **משניים**, כל אחד עם מילות טריגר, הנחיות וסקינים. מקור: `manus-wa-settings`, Green API, Meta |
+| **מספרי טלפון מאושרים** | CarmenConversationAccessTab: טלפונים פרטיים, קבוצות, קבוצות לקוח, זהויות ווטסאפ (`carmen_access_policies`, `carmen_client_group_access`, `carmen_whatsapp_identities`) |
+| סוכנים וחיבורי AI | `agent_brain_routes` (Claude, Cursor, Codex, Grok, ChatGPT, Parliament), Manus, סוכן GitHub, סוכני משנה, SupervisorTab |
+| אישורים ופיקוח | ApprovalsTab ו-GlobalApprovalsBell |
+| דופק ואוטומציות מערכת | Heartbeat, SystemCronJobsPanel |
+| עלויות, ריצות ובדיקות | CostTab, RunsTab, EvalsTab |
+
+**▾ משימות:** חד-פעמיות, חוזרות או מתוזמנות (interval או cron), יעדים, משימות פיתוח, ומה רץ עכשיו במקביל. לכל משימה או יעד בוחרים **מבצע**: כרמן, מנוע מסוים, או חיבור לסוכן (Claude, Cursor, Codex). אפשר גם להגדיר כמה משימות רצות במקביל לכל היותר.
+
+**סדר ביצוע (כל שלב ב-PR נפרד, Staging קודם):**
+1. מסך כרמן המאוחד. UI בלבד, בלי שינויי DB.
+2. ווטסאפ ראשי ומשני:
+   - `settings.carmen_role` על כל חיבור.
+   - ב-`green-api-webhook`, כרמן תדולג רק אם אין אוטומציה מוצמדת לחיבור.
+   - ההנחיות והסקינים מהאוטומציה יועברו לכרמן.
+3. משימות:
+   - איחוד ערכי התזמון. זה גם מתקן את הבאג שבגללו משימות מתוזמנות מה-UI לא רצות.
+   - `executor_kind` / `engine_model` / `brain_route_id`.
+   - `max_concurrency`.
