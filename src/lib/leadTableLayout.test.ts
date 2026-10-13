@@ -12,9 +12,10 @@ const dana = { id: "dana", full_name: "דנה", agency_id: "agency-a", agencyIds
 const noam = { id: "noam", full_name: "נועם", agency_id: "agency-b", agencyIds: ["agency-b", "agency-a"] };
 const otherAgency = { id: "other", full_name: "מיכל", agency_id: "agency-c", agencyIds: ["agency-c"] };
 
-test("parseLeadTableLayout defaults to by_user", () => {
-  assert.equal(parseLeadTableLayout(null), "by_user");
-  assert.equal(parseLeadTableLayout("kanban"), "by_user");
+test("parseLeadTableLayout defaults to by_date", () => {
+  assert.equal(parseLeadTableLayout(null), "by_date");
+  assert.equal(parseLeadTableLayout("kanban"), "by_date");
+  assert.equal(parseLeadTableLayout("by_user"), "by_user");
   assert.equal(parseLeadTableLayout("by_date"), "by_date");
 });
 

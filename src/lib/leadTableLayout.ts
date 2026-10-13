@@ -18,7 +18,7 @@ export type LeadTableGroup<T> = {
 };
 
 export function parseLeadTableLayout(value: string | null | undefined): LeadTableLayout {
-  return value === "by_date" ? "by_date" : "by_user";
+  return value === "by_user" ? "by_user" : "by_date";
 }
 
 export function isSalesPersonOnSurface(
