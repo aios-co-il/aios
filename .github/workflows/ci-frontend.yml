@@ -164,7 +164,7 @@ jobs:
       - name: Check formatting (Prettier)
         run: pnpm format:check
 
-      - name: Lint frontend and Edge sources
+      - name: Lint repository sources
         run: pnpm lint
 
       - name: TypeScript gate regression tests
