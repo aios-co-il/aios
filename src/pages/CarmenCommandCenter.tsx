@@ -30,10 +30,7 @@ import type { HudStage } from "@/lib/agentChannelRouting";
 import "@/components/carmen-command/command-center.css";
 
 export type CommandCenterViewMode =
-  | "agents"
-  | "dashboard"
-  | "dev_tasks"
-  | "goals";
+  "agents" | "dashboard" | "dev_tasks" | "goals";
 
 const VIEW_MODE_KEY = "aios:cc-view-mode";
 

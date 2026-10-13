@@ -1452,7 +1452,9 @@ function AhrefsSharedReportTabs({
             gscMultiPeriod={gscMultiPeriod}
             gaOrganicByMonth={gaOrganicByMonth}
             initialLangFilter={
-              (tableSettings.linkedGscLangFilter as string) || "all"
+              (["all", "he", "en"] as const).find(
+                (lang) => lang === tableSettings.linkedGscLangFilter,
+              ) ?? "all"
             }
             clientId={clientId}
             forceRelevant={seoKeywordRelevance?.force_relevant || []}
