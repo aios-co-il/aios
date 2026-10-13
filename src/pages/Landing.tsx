@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAppHomePath } from "@/lib/appHomePath";
 import "./carmen-landing.css";
+import { carmenCharacterData } from "@/assets/carmenCharacterData";
 const modules = [
   {
     n: "01",
@@ -198,6 +199,11 @@ export default function Landing() {
             className="hero-carmen-symbol"
             src="/brand/carmen/symbol-soft.webp"
             alt="סמל Carmen Marketing OS"
+          />
+          <img
+            className="hero-carmen-character"
+            src={carmenCharacterData}
+            alt="כרמן"
           />
           <div className="carmen-hero-metrics" aria-label="דוגמת נתוני דשבורד">
             <span>
