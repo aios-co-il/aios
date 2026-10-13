@@ -116,14 +116,14 @@ Deno.serve(async (req) => {
       }
 
       // DD/MM/YYYY or DD-MM-YYYY
-      const ddmmyyyy = raw.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+      const ddmmyyyy = raw.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
       if (ddmmyyyy) {
         const [, dd, mm, yyyy] = ddmmyyyy;
         return `${yyyy}-${mm}-${dd}`;
       }
 
       // YYYY/MM/DD
-      const yyyymmdd = raw.match(/^(\d{4})[\/](\d{2})[\/](\d{2})$/);
+      const yyyymmdd = raw.match(/^(\d{4})[/](\d{2})[/](\d{2})$/);
       if (yyyymmdd) {
         const [, yyyy, mm, dd] = yyyymmdd;
         return `${yyyy}-${mm}-${dd}`;
