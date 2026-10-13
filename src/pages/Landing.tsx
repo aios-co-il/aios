@@ -54,6 +54,45 @@ const modules = [
     icon: "✦",
   },
 ];
+const controlModes = [
+  {
+    n: "01",
+    label: "בשליטה שלך",
+    short: "כרמן מרכזת וממליצה",
+    title: "אתה מנהל. כרמן מחברת את התמונה.",
+    description:
+      "כרמן מרכזת נתונים, מזהה מה דורש תשומת לב, בונה המלצות ומשימות — ואתה והצוות מחליטים ומבצעים.",
+    bullets: ["תובנות והמלצות", "ריכוז נתונים", "בניית משימות", "שליטה מלאה באישורים"],
+  },
+  {
+    n: "02",
+    label: "עובדים יחד",
+    short: "כרמן מכינה. אתה מאשר",
+    title: "כרמן מכינה את העבודה. אתה מאשר.",
+    description:
+      "מבריף ועד תוצרים: כרמן מכינה תוכן, מהלכים, משימות ו־follow-ups. אתה מאשר את הנקודות החשובות וממשיכים.",
+    bullets: ["קבלת בריף", "יצירת תוכן", "בניית מהלכים", "אישור לפני ביצוע"],
+  },
+  {
+    n: "03",
+    label: "ביצוע מונחה",
+    short: "כרמן מריצה. אתה מפקח",
+    title: "יותר ביצוע. פחות לרדוף אחרי משימות.",
+    description:
+      "כרמן מפעילה תהליכים מוגדרים, מטפלת בלידים, מפעילה תקשורת שוטפת ומנהלת משימות — עם בקרה שלך בנקודות רגישות.",
+    bullets: ["לידים ו־CRM", "WhatsApp ודיוור", "משימות צוות", "בקרה דרך הדשבורד"],
+  },
+  {
+    n: "04",
+    label: "כרמן מנהלת",
+    short: "מערכת שיווק שעובדת בשבילך",
+    title: "כרמן מנהלת את כל המערכת השיווקית.",
+    description:
+      "קמפיינים, SEO, GEO, תוכן, סושיאל, דיוור, לידים, מכירות, אוטומציות ודוחות — מחוברים לתוכנית אחת, עם אנשי מקצוע כשצריך.",
+    bullets: ["קמפיינים וקריאייטיב", "SEO / GEO / סושיאל", "לידים ומכירות", "מדידה, דוחות ואופטימיזציה"],
+  },
+];
+
 const WHATSAPP_URL =
   "https://wa.me/972507677613?text=" +
   encodeURIComponent("שלום, הגעתי מאתר Carmen Marketing OS ואשמח לשמוע פרטים.");
@@ -85,7 +124,21 @@ export default function Landing() {
     };
   }, [navigate]);
   const [active, setActive] = useState(0),
-    [menu, setMenu] = useState(false);
+    [menu, setMenu] = useState(false),
+    [controlMode, setControlMode] = useState(1);
+
+  const updateControlDial = (
+    element: HTMLElement,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const rect = element.getBoundingClientRect();
+    const x = clientX - (rect.left + rect.width / 2);
+    const y = clientY - (rect.top + rect.height / 2);
+    const angle = (Math.atan2(y, x) * 180) / Math.PI;
+    const normalized = (angle + 450) % 360;
+    setControlMode(Math.round(normalized / 90) % 4);
+  };
   useEffect(() => {
     const nodes = document.querySelectorAll(".carmen-site .reveal");
     const ob = new IntersectionObserver(
@@ -244,20 +297,22 @@ export default function Landing() {
         <div className="section-inner reveal">
           <span className="kicker">01 / THE SHIFT</span>
           <h2>
-            עוד קמפיין
+            קמפיינר חדש
             <br />
             <em>לא יפתור את הבעיה.</em>
           </h2>
           <p>
-            הקמפיין הוא לא התוכנית. הוא חלק ממנה. אני מחברת את כל החלקים — כדי
-            שהשיווק יעבוד כמו מערכת אחת.
+            אתם צריכים מנהל שיווק שינהל לכם את כל המערכת. קמפיינים, SEO, GEO,
+            דיוור, סושיאל וגרילה — כרמן מרכזת, מחברת ועוזרת לכם לבצע את הכול.
           </p>
           <div className="connection">
             <span>אסטרטגיה</span>
             <b>↔</b>
             <span>קמפיינים</span>
             <b>↔</b>
-            <span>לידים</span>
+            <span>SEO / GEO</span>
+            <b>↔</b>
+            <span>דיוור / סושיאל</span>
             <b>↔</b>
             <span>מכירות</span>
           </div>
@@ -389,24 +444,97 @@ export default function Landing() {
             <em>אתה מחליט כמה אני עושה לבד.</em>
           </h2>
           <p>
-            ניהול ידני, תהליכים עם אישורים ואוטומציות קיימות. אוטונומיה מלאה
-            מקצה לקצה היא חלק מהחזון שלנו.
+            מייעוץ חכם ועד ניהול שיווק כמעט מלא — אתה קובע את רמת העצמאות,
+            וכרמן מתאימה את עצמה לדרך שבה העסק שלך רוצה לעבוד.
           </p>
-          <div className="control-options">
-            <div>
-              <span>01</span>
-              <h3>בשליטה שלך</h3>
-              <p>אתה והצוות מפעילים את הכלים</p>
+
+          <div className="control-console">
+            <div className="control-dial-wrap">
+              <div
+                className="control-dial"
+                role="slider"
+                tabIndex={0}
+                aria-label="רמת העבודה של כרמן"
+                aria-valuemin={1}
+                aria-valuemax={4}
+                aria-valuenow={controlMode + 1}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setControlMode((controlMode + 1) % controlModes.length);
+                  }
+                  if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setControlMode(
+                      (controlMode - 1 + controlModes.length) %
+                        controlModes.length,
+                    );
+                  }
+                }}
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  updateControlDial(e.currentTarget, e.clientX, e.clientY);
+                }}
+                onPointerMove={(e) => {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                    updateControlDial(e.currentTarget, e.clientX, e.clientY);
+                  }
+                }}
+              >
+                <div className="control-dial-rings" aria-hidden="true" />
+                <div
+                  className="control-dial-knob"
+                  style={{
+                    transform: `rotate(${controlMode * 90}deg)`,
+                  }}
+                  aria-hidden="true"
+                >
+                  <span />
+                </div>
+                <div className="control-dial-center">
+                  <small>MODE</small>
+                  <strong>{controlModes[controlMode].n}</strong>
+                  <span>{controlModes[controlMode].label}</span>
+                </div>
+
+                {controlModes.map((mode, index) => (
+                  <button
+                    key={mode.n}
+                    type="button"
+                    className={`control-dial-stop stop-${index} ${
+                      controlMode === index ? "active" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setControlMode(index);
+                    }}
+                  >
+                    <span>{mode.n}</span>
+                    <b>{mode.label}</b>
+                  </button>
+                ))}
+              </div>
+              <p className="control-drag-hint">גררו את הגלגל או בחרו מצב</p>
             </div>
-            <div>
-              <span>02</span>
-              <h3>עובדים יחד</h3>
-              <p>תהליכים, משימות ואישורים</p>
-            </div>
-            <div>
-              <span>03</span>
-              <h3>יותר אוטומציה</h3>
-              <p>תהליכים מוגדרים שפועלים עבורך</p>
+
+            <div className="control-mode-card" key={controlMode}>
+              <span className="control-mode-kicker">
+                CARMEN / MODE {controlModes[controlMode].n}
+              </span>
+              <h3>{controlModes[controlMode].title}</h3>
+              <p>{controlModes[controlMode].description}</p>
+              <div className="control-mode-list">
+                {controlModes[controlMode].bullets.map((item) => (
+                  <span key={item}>
+                    <i>✓</i>
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="control-mode-status">
+                <span>רמת מעורבות כרמן</span>
+                <b>{controlModes[controlMode].short}</b>
+              </div>
             </div>
           </div>
         </div>
