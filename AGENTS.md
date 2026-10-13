@@ -7,6 +7,7 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 - Development exists: each feature branch's Vercel Preview talks to AIOS Staging; `develop` is Staging and `main` is Production.
 - Follow **Feature → Preview → develop → verify on Staging → main**; use `feature/*` or `fix/*` for feature work.
 - **Never modify Production directly:** no direct commits to `main`, ad-hoc Production SQL, or Production migrations without Staging verification and David's **`מאשר לפרודקשן`**. Database fixes go to Staging first, including schema and data.
+- **Every database change is a migration** in `supabase/migrations/`, including data fixes and `ai_skills` rows that ship with a code change; the deploy workflow applies it per environment. `supabase/ops/` holds only Staging-only environment installers and read-only verification queries.
 - **Do not replay old WhatsApp notifications** while fixing delivery. Backfill or resend only after David explicitly approves that send. A fix landing on Production is not approval to deliver the missed messages.
 - A local checkout pointing at Production is not evidence that Staging is missing. Confirm the environment before running anything that writes data; keep test accounts and test data out of Production.
 

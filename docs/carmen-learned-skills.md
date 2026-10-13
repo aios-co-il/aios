@@ -19,6 +19,11 @@ task represents a **reusable** capability, does two things:
 Trivial one-off requests are skipped — only genuinely reusable capabilities are
 logged.
 
+When a skin ships with a code change, put its `ai_skills` row in a migration in
+`supabase/migrations/` so the deploy workflow applies it to Staging, then
+Production. Older entries below that cite `supabase/ops/*.sql` record the
+legacy manual process.
+
 ## Entry format
 
 ```
