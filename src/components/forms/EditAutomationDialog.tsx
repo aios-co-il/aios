@@ -31,8 +31,20 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Info, Copy, ExternalLink } from "lucide-react";
-import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { MessageTemplateBuilder } from "./MessageTemplateBuilder";
+import {
+  StatusStageMultiSelect,
+  StatusStageSelect,
+} from "@/components/automations/StatusStageSelect";
+import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
+import {
+  applyStatusActionFields,
+  applyTriggerStatusFilters,
+  encodeStoredActionStatus,
+  encodeStoredTriggerFilters,
+  readTriggerTypes,
+  scopesForTriggers,
+} from "../../../supabase/functions/_shared/automation-status.ts";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
 
@@ -89,7 +101,8 @@ const formSchema = z
     conditions: z.string().optional(),
     status_entity: z.enum(["lead", "task"]).optional(),
     status_value: z.string().optional(),
-    trigger_status_value: z.string().optional(),
+    trigger_types: z.array(z.string()).min(1, "בחר לפחות טריגר אחד"),
+    trigger_status_values: z.array(z.string()).optional(),
     update_field_name: z.string().optional(),
     update_field_value: z.string().optional(),
     // ManyChat WhatsApp fields
@@ -122,14 +135,6 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-// LEAD_STATUS_OPTIONS removed - now using dynamic statuses from useLeadStatuses hook
-
-const TASK_STATUS_OPTIONS = [
-  { value: "open", label: "פתוח" },
-  { value: "in_progress", label: "בתהליך" },
-  { value: "done", label: "הושלם" },
-];
-
 const LEAD_DATE_FIELDS = [
   { value: "won_date", label: "תאריך נסגר" },
   { value: "sale_date", label: "תאריך מכירה" },
@@ -138,6 +143,24 @@ const LEAD_DATE_FIELDS = [
 ];
 
 const TASK_DATE_FIELDS = [{ value: "due_date", label: "תאריך יעד" }];
+
+const EDIT_TRIGGER_OPTIONS = [
+  { value: "task_assigned", label: "משימה שוייכה" },
+  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
+  { value: "task_update_added", label: "עדכון נוסף למשימה" },
+  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
+  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
+  { value: "lead_created", label: "ליד נוצר" },
+  { value: "client_created", label: "לקוח נוצר" },
+  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
+  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
+  { value: "meeting_created", label: "נוצרה פגישה" },
+  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
+  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
+  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
+  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
+  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
+];
 
 interface EditAutomationDialogProps {
   automation: any;
@@ -151,7 +174,6 @@ export function EditAutomationDialog({
   onOpenChange,
 }: EditAutomationDialogProps) {
   const queryClient = useQueryClient();
-  const { activeStatuses: leadStatuses } = useLeadStatuses();
   const { tenantId } = useCurrentTenant();
 
   const form = useForm<FormValues>({
@@ -160,6 +182,7 @@ export function EditAutomationDialog({
       name: automation.name || "",
       description: automation.description || "",
       trigger_type: automation.trigger_type,
+      trigger_types: readTriggerTypes(automation),
       action_type: automation.action_type,
       webhook_method: automation.configuration?.method || "POST",
       webhook_url: automation.configuration?.url || "",
@@ -168,8 +191,8 @@ export function EditAutomationDialog({
         ? JSON.stringify(automation.conditions, null, 2)
         : "",
       status_entity: automation.configuration?.entity || "lead",
-      status_value: automation.configuration?.status || "",
-      trigger_status_value: automation.conditions?.new_status || "any",
+      status_value: encodeStoredActionStatus(automation.configuration),
+      trigger_status_values: encodeStoredTriggerFilters(automation.conditions),
       update_field_name: automation.configuration?.update_field || "none",
       update_field_value:
         automation.configuration?.update_field_value || "today",
@@ -312,13 +335,7 @@ export function EditAutomationDialog({
         conditions = {};
       }
 
-      // Add trigger status condition if specified
-      if (
-        values.trigger_status_value &&
-        values.trigger_status_value !== "any"
-      ) {
-        conditions.new_status = values.trigger_status_value;
-      }
+      applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
       let configuration: any = {};
       if (values.action_type === "webhook") {
@@ -331,8 +348,8 @@ export function EditAutomationDialog({
       } else if (values.action_type === "update_status") {
         const cfg: any = {
           entity: values.status_entity,
-          status: values.status_value,
         };
+        applyStatusActionFields(cfg, values.status_value);
         if (values.update_field_name && values.update_field_name !== "none") {
           cfg.update_field = values.update_field_name;
           cfg.update_field_value = values.update_field_value || "today";
@@ -383,12 +400,20 @@ export function EditAutomationDialog({
         };
       }
 
+      const selectedTriggers = values.trigger_types?.length
+        ? values.trigger_types
+        : [values.trigger_type];
+      configuration = {
+        ...(configuration || {}),
+        trigger_types: selectedTriggers,
+      };
+
       const { error } = await supabase
         .from("automations")
         .update({
           name: values.name,
           description: values.description,
-          trigger_type: values.trigger_type as any,
+          trigger_type: selectedTriggers[0] as any,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
@@ -414,7 +439,8 @@ export function EditAutomationDialog({
 
   const actionType = form.watch("action_type");
   const statusEntity = form.watch("status_entity");
-  const triggerType = form.watch("trigger_type");
+  const triggerTypes = form.watch("trigger_types") || [];
+  const statusScopes = scopesForTriggers(triggerTypes);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -461,103 +487,50 @@ export function EditAutomationDialog({
 
             <FormField
               control={form.control}
-              name="trigger_type"
+              name="trigger_types"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>מתי להפעיל? *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="task_assigned">
-                        משימה שוייכה
-                      </SelectItem>
-                      <SelectItem value="task_collaborator_added">
-                        קמפיינר נוסף למשימה
-                      </SelectItem>
-                      <SelectItem value="task_update_added">
-                        עדכון נוסף למשימה
-                      </SelectItem>
-                      <SelectItem value="task_status_changed">
-                        סטטוס משימה השתנה
-                      </SelectItem>
-                      <SelectItem value="lead_status_changed">
-                        סטטוס ליד השתנה
-                      </SelectItem>
-                      <SelectItem value="lead_created">ליד נוצר</SelectItem>
-                      <SelectItem value="client_created">לקוח נוצר</SelectItem>
-                      <SelectItem value="client_status_changed">
-                        סטטוס לקוח השתנה
-                      </SelectItem>
-                      <SelectItem value="onboarding_status_changed">
-                        סטטוס קליטה השתנה
-                      </SelectItem>
-                      <SelectItem value="meeting_created">
-                        נוצרה פגישה
-                      </SelectItem>
-                      <SelectItem value="task_calendar_created">
-                        משימה נוספה ליומן
-                      </SelectItem>
-                      <SelectItem value="task_overdue">
-                        משימה לא הושלמה בזמן
-                      </SelectItem>
-                      <SelectItem value="inbound_webhook_task">
-                        קבלת משימה מ-Webhook
-                      </SelectItem>
-                      <SelectItem value="inbound_webhook_lead">
-                        קליטת ליד מ-Webhook
-                      </SelectItem>
-                      <SelectItem value="report_alert_triggered">
-                        התראת דוח פייסבוק
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
+                  <FormControl>
+                    <TriggerTypeMultiSelect
+                      options={EDIT_TRIGGER_OPTIONS}
+                      value={field.value || []}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        if (next[0]) {
+                          form.setValue("trigger_type", next[0] as any, {
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    אותה פעולה תרוץ אם אחד מהטריגרים קורה
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {(triggerType === "lead_status_changed" ||
-              triggerType === "task_status_changed") && (
+            {statusScopes.length > 0 && (
               <FormField
                 control={form.control}
-                name="trigger_status_value"
+                name="trigger_status_values"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>לאיזה סטטוס השתנה? (אופציונלי)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="כל סטטוס (ללא סינון)" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-background z-[100]">
-                        <SelectItem value="any">כל סטטוס</SelectItem>
-                        {triggerType === "lead_status_changed" &&
-                          leadStatuses.map((status) => (
-                            <SelectItem
-                              key={status.status_key}
-                              value={status.status_key}
-                            >
-                              {status.label}
-                            </SelectItem>
-                          ))}
-                        {triggerType === "task_status_changed" &&
-                          TASK_STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>לאילו סטטוסים או שלבים? (אפשר כמה)</FormLabel>
+                    <FormControl>
+                      <StatusStageMultiSelect
+                        tenantId={tenantId}
+                        scopes={statusScopes}
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormDescription className="text-xs">
-                      האוטומציה תרוץ רק כשהסטטוס משתנה לערך זה
+                      הפעולה תרוץ אם הסטטוס הוא אחד מהנבחרים. בלי בחירה — כל
+                      שינוי
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -565,7 +538,7 @@ export function EditAutomationDialog({
               />
             )}
 
-            {triggerType === "inbound_webhook_task" && (
+            {triggerTypes.includes("inbound_webhook_task") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -598,7 +571,7 @@ export function EditAutomationDialog({
               </div>
             )}
 
-            {triggerType === "inbound_webhook_lead" && (
+            {triggerTypes.includes("inbound_webhook_lead") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -675,7 +648,9 @@ export function EditAutomationDialog({
                       <SelectItem value="webhook">
                         Webhook (Make.com, Zapier וכו')
                       </SelectItem>
-                      <SelectItem value="update_status">שינוי סטטוס</SelectItem>
+                      <SelectItem value="update_status">
+                        שינוי סטטוס או שלב במשפך
+                      </SelectItem>
                       <SelectItem value="send_whatsapp">
                         שלח WhatsApp (ManyChat)
                       </SelectItem>
@@ -815,39 +790,21 @@ export function EditAutomationDialog({
                   name="status_value"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>סטטוס חדש *</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="בחר סטטוס" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-background z-[100]">
-                          {statusEntity === "lead" &&
-                            leadStatuses.map((status) => (
-                              <SelectItem
-                                key={status.status_key}
-                                value={status.status_key}
-                              >
-                                {status.label}
-                              </SelectItem>
-                            ))}
-                          {statusEntity === "task" &&
-                            TASK_STATUS_OPTIONS.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>סטטוס או שלב חדש *</FormLabel>
+                      <FormControl>
+                        <div>
+                          <StatusStageSelect
+                            tenantId={tenantId}
+                            scope={statusEntity === "task" ? "task" : "lead"}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="בחר סטטוס או שלב במשפך"
+                          />
+                        </div>
+                      </FormControl>
                       <FormDescription className="text-xs">
-                        הסטטוס יעודכן אוטומטית כשהאוטומציה תופעל
+                        סטטוס תגובה מעדכן את סטטוס הליד. שלב במשפך מעביר את הליד
+                        לעמודה בלוח.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

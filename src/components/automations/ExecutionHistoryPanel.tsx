@@ -72,7 +72,7 @@ const ACTION_LABELS: Record<string, string> = {
   add_lead_update: "עדכון ליד",
   add_client_update: "עדכון לקוח",
   create_task: "יצירת משימה",
-  send_signature: "שליחת חתימה דיגיטלית",
+  send_signature: "שליחת הסכם (חתימה דיגיטלית)",
   create_lead: "יצירת ליד",
   create_manychat_subscriber: "יצירת מנוי ManyChat",
   update_status: "עדכון סטאטוס",

@@ -70,6 +70,12 @@ import {
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
 import StatusFilterTriggerConfig from "./StatusFilterTriggerConfig";
+import { StatusStageSelect } from "./StatusStageSelect";
+import {
+  decodeStatusSelection,
+  encodeStoredActionStatus,
+  triggerScope,
+} from "../../../supabase/functions/_shared/automation-status.ts";
 
 // Trigger options organized by category for the Flow Builder
 export const TRIGGER_CATEGORIES = [
@@ -187,10 +193,10 @@ const ACTION_OPTIONS = [
   { value: "add_lead_update", label: "הוסף עדכון לליד" },
   { value: "add_client_update", label: "הוסף עדכון ללקוח" },
   { value: "create_manychat_subscriber", label: "צור subscriber ב-ManyChat" },
-  { value: "update_status", label: "שנה סטטוס" },
+  { value: "update_status", label: "שנה סטטוס או שלב במשפך" },
   { value: "webhook", label: "Webhook" },
   { value: "email", label: "אימייל" },
-  { value: "send_signature", label: "שלח חתימה דיגיטלית" },
+  { value: "send_signature", label: "שלח הסכם (חתימה דיגיטלית)" },
   { value: "notification", label: "התראה" },
   { value: "run_manus_task", label: "🤖 הרץ משימת Manus (ברקע)" },
   { value: "send_manus_direct", label: "💬 שלח הודעה ישירה ל-Manus" },
@@ -590,16 +596,15 @@ export function StepConfigPanel({
                 />
               )}
 
-            {node.step_type === "trigger" &&
-              (node.action_type === "lead_status_changed" ||
-                node.action_type === "task_status_changed") && (
-                <StatusFilterTriggerConfig
-                  triggerType={node.action_type || ""}
-                  tenantId={tenantId}
-                  configuration={node.configuration}
-                  onConfigChange={handleConfigChange}
-                />
-              )}
+            {node.step_type === "trigger" && triggerScope(node.action_type) && (
+              <StatusFilterTriggerConfig
+                triggerType={node.action_type || ""}
+                tenantId={tenantId}
+                configuration={node.configuration}
+                onConfigChange={handleConfigChange}
+                onBulkConfigChange={handleBulkConfigChange}
+              />
+            )}
 
             {/* ── טלגרם ── */}
             {node.step_type === "trigger" &&
@@ -1735,15 +1740,34 @@ export function StepConfigPanel({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-right block">סטטוס חדש</Label>
-                  <Input
-                    value={node.configuration?.status || ""}
-                    onChange={(e) =>
-                      handleConfigChange("status", e.target.value)
+                  <Label className="text-right block">סטטוס או שלב חדש</Label>
+                  <StatusStageSelect
+                    tenantId={tenantId}
+                    scope={
+                      node.configuration?.entity === "task"
+                        ? "task"
+                        : node.configuration?.entity === "client"
+                          ? "client"
+                          : "lead"
                     }
-                    placeholder="הסטטוס החדש"
-                    className="text-right"
+                    value={encodeStoredActionStatus(node.configuration)}
+                    placeholder="בחר סטטוס או שלב במשפך"
+                    onChange={(encoded) => {
+                      const { kind, value } = decodeStatusSelection(encoded);
+                      handleBulkConfigChange({
+                        status: value,
+                        status_field:
+                          kind === "pipeline_stage" ||
+                          kind === "response_status"
+                            ? kind
+                            : null,
+                      });
+                    }}
                   />
+                  <p className="text-xs text-muted-foreground text-right">
+                    סטטוס תגובה מעדכן את סטטוס הליד. שלב במשפך מעביר את הליד
+                    לעמודה בלוח. לשליחת הסכם בחרו «שלח הסכם».
+                  </p>
                 </div>
               </>
             )}

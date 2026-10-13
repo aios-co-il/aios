@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { buildLeadStatusChangedData } from "../../supabase/functions/_shared/automation-status.ts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { isQueryResolving } from "@/lib/queryUi";
@@ -2065,11 +2066,11 @@ export default function Leads() {
           await supabase.functions.invoke("trigger-automation", {
             body: {
               trigger_type: "lead_status_changed",
-              data: {
+              data: buildLeadStatusChangedData({
                 id: leadId,
-                status: newStatus,
-                new_status: newStatus,
-                old_status: leadBefore.status,
+                kind: "pipeline_stage",
+                newStatus,
+                oldStatus: leadBefore.status,
                 contact_name: leadBefore.contact_name,
                 company_name: leadBefore.company_name,
                 phone: leadBefore.phone,
@@ -2077,7 +2078,7 @@ export default function Leads() {
                 agency_id: leadBefore.agency_id,
                 sales_person_id: leadBefore.sales_person_id,
                 tenant_id: leadBefore.tenant_id,
-              },
+              }),
               tenant_id: leadBefore.tenant_id,
             },
           });
@@ -2298,16 +2299,20 @@ export default function Leads() {
           body: {
             trigger_type: "lead_status_changed",
             tenant_id: tenantId,
-            data: {
-              lead_id: leadId,
-              contact_name: leadData.contact_name || "",
-              company_name: leadData.company_name || "",
-              phone: leadData.phone || "",
-              email: leadData.email || "",
-              status: responseStatus,
-              old_status: leadData.response_status || "",
-              agency_name: leadData.agency?.name || "",
-            },
+            data: buildLeadStatusChangedData({
+              id: leadId,
+              kind: "response_status",
+              newStatus: responseStatus,
+              oldStatus: leadData.response_status,
+              contact_name: leadData.contact_name,
+              company_name: leadData.company_name,
+              phone: leadData.phone,
+              email: leadData.email,
+              agency_id: leadData.agency_id,
+              sales_person_id: leadData.sales_person_id,
+              tenant_id: leadData.tenant_id,
+              agency_name: leadData.agency?.name,
+            }),
           },
         });
       }
@@ -4431,16 +4436,20 @@ function TableWithStickyScroll({
           body: {
             trigger_type: "lead_status_changed",
             tenant_id: tenantId,
-            data: {
-              lead_id: leadId,
-              contact_name: leadData.contact_name || "",
-              company_name: leadData.company_name || "",
-              phone: leadData.phone || "",
-              email: leadData.email || "",
-              status: responseStatus,
-              old_status: leadData.response_status || "",
-              agency_name: leadData.agency?.name || "",
-            },
+            data: buildLeadStatusChangedData({
+              id: leadId,
+              kind: "response_status",
+              newStatus: responseStatus,
+              oldStatus: leadData.response_status,
+              contact_name: leadData.contact_name,
+              company_name: leadData.company_name,
+              phone: leadData.phone,
+              email: leadData.email,
+              agency_id: leadData.agency_id,
+              sales_person_id: leadData.sales_person_id,
+              tenant_id: leadData.tenant_id,
+              agency_name: leadData.agency?.name,
+            }),
           },
         });
       }

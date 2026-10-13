@@ -857,7 +857,7 @@ export default function FlowEditor() {
             variant="outline"
             size="sm"
             onClick={addTrigger}
-            title="הוסף טריגר נוסף (OR)"
+            title="אותן פעולות ירוצו גם מהטריגר הזה, בלי אוטומציה נפרדת"
           >
             <Zap className="h-4 w-4 ml-1 text-amber-500" />+ טריגר
           </Button>
