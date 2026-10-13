@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { buildLeadStatusChangedData } from "../../../supabase/functions/_shared/automation-status.ts";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -500,11 +501,11 @@ export function EditLeadDialog({
           .invoke("trigger-automation", {
             body: {
               trigger_type: "lead_status_changed",
-              data: {
+              data: buildLeadStatusChangedData({
                 id: data.id,
-                status: data.status,
-                new_status: data.status,
-                old_status: lead.status,
+                kind: "pipeline_stage",
+                newStatus: data.status,
+                oldStatus: lead.status,
                 contact_name: data.contact_name,
                 company_name: data.company_name,
                 phone: data.phone,
@@ -512,7 +513,35 @@ export function EditLeadDialog({
                 agency_id: data.agency_id,
                 sales_person_id: data.sales_person_id,
                 tenant_id: data.tenant_id,
-              },
+              }),
+              tenant_id: data.tenant_id,
+            },
+          })
+          .catch((err) => console.error("Automation trigger failed:", err));
+      }
+
+      if (
+        data &&
+        (lead.response_status || null) !== (data.response_status || null) &&
+        data.response_status
+      ) {
+        supabase.functions
+          .invoke("trigger-automation", {
+            body: {
+              trigger_type: "lead_status_changed",
+              data: buildLeadStatusChangedData({
+                id: data.id,
+                kind: "response_status",
+                newStatus: data.response_status,
+                oldStatus: lead.response_status,
+                contact_name: data.contact_name,
+                company_name: data.company_name,
+                phone: data.phone,
+                email: data.email,
+                agency_id: data.agency_id,
+                sales_person_id: data.sales_person_id,
+                tenant_id: data.tenant_id,
+              }),
               tenant_id: data.tenant_id,
             },
           })

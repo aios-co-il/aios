@@ -5,6 +5,8 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useToast } from "@/hooks/use-toast";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
+import { StatusStageSelect } from "@/components/automations/StatusStageSelect";
+import { decodeStatusSelection } from "../../../supabase/functions/_shared/automation-status.ts";
 import {
   Dialog,
   DialogContent,
@@ -190,8 +192,12 @@ export function TestAutomationDialog({
           automation.trigger_type === "lead_status_changed" &&
           automation.conditions?.new_status
         ) {
+          testData.id = selectedLeadId;
           testData.new_status = automation.conditions.new_status;
           testData.status = automation.conditions.new_status;
+          if (automation.conditions.status_kind) {
+            testData.status_kind = automation.conditions.status_kind;
+          }
         }
       } else if (testMode === "task") {
         if (!selectedTaskId) {
@@ -212,6 +218,7 @@ export function TestAutomationDialog({
         if (!newStatus) {
           throw new Error("יש לבחור סטטוס חדש");
         }
+        testData.id = selectedLeadId;
         testData.lead_id = selectedLeadId;
         const selectedLead = leads.find((l: any) => l.id === selectedLeadId);
         testData.contact_name =
@@ -220,8 +227,10 @@ export function TestAutomationDialog({
         testData.phone = selectedLead?.phone;
         testData.old_status =
           oldStatus || selectedLead?.response_status || "no_status";
-        testData.status = newStatus;
-        testData.new_status = newStatus;
+        const selectedStatus = decodeStatusSelection(newStatus);
+        testData.status = selectedStatus.value;
+        testData.new_status = selectedStatus.value;
+        if (selectedStatus.kind) testData.status_kind = selectedStatus.kind;
       }
 
       // Add meeting details for meeting_created trigger
@@ -601,28 +610,14 @@ export function TestAutomationDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>סטטוס חדש:</Label>
-                    <Select value={newStatus} onValueChange={setNewStatus}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר סטטוס חדש" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {leadStatuses.map((status) => (
-                          <SelectItem
-                            key={status.status_key}
-                            value={status.status_key}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: status.color }}
-                              />
-                              {status.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>סטטוס או שלב חדש:</Label>
+                    <StatusStageSelect
+                      tenantId={tenantId}
+                      scope="lead"
+                      value={newStatus}
+                      onChange={setNewStatus}
+                      placeholder="בחר סטטוס או שלב"
+                    />
                   </div>
                 </div>
               )}

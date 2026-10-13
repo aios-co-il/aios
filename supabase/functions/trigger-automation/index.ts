@@ -40,6 +40,12 @@ import {
   resolveTenantOwnerId,
   sendSignatureDocumentEmails,
 } from "../_shared/signature-automation.ts";
+import {
+  leadStatusUpdateColumns,
+  resolveStatusRecordId,
+  statusFilterMatches,
+  statusUpdateTable,
+} from "../_shared/automation-status.ts";
 // clearer error when ManyChat wa_id ghost on deleted contact — 2026-08-09
 
 const corsHeaders = {
@@ -1762,8 +1768,13 @@ Deno.serve(async (req) => {
         return { matches: false, reason: "source_filter_private" };
       }
       if (safeConfig.filter_status && safeConfig.filter_status !== "any") {
-        const dataStatus = safeData.new_status || safeData.status;
-        if (dataStatus !== safeConfig.filter_status) {
+        if (
+          !statusFilterMatches(
+            safeConfig.filter_status,
+            safeConfig.filter_status_kind,
+            safeData,
+          )
+        ) {
           return { matches: false, reason: "status_mismatch" };
         }
       }
@@ -3782,17 +3793,25 @@ function checkConditions(
 ): boolean {
   try {
     for (const [key, value] of Object.entries(conditions)) {
+      if (key === "status_kind") continue;
       // Special handling for new_status - only relevant for status change triggers
       if (key === "new_status") {
         if (
           triggerType &&
           triggerType !== "lead_status_changed" &&
-          triggerType !== "task_status_changed"
+          triggerType !== "task_status_changed" &&
+          triggerType !== "client_status_changed" &&
+          triggerType !== "onboarding_status_changed"
         ) {
           continue;
         }
-        const dataStatus = data.new_status || data.status;
-        if (dataStatus !== value) {
+        if (
+          !statusFilterMatches(
+            String(value ?? ""),
+            conditions.status_kind,
+            data,
+          )
+        ) {
           return false;
         }
       }
@@ -4137,22 +4156,27 @@ async function executeNotification(config: any, data: any) {
 
 // Execute status update action
 async function executeStatusUpdate(supabase: any, config: any, data: any) {
-  const { entity, status, update_field, update_field_value } = config;
-  const recordId = data.id;
+  const { entity, status, status_field, update_field, update_field_value } =
+    config;
+  const recordId = resolveStatusRecordId(entity, data);
 
   if (!recordId) {
     throw new Error("No record ID provided for status update");
   }
 
-  // Determine which table to update
-  const table = entity === "lead" ? "leads" : "tasks";
+  const table = statusUpdateTable(entity);
 
   // Build update object
   const updateData: any = {};
 
-  // Update status only if provided (optional now)
+  // Update status only if provided (optional now).
+  // A lead response status and a funnel stage are different columns.
   if (status) {
-    updateData.status = status;
+    if (table === "leads") {
+      Object.assign(updateData, leadStatusUpdateColumns(status_field, status));
+    } else {
+      updateData.status = status;
+    }
   }
 
   // Update additional date field if specified

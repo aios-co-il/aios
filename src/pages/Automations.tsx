@@ -79,7 +79,7 @@ const ACTION_LABELS: Record<string, string> = {
   webhook: "Webhook",
   email: "אימייל",
   notification: "התראה",
-  update_status: "שינוי סטטוס",
+  update_status: "שינוי סטטוס או שלב במשפך",
   send_whatsapp: "שלח WhatsApp (ManyChat)",
   create_manychat_subscriber: "צור subscriber ב-ManyChat",
   send_greenapi_message: "שלח WhatsApp (Green API)",
@@ -87,7 +87,7 @@ const ACTION_LABELS: Record<string, string> = {
   add_lead_update: "הוסף עדכון לליד",
   add_client_update: "הוסף עדכון ללקוח",
   create_task: "צור משימה",
-  send_signature: "שלח חתימה דיגיטלית",
+  send_signature: "שלח הסכם (חתימה דיגיטלית)",
 };
 
 export default function Automations() {

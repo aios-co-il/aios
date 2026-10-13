@@ -1,26 +1,16 @@
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-
-const TASK_STATUS_OPTIONS = [
-  { value: "open", label: "פתוחה" },
-  { value: "in_progress", label: "בטיפול" },
-  { value: "completed", label: "הושלמה" },
-  { value: "cancelled", label: "בוטלה" },
-];
+  decodeStatusSelection,
+  triggerScope,
+} from "../../../supabase/functions/_shared/automation-status.ts";
+import { StatusStageSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
   tenantId: string;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
+  onBulkConfigChange?: (updates: Record<string, any>) => void;
 }
 
 export default function StatusFilterTriggerConfig({
@@ -28,52 +18,50 @@ export default function StatusFilterTriggerConfig({
   tenantId,
   configuration,
   onConfigChange,
+  onBulkConfigChange,
 }: StatusFilterTriggerConfigProps) {
-  const { data: leadStatuses = [] } = useQuery({
-    queryKey: ["lead-statuses", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lead_statuses")
-        .select("status_key, label")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-    enabled: triggerType === "lead_status_changed" && !!tenantId,
-  });
+  const scope = triggerScope(triggerType) || "lead";
+  const stored =
+    configuration?.filter_status_kind &&
+    configuration?.filter_status &&
+    configuration.filter_status !== "any"
+      ? `${configuration.filter_status_kind}:${configuration.filter_status}`
+      : configuration?.filter_status || "any";
+
+  const write = (updates: Record<string, any>) => {
+    if (onBulkConfigChange) {
+      onBulkConfigChange(updates);
+      return;
+    }
+    for (const [key, value] of Object.entries(updates)) {
+      onConfigChange(key, value);
+    }
+  };
 
   return (
     <div className="space-y-2 bg-muted/40 border rounded-lg p-3" dir="rtl">
       <Label className="text-right block text-sm font-semibold">
-        סינון לפי סטטוס
+        סינון לפי סטטוס או שלב
       </Label>
-      <Select
-        value={configuration?.filter_status || "any"}
-        onValueChange={(v) => onConfigChange("filter_status", v)}
-      >
-        <SelectTrigger className="text-right">
-          <SelectValue placeholder="כל סטטוס" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="any">כל שינוי סטטוס</SelectItem>
-          {triggerType === "lead_status_changed" &&
-            leadStatuses.map((status) => (
-              <SelectItem key={status.status_key} value={status.status_key}>
-                {status.label}
-              </SelectItem>
-            ))}
-          {triggerType === "task_status_changed" &&
-            TASK_STATUS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
+      <StatusStageSelect
+        tenantId={tenantId}
+        scope={scope}
+        value={stored}
+        includeAny
+        anyLabel="כל שינוי"
+        placeholder="כל שינוי"
+        onChange={(encoded) => {
+          if (encoded === "any") {
+            write({ filter_status: "any", filter_status_kind: null });
+            return;
+          }
+          const { kind, value } = decodeStatusSelection(encoded);
+          write({ filter_status: value, filter_status_kind: kind });
+        }}
+      />
       <p className="text-xs text-muted-foreground text-right">
-        האוטומציה תרוץ רק כשהסטטוס משתנה לערך זה
+        האוטומציה תרוץ רק כשהערך משתנה לסטטוס או לשלב שנבחר. משם אפשר להעביר את
+        הליד לשלב במשפך או לשלוח לו הסכם.
       </p>
     </div>
   );
