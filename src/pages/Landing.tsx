@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAppHomePath } from "@/lib/appHomePath";
 import "./carmen-landing.css";
-import { carmenCharacterData } from "@/assets/carmenCharacterData";
+const CARMEN_CHARACTER = "/brand/carmen/carmen-character-new.webp";
 const modules = [
   {
     n: "01",
@@ -125,7 +125,7 @@ export default function Landing() {
   }, [navigate]);
   const [active, setActive] = useState(0),
     [menu, setMenu] = useState(false),
-    [controlMode, setControlMode] = useState(1);
+    [controlMode, setControlMode] = useState(0);
 
   const updateControlDial = (
     element: HTMLElement,
@@ -255,8 +255,11 @@ export default function Landing() {
           />
           <img
             className="hero-carmen-character"
-            src={carmenCharacterData}
-            alt="כרמן"
+            src={CARMEN_CHARACTER}
+            alt="כרמן, מנהלת השיווק החדשה שלך"
+            width={440}
+            height={660}
+            fetchPriority="high"
           />
           <div className="carmen-hero-metrics" aria-label="יכולות Carmen Marketing OS">
             <span>
@@ -450,6 +453,16 @@ export default function Landing() {
 
           <div className="control-console">
             <div className="control-dial-wrap">
+              <div className="control-dial-scene">
+                <img
+                  className="control-carmen-character"
+                  src={CARMEN_CHARACTER}
+                  alt="כרמן מציגה את רמות העבודה"
+                  width={440}
+                  height={660}
+                  loading="lazy"
+                  decoding="async"
+                />
               <div
                 className="control-dial"
                 role="slider"
@@ -504,6 +517,10 @@ export default function Landing() {
                     className={`control-dial-stop stop-${index} ${
                       controlMode === index ? "active" : ""
                     }`}
+                    aria-pressed={controlMode === index}
+                    aria-label={`בחרו במצב ${mode.n}: ${mode.label}`}
+                    title={`לחצו להפעלת מצב: ${mode.label}`}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       setControlMode(index);
@@ -511,10 +528,12 @@ export default function Landing() {
                   >
                     <span>{mode.n}</span>
                     <b>{mode.label}</b>
+                    <span className="control-stop-tap" aria-hidden="true">↗</span>
                   </button>
                 ))}
               </div>
-              <p className="control-drag-hint">גררו את הגלגל או בחרו מצב</p>
+              </div>
+              <p className="control-drag-hint">↔ גררו את הגלגל או לחצו על אחד מארבעת המצבים</p>
             </div>
 
             <div className="control-mode-card" key={controlMode}>
