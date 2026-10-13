@@ -76,6 +76,7 @@ import { LeadTagSelector, LeadTagBadges } from "@/components/leads/LeadTagSelect
 import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
 import { ImportLeadsSheet } from "@/components/forms/ImportLeadsSheet";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
+import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
 import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
@@ -104,9 +105,16 @@ import {
   type SurfaceSalesPerson,
   LEAD_TABLE_LAYOUT_STORAGE_KEY,
 } from "@/lib/leadTableLayout";
-import { isLeadTableColumnVisible, LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY } from "@/lib/leadTableColumns";
-
-
+import { LEAD_SYSTEM_FIELD_KEYS } from "@/lib/leadCustomFields";
+import {
+  formatLeadFilesColumn,
+  formatLeadTableFieldValue,
+  getLeadTableCustomColumns,
+  isLeadTableColumnVisible,
+  LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY,
+  LEAD_TABLE_OPTIONAL_COLUMNS,
+  readLeadCustomColumnValue,
+} from "@/lib/leadTableColumns";
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
 
@@ -821,9 +829,10 @@ export default function Leads() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const { viewMode, setViewMode, defaultView, setDefaultView } = useLeadsViewMode(userId);
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
-    if (typeof window === "undefined") return "by_user";
-    return parseLeadTableLayout(window.localStorage.getItem(LEAD_TABLE_LAYOUT_STORAGE_KEY));
-  });
+    if (typeof window === "undefined") return "by_date";
+    return parseLeadTableLayout(
+      window.localStorage.getItem(LEAD_TABLE_LAYOUT_STORAGE_KEY),
+    );  });
   const setTableLayout = (layout: LeadTableLayout) => {
     setTableLayoutState(layout);
     try {
@@ -1287,6 +1296,15 @@ export default function Leads() {
               agency_id,
               sales_person_id,
               follow_up_date,
+              monthly_budget,
+              three_month_budget,
+              won_date,
+              meeting_date,
+              meeting_time,
+              meeting_location,
+              form_data,
+              attachments,
+              folder_links,
               created_at,
               updated_at,
               agencies (name),
@@ -1328,6 +1346,15 @@ export default function Leads() {
           agency_id,
           sales_person_id,
           follow_up_date,
+          monthly_budget,
+          three_month_budget,
+          won_date,
+          meeting_date,
+          meeting_time,
+          meeting_location,
+          form_data,
+          attachments,
+          folder_links,
           created_at,
           first_created_at,
           first_source,
@@ -3262,6 +3289,25 @@ export default function Leads() {
   );
 }
 
+function LeadPlainCell({ text }: { text: string }) {
+  const empty = !text || text === "—";
+  return (
+    <span
+      className={empty ? "text-muted-foreground" : "block max-w-full truncate"}
+      title={empty ? undefined : text}
+    >
+      {empty ? "—" : text}
+    </span>
+  );
+}
+
+function leadTableOptionalWidth(key: string): number {
+  if (key === "notes") return 240;
+  if (key === "files") return 120;
+  if (key === "call_recording") return 150;
+  return 160;
+}
+
 function TableWithStickyScroll({
   stageLeads,
   totalLeadsCount,
@@ -3285,7 +3331,7 @@ function TableWithStickyScroll({
   const { selectedAgency } = useAgency();
   const { activeStatuses: leadStatuses, isLoading: isStatusesLoading } = useLeadStatuses();
   const { activeStages: pipelineStagesData } = useLeadPipelineStages();
-  const { isFieldVisible, getFieldLabel } = useCustomFieldLabels('lead');
+  const { isFieldVisible, getFieldLabel, fieldDefinitions } = useCustomFieldLabels('lead');
   const { tenantId } = useCurrentTenant();
 
   // Fetch sales people for assignment
@@ -3351,6 +3397,38 @@ function TableWithStickyScroll({
     if (!stageLeads || stageLeads.length === 0) return [];
     return stageLeads.map((lead: any) => lead.id);
   }, [stageLeads]);
+  const showCallRecording = isLeadTableColumnVisible(
+    "call_recording",
+    isFieldVisible,
+  );
+  const customTableColumns = getLeadTableCustomColumns(
+    fieldDefinitions,
+    LEAD_SYSTEM_FIELD_KEYS,
+  ).filter((field) => isFieldVisible(field.visibilityKey, false));
+  const { data: callRecordings = [] } = useQuery({
+    queryKey: ["lead-call-recordings", tenantId, visibleLeadIds],
+    queryFn: async () => {
+      if (!tenantId || visibleLeadIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("call_logs")
+        .select("lead_id, recording_url")
+        .eq("tenant_id", tenantId)
+        .in("lead_id", visibleLeadIds)
+        .not("recording_url", "is", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId && showCallRecording && visibleLeadIds.length > 0,
+  });
+  const recordingsByLead = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const row of callRecordings) {
+      if (!row.lead_id || !row.recording_url) continue;
+      (map[row.lead_id] ??= []).push(row.recording_url);
+    }
+    return map;
+  }, [callRecordings]);
 
   // Fetch lead tags in bulk for visible leads only (avoids 1000 row limit)
   const { data: leadsTagsMap = {} } = useQuery({
@@ -4000,9 +4078,89 @@ function TableWithStickyScroll({
                 />
               )
             }] : []),
+            ...LEAD_TABLE_OPTIONAL_COLUMNS.filter((field) =>
+              isLeadTableColumnVisible(field.key, isFieldVisible),
+            ).map((field) => ({
+              id: field.key,
+              label: getFieldLabel(field.key, field.label),
+              width: leadTableOptionalWidth(field.key),
+              render: (lead: any) => {
+                if (field.key === "call_recording") {
+                  const urls = recordingsByLead[lead.id] || [];
+                  if (urls.length === 0) return <LeadPlainCell text="—" />;
+                  return (
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      {urls.slice(0, 3).map((url, index) => (
+                        <a
+                          key={`${url}-${index}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate text-primary underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {urls.length === 1 ? "הקלטה" : `הקלטה ${index + 1}`}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                }
+                if (field.key === "files") {
+                  return <LeadPlainCell text={formatLeadFilesColumn(lead)} />;
+                }
+                if (field.key === "notes") {
+                  return (
+                    <LeadNotesCell
+                      leadId={lead.id}
+                      notes={lead.notes ?? null}
+                    />
+                  );
+                }
+                const text = formatLeadTableFieldValue(
+                  lead[field.key],
+                  field.type,
+                );
+                const link =
+                  field.key === "email" && text !== "—"
+                    ? `mailto:${text}`
+                    : field.key === "folder_link" && /^https?:\/\//i.test(text)
+                      ? text
+                      : null;
+                if (link) {
+                  return (
+                    <a
+                      href={link}
+                      target={
+                        field.key === "folder_link" ? "_blank" : undefined
+                      }
+                      rel="noreferrer"
+                      className="block truncate hover:underline"
+                      title={text}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {text}
+                    </a>
+                  );
+                }
+                return <LeadPlainCell text={text} />;
+              },
+            })),
+            ...customTableColumns.map((field) => ({
+              id: `cf:${field.field_key}`,
+              label: field.field_label,
+              width: 160,
+              render: (lead: any) => (
+                <LeadPlainCell
+                  text={formatLeadTableFieldValue(
+                    readLeadCustomColumnValue(lead.form_data, field.field_key),
+                    field.field_type,
+                  )}
+                />
+              ),
+            })),
             { 
               id: "actions", 
-              label: getFieldLabel("actions", "פעולות"), 
+              label: getFieldLabel("actions", "פעולות"),
               width: 120,
               render: (lead: any) => (
                 <div className="flex justify-center gap-1">

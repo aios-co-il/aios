@@ -50,6 +50,16 @@ const fields: LeadCustomFieldDefinition[] = [
     sort_order: 4,
   },
   {
+    id: "column-pref",
+    field_key: "table_column:notes",
+    field_label: "הערות",
+    field_type: "textarea",
+    is_required: false,
+    is_visible: true,
+    options: [],
+    sort_order: 0,
+  },
+  {
     id: "hidden",
     field_key: "hidden_note",
     field_label: "מוסתר",
