@@ -7,13 +7,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,11 +22,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { Badge } from "@/components/ui/badge";
+import { leadStagePresetFields } from "@/lib/leadStageFilter";
 
 export interface FilterState {
   searchQuery: string;
   salesPersonIds: string[]; // Changed to array for multi-select
-  stageId: string;
+  stageIds: string[];
   responseStatus: string[]; // Changed to array for multi-select
   tagIds: string[]; // Changed from tagId to tagIds for multi-select
   startDate: Date | undefined;
@@ -86,11 +80,13 @@ export function LeadFiltersDialog({
   const [statusSearch, setStatusSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
   const [salesPersonSearch, setSalesPersonSearch] = useState("");
+  const [stageSearch, setStageSearch] = useState("");
   
   // Popover open states
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [salesPersonPopoverOpen, setSalesPersonPopoverOpen] = useState(false);
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
 
   // Handle wheel scroll inside popover
   const handleScrollWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -118,6 +114,12 @@ export function LeadFiltersDialog({
     return salesPeople.filter(sp => sp.full_name.toLowerCase().includes(searchLower));
   }, [salesPeople, salesPersonSearch]);
 
+  const filteredStages = useMemo(() => {
+    if (!stageSearch.trim()) return pipelineStages;
+    const searchLower = stageSearch.toLowerCase();
+    return pipelineStages.filter((stage) => stage.label.toLowerCase().includes(searchLower));
+  }, [pipelineStages, stageSearch]);
+
   // Sync with current filters when dialog opens or when currentFilters change while dialog is open
   useEffect(() => {
     if (open) {
@@ -125,6 +127,7 @@ export function LeadFiltersDialog({
       setStatusSearch("");
       setTagSearch("");
       setSalesPersonSearch("");
+      setStageSearch("");
     }
   }, [open, currentFilters]);
 
@@ -141,7 +144,7 @@ export function LeadFiltersDialog({
     const resetFilters: FilterState = {
       searchQuery: "",
       salesPersonIds: [],
-      stageId: "all",
+      stageIds: [],
       responseStatus: [],
       tagIds: [],
       startDate: undefined,
@@ -167,7 +170,7 @@ export function LeadFiltersDialog({
       const filtersToSave = {
         searchQuery: filters.searchQuery || null,
         salesPersonIds: filters.salesPersonIds,
-        stageId: filters.stageId,
+        ...leadStagePresetFields(filters.stageIds),
         responseStatus: filters.responseStatus,
         tagIds: filters.tagIds,
         startDate: filters.startDate?.toISOString() || null,
@@ -213,7 +216,7 @@ export function LeadFiltersDialog({
       const filtersToSave = {
         searchQuery: filters.searchQuery || null,
         salesPersonIds: filters.salesPersonIds,
-        stageId: filters.stageId,
+        ...leadStagePresetFields(filters.stageIds),
         responseStatus: filters.responseStatus,
         tagIds: filters.tagIds,
         startDate: filters.startDate?.toISOString() || null,
@@ -282,6 +285,16 @@ export function LeadFiltersDialog({
     });
   };
 
+  const toggleStage = (stageId: string) => {
+    setFilters(prev => {
+      const current = prev.stageIds;
+      if (current.includes(stageId)) {
+        return { ...prev, stageIds: current.filter(id => id !== stageId) };
+      }
+      return { ...prev, stageIds: [...current, stageId] };
+    });
+  };
+
   // Get selected status labels for display - show max 2 items then "+X"
   const selectedStatusLabels = useMemo(() => {
     if (filters.responseStatus.length === 0) return "כל הסטטוסים";
@@ -342,9 +355,18 @@ export function LeadFiltersDialog({
     return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
   }, [filters.salesPersonIds, salesPeople]);
 
+  const selectedStageLabels = useMemo(() => {
+    if (filters.stageIds.length === 0) return "כל השלבים";
+    const labels = filters.stageIds
+      .map(id => pipelineStages.find(stage => stage.id === id)?.label)
+      .filter(Boolean) as string[];
+    if (labels.length <= 2) return labels.join(", ");
+    return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+  }, [filters.stageIds, pipelineStages]);
+
   const hasActiveFilters = 
     filters.salesPersonIds.length > 0 ||
-    filters.stageId !== "all" ||
+    filters.stageIds.length > 0 ||
     filters.responseStatus.length > 0 ||
     filters.tagIds.length > 0 ||
     filters.startDate ||
@@ -440,25 +462,78 @@ export function LeadFiltersDialog({
               </Popover>
             </div>
 
-            {/* Pipeline Stage */}
+            {/* Pipeline Stage - Multi-select with search */}
             <div className="space-y-2">
               <Label>שלב Pipeline</Label>
-              <Select 
-                value={filters.stageId} 
-                onValueChange={(val) => setFilters(prev => ({ ...prev, stageId: val }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר שלב" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">כל השלבים</SelectItem>
-                  {pipelineStages?.map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id}>
-                      {stage.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className="truncate">{selectedStageLabels}</span>
+                    {filters.stageIds.length > 0 && (
+                      <Badge variant="secondary" className="mr-2 shrink-0">
+                        {filters.stageIds.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0 bg-popover z-[200]" align="start">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="חיפוש שלב..."
+                        value={stageSearch}
+                        onChange={(e) => setStageSearch(e.target.value)}
+                        className="pr-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto" onWheel={handleScrollWheel}>
+                    <div className="p-2 space-y-1">
+                      {filteredStages.map((stage) => (
+                        <label
+                          key={stage.id}
+                          className="flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-accent"
+                        >
+                          <Checkbox
+                            checked={filters.stageIds.includes(stage.id)}
+                            onCheckedChange={() => toggleStage(stage.id)}
+                          />
+                          {stage.hexColor && (
+                            <div
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: stage.hexColor }}
+                            />
+                          )}
+                          <span>{stage.label}</span>
+                        </label>
+                      ))}
+                      {filteredStages.length === 0 && (
+                        <div className="text-center text-muted-foreground py-2">
+                          לא נמצאו שלבים
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {filters.stageIds.length > 0 && (
+                    <div className="p-2 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setFilters(prev => ({ ...prev, stageIds: [] }))}
+                      >
+                        <X className="h-4 w-4 ml-2" />
+                        נקה בחירה
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Response Status - Multi-select with search */}
