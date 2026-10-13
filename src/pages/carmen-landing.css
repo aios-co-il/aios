@@ -643,31 +643,246 @@
   .control-section > .section-inner > p {
     margin: 0 auto 70px;
   }
-  .control-options {
+  .control-console {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 18px;
+    grid-template-columns: minmax(420px, 0.9fr) minmax(420px, 1.1fr);
+    gap: 70px;
+    align-items: center;
+    margin-top: 70px;
     text-align: right;
   }
-  .control-options > div {
-    background: white;
-    border: 1px solid #d5e1d9;
-    border-radius: 22px;
-    padding: 36px;
+  .control-dial-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  .control-options span {
-    font:
-      600 13px Outfit,
-      sans-serif;
-    color: #0b9957;
+  .control-dial {
+    width: min(490px, 82vw);
+    aspect-ratio: 1;
+    position: relative;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    outline: none;
+    background:
+      radial-gradient(circle at 38% 30%, #ffffff 0 8%, #e8fff7 15%, transparent 33%),
+      radial-gradient(circle at 50% 52%, #d7fff1 0 20%, #8de4c9 38%, #1b6d5d 61%, #0a1526 73%);
+    border: 1px solid #6dbca8;
+    box-shadow:
+      inset 0 18px 35px #ffffffcc,
+      inset 0 -28px 50px #071d2399,
+      0 36px 80px #0a49342e,
+      0 0 0 15px #ffffff6b,
+      0 0 0 16px #98cfbf;
+    transform: perspective(900px) rotateX(7deg);
   }
-  .control-options h3 {
-    font-size: 30px;
-    margin: 25px 0 8px;
+  .control-dial:active {
+    cursor: grabbing;
   }
-  .control-options p {
-    font-size: 19px;
-    margin: 0;
+  .control-dial:focus-visible {
+    box-shadow:
+      inset 0 18px 35px #ffffffcc,
+      inset 0 -28px 50px #071d2399,
+      0 36px 80px #0a49342e,
+      0 0 0 15px #ffffff6b,
+      0 0 0 19px #3aa98c;
+  }
+  .control-dial-rings,
+  .control-dial-rings:before,
+  .control-dial-rings:after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    inset: 9%;
+    border: 1px solid #0b6c5848;
+    pointer-events: none;
+  }
+  .control-dial-rings:before {
+    inset: 8%;
+  }
+  .control-dial-rings:after {
+    inset: 21%;
+    border-style: dashed;
+  }
+  .control-dial-knob {
+    position: absolute;
+    inset: 17%;
+    border-radius: 50%;
+    transition: transform 0.46s cubic-bezier(.2,.85,.28,1.16);
+    pointer-events: none;
+  }
+  .control-dial-knob:before {
+    content: "";
+    position: absolute;
+    inset: 9%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 38% 27%, #ffffff 0 7%, transparent 22%),
+      linear-gradient(145deg, #caffef, #4ebc9e 50%, #123d42);
+    border: 1px solid #d9fff3;
+    box-shadow:
+      inset 0 10px 20px #ffffffb8,
+      inset 0 -18px 28px #082c3380,
+      0 18px 35px #0539273b;
+  }
+  .control-dial-knob > span {
+    position: absolute;
+    top: -1%;
+    left: 50%;
+    width: 9px;
+    height: 26%;
+    transform: translateX(-50%);
+    border-radius: 99px;
+    background: linear-gradient(#f7fffc, #a7f5de 45%, #25977b);
+    box-shadow: 0 0 18px #a7f5de;
+    z-index: 2;
+  }
+  .control-dial-center {
+    position: absolute;
+    inset: 35%;
+    z-index: 3;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #f2fffb;
+    background: radial-gradient(circle at 35% 28%, #275a58, #0a2230 66%);
+    border: 1px solid #9be8d3a8;
+    box-shadow: inset 0 5px 16px #ffffff1c, 0 12px 30px #001b1d6b;
+    text-align: center;
+  }
+  .control-dial-center small {
+    font: 600 10px Outfit, sans-serif;
+    letter-spacing: .22em;
+    color: #a7f5de;
+  }
+  .control-dial-center strong {
+    font: 700 clamp(32px, 4vw, 48px) Outfit, sans-serif;
+    line-height: 1;
+    margin: 4px 0;
+  }
+  .control-dial-center span {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .control-dial-stop {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 92px;
+    padding: 8px 11px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #315f58;
+    cursor: pointer;
+    font-family: Assistant, Arial, sans-serif;
+    transition: .25s ease;
+  }
+  .control-dial-stop span {
+    font: 700 10px Outfit, sans-serif;
+    color: #3aa98c;
+  }
+  .control-dial-stop b {
+    font-size: 13px;
+  }
+  .control-dial-stop.active {
+    background: #ffffffdf;
+    border-color: #78c9b5;
+    color: #0a1526;
+    box-shadow: 0 9px 24px #0a493426;
+    transform: scale(1.06);
+  }
+  .stop-0 { top: 2%; left: 50%; transform: translateX(-50%); }
+  .stop-1 { right: -1%; top: 50%; transform: translateY(-50%); }
+  .stop-2 { bottom: 2%; left: 50%; transform: translateX(-50%); }
+  .stop-3 { left: -1%; top: 50%; transform: translateY(-50%); }
+  .stop-0.active { transform: translateX(-50%) scale(1.06); }
+  .stop-1.active { transform: translateY(-50%) scale(1.06); }
+  .stop-2.active { transform: translateX(-50%) scale(1.06); }
+  .stop-3.active { transform: translateY(-50%) scale(1.06); }
+  .control-drag-hint {
+    margin: 28px 0 0 !important;
+    font-size: 14px !important;
+    color: #51756c !important;
+  }
+  .control-mode-card {
+    min-height: 470px;
+    padding: 48px;
+    border-radius: 30px;
+    color: #eefdf8;
+    background:
+      radial-gradient(circle at 12% 5%, #42b5972b, transparent 32%),
+      linear-gradient(145deg, #123a3a, #071927 72%);
+    border: 1px solid #4c9d88;
+    box-shadow: 0 35px 90px #06432b2c;
+    animation: stagein .4s ease-out;
+  }
+  .control-mode-kicker {
+    font: 600 11px Outfit, sans-serif;
+    letter-spacing: .18em;
+    color: #a7f5de;
+  }
+  .control-mode-card h3 {
+    font-size: clamp(34px, 3.3vw, 56px);
+    line-height: 1.08;
+    margin: 20px 0;
+  }
+  .control-mode-card > p {
+    font-size: 20px;
+    line-height: 1.65;
+    color: #b8d5ce !important;
+    margin: 0 0 30px;
+  }
+  .control-mode-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 28px 0 38px;
+  }
+  .control-mode-list > span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 14px;
+    border: 1px solid #ffffff1f;
+    border-radius: 12px;
+    background: #ffffff0a;
+    font-size: 16px;
+  }
+  .control-mode-list i {
+    width: 23px;
+    height: 23px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #a7f5de;
+    color: #0a1526;
+    font-style: normal;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+  .control-mode-status {
+    padding-top: 21px;
+    border-top: 1px solid #ffffff24;
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: center;
+  }
+  .control-mode-status span {
+    color: #8fbab0;
+    font-size: 13px;
+  }
+  .control-mode-status b {
+    color: #a7f5de;
+    font-size: 16px;
   }
   .audience {
     padding: 150px 6%;
@@ -804,9 +1019,15 @@
     .journey-track:before {
       display: none;
     }
-    .control-options,
+    .control-console,
     .audience-cards {
       grid-template-columns: 1fr;
+    }
+    .control-console {
+      gap: 55px;
+    }
+    .control-mode-card {
+      min-height: auto;
     }
     .data-grid {
       gap: 80px;
@@ -877,6 +1098,30 @@
     }
     .connection b {
       font-size: 15px;
+    }
+    .control-console {
+      margin-top: 48px;
+    }
+    .control-dial {
+      width: min(360px, 82vw);
+    }
+    .control-dial-stop {
+      min-width: 72px;
+      padding: 6px;
+    }
+    .control-dial-stop b {
+      font-size: 11px;
+    }
+    .control-mode-card {
+      padding: 28px 22px;
+      border-radius: 22px;
+    }
+    .control-mode-list {
+      grid-template-columns: 1fr;
+    }
+    .control-mode-status {
+      align-items: flex-start;
+      flex-direction: column;
     }
     .module-row {
       font-size: 20px;
