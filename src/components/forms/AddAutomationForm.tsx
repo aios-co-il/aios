@@ -35,75 +35,105 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Info, Copy, ExternalLink } from "lucide-react";
 import { MessageTemplateBuilder } from "./MessageTemplateBuilder";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
+import {
+  StatusStageMultiSelect,
+  StatusStageSelect,
+} from "@/components/automations/StatusStageSelect";
+import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
+import {
+  applyStatusActionFields,
+  applyTriggerStatusFilters,
+  scopesForTriggers,
+} from "../../../supabase/functions/_shared/automation-status.ts";
 
-const formSchema = z.object({
-  name: z.string().min(1, "שם האוטומציה הוא שדה חובה"),
-  description: z.string().optional(),
-  trigger_type: z.enum([
-    "task_assigned",
-    "task_collaborator_added",
-    "task_update_added",
-    "task_status_changed",
-    "lead_status_changed",
-    "lead_created",
-    "client_created",
-    "client_status_changed",
-    "onboarding_status_changed",
-    "meeting_created",
-    "meeting_day_after",
-    "meeting_same_day",
-    "task_calendar_created",
-    "task_overdue",
-    "inbound_webhook_task",
-    "inbound_webhook_lead",
-    "report_alert_triggered",
-  ]),
-  action_type: z.enum(["webhook", "email", "notification", "update_status", "send_whatsapp", "create_manychat_subscriber", "send_greenapi_message", "send_greenapi_to_campaigner", "add_lead_update", "add_client_update", "create_task", "create_lead"]),
-  // Green API connection selection
-  green_api_integration_id: z.string().optional(),
-  // Green API to campaigner fields
-  campaigner_send_target: z.enum(["phone", "group"]).optional(),
-  // Green API manual target fields
-  greenapi_send_to_type: z.enum(["contact", "manual_phone", "manual_group"]).optional(),
-  greenapi_manual_phone: z.string().optional(),
-  greenapi_manual_group_id: z.string().optional(),
-  // Green API / update template fields
-  message_template: z.string().optional(),
-  update_template: z.string().optional(),
-  webhook_url: z.string().optional(),
-  webhook_method: z.enum(["POST", "GET", "PUT"]).optional(),
-  body_template: z.string().optional(),
-  conditions: z.string().optional(),
-  status_entity: z.enum(["lead", "task"]).optional(),
-  status_value: z.string().optional(),
-  trigger_status_value: z.string().optional(),
-  update_field_name: z.string().optional(),
-  update_field_value: z.string().optional(),
-  // ManyChat WhatsApp fields
-  manychat_tag_id: z.string().optional(),
-  field_mapping_date: z.string().optional(),
-  field_mapping_time: z.string().optional(),
-  field_mapping_location: z.string().optional(),
-  field_mapping_contact: z.string().optional(),
-  // Create task fields
-  task_title_template: z.string().optional(),
-  task_notes_template: z.string().optional(),
-  task_priority: z.number().optional(),
-  task_due_days: z.number().optional(),
-}).refine((data) => {
-  if (data.action_type === "webhook" && !data.webhook_url) {
-    return false;
-  }
-  if (data.action_type === "update_status" && !data.status_value) {
-    return false;
-  }
-  return true;
-}, {
-  message: "נא למלא את כל השדות הנדרשים",
-  path: ["action_type"],
-});
+const formSchema = z
+  .object({
+    name: z.string().min(1, "שם האוטומציה הוא שדה חובה"),
+    description: z.string().optional(),
+    trigger_type: z.enum([
+      "task_assigned",
+      "task_collaborator_added",
+      "task_update_added",
+      "task_status_changed",
+      "lead_status_changed",
+      "lead_created",
+      "client_created",
+      "client_status_changed",
+      "onboarding_status_changed",
+      "meeting_created",
+      "meeting_day_after",
+      "meeting_same_day",
+      "task_calendar_created",
+      "task_overdue",
+      "inbound_webhook_task",
+      "inbound_webhook_lead",
+      "report_alert_triggered",
+    ]),
+    action_type: z.enum([
+      "webhook",
+      "email",
+      "notification",
+      "update_status",
+      "send_whatsapp",
+      "create_manychat_subscriber",
+      "send_greenapi_message",
+      "send_greenapi_to_campaigner",
+      "add_lead_update",
+      "add_client_update",
+      "create_task",
+      "create_lead",
+    ]),
+    // Green API connection selection
+    green_api_integration_id: z.string().optional(),
+    // Green API to campaigner fields
+    campaigner_send_target: z.enum(["phone", "group"]).optional(),
+    // Green API manual target fields
+    greenapi_send_to_type: z
+      .enum(["contact", "manual_phone", "manual_group"])
+      .optional(),
+    greenapi_manual_phone: z.string().optional(),
+    greenapi_manual_group_id: z.string().optional(),
+    // Green API / update template fields
+    message_template: z.string().optional(),
+    update_template: z.string().optional(),
+    webhook_url: z.string().optional(),
+    webhook_method: z.enum(["POST", "GET", "PUT"]).optional(),
+    body_template: z.string().optional(),
+    conditions: z.string().optional(),
+    status_entity: z.enum(["lead", "task"]).optional(),
+    status_value: z.string().optional(),
+    trigger_types: z.array(z.string()).min(1, "בחר לפחות טריגר אחד"),
+    trigger_status_values: z.array(z.string()).optional(),
+    update_field_name: z.string().optional(),
+    update_field_value: z.string().optional(),
+    // ManyChat WhatsApp fields
+    manychat_tag_id: z.string().optional(),
+    field_mapping_date: z.string().optional(),
+    field_mapping_time: z.string().optional(),
+    field_mapping_location: z.string().optional(),
+    field_mapping_contact: z.string().optional(),
+    // Create task fields
+    task_title_template: z.string().optional(),
+    task_notes_template: z.string().optional(),
+    task_priority: z.number().optional(),
+    task_due_days: z.number().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.action_type === "webhook" && !data.webhook_url) {
+        return false;
+      }
+      if (data.action_type === "update_status" && !data.status_value) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "נא למלא את כל השדות הנדרשים",
+      path: ["action_type"],
+    },
+  );
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -127,14 +157,6 @@ const TRIGGER_OPTIONS = [
   { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
 ];
 
-// LEAD_STATUS_OPTIONS removed - now using dynamic statuses from useLeadStatuses hook
-
-const TASK_STATUS_OPTIONS = [
-  { value: "open", label: "פתוח" },
-  { value: "in_progress", label: "בתהליך" },
-  { value: "done", label: "הושלם" },
-];
-
 const LEAD_DATE_FIELDS = [
   { value: "won_date", label: "תאריך נסגר" },
   { value: "sale_date", label: "תאריך מכירה" },
@@ -151,7 +173,6 @@ export function AddAutomationForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
-  const { activeStatuses: leadStatuses, isLoading: isLoadingStatuses } = useLeadStatuses();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -159,6 +180,7 @@ export function AddAutomationForm() {
       name: "",
       description: "",
       trigger_type: "task_assigned",
+      trigger_types: ["task_assigned"],
       action_type: "webhook",
       webhook_method: "POST",
       webhook_url: "",
@@ -166,7 +188,7 @@ export function AddAutomationForm() {
       conditions: "",
       status_entity: "lead",
       status_value: "",
-      trigger_status_value: "any",
+      trigger_status_values: [],
       update_field_name: "none",
       update_field_value: "today",
       manychat_tag_id: "",
@@ -298,11 +320,8 @@ export function AddAutomationForm() {
           throw new Error("תנאים חייבים להיות JSON תקין");
         }
       }
-      
-      // Add trigger status condition if specified
-      if (values.trigger_status_value && values.trigger_status_value !== 'any') {
-        conditions.new_status = values.trigger_status_value;
-      }
+
+      applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
       // Build configuration based on action type
       let configuration: any = {};
@@ -316,9 +335,9 @@ export function AddAutomationForm() {
       } else if (values.action_type === "update_status") {
         const cfg: any = {
           entity: values.status_entity,
-          status: values.status_value,
         };
-        if (values.update_field_name && values.update_field_name !== 'none') {
+        applyStatusActionFields(cfg, values.status_value);
+        if (values.update_field_name && values.update_field_name !== "none") {
           cfg.update_field = values.update_field_name;
           cfg.update_field_value = values.update_field_value || 'today';
         }
@@ -367,12 +386,20 @@ export function AddAutomationForm() {
         configuration = {};
       }
 
+      const selectedTriggers = values.trigger_types?.length
+        ? values.trigger_types
+        : [values.trigger_type];
+      configuration = {
+        ...(configuration || {}),
+        trigger_types: selectedTriggers,
+      };
+
       const { data, error } = await supabase
         .from("automations")
         .insert({
           name: values.name,
           description: values.description,
-          trigger_type: values.trigger_type as any,
+          trigger_type: selectedTriggers[0] as any,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
@@ -407,7 +434,8 @@ export function AddAutomationForm() {
   };
 
   const statusEntity = form.watch("status_entity");
-  const triggerType = form.watch("trigger_type");
+  const triggerTypes = form.watch("trigger_types") || [];
+  const statusScopes = scopesForTriggers(triggerTypes);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -456,58 +484,50 @@ export function AddAutomationForm() {
 
             <FormField
               control={form.control}
-              name="trigger_type"
+              name="trigger_types"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>מתי להפעיל? *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר טריגר" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background z-[100]">
-                      {TRIGGER_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
+                  <FormControl>
+                    <TriggerTypeMultiSelect
+                      options={TRIGGER_OPTIONS}
+                      value={field.value || []}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        if (next[0]) {
+                          form.setValue("trigger_type", next[0] as any, {
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    אותה פעולה תרוץ אם אחד מהטריגרים קורה
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {(triggerType === "lead_status_changed" || triggerType === "task_status_changed") && (
+            {statusScopes.length > 0 && (
               <FormField
                 control={form.control}
-                name="trigger_status_value"
+                name="trigger_status_values"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>לאיזה סטטוס השתנה? (אופציונלי)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="כל סטטוס (ללא סינון)" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-background z-[100]">
-                        <SelectItem value="any">כל סטטוס</SelectItem>
-                        {triggerType === "lead_status_changed" && leadStatuses.map((status) => (
-                          <SelectItem key={status.status_key} value={status.status_key}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                        {triggerType === "task_status_changed" && TASK_STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>לאילו סטטוסים או שלבים? (אפשר כמה)</FormLabel>
+                    <FormControl>
+                      <StatusStageMultiSelect
+                        tenantId={tenantId}
+                        scopes={statusScopes}
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormDescription className="text-xs">
-                      האוטומציה תרוץ רק כשהסטטוס משתנה לערך זה
+                      הפעולה תרוץ אם הסטטוס הוא אחד מהנבחרים. בלי בחירה — כל
+                      שינוי
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -515,7 +535,7 @@ export function AddAutomationForm() {
               />
             )}
 
-            {triggerType === "inbound_webhook_task" && (
+            {triggerTypes.includes("inbound_webhook_task") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -559,7 +579,7 @@ export function AddAutomationForm() {
               </div>
             )}
 
-            {triggerType === "inbound_webhook_lead" && (
+            {triggerTypes.includes("inbound_webhook_lead") && (
               <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <ExternalLink className="h-4 w-4" />
@@ -640,13 +660,27 @@ export function AddAutomationForm() {
                     </FormControl>
                     <SelectContent className="bg-background z-[100]">
                       <SelectItem value="webhook">Webhook</SelectItem>
-                      <SelectItem value="update_status">שינוי סטטוס</SelectItem>
-                      <SelectItem value="send_whatsapp">שלח WhatsApp (ManyChat)</SelectItem>
-                      <SelectItem value="create_manychat_subscriber">צור subscriber ב-ManyChat</SelectItem>
-                      <SelectItem value="send_greenapi_message">שלח WhatsApp (Green API / Manus)</SelectItem>
-                      <SelectItem value="send_greenapi_to_campaigner">שלח WhatsApp לקמפיינר (Green API / Manus)</SelectItem>
-                      <SelectItem value="add_lead_update">הוסף עדכון לליד</SelectItem>
-                      <SelectItem value="add_client_update">הוסף עדכון ללקוח</SelectItem>
+                      <SelectItem value="update_status">
+                        שינוי סטטוס או שלב במשפך
+                      </SelectItem>
+                      <SelectItem value="send_whatsapp">
+                        שלח WhatsApp (ManyChat)
+                      </SelectItem>
+                      <SelectItem value="create_manychat_subscriber">
+                        צור subscriber ב-ManyChat
+                      </SelectItem>
+                      <SelectItem value="send_greenapi_message">
+                        שלח WhatsApp (Green API / Manus)
+                      </SelectItem>
+                      <SelectItem value="send_greenapi_to_campaigner">
+                        שלח WhatsApp לקמפיינר (Green API / Manus)
+                      </SelectItem>
+                      <SelectItem value="add_lead_update">
+                        הוסף עדכון לליד
+                      </SelectItem>
+                      <SelectItem value="add_client_update">
+                        הוסף עדכון ללקוח
+                      </SelectItem>
                       <SelectItem value="create_task">צור משימה</SelectItem>
                       <SelectItem value="create_lead">צור ליד חדש</SelectItem>
                       <SelectItem value="email" disabled>אימייל (בקרוב)</SelectItem>
@@ -756,28 +790,21 @@ export function AddAutomationForm() {
                   name="status_value"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>סטטוס חדש *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="בחר סטטוס" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-background z-[100]">
-                          {statusEntity === "lead" && leadStatuses.map((status) => (
-                            <SelectItem key={status.status_key} value={status.status_key}>
-                              {status.label}
-                            </SelectItem>
-                          ))}
-                          {statusEntity === "task" && TASK_STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>סטטוס או שלב חדש *</FormLabel>
+                      <FormControl>
+                        <div>
+                          <StatusStageSelect
+                            tenantId={tenantId}
+                            scope={statusEntity === "task" ? "task" : "lead"}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="בחר סטטוס או שלב במשפך"
+                          />
+                        </div>
+                      </FormControl>
                       <FormDescription className="text-xs">
-                        הסטטוס יעודכן אוטומטית כשהאוטומציה תופעל
+                        סטטוס תגובה מעדכן את סטטוס הליד. שלב במשפך מעביר את הליד
+                        לעמודה בלוח.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

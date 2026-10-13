@@ -1,20 +1,17 @@
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-
-const TASK_STATUS_OPTIONS = [
-  { value: "open", label: "פתוחה" },
-  { value: "in_progress", label: "בטיפול" },
-  { value: "completed", label: "הושלמה" },
-  { value: "cancelled", label: "בוטלה" },
-];
+import {
+  decodeStatusSelection,
+  encodeStoredTriggerFilters,
+  triggerScope,
+} from "../../../supabase/functions/_shared/automation-status.ts";
+import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
   tenantId: string;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
+  onBulkConfigChange?: (updates: Record<string, any>) => void;
 }
 
 export default function StatusFilterTriggerConfig({
@@ -22,48 +19,59 @@ export default function StatusFilterTriggerConfig({
   tenantId,
   configuration,
   onConfigChange,
+  onBulkConfigChange,
 }: StatusFilterTriggerConfigProps) {
-  const { data: leadStatuses = [] } = useQuery({
-    queryKey: ["lead-statuses", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lead_statuses")
-        .select("status_key, label")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-    enabled: triggerType === "lead_status_changed" && !!tenantId,
+  const scope = triggerScope(triggerType) || "lead";
+  const selected = encodeStoredTriggerFilters({
+    filter_statuses: configuration?.filter_statuses,
+    filter_status: configuration?.filter_status,
+    filter_status_kind: configuration?.filter_status_kind,
   });
+
+  const write = (updates: Record<string, any>) => {
+    if (onBulkConfigChange) {
+      onBulkConfigChange(updates);
+      return;
+    }
+    for (const [key, value] of Object.entries(updates)) {
+      onConfigChange(key, value);
+    }
+  };
 
   return (
     <div className="space-y-2 bg-muted/40 border rounded-lg p-3" dir="rtl">
-      <Label className="text-right block text-sm font-semibold">סינון לפי סטטוס</Label>
-      <Select
-        value={configuration?.filter_status || "any"}
-        onValueChange={(v) => onConfigChange("filter_status", v)}
-      >
-        <SelectTrigger className="text-right">
-          <SelectValue placeholder="כל סטטוס" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="any">כל שינוי סטטוס</SelectItem>
-          {triggerType === "lead_status_changed" && leadStatuses.map((status) => (
-            <SelectItem key={status.status_key} value={status.status_key}>
-              {status.label}
-            </SelectItem>
-          ))}
-          {triggerType === "task_status_changed" && TASK_STATUS_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Label className="text-right block text-sm font-semibold">
+        סטטוסים ושלבים (אפשר כמה)
+      </Label>
+      <StatusStageMultiSelect
+        tenantId={tenantId}
+        scopes={[scope]}
+        value={selected}
+        onChange={(encodedValues) => {
+          const parsed = encodedValues
+            .map((encoded) => decodeStatusSelection(encoded))
+            .filter((item) => item.value && item.value !== "any");
+          if (parsed.length === 0) {
+            write({
+              filter_statuses: [],
+              filter_status: "any",
+              filter_status_kind: null,
+            });
+            return;
+          }
+          write({
+            filter_statuses: parsed.map((item) => ({
+              value: item.value,
+              kind: item.kind,
+            })),
+            filter_status: parsed[0].value,
+            filter_status_kind: parsed[0].kind,
+          });
+        }}
+      />
       <p className="text-xs text-muted-foreground text-right">
-        האוטומציה תרוץ רק כשהסטטוס משתנה לערך זה
+        אותה פעולה תרוץ אם הסטטוס או השלב הוא אחד מהנבחרים. בלי בחירה — כל
+        שינוי. אפשר להוסיף עוד טריגרים עם הכפתור + טריגר.
       </p>
     </div>
   );

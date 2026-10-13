@@ -27,7 +27,15 @@ import {
   cloneSignatureFromTemplate,
   resolveTenantOwnerId,
   sendSignatureDocumentEmails,
-} from '../_shared/signature-automation.ts'
+} from "../_shared/signature-automation.ts";
+import {
+  impliedStatusKind,
+  leadStatusUpdateColumns,
+  readStatusFilters,
+  resolveStatusRecordId,
+  statusFiltersMatch,
+  statusUpdateTable,
+} from "../_shared/automation-status.ts";
 // clearer error when ManyChat wa_id ghost on deleted contact — 2026-08-09
 
 const corsHeaders = {
@@ -1377,11 +1385,14 @@ Deno.serve(async (req) => {
       if (safeConfig.source_filter === 'private' && safeData.group_id) {
         return { matches: false, reason: 'source_filter_private' }
       }
-      if (safeConfig.filter_status && safeConfig.filter_status !== 'any') {
-        const dataStatus = safeData.new_status || safeData.status
-        if (dataStatus !== safeConfig.filter_status) {
-          return { matches: false, reason: 'status_mismatch' }
-        }
+      if (
+        !statusFiltersMatch(readStatusFilters(safeConfig), {
+          ...safeData,
+          status_kind:
+            safeData.status_kind || impliedStatusKind(safeConfig.action_type),
+        })
+      ) {
+        return { matches: false, reason: "status_mismatch" };
       }
       // Specific phones whitelist
       if (safeConfig.source_filter === 'specific_phones') {
@@ -1464,6 +1475,38 @@ Deno.serve(async (req) => {
       // (which validates group_id, keyword, source_filter etc.)
       // Without this, flows bypass their trigger step filters entirely.
       automations = (foundAutomations || []).filter((a: any) => !a.is_flow)
+
+      // Same action can listen to additional trigger types stored on the row.
+      let extraTriggerQuery = supabase
+        .from("automations")
+        .select("*")
+        .eq("active", true)
+        .eq("is_flow", false)
+        .contains("configuration", {
+          trigger_types: [payload.trigger_type],
+        });
+      extraTriggerQuery = ownOrSharedFilter
+        ? extraTriggerQuery.or(ownOrSharedFilter)
+        : extraTriggerQuery.eq("tenant_id", payload.tenant_id);
+      const { data: extraTriggerAutomations, error: extraTriggerError } =
+        await extraTriggerQuery;
+      if (extraTriggerError) {
+        console.error(
+          "Error fetching multi-trigger automations:",
+          extraTriggerError,
+        );
+      } else if (extraTriggerAutomations) {
+        const seen = new Set(automations.map((row: any) => row.id));
+        for (const row of extraTriggerAutomations) {
+          if (row.is_flow || seen.has(row.id)) continue;
+          const types = row.configuration?.trigger_types;
+          if (!Array.isArray(types) || !types.includes(payload.trigger_type)) {
+            continue;
+          }
+          automations.push(row);
+          seen.add(row.id);
+        }
+      }
 
       // 2. Also find flow automations — BUT ONLY if source is NOT 'crm'
       // When source === 'crm', we skip flow lookup entirely to prevent CRM leads from triggering flows
@@ -1614,11 +1657,22 @@ Deno.serve(async (req) => {
         if (flowTriggerSteps && flowTriggerSteps.length > 0) {
           // Filter by trigger configuration BEFORE fetching automations
           const matchingSteps = flowTriggerSteps.filter((step: any) => {
-            const config = step.configuration || {}
-            const validation = validateFlowTriggerConfig(config, payloadData, hasActiveCarmenSession)
-            return validation.matches
-          })
-          const flowAutomationIds = matchingSteps.map((s: any) => s.automation_id)
+            const config = step.configuration || {};
+            const validation = validateFlowTriggerConfig(
+              config,
+              {
+                ...payloadData,
+                status_kind:
+                  payloadData?.status_kind ||
+                  impliedStatusKind(step.action_type),
+              },
+              hasActiveCarmenSession,
+            );
+            return validation.matches;
+          });
+          const flowAutomationIds = matchingSteps.map(
+            (s: any) => s.automation_id,
+          );
           // Filter out IDs already found
           const existingIds = new Set(automations.map((a: any) => a.id))
           const newFlowIds = flowAutomationIds.filter((id: string) => !existingIds.has(id))
@@ -1663,8 +1717,23 @@ Deno.serve(async (req) => {
         
         try {
           // Check conditions if any (pass trigger_type to skip irrelevant conditions)
-          if (automation.conditions && Object.keys(automation.conditions).length > 0) {
-            const conditionsMet = checkConditions(automation.conditions, payloadData, automation.trigger_type)
+          if (
+            automation.conditions &&
+            Object.keys(automation.conditions).length > 0
+          ) {
+            const conditionsMet = checkConditions(
+              automation.conditions,
+              {
+                ...payloadData,
+                status_kind:
+                  payloadData?.status_kind ||
+                  impliedStatusKind(
+                    (requestBody as any).trigger_type ||
+                      automation.trigger_type,
+                  ),
+              },
+              (requestBody as any).trigger_type || automation.trigger_type,
+            );
             if (!conditionsMet) {
               return
             }
@@ -1713,54 +1782,52 @@ Deno.serve(async (req) => {
             // In TEST mode (direct execution by automationId with test=true),
             // we bypass trigger filter validation so the test always runs end-to-end
             // and shows up in the run history.
-            const isTestRun = Boolean(requestBody.automationId) && Boolean(payloadData?.test)
-            const triggerSteps = (flowSteps || []).filter((s: any) => s.step_type === 'trigger')
-            const incomingTriggerTypeForMatch = (requestBody as any).trigger_type || (requestBody as any).triggerType
-            // Support multiple triggers per automation (OR semantics):
-            // pick the trigger step whose action_type matches the incoming event.
-            const triggerStep =
-              triggerSteps.find((s: any) => s.action_type === incomingTriggerTypeForMatch) ||
-              triggerSteps.find((s: any) => s.action_type === 'carmen_whatsapp_session' && incomingTriggerTypeForMatch === 'whatsapp_message_received') ||
-              triggerSteps[0]
-            if (triggerStep && !isTestRun) {
-              // Check action_type match (e.g. whatsapp_message_received vs lead_created)
-              const triggerActionType = triggerStep.action_type
-              const incomingTriggerType = (requestBody as any).trigger_type || (requestBody as any).triggerType
-              const triggerTypesMatch = !triggerActionType || !incomingTriggerType ||
-                triggerActionType === incomingTriggerType ||
-                (triggerActionType === 'carmen_whatsapp_session' && incomingTriggerType === 'whatsapp_message_received')
-
-              if (!triggerTypesMatch) {
-                await releaseOwnedClaim()
-                // Log skipped run so it appears in history
-                await supabase.from('automation_logs').insert({
-                  automation_id: automation.id,
-                  success: false,
-                  error_message: `דולג: trigger_type_mismatch (${triggerActionType} ≠ ${incomingTriggerType})`,
-                  payload: payloadData,
-                  execution_time_ms: Date.now() - startTime,
-                })
-                return { skipped: true, reason: 'trigger_type_mismatch' }
-              }
-              // Also validate trigger step filters (group_id, keyword, etc.)
-              const config = triggerStep.configuration || {}
-              const validation = validateFlowTriggerConfig(
-                config,
-                payloadData,
-                Boolean(payloadData?._carmen_session_id && !payloadData?._carmen_session_ended)
-              )
-              if (!validation.matches) {
-                await releaseOwnedClaim()
-                // Log skipped run so it appears in history
-                await supabase.from('automation_logs').insert({
-                  automation_id: automation.id,
-                  success: false,
-                  error_message: `דולג: ${validation.reason || 'trigger_config_mismatch'}`,
-                  payload: payloadData,
-                  execution_time_ms: Date.now() - startTime,
-                })
-                return { skipped: true, reason: validation.reason || 'trigger_config_mismatch' }
-              }
+            const isTestRun =
+              Boolean(requestBody.automationId) && Boolean(payloadData?.test);
+            const triggerSteps = (flowSteps || []).filter(
+              (s: any) => s.step_type === "trigger",
+            );
+            const incomingTriggerTypeForMatch =
+              (requestBody as any).trigger_type ||
+              (requestBody as any).triggerType;
+            const carmenSessionActive = Boolean(
+              payloadData?._carmen_session_id &&
+              !payloadData?._carmen_session_ended,
+            );
+            const triggerTypeMatches = (step: any) => {
+              const action = step.action_type;
+              if (!action || !incomingTriggerTypeForMatch) return true;
+              if (action === incomingTriggerTypeForMatch) return true;
+              return (
+                action === "carmen_whatsapp_session" &&
+                incomingTriggerTypeForMatch === "whatsapp_message_received"
+              );
+            };
+            // Several triggers share one flow (OR). Use the trigger whose
+            // type and status list both match this event.
+            const triggerStep = triggerSteps.find((step: any) => {
+              if (!triggerTypeMatches(step)) return false;
+              return validateFlowTriggerConfig(
+                step.configuration || {},
+                {
+                  ...payloadData,
+                  status_kind:
+                    payloadData?.status_kind ||
+                    impliedStatusKind(step.action_type),
+                },
+                carmenSessionActive,
+              ).matches;
+            });
+            if (triggerSteps.length > 0 && !isTestRun && !triggerStep) {
+              await releaseOwnedClaim();
+              await supabase.from("automation_logs").insert({
+                automation_id: automation.id,
+                success: false,
+                error_message: `דולג: trigger_config_mismatch (${incomingTriggerTypeForMatch || "unknown"})`,
+                payload: payloadData,
+                execution_time_ms: Date.now() - startTime,
+              });
+              return { skipped: true, reason: "trigger_config_mismatch" };
             }
 
             // === FB ENRICHMENT: Parse fb_ fields from notes (saved during sync) ===
@@ -2692,13 +2759,18 @@ Deno.serve(async (req) => {
 function checkConditions(conditions: any, data: any, triggerType?: string): boolean {
   try {
     for (const [key, value] of Object.entries(conditions)) {
-      // Special handling for new_status - only relevant for status change triggers
-      if (key === 'new_status') {
-        if (triggerType && triggerType !== 'lead_status_changed' && triggerType !== 'task_status_changed') {
+      if (key === "status_kind") continue;
+      if (key === "new_statuses" || key === "new_status") {
+        if (
+          triggerType &&
+          triggerType !== "lead_status_changed" &&
+          triggerType !== "task_status_changed" &&
+          triggerType !== "client_status_changed" &&
+          triggerType !== "onboarding_status_changed"
+        ) {
           continue;
         }
-        const dataStatus = data.new_status || data.status;
-        if (dataStatus !== value) {
+        if (!statusFiltersMatch(readStatusFilters(conditions), data)) {
           return false;
         }
       }
@@ -2990,24 +3062,27 @@ async function executeNotification(config: any, data: any) {
 
 // Execute status update action
 async function executeStatusUpdate(supabase: any, config: any, data: any) {
-  
-  const { entity, status, update_field, update_field_value } = config
-  const recordId = data.id
-  
+  const { entity, status, status_field, update_field, update_field_value } =
+    config;
+  const recordId = resolveStatusRecordId(entity, data);
+
   if (!recordId) {
     throw new Error('No record ID provided for status update')
   }
-  
-  // Determine which table to update
-  const table = entity === 'lead' ? 'leads' : 'tasks'
-  
-  
+
+  const table = statusUpdateTable(entity);
+
   // Build update object
-  const updateData: any = {}
-  
-  // Update status only if provided (optional now)
+  const updateData: any = {};
+
+  // Update status only if provided (optional now).
+  // A lead response status and a funnel stage are different columns.
   if (status) {
-    updateData.status = status
+    if (table === "leads") {
+      Object.assign(updateData, leadStatusUpdateColumns(status_field, status));
+    } else {
+      updateData.status = status;
+    }
   }
   
   // Update additional date field if specified
