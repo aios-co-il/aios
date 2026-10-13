@@ -3,7 +3,6 @@ import { AppSidebar } from "./AppSidebar";
 import { LogOut, Building2, PanelRightOpen } from "lucide-react";
 import { GlobalApprovalsBell } from "@/components/agents/GlobalApprovalsBell";
 import { HeaderModuleShortcuts } from "./HeaderModuleShortcuts";
-import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -41,8 +40,7 @@ function RouteContentLoader() {
   return <CarmenLoadingScreen />;
 }
 
-const CARMEN_ICON =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310419663030948028/XGJWpzb5zh76ZdoV37Q3K8/carmen-icon-CyF3DNNJ8Z9Uhfz7EpYJcQ.webp";
+const CARMEN_ICON = "/brand/carmen/symbol-soft.webp";
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -202,7 +200,7 @@ export function AppLayout() {
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
                 <SidebarTrigger className="shrink-0" />
                 <h1 className="text-sm md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent truncate hidden sm:inline">
-                  מערכת ניהול סוכנויות
+                  Carmen Marketing OS
                 </h1>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
@@ -264,7 +262,7 @@ export function AppLayout() {
                       <img
                         src={CARMEN_ICON}
                         alt="כרמן"
-                        className="h-9 w-9 rounded-full object-cover border-2 border-sky-400/70 group-hover:scale-110 group-hover:border-sky-300 transition-all duration-200"
+                        className="h-9 w-9 rounded-full object-cover border-2 border-emerald-200/70 group-hover:scale-110 group-hover:border-emerald-100 transition-all duration-200"
                       />
                     </button>
                   </>
@@ -277,8 +275,8 @@ export function AppLayout() {
                       className="rounded-full"
                     >
                       <img
-                        src={logo}
-                        alt="Logo"
+                        src="/brand/carmen/symbol-soft.webp"
+                        alt="Carmen Marketing OS"
                         className="h-8 w-8 object-contain"
                       />
                     </Button>
