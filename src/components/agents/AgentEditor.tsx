@@ -219,8 +219,19 @@ function AgentTabsWithUrl({ agent }: { agent: any }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {carmen && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate(buildPath("/command-center?settings="))}
+          >
+            <Crown className="h-4 w-4" />
+            מסך כרמן (הכל במקום אחד)
+          </Button>
+        )}
         <Button
-          variant="default"
+          variant={carmen ? "outline" : "default"}
           size="sm"
           className="gap-2"
           onClick={() => navigate(buildPath("/agent-tasks"))}

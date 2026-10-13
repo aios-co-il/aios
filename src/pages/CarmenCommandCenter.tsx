@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
-import {
-  ArrowRight,
-  History,
-  LayoutDashboard,
-  Target,
-  Users,
-  Wrench,
-} from "lucide-react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowRight, History, Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
@@ -15,11 +8,16 @@ import type { CarmenFaceState } from "@/components/carmen-command/CarmenFace";
 import { CarmenDashboardView } from "@/components/carmen-command/CarmenDashboardView";
 import { DevTasksCommandCenterView } from "@/components/carmen-command/DevTasksCommandCenterView";
 import { GoalsCommandCenterView } from "@/components/carmen-command/GoalsCommandCenterView";
-import { HudMenu } from "@/components/carmen-command/HudMenu";
 import {
-  AgentSeatRail,
+  AgentSeatSelect,
   AgentSeatStatus,
 } from "@/components/carmen-command/AgentSeatRail";
+import {
+  CARMEN_SETTINGS_SECTIONS,
+  CarmenSettingsSheet,
+  type CarmenSettingsSection,
+} from "@/components/carmen-command/CarmenSettingsSheet";
+import { CarmenTasksMenu } from "@/components/carmen-command/CarmenTasksMenu";
 import {
   CarmenChatBar,
   CarmenChatBarHandle,
@@ -32,7 +30,10 @@ import type { HudStage } from "@/lib/agentChannelRouting";
 import "@/components/carmen-command/command-center.css";
 
 export type CommandCenterViewMode =
-  "agents" | "dashboard" | "dev_tasks" | "goals";
+  | "agents"
+  | "dashboard"
+  | "dev_tasks"
+  | "goals";
 
 const VIEW_MODE_KEY = "aios:cc-view-mode";
 
@@ -79,9 +80,10 @@ function Clock({ compact = false }: { compact?: boolean }) {
 }
 
 /**
- * Carmen Command Center — two modes:
- * - dashboard: Carmen only, all HUD panels open, face in center
- * - agents: multi-agent seat rail + full-height chat
+ * Carmen — one screen for everything Carmen:
+ * - clean chat with collapsible chat history
+ * - ⚙️ settings sheet (?settings=<section>) holding every agent tab
+ * - ▾ tasks menu: Carmen tasks, goals, dev tasks, dashboard view
  *
  * Carmen system-fix sidecar lives in AppLayout (outside this page).
  */
@@ -100,6 +102,26 @@ export default function CarmenCommandCenter() {
   const [viewMode, setViewMode] = useState<CommandCenterViewMode>(readViewMode);
   const brain = useBrainChannel(tenantId);
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const settingsParam = searchParams.get("settings");
+  const settingsOpen = settingsParam !== null;
+  const settingsSection =
+    CARMEN_SETTINGS_SECTIONS.find((s) => s.value === settingsParam)?.value ??
+    null;
+  const setSettings = useCallback(
+    (value: CarmenSettingsSection | "" | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value === null) next.delete("settings");
+          else next.set("settings", value);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const flashAlert = useCallback(() => {
     setFaceState((prev) => {
@@ -194,107 +216,51 @@ export default function CarmenCommandCenter() {
             <ArrowRight className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">חזרה</span>
           </Link>
+          {!isDashboard && !isSpecialView && (
+            <button
+              type="button"
+              onClick={() => setChatsOpen((v) => !v)}
+              title="צ׳אטים"
+              className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${chatsOpen ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)]"}`}
+            >
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">צ׳אטים</span>
+            </button>
+          )}
           <h1 className="cc-title hidden text-sm font-bold text-[var(--cc-accent)] sm:block sm:text-base">
-            CARMEN
+            כרמן
           </h1>
-          {isDashboard && (
-            <span className="hidden text-[10px] tracking-[0.12em] text-[var(--cc-text-dim)] md:inline">
-              מרכז פיקוד · כרמן בלבד
-            </span>
+          <span className="hidden text-[10px] tracking-[0.12em] text-[var(--cc-text-dim)] md:inline">
+            מנהלת שיווק
+          </span>
+        </div>
+
+        <div className="cc-header-bar__tools flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <CarmenTasksMenu
+            tenantId={tenantId}
+            viewMode={viewMode}
+            onViewModeChange={switchViewMode}
+          />
+          {!isDashboard && !isSpecialView && (
+            <AgentSeatSelect
+              routes={brain.routes}
+              selected={brain.selected}
+              onSelect={(route) => brain.selectRoute(route, null)}
+              className="h-8 w-36 text-xs sm:w-44"
+            />
           )}
         </div>
 
-        {!isDashboard && !isSpecialView && (
-          <AgentSeatRail
-            embedded
-            routes={brain.routes}
-            selected={brain.selected}
-            status={brain.status}
-            externalUrl={brain.externalUrl}
-            debating={brain.status === "debating"}
-            onSelect={(route) => brain.selectRoute(route, null)}
-          />
-        )}
-
-        <div className="cc-header-bar__tools flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             type="button"
-            title={
-              isDashboard
-                ? "מצב סוכנים — Cursor, Grok, מועצה"
-                : "מרכז בקרה — כרמן בלבד, כל הלוחות פתוחים"
-            }
-            onClick={() => switchViewMode(isDashboard ? "agents" : "dashboard")}
-            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${
-              isDashboard
-                ? "border-[var(--cc-accent)] text-[var(--cc-accent)]"
-                : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"
-            }`}
+            onClick={() => setSettings("")}
+            title="הגדרות כרמן"
+            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${settingsOpen ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"}`}
           >
-            {isDashboard ? (
-              <Users className="h-4 w-4" />
-            ) : (
-              <LayoutDashboard className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">
-              {isDashboard ? "סוכנים" : "מרכז בקרה"}
-            </span>
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">הגדרות</span>
           </button>
-
-          <button
-            type="button"
-            title="משימות פיתוח — Cursor / Grok / Manus"
-            onClick={() => switchViewMode(isDevTasks ? "agents" : "dev_tasks")}
-            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${
-              isDevTasks
-                ? "border-[var(--cc-accent)] text-[var(--cc-accent)]"
-                : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"
-            }`}
-          >
-            <Wrench className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {isDevTasks ? "משימות פיתוח" : "פיתוח"}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            title="יעדי ביצוע — כרמן מנהלת מטרות ואבני דרך"
-            onClick={() => switchViewMode(isGoals ? "agents" : "goals")}
-            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${
-              isGoals
-                ? "border-[var(--cc-accent)] text-[var(--cc-accent)]"
-                : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"
-            }`}
-          >
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {isGoals ? "יעדי ביצוע" : "יעדים"}
-            </span>
-          </button>
-
-          {!isDashboard && !isSpecialView && (
-            <>
-              <HudMenu
-                tenantId={tenantId}
-                faceState={faceState}
-                audioLevelRef={audioLevelRef}
-                onPrefill={(text) => chatRef.current?.prefill(text)}
-                onVoice={() => chatRef.current?.startVoice()}
-                onHealthCheck={healthCheck}
-              />
-              <button
-                type="button"
-                onClick={() => setChatsOpen((v) => !v)}
-                title="צ׳אטים"
-                className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${chatsOpen ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)]"}`}
-              >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">צ׳אטים</span>
-              </button>
-            </>
-          )}
-
           <div className="hidden sm:block">
             <Clock compact />
           </div>
@@ -340,6 +306,14 @@ export default function CarmenCommandCenter() {
           />
         </div>
       )}
+
+      <CarmenSettingsSheet
+        open={settingsOpen}
+        onOpenChange={(open) => setSettings(open ? "" : null)}
+        section={settingsSection}
+        onSectionChange={(sec) => setSettings(sec ?? "")}
+        tenantId={tenantId}
+      />
 
       {isDashboard && (
         <footer className="cc-dashboard-footer shrink-0 p-2 pt-0 sm:p-3 sm:pt-0">
