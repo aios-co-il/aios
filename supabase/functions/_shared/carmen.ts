@@ -1244,7 +1244,7 @@ async function resolveCarmenIdentityPhone(
   supabase: any,
   phoneNumber: string,
 ): Promise<string> {
-  let digits = String(phoneNumber || "").replace(/\D/g, "");
+  const digits = String(phoneNumber || "").replace(/\D/g, "");
   const tail = phoneTail(digits);
   if (tail && /^[5-9]\d{8}$/.test(tail)) return digits;
   if (!digits) return digits;

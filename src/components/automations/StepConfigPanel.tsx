@@ -1293,7 +1293,7 @@ export function StepConfigPanel({
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground text-right bg-muted/50 p-2 rounded">
-                  כן → נתיב ירוק &nbsp;|  לא → נתיב אדום
+                  כן → נתיב ירוק &nbsp;|&nbsp; לא → נתיב אדום
                 </p>
               </div>
             )}

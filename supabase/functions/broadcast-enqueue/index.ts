@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     };
 
     if (source === "clients") {
-      let q = db
+      const q = db
         .from("clients")
         .select("id, contact_name, name, phone, email, status, services")
         .eq("tenant_id", tenantId);

@@ -1070,7 +1070,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       let groupId = existingGroup?.id;
-      let groupIsBlocked = existingGroup?.is_blocked || false;
+      const groupIsBlocked = existingGroup?.is_blocked || false;
 
       // Helper function to fetch REAL group data from Green API using getGroupData
       async function fetchGroupDataFromApi(

@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
     // Resolve SEO / Woo / Maskyoo extras in parallel with each other.
     let ahrefsReports: any[] = [];
     let seoGaRecords: any[] = [];
-    let seoGscRecords: any[] = [];
+    const seoGscRecords: any[] = [];
     let seoLinkedGscSiteUrl: string | null = null;
     let seoTargetClientId: string | null = dashboard.client_id || null;
     let seoForceRelevant: string[] = [];
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
     let maskyooPeriod: { start: string; end: string } | null = null;
     // Monthly work log — same payload shape as public-table so the shared
     // dashboard SEO tab can show "עבודה שבוצעה" like the SEO report share link.
-    let seoMonthly: {
+    const seoMonthly: {
       client_name: string | null;
       domain: string | null;
       share_token: string | null;

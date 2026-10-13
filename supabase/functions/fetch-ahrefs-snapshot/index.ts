@@ -420,8 +420,6 @@ Deno.serve(async (req) => {
     // Merges into the latest existing ahrefs_report for client+domain (does not
     // overwrite organic_keywords / snapshot / comparisons).
     if (trackedOnlyFlag) {
-      let resolvedMode: string | undefined;
-      let resolvedProtocol: string | undefined;
       const resolved = await resolveAhrefsProjectId(projectId);
       if (!resolved) {
         return new Response(
@@ -436,8 +434,8 @@ Deno.serve(async (req) => {
         );
       }
       projectId = resolved.projectId;
-      resolvedMode = resolved.mode;
-      resolvedProtocol = resolved.protocol;
+      const resolvedMode: string | undefined = resolved.mode;
+      const resolvedProtocol: string | undefined = resolved.protocol;
 
       const { tracked: fetchedTracked, source } =
         await fetchTrackedKeywords(projectId);
@@ -680,11 +678,11 @@ Deno.serve(async (req) => {
     // Ahrefs v3 returns metrics with these keys: domain_rating, ahrefs_rank, org_traffic, org_keywords, backlinks, refdomains, org_cost
     // Compute Top 3 / Top 10 keyword counts from the organic keywords list (up to limit=500).
     // Fallback to tracked_keywords (rank tracker) when organic is empty so the snapshot stays useful.
-    let top3Count = organic_keywords.filter(
+    const top3Count = organic_keywords.filter(
       (k: any) =>
         typeof k.position === "number" && k.position >= 1 && k.position <= 3,
     ).length;
-    let top10Count = organic_keywords.filter(
+    const top10Count = organic_keywords.filter(
       (k: any) =>
         typeof k.position === "number" && k.position >= 1 && k.position <= 10,
     ).length;

@@ -537,7 +537,7 @@ serve(async (req: Request) => {
     }
 
     // ── Clone Carmen + selected automations ───────────────────────────────────
-    let cloneResults: any[] = [];
+    const cloneResults: any[] = [];
     if (clone_carmen) {
       const { data: sourceAgent } = await admin
         .from("ai_agents")

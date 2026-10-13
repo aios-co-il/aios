@@ -671,7 +671,7 @@ export function TriggerTestPanel({
 
     try {
       // Build the final payload
-      let finalPayload = { ...payload };
+      const finalPayload = { ...payload };
       // Remove internal keys
       delete finalPayload._raw_json;
 

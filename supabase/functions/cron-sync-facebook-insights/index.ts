@@ -742,7 +742,7 @@ Deno.serve(async (req) => {
                 const tableName = table.name;
 
                 // Determine alert type description
-                let alertType =
+                const alertType =
                   metric === "effective_status"
                     ? "חסימת קמפיין"
                     : metric === "cost_per_lead"

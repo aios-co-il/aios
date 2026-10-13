@@ -58,7 +58,7 @@ export function slugFromWebsite(website?: string | null): string | null {
     if (!raw) return null;
     if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
     const url = new URL(raw);
-    let host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
     if (!host) return null;
     // Drop TLD(s): keep the leftmost non-trivial label.
     const parts = host.split(".").filter(Boolean);

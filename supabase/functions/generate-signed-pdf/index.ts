@@ -303,7 +303,7 @@ async function buildSignedPdf(
   const textFont = await embedFieldFont(pdfDoc);
 
   let fallbackBusinessName = (doc.business_stamp_name || "").trim();
-  let companyId = (doc.business_stamp_company_id || "").trim();
+  const companyId = (doc.business_stamp_company_id || "").trim();
   if (!fallbackBusinessName && doc.client_id) {
     const { data: client } = await supabase
       .from("clients")

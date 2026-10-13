@@ -329,7 +329,7 @@ export function EditAutomationDialog({
           body_template: values.body_template || "",
         };
       } else if (values.action_type === "update_status") {
-        let cfg: any = {
+        const cfg: any = {
           entity: values.status_entity,
           status: values.status_value,
         };

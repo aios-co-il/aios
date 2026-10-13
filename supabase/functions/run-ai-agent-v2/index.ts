@@ -432,7 +432,7 @@ Deno.serve(async (req) => {
       (agent.system_prompt as string | null) ??
       "אתה סוכן AI אוטונומי. עבוד בלולאת ReAct: חשוב על הצעד הבא, השתמש בכלים זמינים, צפה בתוצאות, והמשך עד שתשיג את המטרה. ענה בקצרה ובעברית.";
 
-    let messages = isResume
+    const messages = isResume
       ? await reconstructMessages(supabase, run, systemPrompt)
       : [
           { role: "system", content: systemPrompt },

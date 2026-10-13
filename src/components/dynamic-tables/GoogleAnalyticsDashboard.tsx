@@ -706,6 +706,7 @@ export function GoogleAnalyticsDashboard({
     let paidUsers: number;
     let organicConversions: number;
     let paidConversions: number;
+    let otherConversions: number;
 
     if (channelGroupRecords.length > 0) {
       const cgSum = (keyword: string, field: string) =>
@@ -757,7 +758,7 @@ export function GoogleAnalyticsDashboard({
         cgConvSum("paid social") +
         cgConvSum("display");
       // Other conversions (Unassigned, Direct, Referral, Email, SMS, Cross-network, etc.)
-      var otherConversions = channelGroupRecords
+      otherConversions = channelGroupRecords
         .filter((r) => {
           const cg = String(r.data.channel_group || "").toLowerCase();
           return (
@@ -774,7 +775,7 @@ export function GoogleAnalyticsDashboard({
           return sum + (ke || cv || pu);
         }, 0);
     } else {
-      var otherConversions = 0;
+      otherConversions = 0;
       // Fallback: classify from trafficSources (daily_source based)
       organicSessions = trafficSources
         .filter((s) => classifyTraffic(s.name) === "organic")

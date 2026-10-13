@@ -756,7 +756,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    let searchResponse = await adsFetch(
+    const searchResponse = await adsFetch(
       `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
       {
         method: "POST",

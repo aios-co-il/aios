@@ -153,13 +153,12 @@ Deno.serve(async (req) => {
     let sent = 0;
 
     if (sendEmail) {
-      let senderName: string | undefined;
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("id", user.id)
         .maybeSingle();
-      senderName = profile?.full_name || undefined;
+      const senderName: string | undefined = profile?.full_name || undefined;
 
       const emailResult = await sendSignatureDocumentEmails(serviceClient, {
         documentId,

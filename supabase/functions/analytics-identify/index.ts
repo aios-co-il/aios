@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
 
     const { data: existingLead } = await leadQuery.limit(1).single();
 
-    let lead_id = existingLead?.id;
+    const lead_id = existingLead?.id;
 
     // If no existing lead and we're tracking for a specific client,
     // we might want to create one (optional feature)

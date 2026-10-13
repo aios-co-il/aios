@@ -175,7 +175,7 @@ serve(async (req: Request) => {
         throw new Error("Failed to fetch user tenants");
       }
 
-      let userTenants = (data || [])
+      const userTenants = (data || [])
         .map((row: any) => row.tenants)
         .filter((t: any) => t && t.id && t.name);
 

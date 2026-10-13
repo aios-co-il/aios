@@ -136,7 +136,7 @@ export async function loadMcpTools(
     // Access control: skip integrations turned OFF for this agent.
     if (disabledSet.has(conn.name)) continue;
     const tools = await toolsForConnection(supabase, tenantId, conn);
-    let bearer = conn.oauth_tokens?.bearer as string | undefined;
+    const bearer = conn.oauth_tokens?.bearer as string | undefined;
     const connSlug = sanitizeToolName(conn.name || conn.id.slice(0, 6));
 
     if (
