@@ -21,6 +21,15 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Closed while onboarding is invitation-only.
+  // Fail closed unless explicitly reenabled by the owner.
+  if (Deno.env.get("PUBLIC_SIGNUP_ENABLED") !== "true") {
+    return new Response(
+      JSON.stringify({ success: false, error: "ההרשמה הציבורית סגורה כרגע." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");

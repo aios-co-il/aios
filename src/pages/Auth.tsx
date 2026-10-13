@@ -317,14 +317,12 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
-            <Building2 className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <CardTitle className="text-2xl">מערכת ניהול סוכנויות</CardTitle>
-            <CardDescription>
-              ניהול מקצועי של סוכנויות, לקוחות וקמפיינרים
-            </CardDescription>
+          <div className="mx-auto flex flex-col items-center gap-3">
+            <img src="/brand/carmen/wordmark-soft.webp" alt="Carmen Marketing OS" className="h-16 w-auto max-w-[240px] object-contain" />
+            <div>
+              <CardTitle className="text-2xl">Carmen Marketing OS</CardTitle>
+              <CardDescription>שיווק, מכירות, לקוחות, משימות ונתונים — במקום אחד</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -519,13 +517,6 @@ export default function Auth() {
               >
                 שכחתי סיסמה
               </Button>
-
-              <p className="text-center text-sm text-muted-foreground pt-2">
-                רוצה לפתוח ארגון חדש?{" "}
-                <Link to="/signup" className="text-primary underline-offset-4 hover:underline">
-                  הירשם כאן
-                </Link>
-              </p>
             </form>
           )}
         </CardContent>

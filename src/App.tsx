@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSessionRefresh } from "@/hooks/useSessionRefresh";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { AgencyProvider } from "./contexts/AgencyContext";
@@ -22,8 +22,6 @@ import { REPORT_QUERY_GC_MS, REPORT_QUERY_STALE_MS } from "@/lib/reportQueryOpti
 
 const Landing = lazy(() => import("./pages/Landing"));
 const Auth = lazy(() => import("./pages/Auth"));
-const SignUp = lazy(() => import("./pages/SignUp"));
-const Setup = lazy(() => import("./pages/Setup"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const Privacy = lazy(() => import("./pages/Privacy"));
@@ -114,8 +112,8 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/setup" element={<Setup />} />
+                <Route path="/signup" element={<Navigate to="/auth" replace />} />
+                <Route path="/setup" element={<Navigate to="/auth" replace />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/chat-invite/:token" element={<ChatInvite />} />
                 <Route
