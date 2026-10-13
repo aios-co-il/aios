@@ -27,9 +27,10 @@ const otherAgency = {
   agencyIds: ["agency-c"],
 };
 
-test("parseLeadTableLayout defaults to by_user", () => {
-  assert.equal(parseLeadTableLayout(null), "by_user");
-  assert.equal(parseLeadTableLayout("kanban"), "by_user");
+test("parseLeadTableLayout defaults to by_date", () => {
+  assert.equal(parseLeadTableLayout(null), "by_date");
+  assert.equal(parseLeadTableLayout("kanban"), "by_date");
+  assert.equal(parseLeadTableLayout("by_user"), "by_user");
   assert.equal(parseLeadTableLayout("by_date"), "by_date");
 });
 

@@ -1048,7 +1048,7 @@ export default function Leads() {
   const { viewMode, setViewMode, defaultView, setDefaultView } =
     useLeadsViewMode(userId);
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
-    if (typeof window === "undefined") return "by_user";
+    if (typeof window === "undefined") return "by_date";
     return parseLeadTableLayout(
       window.localStorage.getItem(LEAD_TABLE_LAYOUT_STORAGE_KEY),
     );
