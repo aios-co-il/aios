@@ -141,9 +141,9 @@ export default function SignUp() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <img src={logo} alt="AfterLead" className="h-16 w-16 mx-auto mb-4" />
+          <img src={logo} alt="Carmen Marketing OS" className="h-16 w-16 mx-auto mb-4" />
           <CardTitle className="text-2xl md:text-3xl font-bold">
-            AfterLead
+            Carmen Marketing OS
           </CardTitle>
           <CardDescription className="text-base font-medium">
             מערכת לניהול סוכנויות שיווק ופרסום
