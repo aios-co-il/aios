@@ -1589,14 +1589,31 @@
     filter: drop-shadow(0 23px 35px rgba(0, 9, 22, .42))
       drop-shadow(0 0 15px rgba(167, 245, 222, .09));
   }
+  /* Let Carmen overlap just the decorative left edge of the marketing panel. */
   .hero-art .glass-panel,
   .hero-art .carmen-hero-metrics {
     z-index: 4;
+  }
+  .hero-art .hero-carmen-character {
+    z-index: 3;
+  }
+  .hero-art .panel-a {
+    z-index: 2;
   }
   .hero-art .glass-panel {
     background: linear-gradient(145deg, rgba(18, 56, 59, .94), rgba(7, 23, 38, .92));
     -webkit-backdrop-filter: blur(22px);
     backdrop-filter: blur(22px);
+  }
+  @media (max-width: 900px) {
+    /* On narrow screens keep all panel copy unobstructed. */
+    .hero-art .panel-a {
+      z-index: 4;
+    }
+    .hero-art .hero-carmen-character {
+      z-index: 3;
+      max-height: 58%;
+    }
   }
 
   .control-dial-scene {
