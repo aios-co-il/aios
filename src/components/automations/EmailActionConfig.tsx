@@ -220,7 +220,7 @@ export function EmailActionConfig({
                 <Input
                   value={configuration?.from_name || ""}
                   onChange={(e) => onConfigChange("from_name", e.target.value)}
-                  placeholder="שם השולח (לדוגמה: AfterLead)"
+                  placeholder="שם השולח (לדוגמה: Carmen Marketing OS)"
                   className="text-right"
                 />
                 <div className="flex items-center gap-1">
