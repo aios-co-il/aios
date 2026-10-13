@@ -1,0 +1,33 @@
+{
+  "brand": "Carmen Marketing OS",
+  "version": "2026-10-13",
+  "status": "awaiting-approved-binary-assets",
+  "colors": {
+    "deepBlue": "#0A1526",
+    "toxicGreen": "#08F467",
+    "jade": "#33D3A5",
+    "emerald": "#E3FAE0",
+    "mouse": "#EFEFEF",
+    "white": "#FFFFFF"
+  },
+  "assets": {
+    "wordmark": {
+      "file": "wordmark.png",
+      "role": "header/footer",
+      "symbolIncluded": false,
+      "status": "pending"
+    },
+    "symbol": {
+      "file": "symbol.png",
+      "role": "hero/app icon",
+      "opacityOnHero": 0.2,
+      "status": "pending"
+    },
+    "magneticTexture": {
+      "file": "magnetic-texture.webp",
+      "role": "background",
+      "status": "pending"
+    }
+  },
+  "note": "Approved rendered artwork must be imported as original transparent raster files. Existing root SVGs are reconstructions, not approved assets."
+}
