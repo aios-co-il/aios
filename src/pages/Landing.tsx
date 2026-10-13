@@ -205,22 +205,23 @@ export default function Landing() {
             src={carmenCharacterData}
             alt="כרמן"
           />
-          <div className="carmen-hero-metrics" aria-label="דוגמת נתוני דשבורד">
+          <div className="carmen-hero-metrics" aria-label="יכולות Carmen Marketing OS">
             <span>
-              CAMPAIGNS <b>CONNECTED</b>
+              BRIEF <b>מקבלת בריף</b>
             </span>
             <span>
-              LEADS <b>IN SYNC</b>
+              CONTENT <b>יוצרת תוכן</b>
             </span>
           </div>
           <div className="glass-panel panel-a">
-            <small>LEADS / CRM</small>
-            <strong>כל הלידים. מקום אחד.</strong>
-            <span>● CONNECTED</span>
+            <small>MARKETING OS</small>
+            <strong>כל השיווק במקום אחד.</strong>
+            <p>קליטת לידים, ניהול מכירות<br />אוטומציות WhatsApp ודיוור</p>
           </div>
           <div className="glass-panel panel-b">
-            <small>MARKETING OS</small>
-            <strong>התמונה הגדולה</strong>
+            <small>GROWTH</small>
+            <strong>קידום אורגני ו־GEO</strong>
+            <p>דוחות ומדידות</p>
             <div className="bars">
               <i />
               <i />
@@ -231,7 +232,8 @@ export default function Landing() {
             </div>
           </div>
           <div className="glass-panel panel-c">
-            <span className="signal">✦</span> המשימות מחוברות לתוכנית
+            <span className="signal">✦</span>
+            <strong>כרמן מנהלת הכל!</strong>
           </div>
         </div>
         <div className="scroll-cue">
