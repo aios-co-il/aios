@@ -1259,3 +1259,34 @@
   .nav-cta, .button.primary { border-color: rgba(167,245,222,.85); }
   .button.primary { background: linear-gradient(135deg, #dffbf2 0%, #a7f5de 55%, #7cf2cf 100%); box-shadow: 0 10px 34px rgba(124,242,207,.18); }
 }
+
+@scope (.carmen-site) {
+  .hero-carmen-character {
+    position: absolute;
+    z-index: 2;
+    left: 7%;
+    bottom: 1%;
+    width: min(31vw, 360px);
+    max-height: 68%;
+    object-fit: contain;
+    object-position: bottom center;
+    filter: drop-shadow(0 26px 48px rgba(0,0,0,.36)) drop-shadow(0 0 24px rgba(167,245,222,.14));
+    pointer-events: none;
+  }
+  .hero-carmen-symbol {
+    opacity: .46 !important;
+    transform: translate(-50%, -50%) scale(.96);
+  }
+  @media (max-width: 900px) {
+    .hero-carmen-character {
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(56vw, 300px);
+      max-height: 54%;
+      opacity: .96;
+    }
+    .hero-carmen-symbol {
+      opacity: .28 !important;
+    }
+  }
+}
