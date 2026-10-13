@@ -1565,3 +1565,110 @@
     direction: rtl;
   }
 }
+
+/* Carmen 2026 — character and accessible tactile mode selector */
+@scope (.carmen-site) {
+  .hero-carmen-character {
+    width: min(41vw, 460px);
+    max-height: 86%;
+    left: 1%;
+    bottom: -2%;
+    object-fit: contain;
+    z-index: 3;
+    filter: drop-shadow(0 28px 34px rgba(1, 25, 27, .36))
+      drop-shadow(0 0 18px rgba(167, 245, 222, .2));
+  }
+  .control-dial-scene {
+    position: relative;
+    width: min(490px, 82vw);
+    aspect-ratio: 1;
+    isolation: isolate;
+    display: grid;
+    place-items: center;
+    margin-inline: auto;
+  }
+  .control-dial-scene .control-dial {
+    width: 100%;
+  }
+  .control-carmen-character {
+    position: absolute;
+    z-index: 3;
+    left: -20%;
+    bottom: -9%;
+    width: 39%;
+    height: auto;
+    max-height: 86%;
+    object-fit: contain;
+    pointer-events: none;
+    filter: drop-shadow(0 18px 19px rgba(1, 32, 32, .27));
+  }
+  .control-dial-stop,
+  .control-dial-stop:not(.active) {
+    min-width: 108px;
+    min-height: 66px;
+    background: #f3fffbf2;
+    border: 2px solid #4c9d8b;
+    color: #082c31;
+    box-shadow: 0 8px 17px #062d2b2e, inset 0 1px #fff;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-shadow: none;
+    opacity: 1;
+  }
+  .control-dial-stop span:first-child {
+    font-size: 13px;
+    color: #116952;
+  }
+  .control-dial-stop b {
+    color: #061f2c;
+    font-size: 16px;
+    line-height: 1.2;
+    font-weight: 800;
+  }
+  .control-stop-tap {
+    position: absolute;
+    top: 5px;
+    left: 7px;
+    color: #166d59;
+    font-size: 15px;
+  }
+  .control-dial-stop:hover,
+  .control-dial-stop:focus-visible {
+    background: #fff;
+    border-color: #007f66;
+    outline: 3px solid #62d7ba;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(167,245,222,.25), 0 12px 25px #0c4d3e45;
+  }
+  .control-dial-stop.active {
+    background: #fff;
+    border: 3px solid #05846a;
+    box-shadow: 0 0 0 5px #acffe7a8, 0 0 24px #20bd9d65, 0 12px 25px #0c4d3e34;
+  }
+  .control-drag-hint {
+    font-weight: 700;
+    color: #164b44 !important;
+    font-size: 17px !important;
+  }
+  @media (max-width: 900px) {
+    .hero-carmen-character {
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(66vw, 350px);
+      max-height: 68%;
+    }
+    .control-carmen-character { left: -6%; width: 29%; bottom: -5%; }
+  }
+  @media (max-width: 550px) {
+    .control-dial-scene { width: min(340px, 82vw); }
+    .control-dial-stop,
+    .control-dial-stop:not(.active) {
+      min-width: 78px;
+      min-height: 54px;
+      padding: 6px 5px;
+    }
+    .control-dial-stop b { font-size: 12px; }
+    .control-dial-stop span:first-child { font-size: 10px; }
+    .control-carmen-character { width: 25%; left: -3%; bottom: -4%; }
+  }
+}
