@@ -56,7 +56,7 @@ const ACTION_LABELS: Record<string, string> = {
   webhook: "Webhook",
   email: "אימייל",
   notification: "התראה",
-  update_status: "שינוי סטטוס",
+  update_status: "שינוי סטטוס או שלב במשפך",
   send_whatsapp: "שלח WhatsApp (ManyChat)",
   create_manychat_subscriber: "צור subscriber ב-ManyChat",
   send_greenapi_message: "שלח WhatsApp (Green API)",
@@ -64,7 +64,7 @@ const ACTION_LABELS: Record<string, string> = {
   add_lead_update: "הוסף עדכון לליד",
   add_client_update: "הוסף עדכון ללקוח",
   create_task: "צור משימה",
-  send_signature: "שלח חתימה דיגיטלית",
+  send_signature: "שלח הסכם (חתימה דיגיטלית)",
 };
 
 export default function Automations() {
@@ -861,7 +861,18 @@ export default function Automations() {
           const isMirror = (automation as any)._isSharedMirror === true;
           const isCarmenMode = (automation as any).configuration?.carmen_session_mode === true;
           const isFlow = (automation as any).is_flow;
+          const configuredTriggers = Array.isArray(
+            (automation as any).configuration?.trigger_types,
+          )
+            ? ((automation as any).configuration.trigger_types as string[])
+            : [];
           const triggerType = automation.trigger_type;
+          const triggerLabel =
+            configuredTriggers.length > 1
+              ? configuredTriggers
+                  .map((type) => TRIGGER_LABELS[type] || type)
+                  .join(" / ")
+              : TRIGGER_LABELS[triggerType] || triggerType;
           const actionType = automation.action_type;
           return (
           <Card
@@ -908,7 +919,7 @@ export default function Automations() {
                   {/* Trigger → Action summary */}
                   <div className="flex items-center gap-1 mt-1">
                     <span className="text-[11px] text-muted-foreground">
-                      {TRIGGER_LABELS[triggerType] || triggerType}
+                        {triggerLabel}
                     </span>
                     {actionType && (
                       <>
