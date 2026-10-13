@@ -1,33 +1,40 @@
 {
   "brand": "Carmen Marketing OS",
-  "version": "2026-10-13",
-  "status": "awaiting-approved-binary-assets",
-  "colors": {
-    "deepBlue": "#0A1526",
-    "toxicGreen": "#08F467",
-    "jade": "#33D3A5",
-    "emerald": "#E3FAE0",
-    "mouse": "#EFEFEF",
-    "white": "#FFFFFF"
-  },
+  "variant": "approved-soft",
+  "status": "installed",
   "assets": {
     "wordmark": {
-      "file": "wordmark.png",
-      "role": "header/footer",
-      "symbolIncluded": false,
-      "status": "pending"
+      "png": "/brand/carmen/wordmark-soft.png",
+      "webp": "/brand/carmen/wordmark-soft.webp",
+      "width": 1612,
+      "height": 714,
+      "sourceSha256": "f8e25e8d4f20b6c5e5e83ad309f97b09797581fc21a42550cc0dab1fa505aa9c",
+      "sourceFileId": "file_0000000022948246bad6fd221ec52c21",
+      "sourceCrop": [
+        39,
+        195,
+        1619,
+        877
+      ],
+      "padding": 16,
+      "redrawn": false
     },
     "symbol": {
-      "file": "symbol.png",
-      "role": "hero/app icon",
-      "opacityOnHero": 0.2,
-      "status": "pending"
-    },
-    "magneticTexture": {
-      "file": "magnetic-texture.webp",
-      "role": "background",
-      "status": "pending"
+      "png": "/brand/carmen/symbol-soft.png",
+      "webp": "/brand/carmen/symbol-soft.webp",
+      "width": 1185,
+      "height": 1073,
+      "sourceSha256": "080a5964dd8e299f5fcf537485ab161dd3d3dd45b01bdffd611c3c074ef82f6d",
+      "sourceFileId": "file_000000006f3881f4b33ab273cc47c752",
+      "sourceCrop": [
+        63,
+        109,
+        1216,
+        1150
+      ],
+      "padding": 16,
+      "redrawn": false
     }
   },
-  "note": "Approved rendered artwork must be imported as original transparent raster files. Existing root SVGs are reconstructions, not approved assets."
+  "note": "Original approved raster artwork; no vector recreation. Original PNG bytes archived under design/brand/carmen/approved-soft-sources. Only invisible margins trimmed and transparent padding added."
 }
