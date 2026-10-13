@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAppHomePath } from "@/lib/appHomePath";
 import "./carmen-landing.css";
-const CARMEN_CHARACTER = "/brand/carmen/carmen-character-new.webp";
+
 const modules = [
   {
     n: "01",
@@ -255,11 +255,12 @@ export default function Landing() {
           />
           <img
             className="hero-carmen-character"
-            src={CARMEN_CHARACTER}
+            src="/brand/carmen/carmen-character-hq.webp"
             alt="כרמן, מנהלת השיווק החדשה שלך"
-            width={440}
-            height={660}
+            width={900}
+            height={1350}
             fetchPriority="high"
+            decoding="async"
           />
           <div className="carmen-hero-metrics" aria-label="יכולות Carmen Marketing OS">
             <span>
@@ -454,15 +455,6 @@ export default function Landing() {
           <div className="control-console">
             <div className="control-dial-wrap">
               <div className="control-dial-scene">
-                <img
-                  className="control-carmen-character"
-                  src={CARMEN_CHARACTER}
-                  alt="כרמן מציגה את רמות העבודה"
-                  width={440}
-                  height={660}
-                  loading="lazy"
-                  decoding="async"
-                />
               <div
                 className="control-dial"
                 role="slider"
@@ -536,7 +528,7 @@ export default function Landing() {
               <p className="control-drag-hint">↔ גררו את הגלגל או לחצו על אחד מארבעת המצבים</p>
             </div>
 
-            <div className="control-mode-card" key={controlMode}>
+            <div className="control-mode-card" data-mode={controlMode + 1} aria-live="polite" key={controlMode}>
               <span className="control-mode-kicker">
                 CARMEN / MODE {controlModes[controlMode].n}
               </span>

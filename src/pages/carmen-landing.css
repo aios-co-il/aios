@@ -1566,109 +1566,202 @@
   }
 }
 
-/* Carmen 2026 — character and accessible tactile mode selector */
+/* Carmen 2026 refinement: sharp hero art beneath panels + four glass mode buttons. */
 @scope (.carmen-site) {
-  .hero-carmen-character {
-    width: min(41vw, 460px);
-    max-height: 86%;
-    left: 1%;
-    bottom: -2%;
-    object-fit: contain;
-    z-index: 3;
-    filter: drop-shadow(0 28px 34px rgba(1, 25, 27, .36))
-      drop-shadow(0 0 18px rgba(167, 245, 222, .2));
+  .hero-art {
+    isolation: isolate;
   }
+  .hero-art .orbit,
+  .hero-art .hero-carmen-symbol {
+    z-index: 0;
+  }
+  .hero-art .hero-carmen-character {
+    left: 15%;
+    bottom: 1%;
+    width: min(32vw, 365px);
+    max-height: 80%;
+    height: auto;
+    object-fit: contain;
+    object-position: center bottom;
+    z-index: 1;
+    pointer-events: none;
+    image-rendering: auto;
+    filter: drop-shadow(0 23px 35px rgba(0, 9, 22, .42))
+      drop-shadow(0 0 15px rgba(167, 245, 222, .09));
+  }
+  .hero-art .glass-panel,
+  .hero-art .carmen-hero-metrics {
+    z-index: 4;
+  }
+  .hero-art .glass-panel {
+    background: linear-gradient(145deg, rgba(18, 56, 59, .94), rgba(7, 23, 38, .92));
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+  }
+
   .control-dial-scene {
     position: relative;
+    display: grid;
+    place-items: center;
     width: min(490px, 82vw);
     aspect-ratio: 1;
     isolation: isolate;
-    display: grid;
-    place-items: center;
     margin-inline: auto;
   }
   .control-dial-scene .control-dial {
     width: 100%;
   }
-  .control-carmen-character {
+
+  .control-dial-stop {
+    --mode-tint: 169, 248, 219;
+    --mode-edge: 39, 174, 143;
     position: absolute;
-    z-index: 3;
-    left: -20%;
-    bottom: -9%;
-    width: 39%;
-    height: auto;
-    max-height: 86%;
-    object-fit: contain;
-    pointer-events: none;
-    filter: drop-shadow(0 18px 19px rgba(1, 32, 32, .27));
-  }
-  .control-dial-stop,
-  .control-dial-stop:not(.active) {
-    min-width: 108px;
-    min-height: 66px;
-    background: #f3fffbf2;
-    border: 2px solid #4c9d8b;
-    color: #082c31;
-    box-shadow: 0 8px 17px #062d2b2e, inset 0 1px #fff;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    min-height: 74px;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, .94);
+    border-radius: 19px;
+    color: #0a2430;
+    background:
+      linear-gradient(158deg,
+        rgba(255, 255, 255, .90) 0%,
+        rgba(var(--mode-tint), .58) 52%,
+        rgba(240, 255, 252, .64) 100%);
+    -webkit-backdrop-filter: blur(19px) saturate(1.45);
+    backdrop-filter: blur(19px) saturate(1.45);
+    box-shadow:
+      0 15px 32px rgba(7, 43, 45, .26),
+      inset 0 2px 0 rgba(255, 255, 255, .98),
+      inset 0 -13px 18px rgba(var(--mode-edge), .17),
+      0 0 0 1px rgba(var(--mode-edge), .38);
     cursor: pointer;
     touch-action: manipulation;
     text-shadow: none;
     opacity: 1;
+    transition: border-color .24s, background .24s, box-shadow .24s,
+      filter .24s, transform .24s;
   }
-  .control-dial-stop span:first-child {
-    font-size: 13px;
-    color: #116952;
+  .control-dial-stop::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 12px;
+    right: 12px;
+    height: 29%;
+    border-radius: 12px 12px 45% 45%;
+    background: linear-gradient(180deg, rgba(255,255,255,.73), rgba(255,255,255,0));
+    pointer-events: none;
   }
   .control-dial-stop b {
-    color: #061f2c;
+    position: relative;
+    color: #0a2430;
     font-size: 16px;
-    line-height: 1.2;
+    line-height: 1.25;
     font-weight: 800;
+  }
+  .control-dial-stop span:first-child {
+    position: relative;
+    font: 700 12px Outfit, sans-serif;
+    color: #17634f;
   }
   .control-stop-tap {
     position: absolute;
-    top: 5px;
-    left: 7px;
-    color: #166d59;
+    top: 6px;
+    left: 9px;
     font-size: 15px;
+    font-weight: 800;
+    color: #12634f;
   }
-  .control-dial-stop:hover,
-  .control-dial-stop:focus-visible {
-    background: #fff;
-    border-color: #007f66;
-    outline: 3px solid #62d7ba;
-    outline-offset: 2px;
-    box-shadow: 0 0 0 5px rgba(167,245,222,.25), 0 12px 25px #0c4d3e45;
-  }
+  .stop-0 { --mode-tint: 188, 251, 224; --mode-edge: 40, 172, 130; }
+  .stop-1 { --mode-tint: 166, 239, 224; --mode-edge: 28, 147, 143; }
+  .stop-2 { --mode-tint: 180, 230, 248; --mode-edge: 42, 134, 175; }
+  .stop-3 { --mode-tint: 155, 239, 196; --mode-edge: 26, 167, 109; }
+
   .control-dial-stop.active {
-    background: #fff;
-    border: 3px solid #05846a;
-    box-shadow: 0 0 0 5px #acffe7a8, 0 0 24px #20bd9d65, 0 12px 25px #0c4d3e34;
+    border: 2px solid rgba(var(--mode-edge), .9);
+    background: linear-gradient(150deg, #ffffff 0%, rgba(var(--mode-tint), .86) 62%, #f9fffd 100%);
+    box-shadow:
+      0 0 0 5px rgba(var(--mode-tint), .70),
+      0 16px 33px rgba(3, 45, 48, .29),
+      0 0 29px rgba(var(--mode-edge), .42),
+      inset 0 2px 0 #fff,
+      inset 0 -12px 20px rgba(var(--mode-edge), .23);
   }
+  .control-dial-stop:hover {
+    filter: brightness(1.08) saturate(1.1);
+    border-color: rgba(var(--mode-edge), .96);
+    box-shadow:
+      0 0 0 5px rgba(var(--mode-tint), .66),
+      0 15px 36px rgba(7, 43, 45, .35),
+      inset 0 2px 0 rgba(255,255,255,1);
+  }
+  .control-dial-stop:focus-visible {
+    outline: 3px solid #08644f;
+    outline-offset: 5px;
+  }
+  .stop-0:hover,
+  .stop-0.active { transform: translateX(-50%) scale(1.075); }
+  .stop-1:hover,
+  .stop-1.active { transform: translateY(-50%) scale(1.075); }
+  .stop-2:hover,
+  .stop-2.active { transform: translateX(-50%) scale(1.075); }
+  .stop-3:hover,
+  .stop-3.active { transform: translateY(-50%) scale(1.075); }
+
   .control-drag-hint {
-    font-weight: 700;
     color: #164b44 !important;
     font-size: 17px !important;
+    font-weight: 700;
+    margin-top: 30px !important;
   }
+  .control-mode-card[data-mode="2"] {
+    border-color: #57aaa0;
+    background: radial-gradient(circle at 10% 8%, #60d5bb32, transparent 35%),
+      linear-gradient(145deg, #123b3d, #071927 72%);
+  }
+  .control-mode-card[data-mode="3"] {
+    border-color: #60a6c1;
+    background: radial-gradient(circle at 10% 8%, #56b5d633, transparent 35%),
+      linear-gradient(145deg, #173948, #071927 72%);
+  }
+  .control-mode-card[data-mode="4"] {
+    border-color: #54b48c;
+    background: radial-gradient(circle at 10% 8%, #5ed2a037, transparent 35%),
+      linear-gradient(145deg, #123d37, #071927 72%);
+  }
+
   @media (max-width: 900px) {
-    .hero-carmen-character {
+    .hero-art .hero-carmen-character {
       left: 50%;
       transform: translateX(-50%);
-      width: min(66vw, 350px);
+      width: min(57vw, 315px);
       max-height: 68%;
+      bottom: 2%;
     }
-    .control-carmen-character { left: -6%; width: 29%; bottom: -5%; }
   }
   @media (max-width: 550px) {
     .control-dial-scene { width: min(340px, 82vw); }
-    .control-dial-stop,
-    .control-dial-stop:not(.active) {
-      min-width: 78px;
-      min-height: 54px;
-      padding: 6px 5px;
+    .control-dial-stop {
+      min-width: 82px;
+      min-height: 57px;
+      padding: 8px 8px;
+      border-radius: 13px;
     }
     .control-dial-stop b { font-size: 12px; }
     .control-dial-stop span:first-child { font-size: 10px; }
-    .control-carmen-character { width: 25%; left: -3%; bottom: -4%; }
+    .control-stop-tap { left: 5px; top: 5px; font-size: 12px; }
+    .hero-art .hero-carmen-character {
+      width: min(62vw, 270px);
+      max-height: 72%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .control-dial-stop { transition: none; }
   }
 }
