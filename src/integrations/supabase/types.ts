@@ -15559,9 +15559,24 @@ export type Database = {
         Args: {
           p_aspect?: string;
           p_estimate?: Json;
+          p_generate_audio?: boolean;
           p_item_id: string;
+          p_provider?: string;
           p_scene_ids: string[];
           p_stage_id?: string;
+        };
+        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
+      };
+      queue_video_sound: {
+        Args: {
+          p_estimate?: Json;
+          p_item_id: string;
+          p_kind: string;
+          p_prompt?: string;
+          p_provider?: string;
+          p_scene_ids?: string[];
+          p_stage_id?: string;
+          p_voice_id?: string;
         };
         Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
       };

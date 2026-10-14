@@ -55,12 +55,20 @@ export async function generateClip({
     log(`[clip] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
     const imageBytes = await loadStill(db, input.still_url);
+    let imageUrl = /^https?:\/\//.test(input.still_url)
+      ? input.still_url
+      : null;
+    if (provider.needsPublicImage && !imageUrl) {
+      if (!db.sign) throw new Error("higgsfield needs a signed still url");
+      imageUrl = await db.sign(BUCKET, input.still_url, 3600);
+    }
     ({ jobId } = await provider.submit({
       imageBytes,
-      imageUrl: /^https?:\/\//.test(input.still_url) ? input.still_url : null,
+      imageUrl,
       prompt: clipPrompt(input.motion_prompt),
       durationS,
       aspect,
+      generateAudio: input.generate_audio === true,
     }));
     await db.update("marketing_runs", `id=eq.${run.id}`, {
       provider: provider.name,
