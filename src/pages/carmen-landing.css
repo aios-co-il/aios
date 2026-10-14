@@ -2,7 +2,7 @@
 @scope (.carmen-site) {
   :scope {
     --navy: #0a1526;
-    --green: #b9e9d5;
+    --green: #08f467;
     --cream: #f0f5f1;
     --muted: #a4b5b6;
   }
@@ -196,7 +196,7 @@
     border-radius: 50%;
     inset: 9%;
     transform: rotate(-23deg) rotateX(65deg);
-    box-shadow: 0 0 110px #b9e9d520;
+    box-shadow: 0 0 110px #08f46720;
   }
   .orbit-two {
     inset: 0;
@@ -211,8 +211,8 @@
     font:
       800 360px Outfit,
       sans-serif;
-    color: #b9e9d520;
-    text-shadow: 0 0 120px #b9e9d544;
+    color: #08f46720;
+    text-shadow: 0 0 120px #08f46744;
     line-height: 1;
   }
   .glass-panel {
@@ -417,7 +417,7 @@
   }
   .module-row.active,
   .module-row:hover {
-    background: #b9e9d510;
+    background: #08f46710;
     color: white;
   }
   .module-row.active {
@@ -448,7 +448,7 @@
     position: absolute;
     width: 550px;
     height: 550px;
-    background: #b9e9d520;
+    background: #08f46720;
     filter: blur(90px);
     border-radius: 50%;
   }
@@ -462,7 +462,7 @@
     font-size: 130px;
     line-height: 1;
     color: var(--green);
-    text-shadow: 0 0 70px #b9e9d588;
+    text-shadow: 0 0 70px #08f46788;
     margin-bottom: 55px;
   }
   .stage-label {
@@ -618,7 +618,7 @@
   }
   .chart-bars i {
     flex: 1;
-    background: linear-gradient(0deg, #12654d, #b9e9d5);
+    background: linear-gradient(0deg, #12654d, #08f467);
     border-radius: 5px 5px 0 0;
   }
   .control-section {
@@ -939,9 +939,9 @@
   white-space: nowrap;
 }
 .carmen-site .carmen-whatsapp-nav {
-  background: #b9e9d5;
+  background: #08f467;
   color: #0a1526;
-  border-color: #b9e9d5;
+  border-color: #08f467;
 }
 .carmen-site .carmen-whatsapp-nav span {
   color: #0a1526;
@@ -1035,7 +1035,7 @@
   transform: rotate(-24deg);
   border-radius: 50%;
   border: 55px solid transparent;
-  border-top-color: #9bd8c5;
+  border-top-color: #33d3a5;
   border-bottom-color: #e3fae0;
   filter: blur(1px);
   mix-blend-mode: screen;
@@ -1055,7 +1055,7 @@
   line-height: 1.1;
 }
 .carmen-site .gradient-text {
-  background: linear-gradient(95deg, #e3fae0, #b9e9d5);
+  background: linear-gradient(95deg, #e3fae0, #08f467);
   background-clip: text;
   color: transparent;
 }
@@ -1071,7 +1071,7 @@
   display: flex;
   flex-direction: column;
   padding: 12px 16px;
-  border: 1px solid #9bd8c566;
+  border: 1px solid #33d3a566;
   background: #0a1526d9;
   border-radius: 12px;
   font:
@@ -1081,18 +1081,18 @@
   color: #a9cfc3;
 }
 .carmen-site .carmen-hero-metrics b {
-  color: #b9e9d5;
+  color: #08f467;
   font-size: 13px;
   letter-spacing: 0;
   margin-top: 7px;
 }
 .carmen-site .glass-panel {
   background: #0b2730d9;
-  border-color: #9bd8c555;
+  border-color: #33d3a555;
   box-shadow: 0 20px 60px #0005;
 }
 .carmen-site .orbit {
-  border-color: #9bd8c544;
+  border-color: #33d3a544;
   box-shadow: none;
 }
 @media (max-width: 900px) {
@@ -1162,7 +1162,7 @@
   height: 100%;
   opacity: 0.92;
   z-index: 0;
-  filter: drop-shadow(0 0 42px #b9e9d52e);
+  filter: drop-shadow(0 0 42px #08f4672e);
   object-fit: contain;
 }
 .carmen-site .hero-art .orbit {
@@ -1177,7 +1177,7 @@
   content: "";
   position: absolute;
   inset: 8% 2%;
-  background: radial-gradient(ellipse at 50% 50%, #b9e9d522, transparent 67%);
+  background: radial-gradient(ellipse at 50% 50%, #08f46722, transparent 67%);
   filter: blur(28px);
   pointer-events: none;
 }
@@ -1187,11 +1187,11 @@
 }
 .carmen-site .hero-art .orbit-one {
   transform: rotate(-27deg) rotateX(68deg);
-  border-color: #b9e9d577;
+  border-color: #08f46777;
 }
 .carmen-site .hero-art .orbit-two {
   transform: rotate(33deg) rotateY(69deg);
-  border-color: #9bd8c566;
+  border-color: #33d3a566;
 }
 @media (max-width: 900px) {
   .carmen-site .hero-carmen-symbol {
@@ -1219,7 +1219,7 @@
   object-fit: contain;
 }
 .carmen-site .hero-carmen-symbol {
-  opacity: 0.4;
+  opacity: 0.8;
   filter: none;
   width: min(100%, 650px);
   height: 100%;
@@ -1243,6 +1243,6 @@
   }
   .carmen-site .hero-carmen-symbol {
     width: 100%;
-    opacity: 0.4;
+    opacity: 0.8;
   }
 }
