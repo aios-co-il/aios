@@ -1537,13 +1537,6 @@
       "count": 1
     },
     {
-      "file": "src/lib/clientConnectionProvision.test.ts",
-      "code": 2307,
-      "message": "Cannot find module 'vitest' or its corresponding type declarations.",
-      "source": "\"vitest\"",
-      "count": 1
-    },
-    {
       "file": "src/lib/clipboardFiles.test.ts",
       "code": 2352,
       "message": "Conversion of type '{ tagName: string; }' to type 'EventTarget' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ tagName: string; }' is missing the following properties from type 'EventTarget': addEventListener, dispatchEvent, removeEventListener",
@@ -1569,20 +1562,6 @@
       "code": 2352,
       "message": "Conversion of type '{ tagName: string; isContentEditable: boolean; }' to type 'EventTarget' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ tagName: string; isContentEditable: boolean; }' is missing the following properties from type 'EventTarget': addEventListener, dispatchEvent, removeEventListener",
       "source": "{ tagName: \"DIV\", isContentEditable: false, } as EventTarget",
-      "count": 1
-    },
-    {
-      "file": "src/lib/commandCenterAttachments.test.ts",
-      "code": 2307,
-      "message": "Cannot find module 'vitest' or its corresponding type declarations.",
-      "source": "\"vitest\"",
-      "count": 1
-    },
-    {
-      "file": "src/lib/crmTableCategories.test.ts",
-      "code": 2307,
-      "message": "Cannot find module 'vitest' or its corresponding type declarations.",
-      "source": "\"vitest\"",
       "count": 1
     },
     {
@@ -1744,20 +1723,6 @@
       "code": 7006,
       "message": "Parameter 'path' implicitly has an 'any' type.",
       "source": "path",
-      "count": 1
-    },
-    {
-      "file": "src/lib/seoKeywordClusters.test.ts",
-      "code": 2307,
-      "message": "Cannot find module 'vitest' or its corresponding type declarations.",
-      "source": "\"vitest\"",
-      "count": 1
-    },
-    {
-      "file": "src/lib/seoMonthlyPdfArchive.test.ts",
-      "code": 2307,
-      "message": "Cannot find module 'vitest' or its corresponding type declarations.",
-      "source": "\"vitest\"",
       "count": 1
     },
     {
