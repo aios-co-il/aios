@@ -7,6 +7,9 @@ import {
 } from "../_shared/recall.ts";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
 
+// Supabase injects this runtime global; the declaration emits no JavaScript.
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -146,9 +149,7 @@ Deno.serve(async (req) => {
     }
   })();
 
-  // @ts-ignore EdgeRuntime
   if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-    // @ts-ignore
     EdgeRuntime.waitUntil(background);
   } else {
     await background;

@@ -537,6 +537,9 @@ async function sendStaffWhatsappMessage(args: {
   return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
 }
 
+// Supabase injects this runtime global; the declaration emits no JavaScript.
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -15695,12 +15698,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         assistant_output: finalOutput,
         tools_used: toolLog.map((t) => t.tool),
       });
-      // @ts-ignore EdgeRuntime is available in Supabase edge functions
       if (
         typeof EdgeRuntime !== "undefined" &&
         (EdgeRuntime as any).waitUntil
       ) {
-        // @ts-ignore
         EdgeRuntime.waitUntil(memPromise);
       } else {
         memPromise.catch(() => {});

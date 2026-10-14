@@ -8,6 +8,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
 
+// Supabase injects this runtime global; the declaration emits no JavaScript.
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -109,12 +112,10 @@ Deno.serve(async (req) => {
       }
     })();
 
-    // @ts-ignore EdgeRuntime is available in Supabase edge functions
     if (
       typeof EdgeRuntime !== "undefined" &&
       (EdgeRuntime as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
     ) {
-      // @ts-ignore see above
       EdgeRuntime.waitUntil(background);
     } else {
       await background;
