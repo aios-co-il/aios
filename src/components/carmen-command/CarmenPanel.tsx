@@ -55,6 +55,17 @@ import GreenAPISettings from "@/pages/GreenAPISettings";
 import MetaWhatsAppSettings from "@/pages/MetaWhatsAppSettings";
 import type { TaskFilter } from "@/lib/carmenTaskRows";
 import { FILTERS } from "@/lib/carmenTaskRows";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  resolveCarmenConnectionRole,
+  type CarmenConnectionRole,
+} from "../../../supabase/functions/_shared/carmen-connection-role.ts";
 import { CarmenAutomationsList } from "./CarmenAutomationsList";
 import { CarmenSubAgents, isCarmenName } from "./CarmenSubAgents";
 import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
@@ -162,6 +173,12 @@ export const SETTINGS_SECTIONS: {
   },
 ];
 
+const ROLE_HINTS: Record<CarmenConnectionRole, string> = {
+  primary: "הטלפון של כרמן",
+  secondary: "רק עם מילת טריגר",
+  none: "כרמן לא עונה כאן",
+};
+
 const WA_TYPES: Record<string, { label: string }> = {
   manus_wa: { label: "Manus WA" },
   green_api: { label: "Green API" },
@@ -260,13 +277,52 @@ function WhatsAppConnections({
       return data ?? [];
     },
   });
+  const qc = useQueryClient();
+  const tenantHasActiveManus = rows.some(
+    (r: any) => r.integration_type === "manus_wa" && r.is_active,
+  );
+  const setRole = useMutation({
+    mutationFn: async ({
+      row,
+      role,
+    }: {
+      row: any;
+      role: CarmenConnectionRole;
+    }) => {
+      if (
+        role === "primary" &&
+        rows.some(
+          (r: any) =>
+            r.id !== row.id &&
+            r.is_active &&
+            resolveCarmenConnectionRole(r, { tenantHasActiveManus }) ===
+              "primary",
+        )
+      ) {
+        throw new Error(
+          "כבר יש חיבור ראשי. העבירו אותו קודם למשני — לכרמן יש טלפון ראשי אחד.",
+        );
+      }
+      const { error } = await supabase
+        .from("tenant_integrations")
+        .update({ settings: { ...(row.settings || {}), carmen_role: role } })
+        .eq("id", row.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["carmen-wa-connections", tenantId] });
+      toast.success("התפקיד עודכן");
+    },
+    onError: (e: any) => toast.error(e?.message ?? String(e)),
+  });
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         החיבור הראשי הוא הטלפון של כרמן: ממנו יוצאות ההתראות, הדוחות והשיחות.
-        חיבורים משניים, למשל הטלפון שלך, מפעילים את כרמן רק דרך אוטומציה עם מילת
-        טריגר והנחיות משלה.
+        בחיבור משני, למשל הטלפון שלך, כרמן עונה רק כשכותבים את מילת הטריגר, רק
+        דרך אוטומציה שמוצמדת לחיבור הזה (עם הנחיות משלה), ולעולם לא שולחת ממנו
+        התראות מערכת.
       </p>
       {isLoading && <p className="text-sm text-muted-foreground">טוען…</p>}
       {!isLoading && rows.length === 0 && (
@@ -276,34 +332,48 @@ function WhatsAppConnections({
       )}
       {rows.map((row: any) => {
         const meta = WA_TYPES[row.integration_type];
-        const role =
-          row.settings?.carmen_role ??
-          (row.integration_type === "manus_wa" ? "primary" : "secondary");
+        const role = resolveCarmenConnectionRole(row, {
+          tenantHasActiveManus,
+        });
         return (
-          <button
+          <div
             key={row.id}
-            type="button"
-            onClick={() =>
-              onNavigate(`settings/whatsapp/${row.integration_type}`)
-            }
-            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-right hover:bg-muted"
+            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
           >
-            <span className="min-w-0">
+            <button
+              type="button"
+              onClick={() =>
+                onNavigate(`settings/whatsapp/${row.integration_type}`)
+              }
+              className="min-w-0 flex-1 text-right hover:underline"
+            >
               <span className="block truncate font-medium">
                 {row.display_name || meta?.label}
               </span>
               <span className="block text-xs text-muted-foreground">
-                {meta?.label}
+                {meta?.label} · {ROLE_HINTS[role]}
               </span>
-            </span>
+            </button>
             <span className="flex items-center gap-2">
               {!row.is_active && <Badge variant="secondary">כבוי</Badge>}
-              <Badge variant={role === "primary" ? "default" : "outline"}>
-                {role === "primary" ? "ראשי" : "משני"}
-              </Badge>
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={role}
+                onValueChange={(v) =>
+                  setRole.mutate({ row, role: v as CarmenConnectionRole })
+                }
+                disabled={setRole.isPending}
+              >
+                <SelectTrigger className="h-8 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[120]">
+                  <SelectItem value="primary">ראשי</SelectItem>
+                  <SelectItem value="secondary">משני</SelectItem>
+                  <SelectItem value="none">כבוי לכרמן</SelectItem>
+                </SelectContent>
+              </Select>
             </span>
-          </button>
+          </div>
         );
       })}
       <div className="flex flex-wrap gap-2 pt-1">

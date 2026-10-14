@@ -1,4 +1,5 @@
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
+import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import {
@@ -777,8 +778,7 @@ async function resolveCarmenSenderForTenant(
         (b.configuration?.carmen_scope_mode || "all") === "all" ? 0 : 1;
       return aAll - bAll;
     });
-  const carmenStep = rankedSteps[0];
-  if (!carmenStep) {
+  if (!rankedSteps.length) {
     return {
       carmenStep: null,
       integration: null,
@@ -786,6 +786,35 @@ async function resolveCarmenSenderForTenant(
     };
   }
 
+  // System notifications only ever go out from a PRIMARY Carmen connection.
+  // A Carmen flow pinned to a secondary connection (e.g. the owner's personal
+  // phone) is skipped, never used as the sender.
+  let fallbackReason = "Carmen integration missing";
+  for (const carmenStep of rankedSteps) {
+    const integration = await resolveCarmenStepSendIntegration(
+      supabase,
+      tenantId,
+      carmenStep,
+    );
+    if (!integration?.user_id) continue;
+    if (!(await isPrimaryCarmenIntegration(supabase, tenantId, integration))) {
+      fallbackReason = "only secondary Carmen connections";
+      continue;
+    }
+    return { carmenStep, integration };
+  }
+  return {
+    carmenStep: rankedSteps[0],
+    integration: null,
+    reason: fallbackReason,
+  };
+}
+
+async function resolveCarmenStepSendIntegration(
+  supabase: any,
+  tenantId: string,
+  carmenStep: any,
+): Promise<any | null> {
   const { data: actionStep, error: actionStepError } = await supabase
     .from("automation_flow_steps")
     .select("configuration")
@@ -809,7 +838,7 @@ async function resolveCarmenSenderForTenant(
 
   let integrationQuery = supabase
     .from("tenant_integrations")
-    .select("id, user_id")
+    .select("id, user_id, integration_type, settings")
     .eq("tenant_id", tenantId)
     .eq("is_active", true);
   integrationQuery = integrationId
@@ -826,17 +855,33 @@ async function resolveCarmenSenderForTenant(
   const { data: integrations, error: integrationError } =
     await integrationQuery;
   if (integrationError) throw integrationError;
+  return integrations?.[0] ?? null;
+}
 
-  const integration = integrations?.[0];
-  if (!integration?.user_id) {
-    return {
-      carmenStep,
-      integration: null,
-      reason: "Carmen integration missing",
-    };
-  }
-
-  return { carmenStep, integration };
+async function isPrimaryCarmenIntegration(
+  supabase: any,
+  tenantId: string,
+  integration: { integration_type?: string | null; settings?: any },
+): Promise<boolean> {
+  const { data: manus, error } = await supabase
+    .from("tenant_integrations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("integration_type", "manus_wa")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  const type =
+    integration.integration_type === "manuswa"
+      ? "manus_wa"
+      : integration.integration_type;
+  return (
+    resolveCarmenConnectionRole(
+      { integration_type: type, settings: integration.settings },
+      { tenantHasActiveManus: Boolean(manus?.id) },
+    ) === "primary"
+  );
 }
 
 async function sendTaskNotificationFromTenantCarmen(
@@ -1354,47 +1399,22 @@ async function sendClientFollowUpFromTenantCarmen(
     };
   }
 
-  const { data: actionStep, error: actionStepError } = await supabase
-    .from("automation_flow_steps")
-    .select("configuration")
-    .eq("automation_id", carmenStep.automation_id)
-    .eq("step_type", "action")
-    .in("action_type", [
-      "send_manus_message",
-      "send_greenapi_message",
-      "send_green_api_message",
-    ])
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (actionStepError) throw actionStepError;
-  const integrationId =
-    actionStep?.configuration?.green_api_integration_id ||
-    actionStep?.configuration?.integration_id ||
-    carmenStep.configuration?.carmen_integration_id ||
-    null;
-
-  let integrationQuery = supabase
-    .from("tenant_integrations")
-    .select("id, user_id")
-    .eq("tenant_id", client.tenant_id)
-    .eq("is_active", true);
-  integrationQuery = integrationId
-    ? integrationQuery.eq("id", integrationId)
-    : integrationQuery
-        .in("integration_type", [
-          "green_api",
-          "greenapi",
-          "manus_wa",
-          "manuswa",
-        ])
-        .order("created_at", { ascending: false })
-        .limit(1);
-  const { data: integrations, error: integrationError } =
-    await integrationQuery;
-  if (integrationError) throw integrationError;
-  const integration = integrations?.[0];
+  const integration = await resolveCarmenStepSendIntegration(
+    supabase,
+    client.tenant_id,
+    carmenStep,
+  );
   if (!integration?.user_id) return { handled: false };
+  if (
+    !(await isPrimaryCarmenIntegration(supabase, client.tenant_id, integration))
+  ) {
+    return {
+      handled: true,
+      sent: false,
+      reason: "only secondary Carmen connections",
+      tenant_id: client.tenant_id,
+    };
+  }
 
   const message = formatClientFollowUpMessage(
     notificationType,

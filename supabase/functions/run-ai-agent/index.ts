@@ -5,6 +5,10 @@
 // ai_agents/command_text contract — the WhatsApp webhooks depend on it. Small, additive diffs only.
 // broken rewrite querying a non-existent `agents` table → every agent call 404'd). This is the
 // known-good monolithic version from main; CI redeploys it via the Supabase CLI. (re-deploy: a stray placeholder bundle had overwritten v40).
+import {
+  automationInstructionsBlock,
+  sanitizeCarmenInstructions,
+} from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
@@ -14396,6 +14400,19 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
+    // Per-automation instructions for this WhatsApp conversation (set on the
+    // Carmen automation; stripped in Deno.serve for non-service callers).
+    if (
+      surface === "whatsapp" &&
+      bodyJson.carmen_automation &&
+      typeof bodyJson.carmen_automation === "object"
+    ) {
+      systemPrompt += automationInstructionsBlock(
+        sanitizeCarmenInstructions(
+          bodyJson.carmen_automation.carmen_instructions,
+        ),
+      );
+    }
     const promptAddon =
       typeof bodyJson.system_prompt_addon === "string"
         ? bodyJson.system_prompt_addon.trim()
@@ -15851,7 +15868,11 @@ Deno.serve(async (req) => {
   // Never trust a browser-supplied user id. Bind interactive requests to the
   // verified JWT identity; service-to-service calls keep their explicit user.
   if (auth.kind === "user") bodyJson.user_id = auth.userId;
-  if (auth.kind !== "service") delete bodyJson.model_override;
+  if (auth.kind !== "service") {
+    delete bodyJson.model_override;
+    // Per-automation Carmen instructions are admin config: service-to-service only.
+    delete bodyJson.carmen_automation;
+  }
 
   if (bodyJson.direct_tool) {
     if (auth.kind !== "service") {

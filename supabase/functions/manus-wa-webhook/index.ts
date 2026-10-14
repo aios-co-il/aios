@@ -2,6 +2,7 @@
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
 // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
+import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   findCarmenSessionAutomation,
@@ -1763,6 +1764,10 @@ Deno.serve(async (req) => {
           isManualOutgoing: isOutgoingFromPhone,
           isGroup: true,
           sourceChannel: "own_instance",
+          connectionRole: resolveCarmenConnectionRole(
+            { integration_type: "manus_wa", settings: integ.settings },
+            { tenantHasActiveManus: true },
+          ),
           isVoiceMessage: messageIsVoice(
             payload,
             msgContainer,
@@ -1993,6 +1998,10 @@ Deno.serve(async (req) => {
         isManualOutgoing: isOutgoingFromPhone,
         isGroup: false,
         sourceChannel: "own_instance",
+        connectionRole: resolveCarmenConnectionRole(
+          { integration_type: "manus_wa", settings: integ.settings },
+          { tenantHasActiveManus: true },
+        ),
         isVoiceMessage: messageIsVoice(payload, msgContainer, resolvedMsg),
         sendVoice: makeVoiceSender(tenantId),
         sendMessage: async (_chatId: string, message: string) => {

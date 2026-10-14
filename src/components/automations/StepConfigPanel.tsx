@@ -3602,6 +3602,26 @@ function CarmenSessionConfig({
         </p>
       </div>
 
+      {/* ── הנחיות לשיחה ── */}
+      <div className="space-y-2">
+        <Label className="text-right block font-semibold">
+          הנחיות לשיחות של האוטומציה הזו
+        </Label>
+        <Textarea
+          value={configuration?.carmen_instructions || ""}
+          onChange={(e) =>
+            onConfigChange("carmen_instructions", e.target.value.slice(0, 2000))
+          }
+          placeholder="למשל: בטלפון הזה עני לי רק על לידים ודוחות, בקצרה, ואל תבצעי פעולות בלי אישור."
+          className="text-right min-h-[90px]"
+          dir="rtl"
+        />
+        <p className="text-xs text-muted-foreground text-right">
+          נוספות להנחיות של כרמן רק בשיחות שנפתחו דרך האוטומציה הזו (עד 2000
+          תווים). כללי האישור והבטיחות לא משתנים.
+        </p>
+      </div>
+
       {/* ── מילת סיום ── */}
       <div className="space-y-2">
         <Label className="text-right block font-semibold">מילת סיום שיחה</Label>
