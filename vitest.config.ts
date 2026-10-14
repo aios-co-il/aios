@@ -9,7 +9,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   test: {
-    environment: "jsdom",
+    environment: "happy-dom",
     setupFiles: ["./src/test/setup.ts"],
     // Keep node:test suites on their existing runner.
     include: [
