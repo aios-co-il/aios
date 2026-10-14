@@ -31,6 +31,7 @@ on:
       - 'supabase/ops/merge_assigned_campaigner_staging.sql'
       - 'supabase/ops/apply_lead_status_updates_staging.sql'
       - 'supabase/ops/apply_woocommerce_report_sync_staging.sql'
+      - 'supabase/ops/apply_woocommerce_campaign_cadence_staging.sql'
 
 jobs:
   apply:
