@@ -15567,6 +15567,14 @@ export type Database = {
         };
         Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
       };
+      queue_video_render: {
+        Args: {
+          p_aspect?: string;
+          p_item_id: string;
+          p_stage_id?: string;
+        };
+        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
+      };
       queue_video_sound: {
         Args: {
           p_estimate?: Json;

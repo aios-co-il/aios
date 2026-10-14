@@ -4,6 +4,7 @@ import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
 import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
+import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
 
 const HANDLERS = {
@@ -36,6 +37,9 @@ const HANDLERS = {
         ...ctx,
         apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
       }),
+  },
+  render: {
+    run: (ctx) => renderFilm(ctx),
   },
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
@@ -119,7 +123,7 @@ async function processOne() {
     const message = error instanceof Error ? error.message : String(error);
     const retry =
       run.attempts < MAX_ATTEMPTS &&
-      !/limit is|is required|No OpenAI key/.test(message);
+      !/limit is|is required|No OpenAI key|no approved clips/.test(message);
     console.error(
       `[worker] ${run.id} failed (${retry ? "will retry" : "final"}): ${message}`,
     );

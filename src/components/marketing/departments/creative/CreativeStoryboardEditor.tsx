@@ -104,6 +104,13 @@ interface Props {
   onSoundEngineChange?: (engine: SoundEngine) => void;
   onCreateVoice?: () => void;
   onCreateMusic?: () => void;
+  /** Assemble the approved clips into one film. */
+  onComposeFilm?: () => void;
+  film?: {
+    status: string;
+    url?: string | null;
+    error?: string | null;
+  };
   /** Reference video: upload starts an analysis; when done the proposal can be opened. */
   reference?: {
     status:
@@ -334,6 +341,8 @@ export function CreativeStoryboardEditor({
   onSoundEngineChange,
   onCreateVoice,
   onCreateMusic,
+  onComposeFilm,
+  film,
   reference,
   clips,
   generating,
@@ -673,6 +682,29 @@ export function CreativeStoryboardEditor({
           )}
         </div>
         <div className="flex gap-2">
+          {onComposeFilm && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={
+                !frames.some((frame) => frame.status === "clip_approved") ||
+                film?.status === "queued" ||
+                film?.status === "running"
+              }
+              title="מרכיב את הקליפים המאושרים לסרט אחד. ההרכבה מקומית ולא עולה כסף"
+              onClick={onComposeFilm}
+            >
+              {film?.status === "queued" || film?.status === "running" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Film className="h-3.5 w-3.5" />
+              )}
+              {film?.status === "queued" || film?.status === "running"
+                ? "מרכיב סרט…"
+                : "הרכב סרט"}
+            </Button>
+          )}
           {clips && (
             <Button
               size="sm"
@@ -738,6 +770,21 @@ export function CreativeStoryboardEditor({
           </Button>
         </div>
       </div>
+
+      {film?.url && (
+        <div className="border-b px-4 py-3" dir="rtl">
+          <p className="mb-2 text-xs text-muted-foreground">הסרט המורכב</p>
+          <video src={film.url} controls className="max-h-64 rounded-md" />
+        </div>
+      )}
+      {film?.status === "failed" && (
+        <p
+          className="border-b px-4 py-2 text-xs text-destructive"
+          title={film.error ?? ""}
+        >
+          הרכבת הסרט נכשלה
+        </p>
+      )}
 
       {frames.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-8 text-center text-muted-foreground">

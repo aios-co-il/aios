@@ -2,15 +2,15 @@
 
 Goal: Carmen produces a complete promo video inside AIOS (storyboard → stills → clips → voice and music → rendered MP4), tied to a client. Work ships in seven phases; each ends with a PR to `develop`, a Staging check and David's approval before the next one starts.
 
-| Phase | Scope                                                                                          | Status      |
-| ----- | ---------------------------------------------------------------------------------------------- | ----------- |
-| 1     | Data foundation: `marketing_video_scenes`, run tracking columns, buckets, RLS, storyboard move | This PR     |
-| 2     | Storyboard strip editor, versions, prompt edits, approvals, Nano Banana Pro                    | This PR     |
-| 3     | Reference video analysis (worker)                                                              | This PR     |
-| 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | This PR     |
-| 5     | Scene engine choice (free preview, Kling, ElevenLabs, Higgsfield) and ElevenLabs sound         | This PR     |
-| 6     | Composition and render: `packages/video-templates`, Remotion player + worker                   | Not started |
-| 7     | Carmen tools and the "במאית וידאו" skin                                                        | Not started |
+| Phase | Scope                                                                                          | Status  |
+| ----- | ---------------------------------------------------------------------------------------------- | ------- |
+| 1     | Data foundation: `marketing_video_scenes`, run tracking columns, buckets, RLS, storyboard move | This PR |
+| 2     | Storyboard strip editor, versions, prompt edits, approvals, Nano Banana Pro                    | This PR |
+| 3     | Reference video analysis (worker)                                                              | This PR |
+| 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | This PR |
+| 5     | Scene engine choice (free preview, Kling, ElevenLabs, Higgsfield) and ElevenLabs sound         | This PR |
+| 6     | Composition and render: shared timeline, ffmpeg assembly, Remotion `PromoFilm`                 | This PR |
+| 7     | Carmen tools and the "במאית וידאו" skin                                                        | This PR |
 
 ## Phase 1 data model
 
@@ -71,12 +71,26 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Migration `20261014160000_video_studio_engines.sql` records the chosen engine on each clip run and adds `queue_video_sound`. Apply it on Staging before trying the new buttons. Production waits for `מאשר לפרודקשן`.
 - The worker must be running. Until then voice, music and paid clips stay queued. The rates in the dialog are planning estimates until the first paid run.
 
+## Phase 6 film assembly
+
+- "הרכב סרט" is enabled when at least one scene is `clip_approved`. The confirm dialog says the assembly is local and costs $0.
+- Migration `20261014170000_video_studio_render.sql` adds `queue_video_render`. It stores the approved clips (and their voice paths) plus the latest `music` asset on the run, so the worker does not trust a path sent from the browser. A render already queued or running is left as-is. Apply it on Staging before using the button. Production waits for `מאשר לפרודקשן`.
+- The same migration drops the original `marketing_assets.type` check (`copy`, `image`, `video`, `brief`, `data`). The app already stores stills, clips, voice, music, renders, reference videos, storyboards and SEO plans, and existing rows are left in place.
+- `render-worker` claims `kind = 'render'` and assembles an MP4 with ffmpeg from `buildTimeline`. The file is `creative-video/<tenant>/<client>/<item>/render/film-v<n>.mp4`, saved as a `render` asset with `meta.provider = compose`. The screen polls the run every 4 s and plays the signed MP4.
+- `render-worker/compose/PromoFilm.tsx` is the Remotion composition for the same timeline (order, timing, Hebrew titles, voice, music at volume 0.18). It is not executed yet: the Droplet image has ffmpeg and no Chrome. When `@remotion/renderer` and Chrome are installed, that composition is the edit. The ffmpeg file is not a Remotion render.
+
+## Phase 7 video director
+
+- Carmen tools `get_video_storyboard` and `render_video_film` live in `supabase/functions/_shared/video-director-tools.ts` and are registered on `run-ai-agent` without rewriting it.
+- Migration `20261014180000_video_director_skin.sql` seeds the global skin `video_director` ("במאית וידאו"). She can read a storyboard and queue a compose render. She does not start a paid scene or sound engine, does not publish, and does not mix WhatsApp connections. Copy and creative skins can hand off to her.
+- Edge functions reach Staging only after merge to `develop`. This branch is for Claude's review before publish.
+
 ## Provider checks (before writing provider code)
 
 Checked against current public docs on 2026-10-13; outbound access to the vendor docs sites is blocked from the agent container, so these come from search results and should be confirmed with a live API call when the phase starts.
 
 1. **ElevenLabs image/video API** — ElevenLabs ships an async Image & Video API (Flows, `POST /v1/flows/video`, pending/generating/completed/failed with webhooks; SDK v2.64.0). Kling 3.0 is listed in the Image & Video app, but the docs mark which models are API-callable and whether Kling 3.0 has an API `model_id` was **not confirmed**. Phase 4 starts with a probe of the API model list; if Kling is app-only, the adapter targets the official Kling API. The adapter interface (`submit / poll / estimate`) keeps this swappable.
 2. **Model IDs** — TTS: `eleven_v4` (faster sibling `eleven_v4_turbo`). Music v2.5: `music_v2_5`.
-3. **Remotion licence** — free for one person and for a company of up to 3 people, including commercial and automated use. A company of 4 or more pays for Automators: $0.01 per render, $100 per month minimum. Phase 6 (assembling the finished film in Remotion) has not started. A single operator can use Remotion without buying a licence.
+3. **Remotion licence** — free for one person and for a company of up to 3 people, including commercial and automated use. A company of 4 or more pays for Automators: $0.01 per render, $100 per month minimum. A single operator can use Remotion without buying a licence. Phase 6 ships the `PromoFilm` composition and assembles the MP4 with ffmpeg until Chrome is on the worker.
 
 Sources: [ElevenLabs Image & Video](https://elevenlabs.io/docs/overview/capabilities/image-video), [ElevenLabs Create Video Generation](https://elevenlabs.io/docs/api-reference/flows/video/create), [Kling 3.0 with ElevenLabs](https://elevenlabs.io/video/kling-30), [ElevenLabs models](https://elevenlabs.io/docs/overview/models), [Eleven v4](https://elevenlabs.io/v4), [Remotion pricing](https://www.remotion.dev/docs/license/pricing), [Remotion LICENSE.md](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
