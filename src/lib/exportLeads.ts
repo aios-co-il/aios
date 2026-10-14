@@ -6,7 +6,11 @@ import {
   type LeadStatusLike,
 } from "./leadFields.ts";
 import { leadSearchOrFilter } from "./leadPhone.ts";
-import { normalizeLeadStageIds } from "./leadStageFilter.ts";
+import {
+  applyLeadStageQuery,
+  applyResponseStatusFilter,
+  type LeadValueFilterMode,
+} from "./leadStageFilter.ts";
 
 export const LEAD_EXPORT_PAGE_SIZE = 1000;
 const RELATED_IN_CHUNK = 200;
@@ -22,7 +26,11 @@ export type LeadExportFilters = {
   filterStageIds?: string[];
   /** Legacy single stage. Used when filterStageIds is absent. */
   filterStage?: string;
+  stageFilterMode?: LeadValueFilterMode;
+  /** Known pipeline stage ids, so hide can query the complement. */
+  allStageIds?: string[];
   filterResponseStatus?: string[];
+  responseStatusFilterMode?: LeadValueFilterMode;
   filterTagIds?: string[];
   filterFollowUpToday?: boolean;
   startDate?: Date | string | null;
@@ -256,12 +264,13 @@ function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
     query = query.is("archived_at", null);
   }
 
-  const stageIds = normalizeLeadStageIds(
-    filters.filterStageIds ?? filters.filterStage,
+  query = applyLeadStageQuery(
+    query,
+    filters.filterStageIds ??
+      (filters.filterStage ? [filters.filterStage] : []),
+    filters.stageFilterMode,
+    filters.allStageIds,
   );
-  if (stageIds.length > 0) {
-    query = query.in("status", stageIds);
-  }
 
   if (filters.viewAsSalesPersonId) {
     query = query.eq("sales_person_id", filters.viewAsSalesPersonId);
@@ -279,16 +288,11 @@ function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
     }
   }
 
-  if (filters.filterResponseStatus && filters.filterResponseStatus.length > 0) {
-    if (
-      filters.filterResponseStatus.includes("none") &&
-      filters.filterResponseStatus.length === 1
-    ) {
-      query = query.is("response_status", null);
-    } else if (!filters.filterResponseStatus.includes("none")) {
-      query = query.in("response_status", filters.filterResponseStatus);
-    }
-  }
+  query = applyResponseStatusFilter(
+    query,
+    filters.filterResponseStatus || [],
+    filters.responseStatusFilterMode,
+  );
 
   if (filters.filterFollowUpToday) {
     const today = new Date().toISOString().split("T")[0];
