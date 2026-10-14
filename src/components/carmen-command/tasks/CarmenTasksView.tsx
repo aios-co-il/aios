@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   Bot,
@@ -155,6 +155,34 @@ export function CarmenTasksView({
   });
 
   const showHeartbeat = filter === "all" || filter === "system";
+  const { data: maxParallel = 3 } = useQuery({
+    queryKey: ["carmen-max-parallel", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await db
+        .from("tenant_heartbeat_settings")
+        .select("max_concurrent_tasks")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      return Number(data?.max_concurrent_tasks) || 3;
+    },
+  });
+  const setMaxParallel = useMutation({
+    mutationFn: async (n: number) => {
+      const { error: e } = await db
+        .from("tenant_heartbeat_settings")
+        .upsert(
+          { tenant_id: tenantId, max_concurrent_tasks: n },
+          { onConflict: "tenant_id" },
+        );
+      if (e) throw e;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["carmen-max-parallel", tenantId] });
+      toast.success("עודכן");
+    },
+    onError: (e: any) => toast.error(e?.message ?? String(e)),
+  });
 
   return (
     <div className="space-y-3" dir="rtl">
@@ -294,6 +322,24 @@ export function CarmenTasksView({
           );
         })}
       </ul>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>עד</span>
+        <select
+          value={maxParallel}
+          onChange={(e) => setMaxParallel.mutate(Number(e.target.value))}
+          disabled={setMaxParallel.isPending}
+          className="rounded border bg-background px-1 py-0.5"
+          aria-label="מקסימום משימות במקביל"
+        >
+          {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <span>משימות רצות במקביל · {counts.running ?? 0} רצות עכשיו</span>
+      </div>
 
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <Switch checked={showFinished} onCheckedChange={setShowFinished} />

@@ -206,6 +206,7 @@ export function resolveModelId(engine: string | null | undefined): string {
   const byAlias = MODEL_CATALOG.find((m) => m.alias === engine);
   if (byAlias) return byAlias.id;
   // Manus is routed separately (not via resolveLLMTarget / OpenAI-compatible)
+  const lower = engine.toLowerCase();
   if (lower === "manus/manus-1" || lower === "manus-1") return "manus/manus-1";
   // Legacy mappings
   const legacy: Record<string, string> = {

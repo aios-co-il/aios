@@ -856,22 +856,16 @@ export async function acquireGoalLock(
 ): Promise<boolean> {
   const until = new Date(Date.now() + ttlSeconds * 1000).toISOString();
   const now = new Date().toISOString();
-  const { data } = await supabase
+  // Single conditional UPDATE: take the lock only if it is free, expired or
+  // already ours — two workers can no longer both "win" a read-then-write.
+  const { data, error } = await supabase
     .from("goals")
-    .select("id, lock_until, lock_holder")
+    .update({ lock_until: until, lock_holder: holder })
     .eq("id", goalId)
-    .maybeSingle();
-  if (!data) return false;
-  if (data.lock_until && data.lock_until > now && data.lock_holder !== holder)
-    return false;
-  const { error } = await supabase
-    .from("goals")
-    .update({
-      lock_until: until,
-      lock_holder: holder,
-    })
-    .eq("id", goalId);
-  return !error;
+    .or(`lock_until.is.null,lock_until.lte.${now},lock_holder.eq."${holder}"`)
+    .select("id");
+  if (error) return false;
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
 export async function releaseGoalLock(

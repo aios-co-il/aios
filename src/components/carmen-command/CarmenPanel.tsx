@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -67,6 +67,7 @@ import {
   type CarmenConnectionRole,
 } from "../../../supabase/functions/_shared/carmen-connection-role.ts";
 import { CarmenAutomationsList } from "./CarmenAutomationsList";
+import { SecondaryConnectionAutomationForm } from "./SecondaryConnectionAutomationForm";
 import { CarmenSubAgents, isCarmenName } from "./CarmenSubAgents";
 import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
 import { AgentTaskEditor } from "./tasks/AgentTaskEditor";
@@ -278,6 +279,7 @@ function WhatsAppConnections({
     },
   });
   const qc = useQueryClient();
+  const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const tenantHasActiveManus = rows.some(
     (r: any) => r.integration_type === "manus_wa" && r.is_active,
   );
@@ -356,6 +358,17 @@ function WhatsAppConnections({
             </button>
             <span className="flex items-center gap-2">
               {!row.is_active && <Badge variant="secondary">כבוי</Badge>}
+              {role === "secondary" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setCreatingFor(creatingFor === row.id ? null : row.id)
+                  }
+                >
+                  + אוטומציה
+                </Button>
+              )}
               <Select
                 value={role}
                 onValueChange={(v) =>
@@ -373,6 +386,15 @@ function WhatsAppConnections({
                 </SelectContent>
               </Select>
             </span>
+            {creatingFor === row.id && (
+              <div className="w-full">
+                <SecondaryConnectionAutomationForm
+                  tenantId={tenantId}
+                  integration={row}
+                  onDone={() => setCreatingFor(null)}
+                />
+              </div>
+            )}
           </div>
         );
       })}

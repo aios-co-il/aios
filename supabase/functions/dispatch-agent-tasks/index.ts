@@ -33,12 +33,46 @@ Deno.serve(async (req) => {
   const dispatched: any[] = [];
   const errors: any[] = [];
 
+  // Per-tenant cap on agent tasks running at the same time
+  // (tenant_heartbeat_settings.max_concurrent_tasks, default 3). Tasks left
+  // "running" for over 30 minutes are treated as stuck and don't count.
+  const slots = new Map<string, number>();
+  const stuckCutoffIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const takeSlot = async (tenantId: string | null): Promise<boolean> => {
+    if (!tenantId) return true;
+    if (!slots.has(tenantId)) {
+      const [{ data: settings }, { count }] = await Promise.all([
+        supabase
+          .from("tenant_heartbeat_settings")
+          .select("max_concurrent_tasks")
+          .eq("tenant_id", tenantId)
+          .maybeSingle(),
+        supabase
+          .from("agent_tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("status", "running")
+          .gte("last_run", stuckCutoffIso),
+      ]);
+      const limit = Math.max(
+        1,
+        Number((settings as any)?.max_concurrent_tasks) || 3,
+      );
+      slots.set(tenantId, limit - (count ?? 0));
+    }
+    const left = slots.get(tenantId)!;
+    if (left <= 0) return false;
+    slots.set(tenantId, left - 1);
+    return true;
+  };
+  const deferred: string[] = [];
+
   try {
     // 1. One-shot tasks: scheduled_at in the past, never ran, still pending.
     const { data: onceDue, error: onceErr } = await supabase
       .from("agent_tasks")
       .select(
-        "id, title, scheduled_at, schedule_type, last_run, status, enabled",
+        "id, tenant_id, title, scheduled_at, schedule_type, last_run, status, enabled",
       )
       .eq("status", "pending")
       .eq("schedule_type", "once")
@@ -53,7 +87,7 @@ Deno.serve(async (req) => {
     // 2. Daily recurring: enabled, last_run null or > 24h ago.
     const { data: dailyDue } = await supabase
       .from("agent_tasks")
-      .select("id, title, schedule_type, last_run, status, enabled")
+      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
       .eq("schedule_type", "daily")
       .eq("enabled", true)
       .in("status", ["pending", "completed"])
@@ -63,7 +97,7 @@ Deno.serve(async (req) => {
     // 3. Weekly recurring.
     const { data: weeklyDue } = await supabase
       .from("agent_tasks")
-      .select("id, title, schedule_type, last_run, status, enabled")
+      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
       .eq("schedule_type", "weekly")
       .eq("enabled", true)
       .in("status", ["pending", "completed"])
@@ -84,7 +118,7 @@ Deno.serve(async (req) => {
     const { data: cronDue, error: cronErr } = await supabase
       .from("agent_tasks")
       .select(
-        "id, title, schedule_type, cron_expression, timezone, next_run, status, result",
+        "id, tenant_id, title, schedule_type, cron_expression, timezone, next_run, status, result",
       )
       .eq("schedule_type", "recurring")
       .eq("enabled", true)
@@ -122,6 +156,10 @@ Deno.serve(async (req) => {
           .eq("id", task.id)
           .eq("next_run", task.next_run);
         skipped.push({ id: task.id, missed: task.next_run });
+        continue;
+      }
+      if (!(await takeSlot(task.tenant_id))) {
+        deferred.push(task.id);
         continue;
       }
       // Claim: guard on the next_run we read so overlapping ticks can't
@@ -171,6 +209,10 @@ Deno.serve(async (req) => {
     }
 
     for (const task of allTasks) {
+      if (!(await takeSlot((task as any).tenant_id))) {
+        deferred.push(task.id);
+        continue;
+      }
       // Atomically claim by stamping last_run and flipping status to running.
       // Use last_run guard to avoid double-firing if cron overlaps.
       const claimQuery = supabase
@@ -225,6 +267,7 @@ Deno.serve(async (req) => {
         ok: true,
         count: dispatched.length,
         dispatched,
+        deferred,
         errors,
       }),
       {
