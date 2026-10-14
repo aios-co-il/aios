@@ -65,6 +65,13 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
     category: "sync",
     icon: "🎯",
   },
+  "sync-woocommerce-twice-daily": {
+    label: "סנכרון WooCommerce",
+    description:
+      "מסנכרן הזמנות, מוצרים ולקוחות פעמיים ביום, לפני רענון הדוחות.",
+    category: "sync",
+    icon: "🛍️",
+  },
   "check-overdue-tasks-daily": {
     label: "בדיקת משימות באיחור",
     description: "סורק משימות שעבר זמנן ושולח התראות (05:30).",
@@ -90,6 +97,7 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
  * slot finishes before the pulse refresh at 04:00 and 13:00 UTC.
  */
 export const REPORT_SYNC_SCHEDULES = [
+  { jobname: "sync-woocommerce-twice-daily", cron: "30 2,11 * * *" },
   { jobname: "daily-google-ads-sync", cron: "40 2,11 * * *" },
   { jobname: "sync-facebook-insights-twice-daily", cron: "45 2,11 * * *" },
   { jobname: "cron-sync-facebook-ecommerce-daily", cron: "50 2,11 * * *" },
