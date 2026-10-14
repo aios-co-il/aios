@@ -27,7 +27,7 @@ const corsHeaders = {
 // Normalize phone for comparison
 function normalizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
-  return phone.replace(/[\s\-\(\)\.+]/g, "").replace(/^0/, "972");
+  return phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
 }
 
 serve(async (req) => {

@@ -319,7 +319,7 @@ function findPosition(text: string, name: string): number | null {
   const lines = text.split("\n");
   let listIndex = 0;
   for (const line of lines) {
-    if (/^\d+[\.\)]/.test(line.trim()) || /^[-•*]/.test(line.trim())) {
+    if (/^\d+[.)]/.test(line.trim()) || /^[-•*]/.test(line.trim())) {
       listIndex++;
       if (line.toLowerCase().includes(name.toLowerCase())) {
         return listIndex;
@@ -330,7 +330,7 @@ function findPosition(text: string, name: string): number | null {
 }
 
 function extractUrls(text: string): string[] {
-  const urlRegex = /https?:\/\/[^\s\)]+/g;
+  const urlRegex = /https?:\/\/[^\s)]+/g;
   const matches = text.match(urlRegex);
   return matches ? [...new Set(matches)] : [];
 }

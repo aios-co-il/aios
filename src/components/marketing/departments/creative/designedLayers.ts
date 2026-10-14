@@ -387,7 +387,7 @@ export const isInternalCopyLine = (line: string): boolean => {
   }
   if (/^וריאציה\s*\d+/i.test(cleaned) || /^variation\s*\d+/i.test(cleaned))
     return true;
-  if (/\b(AIDA|PAS|BAB|4Ps|4PS)\b/.test(cleaned) && /[—–\-]/.test(cleaned))
+  if (/\b(AIDA|PAS|BAB|4Ps|4PS)\b/.test(cleaned) && /[—–-]/.test(cleaned))
     return true;
   if (/^(AIDA|PAS|BAB|4Ps|4PS)$/i.test(cleaned)) return true;
   return false;

@@ -106,7 +106,7 @@ export function AIAnalysisDialog({
     }
 
     const dates = eventDates
-      .split(/[,،\/\s]+/)
+      .split(/[,،/\s]+/)
       .map((d) => d.trim())
       .filter(Boolean);
     if (dates.length === 0) {
