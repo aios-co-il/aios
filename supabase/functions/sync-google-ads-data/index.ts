@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
           now.getDate() - 1,
         );
         break;
-      case "this_week":
+      case "this_week": {
         const dayOfWeek = now.getDay();
         startDate = new Date(
           now.getFullYear(),
@@ -434,6 +434,7 @@ Deno.serve(async (req) => {
           now.getDate() - dayOfWeek,
         );
         break;
+      }
       case "last_week": {
         const dow = now.getDay();
         const startOfThisWeek = new Date(
