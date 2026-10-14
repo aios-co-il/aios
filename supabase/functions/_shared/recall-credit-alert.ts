@@ -1,9 +1,12 @@
 // WhatsApp + intel-feed alerts when Recall meeting-bot credit runs out.
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   formatRecallBotHours,
   recallBillingDashboardUrl,
   recallCreditErrorMessage,
 } from "./recall.ts";
+
+type RecallAlertClient = Pick<SupabaseClient, "from" | "rpc">;
 
 export const DAVID_TENANT = "6ad8f321-25db-4a04-8e44-e57a7c8961b2";
 const THROTTLE_HOURS = 6;
@@ -25,7 +28,7 @@ export function recallBudgetWhatsApp(
 }
 
 export async function notifyRecallCreditEmpty(
-  supabase: { from: Function; rpc: Function },
+  supabase: RecallAlertClient,
   opts?: { throttleHours?: number },
 ): Promise<boolean> {
   const throttleHours = opts?.throttleHours ?? THROTTLE_HOURS;
@@ -56,10 +59,9 @@ export async function notifyRecallCreditEmpty(
   return true;
 }
 
-export async function notifyRecallCreditRecovered(supabase: {
-  from: Function;
-  rpc: Function;
-}): Promise<void> {
+export async function notifyRecallCreditRecovered(
+  supabase: RecallAlertClient,
+): Promise<void> {
   await supabase.from("integration_alerts_log").insert({
     tenant_id: DAVID_TENANT,
     provider: "recall",
@@ -77,7 +79,7 @@ export async function notifyRecallCreditRecovered(supabase: {
 }
 
 export async function notifyRecallBudget(
-  supabase: { from: Function; rpc: Function },
+  supabase: RecallAlertClient,
   alertType: "budget_80" | "budget_95",
   usageSeconds: number,
   budgetHours: number,

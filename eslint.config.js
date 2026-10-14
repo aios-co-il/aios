@@ -29,7 +29,6 @@ export default tseslint.config(
       "no-empty": "warn", // AIO-53
       "no-case-declarations": "warn", // AIO-56
       "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
-      "@typescript-eslint/no-unsafe-function-type": "warn", // AIO-58
       "@typescript-eslint/no-unused-expressions": "warn", // AIO-59
       "react-hooks/rules-of-hooks": "warn", // AIO-61
       "@typescript-eslint/no-require-imports": "warn", // AIO-63
