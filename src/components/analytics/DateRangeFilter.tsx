@@ -77,9 +77,10 @@ function getDateRangeFromPreset(preset: DatePreset): DateRange {
   switch (preset) {
     case "today":
       return { start: startOfDay(now), end: endOfDay(now) };
-    case "yesterday":
+    case "yesterday": {
       const yesterday = subDays(now, 1);
       return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
+    }
     case "this_week":
       return {
         start: startOfWeek(now, { weekStartsOn: 0 }),
@@ -93,9 +94,10 @@ function getDateRangeFromPreset(preset: DatePreset): DateRange {
       return { start: startOfDay(subDays(now, 29)), end: endOfDay(now) };
     case "this_month":
       return { start: startOfMonth(now), end: endOfDay(now) };
-    case "last_month":
+    case "last_month": {
       const lastMonth = subMonths(now, 1);
       return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+    }
     case "3_months":
       return { start: startOfDay(subDays(now, 89)), end: endOfDay(now) };
     case "3_months_calendar":

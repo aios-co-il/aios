@@ -401,7 +401,7 @@ Deno.serve(async (req) => {
           case "source":
             leadData.source = sourceMappings[strValue.toLowerCase()] || "other";
             break;
-          case "status":
+          case "status": {
             // Map status to response_status using dynamic tenant statuses
             const matchedStatus = statusMappings[strValue.toLowerCase().trim()];
             if (matchedStatus) {
@@ -409,24 +409,28 @@ Deno.serve(async (req) => {
             }
             // Don't set a default - leave as null if not matched
             break;
+          }
           case "monthly_budget":
           case "three_month_budget":
-          case "estimated_deal_value":
+          case "estimated_deal_value": {
             const num = parseFloat(strValue.replace(/[^\d.-]/g, ""));
             if (!isNaN(num) && num > 0) leadData[field] = num;
             break;
-          case "created_at":
+          }
+          case "created_at": {
             const createdAt = parseCreatedAt(strValue);
             if (createdAt) leadData.created_at = createdAt;
             break;
-          case "proposal_date":
+          }
+          case "proposal_date": {
             const propDate = parseDate(strValue);
             if (propDate) {
               leadData.proposal_date = propDate;
               leadData.proposal_sent_date = propDate;
             }
             break;
-          case "won_date":
+          }
+          case "won_date": {
             const wonDate = parseDate(strValue);
             if (wonDate) {
               leadData.won_date = wonDate;
@@ -435,6 +439,7 @@ Deno.serve(async (req) => {
               // Don't automatically set status to 'closed' - let the user control pipeline stages
             }
             break;
+          }
         }
       }
 
