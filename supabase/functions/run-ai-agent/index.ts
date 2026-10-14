@@ -5,6 +5,7 @@
 // ai_agents/command_text contract — the WhatsApp webhooks depend on it. Small, additive diffs only.
 // broken rewrite querying a non-existent `agents` table → every agent call 404'd). This is the
 // known-good monolithic version from main; CI redeploys it via the Supabase CLI. (re-deploy: a stray placeholder bundle had overwritten v40).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
@@ -536,9 +537,6 @@ async function sendStaffWhatsappMessage(args: {
   }
   return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
 }
-
-// Supabase injects this runtime global; the declaration emits no JavaScript.
-declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

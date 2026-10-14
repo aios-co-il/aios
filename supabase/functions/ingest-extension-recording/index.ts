@@ -5,11 +5,9 @@
 // function. It responds 202 immediately and continues in the background:
 //   transcribe (from audio_file_path) → if client assigned: Hebrew summary →
 //   DOCX → client attachments → auto marketing brief (draft).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
-
-// Supabase injects this runtime global; the declaration emits no JavaScript.
-declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

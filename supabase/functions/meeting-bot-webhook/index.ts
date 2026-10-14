@@ -1,14 +1,12 @@
 // Recall.ai webhook: bot lifecycle + post-meeting ingest into zoom_recordings pipeline.
 // Redeploy trigger: rebundle _shared/meeting-bot-finalize.ts (summary_scope + calendar fields).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   mapRecallEventToStatus,
   verifyRecallWebhook,
 } from "../_shared/recall.ts";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
-
-// Supabase injects this runtime global; the declaration emits no JavaScript.
-declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
