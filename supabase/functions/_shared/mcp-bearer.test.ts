@@ -3,6 +3,10 @@ import {
   canonicalInternalMcpUrl,
   isInternalMcpUrl,
   isMcpAuthError,
+  isMcpTimeoutError,
+  mcpRpcTimeoutMs,
+  MCP_RPC_TIMEOUT_DEFAULT_MS,
+  MCP_RPC_TIMEOUT_TOOLS_CALL_MS,
   repointInternalMcpUrlIfNeeded,
   secretForConnectionName,
 } from "./mcp-bearer.ts";
@@ -30,6 +34,21 @@ Deno.test("isMcpAuthError detects bearer failures", () => {
     true,
   );
   assertEquals(isMcpAuthError(new Error("timeout")), false);
+});
+
+Deno.test("mcpRpcTimeoutMs gives tools/call a long budget", () => {
+  assertEquals(mcpRpcTimeoutMs("initialize"), MCP_RPC_TIMEOUT_DEFAULT_MS);
+  assertEquals(mcpRpcTimeoutMs("tools/list"), MCP_RPC_TIMEOUT_DEFAULT_MS);
+  assertEquals(mcpRpcTimeoutMs("tools/call"), MCP_RPC_TIMEOUT_TOOLS_CALL_MS);
+  assertEquals(mcpRpcTimeoutMs("tools/call", 45_000), 45_000);
+});
+
+Deno.test("isMcpTimeoutError detects abort/timeout shapes", () => {
+  const abort = new Error("The operation was aborted due to timeout");
+  (abort as Error & { name: string }).name = "TimeoutError";
+  assertEquals(isMcpTimeoutError(abort), true);
+  assertEquals(isMcpTimeoutError(new Error("signal timed out")), true);
+  assertEquals(isMcpTimeoutError(new Error("MCP 500: boom")), false);
 });
 
 Deno.test(
