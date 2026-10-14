@@ -12,6 +12,7 @@ import {
   type SceneStillRecord,
   type VideoSceneRecord,
 } from "./videoScenes";
+import { referenceVideoPath, type ReferenceRun } from "./videoReference";
 
 const ID_CHUNK = 100;
 
@@ -178,4 +179,94 @@ export async function approveSceneStill(
     .eq("tenant_id", tenantId)
     .eq("id", sceneId);
   if (error) throw error;
+}
+
+const CREATIVE_VIDEO_BUCKET = "creative-video";
+
+/** Uploads a reference video, records it as an asset and queues its analysis for the worker. */
+export async function queueReferenceAnalysis({
+  tenantId,
+  clientId,
+  itemId,
+  stageId,
+  file,
+}: {
+  tenantId: string;
+  clientId: string | null;
+  itemId: string;
+  stageId: string;
+  file: File;
+}) {
+  const path = referenceVideoPath({
+    tenantId,
+    clientId,
+    itemId,
+    fileName: file.name,
+  });
+  const { error: uploadError } = await supabase.storage
+    .from(CREATIVE_VIDEO_BUCKET)
+    .upload(path, file, { contentType: file.type || "video/mp4" });
+  if (uploadError) throw uploadError;
+  const { data: asset, error: assetError } = await supabase
+    .from("marketing_assets")
+    .insert({
+      tenant_id: tenantId,
+      item_id: itemId,
+      stage_id: stageId,
+      type: "reference_video",
+      url: path,
+      meta: {
+        bucket: CREATIVE_VIDEO_BUCKET,
+        path,
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      },
+    })
+    .select("id")
+    .single();
+  if (assetError) throw assetError;
+  const { error: runError } = await supabase.from("marketing_runs").insert({
+    tenant_id: tenantId,
+    item_id: itemId,
+    stage_id: stageId,
+    kind: "reference_analysis",
+    status: "queued",
+    input: { bucket: CREATIVE_VIDEO_BUCKET, path, asset_id: asset.id },
+  });
+  if (runError) throw runError;
+}
+
+/** Latest reference analysis run of a project. */
+export async function fetchLatestReferenceRun(
+  tenantId: string,
+  itemId: string,
+): Promise<ReferenceRun | null> {
+  const { data, error } = await supabase
+    .from("marketing_runs")
+    .select("id,status,error,created_at,output")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .eq("kind", "reference_analysis")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as ReferenceRun | null) ?? null;
+}
+
+/** Short-lived URLs for files in the private creative-video bucket. */
+export async function signCreativeVideoPaths(
+  paths: string[],
+): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+  const { data, error } = await supabase.storage
+    .from(CREATIVE_VIDEO_BUCKET)
+    .createSignedUrls(paths, 3600);
+  if (error) throw error;
+  return Object.fromEntries(
+    (data ?? [])
+      .filter((row) => row.path && row.signedUrl)
+      .map((row) => [row.path as string, row.signedUrl]),
+  );
 }

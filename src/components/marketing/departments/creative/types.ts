@@ -22,6 +22,8 @@ export interface StoryboardFrame {
   visualPrompt: string;
   overlayText: string;
   voiceover: string;
+  /** What moves in the scene (camera and subject); used when animating. */
+  motionPrompt?: string;
   duration: number;
   imageUrl?: string;
   generationCost?: ImageGenerationCost;

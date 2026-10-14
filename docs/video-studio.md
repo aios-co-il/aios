@@ -41,6 +41,18 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Migration `20261014090000_video_studio_storyboard_flags.sql`: `save_video_storyboard` also stores `locked` and `meta.has_character`.
 - Edge functions reach Staging only after merge to `develop` (the Staging deployer adds the outbound guard), so Nano Banana Pro works on Staging after that merge; the Preview still renders with gpt-image-1.
 
+## Phase 3 reference video
+
+- The "סרטון רפרנס" button in the storyboard toolbar uploads a video (up to 200 MB) to `creative-video/<tenant>/<client>/<item>/reference/`. It records a `reference_video` asset and queues a `marketing_runs` row with `kind = 'reference_analysis'`. The screen polls the run every 4 s while it is queued or running.
+- `render-worker/` is a dependency-free Node 22 + ffmpeg service for the DigitalOcean Droplet; see its README for the steps. It claims runs with `claim_video_run` (service role only, `FOR UPDATE SKIP LOCKED`) and processes them as follows:
+  1. finds shots with ffmpeg scene cuts and saves a keyframe per shot;
+  2. transcribes with ElevenLabs Scribe (Whisper as fallback);
+  3. describes the shots in one vision call;
+  4. writes `output.proposal.frames`: one frame per reference shot, with the same durations and camera language, original content for the client's brief, and no copied characters, brands, text or studio names.
+- "הצעת סטוריבורד" shows the keyframes next to the proposed scenes. "החלף את הסטוריבורד בהצעה" replaces the storyboard, including `motion_prompt`, which `save_video_storyboard` now stores.
+- Migration `20261014110000_video_studio_run_claim.sql` is applied on Staging.
+- **The worker is not deployed yet:** runs stay queued until it runs on the Droplet against Staging.
+
 ## Provider checks (before writing provider code)
 
 Checked against current public docs on 2026-10-13; outbound access to the vendor docs sites is blocked from the agent container, so these come from search results and should be confirmed with a live API call when the phase starts.
