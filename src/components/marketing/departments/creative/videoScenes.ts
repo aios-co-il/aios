@@ -1,9 +1,9 @@
 import type { ImageGenerationCost } from "./imageCost";
-import type { StoryboardFrame } from "./types";
+import type { StoryboardFrame, VideoSceneStatus } from "./types";
 
 /** Columns the storyboard editor reads from marketing_video_scenes. */
 export const VIDEO_SCENE_COLUMNS =
-  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,duration_s,still_asset_id,meta";
+  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,duration_s,still_asset_id,status,locked,meta";
 
 export interface VideoSceneRecord {
   id: string;
@@ -16,6 +16,8 @@ export interface VideoSceneRecord {
   voiceover_text: string;
   duration_s: number | string;
   still_asset_id: string | null;
+  status?: VideoSceneStatus;
+  locked?: boolean;
   meta: unknown;
 }
 
@@ -36,6 +38,8 @@ export interface VideoSceneInput {
   voiceover_text: string;
   duration_s: number;
   canvas: { x: number; y: number };
+  locked: boolean;
+  has_character: boolean;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -86,6 +90,10 @@ export function scenesToFrames(
         x: finiteOr(canvas.x, defaultX(order)),
         y: finiteOr(canvas.y, 100),
       };
+      if (row.status) frame.status = row.status;
+      frame.locked = row.locked === true;
+      frame.hasCharacter = asRecord(row.meta).has_character !== false;
+      if (row.still_asset_id) frame.stillAssetId = row.still_asset_id;
       if (still?.url) frame.imageUrl = still.url;
       const cost = generationCostOf(still?.meta);
       if (cost) frame.generationCost = cost;
@@ -107,6 +115,8 @@ export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
       voiceover_text: frame.voiceover ?? "",
       duration_s: finiteOr(frame.duration, 3),
       canvas: { x: finiteOr(frame.x, 0), y: finiteOr(frame.y, 100) },
+      locked: frame.locked === true,
+      has_character: frame.hasCharacter !== false,
     }));
 }
 

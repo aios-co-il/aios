@@ -130,3 +130,52 @@ export async function attachSceneStill({
   });
   if (error) throw error;
 }
+
+/** All still versions of a scene, newest first. */
+export async function fetchSceneStillVersions(
+  tenantId: string,
+  sceneId: string,
+): Promise<{ id: string; url: string; version: number }[]> {
+  const { data, error } = await supabase
+    .from("marketing_assets")
+    .select("id,url,meta")
+    .eq("tenant_id", tenantId)
+    .eq("type", "video_still")
+    .eq("meta->>scene_id", sceneId);
+  if (error) throw error;
+  return (data ?? [])
+    .filter((row): row is typeof row & { url: string } => !!row.url)
+    .map((row) => {
+      const meta = (row.meta ?? {}) as Record<string, unknown>;
+      return { id: row.id, url: row.url, version: Number(meta.version) || 0 };
+    })
+    .sort((a, b) => b.version - a.version);
+}
+
+/** Makes an earlier still version the scene's current still. */
+export async function selectSceneStill(
+  tenantId: string,
+  sceneId: string,
+  assetId: string,
+) {
+  const { error } = await supabase
+    .from("marketing_video_scenes")
+    .update({ still_asset_id: assetId, status: "still_ready" })
+    .eq("tenant_id", tenantId)
+    .eq("id", sceneId);
+  if (error) throw error;
+}
+
+/** Approves (or un-approves) the scene's current still. */
+export async function approveSceneStill(
+  tenantId: string,
+  sceneId: string,
+  approved: boolean,
+) {
+  const { error } = await supabase
+    .from("marketing_video_scenes")
+    .update({ status: approved ? "still_approved" : "still_ready" })
+    .eq("tenant_id", tenantId)
+    .eq("id", sceneId);
+  if (error) throw error;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ensurePipelineForClient } from "@/components/marketing/lib/ensurePipeline";
@@ -46,6 +46,12 @@ import { CreativeImage } from "@/components/marketing/departments/creative/Creat
 import { CreativeLayerEditor } from "@/components/marketing/departments/creative/CreativeLayerEditor";
 import { CreativeStoryboardEditor } from "@/components/marketing/departments/creative/CreativeStoryboardEditor";
 import {
+  getCharacterRefUrl,
+  getStillModel,
+  sanitizeVideoStillPrompt,
+  type StillModel,
+} from "@/components/marketing/departments/creative/videoStill";
+import {
   CreativeEraseDialog,
   type EraseJob,
 } from "@/components/marketing/departments/creative/CreativeEraseDialog";
@@ -82,9 +88,12 @@ import {
 } from "@/components/marketing/departments/creative/utils";
 import { mergeCreativeVariations } from "@/components/marketing/departments/creative/mergeVariations";
 import {
+  approveSceneStill,
+  fetchSceneStillVersions,
   fetchVideoStoryboards,
   persistedStillsOf,
   saveVideoStoryboard,
+  selectSceneStill,
 } from "@/components/marketing/departments/creative/videoScenesStore";
 import {
   formatUsd,
@@ -212,6 +221,13 @@ interface Props {
 
 const NO_STORYBOARDS: Record<string, StoryboardFrame[]> = {};
 const NO_FRAMES: StoryboardFrame[] = [];
+
+const resolveCharacterRef = async (
+  payload: Record<string, unknown> | null,
+): Promise<string | undefined> => {
+  const url = getCharacterRefUrl(payload);
+  return url ? ((await resolveCreativeImageUrl(url)) ?? url) : undefined;
+};
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -979,9 +995,19 @@ export function CreativeDepartment({
           ),
         )
       ).filter((url): url is string => !!url);
-      const referenceImageUrls = [...storyboardRefs, ...styleRefs].filter(
-        (url, index, list) => list.indexOf(url) === index,
-      );
+      const stillModel = getStillModel(selected.payload);
+      const characterRef =
+        frame.hasCharacter !== false
+          ? await resolveCharacterRef(selected.payload)
+          : undefined;
+      // The fixed character goes first; earlier frames follow for continuity.
+      const referenceImageUrls = (
+        characterRef
+          ? [characterRef, ...storyboardRefs]
+          : [...storyboardRefs, ...styleRefs]
+      )
+        .filter((url, index, list) => !!url && list.indexOf(url) === index)
+        .slice(0, stillModel === "nano-banana-pro" ? 3 : 2);
       const conceptLock = resolveVisualPrompt(
         selected.payload,
         getApprovedCopyConcepts(selected),
@@ -1015,13 +1041,19 @@ export function CreativeDepartment({
         tenantId,
         itemId: selected.id,
         stageId: readyContext.creativeStage.id,
-        prompt: framePrompt,
+        prompt: sanitizeVideoStillPrompt(framePrompt),
         referenceImageUrls,
-        referenceRole: referenceImageUrls.length ? "continuity" : undefined,
+        referenceRole: characterRef
+          ? "character"
+          : referenceImageUrls.length
+            ? "continuity"
+            : undefined,
         size: imageSizeForFormat(defaultFormat(selected.payload)),
         quality: "medium",
         liveTextLayers: true,
         signal: generationSignal(),
+        imageModel: stillModel,
+        format: defaultFormat(selected.payload),
       });
       if (shouldLock) {
         toast.message(
@@ -1052,6 +1084,125 @@ export function CreativeDepartment({
     }
   };
 
+  const updateVideoSettings = async (patch: Record<string, unknown>) => {
+    if (!selected) return;
+    const current = (selected.payload?.video ?? {}) as Record<string, unknown>;
+    const { error } = await supabase
+      .from("marketing_work_items")
+      .update({
+        payload: {
+          ...(selected.payload ?? {}),
+          video: { ...current, ...patch },
+        } as never,
+      })
+      .eq("id", selected.id)
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+    await refresh();
+  };
+
+  const [characterUploading, setCharacterUploading] = useState(false);
+  const uploadCharacter = async (file: File) => {
+    if (!selected) return;
+    setCharacterUploading(true);
+    try {
+      const asset = await uploadCreativeAsset({
+        supabase,
+        tenantId,
+        itemId: selected.id,
+        file,
+        kind: "reference",
+      });
+      await updateVideoSettings({ character_ref_url: asset.url });
+      toast.success("תמונת הדמות נשמרה ותישלח כרפרנס בכל סצנה");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "העלאת תמונת הדמות נכשלה"));
+    } finally {
+      setCharacterUploading(false);
+    }
+  };
+
+  const changeStillModel = (model: StillModel) =>
+    updateVideoSettings({ still_model: model }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת המודל נכשלה")),
+    );
+
+  const editFrameWithPrompt = async (
+    frame: StoryboardFrame,
+    instruction: string,
+  ) => {
+    if (!selected || !frame.imageUrl) return;
+    const readyContext = ensureCreativeStageReady(context);
+    setGenerating(true);
+    try {
+      const current = await resolveCreativeImageUrl(frame.imageUrl);
+      const characterRef =
+        frame.hasCharacter !== false
+          ? await resolveCharacterRef(selected.payload)
+          : undefined;
+      const referenceImageUrls = [current, characterRef].filter(
+        (url): url is string => !!url,
+      );
+      const { imageUrl, cost } = await generateCreativeImage({
+        supabase,
+        tenantId,
+        itemId: selected.id,
+        stageId: readyContext.creativeStage.id,
+        prompt: sanitizeVideoStillPrompt(
+          [
+            `Director change for storyboard frame ${frame.order}: ${instruction}`,
+            "Change only what the director asks. Keep the same characters, framing, world, lighting and color grade.",
+          ].join("\n"),
+        ),
+        referenceImageUrls,
+        referenceRole: "revision",
+        size: imageSizeForFormat(defaultFormat(selected.payload)),
+        quality: "medium",
+        liveTextLayers: true,
+        imageModel: getStillModel(selected.payload),
+        format: defaultFormat(selected.payload),
+      });
+      const next = storyboardDraft.map((value) =>
+        value.id === frame.id
+          ? { ...value, imageUrl, generationCost: cost }
+          : value,
+      );
+      setStoryboardDraft(next);
+      await persistStoryboard(next, "הפריים עודכן — גרסה חדשה נשמרה");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עריכת הפריים נכשלה"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const approveFrame = async (frame: StoryboardFrame, approved: boolean) => {
+    try {
+      await approveSceneStill(tenantId, frame.id, approved);
+      toast.success(approved ? "הפריים אושר" : "האישור בוטל");
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עדכון האישור נכשל"));
+    }
+  };
+
+  const selectFrameVersion = async (
+    frame: StoryboardFrame,
+    assetId: string,
+  ) => {
+    try {
+      await selectSceneStill(tenantId, frame.id, assetId);
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "החזרת הגרסה נכשלה"));
+    }
+  };
+
+  const loadFrameVersions = useCallback(
+    (frameId: string) => fetchSceneStillVersions(tenantId, frameId),
+    [tenantId],
+  );
+
   const generateAllStoryboardFrames = async () => {
     if (!selected?.client_id) {
       toast.error("יש לשייך לקוח לפרויקט לפני יצירת פריימים");
@@ -1059,6 +1210,7 @@ export function CreativeDepartment({
     }
     const queued = [...storyboardDraft]
       .sort((a, b) => a.order - b.order)
+      .filter((frame) => !frame.locked)
       .filter((frame) => frame.visualPrompt?.trim() || frame.voiceover?.trim());
     if (queued.length === 0) {
       toast.error("מלא/י הנחיות לפריימים לפני יצירה לפי סדר");
@@ -2900,6 +3052,22 @@ export function CreativeDepartment({
                 }}
                 onGenerateAll={generateAllStoryboardFrames}
                 onStop={stopGeneration}
+                onEditWithPrompt={editFrameWithPrompt}
+                onApprove={approveFrame}
+                loadVersions={loadFrameVersions}
+                onSelectVersion={selectFrameVersion}
+                character={{
+                  url: getCharacterRefUrl(selected.payload),
+                  uploading: characterUploading,
+                  onUpload: (file) => void uploadCharacter(file),
+                  onClear: () =>
+                    void updateVideoSettings({ character_ref_url: null }).catch(
+                      (error: unknown) =>
+                        toast.error(errorMessage(error, "הסרת הדמות נכשלה")),
+                    ),
+                }}
+                stillModel={getStillModel(selected.payload)}
+                onStillModelChange={(model) => void changeStillModel(model)}
                 generating={generating}
                 saving={saving}
                 scenePanelOpen={workspacePanel === "scene"}

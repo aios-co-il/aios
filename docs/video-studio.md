@@ -31,6 +31,16 @@ Migration: `supabase/migrations/20261014070000_video_studio_foundation.sql` (ide
 
 The Staging mirror only adds or updates rows from Production and its preflight only fails on columns missing on Staging, so the new columns and table do not block it.
 
+## Phase 2 storyboard editor
+
+- The React Flow canvas became an RTL frame strip: drag to reorder (`@dnd-kit`), `+` between frames to insert, and a status badge, duration and lock on each card. "Generate all" skips locked frames.
+- The scene sheet gained "ערוך בהנחיה" (a prompt edit of the current still), a version strip (choosing a version makes it the scene's current still), and "אשר פריים" (`still_approved`).
+- Fixed character: one uploaded picture (`payload.video.character_ref_url`) goes first in the references of every scene where "הדמות מופיעה בסצנה" is on (`meta.has_character`), with a `character` reference role.
+- Still model per project (`payload.video.still_model`): `gpt-image-1` or Nano Banana Pro (`gemini-3-pro-image`, falls back to `-preview`) through `ai-generate-social-image`. It uses the tenant's Google key from the LLM integration (or `GEMINI_API_KEY`), and the cost is estimated at $0.134 per image.
+- Video still prompts drop studio names (Pixar, Disney, DreamWorks…) and always end with "No text, no letters, no logos."
+- Migration `20261014090000_video_studio_storyboard_flags.sql`: `save_video_storyboard` also stores `locked` and `meta.has_character`.
+- Edge functions reach Staging only after merge to `develop` (the Staging deployer adds the outbound guard), so Nano Banana Pro works on Staging after that merge; the Preview still renders with gpt-image-1.
+
 ## Provider checks (before writing provider code)
 
 Checked against current public docs on 2026-10-13; outbound access to the vendor docs sites is blocked from the agent container, so these come from search results and should be confirmed with a live API call when the phase starts.

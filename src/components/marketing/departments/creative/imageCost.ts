@@ -3,7 +3,7 @@ export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 export type ImageCostSource = "api" | "official_table" | "inferred";
 
 export interface ImageGenerationCost {
-  model: "gpt-image-1";
+  model: "gpt-image-1" | "gemini-3-pro-image";
   quality: ImageQuality;
   size: ImageSize;
   textTokens: number;
@@ -78,7 +78,7 @@ export const isImageGenerationCost = (
   if (!value || typeof value !== "object") return false;
   const cost = value as ImageGenerationCost;
   return (
-    cost.model === "gpt-image-1" &&
+    (cost.model === "gpt-image-1" || cost.model === "gemini-3-pro-image") &&
     isImageQuality(cost.quality) &&
     isImageSize(cost.size) &&
     typeof cost.totalTokens === "number" &&
@@ -282,3 +282,24 @@ export const summarizeStoredImageCosts = (
   }
   return totals;
 };
+
+/** Nano Banana Pro (gemini-3-pro-image): flat per-image estimate for 1K–2K output. */
+export const NANO_BANANA_PRO_IMAGE_USD = 0.134;
+
+export const nanoBananaProCost = (
+  quality: ImageQuality,
+  size: ImageSize,
+  referenceCount = 0,
+): ImageGenerationCost => ({
+  model: "gemini-3-pro-image",
+  quality,
+  size,
+  textTokens: 0,
+  imageInTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  costUsd: NANO_BANANA_PRO_IMAGE_USD,
+  source: "official_table",
+  createdAt: new Date().toISOString(),
+  referenceCount,
+});
