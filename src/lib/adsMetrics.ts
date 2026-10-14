@@ -10,6 +10,21 @@ import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
 // the "All" tab breakdown, the per-platform tabs, the shared/public views and
 // the agency dashboard can never disagree about the same number again.
 
+/** Integration metrics are coerced at the existing numeric-extraction boundary. */
+export type RawAdsMetricData = Record<string, unknown>;
+
+/** Campaign aggregation also relies on stable string metadata. */
+export type AdsMetricData = RawAdsMetricData & {
+  campaign_name?: string | null;
+  campaign?: string | null;
+  campaign_type?: string;
+  campaign_objective?: string | null;
+  result_kind?: string | null;
+};
+
+type NullableRawAdsMetricData = RawAdsMetricData | null | undefined;
+type NullableAdsMetricData = AdsMetricData | null | undefined;
+
 export const FACEBOOK_FORM_LEAD_ACTION_KEYS = [
   "form_leads",
   "leadgen.other",
@@ -17,7 +32,9 @@ export const FACEBOOK_FORM_LEAD_ACTION_KEYS = [
   "onsite_conversion.lead_grouped",
 ] as const;
 
-export const getFacebookFormLeadsFromData = (data: any) => {
+export const getFacebookFormLeadsFromData = (
+  data: NullableRawAdsMetricData,
+) => {
   for (const key of FACEBOOK_FORM_LEAD_ACTION_KEYS) {
     const value = Number(data?.[key]);
     if (value > 0) return value;
@@ -25,7 +42,7 @@ export const getFacebookFormLeadsFromData = (data: any) => {
   return 0;
 };
 
-export const getExplicitLeadFieldsFromData = (data: any) =>
+export const getExplicitLeadFieldsFromData = (data: NullableRawAdsMetricData) =>
   getFacebookFormLeadsFromData(data) ||
   Number(data?.leads) ||
   Number(data?.website_leads) ||
@@ -33,7 +50,7 @@ export const getExplicitLeadFieldsFromData = (data: any) =>
   Number(data?.offsite_conversion_fb_pixel_lead) ||
   0;
 
-export const getMessagingLeadsFromData = (data: any) => {
+export const getMessagingLeadsFromData = (data: NullableRawAdsMetricData) => {
   const conversations =
     Number(data?.conversations) ||
     Number(data?.messages) ||
@@ -52,7 +69,7 @@ export const getMessagingLeadsFromData = (data: any) => {
   return 0;
 };
 
-export const getLeadsFromData = (data: any) =>
+export const getLeadsFromData = (data: NullableRawAdsMetricData) =>
   Number(data?.leads) ||
   getFacebookFormLeadsFromData(data) ||
   getMessagingLeadsFromData(data) ||
@@ -62,11 +79,11 @@ export const getLeadsFromData = (data: any) =>
   Number(data?.offsite_conversion_fb_pixel_lead) ||
   0;
 
-export const getSpendFromData = (data: any) =>
+export const getSpendFromData = (data: NullableRawAdsMetricData) =>
   Number(data?.spend) || Number(data?.cost) || 0;
 
 /** Ecommerce revenue — purchase value first (GA4 purchaseRevenue), then broader totals. */
-export const getRevenueFromData = (data: any) =>
+export const getRevenueFromData = (data: NullableRawAdsMetricData) =>
   Number(data?.purchase_value) ||
   Number(data?.purchaseRevenue) ||
   Number(data?.total_revenue) ||
@@ -75,7 +92,7 @@ export const getRevenueFromData = (data: any) =>
   0;
 
 /** Purchases as reported by Analytics / WooCommerce-style records. */
-export const getPurchasesFromData = (data: any) =>
+export const getPurchasesFromData = (data: NullableRawAdsMetricData) =>
   Number(data?.purchases) ||
   Number(data?.ecommercePurchases) ||
   Number(data?.transactions) ||
@@ -90,12 +107,12 @@ export const getPurchasesFromData = (data: any) =>
  * purchases for a Google Ads ecommerce table even though its revenue — which
  * already falls back to `conversions_value` — is fully populated.
  */
-export const getAdsPurchasesFromData = (data: any) =>
+export const getAdsPurchasesFromData = (data: NullableRawAdsMetricData) =>
   getPurchasesFromData(data) || Number(data?.conversions) || 0;
 
 const ADD_TO_CART_KEYS = ["add_to_cart", "addToCarts"] as const;
 
-export const getAddToCartFromData = (data: any) =>
+export const getAddToCartFromData = (data: NullableRawAdsMetricData) =>
   Number(data?.add_to_cart) || Number(data?.addToCarts) || 0;
 
 /**
@@ -103,13 +120,15 @@ export const getAddToCartFromData = (data: any) =>
  * reports carry no add-to-cart metric, so a summed 0 there means "not tracked"
  * rather than "nobody added to cart" and should be rendered as unavailable.
  */
-export const hasAddToCartMetric = (data: any) =>
+export const hasAddToCartMetric = (data: NullableRawAdsMetricData) =>
   !!data &&
   ADD_TO_CART_KEYS.some((key) => data[key] !== undefined && data[key] !== null);
 
-export const getSessionsFromData = (data: any) => Number(data?.sessions) || 0;
+export const getSessionsFromData = (data: NullableRawAdsMetricData) =>
+  Number(data?.sessions) || 0;
 
-export const getUsersFromData = (data: any) => Number(data?.users) || 0;
+export const getUsersFromData = (data: NullableRawAdsMetricData) =>
+  Number(data?.users) || 0;
 
 export type FacebookCampaignRow = {
   name: string;
@@ -195,7 +214,9 @@ export function isFacebookEcommerceCampaign(
   );
 }
 
-export function isFacebookMessagingLeadRecord(data: any): boolean {
+export function isFacebookMessagingLeadRecord(
+  data: NullableAdsMetricData,
+): boolean {
   const name = String(
     data?.campaign_name || data?.campaign || data?.name || "",
   );
@@ -235,7 +256,9 @@ const SALES_OBJECTIVES = new Set([
 const LEAD_OBJECTIVES = new Set(["OUTCOME_LEADS", "LEAD_GENERATION"]);
 
 /** Meta campaign objective → report kind; null when the objective does not decide it. */
-export function facebookObjectiveKind(data: any): "lead" | "ecommerce" | null {
+export function facebookObjectiveKind(
+  data: NullableAdsMetricData,
+): "lead" | "ecommerce" | null {
   const objective = String(
     data?.campaign_objective || data?.objective || "",
   ).toUpperCase();
@@ -251,7 +274,7 @@ export function facebookObjectiveKind(data: any): "lead" | "ecommerce" | null {
  * next Meta sync — WhatsApp/messaging belongs in leads.
  */
 export function effectiveFacebookCampaignType(
-  data: any,
+  data: NullableAdsMetricData,
 ): "lead" | "ecommerce" | "traffic" | "other" {
   const byObjective = facebookObjectiveKind(data);
   if (byObjective) return byObjective;
@@ -314,7 +337,7 @@ export function groupFacebookCampaigns(
 
 /** Aggregate facebook_insights / facebook_ecommerce records by campaign name. */
 export function aggregateFacebookCampaignsFromRecords(
-  records: Array<{ data?: any }>,
+  records: Array<{ data?: NullableAdsMetricData }>,
 ): FacebookCampaignRow[] {
   const map: Record<string, FacebookCampaignRow> = {};
 
@@ -362,7 +385,9 @@ export function aggregateFacebookCampaignsFromRecords(
 export type FacebookRecordKind = "ecommerce" | "leads" | "traffic";
 
 /** Mirrors DynamicTableView campaign split — per row before aggregation. */
-export function classifyFacebookRecord(data: any): FacebookRecordKind {
+export function classifyFacebookRecord(
+  data: NullableAdsMetricData,
+): FacebookRecordKind {
   const rowType = effectiveFacebookCampaignType(data);
   if (rowType === "traffic") return "traffic";
   return isFacebookEcommerceCampaign({
@@ -408,7 +433,9 @@ export function classifyFacebookCampaignTotals(totals: {
   return isFacebookEcommerceCampaign(row) ? "ecommerce" : "leads";
 }
 
-export function isFacebookLeadsOnlyTable(integrationSettings?: any): boolean {
+export function isFacebookLeadsOnlyTable(
+  integrationSettings?: Record<string, unknown> | null,
+): boolean {
   const t = String(integrationSettings?.campaign_type || "").toLowerCase();
   return t === "leads" || t === "lead";
 }
@@ -416,7 +443,7 @@ export function isFacebookLeadsOnlyTable(integrationSettings?: any): boolean {
 /** facebook_insights tables without an explicit leads-only flag show both ecom + lead campaigns. */
 export function facebookTableUsesMixedRows(
   integrationType?: string | null,
-  integrationSettings?: any,
+  integrationSettings?: Record<string, unknown> | null,
 ): boolean {
   if (integrationType !== "facebook_insights") return false;
   return !isFacebookLeadsOnlyTable(integrationSettings);

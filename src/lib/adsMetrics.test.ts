@@ -243,15 +243,13 @@ test("classifyFacebookRecord splits ecommerce vs leads rows", () => {
 });
 
 test("classifyFacebookCampaignTotals mirrors per-row rules on aggregates", () => {
-  assert.equal(
-    classifyFacebookCampaignTotals({
-      name: "מכירות",
-      purchases: 4,
-      purchase_value: 1200,
-      leads: 0,
-    } as any),
-    "ecommerce",
-  );
+  const salesTotals = {
+    name: "מכירות",
+    purchases: 4,
+    purchase_value: 1200,
+    leads: 0,
+  };
+  assert.equal(classifyFacebookCampaignTotals(salesTotals), "ecommerce");
   assert.equal(
     classifyFacebookCampaignTotals({
       name: "לידים",
