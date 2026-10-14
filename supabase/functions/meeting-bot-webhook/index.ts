@@ -1,5 +1,6 @@
 // Recall.ai webhook: bot lifecycle + post-meeting ingest into zoom_recordings pipeline.
 // Redeploy trigger: rebundle _shared/meeting-bot-finalize.ts (summary_scope + calendar fields).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   mapRecallEventToStatus,
@@ -146,9 +147,7 @@ Deno.serve(async (req) => {
     }
   })();
 
-  // @ts-ignore EdgeRuntime
   if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-    // @ts-ignore
     EdgeRuntime.waitUntil(background);
   } else {
     await background;

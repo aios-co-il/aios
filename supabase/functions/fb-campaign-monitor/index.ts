@@ -1,4 +1,5 @@
 // Cron: scans all tenants' active Facebook campaigns, detects anomalies, writes to campaign_alerts.
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -393,7 +394,6 @@ Deno.serve(async (req) => {
   try {
     if (tenant_id) {
       // Per-tenant child invocation: run scan in background and ack
-      // @ts-ignore
       EdgeRuntime.waitUntil(
         runTenantScan(tenant_id).catch((e) =>
           console.error("[fb-campaign-monitor] child bg", tenant_id, e),
@@ -405,7 +405,6 @@ Deno.serve(async (req) => {
       );
     }
     // Parent invocation: fan out per tenant
-    // @ts-ignore
     EdgeRuntime.waitUntil(
       fanOutAllTenants().catch((e) =>
         console.error("[fb-campaign-monitor] parent bg", e),

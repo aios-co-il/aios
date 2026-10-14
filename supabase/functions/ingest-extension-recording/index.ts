@@ -5,6 +5,7 @@
 // function. It responds 202 immediately and continues in the background:
 //   transcribe (from audio_file_path) → if client assigned: Hebrew summary →
 //   DOCX → client attachments → auto marketing brief (draft).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
 
@@ -109,12 +110,10 @@ Deno.serve(async (req) => {
       }
     })();
 
-    // @ts-ignore EdgeRuntime is available in Supabase edge functions
     if (
       typeof EdgeRuntime !== "undefined" &&
       (EdgeRuntime as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
     ) {
-      // @ts-ignore see above
       EdgeRuntime.waitUntil(background);
     } else {
       await background;

@@ -5,6 +5,7 @@
 // ai_agents/command_text contract — the WhatsApp webhooks depend on it. Small, additive diffs only.
 // broken rewrite querying a non-existent `agents` table → every agent call 404'd). This is the
 // known-good monolithic version from main; CI redeploys it via the Supabase CLI. (re-deploy: a stray placeholder bundle had overwritten v40).
+import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
@@ -15695,12 +15696,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         assistant_output: finalOutput,
         tools_used: toolLog.map((t) => t.tool),
       });
-      // @ts-ignore EdgeRuntime is available in Supabase edge functions
       if (
         typeof EdgeRuntime !== "undefined" &&
         (EdgeRuntime as any).waitUntil
       ) {
-        // @ts-ignore
         EdgeRuntime.waitUntil(memPromise);
       } else {
         memPromise.catch(() => {});
