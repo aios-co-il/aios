@@ -22,7 +22,10 @@ import {
   managerGroupAccessViaAllowedPhones,
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
-import { loadRelationshipNote } from "./carmen-group-verification.ts";
+import {
+  loadGroupAgencyVoice,
+  loadRelationshipNote,
+} from "./carmen-group-verification.ts";
 import {
   SURFACE_GROUP,
   identityAllowsSurface,
@@ -1988,6 +1991,11 @@ export async function handleCarmenMessage(
       );
     } catch (noteErr) {
       console.warn("[carmen] relationship note failed (non-fatal)", noteErr);
+    }
+    try {
+      identityContext += await loadGroupAgencyVoice(supabase, tenantId, chatId);
+    } catch (voiceErr) {
+      console.warn("[carmen] agency voice failed (non-fatal)", voiceErr);
     }
   }
 

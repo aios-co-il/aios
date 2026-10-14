@@ -15,15 +15,62 @@ export function generateVerificationCode(
   return String(100000 + (value % 900000));
 }
 
-export function introMessage(groupName) {
-  const where = groupName ? ` בקבוצה ${groupName}` : "";
-  return `שלום, אני כרמן. כדי לזהות את המספרים שכבר אושרו${where} שלחתי קוד אימות בהודעה פרטית. כתבו כאן את הקוד שקיבלתם.`;
+export function introMessage({ agencyName, clientName } = {}) {
+  const agency = String(agencyName || "").trim();
+  if (!agency) return "";
+  const client = String(clientName || "").trim();
+  const where = client ? ` של ${client}` : "";
+  return `שלום, אני כרמן, מנהלת השיווק הדיגיטלי של ${agency}. כדי לזהות את המספרים שכבר אושרו בקבוצה${where} שלחתי קוד אימות בהודעה פרטית. כתבו כאן את הקוד שקיבלתם.`;
 }
 
-export function privateCodeMessage({ name, groupName, code }) {
+export function agencyVoiceNote({ agencyName, clientName } = {}) {
+  const agency = String(agencyName || "").trim();
+  if (!agency) return "";
+  const client = String(clientName || "").trim();
+  const forClient = client ? ` בקבוצה של הלקוח ${client}` : "";
+  return `\n\n[זהות בקבוצה] את מנהלת השיווק הדיגיטלי של הסוכנות ${agency}${forClient}. הציגי את עצמך כך, ואין להציג סוכנות אחרת.`;
+}
+
+export function privateCodeMessage({ name, agencyName, code }) {
   const who = name ? `היי ${name}` : "היי";
-  const where = groupName ? `בקבוצה ${groupName}` : "בקבוצה המאושרת";
-  return `${who}, הקוד שלך לאימות ${where} הוא ${code}. כתוב את שש הספרות בקבוצה. הקוד תקף ל-48 שעות.`;
+  const agency = String(agencyName || "").trim();
+  const role = agency ? `, מנהלת השיווק הדיגיטלי של ${agency}` : "";
+  return `${who}, כאן כרמן${role}. הקוד שלך הוא ${code}. כתוב את שש הספרות בקבוצה. הקוד תקף ל-48 שעות.`;
+}
+
+/** One existing client↔group row per group, with the agency Carmen speaks for. */
+export function attachGroupAffiliations(groups, links, clients, agencies) {
+  const clientById = new Map(
+    (clients || []).map((client) => [client.id, client]),
+  );
+  const agencyById = new Map(
+    (agencies || []).map((agency) => [agency.id, agency]),
+  );
+  const linkByGroup = new Map();
+  for (const link of links || []) {
+    if (!link?.whatsapp_group_id || linkByGroup.has(link.whatsapp_group_id))
+      continue;
+    linkByGroup.set(link.whatsapp_group_id, link);
+  }
+  return (groups || []).map((group) => {
+    const link = linkByGroup.get(group.id);
+    const client = clientById.get(link?.client_id);
+    const agencyId = link?.agency_id || client?.agency_id || null;
+    const agency = agencyById.get(agencyId);
+    return {
+      ...group,
+      client_id: link?.client_id || null,
+      agency_id: agencyId,
+      client_name: client?.name || null,
+      agency_name: agency?.name || null,
+    };
+  });
+}
+
+export function groupsReadyToIntroduce(groups) {
+  return (groups || []).filter(
+    (group) => group?.client_id && group?.agency_id && group?.agency_name,
+  );
 }
 
 /** A group-scoped activation matches only when its code is typed in that group. */
@@ -59,6 +106,62 @@ export async function loadRelationshipNote(supabase, tenantId, phone) {
   }
   const identity = (data || []).find((row) => phoneTail(row.phone) === tail);
   return relationshipNoteForIdentity(identity);
+}
+
+/** Standing introduction for replies in an already linked Manus group. */
+export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
+  if (!chatId) return "";
+  const { data: group, error: groupError } = await supabase
+    .from("whatsapp_groups")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("group_chat_id", chatId)
+    .limit(1)
+    .maybeSingle();
+  if (groupError) throw groupError;
+  if (!group?.id) return "";
+  const withAgency = await supabase
+    .from("carmen_client_group_access")
+    .select("client_id, agency_id")
+    .eq("tenant_id", tenantId)
+    .eq("whatsapp_group_id", group.id)
+    .limit(1)
+    .maybeSingle();
+  let link = withAgency.data;
+  if (withAgency.error) {
+    if (!/agency_id/.test(withAgency.error.message || ""))
+      throw withAgency.error;
+    const fallback = await supabase
+      .from("carmen_client_group_access")
+      .select("client_id")
+      .eq("tenant_id", tenantId)
+      .eq("whatsapp_group_id", group.id)
+      .limit(1)
+      .maybeSingle();
+    if (fallback.error) throw fallback.error;
+    link = fallback.data;
+  }
+  if (!link?.client_id && !link?.agency_id) return "";
+  let agencyId = link.agency_id || null;
+  let clientName = "";
+  if (link.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("name, agency_id")
+      .eq("id", link.client_id)
+      .maybeSingle();
+    if (clientError) throw clientError;
+    clientName = client?.name || "";
+    if (!agencyId) agencyId = client?.agency_id || null;
+  }
+  if (!agencyId) return "";
+  const { data: agency, error: agencyError } = await supabase
+    .from("agencies")
+    .select("name")
+    .eq("id", agencyId)
+    .maybeSingle();
+  if (agencyError) throw agencyError;
+  return agencyVoiceNote({ agencyName: agency?.name, clientName });
 }
 
 const UUID_RE =
