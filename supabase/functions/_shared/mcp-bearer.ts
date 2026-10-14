@@ -79,14 +79,21 @@ export const MCP_RPC_TIMEOUT_TOOLS_CALL_MS = 90_000;
 
 export function mcpRpcTimeoutMs(method: string, overrideMs?: number): number {
   if (typeof overrideMs === "number" && overrideMs > 0) return overrideMs;
-  return method === "tools/call" ? MCP_RPC_TIMEOUT_TOOLS_CALL_MS : MCP_RPC_TIMEOUT_DEFAULT_MS;
+  return method === "tools/call"
+    ? MCP_RPC_TIMEOUT_TOOLS_CALL_MS
+    : MCP_RPC_TIMEOUT_DEFAULT_MS;
 }
 
 export function isMcpTimeoutError(err: unknown): boolean {
   const name = String((err as any)?.name ?? "");
   const msg = String((err as any)?.message ?? err ?? "").toLowerCase();
-  return name === "TimeoutError" || name === "AbortError" ||
-    msg.includes("timed out") || msg.includes("timeout") || msg.includes("aborted");
+  return (
+    name === "TimeoutError" ||
+    name === "AbortError" ||
+    msg.includes("timed out") ||
+    msg.includes("timeout") ||
+    msg.includes("aborted")
+  );
 }
 
 export async function mcpJsonRpc(

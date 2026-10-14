@@ -72,7 +72,19 @@ test("completed recurring task stays visible on due day only", () => {
   assert.equal(shouldShowRecurringTaskNow(task, wednesday), true);
   assert.equal(shouldShowRecurringTaskNow(task, monday), false);
   assert.equal(shouldShowRecurringTaskOnBoard(task, { asOf: wednesday }), true);
-  assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: wednesday }), true);
-  assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: monday }), false);
+  assert.equal(
+    shouldShowRecurringTaskOnBoard(task, {
+      showAllRecurring: true,
+      asOf: wednesday,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowRecurringTaskOnBoard(task, {
+      showAllRecurring: true,
+      asOf: monday,
+    }),
+    false,
+  );
   assert.equal(recurringTaskBelongsInBacklog(task, wednesday), false);
 });

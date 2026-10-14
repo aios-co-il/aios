@@ -34,12 +34,14 @@ logged.
 <!-- New entries go below this line, newest first. -->
 
 ### 2026-10-14 — משימות שהושלמו נשארות בלוח השנה
+
 - **Skin slug:** n/a (UI bugfix — Tasks calendar)
 - **What Carmen can now do:** n/a (user-facing Tasks board). Completed tasks stay visible on daily/weekly/monthly calendar marked done (strikethrough), not hidden.
 - **How:** Removed `status===done` hide from `dailyTasks`; recurring done stays on due day; `taskAppearsOnTimeGrid` includes done for Google dedupe.
 - **Origin:** Carmen → Cursor DEV TASK (`044207f2`) — Ana: completed tasks disappeared from calendar.
 
 ### 2026-10-06 — עדכון פגישה קיימת ל-Meet/Zoom + הזמנת כרמן
+
 - **Skin slug:** `calendar_conference_and_carmen_attendee` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
 - **What Carmen can now do:** `update_calendar_invite` / `send_calendar_invite` מוסיפים Google Meet (או Zoom אם `tenant_integrations.zoom` מוגדר), ומוזמנים חדשים **בלי למחוק** קיימים. מחזיר `conference_url`, `attendees`, `zoom_available`. כרמן כמוזמנת מייל (`add_carmen`) או כבוט תמלול אחרי הקישור (`join_meeting_for_client`).
 - **How:** Helpers `_shared/calendar-conference.mjs`; Google `conferenceDataVersion=1` + Meet `createRequest`; Zoom Server-to-Server `POST /users/me/meetings` when configured, else Meet + explicit `zoom_available=false`.
@@ -53,6 +55,7 @@ logged.
 - **Origin:** David — משימה מכרמן צריכה להתעדכן שבוצעה בסיום.
 
 ### 2026-10-06 — איסור דיווח שווא "Cursor לא קיבל" אחרי timeout של MCP
+
 - **Skin slug:** n/a (`mcp-bearer` / `mcp-tools` / `dispatch_dev_task`)
 - **What Carmen can now do:** לא לדווח לדוד שקרסר לא קיבל בקשה כשכלי MCP מחזיר timeout / `delivery_unconfirmed` / `verificationFailed`. לדווח "לא אומתה הגעה" ולבדוק `list_dev_tasks` או `attach_dev_task_session`.
 - **How:** `tools/call` timeout 90s (לא 12s); soft result עם `do_not_claim_not_received`; `mcpRequestDevTask` 90s + reconcile ארוך יותר; כלל ב-prompt.

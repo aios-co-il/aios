@@ -23,7 +23,10 @@ function isCodingAgentDispatchTool(remoteName: string): boolean {
 }
 
 /** Soft result so Carmen does not tell David "Cursor didn't receive" on client abort. */
-export function codingAgentDispatchTimeoutResult(connName: string, remoteName: string): Record<string, unknown> {
+export function codingAgentDispatchTimeoutResult(
+  connName: string,
+  remoteName: string,
+): Record<string, unknown> {
   return {
     ok: false,
     timeout: true,

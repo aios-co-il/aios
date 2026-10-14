@@ -20,7 +20,8 @@ export function shouldShowRecurringTaskNow(
   if (!isRecurringBoardTask(task)) return true;
   if (!task.due_date) return false;
   const onDueDay =
-    format(startOfDay(new Date(task.due_date)), "yyyy-MM-dd") === format(asOf, "yyyy-MM-dd");
+    format(startOfDay(new Date(task.due_date)), "yyyy-MM-dd") ===
+    format(asOf, "yyyy-MM-dd");
   // Completed recurring tasks stay on the calendar for their due day (marked done).
   if (task.status === "done") return onDueDay;
   if (isTaskOverdue(task, asOf)) return true;
@@ -34,7 +35,8 @@ export function shouldShowRecurringTaskOnBoard(
   if (!isRecurringBoardTask(task)) return true;
   if (options.showAllRecurring) {
     // Still show completed recurring tasks on their due day; hide other done rows.
-    if (task.status === "done") return shouldShowRecurringTaskNow(task, options.asOf);
+    if (task.status === "done")
+      return shouldShowRecurringTaskNow(task, options.asOf);
     return true;
   }
   return shouldShowRecurringTaskNow(task, options.asOf);

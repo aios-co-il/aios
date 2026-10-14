@@ -75,7 +75,7 @@ import {
   resolveRequestedConference,
   summarizeEventResult,
   updateExistingCalendarEvent,
-} from '../_shared/calendar-conference.ts'
+} from "../_shared/calendar-conference.ts";
 import {
   buildDevEscalationPromptRule,
   DEV_ESCALATION_REFUSAL_HE,
@@ -984,36 +984,56 @@ async function resolveCalendarConferenceExtras(
   tenantId: string,
   args: Record<string, unknown>,
 ) {
-  const extraEmails = collectExtraAttendeeEmails(args)
-  const extraNamed: Array<{ email: string; displayName?: string }> = []
-  let carmen_attendee: Record<string, unknown> | null = null
+  const extraEmails = collectExtraAttendeeEmails(args);
+  const extraNamed: Array<{ email: string; displayName?: string }> = [];
+  let carmen_attendee: Record<string, unknown> | null = null;
   if (args.add_carmen === true) {
-    const resolved = await resolveCarmenAttendeeEmail(supabase, tenantId, args.carmen_email)
+    const resolved = await resolveCarmenAttendeeEmail(
+      supabase,
+      tenantId,
+      args.carmen_email,
+    );
     if (resolved.email) {
-      extraEmails.push(resolved.email)
-      extraNamed.push({ email: resolved.email, displayName: 'כרמן' })
-      carmen_attendee = { added: true, email: resolved.email, source: resolved.source }
+      extraEmails.push(resolved.email);
+      extraNamed.push({ email: resolved.email, displayName: "כרמן" });
+      carmen_attendee = {
+        added: true,
+        email: resolved.email,
+        source: resolved.source,
+      };
     } else {
-      carmen_attendee = { added: false, error: resolved.error }
+      carmen_attendee = { added: false, error: resolved.error };
     }
   }
-  const conferenceType = resolveRequestedConference(args)
-  return { extraEmails: [...new Set(extraEmails)], extraNamed, carmen_attendee, conferenceType }
+  const conferenceType = resolveRequestedConference(args);
+  return {
+    extraEmails: [...new Set(extraEmails)],
+    extraNamed,
+    carmen_attendee,
+    conferenceType,
+  };
 }
 
-async function makeZoomMeetingCreator(supabase: any, tenantId: string, titleHint?: string) {
+async function makeZoomMeetingCreator(
+  supabase: any,
+  tenantId: string,
+  titleHint?: string,
+) {
   return async (existing: any) => {
-    const zoomAuth = await fetchZoomAccessToken(supabase, tenantId)
+    const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
     if (!zoomAuth.accessToken) {
-      return { error: zoomAuth.error, configured: zoomAuth.configured === true }
+      return {
+        error: zoomAuth.error,
+        configured: zoomAuth.configured === true,
+      };
     }
     return createZoomMeeting({
       accessToken: zoomAuth.accessToken,
-      topic: titleHint || existing?.summary || 'Meeting',
+      topic: titleHint || existing?.summary || "Meeting",
       startDateTime: existing?.start?.dateTime || new Date().toISOString(),
       durationMinutes: eventDurationMinutes(existing),
-    })
-  }
+    });
+  };
 }
 
 // ===========================
@@ -4297,8 +4317,7 @@ const ALL_TOOLS = [
         },
         conference_type: {
           type: "string",
-          description:
-            "meet | zoom. zoom נופל ל-Meet אם Zoom לא מוגדר בטננט.",
+          description: "meet | zoom. zoom נופל ל-Meet אם Zoom לא מוגדר בטננט.",
         },
         add_attendee_emails: {
           type: "array",
