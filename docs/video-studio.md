@@ -27,6 +27,8 @@ Migration: `supabase/migrations/20261014070000_video_studio_foundation.sql` (ide
 - **Buckets**: private `creative-video` (200 MB per file, video/audio/image/json/vtt; path `tenant_id/client_id/item_id/scene_id/<kind>-v<n>.<ext>`, signed URLs only, tenant-folder RLS). `carmen-media` created on Staging, where `carmen-save-media` expected it.
 - **Realtime**: `marketing_video_scenes` is in `supabase_realtime` for live scene status from phase 4 on.
 
+**Release order (Production):** apply the migration and deploy `main` (frontend + `marketing-creative-plan`) in the same window, then run `select public.migrate_storyboard_to_video_scenes();` once more. Until the new frontend is live, the old one keeps writing only `payload.storyboard`; an item that already has scenes is not re-moved, so edits made in that window would not show in the new editor. The same applies on Staging to storyboards the mirror brings in from Production after the move.
+
 The Staging mirror only adds or updates rows from Production and its preflight only fails on columns missing on Staging, so the new columns and table do not block it.
 
 ## Provider checks (before writing provider code)

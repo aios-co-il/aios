@@ -309,7 +309,9 @@ export function CreativeDepartment({
   const cursorJobIdsRef = useRef<Set<string>>(new Set());
   const persistChainRef = useRef(Promise.resolve());
   /** Scene id → stored still URL, as last loaded from or saved to marketing_video_scenes. */
-  const persistedStillsRef = useRef<Map<string, string | undefined>>(new Map());
+  const persistedStillsRef = useRef<
+    Map<string, Map<string, string | undefined>>
+  >(new Map());
   const [activeJobs, setActiveJobs] = useState(0);
   const [busyIds, setBusyIds] = useState<string[]>([]);
 
@@ -453,13 +455,14 @@ export function CreativeDepartment({
         .sort(),
     [items],
   );
-  const { data: storyboards = NO_STORYBOARDS } = useQuery({
-    queryKey: ["creative-video-scenes", tenantId, videoItemIds.join(",")],
-    enabled: videoItemIds.length > 0,
-    queryFn: () => fetchVideoStoryboards(tenantId, videoItemIds),
-    // A new project changes the key; keep showing the loaded storyboards meanwhile.
-    placeholderData: (previous) => previous,
-  });
+  const { data: storyboards = NO_STORYBOARDS, isPending: loadingScenes } =
+    useQuery({
+      queryKey: ["creative-video-scenes", tenantId, videoItemIds.join(",")],
+      enabled: videoItemIds.length > 0,
+      queryFn: () => fetchVideoStoryboards(tenantId, videoItemIds),
+      // A new project changes the key; keep showing the loaded storyboards meanwhile.
+      placeholderData: (previous) => previous,
+    });
   const storyboard = useMemo(
     () => (selectedId ? storyboards[selectedId] : undefined) ?? NO_FRAMES,
     [storyboards, selectedId],
@@ -630,10 +633,18 @@ export function CreativeDepartment({
     setPendingStyleId(null);
   }, [selectedId]);
 
+  // Keyed by content: a refetch under a new query key (e.g. after creating a project)
+  // returns new objects for unchanged storyboards and must not reset an unsaved draft.
+  const storyboardSignature = useMemo(
+    () => JSON.stringify(storyboard),
+    [storyboard],
+  );
   useEffect(() => {
     setStoryboardDraft(storyboard);
-    persistedStillsRef.current = persistedStillsOf(storyboard);
-  }, [storyboard, selectedId]);
+    if (selectedId)
+      persistedStillsRef.current.set(selectedId, persistedStillsOf(storyboard));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- storyboardSignature stands in for storyboard
+  }, [storyboardSignature, selectedId]);
 
   useEffect(() => {
     if (!selectedVariationId && variations[0]?.id)
@@ -849,9 +860,9 @@ export function CreativeDepartment({
       tenantId,
       itemId,
       frames: nextFrames,
-      persistedStills: persistedStillsRef.current,
+      persistedStills: persistedStillsRef.current.get(itemId) ?? new Map(),
     });
-    persistedStillsRef.current = persistedStillsOf(nextFrames);
+    persistedStillsRef.current.set(itemId, persistedStillsOf(nextFrames));
   };
 
   const persistStoryboard = async (
@@ -2871,7 +2882,11 @@ export function CreativeDepartment({
         </aside>
         <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
           {selected ? (
-            isVideoWorkspace ? (
+            isVideoWorkspace && loadingScenes && !storyboards[selected.id] ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : isVideoWorkspace ? (
               <CreativeStoryboardEditor
                 frames={storyboardDraft}
                 onChange={setStoryboardDraft}
