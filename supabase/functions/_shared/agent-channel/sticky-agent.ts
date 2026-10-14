@@ -44,6 +44,11 @@ export function allowCreateNewCloudAgent(env: Record<string, string | undefined>
   return String(env.CURSOR_DIRECT_ALLOW_CREATE || "true").toLowerCase() !== "false";
 }
 
+/** When the open bc-… chat returns 409 busy, opt-in only before spawning a parallel agent. */
+export function allowParallelCloudAgentOnBusy(env: Record<string, string | undefined> = {}): boolean {
+  return String(env.CURSOR_DIRECT_ALLOW_PARALLEL || "").toLowerCase() === "true";
+}
+
 export function billingNoteForSeat(provider: string): string {
   switch (provider) {
     case "cursor":
@@ -72,7 +77,7 @@ export function missingOpenChatMessage(provider: OpenChatProvider): string {
 export function busyOpenChatMessage(provider: OpenChatProvider, url?: string | null): string {
   const name = "Cursor";
   return (
-    `הצ'אט הפתוח של ${name} עדיין רץ — נפתח סוכן מקביל.` +
+    `הצ'אט של ${name} עדיין רץ על אותה משימה — ההודעה תיכנס לתור (או המתן לסיום).` +
     (url ? ` מעקב: ${url}` : "")
   );
 }
@@ -84,6 +89,7 @@ export async function collectOpenChatIds(
   args: {
     tenantId: string;
     provider: OpenChatProvider;
+    conversationId?: string | null;
     sessionId?: string | null;
     env?: Record<string, string | undefined>;
   },
@@ -92,7 +98,23 @@ export async function collectOpenChatIds(
   const sticky = args.provider === "cursor" && cursorDirectStickyEnabled(env);
 
   if (!sticky && args.provider === "cursor") {
-    return uniqueCloudAgentIds(args.sessionId);
+    const ids = uniqueCloudAgentIds(args.sessionId);
+    const convId = String(args.conversationId || "").trim();
+    if (convId) {
+      try {
+        const { data: row } = await sb
+          .from("agent_channel_sessions")
+          .select("external_session_id")
+          .eq("conversation_id", convId)
+          .eq("provider", "cursor")
+          .not("external_session_id", "is", null)
+          .order("last_activity_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        ids.unshift(...uniqueCloudAgentIds(row?.external_session_id));
+      } catch { /* ignore */ }
+    }
+    return uniqueCloudAgentIds(...ids);
   }
 
   const ids = uniqueCloudAgentIds(args.sessionId, envOpenChatId(args.provider, env));

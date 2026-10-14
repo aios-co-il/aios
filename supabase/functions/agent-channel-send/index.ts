@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         chatgpt: { bill: "chatgpt_workspace" },
       },
       message: cursor.ok
-        ? "Cursor Direct פותח סוכן Cursor חדש לכל הודעה (סשנים מקבילים מותרים)."
+        ? "Cursor Direct: follow-up באותו bc-… לפי שיחת Command Center; סוכן חדש רק אם אין chat קיים (לא במקביל על 409 busy)."
         : "CURSOR_API_KEY on this project is missing or rejected (401). Preview uses Staging — set a valid User key there.",
     });
   }

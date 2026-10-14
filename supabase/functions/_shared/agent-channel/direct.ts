@@ -7,6 +7,7 @@ import { mintCallbackToken } from "./hmac.ts";
 import { buildCallbackInstructions, buildCodexWorkspaceAgentInput, wrapDirectPrompt } from "./prompts.ts";
 import {
   allowCreateNewCloudAgent,
+  allowParallelCloudAgentOnBusy,
   collectOpenChatIds,
   busyOpenChatMessage,
   missingOpenChatMessage,
@@ -128,6 +129,7 @@ export async function launchCloudDirect(
       apiKey,
       sb,
       tenantId: ctx.tenantId,
+      conversationId: ctx.conversationId,
       provider,
       sessionId: session.external_session_id,
       prompt: clip(prompt),
@@ -178,6 +180,7 @@ async function deliverToOpenCloudChat(args: {
   apiKey: string;
   sb: ReturnType<typeof serviceClient>;
   tenantId: string;
+  conversationId?: string | null;
   provider: OpenChatProvider;
   sessionId?: string | null;
   prompt: string;
@@ -191,6 +194,7 @@ async function deliverToOpenCloudChat(args: {
   const candidates = await collectOpenChatIds(args.sb, {
     tenantId: args.tenantId,
     provider: args.provider,
+    conversationId: args.conversationId,
     sessionId: args.sessionId,
     env,
   });
@@ -202,6 +206,10 @@ async function deliverToOpenCloudChat(args: {
       return { id: outcome.id, url: outcome.url, reused: true };
     }
     if (outcome.kind === "busy") sawBusy = outcome;
+  }
+
+  if (sawBusy && !allowParallelCloudAgentOnBusy(env)) {
+    throw new Error(busyOpenChatMessage(args.provider, sawBusy.url));
   }
 
   const mayCreate = args.allowCreate ?? allowCreateNewCloudAgent(env);

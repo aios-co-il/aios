@@ -49,7 +49,35 @@ test("Cursor is Carmen Direct; Codex is ChatGPT Workspace", () => {
   assert.match(billingNoteForSeat("codex"), /ChatGPT Workspace/);
   assert.match(billingNoteForSeat("internal"), /OpenAI API/);
   assert.match(missingOpenChatMessage("cursor"), /Cursor Direct/);
-  assert.match(busyOpenChatMessage("cursor", "https://cursor.com/agents/bc-1"), /מקביל/);
+  assert.match(busyOpenChatMessage("cursor", "https://cursor.com/agents/bc-1"), /עדיין רץ/);
+});
+
+test("collectOpenChatIds without sticky still loads bc from the same Command Center conversation", async () => {
+  const sb = {
+    from(table: string) {
+      const chain: any = {
+        select() { return chain; },
+        eq() { return chain; },
+        not() { return chain; },
+        order() { return chain; },
+        limit() { return chain; },
+        maybeSingle: async () => (
+          table === "agent_channel_sessions"
+            ? { data: { external_session_id: "bc-conv" } }
+            : { data: null }
+        ),
+      };
+      return chain;
+    },
+  };
+  const ids = await collectOpenChatIds(sb, {
+    tenantId: "t1",
+    provider: "cursor",
+    conversationId: "conv-1",
+    sessionId: "bc-this-chat",
+    env: {},
+  });
+  assert.deepEqual(ids, ["bc-conv", "bc-this-chat"]);
 });
 
 test("collectOpenChatIds without sticky only returns the current session", async () => {
