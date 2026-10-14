@@ -25,7 +25,9 @@ export interface FilterPreset {
     salesPersonId?: string;
     stageId?: string;
     stageIds?: string[];
+    stageFilterMode?: "show" | "hide";
     responseStatus?: string | string[]; // Support both old (string) and new (array) format
+    responseStatusFilterMode?: "show" | "hide";
     tagId?: string; // Legacy format
     tagIds?: string[]; // New format
     startDate?: string | null;
@@ -49,6 +51,7 @@ interface LeadFilterPresetTabsProps {
   hasActiveFilters: boolean;
   pipelineStages?: StagePreset[];
   activeStageIds?: string[];
+  stageFilterMode?: "show" | "hide";
   onStageSelect?: (stageId: string) => void;
   stageCounts?: Record<string, number>;
 }
@@ -61,6 +64,7 @@ export function LeadFilterPresetTabs({
   hasActiveFilters,
   pipelineStages = [],
   activeStageIds = [],
+  stageFilterMode = "show",
   onStageSelect,
   stageCounts,
 }: LeadFilterPresetTabsProps) {
@@ -123,23 +127,31 @@ export function LeadFilterPresetTabs({
   const userOwnsPreset = (preset: FilterPreset) => preset.user_id === userId;
 
   const activePreset = presets.find((p) => p.id === activePresetId) ?? null;
+  const hidingStages = stageFilterMode === "hide" && activeStageIds.length > 0;
   const activeStage =
-    activeStageIds.length === 1
-      ? pipelineStages.find((s) => s.id === activeStageIds[0]) ?? null
+    !hidingStages && activeStageIds.length === 1
+      ? (pipelineStages.find((s) => s.id === activeStageIds[0]) ?? null)
       : null;
 
-  const pipelineTriggerLabel =
-    activeStageIds.length === 0
+  const pipelineTriggerLabel = hidingStages
+    ? activeStageIds.length === 1
+      ? `הסתר ${pipelineStages.find((stage) => stage.id === activeStageIds[0])?.label ?? "שלב"}`
+      : `הסתר ${activeStageIds.length}`
+    : activeStageIds.length === 0
       ? "הכל"
       : activeStageIds.length === 1
         ? activeStage?.label ?? "פייפליין"
         : `${activeStageIds.length} שלבים`;
-  const pipelineTriggerCount =
-    activeStageIds.length === 0
+  const selectedStageCount = stageCounts
+    ? activeStageIds.reduce((sum, id) => sum + (stageCounts[id] || 0), 0)
+    : undefined;
+  const pipelineTriggerCount = hidingStages
+    ? stageCounts
+      ? Math.max(0, (stageCounts.all || 0) - (selectedStageCount || 0))
+      : undefined
+    : activeStageIds.length === 0
       ? stageCounts?.all
-      : stageCounts
-        ? activeStageIds.reduce((sum, id) => sum + (stageCounts[id] || 0), 0)
-        : undefined;
+      : selectedStageCount;
 
   return (
     <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden">
@@ -265,7 +277,7 @@ export function LeadFilterPresetTabs({
               onClick={() => onStageSelect("all")}
               className={cn(
                 "mb-1 justify-between gap-2 rounded-md",
-                activeStageIds.length === 0 && "bg-accent",
+                !hidingStages && activeStageIds.length === 0 && "bg-accent",
               )}
             >
               <span>הכל</span>
@@ -275,13 +287,16 @@ export function LeadFilterPresetTabs({
                     {stageCounts.all.toLocaleString()}
                   </Badge>
                 )}
-                {activeStageIds.length === 0 && <Check className="h-4 w-4 shrink-0" />}
+                {!hidingStages && activeStageIds.length === 0 && (
+                  <Check className="h-4 w-4 shrink-0" />
+                )}
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="my-1" />
             {pipelineStages.map((stage) => {
               const count = stageCounts?.[stage.id];
-              const isActive = activeStageIds.includes(stage.id);
+              const isActive =
+                !hidingStages && activeStageIds.includes(stage.id);
               return (
                 <DropdownMenuItem
                   key={stage.id}
