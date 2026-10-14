@@ -1,8 +1,12 @@
 export {
+  agencyVoiceNote,
+  attachGroupAffiliations,
   consumeGroupActivation,
   eligibleManusGroups,
   generateVerificationCode,
+  groupsReadyToIntroduce,
   introMessage,
+  loadGroupAgencyVoice,
   loadRelationshipNote,
   matchGroupActivation,
   privateCodeMessage,

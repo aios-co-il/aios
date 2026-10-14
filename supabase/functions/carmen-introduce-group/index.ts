@@ -4,8 +4,10 @@
 // Does not create another allowlist and does not call carmen_send_activation.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
+  attachGroupAffiliations,
   eligibleManusGroups,
   generateVerificationCode,
+  groupsReadyToIntroduce,
   introMessage,
   privateCodeMessage,
   selectRoundGroups,
@@ -130,12 +132,60 @@ Deno.serve(async (req) => {
   const dbRows = [...(tagged || []), ...catalogRows].filter(
     (row) => row.is_blocked !== true,
   );
-  const groups = selectRoundGroups(eligibleManusGroups({ catalog, dbRows }), {
+  const selected = selectRoundGroups(eligibleManusGroups({ catalog, dbRows }), {
     allowedGroupIds: policy?.allowed_group_ids,
     openMemberGroups: policy?.open_member_groups === true,
   });
-  if (groups.length === 0 || phones.length === 0) {
+  if (selected.length === 0 || phones.length === 0) {
     return json({ ok: true, groups: 0, codes: 0, reason: "nothing_selected" });
+  }
+
+  const linkQuery = await admin
+    .from("carmen_client_group_access")
+    .select("whatsapp_group_id, client_id, agency_id")
+    .eq("tenant_id", tenantId);
+  let links = linkQuery.data || [];
+  if (linkQuery.error && /agency_id/.test(linkQuery.error.message || "")) {
+    const fallback = await admin
+      .from("carmen_client_group_access")
+      .select("whatsapp_group_id, client_id")
+      .eq("tenant_id", tenantId);
+    if (fallback.error) return json({ error: fallback.error.message }, 500);
+    links = fallback.data || [];
+  } else if (linkQuery.error) {
+    return json({ error: linkQuery.error.message }, 500);
+  }
+  const clientIds = [
+    ...new Set(links.map((link) => link.client_id).filter(Boolean)),
+  ];
+  const { data: linkedClients } = clientIds.length
+    ? await admin
+        .from("clients")
+        .select("id, name, agency_id")
+        .in("id", clientIds)
+    : { data: [] };
+  const agencyIds = [
+    ...new Set(
+      [
+        ...links.map((link) => link.agency_id),
+        ...(linkedClients || []).map((client) => client.agency_id),
+      ].filter(Boolean),
+    ),
+  ];
+  const { data: linkedAgencies } = agencyIds.length
+    ? await admin.from("agencies").select("id, name").in("id", agencyIds)
+    : { data: [] };
+  const groups = groupsReadyToIntroduce(
+    attachGroupAffiliations(selected, links, linkedClients, linkedAgencies),
+  );
+  if (groups.length === 0) {
+    return json({
+      ok: true,
+      groups: 0,
+      codes: 0,
+      skipped: selected.length,
+      reason: "missing_client_or_agency",
+    });
   }
 
   const phoneNumbers = phones.map((phone) => phone.phone);
@@ -179,7 +229,7 @@ Deno.serve(async (req) => {
         phone: phone.phone,
         text: privateCodeMessage({
           name: phone.name,
-          groupName: group.group_name,
+          agencyName: group.agency_name,
           code,
         }),
       });
@@ -215,7 +265,10 @@ Deno.serve(async (req) => {
   for (const group of groups) {
     await send({
       groupId: group.id,
-      message: introMessage(group.group_name),
+      message: introMessage({
+        agencyName: group.agency_name,
+        clientName: group.client_name,
+      }),
     });
   }
   for (const activation of activations) {
@@ -229,5 +282,6 @@ Deno.serve(async (req) => {
     ok: true,
     groups: groups.length,
     codes: activations.length,
+    skipped: selected.length - groups.length,
   });
 });

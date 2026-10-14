@@ -3,6 +3,9 @@ import { test } from "node:test";
 import {
   eligibleManusGroups,
   generateVerificationCode,
+  agencyVoiceNote,
+  attachGroupAffiliations,
+  groupsReadyToIntroduce,
   introMessage,
   matchGroupActivation,
   privateCodeMessage,
@@ -34,13 +37,40 @@ test("group code matches only the activation issued for that group", () => {
   );
 });
 
-test("intro stays in the group and the code stays in the private message", () => {
-  assert.match(introMessage("צוות"), /צוות/);
-  assert.doesNotMatch(introMessage("צוות"), /\d{6}/);
+test("intro names the linked agency and keeps the code private", () => {
+  const intro = introMessage({ agencyName: "דור מדיה", clientName: "לקוח א" });
+  assert.match(intro, /מנהלת השיווק הדיגיטלי של דור מדיה/);
+  assert.match(intro, /לקוח א/);
+  assert.equal(introMessage({ clientName: "לקוח א" }), "");
+  assert.doesNotMatch(intro, /\d{6}/);
   assert.match(
-    privateCodeMessage({ name: "דוד", groupName: "צוות", code: "123456" }),
+    privateCodeMessage({ name: "דוד", agencyName: "דור מדיה", code: "123456" }),
     /123456/,
   );
+  assert.match(
+    agencyVoiceNote({ agencyName: "דור מדיה", clientName: "לקוח א" }),
+    /דור מדיה/,
+  );
+});
+
+test("a group is introduced only when it already has a client and an agency", () => {
+  const groupId = "11111111-1111-1111-1111-111111111111";
+  const clientId = "33333333-3333-3333-3333-333333333333";
+  const agencyId = "44444444-4444-4444-4444-444444444444";
+  const [linked] = attachGroupAffiliations(
+    [{ id: groupId, group_chat_id: "team@g.us", group_name: "צוות" }],
+    [{ whatsapp_group_id: groupId, client_id: clientId, agency_id: agencyId }],
+    [{ id: clientId, name: "לקוח א", agency_id: agencyId }],
+    [{ id: agencyId, name: "דור מדיה" }],
+  );
+  assert.equal(groupsReadyToIntroduce([linked]).length, 1);
+  const [unlinked] = attachGroupAffiliations(
+    [{ id: groupId, group_chat_id: "team@g.us" }],
+    [],
+    [],
+    [],
+  );
+  assert.equal(groupsReadyToIntroduce([unlinked]).length, 0);
 });
 
 test("round uses approved group phones and Manus groups only", () => {

@@ -18,3 +18,18 @@ comment on column public.wa_pending_activations.group_chat_id is
 create index if not exists idx_wa_pending_activations_group
   on public.wa_pending_activations (tenant_id, group_chat_id, status)
   where group_chat_id is not null;
+
+-- Approved Manus groups keep their client on carmen_client_group_access.
+-- The agency on that same row is who Carmen represents in the group.
+alter table public.carmen_client_group_access
+  add column if not exists agency_id uuid references public.agencies(id);
+
+comment on column public.carmen_client_group_access.agency_id is
+  'Agency this group belongs to. Carmen introduces herself as its digital marketing manager.';
+
+update public.carmen_client_group_access as link
+set agency_id = client.agency_id
+from public.clients as client
+where link.client_id = client.id
+  and link.agency_id is null
+  and client.agency_id is not null;
