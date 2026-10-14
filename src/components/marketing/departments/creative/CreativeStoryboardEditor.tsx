@@ -1,15 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Background,
-  Controls,
-  Handle,
-  Position,
-  ReactFlow,
-  type Edge,
-  type Node,
-  type NodeProps,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,25 +35,35 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { CreativeImage } from "@/components/marketing/departments/creative/CreativeImage";
 import {
+  CheckCircle2,
   Copy,
+  GripVertical,
   Image as ImageIcon,
   Loader2,
+  Lock,
+  LockOpen,
   Plus,
   Save,
   Square,
   Trash2,
+  UserRound,
   WandSparkles,
+  X,
 } from "lucide-react";
-import type { StoryboardFrame } from "./types";
-import {
-  STORYBOARD_FRAME_GAP,
-  makeStoryboardFrame,
-  storyboardFrameX,
-} from "./utils";
+import type { StoryboardFrame, VideoSceneStatus } from "./types";
+import { makeStoryboardFrame, storyboardFrameX } from "./utils";
+import type { StillModel } from "./videoStill";
+
+export interface SceneStillVersion {
+  id: string;
+  url: string;
+  version: number;
+}
 
 interface Props {
   frames: StoryboardFrame[];
@@ -56,59 +72,194 @@ interface Props {
   onGenerateFrame: (frame: StoryboardFrame) => Promise<void>;
   onGenerateAll?: () => Promise<void>;
   onStop?: () => void;
+  /** Change the existing still with a short instruction ("move Carmen left"). */
+  onEditWithPrompt?: (
+    frame: StoryboardFrame,
+    instruction: string,
+  ) => Promise<void>;
+  onApprove?: (frame: StoryboardFrame, approved: boolean) => Promise<void>;
+  loadVersions?: (frameId: string) => Promise<SceneStillVersion[]>;
+  onSelectVersion?: (frame: StoryboardFrame, assetId: string) => Promise<void>;
+  character?: {
+    url?: string;
+    uploading?: boolean;
+    onUpload: (file: File) => void;
+    onClear: () => void;
+  };
+  stillModel?: StillModel;
+  onStillModelChange?: (model: StillModel) => void;
   generating?: boolean;
   saving?: boolean;
   scenePanelOpen?: boolean;
   onScenePanelOpenChange?: (open: boolean) => void;
 }
 
-type StoryboardNode = Node<StoryboardFrame, "storyboard">;
+const STATUS_LABEL: Record<VideoSceneStatus, string> = {
+  draft: "טיוטה",
+  still_generating: "נוצר…",
+  still_ready: "מוכן לאישור",
+  still_approved: "מאושר",
+  clip_generating: "מונפש…",
+  clip_ready: "קליפ מוכן",
+  clip_approved: "קליפ מאושר",
+  failed: "נכשל",
+};
 
-function StoryboardCard({ data, selected }: NodeProps<StoryboardNode>) {
+const STATUS_CLASS: Partial<Record<VideoSceneStatus, string>> = {
+  still_ready: "bg-amber-500/90 text-white",
+  still_approved: "bg-emerald-600/90 text-white",
+  clip_ready: "bg-sky-600/90 text-white",
+  clip_approved: "bg-emerald-700/90 text-white",
+  failed: "bg-destructive text-destructive-foreground",
+};
+
+const SHOTS = [
+  "Close-up",
+  "Medium shot",
+  "Wide shot",
+  "POV",
+  "Product shot",
+  "UGC handheld",
+  "Cinematic tracking",
+];
+
+/** Frames in strip order with order/x recomputed (RTL: frame 1 on the right). */
+const renumber = (frames: StoryboardFrame[]): StoryboardFrame[] =>
+  frames.map((frame, index) => ({
+    ...frame,
+    order: index + 1,
+    x: storyboardFrameX(index + 1),
+  }));
+
+function FrameCard({
+  frame,
+  selected,
+  onSelect,
+  onToggleLock,
+}: {
+  frame: StoryboardFrame;
+  selected: boolean;
+  onSelect: () => void;
+  onToggleLock: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: frame.id });
+  const status = frame.status ?? "draft";
   return (
     <Card
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "w-60 overflow-hidden border-2 bg-card p-0 shadow-lg",
+        "w-56 shrink-0 overflow-hidden border-2 bg-card p-0 shadow-sm",
         selected && "border-pink-500 ring-4 ring-pink-500/10",
+        isDragging && "z-10 opacity-80 shadow-xl",
       )}
-      dir="rtl"
     >
-      <Handle type="target" position={Position.Right} />
-      <div className="relative aspect-video bg-muted">
-        {data.imageUrl ? (
-          <CreativeImage
-            src={data.imageUrl}
-            alt={data.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-            <ImageIcon className="mb-2 h-7 w-7 opacity-40" />
-            <span className="text-[10px]">פריים טרם נוצר</span>
-          </div>
-        )}
-        <Badge className="absolute right-2 top-2 bg-black/70 text-white hover:bg-black/70">
-          {data.order}
-        </Badge>
-        <Badge
-          variant="secondary"
-          className="absolute bottom-2 left-2 text-[10px]"
-        >
-          {data.duration} שנ׳
-        </Badge>
-      </div>
-      <div className="p-3">
-        <div className="truncate text-xs font-bold">{data.title}</div>
-        <div className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-relaxed text-muted-foreground">
-          {data.visualPrompt || data.voiceover || "בחר את הסצנה והוסף הנחיות"}
+      <button
+        type="button"
+        className="block w-full text-right"
+        onClick={onSelect}
+      >
+        <div className="relative aspect-video bg-muted">
+          {frame.imageUrl ? (
+            <CreativeImage
+              src={frame.imageUrl}
+              alt={frame.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+              <ImageIcon className="mb-2 h-7 w-7 opacity-40" />
+              <span className="text-[10px]">פריים טרם נוצר</span>
+            </div>
+          )}
+          <Badge className="absolute right-2 top-2 bg-black/70 text-white hover:bg-black/70">
+            {frame.order}
+          </Badge>
+          <Badge
+            className={cn(
+              "absolute left-2 top-2 text-[10px]",
+              STATUS_CLASS[status] ?? "bg-background/90 text-foreground",
+            )}
+          >
+            {STATUS_LABEL[status]}
+          </Badge>
+          <Badge
+            variant="secondary"
+            className="absolute bottom-2 left-2 text-[10px]"
+          >
+            {frame.duration} שנ׳
+          </Badge>
         </div>
+      </button>
+      <div className="flex items-start gap-1 p-2">
+        <button
+          type="button"
+          className="mt-0.5 cursor-grab touch-none text-muted-foreground"
+          aria-label="גרירה לסידור מחדש"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-right"
+          onClick={onSelect}
+        >
+          <div className="truncate text-xs font-bold">{frame.title}</div>
+          <div className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-relaxed text-muted-foreground">
+            {frame.visualPrompt ||
+              frame.voiceover ||
+              "בחר את הסצנה והוסף הנחיות"}
+          </div>
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "mt-0.5",
+            frame.locked ? "text-amber-600" : "text-muted-foreground",
+          )}
+          aria-label={frame.locked ? "בטל נעילה" : "נעל פריים"}
+          title={frame.locked ? "נעול: לא ייווצר מחדש ב'צור הכל'" : "נעל פריים"}
+          onClick={onToggleLock}
+        >
+          {frame.locked ? (
+            <Lock className="h-4 w-4" />
+          ) : (
+            <LockOpen className="h-4 w-4" />
+          )}
+        </button>
       </div>
-      <Handle type="source" position={Position.Left} />
     </Card>
   );
 }
 
-const nodeTypes = { storyboard: StoryboardCard };
+function InsertButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full border border-dashed text-muted-foreground hover:border-pink-500 hover:text-pink-600"
+    >
+      <Plus className="h-4 w-4" />
+    </button>
+  );
+}
 
 export function CreativeStoryboardEditor({
   frames,
@@ -117,6 +268,13 @@ export function CreativeStoryboardEditor({
   onGenerateFrame,
   onGenerateAll,
   onStop,
+  onEditWithPrompt,
+  onApprove,
+  loadVersions,
+  onSelectVersion,
+  character,
+  stillModel,
+  onStillModelChange,
   generating,
   saving,
   scenePanelOpen,
@@ -129,9 +287,21 @@ export function CreativeStoryboardEditor({
     frames[0] ?? null,
   );
   const [internalSceneOpen, setInternalSceneOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [versions, setVersions] = useState<SceneStillVersion[]>([]);
+  const [busy, setBusy] = useState<"edit" | "approve" | "version" | null>(null);
+  const characterInput = useRef<HTMLInputElement>(null);
 
   const sceneOpen = scenePanelOpen ?? internalSceneOpen;
   const setSceneOpen = onScenePanelOpenChange ?? setInternalSceneOpen;
+  const ordered = [...frames].sort((a, b) => a.order - b.order);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     if (!selectedFrameId && frames[0]?.id) setSelectedFrameId(frames[0].id);
@@ -149,82 +319,172 @@ export function CreativeStoryboardEditor({
     setFrameDraft(frame ? { ...frame } : null);
   }, [frames, selectedFrameId]);
 
-  const nodes: StoryboardNode[] = useMemo(
-    () =>
-      frames.map((frame) => ({
-        id: frame.id,
-        type: "storyboard",
-        position: { x: frame.x, y: frame.y },
-        data: frame,
-      })),
-    [frames],
-  );
+  const selectedStillId = frames.find(
+    (frame) => frame.id === selectedFrameId,
+  )?.stillAssetId;
+  useEffect(() => {
+    let cancelled = false;
+    setVersions([]);
+    if (!sceneOpen || !selectedFrameId || !loadVersions) return;
+    loadVersions(selectedFrameId)
+      .then((rows) => {
+        if (!cancelled) setVersions(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneOpen, selectedFrameId, selectedStillId, loadVersions]);
 
-  const edges: Edge[] = useMemo(() => {
-    const ordered = [...frames].sort((a, b) => a.order - b.order);
-    return ordered.slice(0, -1).map((frame, index) => ({
-      id: `${frame.id}-${ordered[index + 1].id}`,
-      source: frame.id,
-      target: ordered[index + 1].id,
-      animated: true,
-      style: { stroke: "#ec4899", strokeWidth: 2 },
-    }));
-  }, [frames]);
-
-  const updateFrames = (next: StoryboardFrame[]) => onChange(next);
+  const updateFrames = (next: StoryboardFrame[]) => onChange(renumber(next));
 
   const saveFrameDraft = () => {
     if (!frameDraft) return;
-    updateFrames(
+    onChange(
       frames.map((frame) => (frame.id === frameDraft.id ? frameDraft : frame)),
     );
   };
 
-  const addFrame = () => {
-    const next = [...frames, makeStoryboardFrame(frames.length + 1)];
+  const insertAt = (index: number) => {
+    const frame = makeStoryboardFrame(index + 1);
+    const next = [...ordered];
+    next.splice(index, 0, frame);
     updateFrames(next);
-    const newId = next[next.length - 1].id;
-    setSelectedFrameId(newId);
+    setSelectedFrameId(frame.id);
     setSceneOpen(true);
   };
 
   const duplicateFrame = () => {
     if (!frameDraft) return;
+    const index = ordered.findIndex((frame) => frame.id === frameDraft.id);
     const copy = {
       ...frameDraft,
       id: crypto.randomUUID(),
-      order: frames.length + 1,
-      x: frameDraft.x - STORYBOARD_FRAME_GAP,
+      status: frameDraft.imageUrl
+        ? ("still_ready" as const)
+        : ("draft" as const),
+      stillAssetId: undefined,
     };
-    updateFrames([...frames, copy]);
+    const next = [...ordered];
+    next.splice(index + 1, 0, copy);
+    updateFrames(next);
     setSelectedFrameId(copy.id);
   };
 
   const removeFrame = () => {
     if (!frameDraft) return;
-    const next = frames
-      .filter((frame) => frame.id !== frameDraft.id)
-      .map((frame, index) => ({
-        ...frame,
-        order: index + 1,
-        x: storyboardFrameX(index + 1),
-        y: frame.y,
-      }));
+    const next = ordered.filter((frame) => frame.id !== frameDraft.id);
     updateFrames(next);
     if (next.length === 0) setSceneOpen(false);
   };
 
+  const toggleLock = (frameId: string) => {
+    onChange(
+      frames.map((frame) =>
+        frame.id === frameId ? { ...frame, locked: !frame.locked } : frame,
+      ),
+    );
+  };
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const from = ordered.findIndex((frame) => frame.id === active.id);
+    const to = ordered.findIndex((frame) => frame.id === over.id);
+    if (from < 0 || to < 0) return;
+    updateFrames(arrayMove(ordered, from, to));
+  };
+
   const selectFrame = (frameId: string) => {
     setSelectedFrameId(frameId);
+    setInstruction("");
     setSceneOpen(true);
   };
 
+  const run = async (
+    kind: "edit" | "approve" | "version",
+    action: () => Promise<void>,
+  ) => {
+    setBusy(kind);
+    try {
+      await action();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const approved =
+    frameDraft?.status === "still_approved" ||
+    frameDraft?.status === "clip_approved";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <span className="text-xs text-muted-foreground">
-          Storyboard עקבי — פריים 1 קובע סגנון, הבאים נוצרים מולו
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {character && (
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={characterInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) character.onUpload(file);
+                  event.target.value = "";
+                }}
+              />
+              {character.url ? (
+                <div className="flex items-center gap-1 rounded-full border bg-background py-0.5 pe-1 ps-0.5">
+                  <CreativeImage
+                    src={character.url}
+                    alt="דמות קבועה"
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                  <span className="text-[11px]">דמות קבועה</span>
+                  <button
+                    type="button"
+                    aria-label="הסר דמות"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={character.onClear}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={character.uploading}
+                  onClick={() => characterInput.current?.click()}
+                >
+                  {character.uploading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserRound className="h-3.5 w-3.5" />
+                  )}
+                  תמונת דמות
+                </Button>
+              )}
+            </div>
+          )}
+          {onStillModelChange && (
+            <Select
+              value={stillModel ?? "gpt-image-1"}
+              onValueChange={(value) => onStillModelChange(value as StillModel)}
+            >
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gpt-image-1">gpt-image-1</SelectItem>
+                <SelectItem value="nano-banana-pro">
+                  Nano Banana Pro (דמות עקבית)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
         <div className="flex gap-2">
           {onGenerateAll &&
             (generating && onStop ? (
@@ -257,7 +517,7 @@ export function CreativeStoryboardEditor({
             size="sm"
             variant="outline"
             className="gap-1.5"
-            onClick={addFrame}
+            onClick={() => insertAt(ordered.length)}
           >
             <Plus className="h-3.5 w-3.5" />
             סצנה
@@ -283,42 +543,58 @@ export function CreativeStoryboardEditor({
         <div className="flex flex-1 items-center justify-center p-8 text-center text-muted-foreground">
           <div>
             <p className="text-sm">אין סצנות עדיין</p>
-            <Button className="mt-4 gap-2" onClick={addFrame}>
+            <Button className="mt-4 gap-2" onClick={() => insertAt(0)}>
               <Plus className="h-4 w-4" />
               הוסף סצנה ראשונה
             </Button>
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1" dir="ltr">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            onNodeClick={(_, node) => selectFrame(node.id)}
-            onNodeDragStop={(_, node) => {
-              updateFrames(
-                frames.map((frame) =>
-                  frame.id === node.id
-                    ? { ...frame, x: node.position.x, y: node.position.y }
-                    : frame,
-                ),
-              );
-            }}
-            proOptions={{ hideAttribution: true }}
+        <div className="min-h-0 flex-1 overflow-x-auto" dir="rtl">
+          <p className="px-4 pt-3 text-[11px] text-muted-foreground">
+            פריים 1 קובע סגנון, הבאים נוצרים מולו. גררו פריים לסידור מחדש, +
+            מוסיף סצנה במקום.
+          </p>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
           >
-            <Background gap={24} size={1} />
-            <Controls position="bottom-left" />
-          </ReactFlow>
+            <SortableContext
+              items={ordered.map((frame) => frame.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="flex w-max items-stretch gap-2 p-4">
+                {ordered.map((frame, index) => (
+                  <div key={frame.id} className="flex items-stretch gap-2">
+                    {index > 0 && (
+                      <InsertButton
+                        onClick={() => insertAt(index)}
+                        label={`הוסף סצנה בין ${index} ל-${index + 1}`}
+                      />
+                    )}
+                    <FrameCard
+                      frame={frame}
+                      selected={frame.id === selectedFrameId}
+                      onSelect={() => selectFrame(frame.id)}
+                      onToggleLock={() => toggleLock(frame.id)}
+                    />
+                  </div>
+                ))}
+                <InsertButton
+                  onClick={() => insertAt(ordered.length)}
+                  label="הוסף סצנה בסוף"
+                />
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
 
       <Sheet open={sceneOpen} onOpenChange={setSceneOpen}>
         <SheetContent
           side="left"
-          className="flex w-[360px] max-w-[90vw] flex-col gap-0 p-0 sm:max-w-[360px]"
+          className="flex w-[380px] max-w-[90vw] flex-col gap-0 p-0 sm:max-w-[380px]"
           dir="rtl"
         >
           <SheetHeader className="border-b px-6 py-4 text-right">
@@ -329,6 +605,104 @@ export function CreativeStoryboardEditor({
           {frameDraft ? (
             <ScrollArea className="flex-1">
               <div className="space-y-4 p-4">
+                {frameDraft.imageUrl && (
+                  <div className="overflow-hidden rounded-md border">
+                    <CreativeImage
+                      src={frameDraft.imageUrl}
+                      alt={frameDraft.title}
+                      className="aspect-video w-full object-cover"
+                    />
+                  </div>
+                )}
+                {versions.length > 1 && onSelectVersion && (
+                  <div>
+                    <Label>גרסאות</Label>
+                    <div className="mt-1 flex gap-1.5 overflow-x-auto pb-1">
+                      {versions.map((version) => (
+                        <button
+                          key={version.id}
+                          type="button"
+                          disabled={busy !== null}
+                          title={`גרסה ${version.version}`}
+                          onClick={() =>
+                            version.id !== frameDraft.stillAssetId &&
+                            void run("version", () =>
+                              onSelectVersion(frameDraft, version.id),
+                            )
+                          }
+                          className={cn(
+                            "relative w-16 shrink-0 overflow-hidden rounded border-2",
+                            version.id === frameDraft.stillAssetId
+                              ? "border-pink-500"
+                              : "border-transparent opacity-70 hover:opacity-100",
+                          )}
+                        >
+                          <CreativeImage
+                            src={version.url}
+                            alt={`גרסה ${version.version}`}
+                            className="aspect-video w-full object-cover"
+                          />
+                          <span className="absolute bottom-0 right-0 bg-black/60 px-1 text-[9px] text-white">
+                            v{version.version}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {frameDraft.imageUrl && onEditWithPrompt && (
+                  <div>
+                    <Label>ערוך בהנחיה</Label>
+                    <div className="mt-1 flex gap-2">
+                      <Input
+                        value={instruction}
+                        placeholder="למשל: תזיז את הדמות שמאלה"
+                        onChange={(event) => setInstruction(event.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={
+                          !instruction.trim() || busy !== null || generating
+                        }
+                        onClick={() =>
+                          void run("edit", async () => {
+                            await onEditWithPrompt(
+                              frameDraft,
+                              instruction.trim(),
+                            );
+                            setInstruction("");
+                          })
+                        }
+                      >
+                        {busy === "edit" ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <WandSparkles className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {frameDraft.imageUrl && onApprove && (
+                  <Button
+                    variant={approved ? "secondary" : "default"}
+                    className="w-full gap-2"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void run("approve", () =>
+                        onApprove(frameDraft, !approved),
+                      )
+                    }
+                  >
+                    {busy === "approve" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    {approved ? "בטל אישור" : "אשר פריים"}
+                  </Button>
+                )}
                 <div>
                   <Label>שם הסצנה</Label>
                   <Input
@@ -354,15 +728,7 @@ export function CreativeStoryboardEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[
-                        "Close-up",
-                        "Medium shot",
-                        "Wide shot",
-                        "POV",
-                        "Product shot",
-                        "UGC handheld",
-                        "Cinematic tracking",
-                      ].map((shot) => (
+                      {SHOTS.map((shot) => (
                         <SelectItem key={shot} value={shot}>
                           {shot}
                         </SelectItem>
@@ -383,6 +749,17 @@ export function CreativeStoryboardEditor({
                     }
                   />
                 </div>
+                {character?.url && (
+                  <label className="flex items-center justify-between gap-2 text-sm">
+                    <span>הדמות מופיעה בסצנה</span>
+                    <Switch
+                      checked={frameDraft.hasCharacter !== false}
+                      onCheckedChange={(checked) =>
+                        setFrameDraft({ ...frameDraft, hasCharacter: checked })
+                      }
+                    />
+                  </label>
+                )}
                 <div>
                   <Label>טקסט על המסך</Label>
                   <Textarea
@@ -454,9 +831,9 @@ export function CreativeStoryboardEditor({
                   {frameDraft.imageUrl ? "צור וריאציה" : "צור פריים"}
                 </Button>
                 <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  פריים 1 קובע את הסגנון (אנשים, תאורה, פלטה). פריימים הבאים
-                  נוצרים מולו כדי לשמור עקביות — לא קולאז׳ ולא איור. תאר רק מה
-                  משתנה בסצנה.
+                  פריים 1 קובע את הסגנון. פריימים הבאים נוצרים מולו, ותמונת
+                  הדמות נשלחת כרפרנס בכל סצנה שהיא מופיעה בה. תארו רק מה משתנה
+                  בסצנה.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button

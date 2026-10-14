@@ -27,7 +27,23 @@ export interface StoryboardFrame {
   generationCost?: ImageGenerationCost;
   x: number;
   y: number;
+  /** marketing_video_scenes.status; set for scenes loaded from the table. */
+  status?: VideoSceneStatus;
+  locked?: boolean;
+  /** The project's fixed character appears in this scene (default true). */
+  hasCharacter?: boolean;
+  stillAssetId?: string;
 }
+
+export type VideoSceneStatus =
+  | "draft"
+  | "still_generating"
+  | "still_ready"
+  | "still_approved"
+  | "clip_generating"
+  | "clip_ready"
+  | "clip_approved"
+  | "failed";
 
 export interface CreativeComment {
   id: string;

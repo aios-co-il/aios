@@ -122,6 +122,8 @@ test("frames save in frame order with 1-based positions and canvas", () => {
       voiceover_text: "w",
       duration_s: 3,
       canvas: { x: 0, y: 100 },
+      locked: false,
+      has_character: true,
     },
     {
       id: "b",
@@ -133,6 +135,8 @@ test("frames save in frame order with 1-based positions and canvas", () => {
       voiceover_text: "",
       duration_s: 5,
       canvas: { x: -300, y: 100 },
+      locked: false,
+      has_character: true,
     },
   ]);
 });

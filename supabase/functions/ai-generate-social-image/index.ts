@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logAiUsage, resolveOpenAIKey } from "../_shared/ai.ts";
+import {
+  NANO_BANANA_PRO_IMAGE_USD,
+  aspectRatioForSize,
+  generateGeminiImage,
+} from "../_shared/creative/geminiImage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,6 +77,31 @@ const uniqueUrls = (urls: unknown[]): string[] => {
   return result;
 };
 
+const resolveGoogleKey = async (
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+): Promise<string | null> => {
+  const { data } = await supabase
+    .from("tenant_integrations")
+    .select("settings,shared_from_integration_id")
+    .eq("tenant_id", tenantId)
+    .eq("integration_type", "llm")
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let settings = (data?.settings ?? {}) as Record<string, string>;
+  if (!settings.google_api_key && data?.shared_from_integration_id) {
+    const { data: source } = await supabase
+      .from("tenant_integrations")
+      .select("settings")
+      .eq("id", data.shared_from_integration_id)
+      .maybeSingle();
+    settings = (source?.settings ?? settings) as Record<string, string>;
+  }
+  return settings.google_api_key || Deno.env.get("GEMINI_API_KEY") || null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -90,7 +120,10 @@ serve(async (req) => {
       quality: requestedQuality,
       mask_png_base64: maskPngBase64,
       image_png_base64: imagePngBase64,
+      image_model: requestedImageModel,
+      format: requestedFormat,
     } = await req.json();
+    const useNanoBanana = requestedImageModel === "nano-banana-pro";
 
     if (!prompt || !tenant_id) {
       return new Response(
@@ -102,8 +135,8 @@ serve(async (req) => {
       );
     }
 
-    const openaiKey = await resolveOpenAIKey();
-    if (!openaiKey) {
+    const openaiKey = useNanoBanana ? "" : await resolveOpenAIKey();
+    if (!useNanoBanana && !openaiKey) {
       throw new Error(
         "OPENAI_API_KEY not configured — set the Supabase secret or add the key in Settings → Integrations → LLM",
       );
@@ -116,7 +149,7 @@ serve(async (req) => {
     const refs = uniqueUrls([
       ...(Array.isArray(reference_image_urls) ? reference_image_urls : []),
       reference_image_url,
-    ]).slice(0, 2);
+    ]).slice(0, useNanoBanana ? 3 : 2);
 
     const loadReferenceBytes = async (
       url: string,
@@ -198,35 +231,105 @@ serve(async (req) => {
     }
 
     let usedReference = false;
-    let aiResponse: Response;
-    if (files.length > 0) {
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      const liveTextLayers =
-        requestedLiveText === true ||
-        (requestedLiveText !== false && requestedRole !== "revision");
-      const referenceRole =
-        requestedRole === "technique"
-          ? "technique"
+    const liveTextLayers =
+      requestedLiveText === true ||
+      (requestedLiveText !== false && requestedRole !== "revision");
+    const referenceRole =
+      requestedRole === "technique"
+        ? "technique"
+        : requestedRole === "character"
+          ? "character"
           : requestedRole === "talent"
             ? "talent"
             : requestedRole === "revision"
               ? "revision"
               : "continuity";
-      const letterRule = liveTextLayers
-        ? "Output must contain zero letters, digits, or logos. "
-        : "Output a finished advertising still. Paint quoted Hebrew RTL type exactly (unreversed glyphs). Do not garble type. Do not invent extra slogans. ";
-      const referencePrefix = maskBytes
-        ? "Image 1 is the exact still. The attached MASK (transparent pixels) is the region to DELETE. Reconstruct only that region from the surrounding photograph. Do not add letters, logos, or new objects. Keep every unmasked pixel. "
-        : referenceRole === "revision"
-          ? liveTextLayers
-            ? "Image 1 is the exact still to revise. Change only the director request. If a second image is talent, keep that face. Output a letter-empty PNG — do not copy baked type. "
-            : "Image 1 is the exact ad to revise. Change only what the director requests. Keep the rest of the photograph, talent, lighting, composition, and finished RTL Hebrew type unless asked to change it. If a second image is talent, keep that face. "
-          : referenceRole === "technique"
-            ? `Use attached image(s) as TECHNIQUE only (material, paper, ink, light, color family). Do not copy faces, pose, crop, logos, or layout. ${letterRule}`
+    const letterRule = liveTextLayers
+      ? "Output must contain zero letters, digits, or logos. "
+      : "Output a finished advertising still. Paint quoted Hebrew RTL type exactly (unreversed glyphs). Do not garble type. Do not invent extra slogans. ";
+    const referencePrefix = maskBytes
+      ? "Image 1 is the exact still. The attached MASK (transparent pixels) is the region to DELETE. Reconstruct only that region from the surrounding photograph. Do not add letters, logos, or new objects. Keep every unmasked pixel. "
+      : referenceRole === "revision"
+        ? liveTextLayers
+          ? "Image 1 is the exact still to revise. Change only the director request. If a second image is talent, keep that face. Output a letter-empty PNG — do not copy baked type. "
+          : "Image 1 is the exact ad to revise. Change only what the director requests. Keep the rest of the photograph, talent, lighting, composition, and finished RTL Hebrew type unless asked to change it. If a second image is talent, keep that face. "
+        : referenceRole === "technique"
+          ? `Use attached image(s) as TECHNIQUE only (material, paper, ink, light, color family). Do not copy faces, pose, crop, logos, or layout. ${letterRule}`
+          : referenceRole === "character"
+            ? `Image 1 is the fixed character of this commercial. Keep the exact same face, body, proportions, colors and outfit. If more images are attached, they are earlier storyboard frames: continue their world, lighting, lens and color grade. ${letterRule}`
             : referenceRole === "talent"
               ? `Image 1 is the exact talent/spokesman. Keep this face, glasses, age, hair, and body. Photograph a NEW scene with THIS person. Do not copy the source ad's layout, lettering, logo, or UI chrome. If a second image is attached it is technique only. ${letterRule}`
               : `Continue this exact visual world. Match faces, wardrobe, lighting, lens and color grade from the reference. Do not invent logos. ${letterRule}`;
+
+    if (useNanoBanana) {
+      const googleKey = await resolveGoogleKey(supabase, tenant_id);
+      if (!googleKey) {
+        throw new Error(
+          "Google (Gemini) API key חסר — הוסיפו אותו בהגדרות → אינטגרציות → מודלי AI",
+        );
+      }
+      const images: Uint8Array[] = [];
+      if (overrideBytes) images.push(overrideBytes);
+      else {
+        for (const url of refs) {
+          const bytes = await loadReferenceBytes(url);
+          if (bytes) images.push(bytes);
+        }
+      }
+      const result = await generateGeminiImage({
+        apiKey: googleKey,
+        prompt: images.length
+          ? `${referencePrefix}${prompt}`
+          : wrapSocialImagePrompt(prompt),
+        images,
+        aspectRatio: aspectRatioForSize(size, requestedFormat),
+      });
+      const usage = {
+        model: result.model,
+        quality,
+        size,
+        textTokens: 0,
+        imageInTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        costUsd: NANO_BANANA_PRO_IMAGE_USD,
+        source: "official_table",
+        referenceCount: images.length,
+      };
+      logAiUsage({
+        source: "ai-generate-social-image",
+        model: result.model,
+        tenant_id,
+        tokens_in: Number(result.usage?.promptTokenCount ?? 0),
+        tokens_out: Number(result.usage?.candidatesTokenCount ?? 0),
+        cost_usd: NANO_BANANA_PRO_IMAGE_USD,
+        meta: { size, quality, used_reference: images.length > 0, post_id },
+      });
+      const filePath = `${tenant_id}/social-posts/${post_id || "generated"}/${Date.now()}-ai.png`;
+      const { error: uploadError } = await supabase.storage
+        .from("entity-attachments")
+        .upload(filePath, result.bytes, {
+          contentType: "image/png",
+          upsert: true,
+        });
+      if (uploadError) throw new Error(`Upload error: ${uploadError.message}`);
+      const { data: urlData } = supabase.storage
+        .from("entity-attachments")
+        .getPublicUrl(filePath);
+      return new Response(
+        JSON.stringify({
+          image_url: urlData.publicUrl,
+          used_reference: images.length > 0,
+          usage,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    let aiResponse: Response;
+    if (files.length > 0) {
+      const form = new FormData();
+      form.append("model", "gpt-image-1");
       form.append("prompt", `${referencePrefix}${prompt}`);
       form.append("n", "1");
       form.append("size", size);
