@@ -11,8 +11,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    // Existing .test.ts and .test.mjs suites continue to run with node:test.
-    include: ["src/**/*.test.tsx"],
+    // Keep node:test suites on their existing runner.
+    include: [
+      "src/**/*.test.tsx",
+      "src/lib/clientConnectionProvision.test.ts",
+      "src/lib/commandCenterAttachments.test.ts",
+      "src/lib/crmTableCategories.test.ts",
+      "src/lib/seoKeywordClusters.test.ts",
+      "src/lib/seoMonthlyPdfArchive.test.ts",
+    ],
     clearMocks: true,
   },
 });
