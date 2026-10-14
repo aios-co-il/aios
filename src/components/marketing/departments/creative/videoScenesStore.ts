@@ -43,7 +43,9 @@ export async function fetchVideoStoryboards(
 
   const stillIds = [
     ...new Set(
-      rows.map((row) => row.still_asset_id).filter((id): id is string => !!id),
+      rows
+        .flatMap((row) => [row.still_asset_id, row.clip_asset_id])
+        .filter((id): id is string => !!id),
     ),
   ];
   const stills = new Map<string, SceneStillRecord>();
@@ -269,4 +271,43 @@ export async function signCreativeVideoPaths(
       .filter((row) => row.path && row.signedUrl)
       .map((row) => [row.path as string, row.signedUrl]),
   );
+}
+
+/** Queues image-to-video runs for these scenes; scenes already animating are skipped. */
+export async function queueSceneClips({
+  itemId,
+  stageId,
+  sceneIds,
+  aspect,
+  estimate,
+}: {
+  itemId: string;
+  stageId: string;
+  sceneIds: string[];
+  aspect: string;
+  estimate: { usd: number; credits: number };
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("queue_video_clips", {
+    p_item_id: itemId,
+    p_scene_ids: sceneIds,
+    p_aspect: aspect,
+    p_estimate: estimate as unknown as Json,
+    p_stage_id: stageId,
+  });
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
+/** Approves (or un-approves) the scene's current clip. */
+export async function approveSceneClip(
+  tenantId: string,
+  sceneId: string,
+  approved: boolean,
+) {
+  const { error } = await supabase
+    .from("marketing_video_scenes")
+    .update({ status: approved ? "clip_approved" : "clip_ready" })
+    .eq("tenant_id", tenantId)
+    .eq("id", sceneId);
+  if (error) throw error;
 }

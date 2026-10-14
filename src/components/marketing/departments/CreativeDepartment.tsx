@@ -94,12 +94,14 @@ import {
 } from "@/components/marketing/departments/creative/utils";
 import { mergeCreativeVariations } from "@/components/marketing/departments/creative/mergeVariations";
 import {
+  approveSceneClip,
   approveSceneStill,
   fetchLatestReferenceRun,
   fetchSceneStillVersions,
   fetchVideoStoryboards,
   persistedStillsOf,
   queueReferenceAnalysis,
+  queueSceneClips,
   saveVideoStoryboard,
   selectSceneStill,
   signCreativeVideoPaths,
@@ -108,6 +110,10 @@ import {
   formatUsd,
   summarizeStoredImageCosts,
 } from "@/components/marketing/departments/creative/imageCost";
+import {
+  clipEstimate,
+  mergeServerScenes,
+} from "@/components/marketing/departments/creative/videoClip";
 import { VisualStyleSelect } from "@/components/marketing/departments/creative/VisualStyleSelect";
 import { pickVariationComposition } from "@/components/marketing/departments/creative/compositions";
 import { isOptionalCostume } from "@/components/marketing/departments/creative/adaptiveTreatment";
@@ -664,12 +670,76 @@ export function CreativeDepartment({
     () => JSON.stringify(storyboard),
     [storyboard],
   );
+  // Live updates (clip jobs finishing) keep unsaved edits; see mergeServerScenes.
+  const lastServerStoryboardRef = useRef<{
+    itemId: string | null;
+    frames: StoryboardFrame[];
+  }>({ itemId: null, frames: NO_FRAMES });
   useEffect(() => {
-    setStoryboardDraft(storyboard);
+    const last = lastServerStoryboardRef.current;
+    setStoryboardDraft((draft) =>
+      last.itemId === selectedId
+        ? mergeServerScenes(draft, storyboard, last.frames)
+        : storyboard,
+    );
+    lastServerStoryboardRef.current = {
+      itemId: selectedId,
+      frames: storyboard,
+    };
     if (selectedId)
       persistedStillsRef.current.set(selectedId, persistedStillsOf(storyboard));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storyboardSignature stands in for storyboard
   }, [storyboardSignature, selectedId]);
+
+  // Scene status and clips change from the render worker; refetch when they do.
+  const watchScenes = !!selectedId && projectType === "video";
+  useEffect(() => {
+    if (!watchScenes || !selectedId) return;
+    const channel = supabase
+      .channel(`creative-video-scenes-${selectedId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_video_scenes",
+          filter: `item_id=eq.${selectedId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ["creative-video-scenes", tenantId],
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [watchScenes, selectedId, tenantId, queryClient]);
+
+  const clipPaths = useMemo(
+    () =>
+      storyboardDraft
+        .map((frame) => frame.clipPath)
+        .filter((path): path is string => !!path)
+        .sort(),
+    [storyboardDraft],
+  );
+  const { data: signedClips = {} } = useQuery({
+    queryKey: ["creative-video-clip-urls", clipPaths.join(",")],
+    enabled: clipPaths.length > 0,
+    queryFn: () => signCreativeVideoPaths(clipPaths),
+    staleTime: 30 * 60_000,
+  });
+  const clipUrls = useMemo(
+    () =>
+      Object.fromEntries(
+        storyboardDraft
+          .filter((frame) => frame.clipPath && signedClips[frame.clipPath])
+          .map((frame) => [frame.id, signedClips[frame.clipPath!]]),
+      ),
+    [storyboardDraft, signedClips],
+  );
 
   useEffect(() => {
     if (!selectedVariationId && variations[0]?.id)
@@ -1192,6 +1262,68 @@ export function CreativeDepartment({
       await refresh();
     } catch (error: unknown) {
       toast.error(errorMessage(error, "עדכון האישור נכשל"));
+    }
+  };
+
+  const [clipConfirm, setClipConfirm] = useState<StoryboardFrame[] | null>(
+    null,
+  );
+  const [queueingClips, setQueueingClips] = useState(false);
+
+  /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
+  const requestAnimate = (frames: StoryboardFrame[]) => {
+    if (frames.length === 0) return;
+    const edited = new Map(frames.map((frame) => [frame.id, frame]));
+    setStoryboardDraft((draft) =>
+      draft.map((frame) => edited.get(frame.id) ?? frame),
+    );
+    setClipConfirm(frames);
+  };
+
+  const confirmAnimate = async () => {
+    if (!selected || !clipConfirm) return;
+    setQueueingClips(true);
+    try {
+      const edited = new Map(clipConfirm.map((frame) => [frame.id, frame]));
+      const merged = storyboardDraft.map(
+        (frame) => edited.get(frame.id) ?? frame,
+      );
+      // Motion prompts typed in the sheet are saved before the worker reads them.
+      await saveScenes(selected.id, merged);
+      const estimate = clipEstimate(clipConfirm);
+      const queued = await queueSceneClips({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        sceneIds: clipConfirm.map((frame) => frame.id),
+        aspect: defaultFormat(selected.payload),
+        estimate: { usd: estimate.usd, credits: estimate.credits },
+      });
+      setStoryboardDraft(
+        merged.map((frame) =>
+          edited.has(frame.id)
+            ? { ...frame, status: "clip_generating" as const }
+            : frame,
+        ),
+      );
+      setClipConfirm(null);
+      toast.success(
+        queued > 0 ? `${queued} סצנות נשלחו להנפשה` : "הסצנות כבר בהנפשה",
+      );
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסצנות להנפשה נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
+  const approveClip = async (frame: StoryboardFrame, approved: boolean) => {
+    try {
+      await approveSceneClip(tenantId, frame.id, approved);
+      toast.success(approved ? "הקליפ אושר" : "אישור הקליפ בוטל");
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עדכון אישור הקליפ נכשל"));
     }
   };
 
@@ -3148,6 +3280,11 @@ export function CreativeDepartment({
                   onUpload: (file) => void uploadReference(file),
                   onOpenProposal: () => setProposalOpen(true),
                 }}
+                clips={{
+                  urls: clipUrls,
+                  onAnimate: requestAnimate,
+                  onApprove: approveClip,
+                }}
                 stillModel={getStillModel(selected.payload)}
                 onStillModelChange={(model) => void changeStillModel(model)}
                 generating={generating}
@@ -3461,6 +3598,45 @@ export function CreativeDepartment({
           await refresh();
         }}
       />
+
+      <AlertDialog
+        open={!!clipConfirm}
+        onOpenChange={(open) => !open && !queueingClips && setClipConfirm(null)}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right">
+            <AlertDialogTitle>
+              {clipConfirm?.length === 1
+                ? "להנפיש את הסצנה?"
+                : `להנפיש ${clipConfirm?.length ?? 0} סצנות?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              {clipConfirm &&
+                (() => {
+                  const estimate = clipEstimate(clipConfirm);
+                  return `${estimate.seconds} שניות וידאו · כ-${formatUsd(estimate.usd)} (${estimate.credits.toLocaleString()} קרדיטים של Kling). הקליפים נוצרים במקביל; סצנה שנכשלת לא עוצרת את האחרות.`;
+                })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-start">
+            <AlertDialogAction
+              disabled={queueingClips}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmAnimate();
+              }}
+            >
+              {queueingClips && (
+                <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
+              )}
+              אשר תקציב והנפש
+            </AlertDialogAction>
+            <AlertDialogCancel disabled={queueingClips}>
+              ביטול
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>
         <DialogContent

@@ -4,10 +4,10 @@ Goal: Carmen produces a complete promo video inside AIOS (storyboard → stills 
 
 | Phase | Scope                                                                                          | Status      |
 | ----- | ---------------------------------------------------------------------------------------------- | ----------- |
-| 1     | Data foundation: `marketing_video_scenes`, run tracking columns, buckets, RLS, storyboard move | **This PR** |
-| 2     | Storyboard strip editor, versions, prompt edits, approvals, Nano Banana Pro                    | Not started |
-| 3     | Reference video analysis (worker)                                                              | Not started |
-| 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | Not started |
+| 1     | Data foundation: `marketing_video_scenes`, run tracking columns, buckets, RLS, storyboard move | This PR     |
+| 2     | Storyboard strip editor, versions, prompt edits, approvals, Nano Banana Pro                    | This PR     |
+| 3     | Reference video analysis (worker)                                                              | This PR     |
+| 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | This PR     |
 | 5     | Sound: per-scene voiceover with word timestamps, music                                         | Not started |
 | 6     | Composition and render: `packages/video-templates`, Remotion player + worker                   | Not started |
 | 7     | Carmen tools and the "במאית וידאו" skin                                                        | Not started |
@@ -52,6 +52,15 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - "הצעת סטוריבורד" shows the keyframes next to the proposed scenes. "החלף את הסטוריבורד בהצעה" replaces the storyboard, including `motion_prompt`, which `save_video_storyboard` now stores.
 - Migration `20261014110000_video_studio_run_claim.sql` is applied on Staging.
 - **The worker is not deployed yet:** runs stay queued until it runs on the Droplet against Staging.
+
+## Phase 4 animation
+
+- The scene sheet gained "מה זז בסצנה?" (`motion_prompt`), plus "הנפש סצנה" / "הנפש מחדש" and "אשר קליפ" (`clip_approved`). "הנפש הכול" in the toolbar takes approved stills without a clip, failed scenes, and scenes whose clip is outdated (`clip_stale`). Current clips are not animated again.
+- Before anything is queued, a dialog shows the seconds, the estimated cost and the Kling credits ($0.85 per 5 s block; scenes over 5 s are 10 s clips). Confirming saves the storyboard, so typed motion prompts are included, then calls `queue_video_clips`.
+- Migration `20261014130000_video_studio_clip_queue.sql` is applied on Staging. `queue_video_clips(item, scene_ids, aspect, estimate, stage)` queues one `kind = 'clip'` run per scene that has a still and no clip run in flight, then sets those scenes to `clip_generating`. A double click or a second tab cannot queue the same scene twice.
+- The worker runs clips in parallel (`CONCURRENCY`, 8 by default) through the provider adapter (`mock` or `kling`; see `render-worker/README.md`). Each run fails on its own; after its last attempt the scene shows `failed` and "הנפש הכול" picks it up again.
+- The strip follows `marketing_video_scenes` over Realtime. A live update replaces an untouched draft. A draft with unsaved edits keeps them and only takes the status and clip fields. Cards play their clip on hover, and the sheet has a player; clips use signed URLs from the private bucket.
+- **Before turning on `VIDEO_PROVIDER=kling`:** confirm the request shape with one paid clip (the Kling docs could not be reached from here). Until then Staging uses the free `mock` provider.
 
 ## Provider checks (before writing provider code)
 
