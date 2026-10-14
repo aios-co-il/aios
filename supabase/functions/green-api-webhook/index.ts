@@ -277,7 +277,6 @@ async function forwardToTeamChannels(
           "❌ Failed to forward to team channel:",
           insertErr.message,
         );
-      } else {
       }
     }
   } catch (e) {
@@ -523,7 +522,9 @@ Deno.serve(async (req) => {
                 realInviteLink = groupData.groupInviteLink || null;
               }
             }
-          } catch (e) {}
+          } catch (e) {
+            // Use the fallback group name below when API metadata is unavailable.
+          }
 
           const newGroupName =
             realGroupName || `קבוצה ${groupChatId.split("@")[0].slice(-4)}`;
@@ -679,7 +680,6 @@ Deno.serve(async (req) => {
               },
             );
           }
-        } else {
         }
       }
 
@@ -783,7 +783,6 @@ Deno.serve(async (req) => {
 
             if (error) {
               console.error("❌ Error updating group read status:", error);
-            } else {
             }
           }
         } else {
@@ -807,7 +806,6 @@ Deno.serve(async (req) => {
 
             if (error) {
               console.error("❌ Error updating client read status:", error);
-            } else {
             }
           } else {
             // Try lead
@@ -832,7 +830,6 @@ Deno.serve(async (req) => {
 
               if (error) {
                 console.error("❌ Error updating lead read status:", error);
-              } else {
               }
             } else {
               // Try unknown contact by phone
@@ -853,7 +850,6 @@ Deno.serve(async (req) => {
                   "❌ Error updating unknown contact read status:",
                   error,
                 );
-              } else {
               }
             }
           }
@@ -1334,11 +1330,6 @@ Deno.serve(async (req) => {
                 "tag_id,user_id,client_id,lead_id,group_id,sender_phone",
               ignoreDuplicates: true,
             });
-
-          if (tagError) {
-          } else {
-          }
-        } else {
         }
       }
 
@@ -1383,7 +1374,9 @@ Deno.serve(async (req) => {
               if (groupApiData.inviteLink) {
                 groupInviteLink = groupApiData.inviteLink;
               }
-            } catch (e) {}
+            } catch (e) {
+              // Try the dedicated invite-link endpoint below when group metadata fails.
+            }
 
             // Fallback: try dedicated getGroupInviteLink endpoint
             if (!groupInviteLink) {
@@ -1418,7 +1411,6 @@ Deno.serve(async (req) => {
                 groupRecord?.group_chat_id,
                 groupInviteLink,
               );
-            } else {
             }
           }
 
@@ -1621,7 +1613,6 @@ Deno.serve(async (req) => {
               .eq("id", leadId);
           }
         }
-      } else {
       }
     }
 
@@ -1657,8 +1648,6 @@ Deno.serve(async (req) => {
         apiToken,
         senderData.chatId,
       );
-      if (senderProfileImage) {
-      }
     }
 
     // Save the message to THIS tenant only
@@ -1738,11 +1727,6 @@ Deno.serve(async (req) => {
               "tag_id,user_id,client_id,lead_id,group_id,sender_phone",
             ignoreDuplicates: true,
           });
-
-        if (tagError) {
-        } else {
-        }
-      } else {
       }
     }
 

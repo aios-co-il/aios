@@ -179,7 +179,6 @@ serve(async (req: Request) => {
     if (profileError) {
       console.error("Error updating profile:", profileError);
       // Continue anyway - profile will be updated later
-    } else {
     }
 
     // Step 3: Create the tenant/organization with slug
@@ -288,7 +287,6 @@ serve(async (req: Request) => {
     if (roleError) {
       console.error("Error granting owner role:", roleError);
       // Continue anyway - role can be added later
-    } else {
     }
 
     // Step 6: Grant all module permissions
@@ -326,7 +324,6 @@ serve(async (req: Request) => {
     if (permissionsError) {
       console.error("Error granting permissions:", permissionsError);
       // Continue anyway - permissions can be added later
-    } else {
     }
 
     // Step 7: Set active tenant for user
@@ -340,7 +337,6 @@ serve(async (req: Request) => {
     if (activeTenantError) {
       console.error("Error setting active tenant:", activeTenantError);
       // Continue anyway
-    } else {
     }
 
     return new Response(

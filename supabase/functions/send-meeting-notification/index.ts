@@ -180,7 +180,6 @@ Deno.serve(async (req) => {
         const errorText = await fieldResponse.text();
         console.error("Failed to set custom field:", errorText);
         // Continue with other fields even if one fails
-      } else {
       }
     }
 

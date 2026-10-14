@@ -1158,7 +1158,6 @@ export function ImportLeadsWithMapping() {
             tagError.details,
             tagError.hint,
           );
-        } else {
         }
       }
 

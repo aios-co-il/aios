@@ -28,7 +28,6 @@ export function useSessionRefresh() {
           const { error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError) {
             console.error("Session refresh error:", refreshError);
-          } else {
           }
         }
       }

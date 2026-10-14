@@ -121,7 +121,9 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
                 setConversationId(parsed.id);
                 try {
                   localStorage.setItem("aios_conversation_id", parsed.id);
-                } catch {}
+                } catch {
+                  // Keep the active conversation in React state when storage is unavailable.
+                }
                 continue;
               }
 
@@ -193,7 +195,9 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
     setDataPanels([]);
     try {
       localStorage.removeItem("aios_conversation_id");
-    } catch {}
+    } catch {
+      // The in-memory conversation is already reset; storage cleanup is best effort.
+    }
   }, []);
 
   return (

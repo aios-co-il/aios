@@ -293,7 +293,6 @@ serve(async (req) => {
                     "Error inserting lead_sales_people:",
                     junctionError,
                   );
-                } else {
                 }
               }
 
@@ -310,7 +309,6 @@ serve(async (req) => {
 
                 if (tagError) {
                   console.error("Error applying tag to lead:", tagError);
-                } else {
                 }
               }
             }

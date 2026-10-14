@@ -165,7 +165,6 @@ async function getPhoneNumberFieldId(
           .eq("integration_type", "manychat");
 
         return fieldId;
-      } else {
       }
     }
   } catch (e) {
@@ -371,10 +370,6 @@ async function createManyChatSubscriber(
       },
     );
     createData = await safeJson(createRes);
-  } else if (
-    isSuccess &&
-    createStr.includes("Permission denied to import phone")
-  ) {
   }
 
   if (createData.status === "success" && createData.data?.id) {
@@ -547,7 +542,6 @@ Deno.serve(async (req) => {
         if (subscriberId) {
           wasExisting = true;
         }
-      } else {
       }
     }
 
@@ -569,9 +563,6 @@ Deno.serve(async (req) => {
           subscriberId,
           defaultTagId,
         );
-        if (tagAdded) {
-        } else {
-        }
       } else {
         // Check if creation failed due to "WhatsApp ID already exists"
 

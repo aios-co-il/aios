@@ -136,7 +136,6 @@ async function getPhoneNumberFieldIdMC(
             .eq("integration_type", "manychat");
 
           return fieldId;
-        } else {
         }
       }
     }
@@ -203,7 +202,9 @@ async function findSubscriberByCustomFieldMC(
       if (res.status === 429) {
         await new Promise((r) => setTimeout(r, 2000));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Try the next phone candidate; return null for fallback lookup if none succeeds.
+    }
   }
   return null;
 }
@@ -3510,7 +3511,6 @@ Deno.serve(async (req) => {
                     tenantId,
                   );
                   previousStepOutput = stepResponse;
-                } else {
                 }
                 // Store output for downstream nodes
                 nodeOutputs[step.id] = {
@@ -4415,7 +4415,6 @@ async function executeSendWhatsappCore(
             .update({ manychat_subscriber_id: foundId })
             .eq("id", recordId);
         }
-      } else {
       }
 
       return foundId;
@@ -4608,8 +4607,6 @@ async function executeSendWhatsappCore(
   // NOTE: wa_id and whatsapp_phone are NOT supported by ManyChat findBySystemField API
   // These queries always return 400 errors. Skipping them.
   // Only phone and email are valid system fields for findBySystemField.
-  if (!subscriberId && contactPhone) {
-  }
 
   // If still no subscriber, try Custom Field lookup (phone_number) using field_id
   if (!subscriberId && contactPhone) {
@@ -5057,8 +5054,6 @@ async function executeCreateManychatSubscriber(
   }
 
   // Log if subscriber has a conflict status
-  if (leadRecord.manychat_subscriber_id) {
-  }
 
   // Prepare phone number for lookup/creation
   const contactPhone = leadRecord.phone;
@@ -5106,14 +5101,14 @@ async function executeCreateManychatSubscriber(
         subscriberId = foundId;
         break;
       }
-    } catch (e) {}
+    } catch (e) {
+      // Try the next phone candidate before falling back to custom-field lookup.
+    }
   }
 
   // NOTE: wa_id and whatsapp_phone are NOT supported by ManyChat findBySystemField API
   // These queries always return 400 errors. Only phone and email are valid.
   // Skipping this step.
-  if (!subscriberId) {
-  }
 
   // Step 1c: Try to find by Custom Field (phone_number) using field_id
   if (!subscriberId) {
@@ -5125,9 +5120,6 @@ async function executeCreateManychatSubscriber(
         fieldId,
         phoneCandidates,
       );
-      if (subscriberId) {
-      }
-    } else {
     }
   }
 
@@ -6644,7 +6636,6 @@ async function executeGreenApiToCampaigner(
 
     if (chatError) {
       console.error("Error saving message to chat_messages:", chatError);
-    } else {
     }
   } catch (saveError) {
     console.error("Error saving to chat_messages:", saveError);

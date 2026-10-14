@@ -108,7 +108,9 @@ Deno.serve(async (req) => {
             }
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        // Continue with query parameters when the optional request body cannot be parsed.
+      }
     }
 
     // Merge query and body params (query takes precedence for conflict)

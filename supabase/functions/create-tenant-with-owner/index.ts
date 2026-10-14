@@ -196,7 +196,6 @@ serve(async (req: Request) => {
       if (templateError) {
         console.error("Error applying template:", templateError);
         // Continue anyway - we can still create the tenant with defaults
-      } else {
       }
     } else {
       // No template - use default initialization
@@ -209,7 +208,6 @@ serve(async (req: Request) => {
 
       if (menuItemsError) {
         console.error("Error initializing menu items:", menuItemsError);
-      } else {
       }
 
       const { error: customFieldsError } = await supabase.rpc(
@@ -221,7 +219,6 @@ serve(async (req: Request) => {
 
       if (customFieldsError) {
         console.error("Error initializing custom fields:", customFieldsError);
-      } else {
       }
 
       // Initialize terminology from preset if provided
@@ -239,7 +236,6 @@ serve(async (req: Request) => {
             "Error initializing terminology from preset:",
             terminologyError,
           );
-        } else {
         }
       } else {
         // Fallback to default marketing agency terminology
@@ -253,7 +249,6 @@ serve(async (req: Request) => {
 
         if (terminologyError) {
           console.error("Error initializing terminology:", terminologyError);
-        } else {
         }
       }
     }
@@ -270,7 +265,6 @@ serve(async (req: Request) => {
     if (tenantUserError) {
       console.error("Error adding user to tenant_users:", tenantUserError);
       // Continue anyway - the user can still be added later
-    } else {
     }
 
     // Step 2.5: Add owner role to user_roles (tenant-specific)
@@ -285,7 +279,6 @@ serve(async (req: Request) => {
       if (roleError.code !== "23505") {
         console.error("Error adding owner role:", roleError);
       }
-    } else {
     }
 
     // Step 3: Create invitation token for owner
