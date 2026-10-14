@@ -1,0 +1,14 @@
+{
+  "name": "aios-render-worker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Video Studio worker: reference analysis now; clips, audio and Remotion renders in later phases.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node --test test/"
+  }
+}

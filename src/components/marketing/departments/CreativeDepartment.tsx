@@ -46,6 +46,11 @@ import { CreativeImage } from "@/components/marketing/departments/creative/Creat
 import { CreativeLayerEditor } from "@/components/marketing/departments/creative/CreativeLayerEditor";
 import { CreativeStoryboardEditor } from "@/components/marketing/departments/creative/CreativeStoryboardEditor";
 import {
+  REFERENCE_MAX_BYTES,
+  isReferenceRunActive,
+  proposalToFrames,
+} from "@/components/marketing/departments/creative/videoReference";
+import {
   getCharacterRefUrl,
   getStillModel,
   sanitizeVideoStillPrompt,
@@ -85,15 +90,19 @@ import {
   makeVariation,
   projectTypeLabel,
   pickStoryboardReferences,
+  storyboardFrameX,
 } from "@/components/marketing/departments/creative/utils";
 import { mergeCreativeVariations } from "@/components/marketing/departments/creative/mergeVariations";
 import {
   approveSceneStill,
+  fetchLatestReferenceRun,
   fetchSceneStillVersions,
   fetchVideoStoryboards,
   persistedStillsOf,
+  queueReferenceAnalysis,
   saveVideoStoryboard,
   selectSceneStill,
+  signCreativeVideoPaths,
 } from "@/components/marketing/departments/creative/videoScenesStore";
 import {
   formatUsd,
@@ -1196,6 +1205,68 @@ export function CreativeDepartment({
     } catch (error: unknown) {
       toast.error(errorMessage(error, "החזרת הגרסה נכשלה"));
     }
+  };
+
+  const { data: referenceRun } = useQuery({
+    queryKey: ["creative-reference-run", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchLatestReferenceRun(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      isReferenceRunActive(query.state.data) ? 4000 : false,
+  });
+  const [referenceUploading, setReferenceUploading] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const proposalFrames = referenceRun?.output?.proposal?.frames ?? [];
+  const proposalShots = referenceRun?.output?.shots ?? [];
+  const { data: keyframeUrls = {} } = useQuery({
+    queryKey: ["creative-reference-keyframes", referenceRun?.id],
+    enabled: proposalOpen && proposalShots.length > 0,
+    queryFn: () =>
+      signCreativeVideoPaths(
+        proposalShots
+          .map((shot) => shot.keyframe_path)
+          .filter((path): path is string => !!path),
+      ),
+    staleTime: 30 * 60_000,
+  });
+
+  const uploadReference = async (file: File) => {
+    if (!selected) return;
+    if (!file.type.startsWith("video/")) {
+      toast.error("בחרו קובץ וידאו (mp4, mov או webm)");
+      return;
+    }
+    if (file.size > REFERENCE_MAX_BYTES) {
+      toast.error("סרטון הרפרנס גדול מ-200MB");
+      return;
+    }
+    setReferenceUploading(true);
+    try {
+      const readyContext = ensureCreativeStageReady(context);
+      await queueReferenceAnalysis({
+        tenantId,
+        clientId: selected.client_id,
+        itemId: selected.id,
+        stageId: readyContext.creativeStage.id,
+        file,
+      });
+      toast.success("הרפרנס הועלה. כרמן מפרקת אותו לשוטים ותציע סטוריבורד");
+      await queryClient.invalidateQueries({
+        queryKey: ["creative-reference-run", tenantId, selected.id],
+      });
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "העלאת סרטון הרפרנס נכשלה"));
+    } finally {
+      setReferenceUploading(false);
+    }
+  };
+
+  const applyReferenceProposal = async () => {
+    if (!selected || proposalFrames.length === 0) return;
+    const next = proposalToFrames(proposalFrames, storyboardFrameX);
+    setStoryboardDraft(next);
+    await persistStoryboard(next, "הסטוריבורד הוחלף בהצעה מהרפרנס");
+    setProposalOpen(false);
   };
 
   const loadFrameVersions = useCallback(
@@ -3066,6 +3137,17 @@ export function CreativeDepartment({
                         toast.error(errorMessage(error, "הסרת הדמות נכשלה")),
                     ),
                 }}
+                reference={{
+                  status: referenceUploading
+                    ? "uploading"
+                    : referenceRun
+                      ? (referenceRun.status as
+                          "queued" | "running" | "completed" | "failed")
+                      : "idle",
+                  error: referenceRun?.error,
+                  onUpload: (file) => void uploadReference(file),
+                  onOpenProposal: () => setProposalOpen(true),
+                }}
                 stillModel={getStillModel(selected.payload)}
                 onStillModelChange={(model) => void changeStillModel(model)}
                 generating={generating}
@@ -3379,6 +3461,75 @@ export function CreativeDepartment({
           await refresh();
         }}
       />
+
+      <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>
+        <DialogContent
+          className="max-h-[85vh] max-w-3xl overflow-hidden p-0"
+          dir="rtl"
+        >
+          <DialogHeader className="border-b px-6 py-4 text-right">
+            <DialogTitle>הצעת סטוריבורד מהרפרנס</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {proposalShots.length} שוטים
+              {referenceRun?.output?.video?.duration
+                ? ` · ${Math.round(referenceRun.output.video.duration)} שנ׳`
+                : ""}
+              . אותו קצב ומבנה, תוכן מקורי ללקוח.
+              {referenceRun?.output?.proposal?.concept?.name
+                ? ` קונספט: ${referenceRun.output.proposal.concept.name}`
+                : ""}
+            </p>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-2 p-4">
+              {proposalFrames.map((frame, index) => {
+                const shot = proposalShots[index];
+                const keyframe = shot?.keyframe_path
+                  ? keyframeUrls[shot.keyframe_path]
+                  : undefined;
+                return (
+                  <div key={index} className="flex gap-3 rounded-md border p-2">
+                    <div className="w-32 shrink-0 overflow-hidden rounded bg-muted">
+                      {keyframe ? (
+                        <img
+                          src={keyframe}
+                          alt={`שוט ${index + 1} ברפרנס`}
+                          className="aspect-video w-full object-cover"
+                        />
+                      ) : (
+                        <div className="aspect-video w-full" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 text-xs">
+                      <div className="font-bold">
+                        {index + 1}. {frame.title} · {frame.duration} שנ׳ ·{" "}
+                        {frame.shot}
+                      </div>
+                      <div className="mt-1 text-muted-foreground">
+                        {frame.visualPrompt}
+                      </div>
+                      {frame.voiceover && (
+                        <div className="mt-1">🎙 {frame.voiceover}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 border-t px-6 py-3">
+            <Button variant="outline" onClick={() => setProposalOpen(false)}>
+              סגור
+            </Button>
+            <Button
+              onClick={() => void applyReferenceProposal()}
+              disabled={proposalFrames.length === 0}
+            >
+              החלף את הסטוריבורד בהצעה
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={conceptPickerOpen} onOpenChange={setConceptPickerOpen}>
         <DialogContent className="max-w-lg" dir="rtl">

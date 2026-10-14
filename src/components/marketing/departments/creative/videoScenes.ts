@@ -3,7 +3,7 @@ import type { StoryboardFrame, VideoSceneStatus } from "./types";
 
 /** Columns the storyboard editor reads from marketing_video_scenes. */
 export const VIDEO_SCENE_COLUMNS =
-  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,duration_s,still_asset_id,status,locked,meta";
+  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,motion_prompt,duration_s,still_asset_id,status,locked,meta";
 
 export interface VideoSceneRecord {
   id: string;
@@ -14,6 +14,7 @@ export interface VideoSceneRecord {
   visual_prompt: string;
   overlay_text: string;
   voiceover_text: string;
+  motion_prompt?: string;
   duration_s: number | string;
   still_asset_id: string | null;
   status?: VideoSceneStatus;
@@ -36,6 +37,7 @@ export interface VideoSceneInput {
   visual_prompt: string;
   overlay_text: string;
   voiceover_text: string;
+  motion_prompt: string;
   duration_s: number;
   canvas: { x: number; y: number };
   locked: boolean;
@@ -86,6 +88,7 @@ export function scenesToFrames(
         visualPrompt: row.visual_prompt,
         overlayText: row.overlay_text,
         voiceover: row.voiceover_text,
+        motionPrompt: row.motion_prompt ?? "",
         duration: finiteOr(row.duration_s, 3),
         x: finiteOr(canvas.x, defaultX(order)),
         y: finiteOr(canvas.y, 100),
@@ -113,6 +116,7 @@ export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
       visual_prompt: frame.visualPrompt ?? "",
       overlay_text: frame.overlayText ?? "",
       voiceover_text: frame.voiceover ?? "",
+      motion_prompt: frame.motionPrompt ?? "",
       duration_s: finiteOr(frame.duration, 3),
       canvas: { x: finiteOr(frame.x, 0), y: finiteOr(frame.y, 100) },
       locked: frame.locked === true,

@@ -42,6 +42,7 @@ import { CreativeImage } from "@/components/marketing/departments/creative/Creat
 import {
   CheckCircle2,
   Copy,
+  Film,
   GripVertical,
   Image as ImageIcon,
   Loader2,
@@ -88,6 +89,14 @@ interface Props {
   };
   stillModel?: StillModel;
   onStillModelChange?: (model: StillModel) => void;
+  /** Reference video: upload starts an analysis; when done the proposal can be opened. */
+  reference?: {
+    status:
+      "idle" | "uploading" | "queued" | "running" | "completed" | "failed";
+    error?: string | null;
+    onUpload: (file: File) => void;
+    onOpenProposal: () => void;
+  };
   generating?: boolean;
   saving?: boolean;
   scenePanelOpen?: boolean;
@@ -275,6 +284,7 @@ export function CreativeStoryboardEditor({
   character,
   stillModel,
   onStillModelChange,
+  reference,
   generating,
   saving,
   scenePanelOpen,
@@ -291,6 +301,7 @@ export function CreativeStoryboardEditor({
   const [versions, setVersions] = useState<SceneStillVersion[]>([]);
   const [busy, setBusy] = useState<"edit" | "approve" | "version" | null>(null);
   const characterInput = useRef<HTMLInputElement>(null);
+  const referenceInput = useRef<HTMLInputElement>(null);
 
   const sceneOpen = scenePanelOpen ?? internalSceneOpen;
   const setSceneOpen = onScenePanelOpenChange ?? setInternalSceneOpen;
@@ -465,6 +476,63 @@ export function CreativeStoryboardEditor({
                   )}
                   תמונת דמות
                 </Button>
+              )}
+            </div>
+          )}
+          {reference && (
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={referenceInput}
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) reference.onUpload(file);
+                  event.target.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={["uploading", "queued", "running"].includes(
+                  reference.status,
+                )}
+                onClick={() => referenceInput.current?.click()}
+                title="העלו סרטון רפרנס: כרמן תפרק אותו לשוטים ותציע סטוריבורד באותו קצב"
+              >
+                {["uploading", "queued", "running"].includes(
+                  reference.status,
+                ) ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Film className="h-3.5 w-3.5" />
+                )}
+                {reference.status === "uploading"
+                  ? "מעלה…"
+                  : reference.status === "queued"
+                    ? "ממתין לניתוח…"
+                    : reference.status === "running"
+                      ? "מנתח רפרנס…"
+                      : "סרטון רפרנס"}
+              </Button>
+              {reference.status === "completed" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={reference.onOpenProposal}
+                >
+                  הצעת סטוריבורד
+                </Button>
+              )}
+              {reference.status === "failed" && (
+                <span
+                  className="max-w-48 truncate text-[11px] text-destructive"
+                  title={reference.error ?? ""}
+                >
+                  הניתוח נכשל
+                </span>
               )}
             </div>
           )}
