@@ -336,6 +336,51 @@ export async function queueSceneSound({
   return (data ?? []).length;
 }
 
+export interface RenderRun {
+  id: string;
+  status: string;
+  error: string | null;
+  created_at: string;
+  output: { path?: string; duration_s?: number; scene_count?: number } | null;
+}
+
+/** Latest finished-film run of a project. */
+export async function fetchLatestRenderRun(
+  tenantId: string,
+  itemId: string,
+): Promise<RenderRun | null> {
+  const { data, error } = await supabase
+    .from("marketing_runs")
+    .select("id,status,error,created_at,output")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .eq("kind", "render")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as RenderRun | null) ?? null;
+}
+
+/** Queues one local film assembly from the project's approved clips. */
+export async function queueVideoRender({
+  itemId,
+  stageId,
+  aspect,
+}: {
+  itemId: string;
+  stageId: string;
+  aspect: string;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("queue_video_render", {
+    p_item_id: itemId,
+    p_aspect: aspect,
+    p_stage_id: stageId,
+  });
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
 /** Approves (or un-approves) the scene's current clip. */
 export async function approveSceneClip(
   tenantId: string,

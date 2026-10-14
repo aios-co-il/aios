@@ -22,6 +22,11 @@ import {
 } from "../_shared/auth-helpers.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
+  VIDEO_DIRECTOR_TOOLS,
+  executeVideoDirectorTool,
+  isVideoDirectorTool,
+} from "../_shared/video-director-tools.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -2478,6 +2483,7 @@ const ALL_TOOLS = [
     },
   },
   // Marketing department (Copy / Creative / SEO pipeline)
+  ...VIDEO_DIRECTOR_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -5623,6 +5629,9 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
+  if (isVideoDirectorTool(name)) {
+    return executeVideoDirectorTool(supabase, tenantId, name, args);
+  }
   switch (name) {
     case "query_system_graph": {
       if (!isManagerRole) throw new Error("אין הרשאה לעיין בגרף המערכת");

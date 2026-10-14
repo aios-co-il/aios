@@ -20,6 +20,10 @@ Handled kinds:
 
   A retried run with a provider job id resumes polling and does not pay again. After the last attempt the scene is set to `failed`.
 
+- `voice` and `music` (phase 5). ElevenLabs writes one voiceover per scene and one music bed. Higgsfield sound is `generate_audio` on the clip, not a separate job.
+
+- `render` (phase 6). Queued by `queue_video_render` with `{ client_id, aspect, musicPath, version, scenes }`. Each scene has `clipPath`, optional `voicePath`, `overlayText` and `durationS`. The worker downloads those files, builds one timeline (`src/compose/timeline.mjs`) and assembles an MP4 with ffmpeg (`src/compose/assemble.mjs`). The asset `meta.provider` is `compose`. `compose/PromoFilm.tsx` is the Remotion edit of that same timeline; it runs when the image has Chrome and `@remotion/renderer`. This image does not.
+
 ### Video providers
 
 Every provider implements `estimate / submit / poll` (`src/providers/`), so changing provider touches only that folder.
@@ -39,7 +43,7 @@ docker run -d --name aios-render-worker --restart unless-stopped --env-file .env
 docker logs -f aios-render-worker
 ```
 
-Give the Droplet at least 4 vCPUs; Remotion renders in phase 6 run on this same worker.
+Give the Droplet at least 4 vCPUs. The current film is ffmpeg. The Remotion composition is ready for a later image that adds Chrome.
 
 ## Test
 

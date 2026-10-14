@@ -97,6 +97,8 @@ import {
   approveSceneClip,
   approveSceneStill,
   fetchLatestReferenceRun,
+  fetchLatestRenderRun,
+  queueVideoRender,
   fetchSceneStillVersions,
   fetchVideoStoryboards,
   persistedStillsOf,
@@ -1290,6 +1292,7 @@ export function CreativeDepartment({
   const [soundConfirm, setSoundConfirm] = useState<"voice" | "music" | null>(
     null,
   );
+  const [renderConfirm, setRenderConfirm] = useState(false);
   const [queueingClips, setQueueingClips] = useState(false);
 
   /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
@@ -1381,6 +1384,27 @@ export function CreativeDepartment({
     }
   };
 
+  const confirmRender = async () => {
+    if (!selected) return;
+    setQueueingClips(true);
+    try {
+      const queued = await queueVideoRender({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        aspect: defaultFormat(selected.payload),
+      });
+      setRenderConfirm(false);
+      toast.success(queued > 0 ? "הסרט נשלח להרכבה" : "הסרט כבר בהרכבה");
+      await queryClient.invalidateQueries({
+        queryKey: ["creative-render-run", tenantId, selected.id],
+      });
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסרט להרכבה נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
   const approveClip = async (frame: StoryboardFrame, approved: boolean) => {
     try {
       await approveSceneClip(tenantId, frame.id, approved);
@@ -1402,6 +1426,24 @@ export function CreativeDepartment({
       toast.error(errorMessage(error, "החזרת הגרסה נכשלה"));
     }
   };
+
+  const { data: renderRun } = useQuery({
+    queryKey: ["creative-render-run", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchLatestRenderRun(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      isReferenceRunActive(query.state.data) ? 4000 : false,
+  });
+  const renderPath = renderRun?.output?.path;
+  const { data: filmUrl } = useQuery({
+    queryKey: ["creative-render-url", renderRun?.id, renderPath],
+    enabled: renderRun?.status === "completed" && !!renderPath,
+    queryFn: async () => {
+      const signed = await signCreativeVideoPaths([renderPath!]);
+      return signed[renderPath!] ?? null;
+    },
+    staleTime: 30 * 60_000,
+  });
 
   const { data: referenceRun } = useQuery({
     queryKey: ["creative-reference-run", tenantId, selectedId],
@@ -3365,6 +3407,12 @@ export function CreativeDepartment({
                     ? () => setSoundConfirm("music")
                     : undefined
                 }
+                onComposeFilm={() => setRenderConfirm(true)}
+                film={{
+                  status: renderRun?.status ?? "idle",
+                  url: filmUrl,
+                  error: renderRun?.error,
+                }}
                 generating={generating}
                 saving={saving}
                 scenePanelOpen={workspacePanel === "scene"}
@@ -3716,6 +3764,40 @@ export function CreativeDepartment({
                 <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
               )}
               אשר תקציב והנפש
+            </AlertDialogAction>
+            <AlertDialogCancel disabled={queueingClips}>
+              ביטול
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={renderConfirm}
+        onOpenChange={(open) =>
+          !open && !queueingClips && setRenderConfirm(false)
+        }
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right">
+            <AlertDialogTitle>להרכיב את הסרט?</AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              נכנסות רק סצנות עם קליפ מאושר, עם הקריינות שלהן ומיטת המוזיקה
+              האחרונה. ההרכבה רצה על הוורקר, בלי חיוב.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-start">
+            <AlertDialogAction
+              disabled={queueingClips}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmRender();
+              }}
+            >
+              {queueingClips && (
+                <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
+              )}
+              הרכב סרט
             </AlertDialogAction>
             <AlertDialogCancel disabled={queueingClips}>
               ביטול
