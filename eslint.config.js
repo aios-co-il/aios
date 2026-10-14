@@ -29,7 +29,6 @@ export default tseslint.config(
       "no-case-declarations": "warn", // AIO-56
       "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
       "react-hooks/rules-of-hooks": "warn", // AIO-61
-      "no-constant-binary-expression": "warn", // AIO-65
     },
   },
 );
