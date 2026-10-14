@@ -142,13 +142,23 @@ export function CarmenConversationAccessTab({
     queryKey: ["carmen-identities", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase
+      const columns =
+        "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
+      let { data, error } = await supabase
         .from("carmen_whatsapp_identities" as any)
-        .select(
-          "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
-        )
+        .select(columns)
         .eq("tenant_id", tenantId!)
         .order("display_name");
+      if (error) {
+        const fallback = await supabase
+          .from("carmen_whatsapp_identities" as any)
+          .select(
+            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
+          )
+          .eq("tenant_id", tenantId!)
+          .order("display_name");
+        data = fallback.data;
+      }
       return data || [];
     },
   });
@@ -171,6 +181,7 @@ export function CarmenConversationAccessTab({
           status?: string;
           surfaces?: string[] | null;
           dev_escalation_tier?: string | null;
+          relationship_note?: string | null;
         }>,
         automationPhones: automationCfg?.carmen_allowed_phones,
       }),
@@ -213,15 +224,24 @@ export function CarmenConversationAccessTab({
         .eq("phone", phone)
         .maybeSingle();
       if (existing?.id) {
-        await supabase
+        const patch = {
+          surfaces: entry.surfaces?.length
+            ? entry.surfaces
+            : ["whatsapp_private"],
+          dev_escalation_tier: entry.dev_escalation_tier || null,
+          relationship_note: entry.relationship_note?.trim() || null,
+        };
+        const { error: noteError } = await supabase
           .from("carmen_whatsapp_identities" as any)
-          .update({
-            surfaces: entry.surfaces?.length
-              ? entry.surfaces
-              : ["whatsapp_private"],
-            dev_escalation_tier: entry.dev_escalation_tier || null,
-          })
+          .update(patch)
           .eq("id", existing.id);
+        if (noteError && /relationship_note/.test(noteError.message || "")) {
+          const { relationship_note: _note, ...withoutNote } = patch;
+          await supabase
+            .from("carmen_whatsapp_identities" as any)
+            .update(withoutNote)
+            .eq("id", existing.id);
+        }
       }
     }
   };
@@ -429,6 +449,38 @@ export function CarmenConversationAccessTab({
     onError: (e: Error) => toast.error(e.message || "שמירה נכשלה"),
   });
 
+  const introduce = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("חסר tenant");
+      await persistPolicy({
+        phones,
+        groupIds,
+        requireDirect,
+        openMemberGroups,
+        denyMessage,
+      });
+      const { data, error } = await supabase.functions.invoke(
+        "carmen-introduce-group",
+        { body: { tenantId, agentId: agent.id } },
+      );
+      if (error) throw new Error(error.message || "שליחת הקודים נכשלה");
+      if (data?.error) throw new Error(String(data.error));
+      return data as { groups?: number; codes?: number; reason?: string };
+    },
+    onSuccess: (data) => {
+      setPhonesDirty(false);
+      qc.invalidateQueries({ queryKey: policyKey });
+      if (!data?.codes) {
+        toast.message("סמן קבוצות Manus ומספרים עם סימון קבוצה, ואז שלח שוב");
+        return;
+      }
+      toast.success(
+        `כרמן הציגה את עצמה ב-${data.groups} קבוצות ושלחה קוד ל-${data.codes} מספרים`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || "שליחת הקודים נכשלה"),
+  });
+
   const addPhone = () => {
     const p = normalizePhone(newPhone);
     if (p.length < 9) {
@@ -605,6 +657,7 @@ export function CarmenConversationAccessTab({
                 <TableHead className="text-right w-16">פרטי</TableHead>
                 <TableHead className="text-right w-16">קבוצה</TableHead>
                 <TableHead className="text-right">Escalation</TableHead>
+                <TableHead className="text-right">יחס</TableHead>
                 <TableHead className="text-right w-16" />
               </TableRow>
             </TableHeader>
@@ -612,7 +665,7 @@ export function CarmenConversationAccessTab({
               {phones.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center text-sm text-muted-foreground py-6"
                   >
                     אין עדיין מורשים לשיחה פרטית — הוסף מספר או סנכרן מאוטומציה.
@@ -686,6 +739,22 @@ export function CarmenConversationAccessTab({
                         <SelectItem value="full">מלא (כל הסוכנים)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={row.relationship_note || ""}
+                      placeholder="טון דיבור"
+                      className="h-8 text-right"
+                      onChange={(e) => {
+                        setPhonesDirty(true);
+                        const next = [...phones];
+                        next[idx] = {
+                          ...row,
+                          relationship_note: e.target.value,
+                        };
+                        setPhones(next);
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     <Button
@@ -872,6 +941,24 @@ export function CarmenConversationAccessTab({
             לבדיקת זהות שולח).
           </p>
         )}
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={introduce.isPending}
+            onClick={() => introduce.mutate()}
+          >
+            {introduce.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            הציגי את עצמך ושלחי קודים
+          </Button>
+          <p className="text-[11px] text-muted-foreground text-right">
+            נשלח לקבוצות Manus שכבר מסומנות, ולמספרים שכבר מסומנים לקבוצה. הקוד
+            מגיע בפרטי ונכתב בקבוצה.
+          </p>
+        </div>
       </Card>
 
       <Card className="p-4 space-y-4 w-full">
