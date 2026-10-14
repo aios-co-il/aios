@@ -22,17 +22,51 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { Badge } from "@/components/ui/badge";
-import { leadStagePresetFields } from "@/lib/leadStageFilter";
+import {
+  leadStagePresetFields,
+  normalizeLeadValueFilterMode,
+  type LeadValueFilterMode,
+} from "@/lib/leadStageFilter";
 
 export interface FilterState {
   searchQuery: string;
   salesPersonIds: string[]; // Changed to array for multi-select
   stageIds: string[];
+  stageFilterMode: LeadValueFilterMode;
   responseStatus: string[]; // Changed to array for multi-select
+  responseStatusFilterMode: LeadValueFilterMode;
   tagIds: string[]; // Changed from tagId to tagIds for multi-select
   startDate: Date | undefined;
   endDate: Date | undefined;
   followUpToday: boolean; // Filter for leads with follow-up date today
+}
+
+function FilterModeToggle({
+  value,
+  onChange,
+}: {
+  value: LeadValueFilterMode;
+  onChange: (mode: LeadValueFilterMode) => void;
+}) {
+  return (
+    <div className="flex rounded-md border p-0.5">
+      {(["show", "hide"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          className={cn(
+            "rounded-sm px-3 py-1 text-xs",
+            value === mode
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent",
+          )}
+          onClick={() => onChange(mode)}
+        >
+          {mode === "show" ? "הצג" : "הסתר"}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 interface EditingPreset {
@@ -123,7 +157,15 @@ export function LeadFiltersDialog({
   // Sync with current filters when dialog opens or when currentFilters change while dialog is open
   useEffect(() => {
     if (open) {
-      setFilters(currentFilters);
+      setFilters({
+        ...currentFilters,
+        stageFilterMode: normalizeLeadValueFilterMode(
+          currentFilters.stageFilterMode,
+        ),
+        responseStatusFilterMode: normalizeLeadValueFilterMode(
+          currentFilters.responseStatusFilterMode,
+        ),
+      });
       setStatusSearch("");
       setTagSearch("");
       setSalesPersonSearch("");
@@ -145,7 +187,9 @@ export function LeadFiltersDialog({
       searchQuery: "",
       salesPersonIds: [],
       stageIds: [],
+      stageFilterMode: "show",
       responseStatus: [],
+      responseStatusFilterMode: "show",
       tagIds: [],
       startDate: undefined,
       endDate: undefined,
@@ -171,7 +215,9 @@ export function LeadFiltersDialog({
         searchQuery: filters.searchQuery || null,
         salesPersonIds: filters.salesPersonIds,
         ...leadStagePresetFields(filters.stageIds),
+        stageFilterMode: filters.stageFilterMode,
         responseStatus: filters.responseStatus,
+        responseStatusFilterMode: filters.responseStatusFilterMode,
         tagIds: filters.tagIds,
         startDate: filters.startDate?.toISOString() || null,
         endDate: filters.endDate?.toISOString() || null,
@@ -217,7 +263,9 @@ export function LeadFiltersDialog({
         searchQuery: filters.searchQuery || null,
         salesPersonIds: filters.salesPersonIds,
         ...leadStagePresetFields(filters.stageIds),
+        stageFilterMode: filters.stageFilterMode,
         responseStatus: filters.responseStatus,
+        responseStatusFilterMode: filters.responseStatusFilterMode,
         tagIds: filters.tagIds,
         startDate: filters.startDate?.toISOString() || null,
         endDate: filters.endDate?.toISOString() || null,
@@ -298,7 +346,8 @@ export function LeadFiltersDialog({
   // Get selected status labels for display - show max 2 items then "+X"
   const selectedStatusLabels = useMemo(() => {
     if (filters.responseStatus.length === 0) return "כל הסטטוסים";
-    
+    const prefix = filters.responseStatusFilterMode === "hide" ? "הסתר: " : "";
+
     const labels: string[] = [];
     if (filters.responseStatus.includes("none")) {
       labels.push("ללא סטטוס");
@@ -310,10 +359,10 @@ export function LeadFiltersDialog({
     labels.push(...otherLabels);
     
     if (labels.length <= 2) {
-      return labels.join(", ");
+      return `${prefix}${labels.join(", ")}`;
     }
-    return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
-  }, [filters.responseStatus, leadStatuses]);
+    return `${prefix}${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+  }, [filters.responseStatus, filters.responseStatusFilterMode, leadStatuses]);
 
   // Get selected tag labels for display - show max 2 items then "+X"
   const selectedTagLabels = useMemo(() => {
@@ -357,12 +406,13 @@ export function LeadFiltersDialog({
 
   const selectedStageLabels = useMemo(() => {
     if (filters.stageIds.length === 0) return "כל השלבים";
+    const prefix = filters.stageFilterMode === "hide" ? "הסתר: " : "";
     const labels = filters.stageIds
       .map(id => pipelineStages.find(stage => stage.id === id)?.label)
       .filter(Boolean) as string[];
-    if (labels.length <= 2) return labels.join(", ");
-    return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
-  }, [filters.stageIds, pipelineStages]);
+    if (labels.length <= 2) return `${prefix}${labels.join(", ")}`;
+    return `${prefix}${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+  }, [filters.stageIds, filters.stageFilterMode, pipelineStages]);
 
   const hasActiveFilters = 
     filters.salesPersonIds.length > 0 ||
@@ -464,8 +514,19 @@ export function LeadFiltersDialog({
 
             {/* Pipeline Stage - Multi-select with search */}
             <div className="space-y-2">
-              <Label>שלב Pipeline</Label>
-              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+              <div className="flex items-center justify-between gap-2">
+                <Label>שלב Pipeline</Label>
+                <FilterModeToggle
+                  value={filters.stageFilterMode}
+                  onChange={(mode) =>
+                    setFilters((prev) => ({ ...prev, stageFilterMode: mode }))
+                  }
+                />
+              </div>
+              <Popover
+                open={stagePopoverOpen}
+                onOpenChange={setStagePopoverOpen}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -538,8 +599,22 @@ export function LeadFiltersDialog({
 
             {/* Response Status - Multi-select with search */}
             <div className="space-y-2">
-              <Label>סטטוס תגובה</Label>
-              <Popover open={statusPopoverOpen} onOpenChange={setStatusPopoverOpen}>
+              <div className="flex items-center justify-between gap-2">
+                <Label>סטטוס תגובה</Label>
+                <FilterModeToggle
+                  value={filters.responseStatusFilterMode}
+                  onChange={(mode) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      responseStatusFilterMode: mode,
+                    }))
+                  }
+                />
+              </div>
+              <Popover
+                open={statusPopoverOpen}
+                onOpenChange={setStatusPopoverOpen}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
