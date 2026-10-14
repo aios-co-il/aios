@@ -444,7 +444,9 @@ Deno.serve(async (req) => {
         "preview=",
         JSON.stringify(rawPayload).slice(0, 800),
       );
-    } catch {}
+    } catch {
+      // Diagnostic logging must not prevent processing the webhook payload.
+    }
 
     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
     // { data }, { message }, { payload }, { event, data: {...} }, etc.

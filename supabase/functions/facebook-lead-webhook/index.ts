@@ -739,9 +739,6 @@ serve(async (req) => {
                     leadsByPhone?.find(
                       (l) => normalizePhone(l.phone) === normalizedPhone,
                     ) || null;
-
-                  if (existingLead) {
-                  }
                 }
 
                 // If not found by phone, try email
@@ -830,9 +827,7 @@ serve(async (req) => {
                       "❌ Error updating existing lead:",
                       updateError,
                     );
-                  } else {
                   }
-                } else {
                 }
 
                 // Apply tag to existing lead if configured
@@ -859,7 +854,6 @@ serve(async (req) => {
                         "Error applying tag to existing lead:",
                         tagError,
                       );
-                    } else {
                     }
                   }
                 }
@@ -937,7 +931,6 @@ serve(async (req) => {
                       "Error inserting lead_sales_people:",
                       junctionError,
                     );
-                  } else {
                   }
                 }
 
@@ -954,7 +947,6 @@ serve(async (req) => {
 
                   if (tagError) {
                     console.error("Error applying tag to lead:", tagError);
-                  } else {
                   }
                 }
 

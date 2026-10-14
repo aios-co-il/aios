@@ -536,7 +536,6 @@ Deno.serve(async (req) => {
               throw updateError;
             }
             updatedCount++;
-          } else {
           }
           leadId = existingLead.id;
         } else {

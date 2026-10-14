@@ -19,9 +19,6 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { table_id, records } = body;
 
-    if (records?.length > 0) {
-    }
-
     if (!table_id) {
       return new Response(JSON.stringify({ error: "Missing table_id" }), {
         status: 400,

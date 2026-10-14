@@ -173,12 +173,16 @@ export function AppLayout() {
     } catch (err) {
       try {
         await supabase.auth.signOut({ scope: "local" });
-      } catch (_) {}
+      } catch (_) {
+        // Continue to token cleanup and navigation even if local sign-out fails.
+      }
       try {
         Object.keys(localStorage).forEach((k) => {
           if (/^sb-.*-auth-token$/.test(k)) localStorage.removeItem(k);
         });
-      } catch (_) {}
+      } catch (_) {
+        // Storage may be unavailable; the finally block still completes logout.
+      }
     } finally {
       navigate("/auth", { replace: true });
       toast({

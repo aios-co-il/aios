@@ -123,8 +123,8 @@ export function taskAppearsOnTimeGrid(
   today: Date = startOfDay(new Date()),
 ): boolean {
   if (!task.due_date || !task.due_time) return false;
-  if (task.status === "done") return false;
+  // Completed tasks remain on the calendar (marked done); include them for grid + Google dedupe.
   const dueDate = new Date(task.due_date);
-  if (dueDate < today) return false;
+  if (dueDate < today && task.status !== "done") return false;
   return dueDate >= dateRange.start && dueDate <= dateRange.end;
 }

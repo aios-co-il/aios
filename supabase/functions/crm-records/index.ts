@@ -244,7 +244,9 @@ Deno.serve(async (req) => {
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text);
-    } catch (e) {}
+    } catch (e) {
+      // Keep the empty body default; GET requests do not require a JSON body.
+    }
 
     if (method === "GET") {
       const url = new URL(req.url);

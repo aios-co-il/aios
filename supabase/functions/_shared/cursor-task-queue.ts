@@ -122,7 +122,8 @@ export async function mcpRequestDevTask(
         arguments: { task: payload.task, context: payload.context },
       },
     }),
-    signal: AbortSignal.timeout(30_000),
+    // Match mcp-bearer tools/call budget — sticky parallel create often >30s.
+    signal: AbortSignal.timeout(90_000),
   });
   const text = await resp.text();
   if (!resp.ok)

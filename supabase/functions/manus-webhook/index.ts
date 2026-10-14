@@ -161,7 +161,6 @@ serve(async (req) => {
 
       if (updateError) {
         console.error("Failed to update manus task:", updateError);
-      } else {
       }
     }
 

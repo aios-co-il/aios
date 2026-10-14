@@ -212,8 +212,7 @@ Deno.serve(async (req) => {
             },
           );
 
-          if (automationResponse.ok) {
-          } else {
+          if (!automationResponse.ok) {
             console.error(
               "⚠️ Failed to trigger automation:",
               await automationResponse.text(),
@@ -314,7 +313,6 @@ Deno.serve(async (req) => {
 
       if (campaignerData) {
         campaignerId = campaignerData.id;
-      } else {
       }
     }
 
@@ -331,7 +329,6 @@ Deno.serve(async (req) => {
 
       if (clientData) {
         clientId = clientData.id;
-      } else {
       }
     }
 
@@ -348,7 +345,6 @@ Deno.serve(async (req) => {
 
       if (leadData) {
         leadId = leadData.id;
-      } else {
       }
     }
 
@@ -365,7 +361,6 @@ Deno.serve(async (req) => {
 
       if (salesPersonData) {
         salesPersonId = salesPersonData.id;
-      } else {
       }
     }
 

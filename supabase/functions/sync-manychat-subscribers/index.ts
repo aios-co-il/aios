@@ -340,8 +340,7 @@ Deno.serve(async (req) => {
           .or(phoneVariations.map((v) => `phone.eq.${v}`).join(","))
           .limit(1);
 
-        if (leads && leads.length > 0) {
-        } else {
+        if (!(leads && leads.length > 0)) {
           notMatched++;
         }
       }
@@ -391,9 +390,6 @@ Deno.serve(async (req) => {
             }
             break;
           }
-        }
-
-        if (!matched) {
         }
       }
     }
