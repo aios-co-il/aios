@@ -121,7 +121,11 @@ export function GoalTree() {
   const toggleExpand = (goalId: string) => {
     setExpandedGoals((prev) => {
       const next = new Set(prev);
-      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
+      if (next.has(goalId)) {
+        next.delete(goalId);
+      } else {
+        next.add(goalId);
+      }
       return next;
     });
   };
