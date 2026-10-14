@@ -143,6 +143,7 @@ import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
 import { ImportLeadsSheet } from "@/components/forms/ImportLeadsSheet";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
 import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
+import { LeadRecordingCell } from "@/components/leads/LeadRecordingCell";
 import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
@@ -151,8 +152,17 @@ import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
 import {
+  applyLeadStageQuery,
+  applyResponseStatusFilter,
+  kanbanResponseStatuses,
+  leadMatchesResponseStatusFilter,
   leadMatchesStageFilter,
   leadStageIdsFromPreset,
+  normalizeLeadValueFilterMode,
+  responseFilterNeedsClient,
+  NO_MATCHING_STAGE_ID,
+  stagesForKanbanQuery,
+  type LeadValueFilterMode,
 } from "@/lib/leadStageFilter";
 import {
   findLeadStatus,
@@ -188,6 +198,11 @@ import {
   LEAD_TABLE_OPTIONAL_COLUMNS,
   readLeadCustomColumnValue,
 } from "@/lib/leadTableColumns";
+import {
+  groupLeadRecordings,
+  type StoredCallRecording,
+  type StoredFileRecording,
+} from "@/lib/leadRecordings";
 
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
@@ -961,9 +976,13 @@ export default function Leads() {
     [],
   );
   const [filterStageIds, setFilterStageIds] = useState<string[]>([]);
+  const [stageFilterMode, setStageFilterMode] =
+    useState<LeadValueFilterMode>("show");
   const [filterResponseStatus, setFilterResponseStatus] = useState<string[]>(
     [],
   );
+  const [responseStatusFilterMode, setResponseStatusFilterMode] =
+    useState<LeadValueFilterMode>("show");
   const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -1118,6 +1137,7 @@ export default function Leads() {
     if (skipChatStageDefault.current || activePresetId) return;
     if (filterStageIds.length > 0) return;
     if (!pipelineStagesData?.length) return;
+    setStageFilterMode("show");
     setFilterStageIds([pipelineStagesData[0].stage_key]);
   }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
 
@@ -1131,7 +1151,9 @@ export default function Leads() {
     searchQuery,
     filterSalesPersonIds,
     filterStageIds,
+    stageFilterMode,
     filterResponseStatus,
+    responseStatusFilterMode,
     filterTagIds,
     filterFollowUpToday,
     startDate,
@@ -1234,11 +1256,14 @@ export default function Leads() {
       searchQuery,
       filterSalesPersonIds,
       filterStageIds,
+      stageFilterMode,
       filterResponseStatus,
+      responseStatusFilterMode,
       filterTagIds,
       filterFollowUpToday,
       startDate?.toISOString(),
       endDate?.toISOString(),
+      PIPELINE_STAGES.map((stage) => stage.id).join(","),
       isViewingAs,
       viewAsSalesPersonId,
       isOwner,
@@ -1287,10 +1312,12 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters. Several stages match any of them (OR).
-      if (filterStageIds.length > 0) {
-        query = query.in("status", filterStageIds as any);
-      }
+      query = applyLeadStageQuery(
+        query,
+        filterStageIds,
+        stageFilterMode,
+        PIPELINE_STAGES.map((stage) => stage.id),
+      );
 
       // When viewing as a sales person, force filter to their leads
       if (isViewingAs && viewAsSalesPersonId) {
@@ -1307,17 +1334,11 @@ export default function Leads() {
         }
       }
 
-      // Multi-select response status filter
-      if (filterResponseStatus.length > 0) {
-        if (
-          filterResponseStatus.includes("none") &&
-          filterResponseStatus.length === 1
-        ) {
-          query = query.is("response_status", null);
-        } else if (!filterResponseStatus.includes("none")) {
-          query = query.in("response_status", filterResponseStatus);
-        }
-      }
+      query = applyResponseStatusFilter(
+        query,
+        filterResponseStatus,
+        responseStatusFilterMode,
+      );
 
       // Follow-up today filter
       if (filterFollowUpToday) {
@@ -1361,7 +1382,9 @@ export default function Leads() {
       searchQuery,
       filterSalesPersonIds,
       filterStageIds,
+      stageFilterMode,
       filterResponseStatus,
+      responseStatusFilterMode,
       filterTagIds,
       filterFollowUpToday,
       startDate?.toISOString(),
@@ -1379,10 +1402,15 @@ export default function Leads() {
           ? [selectedAgency]
           : agencies?.map((a) => a.id) || null;
 
-      const stageIds =
-        filterStageIds.length > 0
-          ? filterStageIds
-          : PIPELINE_STAGES.map((s) => s.id);
+      const stageIds = stagesForKanbanQuery(
+        filterStageIds,
+        PIPELINE_STAGES.map((stage) => stage.id),
+        stageFilterMode,
+      );
+      const responseNeedsClient = responseFilterNeedsClient(
+        filterResponseStatus,
+        responseStatusFilterMode,
+      );
 
       // Build sales person filter - support multi-select
       // When viewing as a sales person, override the filter
@@ -1401,14 +1429,15 @@ export default function Leads() {
         p_tenant_id: tenantId,
         p_agency_ids: agencyIds,
         p_stages: stageIds,
-        p_limit_per_stage: leadsPerStageLimit,
+        p_limit_per_stage: responseNeedsClient
+          ? Math.min(leadsPerStageLimit * 3, 200)
+          : leadsPerStageLimit,
         p_search_query: searchQuery.trim() || null,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses:
-          filterResponseStatus.length > 0 &&
-          !filterResponseStatus.includes("none")
-            ? filterResponseStatus
-            : null,
+        p_response_statuses: kanbanResponseStatuses(
+          filterResponseStatus,
+          responseStatusFilterMode,
+        ),
         p_follow_up_today: filterFollowUpToday,
         p_start_date: startDate?.toISOString() || null,
         p_end_date: endDate ? endOfDayIso(endDate) : null,
@@ -1512,6 +1541,7 @@ export default function Leads() {
       searchQuery,
       filterSalesPersonIds,
       filterResponseStatus,
+      responseStatusFilterMode,
       filterTagIds,
       filterFollowUpToday,
       startDate?.toISOString(),
@@ -1545,11 +1575,10 @@ export default function Leads() {
         p_limit_per_stage: 0,
         p_search_query: searchQuery.trim() || null,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses:
-          filterResponseStatus.length > 0 &&
-          !filterResponseStatus.includes("none")
-            ? filterResponseStatus
-            : null,
+        p_response_statuses: kanbanResponseStatuses(
+          filterResponseStatus,
+          responseStatusFilterMode,
+        ),
         p_follow_up_today: filterFollowUpToday,
         p_start_date: startDate?.toISOString() || null,
         p_end_date: endDate ? endOfDayIso(endDate) : null,
@@ -1600,11 +1629,14 @@ export default function Leads() {
       searchQuery,
       filterSalesPersonIds,
       filterStageIds,
+      stageFilterMode,
       filterResponseStatus,
+      responseStatusFilterMode,
       filterTagIds,
       filterFollowUpToday,
       startDate?.toISOString(),
       endDate?.toISOString(),
+      PIPELINE_STAGES.map((stage) => stage.id).join(","),
       isViewingAs,
       viewAsSalesPersonId,
       isOwner,
@@ -1748,10 +1780,12 @@ export default function Leads() {
         query = query.eq("tenant_id", tenantId);
       }
 
-      // Server-side filters. Several stages match any of them (OR).
-      if (filterStageIds.length > 0) {
-        query = query.in("status", filterStageIds as any);
-      }
+      query = applyLeadStageQuery(
+        query,
+        filterStageIds,
+        stageFilterMode,
+        PIPELINE_STAGES.map((stage) => stage.id),
+      );
 
       // When viewing as a sales person, force filter to their leads
       if (isViewingAs && viewAsSalesPersonId) {
@@ -1768,17 +1802,11 @@ export default function Leads() {
         }
       }
 
-      // Multi-select response status filter
-      if (filterResponseStatus.length > 0) {
-        if (
-          filterResponseStatus.includes("none") &&
-          filterResponseStatus.length === 1
-        ) {
-          query = query.is("response_status", null);
-        } else if (!filterResponseStatus.includes("none")) {
-          query = query.in("response_status", filterResponseStatus);
-        }
-      }
+      query = applyResponseStatusFilter(
+        query,
+        filterResponseStatus,
+        responseStatusFilterMode,
+      );
 
       // Follow-up today filter
       if (filterFollowUpToday) {
@@ -2516,7 +2544,11 @@ export default function Leads() {
       result = result.filter((lead: any) => {
         const effectiveStatus =
           optimisticStatusByLeadId[lead.id] ?? lead.status;
-        return leadMatchesStageFilter(effectiveStatus, filterStageIds);
+        return leadMatchesStageFilter(
+          effectiveStatus,
+          filterStageIds,
+          stageFilterMode,
+        );
       });
     }
 
@@ -2537,18 +2569,14 @@ export default function Leads() {
       });
     }
 
-    // Client-side filter for complex response status (when "none" + other statuses selected)
-    if (
-      filterResponseStatus.includes("none") &&
-      filterResponseStatus.length > 1
-    ) {
-      const otherStatuses = filterResponseStatus.filter((s) => s !== "none");
-      result = result.filter((lead: any) => {
-        return (
-          lead.response_status === null ||
-          otherStatuses.includes(lead.response_status)
-        );
-      });
+    if (filterResponseStatus.length > 0) {
+      result = result.filter((lead: any) =>
+        leadMatchesResponseStatusFilter(
+          lead.response_status,
+          filterResponseStatus,
+          responseStatusFilterMode,
+        ),
+      );
     }
 
     return result;
@@ -2556,7 +2584,9 @@ export default function Leads() {
     secureFilteredLeads,
     filterTagIds,
     filterResponseStatus,
+    responseStatusFilterMode,
     filterStageIds,
+    stageFilterMode,
     leadsTagsMap,
     optimisticStatusByLeadId,
   ]);
@@ -2612,7 +2642,9 @@ export default function Leads() {
       searchQuery,
       salesPersonIds: filterSalesPersonIds,
       stageIds: filterStageIds,
+      stageFilterMode,
       responseStatus: filterResponseStatus,
+      responseStatusFilterMode,
       tagIds: filterTagIds,
       startDate,
       endDate,
@@ -2622,7 +2654,9 @@ export default function Leads() {
       searchQuery,
       filterSalesPersonIds,
       filterStageIds,
+      stageFilterMode,
       filterResponseStatus,
+      responseStatusFilterMode,
       filterTagIds,
       startDate,
       endDate,
@@ -2635,7 +2669,11 @@ export default function Leads() {
     setSearchQuery(filters.searchQuery);
     setFilterSalesPersonIds(filters.salesPersonIds);
     setFilterStageIds(filters.stageIds);
+    setStageFilterMode(normalizeLeadValueFilterMode(filters.stageFilterMode));
     setFilterResponseStatus(filters.responseStatus);
+    setResponseStatusFilterMode(
+      normalizeLeadValueFilterMode(filters.responseStatusFilterMode),
+    );
     setFilterTagIds(filters.tagIds);
     setStartDate(filters.startDate);
     setEndDate(filters.endDate);
@@ -2649,7 +2687,9 @@ export default function Leads() {
       // Reset all filters
       setFilterSalesPersonIds([]);
       setFilterStageIds([]);
+      setStageFilterMode("show");
       setFilterResponseStatus([]);
+      setResponseStatusFilterMode("show");
       setFilterTagIds([]);
       setStartDate(undefined);
       setEndDate(undefined);
@@ -2671,6 +2711,7 @@ export default function Leads() {
         setFilterSalesPersonIds([]);
       }
       setFilterStageIds(leadStageIdsFromPreset(f));
+      setStageFilterMode(normalizeLeadValueFilterMode(f.stageFilterMode));
       // Handle legacy string format for responseStatus
       if (typeof f.responseStatus === "string") {
         setFilterResponseStatus(
@@ -2679,6 +2720,9 @@ export default function Leads() {
       } else {
         setFilterResponseStatus(f.responseStatus || []);
       }
+      setResponseStatusFilterMode(
+        normalizeLeadValueFilterMode(f.responseStatusFilterMode),
+      );
       // Handle legacy tagId format
       if ("tagId" in f && typeof f.tagId === "string") {
         setFilterTagIds(f.tagId === "all" ? [] : [f.tagId]);
@@ -2735,7 +2779,10 @@ export default function Leads() {
         searchQuery,
         filterSalesPersonIds,
         filterStageIds,
+        stageFilterMode,
+        allStageIds: PIPELINE_STAGES.map((stage) => stage.id),
         filterResponseStatus,
+        responseStatusFilterMode,
         filterTagIds,
         filterFollowUpToday,
         startDate,
@@ -2777,6 +2824,9 @@ export default function Leads() {
     opts?: { skipGuard?: boolean; silent?: boolean },
   ) => {
     if (!tenantId) return 0;
+    if (!leadMatchesStageFilter(stageId, filterStageIds, stageFilterMode)) {
+      return 0;
+    }
     if (!opts?.skipGuard && loadingMoreStage) return 0;
 
     if (!opts?.skipGuard) setLoadingMoreStage(stageId);
@@ -2805,15 +2855,19 @@ export default function Leads() {
         p_tenant_id: tenantId,
         p_agency_ids: agencyIds,
         p_stages: [stageId],
-        p_limit_per_stage: leadsPerStageLimit,
+        p_limit_per_stage: responseFilterNeedsClient(
+          filterResponseStatus,
+          responseStatusFilterMode,
+        )
+          ? Math.min(leadsPerStageLimit * 3, 200)
+          : leadsPerStageLimit,
         p_offset_per_stage: newOffset,
         p_search_query: searchQuery.trim() || null,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses:
-          filterResponseStatus.length > 0 &&
-          !filterResponseStatus.includes("none")
-            ? filterResponseStatus
-            : null,
+        p_response_statuses: kanbanResponseStatuses(
+          filterResponseStatus,
+          responseStatusFilterMode,
+        ),
         p_follow_up_today: filterFollowUpToday,
         p_start_date: startDate?.toISOString() || null,
         p_end_date: endDate ? endOfDayIso(endDate) : null,
@@ -2911,6 +2965,10 @@ export default function Leads() {
 
   // Use effective status (optimistic first, then actual) for stage filtering
   const getLeadsByStage = (stageId: string, limit?: number) => {
+    if (!leadMatchesStageFilter(stageId, filterStageIds, stageFilterMode)) {
+      return [];
+    }
+
     // For Kanban view: use stage data directly from RPC (already pre-filtered per stage)
     if (isKanbanView && kanbanStageData) {
       const stageData = kanbanStageData[stageId];
@@ -2920,6 +2978,16 @@ export default function Leads() {
       const initialLeads = stageData.leads || [];
       const extraLeads = accumulatedLeads[stageId] || [];
       let allStageLeads = [...initialLeads, ...extraLeads];
+
+      if (filterResponseStatus.length > 0) {
+        allStageLeads = allStageLeads.filter((lead: any) =>
+          leadMatchesResponseStatusFilter(
+            lead.response_status,
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ),
+        );
+      }
 
       // Apply optimistic updates - remove leads moved away
       allStageLeads = allStageLeads.filter((lead: any) => {
@@ -3018,10 +3086,11 @@ export default function Leads() {
     );
   };
 
-  const chatStageIds =
-    filterStageIds.length > 0
-      ? filterStageIds
-      : PIPELINE_STAGES.map((stage) => stage.id);
+  const chatStageIds = stagesForKanbanQuery(
+    filterStageIds,
+    PIPELINE_STAGES.map((stage) => stage.id),
+    stageFilterMode,
+  ).filter((stageId) => stageId !== NO_MATCHING_STAGE_ID);
 
   const chatRemainingToLoad = chatStageIds.reduce((sum, stageId) => {
     return (
@@ -3065,6 +3134,7 @@ export default function Leads() {
 
   const handleStageSelect = (stageId: string) => {
     skipChatStageDefault.current = true;
+    setStageFilterMode("show");
     setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
   };
@@ -3231,6 +3301,7 @@ export default function Leads() {
                   hasActiveFilters={hasActiveFilters}
                   pipelineStages={PIPELINE_STAGES}
                   activeStageIds={filterStageIds}
+                  stageFilterMode={stageFilterMode}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
                 />
@@ -3417,6 +3488,7 @@ export default function Leads() {
               hasActiveFilters={hasActiveFilters}
               pipelineStages={PIPELINE_STAGES}
               activeStageIds={filterStageIds}
+              stageFilterMode={stageFilterMode}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
             />
@@ -4095,7 +4167,7 @@ function LeadPlainCell({ text }: { text: string }) {
 function leadTableOptionalWidth(key: string): number {
   if (key === "notes") return 240;
   if (key === "files") return 120;
-  if (key === "call_recording") return 150;
+  if (key === "call_recording") return 180;
   return 160;
 }
 
@@ -4248,30 +4320,49 @@ function TableWithStickyScroll({
     fieldDefinitions,
     LEAD_SYSTEM_FIELD_KEYS,
   ).filter((field) => isFieldVisible(field.visibilityKey, false));
-  const { data: callRecordings = [] } = useQuery({
+  const { data: leadRecordingRows } = useQuery({
     queryKey: ["lead-call-recordings", tenantId, visibleLeadIds],
     queryFn: async () => {
-      if (!tenantId || visibleLeadIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("call_logs")
-        .select("lead_id, recording_url")
-        .eq("tenant_id", tenantId)
-        .in("lead_id", visibleLeadIds)
-        .not("recording_url", "is", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      if (!tenantId || visibleLeadIds.length === 0) {
+        return {
+          calls: [] as StoredCallRecording[],
+          files: [] as StoredFileRecording[],
+        };
+      }
+      const [callsResult, filesResult] = await Promise.all([
+        supabase
+          .from("call_logs")
+          .select("id, lead_id, recording_url")
+          .eq("tenant_id", tenantId)
+          .in("lead_id", visibleLeadIds)
+          .not("recording_url", "is", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("zoom_recordings")
+          .select(
+            "id, lead_id, source, meeting_topic, recording_url, file_path",
+          )
+          .eq("tenant_id", tenantId)
+          .in("lead_id", visibleLeadIds)
+          .order("created_at", { ascending: false }),
+      ]);
+      if (callsResult.error) throw callsResult.error;
+      if (filesResult.error) throw filesResult.error;
+      return {
+        calls: (callsResult.data || []) as StoredCallRecording[],
+        files: (filesResult.data || []) as StoredFileRecording[],
+      };
     },
     enabled: !!tenantId && showCallRecording && visibleLeadIds.length > 0,
   });
-  const recordingsByLead = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    for (const row of callRecordings) {
-      if (!row.lead_id || !row.recording_url) continue;
-      (map[row.lead_id] ??= []).push(row.recording_url);
-    }
-    return map;
-  }, [callRecordings]);
+  const recordingsByLead = useMemo(
+    () =>
+      groupLeadRecordings(
+        leadRecordingRows?.calls ?? [],
+        leadRecordingRows?.files ?? [],
+      ),
+    [leadRecordingRows],
+  );
 
   // Fetch lead tags in bulk for visible leads only (avoids 1000 row limit)
   const { data: leadsTagsMap = {} } = useQuery({
@@ -5118,23 +5209,13 @@ function TableWithStickyScroll({
               width: leadTableOptionalWidth(field.key),
               render: (lead: any) => {
                 if (field.key === "call_recording") {
-                  const urls = recordingsByLead[lead.id] || [];
-                  if (urls.length === 0) return <LeadPlainCell text="—" />;
                   return (
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      {urls.slice(0, 3).map((url, index) => (
-                        <a
-                          key={`${url}-${index}`}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="truncate text-primary underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {urls.length === 1 ? "הקלטה" : `הקלטה ${index + 1}`}
-                        </a>
-                      ))}
-                    </div>
+                    <LeadRecordingCell
+                      leadId={lead.id}
+                      tenantId={tenantId}
+                      agencyId={lead.agency_id}
+                      recordings={recordingsByLead[lead.id] || []}
+                    />
                   );
                 }
                 if (field.key === "files") {

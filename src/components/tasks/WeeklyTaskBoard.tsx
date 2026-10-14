@@ -1816,10 +1816,10 @@ export function WeeklyTaskBoard() {
     return dueDate >= dateRange.start && dueDate <= dateRange.end;
   });
 
-  // For daily view - filter tasks for the specific day (include tasks with OR without time)
+  // For daily view - filter tasks for the specific day (include tasks with OR without time).
+  // Completed tasks stay visible (strikethrough / muted) — do not hide on status=done.
   const dailyTasks = tasks.filter((t) => {
     if (!t.due_date) return false;
-    if (t.status === "done") return false;
     if (
       !shouldShowRecurringTaskOnBoard(t, {
         showAllRecurring: filters.showAllRecurring,
