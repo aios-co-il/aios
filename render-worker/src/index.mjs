@@ -92,6 +92,28 @@ async function resolveMediaKeys(tenantId) {
   };
 }
 
+const PRODUCTION_KINDS = new Set(["clip", "voice", "music", "render"]);
+
+/**
+ * One-click production: after each clip, voice, music or render job the project's
+ * production moves on (queues the assembly once nothing is in flight, then finishes).
+ */
+async function advanceProduction(run) {
+  if (!PRODUCTION_KINDS.has(run.kind) || !run.item_id) return;
+  try {
+    const state = await db.rpc("advance_video_production", {
+      p_item_id: run.item_id,
+    });
+    if (state && state !== "idle")
+      console.log(`[worker] production ${run.item_id}: ${state}`);
+  } catch (error) {
+    console.error(
+      `[worker] production ${run.item_id} advance failed`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 async function finish(run, patch) {
   await db.update("marketing_runs", `id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
@@ -122,6 +144,7 @@ async function processOne() {
       provider: result.provider ?? "render-worker",
     });
     console.log(`[worker] completed ${run.id}`);
+    await advanceProduction(run);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const retry =
@@ -141,6 +164,8 @@ async function processOne() {
         .catch((hookError) =>
           console.error(`[worker] ${run.id} failure hook`, hookError),
         );
+    // After the scene is marked failed, so the film is assembled without it.
+    if (!retry) await advanceProduction(run);
   }
   return true;
 }

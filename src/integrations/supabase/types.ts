@@ -15555,6 +15555,29 @@ export type Database = {
         Args: { p_item_id: string; p_scenes: Json };
         Returns: Database["public"]["Tables"]["marketing_video_scenes"]["Row"][];
       };
+      produce_video: {
+        Args: {
+          p_aspect?: string;
+          p_estimate?: Json;
+          p_generate_audio?: boolean;
+          p_item_id: string;
+          p_music_prompt?: string;
+          p_provider?: string;
+          p_stage_id?: string;
+          p_voice_id?: string;
+          p_with_music?: boolean;
+          p_with_voice?: boolean;
+        };
+        Returns: Json;
+      };
+      advance_video_production: {
+        Args: { p_item_id: string };
+        Returns: string;
+      };
+      set_video_production: {
+        Args: { p_item_id: string; p_patch: Json };
+        Returns: Json;
+      };
       queue_video_clips: {
         Args: {
           p_aspect?: string;

@@ -13,6 +13,7 @@ import {
   type VideoSceneRecord,
 } from "./videoScenes";
 import { referenceVideoPath, type ReferenceRun } from "./videoReference";
+import { getProduction, type VideoProduction } from "./videoProduction";
 
 const ID_CHUNK = 100;
 
@@ -397,4 +398,77 @@ export async function approveSceneClip(
     .eq("tenant_id", tenantId)
     .eq("id", sceneId);
   if (error) throw error;
+}
+
+/** One click: queues every clip, voice and music the film still needs, then assembles it. */
+export async function produceVideo({
+  itemId,
+  stageId,
+  aspect,
+  provider,
+  estimate,
+  withVoice,
+  withMusic,
+  voiceId,
+  generateAudio,
+}: {
+  itemId: string;
+  stageId: string;
+  aspect: string;
+  provider: string;
+  estimate: Record<string, unknown>;
+  withVoice: boolean;
+  withMusic: boolean;
+  voiceId?: string | null;
+  generateAudio: boolean;
+}): Promise<{ status: string; clips: number; voices: number; music: number }> {
+  const { data, error } = await supabase.rpc("produce_video", {
+    p_item_id: itemId,
+    p_aspect: aspect,
+    p_provider: provider,
+    p_estimate: estimate as Json,
+    p_stage_id: stageId,
+    p_with_voice: withVoice,
+    p_with_music: withMusic,
+    p_voice_id: voiceId ?? undefined,
+    p_music_prompt:
+      "Instrumental commercial bed matching the storyboard, no vocals and no lyrics.",
+    p_generate_audio: generateAudio,
+  });
+  if (error) throw error;
+  return data as {
+    status: string;
+    clips: number;
+    voices: number;
+    music: number;
+  };
+}
+
+/** The project's production state and whether it already has a music bed. */
+export async function fetchVideoProduction(
+  tenantId: string,
+  itemId: string,
+): Promise<{ production: VideoProduction | null; hasMusic: boolean }> {
+  const [item, music] = await Promise.all([
+    supabase
+      .from("marketing_work_items")
+      .select("payload")
+      .eq("tenant_id", tenantId)
+      .eq("id", itemId)
+      .maybeSingle(),
+    supabase
+      .from("marketing_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("type", "music"),
+  ]);
+  if (item.error) throw item.error;
+  if (music.error) throw music.error;
+  return {
+    production: getProduction(
+      (item.data?.payload ?? null) as Record<string, unknown> | null,
+    ),
+    hasMusic: (music.count ?? 0) > 0,
+  };
 }

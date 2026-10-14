@@ -35,12 +35,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { CreativeImage } from "@/components/marketing/departments/creative/CreativeImage";
 import {
-  CheckCircle2,
   Clapperboard,
   Copy,
   Film,
@@ -51,6 +55,7 @@ import {
   LockOpen,
   Plus,
   Save,
+  Settings2,
   Square,
   Trash2,
   UserRound,
@@ -63,11 +68,10 @@ import type { StillModel } from "./videoStill";
 import {
   SCENE_ENGINE_LABEL,
   SOUND_ENGINE_LABEL,
-  soundRunsSeparately,
   type SceneEngine,
   type SoundEngine,
 } from "./videoEngines";
-import { canAnimate, framesToAnimate } from "./videoClip";
+import { canAnimate } from "./videoClip";
 
 export interface SceneStillVersion {
   id: string;
@@ -80,14 +84,11 @@ interface Props {
   onChange: (frames: StoryboardFrame[]) => void;
   onSave: () => Promise<void>;
   onGenerateFrame: (frame: StoryboardFrame) => Promise<void>;
-  onGenerateAll?: () => Promise<void>;
-  onStop?: () => void;
   /** Change the existing still with a short instruction ("move Carmen left"). */
   onEditWithPrompt?: (
     frame: StoryboardFrame,
     instruction: string,
   ) => Promise<void>;
-  onApprove?: (frame: StoryboardFrame, approved: boolean) => Promise<void>;
   loadVersions?: (frameId: string) => Promise<SceneStillVersion[]>;
   onSelectVersion?: (frame: StoryboardFrame, assetId: string) => Promise<void>;
   character?: {
@@ -102,10 +103,19 @@ interface Props {
   onSceneEngineChange?: (engine: SceneEngine) => void;
   soundEngine?: SoundEngine;
   onSoundEngineChange?: (engine: SoundEngine) => void;
-  onCreateVoice?: () => void;
-  onCreateMusic?: () => void;
-  /** Assemble the approved clips into one film. */
-  onComposeFilm?: () => void;
+  /** One click: make what is missing (stills, clips, voice, music) and assemble the film. */
+  production?: {
+    running: boolean;
+    /** Client-side step before the worker takes over, e.g. "יוצר פריים 2 מתוך 5". */
+    busyLabel?: string | null;
+    progress: { label: string; percent: number } | null;
+    hasFilm: boolean;
+    error?: string | null;
+    onProduce: () => void;
+    onStop?: () => void;
+  };
+  /** The draft has edits that are not saved yet. */
+  dirty?: boolean;
   film?: {
     status: string;
     url?: string | null;
@@ -119,11 +129,10 @@ interface Props {
     onUpload: (file: File) => void;
     onOpenProposal: () => void;
   };
-  /** Image-to-video: signed clip URLs by frame id, animate (asks for budget first), approve. */
+  /** Image-to-video: signed clip URLs by frame id; re-animate one scene (asks for budget first). */
   clips?: {
     urls: Record<string, string>;
     onAnimate: (frames: StoryboardFrame[]) => void;
-    onApprove: (frame: StoryboardFrame, approved: boolean) => Promise<void>;
   };
   generating?: boolean;
   saving?: boolean;
@@ -326,10 +335,7 @@ export function CreativeStoryboardEditor({
   onChange,
   onSave,
   onGenerateFrame,
-  onGenerateAll,
-  onStop,
   onEditWithPrompt,
-  onApprove,
   loadVersions,
   onSelectVersion,
   character,
@@ -339,9 +345,8 @@ export function CreativeStoryboardEditor({
   onSceneEngineChange,
   soundEngine,
   onSoundEngineChange,
-  onCreateVoice,
-  onCreateMusic,
-  onComposeFilm,
+  production,
+  dirty,
   film,
   reference,
   clips,
@@ -359,9 +364,7 @@ export function CreativeStoryboardEditor({
   const [internalSceneOpen, setInternalSceneOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [versions, setVersions] = useState<SceneStillVersion[]>([]);
-  const [busy, setBusy] = useState<
-    "edit" | "approve" | "version" | "clip" | null
-  >(null);
+  const [busy, setBusy] = useState<"edit" | "version" | null>(null);
   const characterInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
 
@@ -473,10 +476,7 @@ export function CreativeStoryboardEditor({
     setSceneOpen(true);
   };
 
-  const run = async (
-    kind: "edit" | "approve" | "version" | "clip",
-    action: () => Promise<void>,
-  ) => {
+  const run = async (kind: "edit" | "version", action: () => Promise<void>) => {
     setBusy(kind);
     try {
       await action();
@@ -485,266 +485,58 @@ export function CreativeStoryboardEditor({
     }
   };
 
-  const approved =
-    frameDraft?.status === "still_approved" ||
-    frameDraft?.status === "clip_approved";
-  const toAnimate = framesToAnimate(frames);
   const draftClipUrl = frameDraft ? clips?.urls[frameDraft.id] : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {character && (
-            <div className="flex items-center gap-1.5">
-              <input
-                ref={characterInput}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) character.onUpload(file);
-                  event.target.value = "";
-                }}
-              />
-              {character.url ? (
-                <div className="flex items-center gap-1 rounded-full border bg-background py-0.5 pe-1 ps-0.5">
-                  <CreativeImage
-                    src={character.url}
-                    alt="דמות קבועה"
-                    className="h-7 w-7 rounded-full object-cover"
-                  />
-                  <span className="text-[11px]">דמות קבועה</span>
-                  <button
-                    type="button"
-                    aria-label="הסר דמות"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={character.onClear}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={character.uploading}
-                  onClick={() => characterInput.current?.click()}
-                >
-                  {character.uploading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <UserRound className="h-3.5 w-3.5" />
-                  )}
-                  תמונת דמות
-                </Button>
-              )}
-            </div>
-          )}
-          {reference && (
-            <div className="flex items-center gap-1.5">
-              <input
-                ref={referenceInput}
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) reference.onUpload(file);
-                  event.target.value = "";
-                }}
-              />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex items-center gap-2">
+          {production &&
+            (production.running || production.busyLabel ? (
               <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                disabled={["uploading", "queued", "running"].includes(
-                  reference.status,
-                )}
-                onClick={() => referenceInput.current?.click()}
-                title="העלו סרטון רפרנס: כרמן תפרק אותו לשוטים ותציע סטוריבורד באותו קצב"
+                size="lg"
+                disabled
+                className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
               >
-                {["uploading", "queued", "running"].includes(
-                  reference.status,
-                ) ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Film className="h-3.5 w-3.5" />
-                )}
-                {reference.status === "uploading"
-                  ? "מעלה…"
-                  : reference.status === "queued"
-                    ? "ממתין לניתוח…"
-                    : reference.status === "running"
-                      ? "מנתח רפרנס…"
-                      : "סרטון רפרנס"}
-              </Button>
-              {reference.status === "completed" && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={reference.onOpenProposal}
-                >
-                  הצעת סטוריבורד
-                </Button>
-              )}
-              {reference.status === "failed" && (
-                <span
-                  className="max-w-48 truncate text-[11px] text-destructive"
-                  title={reference.error ?? ""}
-                >
-                  הניתוח נכשל
-                </span>
-              )}
-            </div>
-          )}
-          {onStillModelChange && (
-            <Select
-              value={stillModel ?? "gpt-image-1"}
-              onValueChange={(value) => onStillModelChange(value as StillModel)}
-            >
-              <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-image-1">gpt-image-1</SelectItem>
-                <SelectItem value="nano-banana-pro">
-                  Nano Banana Pro (דמות עקבית)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          {onSceneEngineChange && (
-            <Select
-              value={sceneEngine ?? "mock"}
-              onValueChange={(value) =>
-                onSceneEngineChange(value as SceneEngine)
-              }
-            >
-              <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  Object.entries(SCENE_ENGINE_LABEL) as [SceneEngine, string][]
-                ).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {onSoundEngineChange && (
-            <Select
-              value={soundEngine ?? "elevenlabs"}
-              onValueChange={(value) =>
-                onSoundEngineChange(value as SoundEngine)
-              }
-            >
-              <SelectTrigger className="h-8 w-56 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  Object.entries(SOUND_ENGINE_LABEL) as [SoundEngine, string][]
-                ).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {onCreateVoice &&
-            soundRunsSeparately(soundEngine ?? "elevenlabs") && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!frames.some((frame) => frame.voiceover.trim())}
-                onClick={onCreateVoice}
-              >
-                קריינות
-              </Button>
-            )}
-          {onCreateMusic &&
-            soundRunsSeparately(soundEngine ?? "elevenlabs") && (
-              <Button size="sm" variant="outline" onClick={onCreateMusic}>
-                מוזיקה
-              </Button>
-            )}
-          {soundEngine === "higgsfield" && sceneEngine !== "higgsfield" && (
-            <span className="max-w-56 text-[11px] text-muted-foreground">
-              הסאונד של Higgsfield נוצר רק כשמנוע הסצנות הוא Higgsfield
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {onComposeFilm && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              disabled={
-                !frames.some((frame) => frame.status === "clip_approved") ||
-                film?.status === "queued" ||
-                film?.status === "running"
-              }
-              title="מרכיב את הקליפים המאושרים לסרט אחד. ההרכבה מקומית ולא עולה כסף"
-              onClick={onComposeFilm}
-            >
-              {film?.status === "queued" || film?.status === "running" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Film className="h-3.5 w-3.5" />
-              )}
-              {film?.status === "queued" || film?.status === "running"
-                ? "מרכיב סרט…"
-                : "הרכב סרט"}
-            </Button>
-          )}
-          {clips && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              disabled={toAnimate.length === 0}
-              title="מנפיש את הפריימים המאושרים שאין להם קליפ עדכני"
-              onClick={() => clips.onAnimate(toAnimate)}
-            >
-              <Clapperboard className="h-3.5 w-3.5" />
-              הנפש הכול{toAnimate.length > 0 ? ` (${toAnimate.length})` : ""}
-            </Button>
-          )}
-          {onGenerateAll &&
-            (generating && onStop ? (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="gap-1.5"
-                onClick={onStop}
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-                עצור
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {production.busyLabel ?? production.progress?.label ?? "מפיק…"}
               </Button>
             ) : (
               <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => void onGenerateAll()}
-                disabled={generating || frames.length === 0}
+                size="lg"
+                className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
+                disabled={frames.length === 0}
+                onClick={production.onProduce}
+                title="יוצר את מה שחסר (פריימים, הנפשה, קריינות ומוזיקה) ומרכיב סרט אחד"
               >
-                {generating ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-3.5 w-3.5" />
-                )}
-                צור הכל לפי סדר
+                <Clapperboard className="h-4 w-4" />
+                {production.hasFilm ? "עדכן סרט" : "הפק סרט"}
               </Button>
             ))}
+          {production?.busyLabel && production.onStop && (
+            <Button size="sm" variant="ghost" onClick={production.onStop}>
+              <Square className="h-3.5 w-3.5 fill-current" />
+              עצור
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {dirty && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => void onSave()}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              שמור שינויים
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -754,36 +546,238 @@ export function CreativeStoryboardEditor({
             <Plus className="h-3.5 w-3.5" />
             סצנה
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => void onSave()}
-            disabled={saving}
-          >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            שמור
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Settings2 className="h-3.5 w-3.5" />
+                הגדרות
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 space-y-4" dir="rtl">
+              {character && (
+                <div className="space-y-1.5">
+                  <Label>דמות קבועה</Label>
+                  <input
+                    ref={characterInput}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) character.onUpload(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  {character.url ? (
+                    <div className="flex items-center gap-2">
+                      <CreativeImage
+                        src={character.url}
+                        alt="דמות קבועה"
+                        className="h-9 w-9 rounded-full object-cover"
+                      />
+                      <span className="flex-1 text-xs text-muted-foreground">
+                        נשלחת בכל סצנה שהדמות מופיעה בה
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label="הסר דמות"
+                        onClick={character.onClear}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5"
+                      disabled={character.uploading}
+                      onClick={() => characterInput.current?.click()}
+                    >
+                      {character.uploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <UserRound className="h-3.5 w-3.5" />
+                      )}
+                      העלה תמונת דמות
+                    </Button>
+                  )}
+                </div>
+              )}
+              {onStillModelChange && (
+                <div className="space-y-1.5">
+                  <Label>מודל לפריימים</Label>
+                  <Select
+                    value={stillModel ?? "gpt-image-1"}
+                    onValueChange={(value) =>
+                      onStillModelChange(value as StillModel)
+                    }
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-image-1">gpt-image-1</SelectItem>
+                      <SelectItem value="nano-banana-pro">
+                        Nano Banana Pro (דמות עקבית)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {onSceneEngineChange && (
+                <div className="space-y-1.5">
+                  <Label>מנוע הנפשה</Label>
+                  <Select
+                    value={sceneEngine ?? "mock"}
+                    onValueChange={(value) =>
+                      onSceneEngineChange(value as SceneEngine)
+                    }
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.entries(SCENE_ENGINE_LABEL) as [
+                          SceneEngine,
+                          string,
+                        ][]
+                      ).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(sceneEngine ?? "mock") === "mock" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      תצוגה חינמית: זום איטי על התמונה. לסרט אמיתי בחרו
+                      ElevenLabs.
+                    </p>
+                  )}
+                </div>
+              )}
+              {onSoundEngineChange && (
+                <div className="space-y-1.5">
+                  <Label>סאונד</Label>
+                  <Select
+                    value={soundEngine ?? "elevenlabs"}
+                    onValueChange={(value) =>
+                      onSoundEngineChange(value as SoundEngine)
+                    }
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.entries(SOUND_ENGINE_LABEL) as [
+                          SoundEngine,
+                          string,
+                        ][]
+                      ).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {reference && (
+                <div className="space-y-1.5 border-t pt-3">
+                  <Label>סרטון רפרנס</Label>
+                  <input
+                    ref={referenceInput}
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/webm"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) reference.onUpload(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-1.5"
+                      disabled={["uploading", "queued", "running"].includes(
+                        reference.status,
+                      )}
+                      onClick={() => referenceInput.current?.click()}
+                    >
+                      {["uploading", "queued", "running"].includes(
+                        reference.status,
+                      ) ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Film className="h-3.5 w-3.5" />
+                      )}
+                      {reference.status === "uploading"
+                        ? "מעלה…"
+                        : reference.status === "queued" ||
+                            reference.status === "running"
+                          ? "מנתח…"
+                          : "העלה סרטון"}
+                    </Button>
+                    {reference.status === "completed" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={reference.onOpenProposal}
+                      >
+                        הצעת סטוריבורד
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {reference.status === "failed"
+                      ? `הניתוח נכשל${reference.error ? `: ${reference.error}` : ""}`
+                      : "כרמן מפרקת אותו לשוטים ומציעה סטוריבורד באותו קצב."}
+                  </p>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
-      {film?.url && (
-        <div className="border-b px-4 py-3" dir="rtl">
-          <p className="mb-2 text-xs text-muted-foreground">הסרט המורכב</p>
-          <video src={film.url} controls className="max-h-64 rounded-md" />
+      {production?.progress && (
+        <div className="border-b px-4 py-2">
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-gradient-to-l from-pink-500 to-violet-500 transition-all"
+              style={{ width: `${production.progress.percent}%` }}
+            />
+          </div>
         </div>
       )}
-      {film?.status === "failed" && (
-        <p
-          className="border-b px-4 py-2 text-xs text-destructive"
-          title={film.error ?? ""}
-        >
-          הרכבת הסרט נכשלה
+      {production?.error && !production.running && (
+        <p className="border-b px-4 py-2 text-xs text-destructive">
+          ההפקה נכשלה: {production.error}
         </p>
+      )}
+      {film?.url && (
+        <div className="flex flex-col items-center gap-2 border-b bg-muted/30 px-4 py-4">
+          <video
+            key={film.url}
+            src={film.url}
+            controls
+            playsInline
+            className="max-h-[360px] rounded-lg bg-black shadow"
+          />
+          <a
+            href={film.url}
+            download
+            className="text-xs font-medium text-pink-600 hover:underline"
+          >
+            הורדת הסרט
+          </a>
+        </div>
       )}
 
       {frames.length === 0 ? (
@@ -946,27 +940,6 @@ export function CreativeStoryboardEditor({
                     </div>
                   </div>
                 )}
-                {frameDraft.imageUrl &&
-                  onApprove &&
-                  !frameDraft.status?.startsWith("clip_") && (
-                    <Button
-                      variant={approved ? "secondary" : "default"}
-                      className="w-full gap-2"
-                      disabled={busy !== null}
-                      onClick={() =>
-                        void run("approve", () =>
-                          onApprove(frameDraft, !approved),
-                        )
-                      }
-                    >
-                      {busy === "approve" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4" />
-                      )}
-                      {approved ? "בטל אישור" : "אשר פריים"}
-                    </Button>
-                  )}
                 <div>
                   <Label>שם הסצנה</Label>
                   <Input
@@ -1041,59 +1014,26 @@ export function CreativeStoryboardEditor({
                   </div>
                 )}
                 {clips && frameDraft.stillAssetId && frameDraft.imageUrl && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      className="gap-1.5"
-                      disabled={!canAnimate(frameDraft) || busy !== null}
-                      onClick={() => {
-                        saveFrameDraft();
-                        clips.onAnimate([frameDraft]);
-                      }}
-                    >
-                      {frameDraft.status === "clip_generating" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Clapperboard className="h-4 w-4" />
-                      )}
-                      {frameDraft.status === "clip_generating"
-                        ? "מונפש…"
-                        : frameDraft.clipAssetId
-                          ? "הנפש מחדש"
-                          : "הנפש סצנה"}
-                    </Button>
-                    <Button
-                      variant={
-                        frameDraft.status === "clip_approved"
-                          ? "secondary"
-                          : "default"
-                      }
-                      className="gap-1.5"
-                      disabled={
-                        !frameDraft.clipAssetId ||
-                        busy !== null ||
-                        (frameDraft.status !== "clip_ready" &&
-                          frameDraft.status !== "clip_approved")
-                      }
-                      onClick={() =>
-                        void run("clip", () =>
-                          clips.onApprove(
-                            frameDraft,
-                            frameDraft.status !== "clip_approved",
-                          ),
-                        )
-                      }
-                    >
-                      {busy === "clip" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4" />
-                      )}
-                      {frameDraft.status === "clip_approved"
-                        ? "בטל אישור קליפ"
-                        : "אשר קליפ"}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-1.5"
+                    disabled={!canAnimate(frameDraft) || busy !== null}
+                    onClick={() => {
+                      saveFrameDraft();
+                      clips.onAnimate([frameDraft]);
+                    }}
+                  >
+                    {frameDraft.status === "clip_generating" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Clapperboard className="h-4 w-4" />
+                    )}
+                    {frameDraft.status === "clip_generating"
+                      ? "מונפש…"
+                      : frameDraft.clipAssetId
+                        ? "הנפש את הסצנה מחדש"
+                        : "הנפש סצנה"}
+                  </Button>
                 )}
                 <div>
                   <Label>טקסט על המסך</Label>

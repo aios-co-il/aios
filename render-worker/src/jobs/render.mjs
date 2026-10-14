@@ -18,7 +18,7 @@ async function materialize(db, tenantId, path, file) {
 }
 
 /**
- * What the film is made of, read from the database for the run's tenant: approved scenes
+ * What the film is made of, read from the database for the run's tenant: every scene with a clip
  * in order with their current clip and voice, and the newest music bed. run.input only
  * says the aspect, so a hand-written run cannot point the worker at other files.
  */
@@ -26,7 +26,7 @@ export async function loadFilmSources(db, run) {
   const scenes =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&status=eq.clip_approved&select=id,position,overlay_text,duration_s,clip_asset_id,voice_asset_id&order=position`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,duration_s,clip_asset_id,voice_asset_id&order=position`,
     )) ?? [];
   const assetIds = scenes
     .flatMap((scene) => [scene.clip_asset_id, scene.voice_asset_id])

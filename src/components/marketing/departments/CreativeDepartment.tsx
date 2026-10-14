@@ -105,6 +105,8 @@ import {
   queueReferenceAnalysis,
   queueSceneClips,
   queueSceneSound,
+  produceVideo,
+  fetchVideoProduction,
   saveVideoStoryboard,
   selectSceneStill,
   signCreativeVideoPaths,
@@ -114,6 +116,12 @@ import {
   summarizeStoredImageCosts,
 } from "@/components/marketing/departments/creative/imageCost";
 import { mergeServerScenes } from "@/components/marketing/departments/creative/videoClip";
+import {
+  getProduction,
+  productionPlan,
+  productionProgress,
+  type ProductionPlan,
+} from "@/components/marketing/departments/creative/videoProduction";
 import {
   getSceneEngine,
   getSoundEngine,
@@ -1431,12 +1439,124 @@ export function CreativeDepartment({
     }
   };
 
+  // One-click production: state lives on the project (payload.video.production) and the
+  // worker moves it on; the screen polls it while it runs.
+  const { data: productionInfo } = useQuery({
+    queryKey: ["creative-video-production", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchVideoProduction(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      query.state.data?.production?.status === "running" ? 3000 : false,
+  });
+  const production = productionInfo?.production ?? null;
+  const productionRunning = production?.status === "running";
+  const [produceConfirm, setProduceConfirm] = useState<ProductionPlan | null>(
+    null,
+  );
+  const [producingStep, setProducingStep] = useState<string | null>(null);
+  // When a production finishes, load the new film right away.
+  const productionStatus = production?.status;
+  useEffect(() => {
+    if (!selectedId || !productionStatus || productionStatus === "running")
+      return;
+    void queryClient.invalidateQueries({
+      queryKey: ["creative-render-run", tenantId, selectedId],
+    });
+  }, [productionStatus, selectedId, tenantId, queryClient]);
+
+  const confirmProduce = async (approvedPlan?: ProductionPlan) => {
+    const plan = approvedPlan ?? produceConfirm;
+    if (!selected || !plan) return;
+    setProduceConfirm(null);
+    beginGeneration();
+    setGenerating(true);
+    try {
+      let current = [...storyboardDraft].sort((a, b) => a.order - b.order);
+      setProducingStep("שומר את הסטוריבורד…");
+      await saveScenes(selected.id, current);
+      // Stills are made here, in order, so every frame keeps the style of frame 1.
+      for (const [index, frame] of plan.stills.entries()) {
+        throwIfGenerationAborted(generateAbortRef.current);
+        setProducingStep(`יוצר פריים ${index + 1} מתוך ${plan.stills.length}…`);
+        const latest = current.find((value) => value.id === frame.id) ?? frame;
+        current = await generateStoryboardFrame(latest, current, {
+          lock: false,
+        });
+      }
+      throwIfGenerationAborted(generateAbortRef.current);
+      setProducingStep("שולח להפקה…");
+      const sceneEngine = getSceneEngine(selected.payload);
+      const soundEngine = getSoundEngine(selected.payload);
+      const separateSound = soundRunsSeparately(soundEngine);
+      const result = await produceVideo({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        aspect: defaultFormat(selected.payload),
+        provider: sceneEngine,
+        estimate: {
+          usd: plan.usd.total,
+          clips: { usd: plan.usd.clips, credits: plan.credits },
+          voice: { usd: plan.usd.voice },
+          music: { usd: plan.usd.music },
+        },
+        withVoice: separateSound,
+        withMusic: separateSound,
+        voiceId: getVoiceId(selected.payload),
+        generateAudio:
+          soundEngine === "higgsfield" && sceneEngine === "higgsfield",
+      });
+      toast.success(
+        result.status === "running"
+          ? "הסרט כבר בהפקה"
+          : result.clips > 0
+            ? `ההפקה התחילה: ${result.clips} סצנות בהנפשה`
+            : "הסרט בהרכבה",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["creative-video-production", tenantId, selected.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["creative-render-run", tenantId, selected.id],
+        }),
+        refresh(),
+      ]);
+    } catch (error: unknown) {
+      if (isGenerationAborted(error))
+        toast.message("ההפקה נעצרה — מה שכבר נוצר נשמר");
+      else toast.error(errorMessage(error, "הפקת הסרט נכשלה"));
+    } finally {
+      setGenerating(false);
+      setGenerateProgress(null);
+      setProducingStep(null);
+    }
+  };
+
+  const requestProduce = () => {
+    if (!selected) return;
+    if (!selected.client_id) {
+      toast.error("יש לשייך לקוח לפרויקט לפני הפקת סרט");
+      return;
+    }
+    const plan = productionPlan(storyboardDraft, {
+      sceneEngine: getSceneEngine(selected.payload),
+      soundEngine: getSoundEngine(selected.payload),
+      stillModel: getStillModel(selected.payload),
+      hasMusic: productionInfo?.hasMusic ?? false,
+    });
+    // Only the free assembly is left: nothing to approve.
+    if (plan.assembleOnly) void confirmProduce(plan);
+    else setProduceConfirm(plan);
+  };
+
   const { data: renderRun } = useQuery({
     queryKey: ["creative-render-run", tenantId, selectedId],
     enabled: !!selectedId && projectType === "video",
     queryFn: () => fetchLatestRenderRun(tenantId, selectedId!),
     refetchInterval: (query) =>
-      isReferenceRunActive(query.state.data) ? 4000 : false,
+      productionRunning || isReferenceRunActive(query.state.data)
+        ? 4000
+        : false,
   });
   const renderPath = renderRun?.output?.path;
   const { data: filmUrl } = useQuery({
@@ -3363,10 +3483,7 @@ export function CreativeDepartment({
                   setStoryboardDraft(merged);
                   await generateStoryboardFrame(frame, merged);
                 }}
-                onGenerateAll={generateAllStoryboardFrames}
-                onStop={stopGeneration}
                 onEditWithPrompt={editFrameWithPrompt}
-                onApprove={approveFrame}
                 loadVersions={loadFrameVersions}
                 onSelectVersion={selectFrameVersion}
                 character={{
@@ -3393,7 +3510,6 @@ export function CreativeDepartment({
                 clips={{
                   urls: clipUrls,
                   onAnimate: requestAnimate,
-                  onApprove: approveClip,
                 }}
                 stillModel={getStillModel(selected.payload)}
                 onStillModelChange={(model) => void changeStillModel(model)}
@@ -3401,17 +3517,23 @@ export function CreativeDepartment({
                 onSceneEngineChange={(engine) => void changeSceneEngine(engine)}
                 soundEngine={getSoundEngine(selected.payload)}
                 onSoundEngineChange={(engine) => void changeSoundEngine(engine)}
-                onCreateVoice={
-                  soundRunsSeparately(getSoundEngine(selected.payload))
-                    ? () => setSoundConfirm("voice")
-                    : undefined
-                }
-                onCreateMusic={
-                  soundRunsSeparately(getSoundEngine(selected.payload))
-                    ? () => setSoundConfirm("music")
-                    : undefined
-                }
-                onComposeFilm={() => setRenderConfirm(true)}
+                production={{
+                  running:
+                    getProduction(selected.payload)?.status === "running" ||
+                    production?.status === "running",
+                  busyLabel: producingStep,
+                  progress: productionProgress(
+                    storyboardDraft,
+                    production ?? null,
+                    renderRun?.status,
+                  ),
+                  hasFilm: !!filmUrl,
+                  error:
+                    production?.status === "failed" ? production.error : null,
+                  onProduce: requestProduce,
+                  onStop: producingStep ? stopGeneration : undefined,
+                }}
+                dirty={JSON.stringify(storyboardDraft) !== storyboardSignature}
                 film={{
                   status: renderRun?.status ?? "idle",
                   url: filmUrl,
@@ -3777,74 +3899,68 @@ export function CreativeDepartment({
       </AlertDialog>
 
       <AlertDialog
-        open={renderConfirm}
-        onOpenChange={(open) =>
-          !open && !queueingClips && setRenderConfirm(false)
-        }
-      >
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader className="text-right">
-            <AlertDialogTitle>להרכיב את הסרט?</AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              נכנסות רק סצנות עם קליפ מאושר, עם הקריינות שלהן ומיטת המוזיקה
-              האחרונה. ההרכבה רצה על הוורקר, בלי חיוב.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:justify-start">
-            <AlertDialogAction
-              disabled={queueingClips}
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmRender();
-              }}
-            >
-              {queueingClips && (
-                <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
-              )}
-              הרכב סרט
-            </AlertDialogAction>
-            <AlertDialogCancel disabled={queueingClips}>
-              ביטול
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={!!soundConfirm}
-        onOpenChange={(open) =>
-          !open && !queueingClips && setSoundConfirm(null)
-        }
+        open={!!produceConfirm}
+        onOpenChange={(open) => !open && setProduceConfirm(null)}
       >
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle>
-              {soundConfirm === "voice" ? "ליצור קריינות?" : "ליצור מוזיקה?"}
+              {selected && getProduction(selected.payload)?.status === "done"
+                ? "לעדכן את הסרט?"
+                : "להפיק את הסרט?"}
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              {soundConfirm &&
-                (() => {
-                  const estimate =
-                    soundConfirm === "voice"
-                      ? voiceEstimate(storyboardDraft)
-                      : musicEstimate(storyboardDraft);
-                  return `ElevenLabs · ${estimate.label} · הערכה ${formatUsd(estimate.usd)}. הטקסט נשמר לפני השליחה.`;
-                })()}
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-right text-sm">
+                {produceConfirm && (
+                  <>
+                    <ul className="space-y-1">
+                      {produceConfirm.stills.length > 0 && (
+                        <li>
+                          {produceConfirm.stills.length} פריימים חדשים ·{" "}
+                          {formatUsd(produceConfirm.usd.stills)}
+                        </li>
+                      )}
+                      {produceConfirm.clips.length > 0 && (
+                        <li>
+                          הנפשת {produceConfirm.clips.length} סצנות ·{" "}
+                          {formatUsd(produceConfirm.usd.clips)}
+                        </li>
+                      )}
+                      {produceConfirm.voices.length > 0 && (
+                        <li>
+                          קריינות ל־{produceConfirm.voices.length} סצנות ·{" "}
+                          {formatUsd(produceConfirm.usd.voice)}
+                        </li>
+                      )}
+                      {produceConfirm.music && (
+                        <li>
+                          מוזיקת רקע · {formatUsd(produceConfirm.usd.music)}
+                        </li>
+                      )}
+                      <li>הרכבת הסרט · חינם</li>
+                    </ul>
+                    <p className="font-semibold text-foreground">
+                      סה״כ בערך {formatUsd(produceConfirm.usd.total)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      רק מה שחסר או השתנה נוצר מחדש. אפשר לסגור את המסך אחרי
+                      שהפריימים נוצרו; הסרט ממשיך להיווצר בשרת.
+                    </p>
+                  </>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:justify-start">
             <AlertDialogAction
-              disabled={queueingClips}
               onClick={(event) => {
                 event.preventDefault();
-                void confirmSound();
+                void confirmProduce();
               }}
             >
-              אשר תקציב וצור
+              אשר והפק
             </AlertDialogAction>
-            <AlertDialogCancel disabled={queueingClips}>
-              ביטול
-            </AlertDialogCancel>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
