@@ -11199,6 +11199,16 @@ export type Database = {
         Args: { p_item_id: string; p_scenes: Json };
         Returns: Database["public"]["Tables"]["marketing_video_scenes"]["Row"][];
       };
+      queue_video_clips: {
+        Args: {
+          p_aspect?: string;
+          p_estimate?: Json;
+          p_item_id: string;
+          p_scene_ids: string[];
+          p_stage_id?: string;
+        };
+        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
+      };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: undefined;

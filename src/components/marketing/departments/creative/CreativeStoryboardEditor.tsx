@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { CreativeImage } from "@/components/marketing/departments/creative/CreativeImage";
 import {
   CheckCircle2,
+  Clapperboard,
   Copy,
   Film,
   GripVertical,
@@ -59,6 +60,7 @@ import {
 import type { StoryboardFrame, VideoSceneStatus } from "./types";
 import { makeStoryboardFrame, storyboardFrameX } from "./utils";
 import type { StillModel } from "./videoStill";
+import { canAnimate, framesToAnimate } from "./videoClip";
 
 export interface SceneStillVersion {
   id: string;
@@ -96,6 +98,12 @@ interface Props {
     error?: string | null;
     onUpload: (file: File) => void;
     onOpenProposal: () => void;
+  };
+  /** Image-to-video: signed clip URLs by frame id, animate (asks for budget first), approve. */
+  clips?: {
+    urls: Record<string, string>;
+    onAnimate: (frames: StoryboardFrame[]) => void;
+    onApprove: (frame: StoryboardFrame, approved: boolean) => Promise<void>;
   };
   generating?: boolean;
   saving?: boolean;
@@ -142,11 +150,13 @@ const renumber = (frames: StoryboardFrame[]): StoryboardFrame[] =>
 
 function FrameCard({
   frame,
+  clipUrl,
   selected,
   onSelect,
   onToggleLock,
 }: {
   frame: StoryboardFrame;
+  clipUrl?: string;
   selected: boolean;
   onSelect: () => void;
   onToggleLock: () => void;
@@ -176,7 +186,19 @@ function FrameCard({
         onClick={onSelect}
       >
         <div className="relative aspect-video bg-muted">
-          {frame.imageUrl ? (
+          {clipUrl ? (
+            <video
+              src={clipUrl}
+              poster={frame.imageUrl}
+              muted
+              loop
+              playsInline
+              preload="none"
+              className="h-full w-full object-cover"
+              onMouseEnter={(event) => void event.currentTarget.play()}
+              onMouseLeave={(event) => event.currentTarget.pause()}
+            />
+          ) : frame.imageUrl ? (
             <CreativeImage
               src={frame.imageUrl}
               alt={frame.title}
@@ -205,6 +227,15 @@ function FrameCard({
           >
             {frame.duration} שנ׳
           </Badge>
+          {frame.clipStale && (
+            <Badge
+              variant="outline"
+              className="absolute bottom-2 right-2 bg-background/90 text-[10px]"
+              title="הפריים או ההנחיה השתנו אחרי שהקליפ נוצר"
+            >
+              קליפ ישן
+            </Badge>
+          )}
         </div>
       </button>
       <div className="flex items-start gap-1 p-2">
@@ -285,6 +316,7 @@ export function CreativeStoryboardEditor({
   stillModel,
   onStillModelChange,
   reference,
+  clips,
   generating,
   saving,
   scenePanelOpen,
@@ -299,7 +331,9 @@ export function CreativeStoryboardEditor({
   const [internalSceneOpen, setInternalSceneOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [versions, setVersions] = useState<SceneStillVersion[]>([]);
-  const [busy, setBusy] = useState<"edit" | "approve" | "version" | null>(null);
+  const [busy, setBusy] = useState<
+    "edit" | "approve" | "version" | "clip" | null
+  >(null);
   const characterInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
 
@@ -412,7 +446,7 @@ export function CreativeStoryboardEditor({
   };
 
   const run = async (
-    kind: "edit" | "approve" | "version",
+    kind: "edit" | "approve" | "version" | "clip",
     action: () => Promise<void>,
   ) => {
     setBusy(kind);
@@ -426,6 +460,8 @@ export function CreativeStoryboardEditor({
   const approved =
     frameDraft?.status === "still_approved" ||
     frameDraft?.status === "clip_approved";
+  const toAnimate = framesToAnimate(frames);
+  const draftClipUrl = frameDraft ? clips?.urls[frameDraft.id] : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -554,6 +590,19 @@ export function CreativeStoryboardEditor({
           )}
         </div>
         <div className="flex gap-2">
+          {clips && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={toAnimate.length === 0}
+              title="מנפיש את הפריימים המאושרים שאין להם קליפ עדכני"
+              onClick={() => clips.onAnimate(toAnimate)}
+            >
+              <Clapperboard className="h-3.5 w-3.5" />
+              הנפש הכול{toAnimate.length > 0 ? ` (${toAnimate.length})` : ""}
+            </Button>
+          )}
           {onGenerateAll &&
             (generating && onStop ? (
               <Button
@@ -643,6 +692,7 @@ export function CreativeStoryboardEditor({
                     )}
                     <FrameCard
                       frame={frame}
+                      clipUrl={clips?.urls[frame.id]}
                       selected={frame.id === selectedFrameId}
                       onSelect={() => selectFrame(frame.id)}
                       onToggleLock={() => toggleLock(frame.id)}
@@ -673,14 +723,28 @@ export function CreativeStoryboardEditor({
           {frameDraft ? (
             <ScrollArea className="flex-1">
               <div className="space-y-4 p-4">
-                {frameDraft.imageUrl && (
+                {draftClipUrl ? (
                   <div className="overflow-hidden rounded-md border">
-                    <CreativeImage
-                      src={frameDraft.imageUrl}
-                      alt={frameDraft.title}
-                      className="aspect-video w-full object-cover"
+                    <video
+                      key={draftClipUrl}
+                      src={draftClipUrl}
+                      poster={frameDraft.imageUrl}
+                      controls
+                      loop
+                      playsInline
+                      className="aspect-video w-full bg-black object-contain"
                     />
                   </div>
+                ) : (
+                  frameDraft.imageUrl && (
+                    <div className="overflow-hidden rounded-md border">
+                      <CreativeImage
+                        src={frameDraft.imageUrl}
+                        alt={frameDraft.title}
+                        className="aspect-video w-full object-cover"
+                      />
+                    </div>
+                  )
                 )}
                 {versions.length > 1 && onSelectVersion && (
                   <div>
@@ -752,25 +816,27 @@ export function CreativeStoryboardEditor({
                     </div>
                   </div>
                 )}
-                {frameDraft.imageUrl && onApprove && (
-                  <Button
-                    variant={approved ? "secondary" : "default"}
-                    className="w-full gap-2"
-                    disabled={busy !== null}
-                    onClick={() =>
-                      void run("approve", () =>
-                        onApprove(frameDraft, !approved),
-                      )
-                    }
-                  >
-                    {busy === "approve" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    {approved ? "בטל אישור" : "אשר פריים"}
-                  </Button>
-                )}
+                {frameDraft.imageUrl &&
+                  onApprove &&
+                  !frameDraft.status?.startsWith("clip_") && (
+                    <Button
+                      variant={approved ? "secondary" : "default"}
+                      className="w-full gap-2"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        void run("approve", () =>
+                          onApprove(frameDraft, !approved),
+                        )
+                      }
+                    >
+                      {busy === "approve" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      {approved ? "בטל אישור" : "אשר פריים"}
+                    </Button>
+                  )}
                 <div>
                   <Label>שם הסצנה</Label>
                   <Input
@@ -827,6 +893,77 @@ export function CreativeStoryboardEditor({
                       }
                     />
                   </label>
+                )}
+                {clips && (
+                  <div>
+                    <Label>מה זז בסצנה?</Label>
+                    <Textarea
+                      className="mt-1 min-h-16"
+                      placeholder="למשל: המצלמה מתקרבת לאט, הדמות מסובבת את הראש ומחייכת"
+                      value={frameDraft.motionPrompt ?? ""}
+                      onChange={(event) =>
+                        setFrameDraft({
+                          ...frameDraft,
+                          motionPrompt: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+                {clips && frameDraft.stillAssetId && frameDraft.imageUrl && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={!canAnimate(frameDraft) || busy !== null}
+                      onClick={() => {
+                        saveFrameDraft();
+                        clips.onAnimate([frameDraft]);
+                      }}
+                    >
+                      {frameDraft.status === "clip_generating" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Clapperboard className="h-4 w-4" />
+                      )}
+                      {frameDraft.status === "clip_generating"
+                        ? "מונפש…"
+                        : frameDraft.clipAssetId
+                          ? "הנפש מחדש"
+                          : "הנפש סצנה"}
+                    </Button>
+                    <Button
+                      variant={
+                        frameDraft.status === "clip_approved"
+                          ? "secondary"
+                          : "default"
+                      }
+                      className="gap-1.5"
+                      disabled={
+                        !frameDraft.clipAssetId ||
+                        busy !== null ||
+                        (frameDraft.status !== "clip_ready" &&
+                          frameDraft.status !== "clip_approved")
+                      }
+                      onClick={() =>
+                        void run("clip", () =>
+                          clips.onApprove(
+                            frameDraft,
+                            frameDraft.status !== "clip_approved",
+                          ),
+                        )
+                      }
+                    >
+                      {busy === "clip" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      {frameDraft.status === "clip_approved"
+                        ? "בטל אישור קליפ"
+                        : "אשר קליפ"}
+                    </Button>
+                  </div>
                 )}
                 <div>
                   <Label>טקסט על המסך</Label>

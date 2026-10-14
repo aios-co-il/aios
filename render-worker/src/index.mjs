@@ -1,9 +1,18 @@
-// Video Studio worker. Claims queued marketing_runs by kind and processes them one at a time.
+// Video Studio worker. Claims queued marketing_runs by kind and runs up to CONCURRENCY of
+// them at once, so one slow or failed clip never holds up the others.
 import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
+import { failClip, generateClip } from "./jobs/clip.mjs";
 
-const HANDLERS = { reference_analysis: analyzeReference };
+const HANDLERS = {
+  reference_analysis: {
+    run: async (ctx) =>
+      analyzeReference({ ...ctx, keys: await resolveKeys(ctx.run.tenant_id) }),
+  },
+  clip: { run: generateClip, onFailed: failClip },
+};
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
+const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
 
@@ -47,11 +56,7 @@ async function processOne() {
     `[worker] claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
   );
   try {
-    const result = await HANDLERS[run.kind]({
-      db,
-      run,
-      keys: await resolveKeys(run.tenant_id),
-    });
+    const result = await HANDLERS[run.kind].run({ db, run });
     await finish(run, {
       status: "completed",
       error: null,
@@ -59,7 +64,8 @@ async function processOne() {
       cost_usd: result.costUsd ?? 0,
       tokens_in: result.tokensIn ?? 0,
       tokens_out: result.tokensOut ?? 0,
-      provider: "render-worker",
+      credits: result.credits ?? null,
+      provider: result.provider ?? "render-worker",
     });
     console.log(`[worker] completed ${run.id}`);
   } catch (error) {
@@ -74,6 +80,12 @@ async function processOne() {
       status: retry ? "queued" : "failed",
       error: message.slice(0, 2000),
     });
+    if (!retry)
+      await HANDLERS[run.kind]
+        .onFailed?.({ db, run })
+        .catch((hookError) =>
+          console.error(`[worker] ${run.id} failure hook`, hookError),
+        );
   }
   return true;
 }
@@ -82,18 +94,23 @@ let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => (stopping = true));
 
-console.log(
-  `[worker] ${WORKER_ID} polling ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms`,
-);
-while (!stopping) {
-  let worked = false;
-  try {
-    worked = await processOne();
-  } catch (error) {
-    console.error(
-      "[worker] poll error",
-      error instanceof Error ? error.message : error,
-    );
+/** One slot: claim, process, repeat; sleeps only when the queue is empty. */
+async function slot() {
+  while (!stopping) {
+    let worked = false;
+    try {
+      worked = await processOne();
+    } catch (error) {
+      console.error(
+        "[worker] poll error",
+        error instanceof Error ? error.message : error,
+      );
+    }
+    if (!worked) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
-  if (!worked) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
 }
+
+console.log(
+  `[worker] ${WORKER_ID} polling ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots`,
+);
+await Promise.all(Array.from({ length: CONCURRENCY }, slot));

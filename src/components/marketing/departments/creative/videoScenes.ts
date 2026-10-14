@@ -3,7 +3,7 @@ import type { StoryboardFrame, VideoSceneStatus } from "./types";
 
 /** Columns the storyboard editor reads from marketing_video_scenes. */
 export const VIDEO_SCENE_COLUMNS =
-  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,motion_prompt,duration_s,still_asset_id,status,locked,meta";
+  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,motion_prompt,duration_s,still_asset_id,clip_asset_id,clip_stale,status,locked,meta";
 
 export interface VideoSceneRecord {
   id: string;
@@ -17,6 +17,8 @@ export interface VideoSceneRecord {
   motion_prompt?: string;
   duration_s: number | string;
   still_asset_id: string | null;
+  clip_asset_id?: string | null;
+  clip_stale?: boolean;
   status?: VideoSceneStatus;
   locked?: boolean;
   meta: unknown;
@@ -66,10 +68,10 @@ const generationCostOf = (meta: unknown): ImageGenerationCost | undefined => {
     : undefined;
 };
 
-/** Scene rows (any order) → editor frames ordered by position, with the current still attached. */
+/** Scene rows (any order) → editor frames ordered by position, with the current still and clip attached. */
 export function scenesToFrames(
   rows: VideoSceneRecord[],
-  stillsById: Map<string, SceneStillRecord>,
+  assetsById: Map<string, SceneStillRecord>,
   defaultX: (order: number) => number,
 ): StoryboardFrame[] {
   return [...rows]
@@ -77,7 +79,10 @@ export function scenesToFrames(
     .map((row, index) => {
       const order = index + 1;
       const still = row.still_asset_id
-        ? stillsById.get(row.still_asset_id)
+        ? assetsById.get(row.still_asset_id)
+        : undefined;
+      const clip = row.clip_asset_id
+        ? assetsById.get(row.clip_asset_id)
         : undefined;
       const canvas = asRecord(asRecord(row.meta).canvas);
       const frame: StoryboardFrame = {
@@ -98,6 +103,9 @@ export function scenesToFrames(
       frame.hasCharacter = asRecord(row.meta).has_character !== false;
       if (row.still_asset_id) frame.stillAssetId = row.still_asset_id;
       if (still?.url) frame.imageUrl = still.url;
+      if (row.clip_asset_id) frame.clipAssetId = row.clip_asset_id;
+      if (clip?.url) frame.clipPath = clip.url;
+      if (row.clip_stale) frame.clipStale = true;
       const cost = generationCostOf(still?.meta);
       if (cost) frame.generationCost = cost;
       return frame;

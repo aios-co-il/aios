@@ -35,6 +35,11 @@ export interface StoryboardFrame {
   /** The project's fixed character appears in this scene (default true). */
   hasCharacter?: boolean;
   stillAssetId?: string;
+  /** Current clip (marketing_assets id) and its path in the private creative-video bucket. */
+  clipAssetId?: string;
+  clipPath?: string;
+  /** The still or prompt changed after the clip was made. */
+  clipStale?: boolean;
 }
 
 export type VideoSceneStatus =
