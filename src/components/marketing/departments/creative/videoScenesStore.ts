@@ -280,12 +280,16 @@ export async function queueSceneClips({
   sceneIds,
   aspect,
   estimate,
+  provider,
+  generateAudio,
 }: {
   itemId: string;
   stageId: string;
   sceneIds: string[];
   aspect: string;
   estimate: { usd: number; credits: number };
+  provider: string;
+  generateAudio: boolean;
 }): Promise<number> {
   const { data, error } = await supabase.rpc("queue_video_clips", {
     p_item_id: itemId,
@@ -293,6 +297,40 @@ export async function queueSceneClips({
     p_aspect: aspect,
     p_estimate: estimate as unknown as Json,
     p_stage_id: stageId,
+    p_provider: provider,
+    p_generate_audio: generateAudio,
+  });
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
+/** Queues ElevenLabs voiceovers, or one music bed for the storyboard. */
+export async function queueSceneSound({
+  itemId,
+  stageId,
+  kind,
+  sceneIds,
+  estimate,
+  prompt,
+  voiceId,
+}: {
+  itemId: string;
+  stageId: string;
+  kind: "voice" | "music";
+  sceneIds: string[];
+  estimate: { usd: number; credits: number };
+  prompt?: string;
+  voiceId?: string | null;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("queue_video_sound", {
+    p_item_id: itemId,
+    p_kind: kind,
+    p_scene_ids: sceneIds,
+    p_provider: "elevenlabs",
+    p_estimate: estimate as unknown as Json,
+    p_stage_id: stageId,
+    p_prompt: prompt,
+    p_voice_id: voiceId ?? undefined,
   });
   if (error) throw error;
   return (data ?? []).length;

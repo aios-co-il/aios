@@ -60,6 +60,13 @@ import {
 import type { StoryboardFrame, VideoSceneStatus } from "./types";
 import { makeStoryboardFrame, storyboardFrameX } from "./utils";
 import type { StillModel } from "./videoStill";
+import {
+  SCENE_ENGINE_LABEL,
+  SOUND_ENGINE_LABEL,
+  soundRunsSeparately,
+  type SceneEngine,
+  type SoundEngine,
+} from "./videoEngines";
 import { canAnimate, framesToAnimate } from "./videoClip";
 
 export interface SceneStillVersion {
@@ -91,6 +98,12 @@ interface Props {
   };
   stillModel?: StillModel;
   onStillModelChange?: (model: StillModel) => void;
+  sceneEngine?: SceneEngine;
+  onSceneEngineChange?: (engine: SceneEngine) => void;
+  soundEngine?: SoundEngine;
+  onSoundEngineChange?: (engine: SoundEngine) => void;
+  onCreateVoice?: () => void;
+  onCreateMusic?: () => void;
   /** Reference video: upload starts an analysis; when done the proposal can be opened. */
   reference?: {
     status:
@@ -315,6 +328,12 @@ export function CreativeStoryboardEditor({
   character,
   stillModel,
   onStillModelChange,
+  sceneEngine,
+  onSceneEngineChange,
+  soundEngine,
+  onSoundEngineChange,
+  onCreateVoice,
+  onCreateMusic,
   reference,
   clips,
   generating,
@@ -587,6 +606,70 @@ export function CreativeStoryboardEditor({
                 </SelectItem>
               </SelectContent>
             </Select>
+          )}
+          {onSceneEngineChange && (
+            <Select
+              value={sceneEngine ?? "mock"}
+              onValueChange={(value) =>
+                onSceneEngineChange(value as SceneEngine)
+              }
+            >
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  Object.entries(SCENE_ENGINE_LABEL) as [SceneEngine, string][]
+                ).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {onSoundEngineChange && (
+            <Select
+              value={soundEngine ?? "elevenlabs"}
+              onValueChange={(value) =>
+                onSoundEngineChange(value as SoundEngine)
+              }
+            >
+              <SelectTrigger className="h-8 w-56 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  Object.entries(SOUND_ENGINE_LABEL) as [SoundEngine, string][]
+                ).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {onCreateVoice &&
+            soundRunsSeparately(soundEngine ?? "elevenlabs") && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!frames.some((frame) => frame.voiceover.trim())}
+                onClick={onCreateVoice}
+              >
+                קריינות
+              </Button>
+            )}
+          {onCreateMusic &&
+            soundRunsSeparately(soundEngine ?? "elevenlabs") && (
+              <Button size="sm" variant="outline" onClick={onCreateMusic}>
+                מוזיקה
+              </Button>
+            )}
+          {soundEngine === "higgsfield" && sceneEngine !== "higgsfield" && (
+            <span className="max-w-56 text-[11px] text-muted-foreground">
+              הסאונד של Higgsfield נוצר רק כשמנוע הסצנות הוא Higgsfield
+            </span>
           )}
         </div>
         <div className="flex gap-2">

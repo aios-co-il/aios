@@ -3,13 +3,40 @@
 import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
 import { failClip, generateClip } from "./jobs/clip.mjs";
+import { generateMusic, generateVoice } from "./jobs/sound.mjs";
+import { getVideoProvider } from "./providers/index.mjs";
 
 const HANDLERS = {
   reference_analysis: {
     run: async (ctx) =>
       analyzeReference({ ...ctx, keys: await resolveKeys(ctx.run.tenant_id) }),
   },
-  clip: { run: generateClip, onFailed: failClip },
+  clip: {
+    run: async (ctx) => {
+      const keys = await resolveMediaKeys(ctx.run.tenant_id);
+      const name =
+        ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
+      return generateClip({
+        ...ctx,
+        provider: getVideoProvider(name, keys),
+      });
+    },
+    onFailed: failClip,
+  },
+  voice: {
+    run: async (ctx) =>
+      generateVoice({
+        ...ctx,
+        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
+      }),
+  },
+  music: {
+    run: async (ctx) =>
+      generateMusic({
+        ...ctx,
+        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
+      }),
+  },
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
@@ -35,7 +62,27 @@ async function resolveKeys(tenantId) {
     throw new Error(
       "No OpenAI key: set OPENAI_API_KEY or the tenant LLM integration",
     );
-  return { openaiKey, elevenLabsKey: process.env.ELEVENLABS_API_KEY || null };
+  const media = await resolveMediaKeys(tenantId);
+  return { openaiKey, elevenLabsKey: media.elevenLabsKey };
+}
+
+/** Keys for scene and sound engines. Env wins, then the tenant LLM integration. */
+async function resolveMediaKeys(tenantId) {
+  const rows = await db.select(
+    "tenant_integrations",
+    `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
+  );
+  const settings = rows?.[0]?.settings ?? {};
+  return {
+    elevenLabsKey:
+      process.env.ELEVENLABS_API_KEY || settings.elevenlabs_api_key || null,
+    higgsfieldKeyId:
+      process.env.HF_API_KEY_ID || settings.higgsfield_api_key_id || null,
+    higgsfieldKeySecret:
+      process.env.HF_API_KEY_SECRET ||
+      settings.higgsfield_api_key_secret ||
+      null,
+  };
 }
 
 async function finish(run, patch) {

@@ -67,6 +67,22 @@ export function createSupabaseRest({ url, serviceRoleKey }) {
         headers: { "Content-Type": contentType, "x-upsert": "true" },
         body: bytes,
       }),
+    /** A URL an outside provider can fetch. The token expires with `expiresIn` seconds. */
+    sign: async (bucket, path, expiresIn = 3600) => {
+      const data = await json(
+        `/storage/v1/object/sign/${bucket}/${encodePath(path)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expiresIn }),
+        },
+      );
+      const signed = data?.signedURL || data?.signedUrl;
+      if (!signed) throw new Error("storage sign returned no url");
+      if (signed.startsWith("http")) return signed;
+      if (signed.startsWith("/object/")) return `${base}/storage/v1${signed}`;
+      return `${base}${signed.startsWith("/") ? "" : "/"}${signed}`;
+    },
   };
 }
 

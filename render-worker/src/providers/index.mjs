@@ -4,18 +4,32 @@
 //   submit(input)          -> { jobId }
 //   poll(jobId)            -> { status: "pending" | "succeeded" | "failed", url?, bytes?, error? }
 // input: { imageBytes, imageUrl, prompt, negativePrompt, durationS, aspect }
+import { elevenLabsProvider } from "./elevenlabs.mjs";
+import { higgsfieldProvider } from "./higgsfield.mjs";
 import { klingProvider } from "./kling.mjs";
 import { mockProvider } from "./mock.mjs";
 
-const PROVIDERS = { kling: klingProvider, mock: mockProvider };
+const PROVIDERS = {
+  kling: () => klingProvider(),
+  mock: () => mockProvider(),
+  elevenlabs: (keys) => elevenLabsProvider({ apiKey: keys?.elevenLabsKey }),
+  higgsfield: (keys) =>
+    higgsfieldProvider({
+      keyId: keys?.higgsfieldKeyId,
+      keySecret: keys?.higgsfieldKeySecret,
+    }),
+};
 
-export function getVideoProvider(name = process.env.VIDEO_PROVIDER || "mock") {
+export function getVideoProvider(
+  name = process.env.VIDEO_PROVIDER || "mock",
+  keys = {},
+) {
   const factory = PROVIDERS[name];
   if (!factory)
     throw new Error(
       `Unknown VIDEO_PROVIDER "${name}" (expected ${Object.keys(PROVIDERS).join(", ")})`,
     );
-  return factory();
+  return factory(keys);
 }
 
 /** Every clip prompt ends with the no-text rule; image models garble Hebrew. */

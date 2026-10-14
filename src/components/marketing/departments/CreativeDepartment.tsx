@@ -102,6 +102,7 @@ import {
   persistedStillsOf,
   queueReferenceAnalysis,
   queueSceneClips,
+  queueSceneSound,
   saveVideoStoryboard,
   selectSceneStill,
   signCreativeVideoPaths,
@@ -110,10 +111,18 @@ import {
   formatUsd,
   summarizeStoredImageCosts,
 } from "@/components/marketing/departments/creative/imageCost";
+import { mergeServerScenes } from "@/components/marketing/departments/creative/videoClip";
 import {
-  clipEstimate,
-  mergeServerScenes,
-} from "@/components/marketing/departments/creative/videoClip";
+  getSceneEngine,
+  getSoundEngine,
+  getVoiceId,
+  musicEstimate,
+  sceneEstimate,
+  soundRunsSeparately,
+  voiceEstimate,
+  type SceneEngine,
+  type SoundEngine,
+} from "@/components/marketing/departments/creative/videoEngines";
 import { VisualStyleSelect } from "@/components/marketing/departments/creative/VisualStyleSelect";
 import { pickVariationComposition } from "@/components/marketing/departments/creative/compositions";
 import { isOptionalCostume } from "@/components/marketing/departments/creative/adaptiveTreatment";
@@ -1206,6 +1215,16 @@ export function CreativeDepartment({
       toast.error(errorMessage(error, "שמירת המודל נכשלה")),
     );
 
+  const changeSceneEngine = (engine: SceneEngine) =>
+    updateVideoSettings({ scene_engine: engine }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת מנוע הסצנות נכשלה")),
+    );
+
+  const changeSoundEngine = (engine: SoundEngine) =>
+    updateVideoSettings({ sound_engine: engine }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת מנוע הסאונד נכשלה")),
+    );
+
   const editFrameWithPrompt = async (
     frame: StoryboardFrame,
     instruction: string,
@@ -1268,6 +1287,9 @@ export function CreativeDepartment({
   const [clipConfirm, setClipConfirm] = useState<StoryboardFrame[] | null>(
     null,
   );
+  const [soundConfirm, setSoundConfirm] = useState<"voice" | "music" | null>(
+    null,
+  );
   const [queueingClips, setQueueingClips] = useState(false);
 
   /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
@@ -1290,13 +1312,18 @@ export function CreativeDepartment({
       );
       // Motion prompts typed in the sheet are saved before the worker reads them.
       await saveScenes(selected.id, merged);
-      const estimate = clipEstimate(clipConfirm);
+      const sceneEngine = getSceneEngine(selected.payload);
+      const estimate = sceneEstimate(sceneEngine, clipConfirm);
       const queued = await queueSceneClips({
         itemId: selected.id,
         stageId: ensureCreativeStageReady(context).creativeStage.id,
         sceneIds: clipConfirm.map((frame) => frame.id),
         aspect: defaultFormat(selected.payload),
         estimate: { usd: estimate.usd, credits: estimate.credits },
+        provider: sceneEngine,
+        generateAudio:
+          getSoundEngine(selected.payload) === "higgsfield" &&
+          sceneEngine === "higgsfield",
       });
       setStoryboardDraft(
         merged.map((frame) =>
@@ -1312,6 +1339,43 @@ export function CreativeDepartment({
       await refresh();
     } catch (error: unknown) {
       toast.error(errorMessage(error, "שליחת הסצנות להנפשה נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
+  const confirmSound = async () => {
+    if (!selected || !soundConfirm) return;
+    const kind = soundConfirm;
+    setQueueingClips(true);
+    try {
+      await saveScenes(selected.id, storyboardDraft);
+      const estimate =
+        kind === "voice"
+          ? voiceEstimate(storyboardDraft)
+          : musicEstimate(storyboardDraft);
+      const queued = await queueSceneSound({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        kind,
+        sceneIds: storyboardDraft.map((frame) => frame.id),
+        estimate: { usd: estimate.usd, credits: estimate.credits },
+        prompt:
+          kind === "music"
+            ? "Instrumental commercial bed matching the storyboard, no vocals and no lyrics."
+            : undefined,
+        voiceId: getVoiceId(selected.payload),
+      });
+      setSoundConfirm(null);
+      toast.success(
+        queued > 0
+          ? kind === "voice"
+            ? `${queued} קריינות נשלחו`
+            : "המוזיקה נשלחה"
+          : "הסאונד כבר בעבודה",
+      );
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסאונד נכשלה"));
     } finally {
       setQueueingClips(false);
     }
@@ -3287,6 +3351,20 @@ export function CreativeDepartment({
                 }}
                 stillModel={getStillModel(selected.payload)}
                 onStillModelChange={(model) => void changeStillModel(model)}
+                sceneEngine={getSceneEngine(selected.payload)}
+                onSceneEngineChange={(engine) => void changeSceneEngine(engine)}
+                soundEngine={getSoundEngine(selected.payload)}
+                onSoundEngineChange={(engine) => void changeSoundEngine(engine)}
+                onCreateVoice={
+                  soundRunsSeparately(getSoundEngine(selected.payload))
+                    ? () => setSoundConfirm("voice")
+                    : undefined
+                }
+                onCreateMusic={
+                  soundRunsSeparately(getSoundEngine(selected.payload))
+                    ? () => setSoundConfirm("music")
+                    : undefined
+                }
                 generating={generating}
                 saving={saving}
                 scenePanelOpen={workspacePanel === "scene"}
@@ -3612,9 +3690,17 @@ export function CreativeDepartment({
             </AlertDialogTitle>
             <AlertDialogDescription className="text-right">
               {clipConfirm &&
+                selected &&
                 (() => {
-                  const estimate = clipEstimate(clipConfirm);
-                  return `${estimate.seconds} שניות וידאו · כ-${formatUsd(estimate.usd)} (${estimate.credits.toLocaleString()} קרדיטים של Kling). הקליפים נוצרים במקביל; סצנה שנכשלת לא עוצרת את האחרות.`;
+                  const estimate = sceneEstimate(
+                    getSceneEngine(selected.payload),
+                    clipConfirm,
+                  );
+                  const credits =
+                    estimate.credits > 0
+                      ? ` · ${estimate.credits.toLocaleString()} קרדיטים`
+                      : "";
+                  return `${estimate.label}: ${estimate.seconds} שניות · הערכה ${formatUsd(estimate.usd)}${credits}. הקליפים נוצרים במקביל; סצנה שנכשלת לא עוצרת את האחרות.`;
                 })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -3630,6 +3716,45 @@ export function CreativeDepartment({
                 <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
               )}
               אשר תקציב והנפש
+            </AlertDialogAction>
+            <AlertDialogCancel disabled={queueingClips}>
+              ביטול
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!soundConfirm}
+        onOpenChange={(open) =>
+          !open && !queueingClips && setSoundConfirm(null)
+        }
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right">
+            <AlertDialogTitle>
+              {soundConfirm === "voice" ? "ליצור קריינות?" : "ליצור מוזיקה?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              {soundConfirm &&
+                (() => {
+                  const estimate =
+                    soundConfirm === "voice"
+                      ? voiceEstimate(storyboardDraft)
+                      : musicEstimate(storyboardDraft);
+                  return `ElevenLabs · ${estimate.label} · הערכה ${formatUsd(estimate.usd)}. הטקסט נשמר לפני השליחה.`;
+                })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-start">
+            <AlertDialogAction
+              disabled={queueingClips}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmSound();
+              }}
+            >
+              אשר תקציב וצור
             </AlertDialogAction>
             <AlertDialogCancel disabled={queueingClips}>
               ביטול

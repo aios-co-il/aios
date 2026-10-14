@@ -8,7 +8,7 @@ Goal: Carmen produces a complete promo video inside AIOS (storyboard → stills 
 | 2     | Storyboard strip editor, versions, prompt edits, approvals, Nano Banana Pro                    | This PR     |
 | 3     | Reference video analysis (worker)                                                              | This PR     |
 | 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | This PR     |
-| 5     | Sound: per-scene voiceover with word timestamps, music                                         | Not started |
+| 5     | Scene engine choice (free preview, Kling, ElevenLabs, Higgsfield) and ElevenLabs sound         | This PR     |
 | 6     | Composition and render: `packages/video-templates`, Remotion player + worker                   | Not started |
 | 7     | Carmen tools and the "במאית וידאו" skin                                                        | Not started |
 
@@ -62,12 +62,21 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - The strip follows `marketing_video_scenes` over Realtime. A live update replaces an untouched draft. A draft with unsaved edits keeps them and only takes the status and clip fields. Cards play their clip on hover, and the sheet has a player; clips use signed URLs from the private bucket.
 - **Before turning on `VIDEO_PROVIDER=kling`:** confirm the request shape with one paid clip (the Kling docs could not be reached from here). Until then Staging uses the free `mock` provider.
 
+## Phase 5 engines and sound
+
+- Each video project stores `payload.video.scene_engine` and `payload.video.sound_engine`. The scene engine defaults to `mock`, the free preview, so opening an old project does not spend money.
+- Scene engines: free preview, Kling, ElevenLabs (`veo-3.1-fast-generate-001` through `POST /v1/flows/video`, the approved still as the first frame), and Higgsfield PixVerse V6 (`POST /pixverse/v6/image-to-video`). The budget dialog uses that engine's estimate.
+- Sound: ElevenLabs writes a voiceover per scene (`eleven_v4`, with word timestamps) and one music bed (`music_v2_5`). Higgsfield has no separate voice or music API; choosing it makes the clip itself carry generated audio.
+- Keys live in the tenant LLM integration: `elevenlabs_api_key`, `higgsfield_api_key_id`, `higgsfield_api_key_secret`. Environment variables on the worker override them.
+- Migration `20261014160000_video_studio_engines.sql` records the chosen engine on each clip run and adds `queue_video_sound`. Apply it on Staging before trying the new buttons. Production waits for `מאשר לפרודקשן`.
+- The worker must be running. Until then voice, music and paid clips stay queued. The rates in the dialog are planning estimates until the first paid run.
+
 ## Provider checks (before writing provider code)
 
 Checked against current public docs on 2026-10-13; outbound access to the vendor docs sites is blocked from the agent container, so these come from search results and should be confirmed with a live API call when the phase starts.
 
 1. **ElevenLabs image/video API** — ElevenLabs ships an async Image & Video API (Flows, `POST /v1/flows/video`, pending/generating/completed/failed with webhooks; SDK v2.64.0). Kling 3.0 is listed in the Image & Video app, but the docs mark which models are API-callable and whether Kling 3.0 has an API `model_id` was **not confirmed**. Phase 4 starts with a probe of the API model list; if Kling is app-only, the adapter targets the official Kling API. The adapter interface (`submit / poll / estimate`) keeps this swappable.
 2. **Model IDs** — TTS: `eleven_v4` (faster sibling `eleven_v4_turbo`). Music v2.5: `music_v2_5`.
-3. **Remotion licence** — free for individuals and companies with up to 3 employees; 4+ need a company licence (Creators $25/seat/month, or Automators $0.01 per render with a $100/month minimum; Enterprise from $500/month). The licence text says terms change slightly in Remotion 5.0. AIOS needs a company licence before phase 6 renders.
+3. **Remotion licence** — free for one person and for a company of up to 3 people, including commercial and automated use. A company of 4 or more pays for Automators: $0.01 per render, $100 per month minimum. Phase 6 (assembling the finished film in Remotion) has not started. A single operator can use Remotion without buying a licence.
 
 Sources: [ElevenLabs Image & Video](https://elevenlabs.io/docs/overview/capabilities/image-video), [ElevenLabs Create Video Generation](https://elevenlabs.io/docs/api-reference/flows/video/create), [Kling 3.0 with ElevenLabs](https://elevenlabs.io/video/kling-30), [ElevenLabs models](https://elevenlabs.io/docs/overview/models), [Eleven v4](https://elevenlabs.io/v4), [Remotion pricing](https://www.remotion.dev/docs/license/pricing), [Remotion LICENSE.md](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
