@@ -82,6 +82,24 @@ test("taskAppearsOnTimeGrid requires date, time, in-range, and not overdue", () 
     ),
     false,
   );
+  // Completed timed tasks stay on the calendar (marked done).
+  assert.equal(
+    taskAppearsOnTimeGrid(
+      { due_date: "2026-08-25", due_time: "10:00:00", status: "done" },
+      range,
+      today,
+    ),
+    true,
+  );
+  // Overdue open tasks stay off the timed grid (backlog); overdue done in-range stay visible.
+  assert.equal(
+    taskAppearsOnTimeGrid(
+      { due_date: "2026-08-20", due_time: "10:00:00", status: "open" },
+      range,
+      today,
+    ),
+    false,
+  );
 });
 
 test("buildChatTaskOrFilter pulls all open work plus recently done", () => {

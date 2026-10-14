@@ -55,3 +55,18 @@ test("showAllRecurring reveals future recurring tasks", () => {
   };
   assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: monday }), true);
 });
+
+test("completed recurring task stays visible on due day only", () => {
+  const task = {
+    recurrence_frequency: "weekly",
+    due_date: "2026-09-16",
+    due_time: "09:00:00",
+    status: "done",
+  };
+  assert.equal(shouldShowRecurringTaskNow(task, wednesday), true);
+  assert.equal(shouldShowRecurringTaskNow(task, monday), false);
+  assert.equal(shouldShowRecurringTaskOnBoard(task, { asOf: wednesday }), true);
+  assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: wednesday }), true);
+  assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: monday }), false);
+  assert.equal(recurringTaskBelongsInBacklog(task, wednesday), false);
+});
