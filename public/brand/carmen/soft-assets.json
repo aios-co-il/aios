@@ -1,0 +1,24 @@
+{
+  "brand": "Carmen Marketing OS",
+  "status": "approved-soft-artwork",
+  "assets": {
+    "wordmark": {
+      "file": "wordmark-soft.webp",
+      "png": "wordmark-soft.png",
+      "source": "wordmark-soft-source.png",
+      "source_sha256": "f8e25e8d4f20b6c5e5e83ad309f97b09797581fc21a42550cc0dab1fa505aa9c",
+      "width": 1682,
+      "height": 754,
+      "processing": "Alpha-bound crop and transparent padding only. No redrawing or recoloring."
+    },
+    "symbol": {
+      "file": "symbol-soft.webp",
+      "png": "symbol-soft.png",
+      "source": "symbol-soft-source.png",
+      "source_sha256": "080a5964dd8e299f5fcf537485ab161dd3d3dd45b01bdffd611c3c074ef82f6d",
+      "width": 1172,
+      "height": 1058,
+      "processing": "Alpha-bound crop and transparent padding only. No redrawing or recoloring."
+    }
+  }
+}
