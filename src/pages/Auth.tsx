@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Building2 } from "lucide-react";
@@ -319,10 +319,7 @@ export default function Auth() {
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto flex flex-col items-center gap-3">
             <img src="/brand/carmen/wordmark-soft.webp" alt="Carmen Marketing OS" className="h-16 w-auto max-w-[240px] object-contain" />
-            <div>
-              <CardTitle className="text-2xl">Carmen Marketing OS</CardTitle>
-              <CardDescription>שיווק, מכירות, לקוחות, משימות ונתונים — במקום אחד</CardDescription>
-            </div>
+            <CardDescription className="text-base font-medium text-foreground">מנהלת השיווק של העסק שלך</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
