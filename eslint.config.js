@@ -28,7 +28,6 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
       "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
       "react-hooks/rules-of-hooks": "warn", // AIO-61
-      "no-constant-binary-expression": "warn", // AIO-65
     },
   },
 );
