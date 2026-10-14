@@ -167,6 +167,9 @@ jobs:
       - name: Lint repository sources
         run: pnpm lint
 
+      - name: Component regression tests
+        run: pnpm test:components
+
       - name: TypeScript gate regression tests
         run: pnpm test:typecheck
 
