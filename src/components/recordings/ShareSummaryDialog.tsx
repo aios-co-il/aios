@@ -283,7 +283,7 @@ export function ShareSummaryDialog({
           ${markdownToEmailHtml(recording.summary_md)}
         </td></tr>
         <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-          <p style="margin:0;color:#94a3b8;font-size:12px;">נשלח באמצעות AfterLead AIOS</p>
+          <p style="margin:0;color:#94a3b8;font-size:12px;">נשלח באמצעות Carmen Marketing OS</p>
         </td></tr>
       </table>
     </td></tr>

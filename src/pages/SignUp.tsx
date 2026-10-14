@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Building2, Loader2, ShieldCheck } from "lucide-react";
-import logo from "@/assets/logo.png";
 import { resolveAppHomePath } from "@/lib/appHomePath";
 
 const signUpSchema = z
@@ -138,15 +137,19 @@ export default function SignUp() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-[#0A1526] p-4">
+      <Card className="w-full max-w-md border-white/10 bg-card/95 shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-1 text-center">
-          <img src={logo} alt="AfterLead" className="h-16 w-16 mx-auto mb-4" />
+          <img
+            src="/brand/carmen/wordmark-soft.webp"
+            alt="Carmen Marketing OS"
+            className="h-20 w-auto max-w-[260px] object-contain mx-auto mb-2"
+          />
           <CardTitle className="text-2xl md:text-3xl font-bold">
-            AfterLead
+            Carmen Marketing OS
           </CardTitle>
           <CardDescription className="text-base font-medium">
-            מערכת לניהול סוכנויות שיווק ופרסום
+            מערכת שיווק ומכירות מחוברת לעסק ולסוכנות
           </CardDescription>
           <div className="pt-2">
             <CardTitle className="text-xl flex items-center justify-center gap-2">

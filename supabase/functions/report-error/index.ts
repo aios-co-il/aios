@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: `🚨 שגיאה ב-AfterLead\n\nמקור: ${source || "frontend"}\nשגיאה: ${error_message}\n${url ? `URL: ${url}` : ""}\n${error_stack ? `\nStack:\n${error_stack.slice(0, 500)}` : ""}`,
+            text: `🚨 שגיאה ב-Carmen Marketing OS\n\nמקור: ${source || "frontend"}\nשגיאה: ${error_message}\n${url ? `URL: ${url}` : ""}\n${error_stack ? `\nStack:\n${error_stack.slice(0, 500)}` : ""}`,
           }),
           signal: AbortSignal.timeout(5000),
         });

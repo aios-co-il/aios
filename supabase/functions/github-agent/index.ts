@@ -183,7 +183,7 @@ async function handleChatSupport(
   const targetUserId = reportingUserId || userId;
   const userContext = await getUserContext(supabase, targetUserId, tenantId);
 
-  const systemPrompt = `אתה סוכן תמיכה טכנית חכם של מערכת AfterLead - מערכת CRM לניהול לקוחות, לידים וסוכנויות.
+  const systemPrompt = `אתה סוכן תמיכה טכנית חכם של מערכת Carmen Marketing OS - מערכת CRM לניהול לקוחות, לידים וסוכנויות.
 
 ## היכולות שלך:
 1. **ניתוח בעיות** - כשמשתמש אומר "לא עובד", "אין לי גישה", "יש שגיאה" - אתה מבין את ההקשר
@@ -293,7 +293,7 @@ async function handleAnalyzeError(
     fileContent = await readGithubFile(githubToken, file_path);
   }
 
-  const analysisPrompt = `Analyze this error from the AfterLead CRM system:
+  const analysisPrompt = `Analyze this error from the Carmen Marketing OS system:
 
 Error: ${errorMsg}
 ${stack_trace ? `Stack trace: ${stack_trace}` : ""}

@@ -2,8 +2,10 @@
 @scope (.carmen-site) {
   :scope {
     --navy: #0a1526;
-    --green: #08f467;
-    --cream: #f0f5f1;
+    --green: #a7f5de;
+    --mint-strong: #7cf2cf;
+    --mint-soft: #dffbf2;
+    --cream: #e3fae0;
     --muted: #a4b5b6;
   }
   * {
@@ -71,7 +73,7 @@
     color: var(--green);
   }
   .nav-cta {
-    border: 1px solid #9eeab8;
+    border: 1px solid #a7f5de;
     border-radius: 100px;
     padding: 12px 20px;
     font-weight: 700;
@@ -143,9 +145,10 @@
     letter-spacing: -0.05em;
     margin: 25px 0 30px;
     font-weight: 800;
+    font-family: "Liebling", Assistant, Arial, sans-serif;
   }
   .gradient-text {
-    background: linear-gradient(95deg, #fff 10%, #a4ffcc 85%);
+    background: linear-gradient(95deg, #fff 10%, #bdf8e7 85%);
     background-clip: text;
     color: transparent;
   }
@@ -196,7 +199,7 @@
     border-radius: 50%;
     inset: 9%;
     transform: rotate(-23deg) rotateX(65deg);
-    box-shadow: 0 0 110px #08f46720;
+    box-shadow: 0 0 110px #a7f5de20;
   }
   .orbit-two {
     inset: 0;
@@ -211,8 +214,8 @@
     font:
       800 360px Outfit,
       sans-serif;
-    color: #08f46720;
-    text-shadow: 0 0 120px #08f46744;
+    color: #a7f5de20;
+    text-shadow: 0 0 120px #a7f5de44;
     line-height: 1;
   }
   .glass-panel {
@@ -234,28 +237,39 @@
       500 11px Outfit,
       sans-serif;
     letter-spacing: 0.12em;
-    color: #a4f7cc;
+    color: #c9faec;
   }
   .glass-panel strong {
     font-size: 21px;
   }
+  .glass-panel > p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: #dffbf2;
+  }
   .panel-a {
-    top: 13%;
+    top: 11%;
     right: 0;
-    min-width: 235px;
+    min-width: 300px;
   }
   .panel-b {
     bottom: 12%;
     left: 3%;
-    min-width: 280px;
+    min-width: 300px;
     animation-delay: -2s;
   }
   .panel-c {
     bottom: 17%;
     right: 0;
+    min-width: 255px;
     animation-delay: -4s;
     flex-direction: row;
     align-items: center;
+    justify-content: center;
+  }
+  .panel-c strong {
+    font-size: 22px;
   }
   .signal {
     color: var(--green);
@@ -269,7 +283,7 @@
   }
   .bars i {
     flex: 1;
-    background: linear-gradient(0deg, #096343, var(--green));
+    background: linear-gradient(0deg, #1b7a67, var(--green));
     border-radius: 5px 5px 0 0;
   }
   .bars i:nth-child(1) {
@@ -323,7 +337,7 @@
   }
   .manifesto .kicker,
   .control-section .kicker {
-    color: #078c51;
+    color: #3aa98c;
   }
   h2 {
     font-size: clamp(54px, 6.7vw, 104px);
@@ -331,13 +345,14 @@
     letter-spacing: -0.055em;
     margin: 24px 0 32px;
     font-weight: 800;
+    font-family: "Liebling", Assistant, Arial, sans-serif;
   }
   h2 span {
     color: var(--green);
   }
   h2 em {
     font-style: normal;
-    color: #078b51;
+    color: #3aa98c;
   }
   .manifesto p,
   .control-section p {
@@ -373,7 +388,7 @@
     box-shadow: 0 14px 40px #001b1510;
   }
   .connection b {
-    color: #0c9c58;
+    color: #55c7a7;
   }
   .modules-section {
     padding: 150px 6% 170px;
@@ -417,7 +432,7 @@
   }
   .module-row.active,
   .module-row:hover {
-    background: #08f46710;
+    background: #a7f5de10;
     color: white;
   }
   .module-row.active {
@@ -448,7 +463,7 @@
     position: absolute;
     width: 550px;
     height: 550px;
-    background: #08f46720;
+    background: #a7f5de20;
     filter: blur(90px);
     border-radius: 50%;
   }
@@ -462,7 +477,7 @@
     font-size: 130px;
     line-height: 1;
     color: var(--green);
-    text-shadow: 0 0 70px #08f46788;
+    text-shadow: 0 0 70px #a7f5de88;
     margin-bottom: 55px;
   }
   .stage-label {
@@ -618,7 +633,7 @@
   }
   .chart-bars i {
     flex: 1;
-    background: linear-gradient(0deg, #12654d, #08f467);
+    background: linear-gradient(0deg, #12654d, #a7f5de);
     border-radius: 5px 5px 0 0;
   }
   .control-section {
@@ -628,31 +643,246 @@
   .control-section > .section-inner > p {
     margin: 0 auto 70px;
   }
-  .control-options {
+  .control-console {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 18px;
+    grid-template-columns: minmax(420px, 0.9fr) minmax(420px, 1.1fr);
+    gap: 70px;
+    align-items: center;
+    margin-top: 70px;
     text-align: right;
   }
-  .control-options > div {
-    background: white;
-    border: 1px solid #d5e1d9;
-    border-radius: 22px;
-    padding: 36px;
+  .control-dial-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  .control-options span {
-    font:
-      600 13px Outfit,
-      sans-serif;
-    color: #0b9957;
+  .control-dial {
+    width: min(490px, 82vw);
+    aspect-ratio: 1;
+    position: relative;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    outline: none;
+    background:
+      radial-gradient(circle at 38% 30%, #ffffff 0 8%, #e8fff7 15%, transparent 33%),
+      radial-gradient(circle at 50% 52%, #d7fff1 0 20%, #8de4c9 38%, #1b6d5d 61%, #0a1526 73%);
+    border: 1px solid #6dbca8;
+    box-shadow:
+      inset 0 18px 35px #ffffffcc,
+      inset 0 -28px 50px #071d2399,
+      0 36px 80px #0a49342e,
+      0 0 0 15px #ffffff6b,
+      0 0 0 16px #98cfbf;
+    transform: perspective(900px) rotateX(7deg);
   }
-  .control-options h3 {
-    font-size: 30px;
-    margin: 25px 0 8px;
+  .control-dial:active {
+    cursor: grabbing;
   }
-  .control-options p {
-    font-size: 19px;
-    margin: 0;
+  .control-dial:focus-visible {
+    box-shadow:
+      inset 0 18px 35px #ffffffcc,
+      inset 0 -28px 50px #071d2399,
+      0 36px 80px #0a49342e,
+      0 0 0 15px #ffffff6b,
+      0 0 0 19px #3aa98c;
+  }
+  .control-dial-rings,
+  .control-dial-rings:before,
+  .control-dial-rings:after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    inset: 9%;
+    border: 1px solid #0b6c5848;
+    pointer-events: none;
+  }
+  .control-dial-rings:before {
+    inset: 8%;
+  }
+  .control-dial-rings:after {
+    inset: 21%;
+    border-style: dashed;
+  }
+  .control-dial-knob {
+    position: absolute;
+    inset: 17%;
+    border-radius: 50%;
+    transition: transform 0.46s cubic-bezier(.2,.85,.28,1.16);
+    pointer-events: none;
+  }
+  .control-dial-knob:before {
+    content: "";
+    position: absolute;
+    inset: 9%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 38% 27%, #ffffff 0 7%, transparent 22%),
+      linear-gradient(145deg, #caffef, #4ebc9e 50%, #123d42);
+    border: 1px solid #d9fff3;
+    box-shadow:
+      inset 0 10px 20px #ffffffb8,
+      inset 0 -18px 28px #082c3380,
+      0 18px 35px #0539273b;
+  }
+  .control-dial-knob > span {
+    position: absolute;
+    top: -1%;
+    left: 50%;
+    width: 9px;
+    height: 26%;
+    transform: translateX(-50%);
+    border-radius: 99px;
+    background: linear-gradient(#f7fffc, #a7f5de 45%, #25977b);
+    box-shadow: 0 0 18px #a7f5de;
+    z-index: 2;
+  }
+  .control-dial-center {
+    position: absolute;
+    inset: 35%;
+    z-index: 3;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #f2fffb;
+    background: radial-gradient(circle at 35% 28%, #275a58, #0a2230 66%);
+    border: 1px solid #9be8d3a8;
+    box-shadow: inset 0 5px 16px #ffffff1c, 0 12px 30px #001b1d6b;
+    text-align: center;
+  }
+  .control-dial-center small {
+    font: 600 10px Outfit, sans-serif;
+    letter-spacing: .22em;
+    color: #a7f5de;
+  }
+  .control-dial-center strong {
+    font: 700 clamp(32px, 4vw, 48px) Outfit, sans-serif;
+    line-height: 1;
+    margin: 4px 0;
+  }
+  .control-dial-center span {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .control-dial-stop {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 92px;
+    padding: 8px 11px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #315f58;
+    cursor: pointer;
+    font-family: Assistant, Arial, sans-serif;
+    transition: .25s ease;
+  }
+  .control-dial-stop span {
+    font: 700 10px Outfit, sans-serif;
+    color: #3aa98c;
+  }
+  .control-dial-stop b {
+    font-size: 13px;
+  }
+  .control-dial-stop.active {
+    background: #ffffffdf;
+    border-color: #78c9b5;
+    color: #0a1526;
+    box-shadow: 0 9px 24px #0a493426;
+    transform: scale(1.06);
+  }
+  .stop-0 { top: 2%; left: 50%; transform: translateX(-50%); }
+  .stop-1 { right: -1%; top: 50%; transform: translateY(-50%); }
+  .stop-2 { bottom: 2%; left: 50%; transform: translateX(-50%); }
+  .stop-3 { left: -1%; top: 50%; transform: translateY(-50%); }
+  .stop-0.active { transform: translateX(-50%) scale(1.06); }
+  .stop-1.active { transform: translateY(-50%) scale(1.06); }
+  .stop-2.active { transform: translateX(-50%) scale(1.06); }
+  .stop-3.active { transform: translateY(-50%) scale(1.06); }
+  .control-drag-hint {
+    margin: 28px 0 0 !important;
+    font-size: 14px !important;
+    color: #51756c !important;
+  }
+  .control-mode-card {
+    min-height: 470px;
+    padding: 48px;
+    border-radius: 30px;
+    color: #eefdf8;
+    background:
+      radial-gradient(circle at 12% 5%, #42b5972b, transparent 32%),
+      linear-gradient(145deg, #123a3a, #071927 72%);
+    border: 1px solid #4c9d88;
+    box-shadow: 0 35px 90px #06432b2c;
+    animation: stagein .4s ease-out;
+  }
+  .control-mode-kicker {
+    font: 600 11px Outfit, sans-serif;
+    letter-spacing: .18em;
+    color: #a7f5de;
+  }
+  .control-mode-card h3 {
+    font-size: clamp(34px, 3.3vw, 56px);
+    line-height: 1.08;
+    margin: 20px 0;
+  }
+  .control-mode-card > p {
+    font-size: 20px;
+    line-height: 1.65;
+    color: #b8d5ce !important;
+    margin: 0 0 30px;
+  }
+  .control-mode-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 28px 0 38px;
+  }
+  .control-mode-list > span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 14px;
+    border: 1px solid #ffffff1f;
+    border-radius: 12px;
+    background: #ffffff0a;
+    font-size: 16px;
+  }
+  .control-mode-list i {
+    width: 23px;
+    height: 23px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #a7f5de;
+    color: #0a1526;
+    font-style: normal;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+  .control-mode-status {
+    padding-top: 21px;
+    border-top: 1px solid #ffffff24;
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: center;
+  }
+  .control-mode-status span {
+    color: #8fbab0;
+    font-size: 13px;
+  }
+  .control-mode-status b {
+    color: #a7f5de;
+    font-size: 16px;
   }
   .audience {
     padding: 150px 6%;
@@ -789,9 +1019,15 @@
     .journey-track:before {
       display: none;
     }
-    .control-options,
+    .control-console,
     .audience-cards {
       grid-template-columns: 1fr;
+    }
+    .control-console {
+      gap: 55px;
+    }
+    .control-mode-card {
+      min-height: auto;
     }
     .data-grid {
       gap: 80px;
@@ -862,6 +1098,30 @@
     }
     .connection b {
       font-size: 15px;
+    }
+    .control-console {
+      margin-top: 48px;
+    }
+    .control-dial {
+      width: min(360px, 82vw);
+    }
+    .control-dial-stop {
+      min-width: 72px;
+      padding: 6px;
+    }
+    .control-dial-stop b {
+      font-size: 11px;
+    }
+    .control-mode-card {
+      padding: 28px 22px;
+      border-radius: 22px;
+    }
+    .control-mode-list {
+      grid-template-columns: 1fr;
+    }
+    .control-mode-status {
+      align-items: flex-start;
+      flex-direction: column;
     }
     .module-row {
       font-size: 20px;
@@ -939,9 +1199,9 @@
   white-space: nowrap;
 }
 .carmen-site .carmen-whatsapp-nav {
-  background: #08f467;
+  background: #a7f5de;
   color: #0a1526;
-  border-color: #08f467;
+  border-color: #a7f5de;
 }
 .carmen-site .carmen-whatsapp-nav span {
   color: #0a1526;
@@ -1055,7 +1315,7 @@
   line-height: 1.1;
 }
 .carmen-site .gradient-text {
-  background: linear-gradient(95deg, #e3fae0, #08f467);
+  background: linear-gradient(95deg, #e3fae0, #a7f5de);
   background-clip: text;
   color: transparent;
 }
@@ -1081,7 +1341,7 @@
   color: #a9cfc3;
 }
 .carmen-site .carmen-hero-metrics b {
-  color: #08f467;
+  color: #a7f5de;
   font-size: 13px;
   letter-spacing: 0;
   margin-top: 7px;
@@ -1162,7 +1422,7 @@
   height: 100%;
   opacity: 0.92;
   z-index: 0;
-  filter: drop-shadow(0 0 42px #08f4672e);
+  filter: drop-shadow(0 0 42px #a7f5de2e);
   object-fit: contain;
 }
 .carmen-site .hero-art .orbit {
@@ -1177,7 +1437,7 @@
   content: "";
   position: absolute;
   inset: 8% 2%;
-  background: radial-gradient(ellipse at 50% 50%, #08f46722, transparent 67%);
+  background: radial-gradient(ellipse at 50% 50%, #a7f5de22, transparent 67%);
   filter: blur(28px);
   pointer-events: none;
 }
@@ -1187,7 +1447,7 @@
 }
 .carmen-site .hero-art .orbit-one {
   transform: rotate(-27deg) rotateX(68deg);
-  border-color: #08f46777;
+  border-color: #a7f5de77;
 }
 .carmen-site .hero-art .orbit-two {
   transform: rotate(33deg) rotateY(69deg);
@@ -1244,5 +1504,299 @@
   .carmen-site .hero-carmen-symbol {
     width: 100%;
     opacity: 0.8;
+  }
+}
+
+
+/* Carmen 2026 mint refinement */
+@scope (.carmen-site) {
+  .carmen-brand-wordmark-image { filter: drop-shadow(0 0 14px rgba(167,245,222,.22)); }
+  .hero-carmen-symbol { filter: drop-shadow(0 24px 55px rgba(124,242,207,.22)); }
+  .nav-cta, .button.primary { border-color: rgba(167,245,222,.85); }
+  .button.primary { background: linear-gradient(135deg, #dffbf2 0%, #a7f5de 55%, #7cf2cf 100%); box-shadow: 0 10px 34px rgba(124,242,207,.18); }
+}
+
+@scope (.carmen-site) {
+  .hero-carmen-character {
+    position: absolute;
+    z-index: 2;
+    left: 7%;
+    bottom: 1%;
+    width: min(31vw, 360px);
+    max-height: 68%;
+    object-fit: contain;
+    object-position: bottom center;
+    filter: drop-shadow(0 26px 48px rgba(0,0,0,.36)) drop-shadow(0 0 24px rgba(167,245,222,.14));
+    pointer-events: none;
+  }
+  .hero-carmen-symbol {
+    opacity: .46 !important;
+    transform: translate(-50%, -50%) scale(.96);
+  }
+  @media (max-width: 900px) {
+    .hero-carmen-character {
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(56vw, 300px);
+      max-height: 54%;
+      opacity: .96;
+    }
+    .hero-carmen-symbol {
+      opacity: .28 !important;
+    }
+  }
+}
+
+@scope (.carmen-site) {
+  .carmen-hero-metrics b {
+    direction: rtl;
+    font-family: Assistant, Arial, sans-serif;
+    letter-spacing: 0;
+    font-size: 14px;
+    margin-top: 4px;
+    color: #dffbf2;
+  }
+  .panel-a,
+  .panel-b {
+    text-align: right;
+  }
+  .panel-a > p,
+  .panel-b > p {
+    direction: rtl;
+  }
+}
+
+/* Carmen 2026 refinement: sharp hero art beneath panels + four glass mode buttons. */
+@scope (.carmen-site) {
+  .hero-art {
+    isolation: isolate;
+  }
+  .hero-art .orbit,
+  .hero-art .hero-carmen-symbol {
+    z-index: 0;
+  }
+  .hero-art .hero-carmen-character {
+    left: 15%;
+    bottom: 1%;
+    width: min(32vw, 365px);
+    max-height: 80%;
+    height: auto;
+    object-fit: contain;
+    object-position: center bottom;
+    z-index: 1;
+    pointer-events: none;
+    image-rendering: auto;
+    filter: drop-shadow(0 23px 35px rgba(0, 9, 22, .42))
+      drop-shadow(0 0 15px rgba(167, 245, 222, .09));
+  }
+  /* Let Carmen overlap just the decorative left edge of the marketing panel. */
+  .hero-art .glass-panel,
+  .hero-art .carmen-hero-metrics {
+    z-index: 4;
+  }
+  .hero-art .hero-carmen-character {
+    z-index: 3;
+  }
+  .hero-art .panel-a {
+    z-index: 2;
+  }
+  .hero-art .glass-panel {
+    background: linear-gradient(145deg, rgba(18, 56, 59, .94), rgba(7, 23, 38, .92));
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+  }
+  @media (max-width: 900px) {
+    /* On narrow screens keep all panel copy unobstructed. */
+    .hero-art .panel-a {
+      z-index: 4;
+    }
+    .hero-art .hero-carmen-character {
+      z-index: 3;
+      max-height: 58%;
+    }
+  }
+
+  .control-dial-scene {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: min(490px, 82vw);
+    aspect-ratio: 1;
+    isolation: isolate;
+    margin-inline: auto;
+  }
+  .control-dial-scene .control-dial {
+    width: 100%;
+  }
+
+  .control-dial-stop {
+    --mode-tint: 169, 248, 219;
+    --mode-edge: 39, 174, 143;
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    min-height: 74px;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, .94);
+    border-radius: 19px;
+    color: #0a2430;
+    background:
+      linear-gradient(158deg,
+        rgba(255, 255, 255, .90) 0%,
+        rgba(var(--mode-tint), .58) 52%,
+        rgba(240, 255, 252, .64) 100%);
+    -webkit-backdrop-filter: blur(19px) saturate(1.45);
+    backdrop-filter: blur(19px) saturate(1.45);
+    box-shadow:
+      0 15px 32px rgba(7, 43, 45, .26),
+      inset 0 2px 0 rgba(255, 255, 255, .98),
+      inset 0 -13px 18px rgba(var(--mode-edge), .17),
+      0 0 0 1px rgba(var(--mode-edge), .38);
+    cursor: pointer;
+    touch-action: manipulation;
+    text-shadow: none;
+    opacity: 1;
+    transition: border-color .24s, background .24s, box-shadow .24s,
+      filter .24s, transform .24s;
+  }
+  .control-dial-stop::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 12px;
+    right: 12px;
+    height: 29%;
+    border-radius: 12px 12px 45% 45%;
+    background: linear-gradient(180deg, rgba(255,255,255,.73), rgba(255,255,255,0));
+    pointer-events: none;
+  }
+  .control-dial-stop b {
+    position: relative;
+    color: #0a2430;
+    font-size: 16px;
+    line-height: 1.25;
+    font-weight: 800;
+  }
+  .control-dial-stop span:first-child {
+    position: relative;
+    font: 700 12px Outfit, sans-serif;
+    color: #17634f;
+  }
+  .control-stop-tap {
+    position: absolute;
+    top: 6px;
+    left: 9px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #12634f;
+  }
+  .stop-0 { --mode-tint: 188, 251, 224; --mode-edge: 40, 172, 130; }
+  .stop-1 { --mode-tint: 166, 239, 224; --mode-edge: 28, 147, 143; }
+  .stop-2 { --mode-tint: 180, 230, 248; --mode-edge: 42, 134, 175; }
+  .stop-3 { --mode-tint: 155, 239, 196; --mode-edge: 26, 167, 109; }
+
+  .control-dial-stop.active {
+    border: 2px solid rgba(var(--mode-edge), .9);
+    background: linear-gradient(150deg, #ffffff 0%, rgba(var(--mode-tint), .86) 62%, #f9fffd 100%);
+    box-shadow:
+      0 0 0 5px rgba(var(--mode-tint), .70),
+      0 16px 33px rgba(3, 45, 48, .29),
+      0 0 29px rgba(var(--mode-edge), .42),
+      inset 0 2px 0 #fff,
+      inset 0 -12px 20px rgba(var(--mode-edge), .23);
+  }
+  .control-dial-stop:hover {
+    filter: brightness(1.08) saturate(1.1);
+    border-color: rgba(var(--mode-edge), .96);
+    box-shadow:
+      0 0 0 5px rgba(var(--mode-tint), .66),
+      0 15px 36px rgba(7, 43, 45, .35),
+      inset 0 2px 0 rgba(255,255,255,1);
+  }
+  .control-dial-stop:focus-visible {
+    outline: 3px solid #08644f;
+    outline-offset: 5px;
+  }
+  .stop-0:hover,
+  .stop-0.active { transform: translateX(-50%) scale(1.075); }
+  .stop-1:hover,
+  .stop-1.active { transform: translateY(-50%) scale(1.075); }
+  .stop-2:hover,
+  .stop-2.active { transform: translateX(-50%) scale(1.075); }
+  .stop-3:hover,
+  .stop-3.active { transform: translateY(-50%) scale(1.075); }
+
+  .control-drag-hint {
+    color: #164b44 !important;
+    font-size: 17px !important;
+    font-weight: 700;
+    margin-top: 30px !important;
+  }
+  .control-mode-card[data-mode="2"] {
+    border-color: #57aaa0;
+    background: radial-gradient(circle at 10% 8%, #60d5bb32, transparent 35%),
+      linear-gradient(145deg, #123b3d, #071927 72%);
+  }
+  .control-mode-card[data-mode="3"] {
+    border-color: #60a6c1;
+    background: radial-gradient(circle at 10% 8%, #56b5d633, transparent 35%),
+      linear-gradient(145deg, #173948, #071927 72%);
+  }
+  .control-mode-card[data-mode="4"] {
+    border-color: #54b48c;
+    background: radial-gradient(circle at 10% 8%, #5ed2a037, transparent 35%),
+      linear-gradient(145deg, #123d37, #071927 72%);
+  }
+
+  @media (max-width: 900px) {
+    .hero-art .hero-carmen-character {
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(57vw, 315px);
+      max-height: 68%;
+      bottom: 2%;
+    }
+  }
+  @media (max-width: 550px) {
+    .control-dial-scene { width: min(340px, 82vw); }
+    .control-dial-stop {
+      min-width: 82px;
+      min-height: 57px;
+      padding: 8px 8px;
+      border-radius: 13px;
+    }
+    .control-dial-stop b { font-size: 12px; }
+    .control-dial-stop span:first-child { font-size: 10px; }
+    .control-stop-tap { left: 5px; top: 5px; font-size: 12px; }
+    .hero-art .hero-carmen-character {
+      width: min(62vw, 270px);
+      max-height: 72%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .control-dial-stop { transition: none; }
+  }
+}
+
+/* Explicit hero layer order: decorative icon < upper marketing card < Carmen < bottom cards. */
+.carmen-site .hero-art .glass-panel.panel-a {
+  z-index: 2;
+}
+.carmen-site .hero-art .hero-carmen-character {
+  z-index: 3;
+}
+.carmen-site .hero-art .glass-panel.panel-b,
+.carmen-site .hero-art .glass-panel.panel-c,
+.carmen-site .hero-art .carmen-hero-metrics {
+  z-index: 6;
+}
+@media (max-width: 900px) {
+  .carmen-site .hero-art .glass-panel.panel-a {
+    z-index: 6;
   }
 }

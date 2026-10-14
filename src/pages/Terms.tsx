@@ -10,8 +10,8 @@ export default function Terms() {
           <CardHeader>
             <CardTitle className="text-3xl">תנאי שימוש</CardTitle>
             <p className="text-muted-foreground mt-2">
-              ברוכים הבאים ל-AfterLead. תנאי שימוש אלה ("התנאים") מסדירים את
-              השימוש שלך בפלטפורמת AfterLead ובשירותים הנלווים.
+              ברוכים הבאים ל-Carmen Marketing OS. תנאי שימוש אלה ("התנאים") מסדירים את
+              השימוש שלך בפלטפורמת Carmen Marketing OS ובשירותים הנלווים.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
@@ -19,7 +19,7 @@ export default function Terms() {
               <h2 className="text-2xl font-semibold mb-3">1. הגדרות</h2>
               <ul className="list-disc pr-6 space-y-2">
                 <li>
-                  <strong>"השירות"</strong> - פלטפורמת AfterLead לניהול לקוחות,
+                  <strong>"השירות"</strong> - פלטפורמת Carmen Marketing OS לניהול לקוחות,
                   לידים ותהליכי מכירה
                 </li>
                 <li>
@@ -52,7 +52,7 @@ export default function Terms() {
             <section>
               <h2 className="text-2xl font-semibold mb-3">3. תיאור השירות</h2>
               <p className="mb-3">
-                AfterLead היא פלטפורמה לניהול מערכות יחסים עם לקוחות (CRM)
+                Carmen Marketing OS היא פלטפורמה לניהול מערכות יחסים עם לקוחות (CRM)
                 המציעה:
               </p>
               <ul className="list-disc pr-6 space-y-2">
@@ -156,7 +156,7 @@ export default function Terms() {
                 <li>שליחת ספאם או הודעות ללא הסכמה</li>
                 <li>ניסיון לפרוץ או לפגוע במערכת</li>
                 <li>העתקה, שינוי או הפצה של המערכת</li>
-                <li>שימוש לתחרות ישירה עם AfterLead</li>
+                <li>שימוש לתחרות ישירה עם Carmen Marketing OS</li>
                 <li>הפרת זכויות קניין רוחני</li>
                 <li>התחזות או הונאה</li>
                 <li>העלאת תוכן פוגעני, מאיים או בלתי חוקי</li>
@@ -191,7 +191,7 @@ export default function Terms() {
               <h3 className="text-lg font-medium mt-4 mb-2">8.1 הקניין שלנו</h3>
               <p>
                 כל זכויות הקניין הרוחני בשירות, כולל קוד, עיצוב, לוגו וסימנים
-                מסחריים, שייכים ל-AfterLead או למעניקי הרישיון שלנו.
+                מסחריים, שייכים ל-Carmen Marketing OS או למעניקי הרישיון שלנו.
               </p>
 
               <h3 className="text-lg font-medium mt-4 mb-2">8.2 התוכן שלך</h3>
@@ -232,7 +232,7 @@ export default function Terms() {
             <section>
               <h2 className="text-2xl font-semibold mb-3">10. שיפוי</h2>
               <p>
-                אתה מסכים לשפות ולפטור את AfterLead, עובדיה, מנהליה ושותפיה מכל
+                אתה מסכים לשפות ולפטור את Carmen Marketing OS, עובדיה, מנהליה ושותפיה מכל
                 תביעה, נזק, הפסד או הוצאה הנובעים מ:
               </p>
               <ul className="list-disc pr-6 space-y-2">
@@ -328,7 +328,7 @@ export default function Terms() {
               <p className="mb-3">לשאלות בנוגע לתנאי השימוש:</p>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
-                  <strong>AfterLead</strong>
+                  <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
                   אימייל:{" "}

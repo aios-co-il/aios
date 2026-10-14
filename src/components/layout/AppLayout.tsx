@@ -3,7 +3,6 @@ import { AppSidebar } from "./AppSidebar";
 import { LogOut, Building2, PanelRightOpen } from "lucide-react";
 import { GlobalApprovalsBell } from "@/components/agents/GlobalApprovalsBell";
 import { HeaderModuleShortcuts } from "./HeaderModuleShortcuts";
-import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -41,8 +40,7 @@ function RouteContentLoader() {
   return <CarmenLoadingScreen />;
 }
 
-const CARMEN_ICON =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310419663030948028/XGJWpzb5zh76ZdoV37Q3K8/carmen-icon-CyF3DNNJ8Z9Uhfz7EpYJcQ.webp";
+const CARMEN_CHAT_AVATAR = "data:image/webp;base64,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";
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -202,7 +200,7 @@ export function AppLayout() {
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
                 <SidebarTrigger className="shrink-0" />
                 <h1 className="text-sm md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent truncate hidden sm:inline">
-                  מערכת ניהול סוכנויות
+                  Carmen Marketing OS
                 </h1>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
@@ -262,9 +260,9 @@ export function AppLayout() {
                     >
                       <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
                       <img
-                        src={CARMEN_ICON}
+                        src={CARMEN_CHAT_AVATAR}
                         alt="כרמן"
-                        className="h-9 w-9 rounded-full object-cover border-2 border-sky-400/70 group-hover:scale-110 group-hover:border-sky-300 transition-all duration-200"
+                        className="h-9 w-9 rounded-full object-cover border-2 border-emerald-200/70 group-hover:scale-110 group-hover:border-emerald-100 transition-all duration-200"
                       />
                     </button>
                   </>
@@ -277,8 +275,8 @@ export function AppLayout() {
                       className="rounded-full"
                     >
                       <img
-                        src={logo}
-                        alt="Logo"
+                        src="/brand/carmen/symbol-soft.webp"
+                        alt="Carmen Marketing OS"
                         className="h-8 w-8 object-contain"
                       />
                     </Button>
