@@ -398,7 +398,6 @@ export function FacebookFormMappingSection({
           toast.warning(
             "המיפוי נשמר, אך ייתכן שיש בעיה ברישום לקבלת לידים אוטומטית",
           );
-        } else {
         }
       }
     },

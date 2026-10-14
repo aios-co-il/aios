@@ -50,7 +50,9 @@ serve(async (req: Request) => {
     try {
       const body = await req.json();
       scopeTenantId = body?.scope_tenant_id || null;
-    } catch (e) {}
+    } catch (e) {
+      // Keep the authenticated default scope when no valid scope body is provided.
+    }
 
     // Check if user is super admin
     const { data: rolesData } = await supabase
@@ -72,7 +74,6 @@ serve(async (req: Request) => {
 
       if (memberCheck) {
         effectiveTenantId = scopeTenantId;
-      } else {
       }
     }
 

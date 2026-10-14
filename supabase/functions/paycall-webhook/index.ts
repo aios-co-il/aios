@@ -67,7 +67,6 @@ Deno.serve(async (req) => {
         .from("call_logs")
         .update(updateData)
         .eq("id", existingLog.id);
-    } else {
     }
 
     return new Response(JSON.stringify({ success: true }), {

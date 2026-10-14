@@ -347,7 +347,6 @@ serve(async (req) => {
                   `⚠️ Error applying tag to lead ${newLead.id}:`,
                   tagError,
                 );
-              } else {
               }
             }
 
@@ -389,8 +388,7 @@ serve(async (req) => {
                 },
               );
 
-              if (automationResponse.ok) {
-              } else {
+              if (!automationResponse.ok) {
                 console.error(
                   `⚠️ Failed to trigger automation:`,
                   await automationResponse.text(),
@@ -587,7 +585,6 @@ serve(async (req) => {
                     `⚠️ Error applying tag to lead ${newLead.id}:`,
                     tagError,
                   );
-                } else {
                 }
               }
 

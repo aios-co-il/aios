@@ -26,7 +26,6 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
-      "no-empty": "warn", // AIO-53
       "no-case-declarations": "warn", // AIO-56
       "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
       "@typescript-eslint/no-unused-expressions": "warn", // AIO-59

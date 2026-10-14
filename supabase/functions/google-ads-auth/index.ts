@@ -587,7 +587,9 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
           found = true;
           break;
         }
-      } catch {}
+      } catch {
+        // Try the next manager account; fall back to the customer ID if none succeeds.
+      }
     }
     if (!found) {
       accounts.push({

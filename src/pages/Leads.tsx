@@ -1084,7 +1084,9 @@ export default function Leads() {
     setTableLayoutState(layout);
     try {
       window.localStorage.setItem(LEAD_TABLE_LAYOUT_STORAGE_KEY, layout);
-    } catch {}
+    } catch {
+      // Keep the selected layout in React state when persistence is unavailable.
+    }
   };
   const [pendingChatLeadId, setPendingChatLeadId] = useState<string | null>(
     null,

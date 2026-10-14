@@ -137,7 +137,9 @@ export default function SalesDashboard() {
             try {
               const parsed = JSON.parse(raw);
               if (Array.isArray(parsed)) tokens = parsed.map(String);
-            } catch {}
+            } catch {
+              // Fall back to the comma-separated or plain-text product format below.
+            }
           }
           // Comma separated names
           if (tokens.length === 0) {
