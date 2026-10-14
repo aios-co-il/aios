@@ -105,8 +105,6 @@ Deno.serve(async (req) => {
 
     // Parse incoming data
     const rawBody = await req.json();
-    if (queryTenantSlug || queryTenantId || queryAgencyId) {
-    }
 
     // ========== WIX FORM PARSER ==========
     // Wix sends data nested in data.submissions[] with {label, value} objects
@@ -493,9 +491,6 @@ Deno.serve(async (req) => {
               (l) => normalizePhone(l.phone) === normalizedPhone,
             ) || null;
         }
-
-        if (existingLead) {
-        }
       }
 
       // If not found by phone, try email
@@ -592,9 +587,7 @@ Deno.serve(async (req) => {
 
         if (updateError) {
           console.error("❌ Error updating existing lead:", updateError);
-        } else {
         }
-      } else {
       }
 
       // Handle tag_name for existing lead
@@ -742,7 +735,6 @@ Deno.serve(async (req) => {
             } else {
               tagId = newTag.id;
             }
-          } else {
           }
 
           // Apply tag to lead
@@ -758,7 +750,6 @@ Deno.serve(async (req) => {
 
             if (applyTagError) {
               console.error("⚠️ Error applying tag to lead:", applyTagError);
-            } else {
             }
           }
         }

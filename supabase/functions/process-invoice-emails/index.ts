@@ -325,7 +325,9 @@ serve(async (req) => {
               if (!isNaN(d.getTime())) {
                 invoiceDate = d.toISOString().split("T")[0];
               }
-            } catch {}
+            } catch {
+              // Keep the date unset and use the current-month fallback below.
+            }
 
             const invoiceMonth = invoiceDate
               ? invoiceDate.substring(0, 7)

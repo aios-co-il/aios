@@ -45,7 +45,9 @@ Deno.serve(async (req) => {
     let body: any = {};
     try {
       body = await req.json();
-    } catch {}
+    } catch {
+      // Missing or invalid batch parameters use the default full sync below.
+    }
     const batchOffset = body.batch_offset || 0;
     const tableIds: string[] | null = body.table_ids || null;
 

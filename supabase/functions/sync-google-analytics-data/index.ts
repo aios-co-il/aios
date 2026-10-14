@@ -499,9 +499,6 @@ serve(async (req) => {
 
     const channelGroupData = await channelGroupResponse.json();
 
-    if (channelGroupData.error) {
-    }
-
     // ====== REPORT 4: Top pages ======
     const pagesRequest = {
       dateRanges: [{ startDate: actualStartDate, endDate: actualEndDate }],

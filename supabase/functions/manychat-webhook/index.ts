@@ -173,7 +173,6 @@ Deno.serve(async (req) => {
               "❌ Error updating client subscriber_id:",
               updateError,
             );
-          } else {
           }
 
           client = clientByPhone;
@@ -199,7 +198,6 @@ Deno.serve(async (req) => {
                 "❌ Error updating lead subscriber_id:",
                 updateError,
               );
-            } else {
             }
           }
         }

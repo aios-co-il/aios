@@ -83,7 +83,9 @@ Deno.serve(async (req) => {
             });
           }
         }
-      } catch {}
+      } catch {
+        // Continue with query parameters when the optional request body cannot be parsed.
+      }
     }
 
     logRequest("received");

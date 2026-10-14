@@ -496,7 +496,9 @@ Deno.serve(async (req) => {
       let toolInput: Json = {};
       try {
         toolInput = JSON.parse(call.function?.arguments || "{}");
-      } catch {}
+      } catch {
+        // Keep the empty tool-input default when arguments are not valid JSON.
+      }
       const tool = toolsByName.get(toolName);
 
       // Append assistant message + tool call to messages

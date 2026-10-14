@@ -676,7 +676,9 @@ export default function DynamicTables() {
       setSelectedCategory(null);
       try {
         sessionStorage.removeItem("dynamicTables.selectedCategory");
-      } catch {}
+      } catch {
+        // Keep the category cleared in React state when session storage is unavailable.
+      }
     }
   }, [categories, selectedCategory]);
 
@@ -909,7 +911,9 @@ export default function DynamicTables() {
                                   "dynamicTables.selectedCategory",
                                   category,
                                 );
-                              } catch {}
+                              } catch {
+                                // Keep the selected category in React state when session storage is unavailable.
+                              }
                             }}
                             className={cn(
                               "cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5",
@@ -966,7 +970,9 @@ export default function DynamicTables() {
                             sessionStorage.removeItem(
                               "dynamicTables.selectedCategory",
                             );
-                          } catch {}
+                          } catch {
+                            // Keep the category cleared in React state when session storage is unavailable.
+                          }
                         }}
                         className="gap-1"
                       >
@@ -1020,7 +1026,9 @@ export default function DynamicTables() {
                                     "dynamicTables.selectedCategory",
                                     category,
                                   );
-                                } catch {}
+                                } catch {
+                                  // Keep the selected category in React state when session storage is unavailable.
+                                }
                               }}
                               className={cn(
                                 "gap-1.5 h-8 text-xs",
