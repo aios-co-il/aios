@@ -73,8 +73,26 @@ export function secondaryCarmenGate(
   return { allow: true };
 }
 
-const BIDI_AND_CONTROL_RE =
-  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F‪-‮⁦-⁩]/g;
+// Control chars (except \t \n \r) and bidi overrides, built from code points
+// so the source holds no literal control characters (no-control-regex).
+const BIDI_AND_CONTROL_RE = new RegExp(
+  "[" +
+    [
+      [0x00, 0x08],
+      [0x0b, 0x0c],
+      [0x0e, 0x1f],
+      [0x7f, 0x7f],
+      [0x202a, 0x202e],
+      [0x2066, 0x2069],
+    ]
+      .map(
+        ([a, b]) =>
+          `\\u${a.toString(16).padStart(4, "0")}-\\u${b.toString(16).padStart(4, "0")}`,
+      )
+      .join("") +
+    "]",
+  "g",
+);
 
 /**
  * Admin-authored per-automation instructions, bounded and stripped of
