@@ -575,15 +575,6 @@ export default function Auth() {
                 שכחתי סיסמה
               </Button>
 
-              <p className="text-center text-sm text-muted-foreground pt-2">
-                רוצה לפתוח ארגון חדש?{" "}
-                <Link
-                  to="/signup"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  הירשם כאן
-                </Link>
-              </p>
             </form>
           )}
         </CardContent>
