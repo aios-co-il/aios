@@ -44,26 +44,43 @@ test("video director tool names", () => {
   assert.equal(isVideoDirectorTool("queue_video_clips"), false);
 });
 
-test("render_video_film queues a free compose and does not invent a provider spend", async () => {
+test("render_video_film queues a free compose for a project in the tenant", async () => {
   const calls: Record<string, unknown>[] = [];
+  const filters: string[] = [];
   const db: VideoDirectorDb = {
-    from: () => query({ data: null, error: null }),
+    from: () => {
+      const q = query({
+        data: {
+          id: "item-1",
+          client_id: "client-1",
+          current_stage_id: "stage-1",
+        },
+        error: null,
+      });
+      const eq = q.eq;
+      q.eq = (...args: unknown[]) => (filters.push(args.join("=")), eq());
+      return q;
+    },
     rpc: async (fn, args) => {
       calls.push({ fn, args });
       return { data: [{ id: "run-1" }], error: null };
     },
   };
+  const checked: string[] = [];
   const result = await executeVideoDirectorTool(
     db,
     "tenant-1",
     "render_video_film",
-    { item_id: "item-1", aspect: "poster" },
+    { item_id: "item-1", aspect: "poster", stage_id: "someone-elses-stage" },
+    async (clientId) => void checked.push(clientId),
   );
+  assert.ok(filters.includes("tenant_id=tenant-1"));
+  assert.deepEqual(checked, ["client-1"]);
   assert.equal(calls[0]?.fn, "queue_video_render");
   assert.deepEqual(calls[0]?.args, {
     p_item_id: "item-1",
     p_aspect: "9:16",
-    p_stage_id: null,
+    p_stage_id: "stage-1",
   });
   assert.deepEqual(result, {
     queued: true,
@@ -71,6 +88,39 @@ test("render_video_film queues a free compose and does not invent a provider spe
     cost_usd: 0,
     provider: "compose",
   });
+});
+
+test("render_video_film refuses a project outside the tenant or the caller's clients", async () => {
+  const rpcCalls: string[] = [];
+  const missing: VideoDirectorDb = {
+    from: () => query({ data: null, error: null }),
+    rpc: async (fn) => (rpcCalls.push(fn), { data: [], error: null }),
+  };
+  assert.deepEqual(
+    await executeVideoDirectorTool(missing, "tenant-1", "render_video_film", {
+      item_id: "other-tenant-item",
+    }),
+    { error: "פרויקט לא נמצא" },
+  );
+  const foreignClient: VideoDirectorDb = {
+    from: () =>
+      query({
+        data: { id: "item-1", client_id: "client-9", current_stage_id: "s" },
+        error: null,
+      }),
+    rpc: async (fn) => (rpcCalls.push(fn), { data: [], error: null }),
+  };
+  const denied = await executeVideoDirectorTool(
+    foreignClient,
+    "tenant-1",
+    "render_video_film",
+    { item_id: "item-1" },
+    async () => {
+      throw new Error("אין לך גישה ללקוח");
+    },
+  );
+  assert.deepEqual(denied, { error: "אין לך גישה ללקוח" });
+  assert.deepEqual(rpcCalls, []);
 });
 
 test("get_video_storyboard stays inside the tenant", async () => {

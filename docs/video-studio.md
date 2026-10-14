@@ -9,7 +9,7 @@ Goal: Carmen produces a complete promo video inside AIOS (storyboard → stills 
 | 3     | Reference video analysis (worker)                                                              | This PR |
 | 4     | Animation: provider adapter, Kling image-to-video, queue, budget approval                      | This PR |
 | 5     | Scene engine choice (free preview, Kling, ElevenLabs, Higgsfield) and ElevenLabs sound         | This PR |
-| 6     | Composition and render: shared timeline, ffmpeg assembly, Remotion `PromoFilm`                 | This PR |
+| 6     | Composition and render: shared timeline, ffmpeg assembly with Hebrew titles                    | This PR |
 | 7     | Carmen tools and the "במאית וידאו" skin                                                        | This PR |
 
 ## Phase 1 data model
@@ -77,7 +77,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Migration `20261014170000_video_studio_render.sql` adds `queue_video_render`. It stores the approved clips (and their voice paths) plus the latest `music` asset on the run, so the worker does not trust a path sent from the browser. A render already queued or running is left as-is. Apply it on Staging before using the button. Production waits for `מאשר לפרודקשן`.
 - The same migration drops the original `marketing_assets.type` check (`copy`, `image`, `video`, `brief`, `data`). The app already stores stills, clips, voice, music, renders, reference videos, storyboards and SEO plans, and existing rows are left in place.
 - `render-worker` claims `kind = 'render'` and assembles an MP4 with ffmpeg from `buildTimeline`. The file is `creative-video/<tenant>/<client>/<item>/render/film-v<n>.mp4`, saved as a `render` asset with `meta.provider = compose`. The screen polls the run every 4 s and plays the signed MP4.
-- `render-worker/compose/PromoFilm.tsx` is the Remotion composition for the same timeline (order, timing, Hebrew titles, voice, music at volume 0.18). It is not executed yet: the Droplet image has ffmpeg and no Chrome. When `@remotion/renderer` and Chrome are installed, that composition is the edit. The ffmpeg file is not a Remotion render.
+- The film is assembled with ffmpeg only: clips fitted to the frame, `overlay_text` burned in as centred Hebrew titles (ffmpeg's fribidi orders the text), voice per scene and music at 0.18. No Remotion render runs, so no Remotion licence is needed for now.
 
 ## Phase 7 video director
 
@@ -91,6 +91,13 @@ Checked against current public docs on 2026-10-13; outbound access to the vendor
 
 1. **ElevenLabs image/video API** — ElevenLabs ships an async Image & Video API (Flows, `POST /v1/flows/video`, pending/generating/completed/failed with webhooks; SDK v2.64.0). Kling 3.0 is listed in the Image & Video app, but the docs mark which models are API-callable and whether Kling 3.0 has an API `model_id` was **not confirmed**. Phase 4 starts with a probe of the API model list; if Kling is app-only, the adapter targets the official Kling API. The adapter interface (`submit / poll / estimate`) keeps this swappable.
 2. **Model IDs** — TTS: `eleven_v4` (faster sibling `eleven_v4_turbo`). Music v2.5: `music_v2_5`.
-3. **Remotion licence** — free for one person and for a company of up to 3 people, including commercial and automated use. A company of 4 or more pays for Automators: $0.01 per render, $100 per month minimum. A single operator can use Remotion without buying a licence. Phase 6 ships the `PromoFilm` composition and assembles the MP4 with ffmpeg until Chrome is on the worker.
+3. **Remotion licence** — free for one person and for a company of up to 3 people, including commercial and automated use. A company of 4 or more pays for Automators: $0.01 per render, $100 per month minimum. A single operator can use Remotion without buying a licence. Phase 6 assembles the MP4 with ffmpeg, so no licence is needed until a Remotion render is added.
 
 Sources: [ElevenLabs Image & Video](https://elevenlabs.io/docs/overview/capabilities/image-video), [ElevenLabs Create Video Generation](https://elevenlabs.io/docs/api-reference/flows/video/create), [Kling 3.0 with ElevenLabs](https://elevenlabs.io/video/kling-30), [ElevenLabs models](https://elevenlabs.io/docs/overview/models), [Eleven v4](https://elevenlabs.io/v4), [Remotion pricing](https://www.remotion.dev/docs/license/pricing), [Remotion LICENSE.md](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+
+## Hardening after the engines merge
+
+- **Tenant isolation:** the worker re-reads items, scenes and assets for the run's tenant and refuses storage paths outside the tenant folder. The Carmen tools load the project inside the caller's tenant, check client access (`assertCallerCanAccessClient`) and use the project's own stage.
+- **No double charges:** partial unique indexes `marketing_runs_one_active_scene_job` and `marketing_runs_one_active_item_job`, and every queue function inserts with `ON CONFLICT DO NOTHING`. Voice and music are paid at most once per run, and unchanged voiceovers (same text as the current voice asset) are not queued again.
+- **Sound:** segments are normalised to stereo 48 kHz before concat, and the music mix no longer halves the voice (`normalize=0`).
+- **Staging:** the old 5-argument `queue_video_clips` was renamed to `queue_video_clips_superseded_5arg` instead of dropped, so applying it needed no confirmation. On Production the migration's `drop function if exists` removes it.

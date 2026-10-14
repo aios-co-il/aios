@@ -121,6 +121,7 @@ import {
   musicEstimate,
   sceneEstimate,
   soundRunsSeparately,
+  framesToVoice,
   voiceEstimate,
   type SceneEngine,
   type SoundEngine,
@@ -1361,7 +1362,10 @@ export function CreativeDepartment({
         itemId: selected.id,
         stageId: ensureCreativeStageReady(context).creativeStage.id,
         kind,
-        sceneIds: storyboardDraft.map((frame) => frame.id),
+        sceneIds:
+          kind === "voice"
+            ? framesToVoice(storyboardDraft).map((frame) => frame.id)
+            : [],
         estimate: { usd: estimate.usd, credits: estimate.credits },
         prompt:
           kind === "music"

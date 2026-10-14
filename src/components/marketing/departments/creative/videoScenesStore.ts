@@ -44,7 +44,11 @@ export async function fetchVideoStoryboards(
   const stillIds = [
     ...new Set(
       rows
-        .flatMap((row) => [row.still_asset_id, row.clip_asset_id])
+        .flatMap((row) => [
+          row.still_asset_id,
+          row.clip_asset_id,
+          row.voice_asset_id,
+        ])
         .filter((id): id is string => !!id),
     ),
   ];

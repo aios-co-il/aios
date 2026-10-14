@@ -17,11 +17,64 @@ const ffmpeg = (args) =>
     );
   });
 
-/** One scene: the clip, fitted to the frame, with the voiceover (or silence) for its duration. */
+const FONT = () =>
+  process.env.OVERLAY_FONT ||
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+
+/** Breaks overlay text into lines of about maxChars at spaces (drawtext does not wrap). */
+export function wrapOverlay(text, maxChars = 22) {
+  const lines = [];
+  for (const paragraph of String(text ?? "").split(/\r?\n/)) {
+    let line = "";
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (line && line.length + 1 + word.length > maxChars) {
+        lines.push(line);
+        line = word;
+      } else line = line ? `${line} ${word}` : word;
+    }
+    if (line) lines.push(line);
+  }
+  return lines.slice(0, 4).join("\n");
+}
+
+/**
+ * drawtext filters for the scene title, one per line so every line is centred (drawtext
+ * aligns multi-line text to the left, which looks wrong for Hebrew). Each line is read
+ * from a file so nothing needs escaping; fribidi in ffmpeg orders the Hebrew.
+ */
+export function overlayFilters(lineFiles, fontFile = FONT()) {
+  const count = lineFiles.length;
+  return lineFiles.map((file, index) =>
+    [
+      `drawtext=textfile='${file}'`,
+      `fontfile='${fontFile}'`,
+      "fontsize=h/20",
+      "fontcolor=white",
+      "box=1",
+      "boxcolor=black@0.45",
+      "boxborderw=18",
+      "x=(w-text_w)/2",
+      `y=h-h/9-${count - index}*h/20*1.5`,
+    ].join(":"),
+  );
+}
+
+/** One scene: the clip, fitted to the frame, with its title, and the voiceover (or silence). */
 async function segment(timeline, scene, index, dir) {
   const output = join(dir, `seg-${index}.mp4`);
   const duration = scene.durationS.toFixed(3);
   const fitted = join(dir, `fit-${index}.mp4`);
+  const filters = [
+    `scale=${timeline.width}:${timeline.height}:force_original_aspect_ratio=increase,crop=${timeline.width}:${timeline.height}`,
+  ];
+  const lines = wrapOverlay(scene.overlayText).split("\n").filter(Boolean);
+  const lineFiles = [];
+  for (const [line, text] of lines.entries()) {
+    const file = join(dir, `title-${index}-${line}.txt`);
+    await writeFile(file, text);
+    lineFiles.push(file);
+  }
+  filters.push(...overlayFilters(lineFiles));
   await ffmpeg([
     "-hide_banner",
     "-loglevel",
@@ -32,7 +85,7 @@ async function segment(timeline, scene, index, dir) {
     "-t",
     duration,
     "-vf",
-    `scale=${timeline.width}:${timeline.height}:force_original_aspect_ratio=increase,crop=${timeline.width}:${timeline.height}`,
+    filters.join(","),
     "-an",
     "-c:v",
     "libx264",
@@ -44,7 +97,7 @@ async function segment(timeline, scene, index, dir) {
   ]);
   const audioArgs = scene.voicePath
     ? ["-i", scene.voicePath]
-    : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"];
+    : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"];
   await ffmpeg([
     "-hide_banner",
     "-loglevel",
@@ -54,7 +107,9 @@ async function segment(timeline, scene, index, dir) {
     fitted,
     ...audioArgs,
     "-filter_complex",
-    `[1:a]apad,atrim=0:${duration},asetpts=PTS-STARTPTS[a]`,
+    // Every segment gets the same audio layout (stereo 48 kHz), so the stream copy in the
+    // concat step never joins mono voice segments with stereo silent ones.
+    `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=0:${duration},asetpts=PTS-STARTPTS[a]`,
     "-map",
     "0:v",
     "-map",
@@ -65,6 +120,10 @@ async function segment(timeline, scene, index, dir) {
     "copy",
     "-c:a",
     "aac",
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
     "-shortest",
     output,
   ]);
@@ -127,7 +186,7 @@ export async function assembleFilm(timeline, outputPath) {
     "-i",
     timeline.musicPath,
     "-filter_complex",
-    "[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]",
+    "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.18[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]",
     "-map",
     "0:v",
     "-map",

@@ -116,6 +116,9 @@ begin
       'scenes', v_scenes
     )
   )
+  on conflict (item_id, kind)
+    where scene_id is null and status in ('queued', 'running') and kind in ('music', 'render')
+    do nothing
   returning *;
 end;
 $$;

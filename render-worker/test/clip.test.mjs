@@ -105,7 +105,19 @@ function fakeDb({ still }) {
   return {
     calls,
     download: async () => still,
-    select: async () => [],
+    // The run's item, scene and still, as the guard reads them for the run's tenant.
+    select: async (table, query) => {
+      if (!query.includes("tenant_id=eq.t1")) return [];
+      if (table === "marketing_work_items")
+        return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
+      if (table === "marketing_video_scenes") {
+        const id = /id=eq\.([^&]+)/.exec(query)?.[1];
+        return [{ id, still_asset_id: "still-1" }];
+      }
+      if (table === "marketing_assets" && query.includes("id=eq.still-1"))
+        return [{ id: "still-1", url: "t1/c1/i1/still.png" }];
+      return [];
+    },
     upload: async (bucket, path, bytes) =>
       calls.uploads.push({ bucket, path, size: bytes.length }),
     rpc: async (name, args) => calls.rpcs.push({ name, args }),
@@ -176,7 +188,7 @@ test(
     await failClip({ db, run: runs[3] });
     assert.deepEqual(db.calls.updates.at(-1), {
       table: "marketing_video_scenes",
-      query: "id=eq.s3&status=eq.clip_generating",
+      query: "id=eq.s3&tenant_id=eq.t1&status=eq.clip_generating",
       patch: { status: "failed" },
     });
   },
@@ -206,4 +218,58 @@ test("a retried run resumes its provider job instead of paying twice", async () 
   assert.equal(result.output.job_id, "task-42");
   assert.equal(result.costUsd, 0.85);
   assert.equal(result.credits, 5100);
+});
+
+test("worker guards keep paths in the tenant folder and fetches on media hosts", async () => {
+  const { assertTenantPath, assertMediaUrl, safeSegment } =
+    await import("../src/guard.mjs");
+  assert.equal(
+    assertTenantPath("t1", "t1/c1/i1/clip.mp4"),
+    "t1/c1/i1/clip.mp4",
+  );
+  assert.throws(
+    () => assertTenantPath("t1", "t1/../t2/clip.mp4"),
+    /outside the tenant/,
+  );
+  assert.throws(
+    () => assertTenantPath("t1", "t2/c/i/clip.mp4"),
+    /outside the tenant/,
+  );
+  assert.throws(() => assertTenantPath("t1", "t1//x"), /outside the tenant/);
+  assert.equal(safeSegment("../../t2"), "general");
+  assert.equal(safeSegment("c1-ab_9"), "c1-ab_9");
+  assert.equal(
+    assertMediaUrl("https://abc.supabase.co/storage/v1/x"),
+    "https://abc.supabase.co/storage/v1/x",
+  );
+  assert.throws(
+    () => assertMediaUrl("http://abc.supabase.co/x"),
+    /not allowed/,
+  );
+  assert.throws(
+    () => assertMediaUrl("https://169.254.169.254/latest"),
+    /not allowed/,
+  );
+});
+
+test("a clip run for a scene outside the run's tenant is refused before any provider call", async () => {
+  const db = fakeDb({ still: new Uint8Array([1]) });
+  let submitted = false;
+  const provider = {
+    name: "kling",
+    model: "m",
+    estimate: () => ({ credits: 0, usd: 0 }),
+    submit: async () => ((submitted = true), { jobId: "x" }),
+    poll: async () => ({ status: "succeeded", bytes: new Uint8Array([0]) }),
+  };
+  await assert.rejects(
+    generateClip({
+      db,
+      run: clipRun("s1", { tenant_id: "t2" }),
+      provider,
+      log: () => {},
+    }),
+    /not in the run's tenant/,
+  );
+  assert.equal(submitted, false);
 });

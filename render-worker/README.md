@@ -1,6 +1,6 @@
 # AIOS render worker
 
-Long-running Node service for Video Studio jobs that cannot run in Supabase Edge Functions (ffmpeg, and Remotion in phase 6). It claims queued `marketing_runs` rows by `kind` with `claim_video_run` (service role only, `FOR UPDATE SKIP LOCKED`), runs up to `CONCURRENCY` (8) of them at once, and writes `output`, `cost_usd`, `credits` and status back. Failed runs are re-queued up to `MAX_ATTEMPTS` (3); each run fails on its own, so one bad clip never stops the others.
+Long-running Node service for Video Studio jobs that cannot run in Supabase Edge Functions (ffmpeg). It claims queued `marketing_runs` rows by `kind` with `claim_video_run` (service role only, `FOR UPDATE SKIP LOCKED`), runs up to `CONCURRENCY` (8) of them at once, and writes `output`, `cost_usd`, `credits` and status back. Failed runs are re-queued up to `MAX_ATTEMPTS` (3); each run fails on its own, so one bad clip never stops the others.
 
 Handled kinds:
 
@@ -22,7 +22,7 @@ Handled kinds:
 
 - `voice` and `music` (phase 5). ElevenLabs writes one voiceover per scene and one music bed. Higgsfield sound is `generate_audio` on the clip, not a separate job.
 
-- `render` (phase 6). Queued by `queue_video_render` with `{ client_id, aspect, musicPath, version, scenes }`. Each scene has `clipPath`, optional `voicePath`, `overlayText` and `durationS`. The worker downloads those files, builds one timeline (`src/compose/timeline.mjs`) and assembles an MP4 with ffmpeg (`src/compose/assemble.mjs`). The asset `meta.provider` is `compose`. `compose/PromoFilm.tsx` is the Remotion edit of that same timeline; it runs when the image has Chrome and `@remotion/renderer`. This image does not.
+- `render` (phase 6). Queued by `queue_video_render`. The worker reads the approved scenes, their current clip and voice, and the newest music bed from the database for the run's tenant; `run.input` only supplies the aspect. It builds one timeline (`src/compose/timeline.mjs`) and assembles an MP4 with ffmpeg (`src/compose/assemble.mjs`): every segment is normalised to stereo 48 kHz, music sits at 0.18 under the voice, and `overlay_text` is burned in as centred Hebrew titles (DejaVu Sans Bold, `OVERLAY_FONT` overrides). Each render is stored as `render/film-<run id>.mp4`.
 
 ### Video providers
 
@@ -43,10 +43,17 @@ docker run -d --name aios-render-worker --restart unless-stopped --env-file .env
 docker logs -f aios-render-worker
 ```
 
-Give the Droplet at least 4 vCPUs. The current film is ffmpeg. The Remotion composition is ready for a later image that adds Chrome.
+Give the Droplet at least 4 vCPUs. Films are assembled with ffmpeg; no Remotion licence is needed.
 
 ## Test
 
 ```bash
 node --test test/*.test.mjs   # the ffmpeg test needs ffmpeg on PATH and skips otherwise
 ```
+
+## Safety rules the worker enforces
+
+- Tenant members can insert `marketing_runs`, so `run.input` is never trusted for files. Storage paths must start with the run's tenant id and cannot contain `.` or `..` segments (`src/guard.mjs`). The item and scene are re-read for the run's tenant, and the client folder comes from the item.
+- Remote stills are fetched only over https from the Supabase project, `*.supabase.co` or `MEDIA_URL_HOSTS`.
+- Paid jobs are charged at most once per run. Clips resume the stored provider job. Voice and music store the audio and record its path before attaching it, and a failure after the provider has charged is final, not retried. The database also allows only one queued or running job per scene (clip, voice) and per project (music, render).
+- The tenant's own ElevenLabs and Higgsfield keys win; the worker's env keys are only a fallback.

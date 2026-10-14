@@ -40,6 +40,9 @@ export interface StoryboardFrame {
   clipPath?: string;
   /** The still or prompt changed after the clip was made. */
   clipStale?: boolean;
+  /** Current voiceover asset and the text it was spoken from. */
+  voiceAssetId?: string;
+  voiceText?: string;
 }
 
 export type VideoSceneStatus =

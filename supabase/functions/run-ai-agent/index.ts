@@ -5631,7 +5631,14 @@ async function executeTool(
     accessibleTenantIds,
   };
   if (isVideoDirectorTool(name)) {
-    return executeVideoDirectorTool(supabase, tenantId, name, args);
+    return executeVideoDirectorTool(
+      supabase,
+      tenantId,
+      name,
+      args,
+      (clientId) =>
+        assertCallerCanAccessClient(supabase, clientId, callerScope),
+    );
   }
   switch (name) {
     case "query_system_graph": {

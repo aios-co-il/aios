@@ -70,7 +70,10 @@ async function resolveKeys(tenantId) {
   return { openaiKey, elevenLabsKey: media.elevenLabsKey };
 }
 
-/** Keys for scene and sound engines. Env wins, then the tenant LLM integration. */
+/**
+ * Keys for scene and sound engines. The tenant's own key wins, so each tenant pays for its
+ * own generations; the env key is only a fallback for the agency's own workspace.
+ */
 async function resolveMediaKeys(tenantId) {
   const rows = await db.select(
     "tenant_integrations",
@@ -79,12 +82,12 @@ async function resolveMediaKeys(tenantId) {
   const settings = rows?.[0]?.settings ?? {};
   return {
     elevenLabsKey:
-      process.env.ELEVENLABS_API_KEY || settings.elevenlabs_api_key || null,
+      settings.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY || null,
     higgsfieldKeyId:
-      process.env.HF_API_KEY_ID || settings.higgsfield_api_key_id || null,
+      settings.higgsfield_api_key_id || process.env.HF_API_KEY_ID || null,
     higgsfieldKeySecret:
-      process.env.HF_API_KEY_SECRET ||
       settings.higgsfield_api_key_secret ||
+      process.env.HF_API_KEY_SECRET ||
       null,
   };
 }
@@ -123,6 +126,7 @@ async function processOne() {
     const message = error instanceof Error ? error.message : String(error);
     const retry =
       run.attempts < MAX_ATTEMPTS &&
+      !(error && error.final) &&
       !/limit is|is required|No OpenAI key|no approved clips/.test(message);
     console.error(
       `[worker] ${run.id} failed (${retry ? "will retry" : "final"}): ${message}`,

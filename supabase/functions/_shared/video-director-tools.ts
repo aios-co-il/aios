@@ -27,7 +27,6 @@ export const VIDEO_DIRECTOR_TOOLS = [
           type: "string",
           enum: ["9:16", "16:9", "1:1", "4:5"],
         },
-        stage_id: { type: "string" },
       },
       required: ["item_id"],
     },
@@ -58,31 +57,47 @@ export type VideoDirectorDb = {
 
 const rowsOf = (data: unknown) => (Array.isArray(data) ? data : []);
 
+/**
+ * Runs with the service-role client, so RLS does not apply: every call first loads the
+ * project inside the caller's tenant and checks client access before touching it.
+ */
 export async function executeVideoDirectorTool(
   supabase: VideoDirectorDb,
   tenantId: string,
   name: string,
   args: Record<string, unknown>,
+  assertClientAccess: (clientId: string) => Promise<void> = async () => {},
 ) {
   const itemId = String(args.item_id ?? "").trim();
   if (!itemId) return { error: "item_id נדרש" };
+  if (!isVideoDirectorTool(name)) return { error: "כלי לא מוכר" };
+
+  const item = await supabase
+    .from("marketing_work_items")
+    .select("id, title, client_id, current_stage_id, payload")
+    .eq("id", itemId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (item.error) return { error: item.error.message };
+  if (!item.data) return { error: "פרויקט לא נמצא" };
+  const project = item.data as {
+    id: string;
+    title: string | null;
+    client_id: string | null;
+    current_stage_id: string | null;
+    payload?: { video?: { scene_engine?: string; sound_engine?: string } };
+  };
+  if (project.client_id) {
+    try {
+      await assertClientAccess(project.client_id);
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
+      };
+    }
+  }
 
   if (name === "get_video_storyboard") {
-    const item = await supabase
-      .from("marketing_work_items")
-      .select("id, title, client_id, current_stage_id, payload")
-      .eq("id", itemId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (item.error) return { error: item.error.message };
-    if (!item.data) return { error: "פרויקט לא נמצא" };
-    const project = item.data as {
-      id: string;
-      title: string | null;
-      client_id: string | null;
-      current_stage_id: string | null;
-      payload?: { video?: { scene_engine?: string; sound_engine?: string } };
-    };
     const scenes = await supabase
       .from("marketing_video_scenes")
       .select(
@@ -130,14 +145,11 @@ export async function executeVideoDirectorTool(
   if (name === "render_video_film") {
     const requested = String(args.aspect ?? "");
     const aspect = ASPECTS.has(requested) ? requested : "9:16";
-    const stageId =
-      typeof args.stage_id === "string" && args.stage_id.trim()
-        ? args.stage_id.trim()
-        : null;
+    // The project's own stage; a stage id from the conversation is not trusted.
     const queued = await supabase.rpc("queue_video_render", {
-      p_item_id: itemId,
+      p_item_id: project.id,
       p_aspect: aspect,
-      p_stage_id: stageId,
+      p_stage_id: project.current_stage_id,
     });
     if (queued.error) {
       if (queued.error.message.includes("no approved clips"))

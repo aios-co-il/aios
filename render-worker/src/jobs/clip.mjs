@@ -1,3 +1,11 @@
+import {
+  assertMediaUrl,
+  assertTenantPath,
+  finalError,
+  loadRunItem,
+  loadRunScene,
+  safeSegment,
+} from "../guard.mjs";
 import { clipPrompt, getVideoProvider } from "../providers/index.mjs";
 
 const BUCKET = "creative-video";
@@ -6,33 +14,37 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Still bytes: a full URL (public stills) or a creative-video path. */
-async function loadStill(db, url) {
+/** Still bytes from a creative-video path in the tenant folder, or an allowed media URL. */
+async function loadStill(db, tenantId, url) {
   if (/^https?:\/\//.test(url)) {
-    const response = await fetch(url);
+    const response = await fetch(assertMediaUrl(url));
     if (!response.ok)
       throw new Error(
         `still download ${response.status}: ${url.slice(0, 200)}`,
       );
     return new Uint8Array(await response.arrayBuffer());
   }
-  return db.download(BUCKET, url);
+  return db.download(BUCKET, assertTenantPath(tenantId, url));
 }
 
-/** tenant/client/item/scene/clip-v<n>.mp4, n = the next clip version of the scene. */
-export async function clipPath(db, run) {
+/** <item folder>/<scene>/clip-v<n>.mp4, n = the next clip version of the scene. */
+export async function clipPath(db, run, folder) {
   const rows = await db.select(
     "marketing_assets",
     `item_id=eq.${run.item_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&select=id`,
   );
   const version = (rows?.length ?? 0) + 1;
-  return `${run.tenant_id}/${run.input?.client_id ?? "general"}/${run.item_id}/${run.scene_id}/clip-v${version}.mp4`;
+  return assertTenantPath(
+    run.tenant_id,
+    `${folder}/${safeSegment(run.scene_id)}/clip-v${version}.mp4`,
+  );
 }
 
 /**
  * Animates one approved still into a clip with the configured video provider, stores the
  * MP4 in creative-video and makes it the scene's current clip. A retried run that already
  * has a provider job resumes polling instead of paying for a second generation.
+ * The still comes from the scene row, not from run.input, which tenant members can write.
  */
 export async function generateClip({
   db,
@@ -41,8 +53,17 @@ export async function generateClip({
   log = console.log,
 }) {
   const input = run.input ?? {};
-  if (!run.scene_id || !input.still_url)
-    throw new Error("clip run: scene_id and input.still_url is required");
+  if (!run.scene_id) throw finalError("clip run: scene_id is required");
+  const item = await loadRunItem(db, run);
+  const scene = await loadRunScene(db, run, "id,still_asset_id");
+  const [still] = scene.still_asset_id
+    ? ((await db.select(
+        "marketing_assets",
+        `id=eq.${scene.still_asset_id}&tenant_id=eq.${run.tenant_id}&select=id,url`,
+      )) ?? [])
+    : [];
+  if (!still?.url)
+    throw finalError("clip run: the scene has no still (is required)");
   const durationS = Number(input.duration_s) || 5;
   const aspect = input.aspect || "9:16";
   const estimate = provider.estimate({ durationS });
@@ -54,13 +75,16 @@ export async function generateClip({
   if (jobId) {
     log(`[clip] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
-    const imageBytes = await loadStill(db, input.still_url);
-    let imageUrl = /^https?:\/\//.test(input.still_url)
-      ? input.still_url
-      : null;
-    if (provider.needsPublicImage && !imageUrl) {
-      if (!db.sign) throw new Error("higgsfield needs a signed still url");
-      imageUrl = await db.sign(BUCKET, input.still_url, 3600);
+    const imageBytes = await loadStill(db, run.tenant_id, still.url);
+    let imageUrl = null;
+    if (provider.needsPublicImage) {
+      // Stored stills can be expiring signed links; hand the provider a fresh one of a copy.
+      const source = assertTenantPath(
+        run.tenant_id,
+        `${item.folder}/${safeSegment(run.scene_id)}/still-source-${safeSegment(run.id)}.png`,
+      );
+      await db.upload(BUCKET, source, imageBytes, "image/png");
+      imageUrl = await db.sign(BUCKET, source, 3600);
     }
     ({ jobId } = await provider.submit({
       imageBytes,
@@ -91,10 +115,13 @@ export async function generateClip({
   let bytes = result.bytes;
   if (!bytes) {
     const response = await fetch(result.url);
-    if (!response.ok) throw new Error(`clip download ${response.status}`);
+    if (!response.ok)
+      throw new Error(
+        `clip download ${response.status} (job ${jobId} kept for retry)`,
+      );
     bytes = new Uint8Array(await response.arrayBuffer());
   }
-  const path = await clipPath(db, run);
+  const path = await clipPath(db, run, item.folder);
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
     p_scene_id: run.scene_id,
@@ -108,7 +135,7 @@ export async function generateClip({
       provider_job_id: jobId,
       duration_s: durationS,
       aspect,
-      source_still_asset_id: input.still_asset_id ?? null,
+      source_still_asset_id: still.id,
       generation_cost: { usd: estimate.usd, credits: estimate.credits },
     },
     p_run_id: run.id,
@@ -132,7 +159,7 @@ export async function failClip({ db, run }) {
   if (!run.scene_id) return;
   await db.update(
     "marketing_video_scenes",
-    `id=eq.${run.scene_id}&status=eq.clip_generating`,
+    `id=eq.${run.scene_id}&tenant_id=eq.${run.tenant_id}&status=eq.clip_generating`,
     { status: "failed" },
   );
 }

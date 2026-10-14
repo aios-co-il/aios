@@ -142,8 +142,18 @@ export function sceneEstimate(
   };
 }
 
+/**
+ * Scenes that need a (new) voiceover: they have text, and no current voice or one spoken
+ * from different text. Unchanged voiceovers are not paid for again.
+ */
+export const framesToVoice = (frames: StoryboardFrame[]) =>
+  frames.filter((frame) => {
+    const text = frame.voiceover.trim();
+    return !!text && (!frame.voiceAssetId || frame.voiceText !== text);
+  });
+
 export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
-  const spoken = frames.filter((frame) => frame.voiceover.trim());
+  const spoken = framesToVoice(frames);
   const characters = spoken.reduce(
     (sum, frame) => sum + frame.voiceover.trim().length,
     0,

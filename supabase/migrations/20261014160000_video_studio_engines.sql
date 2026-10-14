@@ -4,6 +4,16 @@
 
 drop function if exists public.queue_video_clips(uuid, uuid[], text, jsonb, uuid);
 
+-- At most one queued or running paid job per scene (clip, voice) and per project (music,
+-- render). The queue functions insert with ON CONFLICT DO NOTHING against these, so a
+-- double click or two tabs can never queue (and pay for) the same generation twice.
+create unique index if not exists marketing_runs_one_active_scene_job
+  on public.marketing_runs (scene_id, kind)
+  where scene_id is not null and status in ('queued', 'running') and kind in ('clip', 'voice');
+create unique index if not exists marketing_runs_one_active_item_job
+  on public.marketing_runs (item_id, kind)
+  where scene_id is null and status in ('queued', 'running') and kind in ('music', 'render');
+
 create or replace function public.queue_video_clips(
   p_item_id uuid,
   p_scene_ids uuid[],
@@ -76,6 +86,9 @@ begin
         'estimate', coalesce(p_estimate, '{}'::jsonb)
       )
     from picked
+    on conflict (scene_id, kind)
+      where scene_id is not null and status in ('queued', 'running') and kind in ('clip', 'voice')
+      do nothing
     returning *
   ),
   marked as (
@@ -153,6 +166,9 @@ begin
         'estimate', coalesce(p_estimate, '{}'::jsonb)
       )
     )
+    on conflict (item_id, kind)
+      where scene_id is null and status in ('queued', 'running') and kind in ('music', 'render')
+      do nothing
     returning *;
     return;
   end if;
@@ -189,6 +205,9 @@ begin
       'estimate', coalesce(p_estimate, '{}'::jsonb)
     )
   from picked
+  on conflict (scene_id, kind)
+    where scene_id is not null and status in ('queued', 'running') and kind in ('clip', 'voice')
+    do nothing
   returning *;
 end;
 $$;

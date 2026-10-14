@@ -86,4 +86,12 @@ export function createSupabaseRest({ url, serviceRoleKey }) {
   };
 }
 
-const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
+/** Encodes an object path; . and .. segments are refused so a path cannot leave its folder. */
+const encodePath = (path) => {
+  const segments = String(path).split("/");
+  if (
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  )
+    throw new Error(`invalid storage path: ${String(path).slice(0, 120)}`);
+  return segments.map(encodeURIComponent).join("/");
+};

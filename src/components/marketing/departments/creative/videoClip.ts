@@ -50,7 +50,14 @@ export const framesToAnimate = (frames: StoryboardFrame[]) =>
     );
 
 /** Fields only the generation jobs change; live updates may overwrite them in a draft. */
-const JOB_FIELDS = ["status", "clipAssetId", "clipPath", "clipStale"] as const;
+const JOB_FIELDS = [
+  "status",
+  "clipAssetId",
+  "clipPath",
+  "clipStale",
+  "voiceAssetId",
+  "voiceText",
+] as const;
 
 /**
  * The draft after the server storyboard changed. An unedited draft takes the server

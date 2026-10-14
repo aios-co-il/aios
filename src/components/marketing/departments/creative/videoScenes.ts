@@ -3,7 +3,7 @@ import type { StoryboardFrame, VideoSceneStatus } from "./types";
 
 /** Columns the storyboard editor reads from marketing_video_scenes. */
 export const VIDEO_SCENE_COLUMNS =
-  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,motion_prompt,duration_s,still_asset_id,clip_asset_id,clip_stale,status,locked,meta";
+  "id,item_id,position,title,shot,visual_prompt,overlay_text,voiceover_text,motion_prompt,duration_s,still_asset_id,clip_asset_id,voice_asset_id,clip_stale,status,locked,meta";
 
 export interface VideoSceneRecord {
   id: string;
@@ -18,6 +18,7 @@ export interface VideoSceneRecord {
   duration_s: number | string;
   still_asset_id: string | null;
   clip_asset_id?: string | null;
+  voice_asset_id?: string | null;
   clip_stale?: boolean;
   status?: VideoSceneStatus;
   locked?: boolean;
@@ -106,6 +107,11 @@ export function scenesToFrames(
       if (row.clip_asset_id) frame.clipAssetId = row.clip_asset_id;
       if (clip?.url) frame.clipPath = clip.url;
       if (row.clip_stale) frame.clipStale = true;
+      if (row.voice_asset_id) {
+        frame.voiceAssetId = row.voice_asset_id;
+        const spoken = asRecord(assetsById.get(row.voice_asset_id)?.meta).text;
+        if (typeof spoken === "string") frame.voiceText = spoken;
+      }
       const cost = generationCostOf(still?.meta);
       if (cost) frame.generationCost = cost;
       return frame;

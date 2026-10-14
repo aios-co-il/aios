@@ -1,4 +1,4 @@
-/** The edit decision list shared by the ffmpeg assembly and the Remotion composition. */
+/** The edit decision list the ffmpeg assembly renders. */
 
 export const FRAME_SIZE = {
   "16:9": [1280, 720],
