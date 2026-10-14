@@ -11,7 +11,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -103,9 +102,11 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
     );
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-280px)]" dir="rtl">
+    // Content-height layout (no viewport-height container) so it fits embedded
+    // panels; the tree and list scroll independently only when long.
+    <div className="flex gap-4 items-start" dir="rtl">
       {/* Tree */}
-      <Card className="w-56 shrink-0 overflow-auto p-2 space-y-0.5">
+      <Card className="w-56 shrink-0 max-h-[65vh] overflow-auto p-2 space-y-0.5">
         <button
           className={cn(
             "w-full text-right text-sm px-2 py-1.5 rounded hover:bg-muted",
@@ -173,7 +174,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
       </Card>
 
       {/* List */}
-      <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="relative">
           <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -183,7 +184,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <ScrollArea className="flex-1">
+        <div className="max-h-[65vh] overflow-y-auto">
           <div className="space-y-1.5">
             {filtered.map((m) => (
               <Card
@@ -242,7 +243,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Detail dialog */}
@@ -280,7 +281,8 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
 
 export function AgentLearningTab({ agent }: { agent: any }) {
   if (isCarmenName(agent.name)) {
-    return <CarmenInsights />;
+    // Rendered inside an agent-settings tab — never as a standalone page.
+    return <CarmenInsights embedded />;
   }
   return (
     <div className="space-y-3" dir="rtl">

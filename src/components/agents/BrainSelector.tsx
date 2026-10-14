@@ -30,6 +30,8 @@ interface BrainSelectorProps {
   disabled?: boolean;
   /** When true — shows all catalog models (not just connected ones). Default: false */
   showAll?: boolean;
+  /** When provided, "connect API key" actions call this instead of navigating to /llm-settings (e.g. when embedded in Carmen's screen). */
+  onManageKeys?: () => void;
 }
 
 const FAMILY_LABEL: Record<string, string> = {
@@ -67,9 +69,14 @@ export function BrainSelector({
   onChange,
   disabled,
   showAll = false,
+  onManageKeys,
 }: BrainSelectorProps) {
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
+  const manageKeys = () => {
+    if (onManageKeys) onManageKeys();
+    else navigate(buildPath("/llm-settings"));
+  };
 
   // Connected models (filtered by configured API keys)
   const {
@@ -156,7 +163,7 @@ export function BrainSelector({
             <button
               type="button"
               className="underline hover:no-underline font-medium"
-              onClick={() => navigate(buildPath("/llm-settings"))}
+              onClick={manageKeys}
             >
               חבר מפתח API
             </button>
@@ -176,7 +183,7 @@ export function BrainSelector({
             variant="outline"
             size="sm"
             className="h-6 text-xs gap-1"
-            onClick={() => navigate(buildPath("/llm-settings"))}
+            onClick={manageKeys}
           >
             <ExternalLink className="h-3 w-3" />
             חבר

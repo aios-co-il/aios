@@ -57,7 +57,14 @@ const PROVIDERS = [
 
 type ProviderKey = (typeof PROVIDERS)[number]["key"];
 
-export default function LLMSettings() {
+export type LLMSettingsProps = {
+  /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */
+  embedded?: boolean;
+};
+
+export default function LLMSettings({
+  embedded = false,
+}: LLMSettingsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
@@ -168,30 +175,37 @@ export default function LLMSettings() {
   const connectedCount = PROVIDERS.filter((p) => hasKey(p.key)).length;
 
   return (
-    <div className="container mx-auto p-6 max-w-3xl" dir="rtl">
-      <Button
-        variant="ghost"
-        onClick={() => navigate(buildPath("/integrations"))}
-        className="mb-6"
-      >
-        <ArrowRight className="h-4 w-4 ml-2" />
-        חזרה לאינטגרציות
-      </Button>
+    <div
+      className={embedded ? "w-full" : "container mx-auto p-6 max-w-3xl"}
+      dir="rtl"
+    >
+      {!embedded && (
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(buildPath("/integrations"))}
+            className="mb-6"
+          >
+            <ArrowRight className="h-4 w-4 ml-2" />
+            חזרה לאינטגרציות
+          </Button>
 
-      <div className="mb-8 flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600">
-          <Brain className="h-6 w-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold">מודלי AI (LLMs)</h1>
-          <p className="text-muted-foreground">
-            חבר את מפתחות ה-API שלך ל-GPT, Claude ו-Gemini. הסוכנים (כולל כרמן)
-            ישתמשו במפתחות אלה כ"מוח".
-          </p>
-        </div>
-      </div>
+          <div className="mb-8 flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600">
+              <Brain className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">מודלי AI (LLMs)</h1>
+              <p className="text-muted-foreground">
+                חבר את מפתחות ה-API שלך ל-GPT, Claude ו-Gemini. הסוכנים (כולל
+                כרמן) ישתמשו במפתחות אלה כ"מוח".
+              </p>
+            </div>
+          </div>
+        </>
+      )}
 
-      <Alert className="mb-6">
+      <Alert className={embedded ? "mb-4" : "mb-6"}>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
           המפתחות נשמרים ב-Supabase של הארגון שלך ומשמשים את הסוכנים בלבד. מספיק

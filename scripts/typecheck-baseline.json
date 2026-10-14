@@ -1838,34 +1838,6 @@
       "count": 1
     },
     {
-      "file": "src/pages/AgentTasksPage.tsx",
-      "code": 2339,
-      "message": "Property 'campaign_pulse_deliver_to_campaigners' does not exist on type '{ active_hours_end: number; active_hours_start: number; allowed_actions: Json; campaign_pulse_enabled: boolean; campaign_pulse_last_sent_at: string | null; campaign_pulse_phone: string | null; enabled: boolean; interval_hours: number; tenant_id: string; updated_at: string; }'.",
-      "source": "campaign_pulse_deliver_to_campaigners",
-      "count": 2
-    },
-    {
-      "file": "src/pages/AgentTasksPage.tsx",
-      "code": 2339,
-      "message": "Property 'campaign_pulse_deliver_to_team_managers' does not exist on type '{ active_hours_end: number; active_hours_start: number; allowed_actions: Json; campaign_pulse_enabled: boolean; campaign_pulse_last_sent_at: string | null; campaign_pulse_phone: string | null; enabled: boolean; interval_hours: number; tenant_id: string; updated_at: string; }'.",
-      "source": "campaign_pulse_deliver_to_team_managers",
-      "count": 2
-    },
-    {
-      "file": "src/pages/AgentTasksPage.tsx",
-      "code": 2339,
-      "message": "Property 'pulse_alert_rules' does not exist on type '{ active_hours_end: number; active_hours_start: number; allowed_actions: Json; campaign_pulse_enabled: boolean; campaign_pulse_last_sent_at: string | null; campaign_pulse_phone: string | null; enabled: boolean; interval_hours: number; tenant_id: string; updated_at: string; }'.",
-      "source": "pulse_alert_rules",
-      "count": 1
-    },
-    {
-      "file": "src/pages/AgentTasksPage.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ active_hours_end?: number | undefined; active_hours_start?: number | undefined; allowed_actions?: Json | undefined; campaign_pulse_enabled?: boolean | undefined; ... 5 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ updated_at: string; enabled: boolean; interval_hours: number; active_hours_start: number; active_hours_end: number; allowed_actions: string[]; campaign_pulse_enabled?: boolean; ... 4 more ...; tenant_id: string; }' is not assignable to parameter of type 'RejectExcessProperties<{ active_hours_end?: number | undefined; active_hours_start?: number | undefined; allowed_actions?: Json | undefined; campaign_pulse_enabled?: boolean | undefined; campaign_pulse_last_sent_at?: string | ... 1 more ... | undefined; ... 4 more ...; updated_at?: string | undefined; }, { ...; }>'.\n      Type '{ updated_at: string; enabled: boolean; interval_hours: number; active_hours_start: number; active_hours_end: number; allowed_actions: string[]; campaign_pulse_enabled?: boolean; ... 4 more ...; tenant_id: string; }' is not assignable to type '{ campaign_pulse_deliver_to_campaigners: never; campaign_pulse_deliver_to_team_managers: never; pulse_alert_rules: never; }'.\n        Types of property 'campaign_pulse_deliver_to_campaigners' are incompatible.\n          Type 'boolean | undefined' is not assignable to type 'never'.\n            Type 'undefined' is not assignable to type 'never'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ active_hours_end?: number | undefined; active_hours_start?: number | undefined; allowed_actions?: Json | undefined; campaign_pulse_enabled?: boolean | undefined; ... 5 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'updated_at' does not exist in type 'RejectExcessProperties<{ active_hours_end?: number | undefined; active_hours_start?: number | undefined; allowed_actions?: Json | undefined; campaign_pulse_enabled?: boolean | undefined; campaign_pulse_last_sent_at?: string | ... 1 more ... | undefined; ... 4 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "upsert",
-      "count": 1
-    },
-    {
       "file": "src/pages/Auth.tsx",
       "code": 2339,
       "message": "Property 'currentLevel' does not exist on type '{ currentLevel: AuthenticatorAssuranceLevels | null; nextLevel: AuthenticatorAssuranceLevels | null; currentAuthenticationMethods: string[] | AMREntry[]; } | null'.",

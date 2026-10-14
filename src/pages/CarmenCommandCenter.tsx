@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, History, Settings } from "lucide-react";
+import {
+  ArrowRight,
+  History,
+  LayoutDashboard,
+  ListTodo,
+  MessageSquare,
+  Settings,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import type { CarmenFaceState } from "@/components/carmen-command/CarmenFace";
 import { CarmenDashboardView } from "@/components/carmen-command/CarmenDashboardView";
-import { DevTasksCommandCenterView } from "@/components/carmen-command/DevTasksCommandCenterView";
-import { GoalsCommandCenterView } from "@/components/carmen-command/GoalsCommandCenterView";
 import {
   AgentSeatSelect,
   AgentSeatStatus,
 } from "@/components/carmen-command/AgentSeatRail";
-import {
-  CARMEN_SETTINGS_SECTIONS,
-  CarmenSettingsSheet,
-  type CarmenSettingsSection,
-} from "@/components/carmen-command/CarmenSettingsSheet";
-import { CarmenTasksMenu } from "@/components/carmen-command/CarmenTasksMenu";
+import { CarmenPanel } from "@/components/carmen-command/CarmenPanel";
+import { useCarmenTasks } from "@/components/carmen-command/useCarmenTasks";
+import { countRunning } from "@/lib/carmenTaskRows";
 import {
   CarmenChatBar,
   CarmenChatBarHandle,
@@ -29,18 +31,15 @@ import type { HudStage } from "@/lib/agentChannelRouting";
 
 import "@/components/carmen-command/command-center.css";
 
-export type CommandCenterViewMode =
-  "agents" | "dashboard" | "dev_tasks" | "goals";
+export type CommandCenterViewMode = "agents" | "dashboard";
 
 const VIEW_MODE_KEY = "aios:cc-view-mode";
 
 function readViewMode(): CommandCenterViewMode {
   try {
     const v = localStorage.getItem(VIEW_MODE_KEY);
-    if (v === "dashboard") return "dashboard";
-    if (v === "dev_tasks") return "dev_tasks";
-    if (v === "goals") return "goals";
-    return "agents";
+    // Goals and dev tasks moved into the tasks panel.
+    return v === "dashboard" ? "dashboard" : "agents";
   } catch {
     return "agents";
   }
@@ -79,8 +78,8 @@ function Clock({ compact = false }: { compact?: boolean }) {
 /**
  * Carmen — one screen for everything Carmen:
  * - clean chat with collapsible chat history
- * - ⚙️ settings sheet (?settings=<section>) holding every agent tab
- * - ▾ tasks menu: Carmen tasks, goals, dev tasks, dashboard view
+ * - one right-side panel (?panel=<path>) for every task kind and every
+ *   setting, so nothing navigates away from this screen
  *
  * Carmen system-fix sidecar lives in AppLayout (outside this page).
  */
@@ -100,18 +99,25 @@ export default function CarmenCommandCenter() {
   const brain = useBrainChannel(tenantId);
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const settingsParam = searchParams.get("settings");
-  const settingsOpen = settingsParam !== null;
-  const settingsSection =
-    CARMEN_SETTINGS_SECTIONS.find((s) => s.value === settingsParam)?.value ??
-    null;
-  const setSettings = useCallback(
-    (value: CarmenSettingsSection | "" | null) => {
+  // One right-side panel for tasks + settings: ?panel=<path>. The legacy
+  // ?settings=<section> link (agent editor, old bookmarks) maps onto it.
+  const legacySettings = searchParams.get("settings");
+  const panelParam =
+    searchParams.get("panel") ??
+    (legacySettings === null
+      ? null
+      : legacySettings
+        ? `settings/${legacySettings}`
+        : "");
+  const panelOpen = panelParam !== null;
+  const setPanel = useCallback(
+    (value: string | null) => {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          if (value === null) next.delete("settings");
-          else next.set("settings", value);
+          next.delete("settings");
+          if (value === null) next.delete("panel");
+          else next.set("panel", value);
           return next;
         },
         { replace: true },
@@ -119,6 +125,8 @@ export default function CarmenCommandCenter() {
     },
     [setSearchParams],
   );
+  const { data: tasksData } = useCarmenTasks(tenantId);
+  const runningCount = countRunning(tasksData?.rows ?? []);
 
   const flashAlert = useCallback(() => {
     setFaceState((prev) => {
@@ -194,14 +202,11 @@ export default function CarmenCommandCenter() {
     return <Navigate to={tenantSlug ? `/t/${tenantSlug}` : "/"} replace />;
 
   const isDashboard = viewMode === "dashboard";
-  const isDevTasks = viewMode === "dev_tasks";
-  const isGoals = viewMode === "goals";
-  const isSpecialView = isDevTasks || isGoals;
 
   return (
     <div
       dir="rtl"
-      className={`cc-root relative flex flex-col overflow-hidden font-heebo${isDashboard ? " is-dashboard" : ""}${isDevTasks ? " is-dev-tasks" : ""}${isGoals ? " is-goals" : ""}`}
+      className={`cc-root relative flex flex-col overflow-hidden font-heebo${isDashboard ? " is-dashboard" : ""}`}
     >
       <header className="cc-header-bar shrink-0">
         <div className="cc-header-bar__brand flex min-w-0 items-center gap-1.5 sm:gap-2">
@@ -213,7 +218,13 @@ export default function CarmenCommandCenter() {
             <ArrowRight className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">חזרה</span>
           </Link>
-          {!isDashboard && !isSpecialView && (
+          <h1 className="cc-title hidden text-sm font-bold text-[var(--cc-accent)] sm:block sm:text-base">
+            כרמן
+          </h1>
+          <span className="hidden text-[10px] tracking-[0.12em] text-[var(--cc-text-dim)] md:inline">
+            מנהלת שיווק
+          </span>
+          {!isDashboard && (
             <button
               type="button"
               onClick={() => setChatsOpen((v) => !v)}
@@ -224,21 +235,33 @@ export default function CarmenCommandCenter() {
               <span className="hidden sm:inline">צ׳אטים</span>
             </button>
           )}
-          <h1 className="cc-title hidden text-sm font-bold text-[var(--cc-accent)] sm:block sm:text-base">
-            כרמן
-          </h1>
-          <span className="hidden text-[10px] tracking-[0.12em] text-[var(--cc-text-dim)] md:inline">
-            מנהלת שיווק
-          </span>
+          <button
+            type="button"
+            onClick={() => setPanel("tasks")}
+            title="משימות כרמן"
+            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${panelOpen && panelParam?.startsWith("task") ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"}`}
+          >
+            <ListTodo className="h-4 w-4" />
+            <span className="hidden sm:inline">משימות</span>
+            {runningCount > 0 && (
+              <span className="rounded-full bg-[var(--cc-accent)] px-1.5 text-[10px] font-bold text-black">
+                {runningCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanel("")}
+            title="הגדרות כרמן"
+            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${panelOpen && !panelParam?.startsWith("task") ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"}`}
+          >
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">הגדרות</span>
+          </button>
         </div>
 
         <div className="cc-header-bar__tools flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <CarmenTasksMenu
-            tenantId={tenantId}
-            viewMode={viewMode}
-            onViewModeChange={switchViewMode}
-          />
-          {!isDashboard && !isSpecialView && (
+          {!isDashboard && (
             <AgentSeatSelect
               routes={brain.routes}
               selected={brain.selected}
@@ -246,17 +269,20 @@ export default function CarmenCommandCenter() {
               className="h-8 w-36 text-xs sm:w-44"
             />
           )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             type="button"
-            onClick={() => setSettings("")}
-            title="הגדרות כרמן"
-            className={`cc-header-btn flex items-center gap-1 rounded-md border px-2 text-xs ${settingsOpen ? "border-[var(--cc-line-strong)] text-[var(--cc-accent)]" : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"}`}
+            onClick={() => switchViewMode(isDashboard ? "agents" : "dashboard")}
+            title={isDashboard ? "חזרה לצ׳אט" : "לוח בקרה"}
+            className="cc-header-btn flex items-center gap-1 rounded-md border border-[var(--cc-line)] px-2 text-xs text-[var(--cc-text-dim)] hover:border-[var(--cc-line-strong)]"
           >
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">הגדרות</span>
+            {isDashboard ? (
+              <MessageSquare className="h-4 w-4" />
+            ) : (
+              <LayoutDashboard className="h-4 w-4" />
+            )}
+            <span className="hidden md:inline">
+              {isDashboard ? "צ׳אט" : "לוח בקרה"}
+            </span>
           </button>
           <div className="hidden sm:block">
             <Clock compact />
@@ -276,11 +302,7 @@ export default function CarmenCommandCenter() {
         />
       )}
 
-      {isGoals ? (
-        <GoalsCommandCenterView tenantId={tenantId} />
-      ) : isDevTasks ? (
-        <DevTasksCommandCenterView tenantId={tenantId} />
-      ) : isDashboard ? (
+      {isDashboard ? (
         <CarmenDashboardView
           tenantId={tenantId}
           faceState={faceState}
@@ -304,11 +326,11 @@ export default function CarmenCommandCenter() {
         </div>
       )}
 
-      <CarmenSettingsSheet
-        open={settingsOpen}
-        onOpenChange={(open) => setSettings(open ? "" : null)}
-        section={settingsSection}
-        onSectionChange={(sec) => setSettings(sec ?? "")}
+      <CarmenPanel
+        open={panelOpen}
+        path={panelParam ?? ""}
+        onNavigate={setPanel}
+        onClose={() => setPanel(null)}
         tenantId={tenantId}
       />
 

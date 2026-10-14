@@ -155,7 +155,15 @@ function SkinCard({
   );
 }
 
-export default function SkinsManager() {
+export interface SkinsManagerProps {
+  /**
+   * Render inside a host panel/tab (e.g. Carmen's screen): no page container,
+   * no h1 page header, and no viewport-height scroll area — the host scrolls.
+   */
+  embedded?: boolean;
+}
+
+export default function SkinsManager({ embedded = false }: SkinsManagerProps) {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Partial<Skin> | null>(null);
@@ -241,67 +249,82 @@ export default function SkinsManager() {
       handoff_slugs: [],
     });
 
+  const catalog = (
+    <div className={embedded ? "space-y-6" : "space-y-6 pl-2"}>
+      {tenantSkins.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-right flex items-center gap-1.5 justify-end">
+            <Building2 className="h-4 w-4" />
+            סקינז של הארגון ({tenantSkins.length})
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {tenantSkins.map((s) => (
+              <SkinCard
+                key={s.id}
+                skin={s}
+                onEdit={setEditing}
+                onClone={cloneToTenant}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-right flex items-center gap-1.5 justify-end">
+          <Globe className="h-4 w-4" />
+          קטלוג גלובלי ({globals.length})
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          {globals.map((s) => (
+            <SkinCard
+              key={s.id}
+              skin={s}
+              onEdit={setEditing}
+              onClone={cloneToTenant}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between">
-        <Button onClick={newSkin} className="gap-1.5">
+    <div
+      className={
+        embedded ? "space-y-4" : "p-4 md:p-6 space-y-6 max-w-6xl mx-auto"
+      }
+      dir="rtl"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <Button onClick={newSkin} className="gap-1.5 shrink-0">
           <Plus className="h-4 w-4" />
           סקין חדש
         </Button>
-        <div className="text-right">
-          <h1 className="text-2xl font-bold flex items-center gap-2 justify-end">
-            <Sparkles className="h-6 w-6 text-orange-500" />
-            סקינז
-          </h1>
-          <p className="text-sm text-muted-foreground">
+        {embedded ? (
+          <p className="text-sm text-muted-foreground text-right">
             תפקידים שהסוכן לובש לפי המשימה — קופי, SEO, קמפיינר, כספים ועוד.
           </p>
-        </div>
+        ) : (
+          <div className="text-right">
+            <h1 className="text-2xl font-bold flex items-center gap-2 justify-end">
+              <Sparkles className="h-6 w-6 text-orange-500" />
+              סקינז
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              תפקידים שהסוכן לובש לפי המשימה — קופי, SEO, קמפיינר, כספים ועוד.
+            </p>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
+      ) : embedded ? (
+        catalog
       ) : (
-        <ScrollArea className="h-[calc(100vh-180px)]">
-          <div className="space-y-6 pl-2">
-            {tenantSkins.length > 0 && (
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-right flex items-center gap-1.5 justify-end">
-                  <Building2 className="h-4 w-4" />
-                  סקינז של הארגון ({tenantSkins.length})
-                </h2>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {tenantSkins.map((s) => (
-                    <SkinCard
-                      key={s.id}
-                      skin={s}
-                      onEdit={setEditing}
-                      onClone={cloneToTenant}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-right flex items-center gap-1.5 justify-end">
-                <Globe className="h-4 w-4" />
-                קטלוג גלובלי ({globals.length})
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {globals.map((s) => (
-                  <SkinCard
-                    key={s.id}
-                    skin={s}
-                    onEdit={setEditing}
-                    onClone={cloneToTenant}
-                  />
-                ))}
-              </div>
-            </section>
-          </div>
-        </ScrollArea>
+        <ScrollArea className="h-[calc(100vh-180px)]">{catalog}</ScrollArea>
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

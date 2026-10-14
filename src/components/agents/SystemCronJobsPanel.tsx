@@ -70,7 +70,17 @@ interface CronJob {
   fail_count_7d: number;
 }
 
-export function SystemCronJobsPanel() {
+export interface SystemCronJobsPanelProps {
+  /**
+   * Render inside a host panel (e.g. Carmen's screen): the history list drops
+   * its fixed viewport-height and scrolls within the history sheet instead.
+   */
+  embedded?: boolean;
+}
+
+export function SystemCronJobsPanel({
+  embedded = false,
+}: SystemCronJobsPanelProps = {}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [editing, setEditing] = useState<CronJob | null>(null);
@@ -393,20 +403,35 @@ export function SystemCronJobsPanel() {
         open={!!historyJob}
         onOpenChange={(o) => !o && setHistoryJob(null)}
       >
-        <SheetContent side="left" className="w-full sm:max-w-lg" dir="rtl">
+        {/* Always opens on the right (RTL app; stacks over a right-side host panel). */}
+        <SheetContent
+          side="right"
+          className={
+            embedded ? "w-full sm:max-w-lg flex flex-col" : "w-full sm:max-w-lg"
+          }
+          dir="rtl"
+        >
           <SheetHeader>
             <SheetTitle>
               היסטוריה — {historyJob && getCronMeta(historyJob.jobname).label}
             </SheetTitle>
           </SheetHeader>
-          {historyJob && <HistoryList jobid={historyJob.jobid} />}
+          {historyJob && (
+            <HistoryList jobid={historyJob.jobid} embedded={embedded} />
+          )}
         </SheetContent>
       </Sheet>
     </div>
   );
 }
 
-function HistoryList({ jobid }: { jobid: number }) {
+function HistoryList({
+  jobid,
+  embedded = false,
+}: {
+  jobid: number;
+  embedded?: boolean;
+}) {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["cron-history", jobid],
     queryFn: async () => {
@@ -431,7 +456,11 @@ function HistoryList({ jobid }: { jobid: number }) {
     );
 
   return (
-    <ScrollArea className="h-[calc(100vh-120px)] mt-4">
+    <ScrollArea
+      className={
+        embedded ? "flex-1 min-h-0 mt-4" : "h-[calc(100vh-120px)] mt-4"
+      }
+    >
       <div className="space-y-2 pl-2">
         {rows.map((r: any) => {
           const ok = r.status === "succeeded";

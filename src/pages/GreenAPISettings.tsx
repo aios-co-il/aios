@@ -48,7 +48,14 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export default function GreenAPISettings() {
+export type GreenAPISettingsProps = {
+  /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */
+  embedded?: boolean;
+};
+
+export default function GreenAPISettings({
+  embedded = false,
+}: GreenAPISettingsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
@@ -320,6 +327,13 @@ export default function GreenAPISettings() {
       queryClient.invalidateQueries({
         queryKey: ["chat-integrations", tenantId],
       });
+      if (embedded) {
+        // Stay on the host screen: the refetch drops the reassigned
+        // integration, so clear the now-stale form instead of navigating.
+        setInstanceId("");
+        setApiToken("");
+        return;
+      }
       // Navigate back since user no longer owns this integration
       navigate(buildPath("/chat-integrations"));
     },
@@ -343,32 +357,47 @@ export default function GreenAPISettings() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl" dir="rtl">
-      <Button
-        variant="ghost"
-        onClick={() => navigate(buildPath("/chat-integrations"))}
-        className="mb-6"
-      >
-        <ArrowRight className="h-4 w-4 ml-2" />
-        חזרה לאינטגרציות
-      </Button>
+    <div
+      className={embedded ? "w-full" : "container mx-auto p-6 max-w-4xl"}
+      dir="rtl"
+    >
+      {!embedded && (
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(buildPath("/chat-integrations"))}
+            className="mb-6"
+          >
+            <ArrowRight className="h-4 w-4 ml-2" />
+            חזרה לאינטגרציות
+          </Button>
 
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-green-600">
-            <Webhook className="h-6 w-6 text-white" />
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-green-600">
+                <Webhook className="h-6 w-6 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold">הגדרות Green API</h1>
+            </div>
+            <p className="text-muted-foreground">
+              חבר את המערכת ל-WhatsApp Business באמצעות Green API
+            </p>
           </div>
-          <h1 className="text-3xl font-bold">הגדרות Green API</h1>
-        </div>
-        <p className="text-muted-foreground">
-          חבר את המערכת ל-WhatsApp Business באמצעות Green API
-        </p>
-      </div>
+        </>
+      )}
 
       {integration?.is_active && (
-        <Card className="mb-6 border-green-500/20 bg-green-500/5">
+        <Card
+          className={`${embedded ? "mb-4" : "mb-6"} border-green-500/20 bg-green-500/5`}
+        >
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div
+              className={
+                embedded
+                  ? "flex items-center justify-between gap-3 flex-wrap"
+                  : "flex items-center justify-between"
+              }
+            >
               <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="font-semibold">

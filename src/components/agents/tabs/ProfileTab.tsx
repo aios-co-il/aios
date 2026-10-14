@@ -46,7 +46,14 @@ function isCarmen(name: string) {
   return n.includes("carmen") || name?.includes("כרמן");
 }
 
-export function ProfileTab({ agent }: { agent: any }) {
+export function ProfileTab({
+  agent,
+  onManageKeys,
+}: {
+  agent: any;
+  /** Forwarded to BrainSelector — replaces navigation to /llm-settings when provided. */
+  onManageKeys?: () => void;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const carmen = isCarmen(agent.name);
@@ -273,6 +280,7 @@ export function ProfileTab({ agent }: { agent: any }) {
           <Field label="המוח (LLM)" hint="ניתן לעדכן כאן או בכותרת">
             <BrainSelector
               value={agent.engine}
+              onManageKeys={onManageKeys}
               onChange={async (engine) => {
                 await supabase
                   .from("ai_agents")

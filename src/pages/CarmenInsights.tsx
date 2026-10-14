@@ -57,9 +57,18 @@ const CATEGORY_META: Record<
   },
 };
 
+export interface CarmenInsightsProps {
+  /**
+   * Render inside a host panel/tab (e.g. Carmen's screen / AgentLearningTab):
+   * no page container or h1 page header, and the conversation sheet opens on
+   * the right (RTL) so it stacks over the host panel.
+   */
+  embedded?: boolean;
+}
+
 export { CarmenInsights };
 export default CarmenInsights;
-function CarmenInsights() {
+function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const [tab, setTab] = useState("sessions");
   const [openSession, setOpenSession] = useState<any | null>(null);
@@ -224,17 +233,26 @@ function CarmenInsights() {
   }, [sessions, episodes, pointers]);
 
   return (
-    <div className="container mx-auto py-6 space-y-6" dir="rtl">
+    <div
+      className={embedded ? "space-y-4" : "container mx-auto py-6 space-y-6"}
+      dir="rtl"
+    >
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Brain className="text-primary" />
-            למידה עצמית של כרמן
-          </h1>
-          <p className="text-muted-foreground mt-1">
+        {embedded ? (
+          <p className="text-sm text-muted-foreground">
             כרמן לומדת אוטומטית מכל שיחה שנסגרת ומשפרת את עצמה
           </p>
-        </div>
+        ) : (
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Brain className="text-primary" />
+              למידה עצמית של כרמן
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              כרמן לומדת אוטומטית מכל שיחה שנסגרת ומשפרת את עצמה
+            </p>
+          </div>
+        )}
         <Button
           onClick={backfillAll}
           disabled={backfilling || sessions.length === 0}
@@ -467,7 +485,10 @@ function CarmenInsights() {
         open={!!openSession}
         onOpenChange={(o) => !o && setOpenSession(null)}
       >
-        <SheetContent className="sm:max-w-2xl" side="left">
+        <SheetContent
+          className="sm:max-w-2xl"
+          side={embedded ? "right" : "left"}
+        >
           <SheetHeader>
             <SheetTitle>
               {openSession?.sender_name || openSession?.phone}

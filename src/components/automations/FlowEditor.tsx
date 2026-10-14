@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -32,6 +33,7 @@ import {
   ZoomIn,
   ZoomOut,
   ArrowRight,
+  X,
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData } from "./FlowNode";
@@ -86,13 +88,42 @@ function toRFNode(
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function FlowEditor() {
-  const { automationId } = useParams<{ automationId: string }>();
+export interface FlowEditorProps {
+  /** Overrides the `:automationId` route param (used when embedded outside the route). */
+  automationId?: string;
+  /** When provided, back/close actions call this instead of navigating to /automations. */
+  onClose?: () => void;
+  /** Extra classes for the root container. */
+  className?: string;
+}
+
+export default function FlowEditor({
+  automationId: automationIdProp,
+  onClose,
+  className,
+}: FlowEditorProps = {}) {
+  const { automationId: routeAutomationId } = useParams<{
+    automationId: string;
+  }>();
+  const automationId = automationIdProp ?? routeAutomationId;
+  // Embedded (e.g. inside a full-screen Dialog): fill the container instead of
+  // assuming we sit under the app shell's 4rem header, and never leave the host screen.
+  const embedded = !!onClose || automationIdProp !== undefined;
+  const heightClass = embedded ? "h-full" : "h-[calc(100vh-4rem)]";
   const { tenantId } = useCurrentTenant();
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    navigate(buildPath("/automations"));
+  }, [onClose, navigate, buildPath]);
+  const backLabel = onClose ? "סגירה" : "חזרה לרשימת אוטומציות";
 
   const [automationName, setAutomationName] = useState("אוטומציה חדשה");
   const [automationActive, setAutomationActive] = useState(true);
@@ -753,7 +784,13 @@ export default function FlowEditor() {
 
   if (!tenantId) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+      <div
+        className={cn(
+          "flex items-center justify-center",
+          heightClass,
+          className,
+        )}
+      >
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -766,18 +803,19 @@ export default function FlowEditor() {
       "שגיאה בטעינת האוטומציה";
     return (
       <div
-        className="flex flex-col items-center justify-center gap-4 h-[calc(100vh-4rem)] p-8 text-center"
+        className={cn(
+          "flex flex-col items-center justify-center gap-4 p-8 text-center",
+          heightClass,
+          className,
+        )}
         dir="rtl"
       >
         <p className="text-muted-foreground">לא הצלחנו לפתוח את עורך הפלוו.</p>
         <p className="text-xs text-muted-foreground font-mono max-w-lg break-all">
           {message}
         </p>
-        <Button
-          variant="outline"
-          onClick={() => navigate(buildPath("/automations"))}
-        >
-          חזרה לרשימת אוטומציות
+        <Button variant="outline" onClick={handleBack}>
+          {backLabel}
         </Button>
       </div>
     );
@@ -786,17 +824,18 @@ export default function FlowEditor() {
   if (automationFetched && !automationLoading && !automation) {
     return (
       <div
-        className="flex flex-col items-center justify-center gap-4 h-[calc(100vh-4rem)] p-8 text-center"
+        className={cn(
+          "flex flex-col items-center justify-center gap-4 p-8 text-center",
+          heightClass,
+          className,
+        )}
         dir="rtl"
       >
         <p className="text-muted-foreground">
           האוטומציה לא נמצאה או שאין לך גישה אליה.
         </p>
-        <Button
-          variant="outline"
-          onClick={() => navigate(buildPath("/automations"))}
-        >
-          חזרה לרשימת אוטומציות
+        <Button variant="outline" onClick={handleBack}>
+          {backLabel}
         </Button>
       </div>
     );
@@ -804,14 +843,20 @@ export default function FlowEditor() {
 
   if (flowLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+      <div
+        className={cn(
+          "flex items-center justify-center",
+          heightClass,
+          className,
+        )}
+      >
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]" dir="rtl">
+    <div className={cn("flex flex-col", heightClass, className)} dir="rtl">
       {isReadOnlyMirror && (
         <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-xs text-amber-700 dark:text-amber-400 text-center">
           אוטומציה זו שותפה אליך מארגון אחר ומוצגת כצפייה בלבד. היא רצה פעם אחת
@@ -823,11 +868,20 @@ export default function FlowEditor() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate(buildPath("/automations"))}
+          onClick={handleBack}
           className="gap-1 text-muted-foreground hover:text-foreground"
         >
-          <ArrowRight className="h-4 w-4" />
-          אוטומציות
+          {onClose ? (
+            <>
+              <X className="h-4 w-4" />
+              סגירה
+            </>
+          ) : (
+            <>
+              <ArrowRight className="h-4 w-4" />
+              אוטומציות
+            </>
+          )}
         </Button>
         <div className="w-px h-5 bg-border" />
         <Input
