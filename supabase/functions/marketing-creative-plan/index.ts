@@ -87,9 +87,21 @@ serve(async (req) => {
       throw new Error("OpenAI API key חסר בהגדרות האינטגרציות");
 
     const payload = (item.payload ?? {}) as Record<string, unknown>;
-    const existingStoryboard = Array.isArray(payload.storyboard)
-      ? payload.storyboard
-      : [];
+    // Scenes live in marketing_video_scenes; payload.storyboard is a frozen pre-migration backup.
+    const { data: existingScenes, error: scenesError } = await admin
+      .from("marketing_video_scenes")
+      .select("title,shot,visual_prompt,overlay_text,voiceover_text,duration_s")
+      .eq("item_id", item.id)
+      .order("position");
+    if (scenesError) throw scenesError;
+    const existingStoryboard = (existingScenes ?? []).map((scene) => ({
+      title: scene.title,
+      shot: scene.shot,
+      visualPrompt: scene.visual_prompt,
+      overlayText: scene.overlay_text,
+      voiceover: scene.voiceover_text,
+      duration: Number(scene.duration_s),
+    }));
     const requestedCount = Math.max(1, Math.min(Number(frame_count) || 4, 10));
     const approvedConcepts = formatApprovedConceptsFromPayload(payload);
     const sourceContext = [
@@ -165,9 +177,36 @@ serve(async (req) => {
       }));
     if (frames.length === 0) throw new Error("כרמן לא החזירה סצנות תקינות");
 
+    // The plan replaces the storyboard: upsert the new scenes, then drop the previous ones.
+    const { error: saveError } = await admin.rpc("save_video_storyboard", {
+      p_item_id: item.id,
+      p_scenes: frames.map((frame: Record<string, unknown>) => ({
+        id: frame.id,
+        position: frame.order,
+        title: frame.title,
+        shot: frame.shot,
+        visual_prompt: frame.visualPrompt,
+        overlay_text: frame.overlayText,
+        voiceover_text: frame.voiceover,
+        duration_s: frame.duration,
+        canvas: { x: frame.x, y: frame.y },
+      })),
+    });
+    if (saveError) throw saveError;
+    const { error: replaceError } = await admin
+      .from("marketing_video_scenes")
+      .delete()
+      .eq("item_id", item.id)
+      .not(
+        "id",
+        "in",
+        `(${frames.map((frame: Record<string, unknown>) => frame.id).join(",")})`,
+      );
+    if (replaceError) throw replaceError;
+
     const nextPayload = {
       ...payload,
-      storyboard: frames,
+      project_type: "video",
       creative_concept: plan.concept ?? {},
       creative_prompt: prompt ?? "",
       department: "creative",
