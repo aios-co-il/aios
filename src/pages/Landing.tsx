@@ -185,16 +185,10 @@ export default function Landing() {
           <Link onClick={() => setMenu(false)} to="/auth">
             התחברות
           </Link>
-          <Link onClick={() => setMenu(false)} to="/signup">
-            הרשמה
-          </Link>
         </nav>
         <div className="carmen-account-actions">
           <Link className="nav-cta" to="/auth">
             התחברות
-          </Link>
-          <Link className="nav-cta" to="/signup">
-            הרשמה
           </Link>
           <a
             className="nav-cta carmen-whatsapp-nav"
