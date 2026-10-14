@@ -127,7 +127,11 @@ export default function CarmenAccess() {
     key: string,
   ) => {
     const next = new Set(set);
-    next.has(key) ? next.delete(key) : next.add(key);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
     setter(next);
   };
 
