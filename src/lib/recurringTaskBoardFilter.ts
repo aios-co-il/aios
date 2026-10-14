@@ -52,11 +52,15 @@ export function recurringTaskBelongsInBacklog(
   if (showAllRecurring) {
     const dueDay = startOfDay(new Date(task.due_date));
     const onDueDayWithTime =
-      format(dueDay, "yyyy-MM-dd") === format(today, "yyyy-MM-dd") && Boolean(task.due_time);
+      format(dueDay, "yyyy-MM-dd") === format(today, "yyyy-MM-dd") &&
+      Boolean(task.due_time);
     return !onDueDayWithTime;
   }
   if (isTaskOverdue(task, today)) return true;
-  if (format(startOfDay(new Date(task.due_date)), "yyyy-MM-dd") !== format(today, "yyyy-MM-dd")) {
+  if (
+    format(startOfDay(new Date(task.due_date)), "yyyy-MM-dd") !==
+    format(today, "yyyy-MM-dd")
+  ) {
     return false;
   }
   return !task.due_time;

@@ -35,12 +35,12 @@ JSONB ב-`ai_conversations.messages` נשמר בתקופת המעבר.
 
 ## Edge functions
 
-| Function | JWT | תפקיד |
-|---|---|---|
-| `agent-channel-send` | user JWT נבדק בפנים | נתב + persist |
-| `agent-channel-callback` | HMAC per-session | תשובה אסינכרונית |
-| `agent-channel-mcp` | `AGENT_CHANNEL_MCP_BEARER` (fallback `CURSOR_MCP_BEARER`) | `reply_to_aios_session`, `publish_aios_progress`, `request_aios_approval` |
-| `run-agent-parliament` | user JWT | start/cancel parliament |
+| Function                 | JWT                                                       | תפקיד                                                                     |
+| ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `agent-channel-send`     | user JWT נבדק בפנים                                       | נתב + persist                                                             |
+| `agent-channel-callback` | HMAC per-session                                          | תשובה אסינכרונית                                                          |
+| `agent-channel-mcp`      | `AGENT_CHANNEL_MCP_BEARER` (fallback `CURSOR_MCP_BEARER`) | `reply_to_aios_session`, `publish_aios_progress`, `request_aios_approval` |
+| `run-agent-parliament`   | user JWT                                                  | start/cancel parliament                                                   |
 
 `cursor-mcp` ו-`grok-mcp` חושפים גם `reply_to_aios_session`. `cursor-mcp` חושף `reply_to_cursor_session` (follow-up ל-`bc-…` קיים).
 
@@ -55,10 +55,18 @@ JSONB ב-`ai_conversations.messages` נשמר בתקופת המעבר.
 - `CURSOR_DIRECT_AGENT_ID` / `CURSOR_STICKY_AGENT_ID` — `bc-…` של צ'אט כרמן ישיר
 - `AGENT_CHANNEL_CALLBACK_SECRET` — חתימת callback (fallback: `CURSOR_MCP_BEARER`)
 - `AGENT_CHANNEL_MCP_BEARER` — Bearer ל-MCP של הערוץ
-- `CHATGPT_WORK_AGENT_TRIGGER_ID` (`agtch_…`) + `CHATGPT_WORK_AGENT_TOKEN` — ChatGPT Workspace / Codex Work Mode
+- `CHATGPT_WORK_AGENT_TRIGGER_ID` (UUID מלשונית Triggers; `agtch_…` נתמך כ-legacy) + `CHATGPT_WORK_AGENT_TOKEN` — ChatGPT Workspace / Codex Work Mode
 - `CODEX_WORK_AGENT_TRIGGER_ID` + `CODEX_WORK_AGENT_TOKEN` — אופציונלי אם Codex הוא סוכן workspace נפרד
 
 בלי סודות ChatGPT הערוץ נשאר בבורר ומחזיר הודעת "לא מחובר" במקום להעמיד פני מוח פנימי.
+
+### חיבור Codex (Work Mode) — צד ChatGPT
+
+1. **Workspace Agent פעיל (Published)** ב-ChatGPT — אם הסוכן היה Draft / לא פעיל, ה-trigger מחזיר שגיאה ולא רץ.
+2. **Trigger ID + Token** מלשונית Triggers (UUID; `agtch_…` נתמך כ-legacy) → Edge secrets (`CHATGPT_WORK_AGENT_*` או `CODEX_WORK_AGENT_*`).
+3. **Codex Direct — Workspace Agent API.** `POST …/workspace_agents/{triggerId}/trigger` עם `conversation_key`=`aios:codex:{conversation_id}` ו-`input` לפי `buildCodexWorkspaceAgentInput`. תשובה חוזרת דרך **`reply_to_aios_session`** על **AIOS Agent Channel — Production** או **Staging** (לפי `APP_ENV`) — לא לערבב. ב-Production אין לשים callback tokens ב-`input`.
+4. **Staging:** להעתיק סודות עם `copy-edge-secrets-to-staging` (allowlist כולל `CHATGPT_WORK_*`) — הסקריפט `scripts/sync-agent-credentials.py` מסנכרן גם אותם.
+5. **בדיקה:** Command Center → `channel_health` — `seats.codex.open_chat` / `codex.probe.ok` (GET על ה-trigger id).
 
 ## קול
 

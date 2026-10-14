@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,14 +8,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, MousePointerClick, Eye, Target, Award, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Search,
+  MousePointerClick,
+  Eye,
+  Target,
+  Award,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import { formatGscCtrPercent } from "@/lib/gscFormat";
+import { aggregateGscQueryRows, visibleGscPosition } from "@/lib/gscPosition";
+import { cn } from "@/lib/utils";
 
 interface PublicGscViewProps {
   records: Array<{ id: string; data: Record<string, any> }>;
 }
 
-type GscDateFilter = "last_7_days" | "last_30_days" | "last_90_days" | "last_365_days" | "all";
+type GscDateFilter =
+  "last_7_days" | "last_30_days" | "last_90_days" | "last_365_days" | "all";
 
 const DATE_FILTER_LABELS: Record<GscDateFilter, string> = {
   last_7_days: "7 ימים",
@@ -29,9 +40,13 @@ const DATE_FILTER_LABELS: Record<GscDateFilter, string> = {
 function getCutoffDate(filter: GscDateFilter): string | null {
   if (filter === "all") return null;
   const days =
-    filter === "last_7_days" ? 7 :
-    filter === "last_30_days" ? 30 :
-    filter === "last_90_days" ? 90 : 365;
+    filter === "last_7_days"
+      ? 7
+      : filter === "last_30_days"
+        ? 30
+        : filter === "last_90_days"
+          ? 90
+          : 365;
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split("T")[0];
@@ -43,46 +58,34 @@ export function PublicGscView({ records }: PublicGscViewProps) {
   const [searchFilter, setSearchFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<GscDateFilter>("last_7_days");
 
-  // Aggregate per query, weighted by impressions for position/CTR
+  // Aggregate per query. Position 0 is not a rank and must not pull the average down.
   const aggregated = useMemo(() => {
     const cutoff = getCutoffDate(dateFilter);
-    const map = new Map<string, { clicks: number; impressions: number; posSum: number; ctrSum: number; n: number }>();
-
+    const samples = [];
     for (const r of records) {
       const d = r.data || {};
       const date = d.date || d.day || d.report_date;
       if (cutoff && date && date < cutoff) continue;
-      const query = String(d.query || d.keyword || "").trim();
-      if (!query) continue;
-      const clicks = Number(d.clicks) || 0;
-      const impressions = Number(d.impressions) || 0;
-      const position = Number(d.position) || 0;
-      const ctr = impressions > 0 ? clicks / impressions : 0;
-      const cur = map.get(query) || { clicks: 0, impressions: 0, posSum: 0, ctrSum: 0, n: 0 };
-      cur.clicks += clicks;
-      cur.impressions += impressions;
-      cur.posSum += position * (impressions || 1);
-      cur.ctrSum += ctr * (impressions || 1);
-      cur.n += impressions || 1;
-      map.set(query, cur);
+      samples.push({
+        query: String(d.query || d.keyword || "").trim(),
+        clicks: d.clicks,
+        impressions: d.impressions,
+        position: d.position,
+      });
     }
-
-    const queries = Array.from(map.entries()).map(([query, v]) => ({
-      query,
-      clicks: v.clicks,
-      impressions: v.impressions,
-      position: v.n > 0 ? v.posSum / v.n : 0,
-      ctr: v.n > 0 ? v.ctrSum / v.n : 0,
-    }));
+    const queries = aggregateGscQueryRows(samples);
 
     const totals = {
       clicks: queries.reduce((s, q) => s + q.clicks, 0),
       impressions: queries.reduce((s, q) => s + q.impressions, 0),
       avgCtr: 0,
-      firstPageQueries: queries.filter((q) => q.position > 0 && q.position <= 10).length,
+      firstPageQueries: queries.filter(
+        (q) => q.position > 0 && q.position <= 10,
+      ).length,
       totalQueries: queries.length,
     };
-    totals.avgCtr = totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
+    totals.avgCtr =
+      totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
 
     return { queries, totals };
   }, [records, dateFilter]);
@@ -94,6 +97,14 @@ export function PublicGscView({ records }: PublicGscViewProps) {
       rows = rows.filter((r) => r.query.toLowerCase().includes(q));
     }
     rows.sort((a, b) => {
+      if (sortBy === "position") {
+        const aShown = visibleGscPosition(a.query, a.position);
+        const bShown = visibleGscPosition(b.query, b.position);
+        if (aShown == null && bShown == null) return 0;
+        if (aShown == null) return 1;
+        if (bShown == null) return -1;
+        return sortOrder === "desc" ? bShown - aShown : aShown - bShown;
+      }
       const aVal = a[sortBy as keyof typeof a] as number;
       const bVal = b[sortBy as keyof typeof b] as number;
       return sortOrder === "desc" ? bVal - aVal : aVal - bVal;
@@ -109,10 +120,12 @@ export function PublicGscView({ records }: PublicGscViewProps) {
     }
   };
 
-  const formatNumber = (n: number) => new Intl.NumberFormat("he-IL").format(Math.round(n));
+  const formatNumber = (n: number) =>
+    new Intl.NumberFormat("he-IL").format(Math.round(n));
 
   const SortIcon = ({ col }: { col: string }) => {
-    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30 inline mx-1" />;
+    if (sortBy !== col)
+      return <ArrowUpDown className="h-3 w-3 opacity-30 inline mx-1" />;
     return sortOrder === "asc" ? (
       <ArrowUp className="h-3 w-3 text-primary inline mx-1" />
     ) : (
@@ -139,7 +152,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <MousePointerClick className="h-3 w-3" /> קליקים
             </div>
-            <div className="text-2xl font-bold">{formatNumber(aggregated.totals.clicks)}</div>
+            <div className="text-2xl font-bold">
+              {formatNumber(aggregated.totals.clicks)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -147,7 +162,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Eye className="h-3 w-3" /> חשיפות
             </div>
-            <div className="text-2xl font-bold">{formatNumber(aggregated.totals.impressions)}</div>
+            <div className="text-2xl font-bold">
+              {formatNumber(aggregated.totals.impressions)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -155,7 +172,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Target className="h-3 w-3" /> CTR ממוצע
             </div>
-            <div className="text-2xl font-bold">{(aggregated.totals.avgCtr * 100).toFixed(2)}%</div>
+            <div className="text-2xl font-bold">
+              {(aggregated.totals.avgCtr * 100).toFixed(2)}%
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -163,8 +182,12 @@ export function PublicGscView({ records }: PublicGscViewProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Award className="h-3 w-3" /> ביטויים בעמוד 1
             </div>
-            <div className="text-2xl font-bold">{aggregated.totals.firstPageQueries}</div>
-            <div className="text-xs text-muted-foreground">מתוך {aggregated.totals.totalQueries}</div>
+            <div className="text-2xl font-bold">
+              {aggregated.totals.firstPageQueries}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              מתוך {aggregated.totals.totalQueries}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -183,16 +206,21 @@ export function PublicGscView({ records }: PublicGscViewProps) {
                 className="h-8 pr-8 w-[200px] text-sm"
               />
             </div>
-            <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as GscDateFilter)}>
+            <Select
+              value={dateFilter}
+              onValueChange={(v) => setDateFilter(v as GscDateFilter)}
+            >
               <SelectTrigger className="h-8 w-[140px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {DATE_FILTER_LABELS[k]}
-                  </SelectItem>
-                ))}
+                {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map(
+                  (k) => (
+                    <SelectItem key={k} value={k}>
+                      {DATE_FILTER_LABELS[k]}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -210,35 +238,82 @@ export function PublicGscView({ records }: PublicGscViewProps) {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-right p-3 font-medium">ביטוי</th>
-                  <th className="text-center p-3 font-medium cursor-pointer select-none" onClick={() => handleSortColumn("position")}>
+                  <th
+                    className="text-center p-3 font-medium cursor-pointer select-none"
+                    onClick={() => handleSortColumn("position")}
+                  >
                     מיקום <SortIcon col="position" />
                   </th>
-                  <th className="text-center p-3 font-medium cursor-pointer select-none" onClick={() => handleSortColumn("clicks")}>
+                  <th
+                    className="text-center p-3 font-medium cursor-pointer select-none"
+                    onClick={() => handleSortColumn("clicks")}
+                  >
                     קליקים <SortIcon col="clicks" />
                   </th>
-                  <th className="text-center p-3 font-medium cursor-pointer select-none" onClick={() => handleSortColumn("impressions")}>
+                  <th
+                    className="text-center p-3 font-medium cursor-pointer select-none"
+                    onClick={() => handleSortColumn("impressions")}
+                  >
                     חשיפות <SortIcon col="impressions" />
                   </th>
-                  <th className="text-center p-3 font-medium cursor-pointer select-none" onClick={() => handleSortColumn("ctr")}>
+                  <th
+                    className="text-center p-3 font-medium cursor-pointer select-none"
+                    onClick={() => handleSortColumn("ctr")}
+                  >
                     CTR <SortIcon col="ctr" />
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedQueries.map((row) => (
-                  <tr key={row.query} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="p-3 text-right font-medium truncate">{row.query}</td>
-                    <td className="p-3 text-center">
-                      <Badge
-                        variant={row.position <= 3 ? "default" : row.position <= 10 ? "secondary" : "outline"}
-                        className="font-mono"
-                      >
-                        {row.position.toFixed(1)}
-                      </Badge>
+                  <tr
+                    key={row.query}
+                    className="border-b last:border-0 hover:bg-muted/30"
+                  >
+                    <td className="p-3 text-right font-medium truncate">
+                      {row.query}
                     </td>
-                    <td className="p-3 text-center tabular-nums">{formatNumber(row.clicks)}</td>
-                    <td className="p-3 text-center tabular-nums">{formatNumber(row.impressions)}</td>
-                    <td className="p-3 text-center tabular-nums">{formatGscCtrPercent(row.ctr) ?? "—"}</td>
+                    <td className="p-3 text-center">
+                      {(() => {
+                        const shown = visibleGscPosition(
+                          row.query,
+                          row.position,
+                        );
+                        if (shown == null) {
+                          return (
+                            <span
+                              className="text-xs text-muted-foreground"
+                              title="לא בטופ 20"
+                            >
+                              —
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            className={cn(
+                              "inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium font-mono",
+                              shown <= 3
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : shown <= 10
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {shown.toFixed(1)}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="p-3 text-center tabular-nums">
+                      {formatNumber(row.clicks)}
+                    </td>
+                    <td className="p-3 text-center tabular-nums">
+                      {formatNumber(row.impressions)}
+                    </td>
+                    <td className="p-3 text-center tabular-nums">
+                      {formatGscCtrPercent(row.ctr) ?? "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

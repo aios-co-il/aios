@@ -19,29 +19,33 @@
 /** Scheduled syncs retain every rolling report preset through 120 days. */
 export const REPORT_MIN_SYNC_DAYS = 120;
 
-/**
- * Days a morning run re-fetches so late conversions still move.
- * Older stored rows are left in place.
- */
-export const SCHEDULED_REFRESH_DAYS = 14;
-
-/** How far one morning run walks backward into history it has not covered yet. */
+/** How far one scheduled run walks backward into history it has not covered yet. */
 export const SCHEDULED_CATCHUP_DAYS = 21;
 
+/** Meta's default attribution is 7-day click; late conversions land on these days. */
+export const SCHEDULED_LOOKBACK_DAYS = 7;
+
+/** A run re-fetches the lookback window once this many days have passed since the last one. */
+export const SCHEDULED_LOOKBACK_EVERY_DAYS = 3;
+
 export type ScheduledSyncPlan = {
-  /** Recent days, written on every morning run. */
+  /** Days since the last successful scheduled run (or the lookback window), through today. */
   refresh: SyncWindow;
   /** Older slice still missing from scheduled coverage, or null once 120 days are covered. */
   catchup: SyncWindow | null;
   /** Oldest day covered after a successful catch-up (or the existing marker when already complete). */
   historyFrom: string;
+  /** Store as `scheduled_synced_through` only after `refresh` was written. */
+  syncedThrough: string;
+  /** Store as `scheduled_lookback_on` only after `refresh` was written. */
+  lookbackOn: string;
 };
 
 /**
  * Blank or malformed `date` values sort below every real report date, so the prune
  * filter has to sweep them explicitly or they duplicate on every sync.
  */
-const EARLIEST_REAL_REPORT_DATE = '1900-01-01';
+const EARLIEST_REAL_REPORT_DATE = "1900-01-01";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,16 +54,16 @@ export type SyncWindow = { startDate: string; endDate: string };
 /** Calendar date of `date` in the runtime timezone, as `yyyy-mm-dd`. */
 export function toDateString(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
 export function shiftDateString(dateString: string, days: number): string {
-  const [year, month, day] = dateString.split('-').map(Number);
+  const [year, month, day] = dateString.split("-").map(Number);
   const shifted = new Date(Date.UTC(year, month - 1, day));
   shifted.setUTCDate(shifted.getUTCDate() + days);
-  return shifted.toISOString().split('T')[0];
+  return shifted.toISOString().split("T")[0];
 }
 
 /**
@@ -74,7 +78,10 @@ export function resolveAdsSyncWindow(
 ): SyncWindow {
   const endDate = configured.endDate > today ? configured.endDate : today;
   const floor = shiftDateString(today, -minDays);
-  const startDate = configured.startDate && configured.startDate < floor ? configured.startDate : floor;
+  const startDate =
+    configured.startDate && configured.startDate < floor
+      ? configured.startDate
+      : floor;
   return { startDate, endDate };
 }
 
@@ -89,7 +96,7 @@ export function resolvePruneStart(
 ): string {
   let startDate = window.startDate;
   for (const raw of syncedDates) {
-    const date = typeof raw === 'string' ? raw.slice(0, 10) : '';
+    const date = typeof raw === "string" ? raw.slice(0, 10) : "";
     if (!ISO_DATE.test(date)) continue;
     if (date < startDate) startDate = date;
   }
@@ -98,43 +105,69 @@ export function resolvePruneStart(
 
 /** Calendar date in Asia/Jerusalem, `yyyy-mm-dd`. Morning crons are scheduled in UTC. */
 export function jerusalemToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jerusalem',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(now);
 }
 
+function markerDate(value: string | null | undefined): string | null {
+  return typeof value === "string" && ISO_DATE.test(value.slice(0, 10))
+    ? value.slice(0, 10)
+    : null;
+}
+
 /**
- * A morning run must finish every account. Re-downloading the full 120-day
- * history for every table timed the cron out after the first batch, so the
- * rest (for example a client synced by hand later) never moved.
+ * Scheduled runs fetch only what changed since the last successful run.
  *
- * Each run refreshes the last {@link SCHEDULED_REFRESH_DAYS} and, until
- * `historyFrom` reaches the 120-day floor, also pulls one older slice.
+ * `syncedThrough` is the last day a scheduled run finished writing. That day was
+ * still in progress at the time, so it is fetched again together with every day
+ * after it: the morning run covers yesterday and today, the afternoon run covers
+ * today only. A failed run leaves the marker in place and the next run fills the
+ * gap (never more than 120 days). Without a marker the run covers yesterday and today.
+ *
+ * Every {@link SCHEDULED_LOOKBACK_EVERY_DAYS} days (tracked by `lookbackOn`) the
+ * first run of the day — the morning run — also re-fetches the last
+ * {@link SCHEDULED_LOOKBACK_DAYS} days, so conversions the platforms attribute
+ * to earlier days are picked up.
+ *
+ * Until `historyFrom` reaches the 120-day floor, a run also pulls one older slice.
  * Rows outside those slices are not deleted.
  */
 export function planScheduledSyncWindows(
   today: string,
   historyFrom: string | null | undefined,
+  syncedThrough: string | null | undefined,
+  lookbackOn: string | null | undefined,
   minHistoryDays: number = REPORT_MIN_SYNC_DAYS,
-  refreshDays: number = SCHEDULED_REFRESH_DAYS,
   catchupDays: number = SCHEDULED_CATCHUP_DAYS,
 ): ScheduledSyncPlan {
   const target = shiftDateString(today, -minHistoryDays);
-  const refresh: SyncWindow = {
-    startDate: shiftDateString(today, -refreshDays),
-    endDate: today,
+  let refreshStart = markerDate(syncedThrough) ?? shiftDateString(today, -1);
+  if (refreshStart > today) refreshStart = today;
+
+  const lastLookback = markerDate(lookbackOn);
+  const lookbackDue =
+    !lastLookback ||
+    lastLookback <= shiftDateString(today, -SCHEDULED_LOOKBACK_EVERY_DAYS);
+  const lookbackStart = shiftDateString(today, -SCHEDULED_LOOKBACK_DAYS);
+  if (lookbackDue && lookbackStart < refreshStart) refreshStart = lookbackStart;
+  if (refreshStart < target) refreshStart = target;
+
+  const refresh: SyncWindow = { startDate: refreshStart, endDate: today };
+  const markers = {
+    syncedThrough: today,
+    lookbackOn: lookbackDue ? today : (lastLookback as string),
   };
-  const covered = typeof historyFrom === 'string' && ISO_DATE.test(historyFrom.slice(0, 10))
-    ? historyFrom.slice(0, 10)
-    : null;
+  const covered = markerDate(historyFrom);
   if (covered && covered <= target) {
-    return { refresh, catchup: null, historyFrom: covered };
+    return { refresh, catchup: null, historyFrom: covered, ...markers };
   }
 
-  const frontier = covered && covered < refresh.startDate ? covered : refresh.startDate;
+  const frontier =
+    covered && covered < refresh.startDate ? covered : refresh.startDate;
   let chunkStart = shiftDateString(frontier, -catchupDays);
   if (chunkStart < target) chunkStart = target;
   const chunkEnd = shiftDateString(frontier, -1);
@@ -142,13 +175,16 @@ export function planScheduledSyncWindows(
     return {
       refresh,
       catchup: null,
-      historyFrom: covered && covered < refresh.startDate ? covered : refresh.startDate,
+      historyFrom:
+        covered && covered < refresh.startDate ? covered : refresh.startDate,
+      ...markers,
     };
   }
   return {
     refresh,
     catchup: { startDate: chunkStart, endDate: chunkEnd },
     historyFrom: chunkStart,
+    ...markers,
   };
 }
 
@@ -160,7 +196,7 @@ export function planScheduledSyncWindows(
 export function replacedRecordsFilter(pruneStart: string): string {
   return [
     `data->>date.gte.${pruneStart}`,
-    'data->>date.is.null',
+    "data->>date.is.null",
     `data->>date.lt.${EARLIEST_REAL_REPORT_DATE}`,
-  ].join(',');
+  ].join(",");
 }

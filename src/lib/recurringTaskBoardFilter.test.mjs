@@ -53,7 +53,13 @@ test("showAllRecurring reveals future recurring tasks", () => {
     due_date: "2026-09-16",
     status: "open",
   };
-  assert.equal(shouldShowRecurringTaskOnBoard(task, { showAllRecurring: true, asOf: monday }), true);
+  assert.equal(
+    shouldShowRecurringTaskOnBoard(task, {
+      showAllRecurring: true,
+      asOf: monday,
+    }),
+    true,
+  );
 });
 
 test("completed recurring task stays visible on due day only", () => {

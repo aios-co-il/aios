@@ -8,7 +8,9 @@
 
 /** Reduce a URL / GSC property / bare domain to a comparable host. */
 export function normalizeSeoDomain(value?: string | null): string {
-  let v = String(value || "").trim().toLowerCase();
+  let v = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!v) return "";
   v = v.replace(/^sc-domain:/, "");
   v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
@@ -40,9 +42,12 @@ type SeoTableLike = {
 };
 
 function settingsOf(table: SeoTableLike): Record<string, unknown> {
-  return (table?.integration_settings && typeof table.integration_settings === "object"
-    ? (table.integration_settings as Record<string, unknown>)
-    : {}) as Record<string, unknown>;
+  return (
+    table?.integration_settings &&
+    typeof table.integration_settings === "object"
+      ? (table.integration_settings as Record<string, unknown>)
+      : {}
+  ) as Record<string, unknown>;
 }
 
 function tableTimestamp(table: SeoTableLike): number {
@@ -142,12 +147,16 @@ export function filterSeoReportsByDomain<T extends SeoReportLike>(
 ): T[] {
   const expected = normalizeSeoDomain(expectedDomain);
   if (!expected) return reports || [];
-  const matching = (reports || []).filter((r) => seoDomainsMatch(r.domain, expected));
-  return matching.length > 0 ? matching : (reports || []);
+  const matching = (reports || []).filter((r) =>
+    seoDomainsMatch(r.domain, expected),
+  );
+  return matching.length > 0 ? matching : reports || [];
 }
 
 /** Sort reports newest-first by sync time, falling back to the report date. */
-export function sortSeoReportsByRecency<T extends SeoReportLike>(reports: T[]): T[] {
+export function sortSeoReportsByRecency<T extends SeoReportLike>(
+  reports: T[],
+): T[] {
   const time = (r: T) => {
     const t = new Date(r.received_at || r.report_date || 0).getTime();
     return Number.isFinite(t) ? t : 0;
@@ -198,9 +207,13 @@ export function seoTableNeedsSyncThisMonth(
     if (!iso) return false;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return false;
-    return d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
+    return (
+      d.getUTCFullYear() === now.getUTCFullYear() &&
+      d.getUTCMonth() === now.getUTCMonth()
+    );
   };
-  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt)) return false;
+  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt))
+    return false;
   return true;
 }
 
@@ -212,12 +225,18 @@ export function pickSeoSyncDomain(input: {
   latestReportDomain?: string | null;
 }): { domain: string; from: string | null } {
   const settings = input.settings || {};
-  const tryPick = (raw: unknown, from: string): { domain: string; from: string } | null => {
+  const tryPick = (
+    raw: unknown,
+    from: string,
+  ): { domain: string; from: string } | null => {
     const n = normalizeSeoDomain(String(raw || ""));
     return looksLikeSeoDomain(n) ? { domain: n, from } : null;
   };
   const chain: Array<{ raw: unknown; from: string }> = [
-    { raw: settings.targetDomain || settings.target || settings.domain, from: "targetDomain" },
+    {
+      raw: settings.targetDomain || settings.target || settings.domain,
+      from: "targetDomain",
+    },
     { raw: settings.linkedGscSiteUrl, from: "linkedGscSiteUrl" },
     { raw: settings.gsc_site_url, from: "gsc_site_url" },
     { raw: input.client?.ahrefs_domain, from: "ahrefs_domain" },
@@ -246,14 +265,19 @@ export function extractDomainHint(text?: string | null): string {
 export function looksLikeSeoDomain(value?: string | null): boolean {
   const n = normalizeSeoDomain(value);
   if (!n || n.includes(" ")) return false;
-  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(n);
+  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(
+    n,
+  );
 }
 
 type LinkedTableLike = { id: string; client_id?: string | null };
 
 /**
- * Pick a linked GA/GSC crm_table for an SEO dashboard. A saved id that no
- * longer exists (deleted table / stale settings) must not block auto-match.
+ * Pick a linked GA/GSC crm_table for an SEO dashboard.
+ * A saved id that no longer exists must not block auto-match.
+ * A saved id that belongs to a different client must not win when this client
+ * already has its own table — crm-records denies that foreign table to anyone
+ * who cannot open the other client, so the report renders with no data.
  */
 export function resolveLinkedCrmTableId(
   savedId: string | null | undefined,
@@ -261,9 +285,16 @@ export function resolveLinkedCrmTableId(
   clientId: string,
 ): string {
   const list = candidates || [];
-  if (savedId && list.some((t) => t.id === savedId)) return savedId;
-  const byClient = list.find((t) => t.client_id === clientId);
-  if (byClient) return byClient.id;
+  const sameClient = list.filter((t) => t.client_id === clientId);
+  if (savedId) {
+    const saved = list.find((t) => t.id === savedId);
+    if (saved) {
+      const savedIsOtherClient =
+        !!saved.client_id && saved.client_id !== clientId;
+      if (!savedIsOtherClient || sameClient.length === 0) return saved.id;
+    }
+  }
+  if (sameClient.length > 0) return sameClient[0].id;
   if (list.length === 1) return list[0].id;
   return "";
 }

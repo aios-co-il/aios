@@ -19,24 +19,28 @@ import {
 import {
   LEAD_TABLE_COLUMN_FIELDS,
   LEAD_TABLE_TOGGLEABLE_COLUMNS,
+  getLeadTableCustomColumns,
   isLeadTableColumnVisible,
+  leadTableColumnVisibilityKey,
 } from "@/lib/leadTableColumns";
+import { LEAD_SYSTEM_FIELD_KEYS } from "@/lib/leadCustomFields";
 
 type StoredField = {
   id: string;
   field_key: string;
 };
 
-export function LeadTableColumnsDialog({
-  trigger,
-}: {
-  trigger?: ReactNode;
-}) {
+export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isFieldVisible, getFieldLabel } = useCustomFieldLabels("lead");
+  const { isFieldVisible, getFieldLabel, fieldDefinitions } =
+    useCustomFieldLabels("lead");
   const [open, setOpen] = useState(false);
+  const customColumns = getLeadTableCustomColumns(
+    fieldDefinitions,
+    LEAD_SYSTEM_FIELD_KEYS,
+  );
 
   const { data: existingFields = [] } = useQuery({
     queryKey: ["custom-fields", tenantId, "lead"],
@@ -54,10 +58,22 @@ export function LeadTableColumnsDialog({
   });
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ key, visible }: { key: string; visible: boolean }) => {
+    mutationFn: async ({
+      key,
+      visible,
+      label,
+      type,
+    }: {
+      key: string;
+      visible: boolean;
+      label: string;
+      type: string;
+    }) => {
       if (!tenantId) throw new Error("חסר ארגון");
-      const catalog = LEAD_TABLE_COLUMN_FIELDS.find((field) => field.key === key);
-      if (!catalog || catalog.required) return;
+      const catalog = LEAD_TABLE_COLUMN_FIELDS.find(
+        (field) => leadTableColumnVisibilityKey(field) === key,
+      );
+      if (catalog?.required) return;
 
       const existing = existingFields.find((field) => field.field_key === key);
       if (existing) {
@@ -73,8 +89,8 @@ export function LeadTableColumnsDialog({
         tenant_id: tenantId,
         entity_type: "lead",
         field_key: key,
-        field_label: catalog.label,
-        field_type: catalog.type,
+        field_label: label,
+        field_type: type,
         is_visible: visible,
         is_required: false,
       });
@@ -82,7 +98,9 @@ export function LeadTableColumnsDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["custom-fields", tenantId] });
-      queryClient.invalidateQueries({ queryKey: ["custom-field-labels", tenantId] });
+      queryClient.invalidateQueries({
+        queryKey: ["custom-field-labels", tenantId],
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -97,7 +115,12 @@ export function LeadTableColumnsDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="עמודות טבלה">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            title="עמודות טבלה"
+          >
             <Columns3 className="h-4 w-4" />
           </Button>
         )}
@@ -106,15 +129,23 @@ export function LeadTableColumnsDialog({
         <DialogHeader>
           <DialogTitle>עמודות טבלת לידים</DialogTitle>
           <DialogDescription>
-            ההגדרה היא ברמת הארגון — כל המשתמשים בארגון רואים את אותן עמודות.
+            ההגדרה היא ברמת הארגון. העמודות הקיימות נשארות דלוקות, ועמודות חדשות
+            נשארות כבויות עד שמפעילים אותן.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 py-2">
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
           {LEAD_TABLE_TOGGLEABLE_COLUMNS.map((field) => {
             const visible = isLeadTableColumnVisible(field.key, isFieldVisible);
+            const storageKey = leadTableColumnVisibilityKey(field);
             return (
-              <div key={field.key} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-                <Label htmlFor={`lead-col-${field.key}`} className="cursor-pointer">
+              <div
+                key={field.key}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              >
+                <Label
+                  htmlFor={`lead-col-${field.key}`}
+                  className="cursor-pointer"
+                >
                   {getFieldLabel(field.key, field.label)}
                 </Label>
                 <Switch
@@ -122,7 +153,41 @@ export function LeadTableColumnsDialog({
                   checked={visible}
                   disabled={toggleMutation.isPending}
                   onCheckedChange={(checked) =>
-                    toggleMutation.mutate({ key: field.key, visible: checked })
+                    toggleMutation.mutate({
+                      key: storageKey,
+                      visible: checked,
+                      label: field.label,
+                      type: field.type,
+                    })
+                  }
+                />
+              </div>
+            );
+          })}
+          {customColumns.map((field) => {
+            const visible = isFieldVisible(field.visibilityKey, false);
+            return (
+              <div
+                key={field.field_key}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              >
+                <Label
+                  htmlFor={`lead-col-${field.field_key}`}
+                  className="cursor-pointer"
+                >
+                  {field.field_label}
+                </Label>
+                <Switch
+                  id={`lead-col-${field.field_key}`}
+                  checked={visible}
+                  disabled={toggleMutation.isPending}
+                  onCheckedChange={(checked) =>
+                    toggleMutation.mutate({
+                      key: field.visibilityKey,
+                      visible: checked,
+                      label: field.field_label,
+                      type: field.field_type,
+                    })
                   }
                 />
               </div>

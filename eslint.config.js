@@ -19,8 +19,22 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "react-refresh/only-export-components": [
+        "warn",
+        { allowConstantExport: true },
+      ],
       "@typescript-eslint/no-unused-vars": "off",
+      // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
+      "@typescript-eslint/no-explicit-any": "warn", // AIO-52
+      "no-empty": "warn", // AIO-53
+      "no-case-declarations": "warn", // AIO-56
+      "@typescript-eslint/ban-ts-comment": "warn", // AIO-57
+      "@typescript-eslint/no-unsafe-function-type": "warn", // AIO-58
+      "@typescript-eslint/no-unused-expressions": "warn", // AIO-59
+      "react-hooks/rules-of-hooks": "warn", // AIO-61
+      "@typescript-eslint/no-empty-object-type": "warn", // AIO-62
+      "@typescript-eslint/no-require-imports": "warn", // AIO-63
+      "no-constant-binary-expression": "warn", // AIO-65
     },
   },
 );

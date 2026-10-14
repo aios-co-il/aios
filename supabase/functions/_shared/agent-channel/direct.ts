@@ -1,10 +1,23 @@
-import type { ChannelProvider, CloudDirectProvider, SendContext, SendResult } from "./types.ts";
+import type {
+  ChannelProvider,
+  CloudDirectProvider,
+  SendContext,
+  SendResult,
+} from "./types.ts";
 import { acceptedMessageFor, capabilitiesForProvider } from "./logic.ts";
 import { grokUsesExistingWebhook } from "./cloud-errors.ts";
-import { createCloudAgent, followUpCloudAgent, cursorApiKey } from "./cursor-api.ts";
+import {
+  createCloudAgent,
+  followUpCloudAgent,
+  cursorApiKey,
+} from "./cursor-api.ts";
 import { fireGrokBotWebhook } from "./grok-webhook.ts";
 import { mintCallbackToken } from "./hmac.ts";
-import { buildCallbackInstructions, wrapDirectPrompt } from "./prompts.ts";
+import {
+  buildCallbackInstructions,
+  buildCodexWorkspaceAgentInput,
+  wrapDirectPrompt,
+} from "./prompts.ts";
 import {
   allowCreateNewCloudAgent,
   collectOpenChatIds,
@@ -13,12 +26,20 @@ import {
   type OpenChatProvider,
 } from "./sticky-agent.ts";
 import {
+  assertWorkspaceAccessToken,
   missingWorkspaceMessage,
+  triggerWorkspaceAgentRun,
+  validateWorkspaceTriggerId,
   workspaceAgentCreds,
   workspaceConversationKey,
   type WorkspaceProvider,
 } from "./workspace-agent.ts";
-import { completeSession, logChannelAction, serviceClient, upsertRunningSession } from "./store.ts";
+import {
+  completeSession,
+  logChannelAction,
+  serviceClient,
+  upsertRunningSession,
+} from "./store.ts";
 import { codexOpenAiApiEnabled, runtimeEnv } from "../carmen-brain-flags.ts";
 import { launchCodexViaOpenAiApi } from "./codex-api.ts";
 
@@ -37,13 +58,18 @@ function clip(text: string, max = MAX_TEXT): string {
 }
 
 function modelIdFor(provider: CloudDirectProvider): string {
-  if (provider === "grok") return Deno.env.get("GROK_MODEL_ID") || "cursor-grok-4.6-high-fast";
+  if (provider === "grok")
+    return Deno.env.get("GROK_MODEL_ID") || "cursor-grok-4.6-high-fast";
   return Deno.env.get("CURSOR_MODEL_ID") || "";
 }
 
 function envNameFor(provider: CloudDirectProvider): string | undefined {
   if (provider === "grok") {
-    return Deno.env.get("GROK_CLOUD_ENV_NAME") || Deno.env.get("CURSOR_CLOUD_ENV_NAME") || undefined;
+    return (
+      Deno.env.get("GROK_CLOUD_ENV_NAME") ||
+      Deno.env.get("CURSOR_CLOUD_ENV_NAME") ||
+      undefined
+    );
   }
   return Deno.env.get("CURSOR_CLOUD_ENV_NAME") || undefined;
 }
@@ -60,7 +86,11 @@ export async function launchCloudDirect(
     autoCreatePR?: boolean;
   },
 ): Promise<SendResult> {
-  if (provider === "codex" && codexOpenAiApiEnabled(runtimeEnv()) && !parliament) {
+  if (
+    provider === "codex" &&
+    codexOpenAiApiEnabled(runtimeEnv()) &&
+    !parliament
+  ) {
     return launchCodexViaOpenAiApi(ctx);
   }
 
@@ -102,7 +132,13 @@ export async function launchCloudDirect(
   });
   const prompt =
     clip(
-      extraPrompt || wrapDirectPrompt({ origin: provider, userText: ctx.content, history: ctx.history, attachments: ctx.attachments }),
+      extraPrompt ||
+        wrapDirectPrompt({
+          origin: provider,
+          userText: ctx.content,
+          history: ctx.history,
+          attachments: ctx.attachments,
+        }),
       MAX_TEXT - callback.length,
     ) + callback;
 
@@ -135,7 +171,13 @@ export async function launchCloudDirect(
       autoCreatePR: options?.autoCreatePR,
     });
   } else {
-    fired = await createCloudAgent({ apiKey, promptText: clip(prompt), name, modelId: modelId || undefined, envName });
+    fired = await createCloudAgent({
+      apiKey,
+      promptText: clip(prompt),
+      name,
+      modelId: modelId || undefined,
+      envName,
+    });
   }
 
   const updated = await upsertRunningSession(sb, {
@@ -155,7 +197,12 @@ export async function launchCloudDirect(
     tenantId: ctx.tenantId,
     agentId: ctx.agentId,
     action: `channel_send_${provider}`,
-    details: { conversation_id: ctx.conversationId, session_id: updated.id, external_url: fired.url, reused: fired.reused },
+    details: {
+      conversation_id: ctx.conversationId,
+      session_id: updated.id,
+      external_url: fired.url,
+      reused: fired.reused,
+    },
   });
 
   return {
@@ -165,7 +212,9 @@ export async function launchCloudDirect(
     session_id: updated.id,
     status: parliament ? "debating" : "waiting_external",
     stream: false,
-    accepted_message: acceptedMessageFor(provider, fired.url, { reused: fired.reused }),
+    accepted_message: acceptedMessageFor(provider, fired.url, {
+      reused: fired.reused,
+    }),
     external_url: fired.url,
     capabilities: capabilitiesForProvider(provider),
   };
@@ -232,10 +281,17 @@ export async function launchParliamentSeat(
   throw new Error(`Parliament seat not supported: ${provider}`);
 }
 
-export async function launchClaude(ctx: SendContext, extraPrompt?: string): Promise<SendResult> {
+export async function launchClaude(
+  ctx: SendContext,
+  extraPrompt?: string,
+  options?: { sessionMetadata?: Record<string, unknown> },
+): Promise<SendResult> {
   const routineId = Deno.env.get("CLAUDE_ROUTINE_ID") || "";
   const routineToken = Deno.env.get("CLAUDE_ROUTINE_TOKEN") || "";
-  if (!routineId || !routineToken) throw new Error("Claude Direct is not configured (CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN).");
+  if (!routineId || !routineToken)
+    throw new Error(
+      "Claude Direct is not configured (CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN).",
+    );
 
   const sb = serviceClient();
   const session = await upsertRunningSession(sb, {
@@ -244,6 +300,7 @@ export async function launchClaude(ctx: SendContext, extraPrompt?: string): Prom
     brain_route_id: ctx.route.id,
     provider: "claude",
     status: "running",
+    metadata: options?.sessionMetadata,
   });
   const token = await mintCallbackToken({
     sessionId: session.id,
@@ -251,7 +308,13 @@ export async function launchClaude(ctx: SendContext, extraPrompt?: string): Prom
     tenantId: ctx.tenantId,
   });
   const prompt =
-    (extraPrompt || wrapDirectPrompt({ origin: "claude", userText: ctx.content, history: ctx.history, attachments: ctx.attachments })) +
+    (extraPrompt ||
+      wrapDirectPrompt({
+        origin: "claude",
+        userText: ctx.content,
+        history: ctx.history,
+        attachments: ctx.attachments,
+      })) +
     buildCallbackInstructions({
       origin: "claude",
       conversationId: ctx.conversationId,
@@ -261,24 +324,35 @@ export async function launchClaude(ctx: SendContext, extraPrompt?: string): Prom
     });
 
   const body = prompt.length > 65_536 ? prompt.slice(0, 65_536) : prompt;
-  const resp = await fetch(`https://api.anthropic.com/v1/claude_code/routines/${routineId}/fire`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${routineToken}`,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": Deno.env.get("CLAUDE_ROUTINE_BETA") || "experimental-cc-routine-2026-04-01",
-      "Content-Type": "application/json",
+  const resp = await fetch(
+    `https://api.anthropic.com/v1/claude_code/routines/${routineId}/fire`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${routineToken}`,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta":
+          Deno.env.get("CLAUDE_ROUTINE_BETA") ||
+          "experimental-cc-routine-2026-04-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: body }),
     },
-    body: JSON.stringify({ text: body }),
-  });
+  );
   const raw = await resp.text();
   if (!resp.ok) {
     await completeSession(sb, session.id, "failed");
     throw new Error(`Claude routine fire ${resp.status}: ${raw.slice(0, 300)}`);
   }
   let data: any = {};
-  try { data = JSON.parse(raw); } catch { /* ignore */ }
-  const url = String(data?.claude_code_session_url || data?.claude_code_session_id || "");
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  const url = String(
+    data?.claude_code_session_url || data?.claude_code_session_id || "",
+  );
   await upsertRunningSession(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
@@ -287,12 +361,17 @@ export async function launchClaude(ctx: SendContext, extraPrompt?: string): Prom
     external_session_id: url || session.id,
     external_url: url || null,
     status: "running",
+    metadata: options?.sessionMetadata,
   });
   await logChannelAction(sb, {
     tenantId: ctx.tenantId,
     agentId: ctx.agentId,
     action: "channel_send_claude",
-    details: { conversation_id: ctx.conversationId, session_id: session.id, external_url: url },
+    details: {
+      conversation_id: ctx.conversationId,
+      session_id: session.id,
+      external_url: url,
+    },
   });
   return {
     ok: true,
@@ -317,9 +396,15 @@ export async function launchWorkspaceAgent(
   extraPrompt?: string,
   parliament?: { runId: string; round: number },
 ): Promise<SendResult> {
-  const { triggerId, accessToken } = workspaceAgentCreds(provider, runtimeEnv());
+  const { triggerId, accessToken } = workspaceAgentCreds(
+    provider,
+    runtimeEnv(),
+  );
   const sb = serviceClient();
-  const conversationKey = workspaceConversationKey(provider, ctx.conversationId);
+  const conversationKey = workspaceConversationKey(
+    provider,
+    ctx.conversationId,
+  );
   const session = await upsertRunningSession(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
@@ -353,42 +438,78 @@ export async function launchWorkspaceAgent(
     };
   }
 
-  const token = await mintCallbackToken({
-    sessionId: session.id,
-    conversationId: ctx.conversationId,
-    tenantId: ctx.tenantId,
-  });
-  const input =
-    (extraPrompt || wrapDirectPrompt({ origin: provider, userText: ctx.content, history: ctx.history, attachments: ctx.attachments })) +
-    buildCallbackInstructions({
-      origin: provider,
+  const triggerProblem = validateWorkspaceTriggerId(triggerId);
+  if (triggerProblem) {
+    await completeSession(sb, session.id, "failed");
+    throw new Error(triggerProblem);
+  }
+  const tokenProblem = assertWorkspaceAccessToken(accessToken);
+  if (tokenProblem) {
+    await completeSession(sb, session.id, "failed");
+    throw new Error(tokenProblem);
+  }
+
+  let input: string;
+  if (provider === "codex" && !extraPrompt) {
+    input = buildCodexWorkspaceAgentInput({
+      userText: ctx.content,
       conversationId: ctx.conversationId,
       sessionId: session.id,
       tenantId: ctx.tenantId,
-      token,
-      parliamentRound: parliament?.round,
-      readOnly: !!parliament,
+      parliamentRound: parliament?.round ?? null,
+      attachments: ctx.attachments,
     });
-
-  const resp = await fetch(`https://api.chatgpt.com/v1/workspace_agents/${encodeURIComponent(triggerId)}/trigger`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": ctx.idempotencyKey,
-      "OpenAI-Beta": "workspace_agent_runs=v1",
-    },
-    body: JSON.stringify({ conversation_key: conversationKey, input: clip(input, 32_000) }),
-  });
-  const raw = await resp.text();
-  if (!resp.ok) {
-    await completeSession(sb, session.id, "failed");
-    throw new Error(`ChatGPT Workspace trigger ${resp.status}: ${raw.slice(0, 300)}`);
+  } else {
+    const token = await mintCallbackToken({
+      sessionId: session.id,
+      conversationId: ctx.conversationId,
+      tenantId: ctx.tenantId,
+    });
+    input =
+      (extraPrompt ||
+        wrapDirectPrompt({
+          origin: provider,
+          userText: ctx.content,
+          history: ctx.history,
+          attachments: ctx.attachments,
+        })) +
+      buildCallbackInstructions({
+        origin: provider,
+        conversationId: ctx.conversationId,
+        sessionId: session.id,
+        tenantId: ctx.tenantId,
+        token,
+        parliamentRound: parliament?.round,
+        readOnly: !!parliament,
+      });
   }
-  let data: any = {};
-  try { data = JSON.parse(raw); } catch { /* ignore */ }
-  const runId = String(data?.agent_trigger_run_id || data?.id || "");
-  const url = String(data?.url || data?.conversation_url || "");
+
+  const triggered = await triggerWorkspaceAgentRun({
+    triggerId,
+    accessToken,
+    conversationKey,
+    input: clip(input, 32_000),
+    idempotencyKey: ctx.idempotencyKey,
+  });
+  if (!triggered.ok) {
+    await completeSession(sb, session.id, "failed");
+    await logChannelAction(sb, {
+      tenantId: ctx.tenantId,
+      agentId: ctx.agentId,
+      action: `channel_send_${provider}`,
+      details: {
+        conversation_id: ctx.conversationId,
+        session_id: session.id,
+        http_status: triggered.status,
+        input_chars: input.length,
+      },
+      status: "error",
+      error: triggered.error,
+    });
+    throw new Error(triggered.error);
+  }
+  const runId = triggered.runId || "";
+  const url = triggered.conversationUrl || "";
   await upsertRunningSession(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
@@ -405,7 +526,12 @@ export async function launchWorkspaceAgent(
     tenantId: ctx.tenantId,
     agentId: ctx.agentId,
     action: `channel_send_${provider}`,
-    details: { conversation_id: ctx.conversationId, session_id: session.id, run_id: runId, url },
+    details: {
+      conversation_id: ctx.conversationId,
+      session_id: session.id,
+      run_id: runId,
+      url,
+    },
   });
   return {
     ok: true,

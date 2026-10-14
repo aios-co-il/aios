@@ -28,11 +28,11 @@ When a task finishes, **always send David the development environment link**: th
 
 ## Canonical URLs
 
-| Environment | Git | Frontend URL | When it updates |
-| --- | --- | --- | --- |
-| **Production** | `main` | `https://aios.co.il` | merge to `main` |
-| **Staging (persistent dev)** | `develop` | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop` |
-| **Feature Preview** | `feature/*`, `cursor/*`, etc. | `https://after-lead-git-{branch}-aios-crm.vercel.app` | push to that branch only |
+| Environment                  | Git                           | Frontend URL                                                                                                            | When it updates          |
+| ---------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Production**               | `main`                        | `https://aios.co.il`                                                                                                    | merge to `main`          |
+| **Staging (persistent dev)** | `develop`                     | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
+| **Feature Preview**          | `feature/*`, `cursor/*`, etc. | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
 
 ### Staging domain
 
@@ -62,12 +62,16 @@ feature/* or fix/*
 
 **Staging stays current:** on every push to `main`, workflow `Sync develop from main` merges `main` → `develop` to bring Staging code up to date with Production hotfixes; conflicts or failed runs require attention. Manual `workflow_dispatch` remains available.
 
-| Git | Deploy | Data |
-| --- | --- | --- |
-| local | `pnpm dev` | Cloud Agent `.env` still talks to Production — do not write test data |
-| `feature/*` | Vercel Preview | AIOS Staging (every Preview deploy) |
-| `develop` | Persistent Staging | AIOS Staging Supabase |
-| `main` | Production | Production Supabase |
+| Git         | Deploy             | Data                                                      |
+| ----------- | ------------------ | --------------------------------------------------------- |
+| local       | `pnpm dev`         | [Local development](#local-development) uses AIOS Staging |
+| `feature/*` | Vercel Preview     | AIOS Staging (every Preview deploy)                       |
+| `develop`   | Persistent Staging | AIOS Staging Supabase                                     |
+| `main`      | Production         | Production Supabase                                       |
+
+### Local development
+
+Local `pnpm dev` is frontend-only and talks to the remote Supabase project selected by the active Vite environment. The tracked `.env` points to Production, so override `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_SUPABASE_PROJECT_ID` with AIOS Staging values through `.env.local` or an exported `.envrc`, and set `VITE_APP_ENV=staging`. Restart `pnpm dev`, confirm the effective Supabase URL is the Staging project and the amber environment frame is visible, then create test data.
 
 `APP_ENV`: `development` | `preview` | `staging` | `production`. Unset is treated as **production** so existing deploys stay unchanged.
 
@@ -140,11 +144,12 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 
 Vercel Preview is the development environment. It talks to **AIOS Staging**, never Production. Do not “fix” Preview by pointing it at Production.
 
-| Seat | Works on Preview today? | Why |
-| --- | --- | --- |
-| Carmen (internal / `run-ai-agent`) | Yes | Staging has the tenant, agent, and OpenAI path |
-| Cursor / Grok / Codex Cloud seats | Only if Staging `CURSOR_API_KEY` is a **valid Cursor User key** | All three launch via `api.cursor.com` with that secret |
-| Knights Round Table | Same as Cloud seats | Parliament fans out to those three |
+| Seat                               | Works on Preview today?                                         | Why                                                                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Carmen (internal / `run-ai-agent`) | Yes                                                             | Staging has the tenant, agent, and OpenAI path                                                                                             |
+| Cursor / Grok Cloud seats          | Only if Staging `CURSOR_API_KEY` is a **valid Cursor User key** | Launch via `api.cursor.com`                                                                                                                |
+| Codex Direct                       | Only if Staging has **ChatGPT Workspace** secrets               | `CHATGPT_WORK_AGENT_TRIGGER_ID` + `CHATGPT_WORK_AGENT_TOKEN` (or `CODEX_WORK_AGENT_*`) — `api.chatgpt.com/v1/workspace_agents/.../trigger` |
+| Knights Round Table                | Cursor + Grok (Cloud) + Codex (Workspace)                       | Parliament fans out to configured seats                                                                                                    |
 
 How we keep them working:
 
@@ -152,8 +157,6 @@ How we keep them working:
 2. **Copy from Production, do not re-type.** The gated function `copy-edge-secrets-to-staging` runs on Production, reads allowlisted agent secrets from `Deno.env`, and writes them to Staging. WhatsApp / Meta / project keys stay out. David is not asked to paste keys.
 3. **Health probe.** Command Center calls `agent-channel-send` `action=channel_health`. If the key is rejected, the HUD shows a banner. After a copy, hashes of the allowlist should match Production; no function redeploy is required.
 4. **After a copy:** from Preview → Command Center, send a one-word ping on Cursor Direct or the table. Expect `agent_channel_sessions.external_url` and no 401.
-
-Local `pnpm dev` in this Cloud Agent workspace still reads Production `.env`. That is not the development environment — use the Vercel Preview URL.
 
 ## Report loading
 
