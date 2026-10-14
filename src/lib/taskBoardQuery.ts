@@ -30,7 +30,8 @@ export function buildTaskDueDateOrFilter(input: {
 
   return (
     `and(due_date.gte.${start},due_date.lte.${end}),` +
-    overdueOpen + "," +
+    overdueOpen +
+    "," +
     unscheduledOpen
   );
 }
@@ -59,21 +60,25 @@ export function filterTasksForChatSearch<
     title?: string | null;
     notes?: string | null;
     clients?: { name?: string | null } | null;
-    leads?: { company_name?: string | null; contact_name?: string | null } | null;
+    leads?: {
+      company_name?: string | null;
+      contact_name?: string | null;
+    } | null;
     campaigners?: { full_name?: string | null } | null;
     creator_name?: string | null;
   },
 >(tasks: T[], search: string): T[] {
   const q = search.trim().toLowerCase();
   if (!q) return tasks;
-  return tasks.filter((task) =>
-    (task.title || "").toLowerCase().includes(q) ||
-    (task.notes || "").toLowerCase().includes(q) ||
-    (task.clients?.name || "").toLowerCase().includes(q) ||
-    (task.leads?.company_name || "").toLowerCase().includes(q) ||
-    (task.leads?.contact_name || "").toLowerCase().includes(q) ||
-    (task.campaigners?.full_name || "").toLowerCase().includes(q) ||
-    (task.creator_name || "").toLowerCase().includes(q)
+  return tasks.filter(
+    (task) =>
+      (task.title || "").toLowerCase().includes(q) ||
+      (task.notes || "").toLowerCase().includes(q) ||
+      (task.clients?.name || "").toLowerCase().includes(q) ||
+      (task.leads?.company_name || "").toLowerCase().includes(q) ||
+      (task.leads?.contact_name || "").toLowerCase().includes(q) ||
+      (task.campaigners?.full_name || "").toLowerCase().includes(q) ||
+      (task.creator_name || "").toLowerCase().includes(q),
   );
 }
 
@@ -118,8 +123,8 @@ export function taskAppearsOnTimeGrid(
   today: Date = startOfDay(new Date()),
 ): boolean {
   if (!task.due_date || !task.due_time) return false;
-  if (task.status === "done") return false;
+  // Completed tasks remain on the calendar (marked done); include them for grid + Google dedupe.
   const dueDate = new Date(task.due_date);
-  if (dueDate < today) return false;
+  if (dueDate < today && task.status !== "done") return false;
   return dueDate >= dateRange.start && dueDate <= dateRange.end;
 }
