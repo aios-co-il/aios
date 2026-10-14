@@ -8,7 +8,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -367,12 +366,9 @@ export default function Auth() {
               alt="Carmen Marketing OS"
               className="h-16 w-auto max-w-[240px] object-contain"
             />
-            <div>
-              <CardTitle className="text-2xl">Carmen Marketing OS</CardTitle>
-              <CardDescription>
-                שיווק, מכירות, לקוחות, משימות ונתונים — במקום אחד
-              </CardDescription>
-            </div>
+            <CardDescription className="text-base font-medium text-foreground">
+              מנהלת השיווק של העסק שלך
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
