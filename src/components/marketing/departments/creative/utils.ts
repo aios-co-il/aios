@@ -65,20 +65,6 @@ export const layoutStoryboardRtl = (
   }));
 };
 
-export const getStoryboard = (
-  payload: Record<string, unknown> | null | undefined,
-): StoryboardFrame[] => {
-  const value = payload?.storyboard;
-  if (!Array.isArray(value)) return [];
-  const frames = value
-    .filter((frame): frame is StoryboardFrame => {
-      if (!frame || typeof frame !== "object") return false;
-      return typeof (frame as StoryboardFrame).id === "string";
-    })
-    .sort((a, b) => a.order - b.order);
-  return layoutStoryboardRtl(frames);
-};
-
 export const getStoryboardStyle = (
   payload: Record<string, unknown> | null | undefined,
 ): { lock: string; referenceImageUrl?: string } => {

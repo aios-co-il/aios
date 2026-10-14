@@ -5629,16 +5629,22 @@ export type Database = {
       };
       marketing_runs: {
         Row: {
+          attempts: number;
           cost_usd: number;
           created_at: string;
           created_by: string | null;
+          credits: number | null;
           error: string | null;
           finished_at: string | null;
           id: string;
           input: Json;
           item_id: string;
+          kind: string | null;
           model: string | null;
           output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
           stage_id: string;
           started_at: string | null;
           status: string;
@@ -5648,16 +5654,22 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          attempts?: number;
           cost_usd?: number;
           created_at?: string;
           created_by?: string | null;
+          credits?: number | null;
           error?: string | null;
           finished_at?: string | null;
           id?: string;
           input?: Json;
           item_id: string;
+          kind?: string | null;
           model?: string | null;
           output?: Json;
+          provider?: string | null;
+          provider_job_id?: string | null;
+          scene_id?: string | null;
           stage_id: string;
           started_at?: string | null;
           status?: string;
@@ -5667,16 +5679,22 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          attempts?: number;
           cost_usd?: number;
           created_at?: string;
           created_by?: string | null;
+          credits?: number | null;
           error?: string | null;
           finished_at?: string | null;
           id?: string;
           input?: Json;
           item_id?: string;
+          kind?: string | null;
           model?: string | null;
           output?: Json;
+          provider?: string | null;
+          provider_job_id?: string | null;
+          scene_id?: string | null;
           stage_id?: string;
           started_at?: string | null;
           status?: string;
@@ -5685,7 +5703,15 @@ export type Database = {
           tokens_out?: number;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "marketing_runs_scene_id_fkey";
+            columns: ["scene_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_video_scenes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_stage_templates: {
         Row: {
@@ -5797,6 +5823,117 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      marketing_video_scenes: {
+        Row: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        };
+        Insert: {
+          clip_asset_id?: string | null;
+          clip_stale?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          duration_s?: number;
+          focal_x?: number;
+          id?: string;
+          item_id: string;
+          locked?: boolean;
+          meta?: Json;
+          motion_prompt?: string;
+          overlay_text?: string;
+          position: number;
+          shot?: string;
+          status?: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id?: string | null;
+          tenant_id: string;
+          title?: string;
+          updated_at?: string;
+          visual_prompt?: string;
+          voice_asset_id?: string | null;
+          voiceover_text?: string;
+        };
+        Update: {
+          clip_asset_id?: string | null;
+          clip_stale?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          duration_s?: number;
+          focal_x?: number;
+          id?: string;
+          item_id?: string;
+          locked?: boolean;
+          meta?: Json;
+          motion_prompt?: string;
+          overlay_text?: string;
+          position?: number;
+          shot?: string;
+          status?: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id?: string | null;
+          tenant_id?: string;
+          title?: string;
+          updated_at?: string;
+          visual_prompt?: string;
+          voice_asset_id?: string | null;
+          voiceover_text?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "marketing_video_scenes_clip_asset_id_fkey";
+            columns: ["clip_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_still_asset_id_fkey";
+            columns: ["still_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_voice_asset_id_fkey";
+            columns: ["voice_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_work_items: {
         Row: {
@@ -10603,6 +10740,16 @@ export type Database = {
         };
         Returns: string;
       };
+      attach_video_scene_asset: {
+        Args: {
+          p_kind: string;
+          p_meta?: Json;
+          p_run_id?: string;
+          p_scene_id: string;
+          p_url: string;
+        };
+        Returns: Database["public"]["Tables"]["marketing_assets"]["Row"];
+      };
       can_access_agency: {
         Args: { _agency_id: string; _user_id: string };
         Returns: boolean;
@@ -11029,6 +11176,10 @@ export type Database = {
         }[];
       };
       mark_all_chats_read: { Args: { p_tenant_id: string }; Returns: number };
+      migrate_storyboard_to_video_scenes: {
+        Args: { p_item_id?: string };
+        Returns: number;
+      };
       match_agent_memory: {
         Args: {
           p_agent_id: string;
@@ -11043,6 +11194,10 @@ export type Database = {
           summary: string;
           title: string;
         }[];
+      };
+      save_video_storyboard: {
+        Args: { p_item_id: string; p_scenes: Json };
+        Returns: Database["public"]["Tables"]["marketing_video_scenes"]["Row"][];
       };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
@@ -11300,6 +11455,15 @@ export type Database = {
         | "target_seo"
         | "target_organic"
         | "measurement";
+      marketing_video_scene_status:
+        | "draft"
+        | "still_generating"
+        | "still_ready"
+        | "still_approved"
+        | "clip_generating"
+        | "clip_ready"
+        | "clip_approved"
+        | "failed";
       onboarding_status:
         | "research_meeting"
         | "receiving_access"
@@ -11572,6 +11736,16 @@ export const Constants = {
         "target_seo",
         "target_organic",
         "measurement",
+      ],
+      marketing_video_scene_status: [
+        "draft",
+        "still_generating",
+        "still_ready",
+        "still_approved",
+        "clip_generating",
+        "clip_ready",
+        "clip_approved",
+        "failed",
       ],
       onboarding_status: [
         "research_meeting",

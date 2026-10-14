@@ -72,7 +72,6 @@ import {
   getApprovedCopyConcepts,
   getConceptBrief,
   cameFromCopy,
-  getStoryboard,
   getStoryboardStyle,
   getVariations,
   isVariationLiveText,
@@ -82,6 +81,11 @@ import {
   pickStoryboardReferences,
 } from "@/components/marketing/departments/creative/utils";
 import { mergeCreativeVariations } from "@/components/marketing/departments/creative/mergeVariations";
+import {
+  fetchVideoStoryboards,
+  persistedStillsOf,
+  saveVideoStoryboard,
+} from "@/components/marketing/departments/creative/videoScenesStore";
 import {
   formatUsd,
   summarizeStoredImageCosts,
@@ -206,6 +210,9 @@ interface Props {
   onClientChange?: (id: string | null) => void;
 }
 
+const NO_STORYBOARDS: Record<string, StoryboardFrame[]> = {};
+const NO_FRAMES: StoryboardFrame[] = [];
+
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
@@ -301,6 +308,8 @@ export function CreativeDepartment({
   const abortControllersRef = useRef<AbortController[]>([]);
   const cursorJobIdsRef = useRef<Set<string>>(new Set());
   const persistChainRef = useRef(Promise.resolve());
+  /** Scene id → stored still URL, as last loaded from or saved to marketing_video_scenes. */
+  const persistedStillsRef = useRef<Map<string, string | undefined>>(new Map());
   const [activeJobs, setActiveJobs] = useState(0);
   const [busyIds, setBusyIds] = useState<string[]>([]);
 
@@ -435,9 +444,25 @@ export function CreativeDepartment({
   const generateAllLabel = generateFromConcepts
     ? "צור לכל הקונספטים"
     : "צור לכל הקופי";
+  // Sorted so a save (which reorders items by updated_at) keeps the same query key.
+  const videoItemIds = useMemo(
+    () =>
+      items
+        .filter((item) => getProjectType(item.payload) === "video")
+        .map((item) => item.id)
+        .sort(),
+    [items],
+  );
+  const { data: storyboards = NO_STORYBOARDS } = useQuery({
+    queryKey: ["creative-video-scenes", tenantId, videoItemIds.join(",")],
+    enabled: videoItemIds.length > 0,
+    queryFn: () => fetchVideoStoryboards(tenantId, videoItemIds),
+    // A new project changes the key; keep showing the loaded storyboards meanwhile.
+    placeholderData: (previous) => previous,
+  });
   const storyboard = useMemo(
-    () => getStoryboard(selected?.payload ?? null),
-    [selected?.payload],
+    () => (selectedId ? storyboards[selectedId] : undefined) ?? NO_FRAMES,
+    [storyboards, selectedId],
   );
   const selectedVariation =
     variations.find((variation) => variation.id === selectedVariationId) ??
@@ -472,8 +497,9 @@ export function CreativeDepartment({
     return items.map((item) => {
       const isVideo = getProjectType(item.payload) === "video";
       const format = defaultFormat(item.payload);
+      const frames = storyboards[item.id] ?? NO_FRAMES;
       const images = isVideo
-        ? getStoryboard(item.payload).map((frame) => ({
+        ? frames.map((frame) => ({
             generationCost: frame.generationCost,
             imageUrl: frame.imageUrl,
             format,
@@ -484,7 +510,7 @@ export function CreativeDepartment({
             source: variation.source,
             format: variation.format,
           }));
-      const next = buildNextGenerateEstimate(item);
+      const next = buildNextGenerateEstimate(item, frames);
       return {
         item,
         spent: summarizeStoredImageCosts(
@@ -496,7 +522,7 @@ export function CreativeDepartment({
         nextCount: next.count,
       };
     });
-  }, [items, runCosts]);
+  }, [items, runCosts, storyboards]);
 
   const { data: context, isLoading: loadingContext } = useQuery({
     queryKey: ["creative-department-context", selected?.client_id, tenantId],
@@ -606,6 +632,7 @@ export function CreativeDepartment({
 
   useEffect(() => {
     setStoryboardDraft(storyboard);
+    persistedStillsRef.current = persistedStillsOf(storyboard);
   }, [storyboard, selectedId]);
 
   useEffect(() => {
@@ -662,6 +689,9 @@ export function CreativeDepartment({
       }),
       queryClient.invalidateQueries({
         queryKey: ["creative-project-runs", tenantId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["creative-video-scenes", tenantId],
       }),
     ]);
   };
@@ -814,18 +844,28 @@ export function CreativeDepartment({
     );
   };
 
+  const saveScenes = async (itemId: string, nextFrames: StoryboardFrame[]) => {
+    await saveVideoStoryboard({
+      tenantId,
+      itemId,
+      frames: nextFrames,
+      persistedStills: persistedStillsRef.current,
+    });
+    persistedStillsRef.current = persistedStillsOf(nextFrames);
+  };
+
   const persistStoryboard = async (
     nextFrames: StoryboardFrame[],
     message = "ה-storyboard נשמר",
   ) => {
     if (!selected) return;
+    await saveScenes(selected.id, nextFrames);
     const existingStyle = getStoryboardStyle(selected.payload);
     const firstImage = [...nextFrames]
       .sort((a, b) => a.order - b.order)
       .find((frame) => frame.imageUrl)?.imageUrl;
     const nextPayload = {
       ...(selected.payload ?? {}),
-      storyboard: nextFrames,
       storyboard_style: {
         lock: buildVisualStyleLock(selected.payload, { storyboard: true }),
         referenceImageUrl: existingStyle.referenceImageUrl || firstImage,
@@ -2144,6 +2184,8 @@ export function CreativeDepartment({
     mutationFn: async () => {
       if (!selected || !context?.campaignStage)
         throw new Error("שלב הקמפיינים לא נמצא");
+      if (projectType === "video")
+        await saveScenes(selected.id, storyboardDraft);
       const { error } = await supabase
         .from("marketing_work_items")
         .update({
@@ -2152,7 +2194,6 @@ export function CreativeDepartment({
           payload: {
             ...(selected.payload ?? {}),
             variations,
-            storyboard: storyboardDraft,
             creative_approved: true,
             department: "campaigns",
           },
@@ -2265,7 +2306,7 @@ export function CreativeDepartment({
                   <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {owner?.name || "ללא לקוח"} · {projectTypeLabel(type)} ·{" "}
                     {type === "video"
-                      ? `${getStoryboard(item.payload).length} סצנות`
+                      ? `${storyboards[item.id]?.length ?? 0} סצנות`
                       : `${getVariations(item.payload).length} וריאציות`}
                   </div>
                 </div>
@@ -3625,8 +3666,6 @@ function ManualCreativeDialog({
           at,
         });
       }
-      if (projectType === "video")
-        payload.storyboard = [makeStoryboardFrame(1)];
 
       const { data, error } = await supabase
         .from("marketing_work_items")
@@ -3643,6 +3682,14 @@ function ManualCreativeDialog({
         .select("id")
         .single();
       if (error) throw error;
+      if (projectType === "video") {
+        await saveVideoStoryboard({
+          tenantId,
+          itemId: data.id,
+          frames: [makeStoryboardFrame(1)],
+          persistedStills: new Map(),
+        });
+      }
       if (linkedCopy) {
         const { error: stampError } = await supabase
           .from("marketing_work_items")

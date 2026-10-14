@@ -39,3 +39,22 @@ test("filterCreativeDepartmentItems matches a tenant creative stage", () => {
     ["legacy", "tagged"],
   );
 });
+
+test("video projects stay in creative without a payload storyboard", () => {
+  assert.equal(
+    isCreativeDepartmentItem({ payload: { project_type: "video" } }),
+    true,
+  );
+  assert.equal(
+    isCreativeDepartmentItem({
+      payload: { project_type: "video", storyboard: [] },
+    }),
+    true,
+  );
+  assert.equal(
+    isCreativeDepartmentItem({
+      payload: { project_type: "video", department: "copy" },
+    }),
+    false,
+  );
+});
