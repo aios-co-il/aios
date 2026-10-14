@@ -22,6 +22,7 @@ import {
   managerGroupAccessViaAllowedPhones,
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
+import { loadRelationshipNote } from "./carmen-group-verification.ts";
 import {
   SURFACE_GROUP,
   identityAllowsSurface,
@@ -1978,6 +1979,15 @@ export async function handleCarmenMessage(
           rosterErr,
         );
       }
+    }
+    try {
+      identityContext += await loadRelationshipNote(
+        supabase,
+        tenantId,
+        phoneNumber,
+      );
+    } catch (noteErr) {
+      console.warn("[carmen] relationship note failed (non-fatal)", noteErr);
     }
   }
 

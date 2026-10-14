@@ -81,6 +81,9 @@ verify_jwt = false
 [functions.carmen-activate-phone]
 verify_jwt = false
 
+[functions.carmen-introduce-group]
+verify_jwt = true
+
 [functions.carmen-admin-mcp]
 verify_jwt = false
 
