@@ -45,6 +45,12 @@ jobs:
       DEPLOY_MODE: ${{ inputs.mode }}
       BASE_REF: ${{ inputs.base_ref }}
     steps:
+      - name: Validate mode
+        run: |
+          case "$DEPLOY_MODE" in
+            branch|pr) ;;
+            *) echo "::error::Unknown mode '$DEPLOY_MODE' (expected branch or pr)"; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
