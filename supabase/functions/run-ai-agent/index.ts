@@ -291,23 +291,17 @@ import {
 } from "../_shared/client-retention.ts";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
-import {
-  jsonObject,
-  isObject,
-  isMetaNode,
-  readMetaResponse,
-} from "./runtime-contracts.ts";
+import { jsonObject, isObject } from "./json-config.ts";
+import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
+import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
-  AgentDatabaseClient,
-  AgentRow,
-  MetaAction,
-  MetaNode,
   SearchClient,
   MetaAdMetrics,
   AccountInsights,
   ConnectedClient,
   DisconnectedClient,
-} from "./runtime-contracts.ts";
+} from "./helper-results.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
