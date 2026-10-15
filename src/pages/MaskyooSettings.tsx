@@ -93,8 +93,8 @@ export default function MaskyooSettings() {
       toast.error("שגיאה בשמירה", { description: e.message }),
   });
 
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const webhookUrl = `https://${projectId}.supabase.co/functions/v1/maskyoo-webhook?tenant_id=${tenantId}${webhookSecret ? `&secret=${webhookSecret}` : ""}`;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const webhookUrl = `${supabaseUrl}/functions/v1/maskyoo-webhook?tenant_id=${tenantId}${webhookSecret ? `&secret=${webhookSecret}` : ""}`;
 
   if (isLoading) {
     return (

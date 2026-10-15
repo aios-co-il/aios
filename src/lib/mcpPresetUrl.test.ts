@@ -5,7 +5,6 @@ import { mcpPresetBaseUrl, mcpPresetFunctionUrl } from "./mcpPresetUrl.ts";
 test("MCP presets follow staging VITE_SUPABASE_URL", () => {
   const env = {
     VITE_SUPABASE_URL: "https://mzjsuvatrzhciojmbbbm.supabase.co",
-    VITE_SUPABASE_PROJECT_ID: "mzjsuvatrzhciojmbbbm",
   };
   assert.equal(
     mcpPresetBaseUrl(env),
