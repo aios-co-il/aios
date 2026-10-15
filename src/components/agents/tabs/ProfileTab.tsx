@@ -1,7 +1,9 @@
 import { AgentVisualIdentity } from "../AgentVisualIdentity";
+import type { LucideIcon } from "lucide-react";
+import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/agentAccessClient";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +53,7 @@ export function ProfileTab({
   agent,
   onManageKeys,
 }: {
-  agent: any;
+  agent: AgentProfile;
   /** Forwarded to BrainSelector — replaces navigation to /llm-settings when provided. */
   onManageKeys?: () => void;
 }) {
@@ -85,7 +87,7 @@ export function ProfileTab({
       setDirty(false);
       toast.success("הפרופיל נשמר");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -313,7 +315,11 @@ export function ProfileTab({
             hint="V2 מוסיף חשיבה מובנית, תכנון, ואימות פעולות. V1 = התנהגות נוכחית"
           >
             <Select
-              value={form.metadata?.prompt_version || "v1"}
+              value={
+                typeof form.metadata.prompt_version === "string"
+                  ? form.metadata.prompt_version || "v1"
+                  : "v1"
+              }
               onValueChange={(v) =>
                 update({ metadata: { ...form.metadata, prompt_version: v } })
               }
@@ -337,7 +343,11 @@ export function ProfileTab({
               hint="כשכרמן לא יודעת מה לעשות — למי לפנות? בחר סוכן אחד כדי למנוע כפילויות."
             >
               <Select
-                value={form.metadata?.escalation_agent || "all"}
+                value={
+                  typeof form.metadata.escalation_agent === "string"
+                    ? form.metadata.escalation_agent || "all"
+                    : "all"
+                }
                 onValueChange={(v) =>
                   update({
                     metadata: { ...form.metadata, escalation_agent: v },
@@ -446,7 +456,7 @@ const MOOD_OPTIONS: {
   },
 ];
 
-function MoodCard({ agent }: { agent: any }) {
+function MoodCard({ agent }: { agent: AgentProfile }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.mood || "none";
@@ -455,7 +465,7 @@ function MoodCard({ agent }: { agent: any }) {
     setSaving(true);
     const { error } = await supabase
       .from("ai_agents")
-      .update({ mood: v === "none" ? null : v } as any)
+      .update({ mood: v === "none" ? null : v })
       .eq("id", agent.id);
     setSaving(false);
     if (error) {
@@ -527,7 +537,7 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
 ];
 
-function VoiceCard({ agent }: { agent: any }) {
+function VoiceCard({ agent }: { agent: AgentProfile }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.voice || "none";
@@ -536,7 +546,7 @@ function VoiceCard({ agent }: { agent: any }) {
     setSaving(true);
     const { error } = await supabase
       .from("ai_agents")
-      .update({ voice: v === "none" ? null : v } as any)
+      .update({ voice: v === "none" ? null : v })
       .eq("id", agent.id);
     setSaving(false);
     if (error) {
@@ -585,7 +595,13 @@ function VoiceCard({ agent }: { agent: any }) {
 // =========================================================================
 // Capabilities card (read-only summary)
 // =========================================================================
-function CapabilitiesCard({ agent, carmen }: { agent: any; carmen: boolean }) {
+function CapabilitiesCard({
+  agent,
+  carmen,
+}: {
+  agent: AgentProfile;
+  carmen: boolean;
+}) {
   const goals = useAgentGoals(agent.id);
   const knowledge = useAgentKnowledge(agent.id);
   const carmenTree = useCarmenMemoryTree();
@@ -643,7 +659,7 @@ function StatTile({
   value,
   hint,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: number;
   hint?: string;
@@ -740,7 +756,7 @@ function SectionHeader({
   title,
   subtitle,
 }: {
-  icon: any;
+  icon: LucideIcon;
   title: string;
   subtitle?: string;
 }) {
@@ -777,7 +793,7 @@ function Field({
   );
 }
 
-function initialForm(agent: any) {
+function initialForm(agent: AgentProfile) {
   return {
     name: agent.name || "",
     talent: agent.talent || "",
@@ -789,6 +805,11 @@ function initialForm(agent: any) {
     language: agent.language || "he",
     max_tool_rounds: agent.max_tool_rounds ?? 25,
     active: agent.active ?? true,
-    metadata: agent.metadata || {},
+    metadata:
+      agent.metadata &&
+      typeof agent.metadata === "object" &&
+      !Array.isArray(agent.metadata)
+        ? agent.metadata
+        : {},
   };
 }
