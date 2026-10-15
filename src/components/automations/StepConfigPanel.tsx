@@ -915,14 +915,14 @@ export function StepConfigPanel({
                           readOnly
                           dir="ltr"
                           className="font-mono text-[10px]"
-                          value={`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/automation-flow-webhook?automation_id=${automationId || ""}`}
+                          value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-flow-webhook?automation_id=${automationId || ""}`}
                         />
                         <Button
                           type="button"
                           variant="outline"
                           size="icon"
                           onClick={async () => {
-                            const webhookUrl = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/automation-flow-webhook?automation_id=${automationId || ""}`;
+                            const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-flow-webhook?automation_id=${automationId || ""}`;
                             await navigator.clipboard.writeText(webhookUrl);
                             toast({
                               title: "הועתק",
@@ -1057,14 +1057,14 @@ export function StepConfigPanel({
                           readOnly
                           dir="ltr"
                           className="font-mono text-[10px]"
-                          value={`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/automation-lead-webhook?automation_id=${automationId || ""}`}
+                          value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-lead-webhook?automation_id=${automationId || ""}`}
                         />
                         <Button
                           type="button"
                           variant="outline"
                           size="icon"
                           onClick={async () => {
-                            const webhookUrl = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/automation-lead-webhook?automation_id=${automationId || ""}`;
+                            const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-lead-webhook?automation_id=${automationId || ""}`;
                             await navigator.clipboard.writeText(webhookUrl);
                             toast({
                               title: "הועתק",
