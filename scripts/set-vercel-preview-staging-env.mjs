@@ -39,7 +39,6 @@ const desired = [
   ["STAGING_SAFE_MODE", "true"],
 ];
 
-
 function apiUrl(path) {
   const u = new URL(`https://api.vercel.com${path}`);
   if (teamId) u.searchParams.set("teamId", teamId);

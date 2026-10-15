@@ -1194,13 +1194,6 @@
       "count": 2
     },
     {
-      "file": "src/hooks/useAhrefsEnrichment.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "source": "projectId",
-      "count": 2
-    },
-    {
       "file": "src/hooks/useAutoCreateTeamMember.ts",
       "code": 18047,
       "message": "'campaigner' is possibly 'null'.",
