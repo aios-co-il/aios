@@ -161,7 +161,7 @@ legacy manual process.
 
 - **Skin slug:** `command_center_cursor_project_status` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
 - **What Carmen can now do:** When David asks what happened to the Cursor Command Center project, answer from PR #499 + preview vs live, without opening a new coding task.
-- **How:** Recite the snapshot in the skin. Refresh via `mcp_Cursor__ask_cursor` (status only). Do not merge to `main` without `מאשר לפרודקשן` unless David already said to merge.
+- **How:** Recite the snapshot in the skin. Refresh via `mcp_Cursor__ask_cursor` (status only). Never merge to `main`; a human does.
 - **Origin:** David via WhatsApp — "מה עם הפרויקט של קרסר על מרכז הבקרה שלך?"
 
 ### 2026-08-28 — Staging Cursor MCP token 401 + Command Center preset URL

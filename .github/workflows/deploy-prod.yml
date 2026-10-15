@@ -1,8 +1,7 @@
 name: Deploy Prod
 
-# Runs on every push to main that touches Supabase sources. The `production`
-# GitHub environment's required-reviewer rule is the approval gate (migrations
-# pause here; functions wait for migrations when both changed).
+# Runs on every push to main that touches Supabase sources. Approval is branch
+# protection on `main`; functions wait for migrations when both changed.
 
 on:
   push:

@@ -134,7 +134,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Release PR **`develop` → `main`**, merged by a human (Production deploy + `deploy-edge-function.yml`).
+5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
 6. Main pushes automatically run `sync-develop-from-main`. A release PR must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
