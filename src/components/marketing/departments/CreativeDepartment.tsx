@@ -189,10 +189,19 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -231,11 +240,14 @@ import {
   Coins,
   Clock3,
   Clapperboard,
+  FolderOpen,
   History,
   Image as ImageIcon,
+  Layers,
   Link2,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Palette,
   PenLine,
   Plus,
@@ -3188,241 +3200,271 @@ export function CreativeDepartment({
     </>
   );
 
-  const workspaceHeader = selected ? (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-card/50 px-4 py-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-700 text-white">
+  // Studio top bar: who/what on one side, the one primary action on the other.
+  // Everything else lives in the side rail drawers or the ⋯ menu.
+  const studioModeLabel = selected
+    ? `${isVideoWorkspace ? "סרטון" : projectTypeLabel(projectType)} · ${defaultFormat(selected.payload)}`
+    : "";
+  const studioTitle = selected ? (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-violet-600 text-white">
         {isVideoWorkspace ? (
           <Clapperboard className="h-4 w-4" />
         ) : (
           <Palette className="h-4 w-4" />
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-sm font-bold">{selected.title}</h2>
-        <p className="text-[11px] text-muted-foreground">
-          {projectTypeLabel(projectType)} ·{" "}
-          {getVisualStyle(selected.payload).label} · {CREATIVE_DIRECT_LABEL_HE}
-          {selectedVariation && (
-            <> · {selectedVariationLiveText ? "שכבות" : "סופי"}</>
+      <div className="min-w-0">
+        <h2 className="max-w-[16rem] truncate text-sm font-bold">
+          {selected.title}
+        </h2>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Badge variant="secondary" className="h-5 px-2 text-[10px]">
+            {studioModeLabel}
+          </Badge>
+          {!isVideoWorkspace && (
+            <span className="truncate">
+              {getVisualStyle(selected.payload).label}
+            </span>
           )}
-        </p>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/30 p-1">
-        <Button
-          size="sm"
-          variant={workspacePanel === "projects" ? "secondary" : "ghost"}
-          className="h-8"
-          onClick={() => toggleWorkspacePanel("projects")}
-        >
-          פרויקטים
-        </Button>
-        <Button
-          size="sm"
-          variant={workspacePanel === "project" ? "secondary" : "ghost"}
-          className="h-8 gap-1.5"
-          onClick={() => toggleWorkspacePanel("project")}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          הגדרות פרויקט
-        </Button>
-        {isVideoWorkspace ? (
+      <DropdownMenu dir="rtl">
+        <DropdownMenuTrigger asChild>
           <Button
-            size="sm"
-            variant={workspacePanel === "scene" ? "secondary" : "ghost"}
-            className="h-8"
-            onClick={() => toggleWorkspacePanel("scene")}
-            disabled={storyboardDraft.length === 0}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label="עוד פעולות"
           >
-            סצנה
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
-        ) : selectedVariationLiveText ? (
-          <Button
-            size="sm"
-            variant={workspacePanel === "edit" ? "secondary" : "ghost"}
-            className="h-8"
-            onClick={() => toggleWorkspacePanel("edit")}
-            disabled={!variationDraft}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[15rem]">
+          <DropdownMenuItem onClick={() => setLinkCopyOpen(true)}>
+            <Link2 className="me-2 h-3.5 w-3.5" />
+            משוך קופי וקונספטים
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setCostOpen(true)}>
+            <Coins className="me-2 h-3.5 w-3.5" />
+            עלויות ·{" "}
+            {formatUsd(
+              costRows.find((row) => row.item.id === selected.id)?.spent
+                .costUsd ?? 0,
+            )}
+          </DropdownMenuItem>
+          {!isVideoWorkspace && (
+            <DropdownMenuCheckboxItem
+              checked={nextLiveTextLayers}
+              onCheckedChange={(checked) => setNextLiveTextLayers(!!checked)}
+            >
+              טקסט כשכבות עריכות כברירת מחדל
+            </DropdownMenuCheckboxItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setDeleteTarget(selected)}
           >
-            שכבות
-          </Button>
-        ) : null}
-        <Button
-          size="sm"
-          variant={workspacePanel === "versions" ? "secondary" : "ghost"}
-          className="h-8"
-          onClick={() => toggleWorkspacePanel("versions")}
-        >
-          גרסאות
-        </Button>
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
-        title="מחיקת פרויקט"
-        onClick={() => setDeleteTarget(selected)}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        מחק
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        onClick={() => setCostOpen(true)}
-      >
-        <Coins className="h-3.5 w-3.5" />
-        {formatUsd(
-          costRows.find((row) => row.item.id === selected.id)?.spent.costUsd ??
-            0,
-        )}
-      </Button>
-      <div
-        className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5"
-        title="ברירת מחדל כשלא בוחרים במפורש בלחיצה"
-      >
-        <span
-          className={`text-[10px] font-medium ${!nextLiveTextLayers ? "text-foreground" : "text-muted-foreground"}`}
-        >
-          ברירת מחדל · סופי
-        </span>
-        <Switch
-          checked={nextLiveTextLayers}
-          onCheckedChange={setNextLiveTextLayers}
-          aria-label="ברירת מחדל למודעה חדשה"
-        />
-        <span
-          className={`text-[10px] font-medium ${nextLiveTextLayers ? "text-foreground" : "text-muted-foreground"}`}
-        >
-          שכבות
-        </span>
-      </div>
-      <VisualStyleSelect
-        compact
-        value={selectedStyleId}
-        onChange={(style) => void persistVisualStyle(style)}
-      />
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        onClick={() => setLinkCopyOpen(true)}
-      >
-        <Link2 className="h-3.5 w-3.5" />
-        משוך מקופי
-      </Button>
-      {!isVideoWorkspace && (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600"
-                disabled={loadingContext || !selected.client_id}
-              >
-                {workInFlight ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-3.5 w-3.5" />
-                )}
-                {generateAllLabel}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[17rem]">
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("same", false)}
-              >
-                {generateFromConcepts
-                  ? "לכל קונספט · עם טקסט (סופי)"
-                  : "לכל הקופי · עם טקסט (סופי)"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("same", true)}
-              >
-                {generateFromConcepts
-                  ? "לכל קונספט · בלי טקסט (שכבות)"
-                  : "לכל הקופי · בלי טקסט (שכבות)"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("mixed", false)}
-              >
-                {generateFromConcepts
-                  ? "מבנה שונה לכל קונספט · עם טקסט"
-                  : "מבנה שונה לכל קופי · עם טקסט"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("mixed", true)}
-              >
-                {generateFromConcepts
-                  ? "מבנה שונה לכל קונספט · בלי טקסט"
-                  : "מבנה שונה לכל קופי · בלי טקסט"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={loadingContext || !selected.client_id}
-              >
-                {workInFlight ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-3.5 w-3.5" />
-                )}
-                וריאציה אחת
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuItem
-                onClick={() => requestSingleVariation(undefined, false)}
-              >
-                עם טקסט (סופי)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => requestSingleVariation(undefined, true)}
-              >
-                בלי טקסט (שכבות)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      )}
-      {workInFlight && (
-        <Button
-          variant="destructive"
-          size="sm"
-          className="gap-1.5"
-          onClick={stopGeneration}
-        >
-          <Square className="h-3.5 w-3.5 fill-current" />
-          עצור
-        </Button>
-      )}
-      <Button
-        size="sm"
-        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-        onClick={() => handoff.mutate()}
-        disabled={handoff.isPending || !canHandoff}
-      >
-        <Send className="h-3.5 w-3.5" />
-        אשר לקמפיינים
-      </Button>
+            <Trash2 className="me-2 h-3.5 w-3.5" />
+            מחק פרויקט
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  ) : null;
+
+  const approveButton = selected ? (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+      onClick={() => handoff.mutate()}
+      disabled={handoff.isPending || !canHandoff}
+    >
+      <Send className="h-3.5 w-3.5" />
+      אשר לקמפיינים
+    </Button>
+  ) : null;
+
+  const staticGenerateMenu =
+    selected && !isVideoWorkspace ? (
+      <DropdownMenu dir="rtl">
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
+            disabled={loadingContext || !selected.client_id}
+          >
+            {workInFlight ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <WandSparkles className="h-3.5 w-3.5" />
+            )}
+            צור וריאציות
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[17rem]">
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            {generateFromConcepts ? "לכל הקונספטים" : "לכל הקופי"}
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("same", false)}
+          >
+            עם טקסט על התמונה
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("same", true)}
+          >
+            טקסט כשכבות עריכות
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("mixed", false)}
+          >
+            מבנה שונה לכל אחד · עם טקסט
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("mixed", true)}
+          >
+            מבנה שונה לכל אחד · שכבות
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            וריאציה אחת
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => requestSingleVariation(undefined, false)}
+          >
+            עם טקסט על התמונה
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => requestSingleVariation(undefined, true)}
+          >
+            טקסט כשכבות עריכות
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+
+  // The video studio puts this same title and approve button into its own toolbar,
+  // so there is a single bar per mode.
+  const workspaceHeader =
+    selected && !isVideoWorkspace ? (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card/50 px-4 py-2">
+        {studioTitle}
+        <div className="flex items-center gap-2">
+          {workInFlight && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5"
+              onClick={stopGeneration}
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+              עצור
+            </Button>
+          )}
+          {staticGenerateMenu}
+          {approveButton}
+        </div>
+      </div>
+    ) : null;
+
+  const railItems: {
+    key: string;
+    label: string;
+    icon: typeof Settings;
+    active: boolean;
+    disabled?: boolean;
+    onClick: () => void;
+  }[] = selected
+    ? [
+        {
+          key: "projects",
+          label: "פרויקטים",
+          icon: FolderOpen,
+          active: workspacePanel === "projects",
+          onClick: () => toggleWorkspacePanel("projects"),
+        },
+        {
+          key: "project",
+          label: "מקורות ומותג",
+          icon: Settings,
+          active: workspacePanel === "project",
+          onClick: () => toggleWorkspacePanel("project"),
+        },
+        isVideoWorkspace
+          ? {
+              key: "scene",
+              label: "סצנה",
+              icon: Clapperboard,
+              active: workspacePanel === "scene",
+              disabled: storyboardDraft.length === 0,
+              onClick: () => toggleWorkspacePanel("scene"),
+            }
+          : {
+              key: "edit",
+              label: "שכבות",
+              icon: Layers,
+              active: workspacePanel === "edit",
+              disabled: !variationDraft || !selectedVariationLiveText,
+              onClick: () => toggleWorkspacePanel("edit"),
+            },
+        {
+          key: "versions",
+          label: "גרסאות והערות",
+          icon: History,
+          active: workspacePanel === "versions",
+          onClick: () => toggleWorkspacePanel("versions"),
+        },
+        {
+          key: "carmen",
+          label: CREATIVE_DIRECT_LABEL_HE,
+          icon: Sparkles,
+          active: false,
+          disabled: openingCreativeDirect,
+          onClick: () =>
+            creativeDirectUrl
+              ? window.open(creativeDirectUrl, "_blank", "noopener")
+              : void openCreativeDirect(),
+        },
+      ]
+    : [];
+
+  const studioRail = selected ? (
+    <TooltipProvider delayDuration={150}>
+      <nav
+        aria-label="מגירות הסטודיו"
+        className="flex w-12 shrink-0 flex-col items-center gap-1 border-e bg-card/40 py-2"
+      >
+        {railItems.map((item) => (
+          <Tooltip key={item.key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={item.label}
+                aria-pressed={item.active}
+                disabled={item.disabled}
+                onClick={item.onClick}
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40",
+                  item.active && "bg-muted text-foreground",
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{item.label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </nav>
+    </TooltipProvider>
   ) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {workspaceHeader}
-      <CreativeDirectDock
-        agentUrl={creativeDirectUrl}
-        opening={openingCreativeDirect}
-        onOpen={() => void openCreativeDirect()}
-      />
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" dir="rtl">
         <aside
           className={cn(
@@ -3465,6 +3507,7 @@ export function CreativeDepartment({
           </div>
           {projectsList}
         </aside>
+        {studioRail}
         <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
           {selected ? (
             isVideoWorkspace && loadingScenes && !storyboards[selected.id] ? (
@@ -3534,6 +3577,8 @@ export function CreativeDepartment({
                   onStop: producingStep ? stopGeneration : undefined,
                 }}
                 dirty={JSON.stringify(storyboardDraft) !== storyboardSignature}
+                titleSlot={studioTitle}
+                endSlot={approveButton}
                 film={{
                   status: renderRun?.status ?? "idle",
                   url: filmUrl,
@@ -3617,124 +3662,19 @@ export function CreativeDepartment({
                 }
               />
             ) : (
-              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                <ImageIcon className="mb-4 h-14 w-14 opacity-30" />
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+                <ImageIcon className="h-14 w-14 opacity-30" />
                 <h3 className="text-lg font-bold text-foreground">
-                  גריד וריאציות
+                  עוד אין וריאציות
                 </h3>
-                <p className="mt-2 max-w-md text-sm">
-                  {generateFromConcepts
-                    ? "כל קונספט מאושר מקבל קריאייטיב עם הקופי שמשויך אליו בגריד."
-                    : "כל וריאציית קופי מקבלת קריאייטיב — בוחרים עם טקסט על התמונה (סופי) או בלי (שכבות לעריכה)."}{" "}
-                  לחצו על כרטיס, כתבו מה לתקן, ו{CREATIVE_DIRECT_LABEL_HE} יוצר
-                  וריאציה חדשה.
+                <p className="max-w-md text-sm">
+                  {copyJobs.length > 0
+                    ? generateFromConcepts
+                      ? `יש ${copyJobs.length} קונספטים מאושרים עם קופי. לחצו ״צור וריאציות״ ותקבלו קריאייטיב לכל אחד.`
+                      : `יש ${copyBlocks.length} וריאציות קופי. לחצו ״צור וריאציות״ ותקבלו קריאייטיב לכל אחת.`
+                    : "עוד אין קופי משויך. משכו קופי וקונספטים מתפריט ⋯, או הוסיפו בריף במגירת ״מקורות ומותג״."}
                 </p>
-                {copyJobs.length > 0 && (
-                  <p className="mt-2 text-xs">
-                    {generateFromConcepts
-                      ? `נמצאו ${copyJobs.length} קונספטים מאושרים עם קופי משויך`
-                      : `נמצאו ${copyBlocks.length} וריאציות קופי משויכות`}
-                  </p>
-                )}
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setWorkspacePanel("project")}
-                  >
-                    עריכת פרויקט
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600"
-                        disabled={loadingContext || !selected.client_id}
-                      >
-                        {workInFlight ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <WandSparkles className="h-4 w-4" />
-                        )}
-                        {generateAllLabel}
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="center"
-                      className="min-w-[17rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("same", false)}
-                      >
-                        {generateFromConcepts
-                          ? "לכל קונספט · עם טקסט (סופי)"
-                          : "לכל הקופי · עם טקסט (סופי)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("same", true)}
-                      >
-                        {generateFromConcepts
-                          ? "לכל קונספט · בלי טקסט (שכבות)"
-                          : "לכל הקופי · בלי טקסט (שכבות)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("mixed", false)}
-                      >
-                        {generateFromConcepts
-                          ? "מבנה שונה לכל קונספט · עם טקסט"
-                          : "מבנה שונה לכל קופי · עם טקסט"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("mixed", true)}
-                      >
-                        {generateFromConcepts
-                          ? "מבנה שונה לכל קונספט · בלי טקסט"
-                          : "מבנה שונה לכל קופי · בלי טקסט"}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="gap-2"
-                        disabled={loadingContext || !selected.client_id}
-                      >
-                        {workInFlight ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <WandSparkles className="h-4 w-4" />
-                        )}
-                        וריאציה אחת
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="center"
-                      className="min-w-[14rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => requestSingleVariation(undefined, false)}
-                      >
-                        עם טקסט (סופי)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => requestSingleVariation(undefined, true)}
-                      >
-                        בלי טקסט (שכבות)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  {workInFlight && (
-                    <Button
-                      variant="destructive"
-                      className="gap-2"
-                      onClick={stopGeneration}
-                    >
-                      <Square className="h-4 w-4 fill-current" />
-                      עצור
-                    </Button>
-                  )}
-                </div>
+                {staticGenerateMenu}
               </div>
             )
           ) : (
@@ -3845,7 +3785,7 @@ export function CreativeDepartment({
               onClientChange(createdClientId);
           }
           setSelectedId(id);
-          setWorkspacePanel("project");
+          setWorkspacePanel(null);
           setCreateOpen(false);
           await refresh();
         }}

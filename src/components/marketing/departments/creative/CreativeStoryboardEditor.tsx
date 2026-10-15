@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -116,6 +116,10 @@ interface Props {
   };
   /** The draft has edits that are not saved yet. */
   dirty?: boolean;
+  /** Project name and menu, shown at the start of the toolbar (one bar per studio). */
+  titleSlot?: ReactNode;
+  /** Trailing action, e.g. "אשר לקמפיינים". */
+  endSlot?: ReactNode;
   film?: {
     status: string;
     url?: string | null;
@@ -347,6 +351,8 @@ export function CreativeStoryboardEditor({
   onSoundEngineChange,
   production,
   dirty,
+  titleSlot,
+  endSlot,
   film,
   reference,
   clips,
@@ -489,12 +495,13 @@ export function CreativeStoryboardEditor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {titleSlot}
           {production &&
             (production.running || production.busyLabel ? (
               <Button
-                size="lg"
+                size="sm"
                 disabled
                 className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
               >
@@ -503,7 +510,7 @@ export function CreativeStoryboardEditor({
               </Button>
             ) : (
               <Button
-                size="lg"
+                size="sm"
                 className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
                 disabled={frames.length === 0}
                 onClick={production.onProduce}
@@ -743,6 +750,7 @@ export function CreativeStoryboardEditor({
               )}
             </PopoverContent>
           </Popover>
+          {endSlot}
         </div>
       </div>
 
