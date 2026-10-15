@@ -24,7 +24,7 @@ STAGING_DOMAIN=<configured-in-vercel>
 PRODUCTION_DOMAIN=<configured-in-vercel>
 ```
 
-When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability. Never merge to `main` without an explicit `מאשר לפרודקשן`.
+When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability.
 
 ## Canonical URLs
 
@@ -51,7 +51,6 @@ feature/* or fix/*
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
     → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
-    → מאשר לפרודקשן
     → merge develop → main
     → Production (aios.co.il)
 ```
@@ -135,9 +134,9 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Merge **`develop` → `main`** only after `מאשר לפרודקשן` (Production deploy + `deploy-edge-function.yml`).
+5. Release PR **`develop` → `main`**, merged by a human (Production deploy + `deploy-edge-function.yml`).
 6. Main pushes automatically run `sync-develop-from-main`. A release PR must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
-7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification and `מאשר לפרודקשן`.
+7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 
 ## Development agents (Preview / Staging)
@@ -168,22 +167,6 @@ Workflow files define automation triggers; this document defines the environment
 
 - Check `.github/workflows/sync-develop-from-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
 
-## Database and edge-function deploys (label-gated)
+## Database and edge-function deploys
 
-Migrations in `supabase/migrations/**` are applied with `supabase db push`; the legacy `supabase/ops/*.sql` workflows (`apply-sql-migration*.yml`) remain only until the migration history is reconciled.
-
-- **PR into `develop` (or a hotfix into `main`) that changes `supabase/migrations/**`, `supabase/functions/**`, `supabase/config.toml`, `scripts/*edge*` or `scripts/staging-only-functions.json`:** must hold the `staging` label (`Deploy Staging` → `Require staging label` fails otherwise). Only one open PR can hold the label (`staging-lock.yml`). The label deploys the PR's migrations and edge functions to Staging and checks `src/integrations/supabase/types.ts` against the staging schema (check-only — regenerate with `scripts/gen-types.sh` and commit).
-- **`develop` → `main` release PRs** are exempt: Staging already runs `develop`.
-- **Push to `develop`:** `deploy-staging-develop.yml` re-applies migrations (idempotent) and redeploys functions.
-- **Push to `main`:** `deploy-prod.yml` pushes migrations to Production, then deploys functions. The `production` GitHub environment's required reviewer is the `מאשר לפרודקשן` gate.
-- **Drift recovery:** comment `/db-fix` or `/db-force-push` on a labelled PR. Dry-run migration history first with Actions → **Supabase migration dry run**.
-
-### GitHub config
-
-| Kind | Name |
-| --- | --- |
-| Variable | `PROD_PROJECT_REF`, `STAGING_PROJECT_REF` |
-| Secret | `BASE_ACCESS_TOKEN` (existing), `PROD_DB_PASSWORD`, `STAGING_DB_PASSWORD` |
-| Environments | `staging`, `production` (required reviewer on `production`) |
-| Label | `staging` |
-| Required checks (`develop`, `main`) | `Require staging label`, `Verify staging lock ownership` |
+Label-gated migration and edge-function deploys, drift recovery and GitHub config: `docs/agents/db-deploys.md`.
