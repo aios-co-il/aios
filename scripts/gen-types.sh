@@ -8,9 +8,13 @@
 set -euo pipefail
 
 APP_TYPES="src/integrations/supabase/types.ts"
+EDGE_TYPES="supabase/functions/_shared/database.types.ts"
 
 case "${1:-}" in
   --local)  supabase gen types typescript --local > "$APP_TYPES" ;;
   --linked) supabase gen types typescript --linked > "$APP_TYPES" ;;
   *) echo "Usage: $0 --local|--linked" >&2; exit 1 ;;
 esac
+
+# Edge functions share the same schema types.
+cp "$APP_TYPES" "$EDGE_TYPES"

@@ -15,6 +15,11 @@ permissions:
   contents: read
   pull-requests: write
 
+# A newer push supersedes an in-flight run for the same PR.
+concurrency:
+  group: deploy-staging-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   resolve:
     name: Resolve changes
@@ -113,12 +118,33 @@ jobs:
     uses: ./.github/workflows/deploy-edge-reusable.yml
     permissions:
       contents: write
+      pull-requests: read
     with:
       environment: staging
       source_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       mode: ${{ github.event_name == 'pull_request' && 'pr' || 'branch' }}
       base_ref: ${{ github.base_ref || 'develop' }}
+      pr_number: ${{ github.event.pull_request.number || '' }}
     secrets: inherit
+
+  result:
+    name: Staging deploy result
+    # Aggregate required check: the individual jobs can be skipped, but a failure or
+    # cancellation anywhere (including a skipped-because-upstream-failed path) fails it.
+    needs: [resolve, gate, check-lock, migrate, types, functions]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail on any failed or cancelled job
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              failure|cancelled) echo "::error::A required Staging deploy job ended as '$r'."; exit 1 ;;
+            esac
+          done
 
   comment:
     name: Update PR comment

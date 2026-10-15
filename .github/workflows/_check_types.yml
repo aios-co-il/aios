@@ -38,7 +38,9 @@ jobs:
 
       - name: Fail if committed types are stale
         run: |
-          if ! git diff --exit-code -- src/integrations/supabase/types.ts; then
-            echo "::error::src/integrations/supabase/types.ts is out of sync with the staging schema. Regenerate with ./scripts/gen-types.sh --local (or --linked after 'supabase link' to staging) and commit the result."
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff --stat
+            echo "::error::Generated Supabase types differ from the committed ones. Regenerate with ./scripts/gen-types.sh --local (or --linked after 'supabase link' to staging) and commit the result."
             exit 1
           fi

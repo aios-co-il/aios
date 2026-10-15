@@ -2,7 +2,7 @@ name: Staging Lock
 
 on:
   pull_request_target:
-    types: [labeled]
+    types: [labeled, reopened]
 
 permissions:
   contents: read
@@ -15,7 +15,10 @@ concurrency:
 jobs:
   enforce-lock:
     name: Enforce exclusive staging lock
-    if: github.event.label.name == 'staging'
+    # A closed PR keeps its label; enforce the lock again when it reopens.
+    if: >
+      github.event.label.name == 'staging' ||
+      (github.event.action == 'reopened' && contains(github.event.pull_request.labels.*.name, 'staging'))
     runs-on: ubuntu-latest
     steps:
       - name: Reject if another open PR already holds the lock

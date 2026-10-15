@@ -59,9 +59,12 @@ jobs:
           PR: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
-          HAS_LABEL=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "staging")')
-          if [[ "$HAS_LABEL" != "true" ]]; then
-            echo "::error::PR #$PR does not hold the staging label; refusing to run ${{ steps.resolve.outputs.command }}."
+          # A retained label on a closed PR is not ownership: the PR must be open and
+          # the only open PR holding `staging`.
+          STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)
+          HOLDERS=$(gh pr list --repo "$REPO" --label staging --state open --json number --jq '[.[].number | tostring] | join(",")')
+          if [[ "$STATE" != "OPEN" || "$HOLDERS" != "$PR" ]]; then
+            echo "::error::PR #$PR is not the single open PR holding the staging label (state: $STATE, holders: ${HOLDERS:-none}); refusing to run ${{ steps.resolve.outputs.command }}."
             exit 1
           fi
 
@@ -74,6 +77,10 @@ jobs:
     if: needs.authorize.outputs.command == '/db-fix'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Same group as _db_migrate.yml so repairs never overlap an automatic push.
+    concurrency:
+      group: db-migrate-staging
+      cancel-in-progress: false
     environment: staging
     steps:
       # Default branch, not PR head — db-fix runs repo scripts with staging secrets in scope, and doesn't need PR content.
@@ -178,6 +185,9 @@ jobs:
     if: needs.authorize.outputs.command == '/db-force-push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: db-migrate-staging
+      cancel-in-progress: false
     environment: staging
     steps:
       - uses: actions/checkout@v4

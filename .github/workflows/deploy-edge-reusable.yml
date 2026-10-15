@@ -22,8 +22,13 @@ on:
       base_ref:
         type: string
         default: "develop"
+      # Required in "pr" mode: used to refuse a superseded head commit.
+      pr_number:
+        type: string
+        default: ""
 permissions:
   contents: write
+  pull-requests: read
 concurrency:
   group: edge-deploy-${{ inputs.environment }}
   # Staging can resume atomic row/source checkpoints when a newer revision arrives.
@@ -44,6 +49,9 @@ jobs:
       BOOTSTRAP_BEFORE: ${{ inputs.base_revision }}
       DEPLOY_MODE: ${{ inputs.mode }}
       BASE_REF: ${{ inputs.base_ref }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
     steps:
       - name: Validate mode
         run: |
@@ -68,6 +76,12 @@ jobs:
           BRANCH=main
           if [ "$DEPLOY_ENV" = staging ]; then BRANCH=develop; fi
           if [ "$DEPLOY_MODE" = pr ]; then
+            # An older synchronize run can arrive after a newer one; never deploy a superseded head.
+            CURRENT_HEAD=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
+            if [ "$CURRENT_HEAD" != "$SOURCE_SHA" ]; then
+              echo "::error::$SOURCE_SHA is no longer the head of PR #$PR_NUMBER ($CURRENT_HEAD). Refusing to deploy stale code."
+              exit 1
+            fi
             git fetch origin "$BASE_REF"
             echo "DEPLOY_BEFORE=$(git merge-base HEAD "origin/$BASE_REF")" >> "$GITHUB_ENV"
             exit 0
@@ -101,16 +115,17 @@ jobs:
         run: |
           set -euo pipefail
           RECOVERED=$(python3 scripts/verify-staging-containment.py --deployment-base)
-          if [ -n "$RECOVERED" ] && git cat-file -e "$RECOVERED^{commit}" 2>/dev/null; then
-            if git merge-base --is-ancestor "$RECOVERED" HEAD; then
+          if [ -n "$RECOVERED" ]; then
+            if git cat-file -e "$RECOVERED^{commit}" 2>/dev/null && git merge-base --is-ancestor "$RECOVERED" HEAD; then
               echo "DEPLOY_BEFORE=$RECOVERED" >> "$GITHUB_ENV"
               echo "Resuming from deployed sources; containment verification remains required."
             else
-              # The recorded source is outside this revision's history (a closed or
-              # squash/rebase-merged PR, or another PR's functions). An empty base makes
-              # the planner redeploy every function; containment is verified afterwards.
+              # The recorded source is missing from this checkout (a deleted PR branch) or
+              # outside this revision's history (a closed or squash/rebase-merged PR, or
+              # another PR's functions). An empty base makes the planner redeploy every
+              # function; containment is verified afterwards.
               echo "DEPLOY_BEFORE=" >> "$GITHUB_ENV"
-              echo "Recorded revision is outside this revision's history; redeploying all functions."
+              echo "Recorded revision is unavailable or outside this revision's history; redeploying all functions."
             fi
           fi
       - name: Deploy complete source bundles
