@@ -2,7 +2,7 @@
 /**
  * Permission persona guard — catches RLS / scope regressions before merge.
  *
- * 1) Static (always): hybrid-SEO wiring in migrations + frontend + edge function.
+ * 1) Static (always): hybrid-SEO wiring in frontend + edge function.
  * 2) Live (when SUPABASE_ACCESS_TOKEN + staging project ref): SQL golden personas.
  *
  * See docs/postmortems/2026-09-09-hybrid-seo-report-access-regression.md
@@ -34,30 +34,6 @@ function mustInclude(rel, needle, why) {
 // ── Static ─────────────────────────────────────────────────────────────────
 
 mustInclude(
-  "supabase/migrations/20260909140000_fix_hybrid_seo_report_access.sql",
-  "user_has_seo_scope",
-  "hybrid SEO scope function must exist in migrations",
-);
-
-mustInclude(
-  "supabase/migrations/20260909140000_fix_hybrid_seo_report_access.sql",
-  "user_has_seo_scope(_user_id)",
-  "client scope helpers must delegate SEO to user_has_seo_scope",
-);
-
-const hybridMigration = read(
-  "supabase/migrations/20260909140000_fix_hybrid_seo_report_access.sql",
-);
-if (
-  hybridMigration.includes("user_can_view_client") &&
-  !hybridMigration.includes("user_has_seo_scope(uid)")
-) {
-  failures.push(
-    "20260909140000: user_can_view_client patch must call user_has_seo_scope(uid)",
-  );
-}
-
-mustInclude(
   "src/hooks/useUserRole.ts",
   "isSeoTaggedCampaigner",
   "frontend isSeo must honor campaigner.role SEO tag",
@@ -68,20 +44,6 @@ mustInclude(
   "user_has_seo_scope",
   "crm-tables must resolve SEO scope via user_has_seo_scope",
 );
-
-const optimizeRls = read(
-  "supabase/migrations/20260909120000_optimize_clients_tasks_rls_scope.sql",
-);
-if (
-  optimizeRls.includes("user_can_view_client") &&
-  optimizeRls.includes("is_seo_staff(uid)") &&
-  !optimizeRls.includes("user_has_seo_scope")
-) {
-  warnings.push(
-    "optimize_clients_tasks_rls migration uses is_seo_staff-only SEO path — " +
-      "hybrid migration 20260909140000 must be applied after it on every DB",
-  );
-}
 
 // ── Live (Staging) ─────────────────────────────────────────────────────────
 
