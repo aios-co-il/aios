@@ -1,1 +1,0 @@
-ALTER TABLE public.ahrefs_reports ALTER COLUMN tenant_id DROP NOT NULL;

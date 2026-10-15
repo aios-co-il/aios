@@ -1,1 +1,0 @@
-ALTER TABLE public.leads ALTER COLUMN company_name DROP NOT NULL;

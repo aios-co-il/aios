@@ -1,1 +1,0 @@
-UPDATE carmen_whatsapp_sessions SET status = 'ended', ended_at = now() WHERE status = 'active' AND automation_id IS NULL

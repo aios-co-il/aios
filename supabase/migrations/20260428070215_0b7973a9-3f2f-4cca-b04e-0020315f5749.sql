@@ -1,1 +1,0 @@
-ALTER TABLE public.error_logs ADD COLUMN IF NOT EXISTS error_stack TEXT;

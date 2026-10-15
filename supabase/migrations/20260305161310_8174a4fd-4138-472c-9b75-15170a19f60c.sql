@@ -1,1 +1,0 @@
-ALTER TABLE public.zoom_recordings ADD COLUMN IF NOT EXISTS summary_file_url text;

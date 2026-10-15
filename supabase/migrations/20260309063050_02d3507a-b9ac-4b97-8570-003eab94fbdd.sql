@@ -1,1 +1,0 @@
-ALTER TABLE public.whatsapp_groups ADD COLUMN IF NOT EXISTS invite_link TEXT;
