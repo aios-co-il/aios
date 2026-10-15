@@ -8,7 +8,10 @@ export default tseslint.config(
   { ignores: ["dist"] },
   {
     rules: {
-      "max-lines": ["warn", { max: 150, skipBlankLines: true, skipComments: true }],
+      "max-lines": [
+        "warn",
+        { max: 150, skipBlankLines: true, skipComments: true },
+      ],
     },
   },
   {
@@ -40,7 +43,10 @@ export default tseslint.config(
       "**/{__tests__,tests}/**/*.{js,mjs,cjs,jsx,ts,tsx}",
     ],
     rules: {
-      "max-lines": ["warn", { max: 250, skipBlankLines: true, skipComments: true }],
+      "max-lines": [
+        "warn",
+        { max: 250, skipBlankLines: true, skipComments: true },
+      ],
     },
   },
 );
