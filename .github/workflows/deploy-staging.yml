@@ -143,7 +143,6 @@ jobs:
           TYPES_RESULT: ${{ needs.types.result }}
           MIGRATIONS_CHANGED: ${{ needs.resolve.outputs.migrations }}
           FUNCTIONS_CHANGED: ${{ needs.resolve.outputs.functions }}
-          GATE_RESULT: ${{ needs.gate.result }}
-          LOCK_RESULT: ${{ needs.check-lock.result }}
-          LOCK_IS_HOLDER: ${{ needs.check-lock.outputs.is_holder }}
+          # Why jobs were skipped: label | lock | upstream
+          SKIP_REASON: ${{ needs.gate.result == 'failure' && 'label' || (needs.check-lock.result == 'failure' || needs.check-lock.outputs.is_holder == 'false') && 'lock' || 'upstream' }}
         run: .github/scripts/post-deploy-comment.sh
