@@ -7,6 +7,11 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   { ignores: ["dist"] },
   {
+    rules: {
+      "max-lines": ["warn", { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
@@ -27,6 +32,15 @@ export default tseslint.config(
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
       "react-hooks/rules-of-hooks": "warn", // AIO-61
+    },
+  },
+  {
+    files: [
+      "**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx}",
+      "**/{__tests__,tests}/**/*.{js,mjs,cjs,jsx,ts,tsx}",
+    ],
+    rules: {
+      "max-lines": ["warn", { max: 250, skipBlankLines: true, skipComments: true }],
     },
   },
 );
