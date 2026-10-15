@@ -7,6 +7,7 @@ export function mcpPresetBaseUrl(
   env: ViteSupabaseEnv = (import.meta as { env?: ViteSupabaseEnv }).env || {},
 ): string {
   const fromUrl = String(env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  if (!fromUrl) throw new Error("VITE_SUPABASE_URL is not set");
   return fromUrl;
 }
 
