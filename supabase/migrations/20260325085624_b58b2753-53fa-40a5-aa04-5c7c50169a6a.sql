@@ -1,1 +1,0 @@
-ALTER TABLE public.user_active_tenant ADD CONSTRAINT user_active_tenant_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;

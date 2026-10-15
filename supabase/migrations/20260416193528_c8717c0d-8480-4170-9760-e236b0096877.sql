@@ -1,1 +1,0 @@
-DELETE FROM crm_records WHERE table_id = 'bbbb71c3-30cd-4fcc-ab5e-70d925a566de' AND data->>'date' = '2026-04-16';
