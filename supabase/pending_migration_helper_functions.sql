@@ -153,7 +153,7 @@ BEGIN
   GET DIAGNOSTICS v_deleted = ROW_COUNT; RETURN v_deleted;
 END; $$;
 
--- run_ddl_once: helper for edge functions to run DDL (used by run-db-migration)
+-- run_ddl_once: helper for edge functions to run DDL (formerly used by the removed run-db-migration function)
 CREATE OR REPLACE FUNCTION public.run_ddl_once(sql text)
 RETURNS text
 LANGUAGE plpgsql
