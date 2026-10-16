@@ -69,10 +69,10 @@ jobs:
     outputs:
       is_holder: ${{ steps.check.outputs.is_holder }}
     steps:
-      # Script from the base commit, so the PR cannot alter its own lock check.
+      # A pull_request run already executes the PR's own workflow file, so the
+      # script comes from the PR checkout too.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: .github/scripts
 
       - name: Confirm this PR is the only open PR holding the staging label
