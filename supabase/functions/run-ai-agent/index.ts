@@ -28,6 +28,11 @@ import {
   isVideoDirectorTool,
 } from "../_shared/video-director-tools.ts";
 import {
+  CREATIVE_STUDIO_TOOLS,
+  executeCreativeStudioTool,
+  isCreativeStudioTool,
+} from "../_shared/creative-studio-tools.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -2485,6 +2490,7 @@ const ALL_TOOLS = [
   },
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
+  ...CREATIVE_STUDIO_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -5632,6 +5638,16 @@ async function executeTool(
   };
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
+      supabase,
+      tenantId,
+      name,
+      args,
+      (clientId) =>
+        assertCallerCanAccessClient(supabase, clientId, callerScope),
+    );
+  }
+  if (isCreativeStudioTool(name)) {
+    return executeCreativeStudioTool(
       supabase,
       tenantId,
       name,
@@ -15057,6 +15073,38 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           () => {},
         );
     }
+    // Skins pinned by the caller (task_skills, e.g. the Creative studio chat) also get
+    // their tools, like trigger-matched skins above; their prompts were added earlier.
+    if (
+      !pinSkillsOnly &&
+      Array.isArray(task_skills) &&
+      task_skills.length > 0
+    ) {
+      try {
+        const pinned = (
+          await resolveSkillsBySlug(task_skills as string[], skillTenantId)
+        ).filter((s) => !disabledSkins.includes(s.id));
+        const pinnedTools = new Set(pinned.flatMap((s) => s.tools || []));
+        const present = new Set(filteredTools.map((t) => t.name));
+        const missing = ALL_TOOLS.filter(
+          (t) =>
+            pinnedTools.has(t.name) &&
+            !present.has(t.name) &&
+            !disabledTools.includes(t.name) &&
+            isDevEscalationToolAllowed(t.name, devEscalationTier),
+        );
+        if (missing.length > 0) {
+          filteredTools = [...filteredTools, ...missing];
+          for (const t of missing) promotedToolNames.add(t.name);
+          rebuildToolsForApi();
+          console.log(
+            `[AGENT] Pinned skin tools added: ${missing.map((t) => t.name).join(", ")}`,
+          );
+        }
+      } catch (e) {
+        console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
+      }
+    }
     // Surface instruction-capture confirmation in the system prompt so the model knows
     // a rule was just persisted and can acknowledge it briefly without re-saving.
     if (instructionCaptured) {
@@ -15639,6 +15687,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             ok: !(result && (result as any).error),
             error: (result && (result as any).error) || undefined,
           });
+          // Studio tools ask the open Creative studio to run one of its own buttons
+          // (or focus a scene / variation); the studio chat executes it on screen.
+          const uiAction =
+            result && typeof result === "object"
+              ? (result as any).ui_action
+              : undefined;
+          if (uiAction && typeof uiAction === "object")
+            emit({ type: "ui_action", tool: toolName, action: uiAction });
         }
 
         if (
