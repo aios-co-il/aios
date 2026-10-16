@@ -50,6 +50,12 @@ jobs:
               ;;
           esac
 
+      # Trusted script from the default branch (issue_comment runs there).
+      - uses: actions/checkout@v4
+        if: steps.resolve.outputs.command != ''
+        with:
+          sparse-checkout: .github/scripts
+
       - name: Require the staging label on this PR
         id: pr
         if: steps.resolve.outputs.command != ''
@@ -57,19 +63,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          # A retained label on a closed PR is not ownership: the PR must be open and
-          # the only open PR holding `staging`.
-          STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)
-          HOLDERS=$(gh pr list --repo "$REPO" --label staging --state open --json number --jq '[.[].number | tostring] | join(",")')
-          if [[ "$STATE" != "OPEN" || "$HOLDERS" != "$PR" ]]; then
-            echo "::error::PR #$PR is not the single open PR holding the staging label (state: $STATE, holders: ${HOLDERS:-none}); refusing to run ${{ steps.resolve.outputs.command }}."
-            exit 1
-          fi
+        run: .github/scripts/check-staging-holder.sh "$PR" >> "$GITHUB_OUTPUT"
 
-          echo "head_sha=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)" >> "$GITHUB_OUTPUT"
-          echo "head_ref=$(gh pr view "$PR" --repo "$REPO" --json headRefName --jq .headRefName)" >> "$GITHUB_OUTPUT"
+      - name: Refuse when this PR is not the staging holder
+        if: steps.resolve.outputs.command != '' && steps.pr.outputs.is_holder != 'true'
+        env:
+          REASON: ${{ steps.pr.outputs.reason }}
+          COMMAND: ${{ steps.resolve.outputs.command }}
+        run: |
+          echo "::error::$REASON; refusing to run $COMMAND."
+          exit 1
 
   db-fix:
     name: /db-fix
@@ -99,6 +102,22 @@ jobs:
       # The job name comes from how deploy-staging.yml calls the reusable _db_migrate.yml
       # workflow: "<calling job id> / <called job's name>". If either changes, this
       # lookup silently stops matching.
+      - name: Recheck ownership before touching Staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.authorize.outputs.pr }}
+          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+        # The job may have waited on the concurrency group; the PR can have closed,
+        # released the label, or moved to a new commit since `authorize` ran.
+        run: |
+          set -euo pipefail
+          REASON=$(.github/scripts/check-staging-holder.sh "$PR" "$AUTHORIZED_SHA" | sed -n 's/^reason=//p')
+          if [[ -n "$REASON" ]]; then
+            echo "::error::$REASON; refusing to modify Staging."
+            exit 1
+          fi
+
       - name: Find the failed staging-push job in the latest run for this commit
         id: find
         env:
@@ -190,6 +209,28 @@ jobs:
       cancel-in-progress: false
     environment: staging
     steps:
+      # Gate with the default branch's script, never the PR's copy.
+      - uses: actions/checkout@v4
+        with:
+          path: trusted
+          sparse-checkout: .github/scripts
+
+      - name: Recheck ownership before touching Staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.authorize.outputs.pr }}
+          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+        # The job may have waited on the concurrency group; the PR can have closed,
+        # released the label, or moved to a new commit since `authorize` ran.
+        run: |
+          set -euo pipefail
+          REASON=$(trusted/.github/scripts/check-staging-holder.sh "$PR" "$AUTHORIZED_SHA" | sed -n 's/^reason=//p')
+          if [[ -n "$REASON" ]]; then
+            echo "::error::$REASON; refusing to modify Staging."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.authorize.outputs.head_sha }}

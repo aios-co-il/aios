@@ -69,24 +69,29 @@ jobs:
     outputs:
       is_holder: ${{ steps.check.outputs.is_holder }}
     steps:
-      - name: Confirm no other open PR currently holds the staging label
+      # Script from the base commit, so the PR cannot alter its own lock check.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/scripts
+
+      - name: Confirm this PR is the only open PR holding the staging label
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          HAS_CHANGES: ${{ needs.resolve.outputs.migrations == 'true' || needs.resolve.outputs.functions == 'true' }}
-        run: |
-          set -euo pipefail
-          OTHERS=$(gh pr list --repo "$REPO" --label staging --state open --json number \
-            --jq "[.[] | select(.number != $PR)] | length")
-          IS_HOLDER=$([[ "$OTHERS" -eq 0 ]] && echo true || echo false)
-          echo "is_holder=$IS_HOLDER" >> "$GITHUB_OUTPUT"
+        # Live state, not the event's labels: a rerun keeps the original payload, so a
+        # released label or a closed PR must be caught here.
+        run: .github/scripts/check-staging-holder.sh "$PR" >> "$GITHUB_OUTPUT"
 
-          if [[ "$IS_HOLDER" == "false" && "$HAS_CHANGES" == "true" ]]; then
-            echo "::error::This PR changes migrations or edge functions and holds the 'staging' label, but another open PR already holds the staging lock. Nothing will be deployed until that PR merges or releases the label."
-            exit 1
-          fi
+      - name: Fail when changes would deploy without holding the lock
+        if: steps.check.outputs.is_holder != 'true' && (needs.resolve.outputs.migrations == 'true' || needs.resolve.outputs.functions == 'true')
+        env:
+          REASON: ${{ steps.check.outputs.reason }}
+        run: |
+          echo "::error::$REASON. This PR changes migrations or edge functions, so nothing will be deployed until it is open and the only holder."
+          exit 1
 
   migrate:
     needs: [resolve, gate, check-lock]
