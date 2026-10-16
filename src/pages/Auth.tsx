@@ -350,15 +350,15 @@ export default function Auth() {
 
   if (checkingSession && !updatePasswordMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#0A1526] p-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-[#0A1526] p-4">
+      <Card className="w-full max-w-md border-white/10 bg-card/95 shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto flex flex-col items-center gap-3">
             <img

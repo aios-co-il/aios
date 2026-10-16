@@ -58,7 +58,7 @@ test("topic rail picks agent sprite from brain_route_id", () => {
   const carmenConv = { brain_route_id: internal.id, routing_mode: "internal" };
   assert.match(
     topicAgentSprite(carmenConv, FALLBACK_BRAIN_ROUTES),
-    /ghost-carmen/,
+    /^data:image\/webp;base64,/,
   );
 });
 

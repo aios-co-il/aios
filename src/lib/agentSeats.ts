@@ -1,3 +1,4 @@
+import { carmenCharacterImage } from "@/assets/carmenCharacterImage";
 import {
   routeForRestoredChat,
   type BrainRoute,
@@ -22,9 +23,18 @@ export type AgentSeatDef = {
   routeType?: BrainRoute["route_type"];
 };
 
+export const CARMEN_CHARACTER = carmenCharacterImage;
+
+export const CARMEN_AVATAR_STYLE = {
+  backgroundImage: `url(${CARMEN_CHARACTER})`,
+  backgroundSize: "230% auto",
+  backgroundPosition: "52% top",
+  backgroundRepeat: "no-repeat",
+};
+
 export const AGENT_SPRITES: Record<AgentSeatKey, string> = {
   shared: "/command-center/ghost-carmen.png",
-  carmen: "/command-center/ghost-carmen.png",
+  carmen: CARMEN_CHARACTER,
   cursor: "/command-center/ghost-cursor.png",
   grok: "/command-center/ghost-grok.png",
   codex: "/command-center/ghost-codex.png",

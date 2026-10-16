@@ -1,26 +1,19 @@
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { CommandCenterSidecar } from "./CommandCenterSidecar";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import "./carmen-session.css";
+
+const ignoreOpenChange = () => {};
 
 interface CommandCenterSidecarShellProps {
   children: React.ReactNode;
-  /** When true, sidecar is embedded in a parent that already manages open state (e.g. Command Center page). */
   embedded?: boolean;
-  /** Override open state when embedded. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * Wraps main content + optional Carmen sidecar. Desktop: resizable push layout.
- * Mobile: drawer overlay.
- */
+/** Keep the workspace mounted and interactive throughout a Carmen session. */
 export function CommandCenterSidecarShell({
   children,
   embedded = false,
@@ -28,56 +21,33 @@ export function CommandCenterSidecarShell({
   onOpenChange,
 }: CommandCenterSidecarShellProps) {
   const ctx = useCommandCenterSidecar();
-  const isMobile = useIsMobile();
   const open = embedded ? (openProp ?? false) : ctx.open;
-  const setOpen = embedded ? (onOpenChange ?? (() => {})) : ctx.setOpen;
+  const setOpen = embedded ? (onOpenChange ?? ignoreOpenChange) : ctx.setOpen;
 
-  if (isMobile) {
-    return (
-      <>
-        {children}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent
-            side="left"
-            dir="rtl"
-            className="cc-sidecar-sheet w-full border-[var(--cc-line)] bg-[var(--cc-bg)] p-0 sm:max-w-md"
-          >
-            <CommandCenterSidecar
-              onClose={() => setOpen(false)}
-              className="h-full"
-            />
-          </SheetContent>
-        </Sheet>
-      </>
-    );
-  }
-
-  if (!open) {
-    return <>{children}</>;
-  }
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, setOpen]);
 
   return (
-    <ResizablePanelGroup
-      direction="horizontal"
-      dir="rtl"
-      className="min-h-0 flex-1"
-      autoSaveId="aios-cc-sidecar"
-    >
-      <ResizablePanel
-        defaultSize={32}
-        minSize={22}
-        maxSize={45}
-        className="min-h-0"
-      >
-        <CommandCenterSidecar
-          onClose={() => setOpen(false)}
-          className="h-full border-l border-[var(--cc-line)]"
-        />
-      </ResizablePanel>
-      <ResizableHandle withHandle className="bg-[var(--cc-line)]" />
-      <ResizablePanel defaultSize={68} minSize={40} className="min-h-0">
-        {children}
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <>
+      {children}
+      {open &&
+        createPortal(
+          <aside
+            className="carmen-session"
+            aria-label="פגישת עבודה עם כרמן"
+            dir="rtl"
+          >
+            <div className="carmen-session-aura" aria-hidden="true" />
+            <CommandCenterSidecar onClose={() => setOpen(false)} session />
+          </aside>,
+          document.body,
+        )}
+    </>
   );
 }
