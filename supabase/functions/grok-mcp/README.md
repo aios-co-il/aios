@@ -60,7 +60,7 @@ Both are **asynchronous** in webhook mode: Carmen gets an immediate ack; Grok re
 | `GROK_BOT_WEBHOOK_KEY`  | ✅ (webhook mode) | Bearer token from the same panel                                                                 |
 | `CURSOR_API_KEY`        | fallback only     | same Cursor API key used by `cursor-mcp`                                                         |
 | `GROK_MODEL_ID`         | optional          | default `cursor-grok-4.6-high-fast` (cloud-agent fallback)                                       |
-| `CURSOR_CLOUD_ENV_NAME` | optional          | `$GITHUB_REPO` (cloud-agent fallback)                                                            |
+| `CURSOR_CLOUD_ENV_NAME` | optional          | same value as `GITHUB_REPO` (cloud-agent fallback)                                               |
 
 ```bash
 supabase secrets set \

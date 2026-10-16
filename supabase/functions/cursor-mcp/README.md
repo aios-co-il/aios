@@ -61,7 +61,7 @@ Optional secrets: `CURSOR_STICKY_AGENT_ID` (force a specific `bc-…`),
 supabase secrets set \
   CURSOR_API_KEY=crsr_... \
   CURSOR_MCP_BEARER="$(openssl rand -hex 32)" \
-  CURSOR_CLOUD_ENV_NAME='$GITHUB_REPO' \
+  CURSOR_CLOUD_ENV_NAME="${GITHUB_REPO:?set GITHUB_REPO first}" \
   CURSOR_DEFAULT_TENANT_ID=2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019
 ```
 

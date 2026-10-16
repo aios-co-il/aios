@@ -650,9 +650,12 @@ async function readGithubFile(
   token: string,
   filePath: string,
 ): Promise<string> {
+  // Resolved outside the try so a missing GITHUB_REPO surfaces to the handler;
+  // only the file fetch is best-effort.
+  const repo = getRepoSlug();
   try {
     const resp = await fetch(
-      `${GITHUB_API}/repos/${getRepoSlug()}/contents/${filePath}`,
+      `${GITHUB_API}/repos/${repo}/contents/${filePath}`,
       {
         headers: {
           Authorization: `token ${token}`,
