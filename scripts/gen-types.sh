@@ -16,5 +16,8 @@ case "${1:-}" in
   *) echo "Usage: $0 --local|--linked" >&2; exit 1 ;;
 esac
 
+# The repo enforces Prettier (pnpm format:check), so format the raw generator output.
+pnpm exec prettier --log-level warn --write "$APP_TYPES"
+
 # Edge functions share the same schema types.
 cp "$APP_TYPES" "$EDGE_TYPES"

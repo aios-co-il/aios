@@ -46,12 +46,14 @@ jobs:
       migrations: ${{ steps.filter.outputs.migrations || 'false' }}
       functions: ${{ steps.filter.outputs.functions || 'true' }}
     steps:
+      # A reusable call (sync-develop-from-main) inherits the caller's `push` event;
+      # source_sha identifies it, and it deploys functions only.
       - uses: actions/checkout@v4
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && inputs.source_sha == ''
 
       - uses: dorny/paths-filter@v3
         id: filter
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && inputs.source_sha == ''
         with:
           filters: |
             migrations:

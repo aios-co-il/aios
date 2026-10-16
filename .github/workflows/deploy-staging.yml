@@ -118,7 +118,6 @@ jobs:
     uses: ./.github/workflows/deploy-edge-reusable.yml
     permissions:
       contents: write
-      pull-requests: read
     with:
       environment: staging
       source_sha: ${{ github.event.pull_request.head.sha || github.sha }}

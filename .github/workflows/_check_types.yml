@@ -36,6 +36,9 @@ jobs:
           # and must not run while the shared token and DB password are in scope.
           supabase gen types typescript --linked > src/integrations/supabase/types.ts
 
+      - name: Format generated types
+        run: npx --yes prettier@3.9.9 --log-level warn --write src/integrations/supabase/types.ts
+
       - name: Fail if committed types are stale
         run: |
           if [ -n "$(git status --porcelain)" ]; then
