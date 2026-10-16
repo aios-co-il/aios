@@ -558,7 +558,6 @@ export default function FieldsManagement() {
                   </Table>
                 </CardContent>
               </Card>
-
               {/* Custom Fields */}
               <Card>
                 <CardHeader>
@@ -661,7 +660,7 @@ export default function FieldsManagement() {
                     </Table>
                   )}
                 </CardContent>
-              </Card>
+              </Card>{" "}
             </TabsContent>
           </Tabs>
         </TabsContent>

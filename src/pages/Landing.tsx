@@ -1,97 +1,129 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAppHomePath } from "@/lib/appHomePath";
-import { Button } from "@/components/ui/button";
-import OptionsSelector from "@/components/OptionsSelector";
-import AnimatedJoinButton from "@/components/AnimatedJoinButton";
-import DemoRequestDialog from "@/components/DemoRequestDialog";
-import {
-  Target,
-  CheckCircle2,
-  Zap,
-  Users,
-  DollarSign,
-  MessageSquare,
-  Sparkles,
-  RefreshCw,
-  Calendar,
-  Building2,
-  Shield,
-  BarChart3,
-  ArrowLeft,
-  Check,
-  CalendarClock,
-  PieChart,
-  Download,
-  Smartphone,
-} from "lucide-react";
-import logoImage from "@/assets/logo.png";
+import "./carmen-landing.css";
 
-interface ModuleCardProps {
-  title: string;
-  description: string;
-  icon: React.ElementType;
-  color: string;
-  isNew?: boolean;
-}
+const modules = [
+  {
+    n: "01",
+    title: "CRM ולידים",
+    desc: "אני מכירה את הלקוחות שלך. כל ליד, שיחה וסטטוס במקום אחד.",
+    icon: "◎",
+  },
+  {
+    n: "02",
+    title: "WhatsApp ואוטומציות",
+    desc: "ליד חדש? אני עוזרת להניע את התקשורת והמשך הטיפול.",
+    icon: "↗",
+  },
+  {
+    n: "03",
+    title: "דוחות ודשבורדים",
+    desc: "אני מחברת את הנתונים לתמונה שאפשר להבין ולפעול לפיה.",
+    icon: "▥",
+  },
+  {
+    n: "04",
+    title: "משימות וצוות",
+    desc: "כל משימה קשורה לתוכנית. כל תוכנית קשורה למטרה.",
+    icon: "✓",
+  },
+  {
+    n: "05",
+    title: "כספים",
+    desc: "הכנסות, הוצאות ותמונת העסק — בלי לעבור בין מערכות.",
+    icon: "₪",
+  },
+  {
+    n: "06",
+    title: "חתימה דיגיטלית",
+    desc: "מסמכים ואישורים שנשארים בתוך תהליך העבודה.",
+    icon: "✎",
+  },
+  {
+    n: "07",
+    title: "דיוור",
+    desc: "תקשורת שיווקית שמתחברת למסע הלקוח.",
+    icon: "✉",
+  },
+  {
+    n: "08",
+    title: "קריאייטיב וקופי",
+    desc: "רעיונות, מסרים ותוצרים שמתחברים לתוכנית השיווק.",
+    icon: "✦",
+  },
+];
+const controlModes = [
+  {
+    n: "01",
+    label: "בשליטה שלך",
+    short: "כרמן מרכזת וממליצה",
+    title: "אתה מנהל. כרמן מחברת את התמונה.",
+    description:
+      "כרמן מרכזת נתונים, מזהה מה דורש תשומת לב, בונה המלצות ומשימות — ואתה והצוות מחליטים ומבצעים.",
+    bullets: [
+      "תובנות והמלצות",
+      "ריכוז נתונים",
+      "בניית משימות",
+      "שליטה מלאה באישורים",
+    ],
+  },
+  {
+    n: "02",
+    label: "עובדים יחד",
+    short: "כרמן מכינה. אתה מאשר",
+    title: "כרמן מכינה את העבודה. אתה מאשר.",
+    description:
+      "מבריף ועד תוצרים: כרמן מכינה תוכן, מהלכים, משימות ו־follow-ups. אתה מאשר את הנקודות החשובות וממשיכים.",
+    bullets: ["קבלת בריף", "יצירת תוכן", "בניית מהלכים", "אישור לפני ביצוע"],
+  },
+  {
+    n: "03",
+    label: "ביצוע מונחה",
+    short: "כרמן מריצה. אתה מפקח",
+    title: "יותר ביצוע. פחות לרדוף אחרי משימות.",
+    description:
+      "כרמן מפעילה תהליכים מוגדרים, מטפלת בלידים, מפעילה תקשורת שוטפת ומנהלת משימות — עם בקרה שלך בנקודות רגישות.",
+    bullets: [
+      "לידים ו־CRM",
+      "WhatsApp ודיוור",
+      "משימות צוות",
+      "בקרה דרך הדשבורד",
+    ],
+  },
+  {
+    n: "04",
+    label: "כרמן מנהלת",
+    short: "מערכת שיווק שעובדת בשבילך",
+    title: "כרמן מנהלת את כל המערכת השיווקית.",
+    description:
+      "קמפיינים, SEO, GEO, תוכן, סושיאל, דיוור, לידים, מכירות, אוטומציות ודוחות — מחוברים לתוכנית אחת, עם אנשי מקצוע כשצריך.",
+    bullets: [
+      "קמפיינים וקריאייטיב",
+      "SEO / GEO / סושיאל",
+      "לידים ומכירות",
+      "מדידה, דוחות ואופטימיזציה",
+    ],
+  },
+];
 
-const ModuleCard: React.FC<ModuleCardProps> = ({
-  title,
-  description,
-  icon: Icon,
-  color,
-  isNew,
-}) => {
-  return (
-    <div className="group relative p-8 rounded-3xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 hover:border-[#36d399]/30 transition-all duration-300 overflow-hidden">
-      {/* Decorative circles */}
-      <div className="absolute -top-6 -right-6 w-24 h-24 border border-[#36d399]/20 rounded-full" />
-      <div className="absolute -top-3 -right-3 w-16 h-16 border border-[#36d399]/10 rounded-full" />
-      <div className="absolute -bottom-4 -left-4 w-20 h-20 border border-white/5 rounded-full" />
-
-      {isNew && (
-        <span className="absolute top-5 left-5 px-3 py-1.5 text-sm font-medium bg-[#36d399] text-[#0A1526] rounded-full z-10">
-          חדש
-        </span>
-      )}
-
-      <div className="relative z-10 flex flex-col items-center text-center">
-        <div
-          className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}
-        >
-          <Icon className="h-8 w-8 text-white" />
-        </div>
-
-        <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-        <p className="text-white/60 text-sm leading-relaxed">{description}</p>
-      </div>
-    </div>
-  );
-};
-
-const Landing = () => {
+const WHATSAPP_URL =
+  "https://wa.me/972507677613?text=" +
+  encodeURIComponent("שלום, הגעתי מאתר Carmen Marketing OS ואשמח לשמוע פרטים.");
+export default function Landing() {
   const navigate = useNavigate();
-  const [waitlistDialogOpen, setWaitlistDialogOpen] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isAppInstalled, setIsAppInstalled] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
-
-    const redirectIfSignedIn = async () => {
+    const redirectSignedIn = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user || cancelled) return;
       const homePath = await resolveAppHomePath(session.user.id);
-      if (homePath && !cancelled) {
-        navigate(homePath, { replace: true });
-      }
+      if (homePath && !cancelled) navigate(homePath, { replace: true });
     };
-
-    void redirectIfSignedIn();
-
+    void redirectSignedIn();
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -101,428 +133,510 @@ const Landing = () => {
         });
       }
     });
-
     return () => {
       cancelled = true;
       subscription.unsubscribe();
     };
   }, [navigate]);
+  const [active, setActive] = useState(0),
+    [menu, setMenu] = useState(false),
+    [controlMode, setControlMode] = useState(0);
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    if (window.matchMedia("(display-mode: standalone)").matches) {
-      setIsAppInstalled(true);
-    }
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const result = await deferredPrompt.userChoice;
-      if (result.outcome === "accepted") setIsAppInstalled(true);
-      setDeferredPrompt(null);
-    } else {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      if (isIOS) {
-        alert(
-          'להתקנה באייפון:\n1. לחץ על כפתור השיתוף (⬆️)\n2. בחר "Add to Home Screen"',
-        );
-      } else {
-        alert(
-          'פתח את התפריט של הדפדפן ובחר "התקן אפליקציה" או "הוסף למסך הבית"',
-        );
-      }
-    }
+  const updateControlDial = (
+    element: HTMLElement,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const rect = element.getBoundingClientRect();
+    const x = clientX - (rect.left + rect.width / 2);
+    const y = clientY - (rect.top + rect.height / 2);
+    const angle = (Math.atan2(y, x) * 180) / Math.PI;
+    const normalized = (angle + 450) % 360;
+    setControlMode(Math.round(normalized / 90) % 4);
   };
-  const modules = [
-    {
-      title: "ניהול לידים",
-      description: "פייפליין מכירות, סטטוסים דינמיים, יבוא מפייסבוק",
-      icon: Target,
-      color: "from-primary/20 to-primary/5",
-    },
-    {
-      title: "ניהול משימות",
-      description: "קנבן, טבלה, לוח שנה - תזכורות אוטומטיות",
-      icon: CheckCircle2,
-      color: "from-green-500/20 to-green-500/5",
-    },
-    {
-      title: "אוטומציות",
-      description: "טריגרים אוטומטיים, פולואפים, התראות",
-      icon: Zap,
-      color: "from-yellow-500/20 to-yellow-500/5",
-    },
-    {
-      title: "ניהול לקוחות",
-      description: "כרטיס לקוח מפורט, היסטוריה, צוותי עבודה",
-      icon: Users,
-      color: "from-blue-500/20 to-blue-500/5",
-    },
-    {
-      title: "ניהול כספים",
-      description: "מעקב תשלומים, דוחות, אינטגרציות",
-      icon: DollarSign,
-      color: "from-emerald-500/20 to-emerald-500/5",
-    },
-    {
-      title: "אינטגרציית WhatsApp",
-      description: "Green API, ManyChat, צ'אט מובנה",
-      icon: MessageSquare,
-      color: "from-green-400/20 to-green-400/5",
-    },
-    {
-      title: "זימון פגישות אוטומטי",
-      description: "אינטגרציה ל-Google Calendar, שליחת זימונים ללקוחות ולידים",
-      icon: CalendarClock,
-      color: "from-sky-500/20 to-sky-500/5",
-      isNew: true,
-    },
-    {
-      title: "דוחות אוטומטיים",
-      description: "אינטגרציה ישירה למערכות פרסום, דוחות ביצועים בזמן אמת",
-      icon: PieChart,
-      color: "from-pink-500/20 to-pink-500/5",
-      isNew: true,
-    },
-    {
-      title: "בינה מלאכותית",
-      description: "עוזר AI חכם לתמיכה וניהול",
-      icon: Sparkles,
-      color: "from-purple-500/20 to-purple-500/5",
-      isNew: true,
-    },
-    {
-      title: "פולואפים אוטומטיים",
-      description: "מעקב אוטומטי, תזכורות חכמות",
-      icon: RefreshCw,
-      color: "from-orange-500/20 to-orange-500/5",
-    },
-    {
-      title: "אינטגרציית יומן",
-      description: "Google Calendar, קביעת פגישות",
-      icon: Calendar,
-      color: "from-red-500/20 to-red-500/5",
-    },
-  ];
-
-  const multiTenantBenefits = [
-    { icon: Building2, text: "כל לקוח מקבל חשבון נפרד ומאובטח" },
-    { icon: Shield, text: "בידוד מלא בין ארגונים" },
-    { icon: BarChart3, text: "צפייה בכל הארגונים ממקום אחד" },
-    { icon: Users, text: "ניהול הרשאות מתקדם" },
-  ];
-
+  useEffect(() => {
+    const nodes = document.querySelectorAll(".carmen-site .reveal");
+    const ob = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("shown");
+            ob.unobserve(e.target);
+          }
+        }),
+      { threshold: 0.12 },
+    );
+    nodes.forEach((n) => ob.observe(n));
+    return () => ob.disconnect();
+  }, []);
   return (
-    <div className="min-h-screen bg-[#0A1526] text-white overflow-x-hidden">
-      {/* Background Elements */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#36d399]/10 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#36d399]/5 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/3" />
-        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-[#36d399]/5 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
-      </div>
+    <main className="carmen-site">
+      <header className="nav">
+        <a className="brand" href="#" aria-label="Carmen Marketing OS">
+          <img
+            className="carmen-brand-wordmark-image"
+            src="/brand/carmen/wordmark-soft.webp"
+            alt="Carmen Marketing OS"
+          />
+        </a>
+        <nav className={menu ? "open" : ""}>
+          <a onClick={() => setMenu(false)} href="#why">
+            הגישה
+          </a>
+          <a onClick={() => setMenu(false)} href="#system">
+            המערכת
+          </a>
+          <a onClick={() => setMenu(false)} href="#workflow">
+            איך אני עובדת
+          </a>
+          <a
+            onClick={() => setMenu(false)}
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            בואו נדבר
+          </a>
+          <Link onClick={() => setMenu(false)} to="/auth">
+            התחברות
+          </Link>
+        </nav>
+        <div className="carmen-account-actions">
+          <Link className="nav-cta" to="/auth">
+            התחברות
+          </Link>
 
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0A1526]/80 border-b border-white/5">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={logoImage} alt="AfterLead" className="h-10 w-auto" />
-            </div>
-
-            <div className="flex items-center gap-3">
-              {!isAppInstalled && (
-                <Button
-                  variant="ghost"
-                  className="text-white/70 hover:text-white hover:bg-white/10 gap-2"
-                  onClick={handleInstallApp}
-                >
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">התקן אפליקציה</span>
-                </Button>
-              )}
-              <Link to="/auth">
-                <Button
-                  variant="ghost"
-                  className="text-white/70 hover:text-white hover:bg-white/10"
-                >
-                  התחברות
-                </Button>
-              </Link>
-              <Button
-                onClick={() => setWaitlistDialogOpen(true)}
-                className="bg-[#36d399] hover:bg-[#36d399]/90 text-[#0A1526] font-semibold"
-              >
-                הרשמה לרשימת המתנה
-              </Button>
-            </div>
+          <a
+            className="nav-cta carmen-whatsapp-nav"
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            בואו נדבר <span>↗</span>
+          </a>
+        </div>
+        <button
+          className="menu-button"
+          onClick={() => setMenu(!menu)}
+          aria-label="פתיחת תפריט"
+        >
+          {menu ? "✕" : "☰"}
+        </button>
+      </header>
+      <section className="hero">
+        <div className="carmen-magnetic-ribbon ribbon-one" />
+        <div className="carmen-magnetic-ribbon ribbon-two" />
+        <div className="hero-glow" />
+        <div className="hero-grid" />
+        <div className="hero-content">
+          <span className="eyebrow">
+            <span className="live-dot" /> CARMEN MARKETING OS
+          </span>
+          <h1>
+            מנהלת השיווק
+            <br />
+            <span className="gradient-text">החדשה שלך.</span>
+          </h1>
+          <p>
+            העסק שלך לא צריך עוד קמפיין. הוא צריך מישהי שתחבר את כל השיווק,
+            המכירות והניהול — למקום אחד.
+          </p>
+          <div className="hero-actions">
+            <a
+              className="button primary"
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              בוא נדבר על העסק שלך <span>↗</span>
+            </a>
+            <a className="button secondary" href="#system">
+              תראה מה אני עושה ↓
+            </a>
           </div>
         </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="relative pt-20 pb-32">
-        <div className="container mx-auto px-6">
-          <div className="max-w-4xl mx-auto text-center">
-            {/* Logo & Brand */}
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <img
-                src={logoImage}
-                alt="AfterLead"
-                className="h-16 md:h-20 w-auto"
-              />
-              <span className="text-4xl md:text-6xl font-bold text-white">
-                AfterLead
-              </span>
-            </div>
-
-            {/* Badge */}
-            <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-[#36d399]/10 border border-[#36d399]/30 mb-10">
-              <Sparkles className="h-5 w-5 text-[#36d399]" />
-              <span className="text-lg md:text-xl font-medium text-[#36d399]">
-                מערכת AIOS — מערכת הפעלה מבוססת בינה מלאכותית
-              </span>
-            </div>
-
-            {/* Main Headline */}
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-              <span className="text-white">השותפים שלך </span>
-              <span className="text-[#36d399]">לצמיחה</span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="text-xl md:text-2xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-              ניהול לידים לעסק שלך וללקוחות שלך
+        <div className="hero-art" aria-label="Carmen Marketing OS">
+          <div className="orbit orbit-one" />
+          <div className="orbit orbit-two" />
+          <img
+            className="hero-carmen-symbol"
+            src="/brand/carmen/symbol-soft.webp"
+            alt="סמל Carmen Marketing OS"
+          />
+          <img
+            className="hero-carmen-character"
+            src="/brand/carmen/carmen-character-hq.webp"
+            alt="כרמן, מנהלת השיווק החדשה שלך"
+            width={900}
+            height={1350}
+            fetchPriority="high"
+            decoding="async"
+          />
+          <div
+            className="carmen-hero-metrics"
+            aria-label="יכולות Carmen Marketing OS"
+          >
+            <span>
+              BRIEF <b>מקבלת בריף</b>
+            </span>
+            <span>
+              CONTENT <b>יוצרת תוכן</b>
+            </span>
+          </div>
+          <div className="glass-panel panel-a">
+            <small>MARKETING OS</small>
+            <strong>כל השיווק במקום אחד.</strong>
+            <p>
+              קליטת לידים, ניהול מכירות
               <br />
-              <span className="text-white/40">
-                בנוי במיוחד עבור סוכנויות שיווק.
-              </span>
+              אוטומציות WhatsApp ודיוור
             </p>
-
-            {/* AIOS Description */}
-            <div className="max-w-2xl mx-auto mb-10 px-6 py-5 rounded-2xl bg-white/5 border border-white/10 text-right">
-              <p className="text-white/70 text-base md:text-lg leading-relaxed">
-                <span className="text-[#36d399] font-semibold">AIOS</span> היא
-                לא סתם תוכנת CRM — היא מערכת הפעלה חכמה לעסק שלך. במקום לנהל
-                כלים נפרדים, AfterLead מרכזת הכל במקום אחד: לידים, לקוחות,
-                משימות, אוטומציות, ואינטגרציות — ומניעה אותם עם בינה מלאכותית
-                שעובדת בשבילך ברקע, 24/7.
-              </p>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-              <AnimatedJoinButton
-                text="הרשמה לרשימת המתנה"
-                hoverText="הצטרפו!"
-                width={320}
-                onClick={() => setWaitlistDialogOpen(true)}
-              />
-              <Link to="/auth">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-white/40 bg-white/10 text-white font-semibold hover:bg-white/20 text-lg px-8 py-6 rounded-xl backdrop-blur-sm"
-                >
-                  יש לי חשבון
-                </Button>
-              </Link>
-            </div>
-
-            {/* Stats */}
-            <div className="mt-20 grid grid-cols-3 gap-8 max-w-xl mx-auto">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-[#36d399]">50+</div>
-                <div className="text-sm text-white/40">ארגונים פעילים</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-[#36d399]">10K+</div>
-                <div className="text-sm text-white/40">לידים מנוהלים</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-[#36d399]">99%</div>
-                <div className="text-sm text-white/40">שביעות רצון</div>
-              </div>
+          </div>
+          <div className="glass-panel panel-b">
+            <small>GROWTH</small>
+            <strong>קידום אורגני ו־GEO</strong>
+            <p>דוחות ומדידות</p>
+            <div className="bars">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
             </div>
           </div>
-
-          {/* Decorative Lines */}
-          <div className="absolute top-1/2 left-0 w-32 h-px bg-gradient-to-r from-transparent to-[#36d399]/30" />
-          <div className="absolute top-1/2 right-0 w-32 h-px bg-gradient-to-l from-transparent to-[#36d399]/30" />
+          <div className="glass-panel panel-c">
+            <span className="signal">✦</span>
+            <strong>כרמן מנהלת הכל!</strong>
+          </div>
+        </div>
+        <div className="scroll-cue">
+          SCROLL TO EXPLORE <span>↓</span>
         </div>
       </section>
-
-      {/* Multi-Tenant Section */}
-      <section id="multi-tenant" className="relative py-24 overflow-hidden">
-        {/* Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#3b82f6]/15 rounded-full blur-[150px]" />
-
-        <div className="container mx-auto px-6 relative">
-          <div className="max-w-5xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              {/* Text Content */}
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#36d399]/10 border border-[#36d399]/20 mb-6">
-                  <span className="text-xs font-medium text-[#36d399]">
-                    חדש!
-                  </span>
-                  <span className="text-sm text-white/70">Multi-Tenant</span>
+      <section id="why" className="manifesto light-section">
+        <div className="section-inner reveal">
+          <span className="kicker">01 / THE SHIFT</span>
+          <h2>
+            קמפיינר חדש
+            <br />
+            <em>לא יפתור את הבעיה.</em>
+          </h2>
+          <p>
+            אתם צריכים מנהל שיווק שינהל לכם את כל המערכת. קמפיינים, SEO, GEO,
+            דיוור, סושיאל וגרילה — כרמן מרכזת, מחברת ועוזרת לכם לבצע את הכול.
+          </p>
+          <div className="connection">
+            <span>אסטרטגיה</span>
+            <b>↔</b>
+            <span>קמפיינים</span>
+            <b>↔</b>
+            <span>SEO / GEO</span>
+            <b>↔</b>
+            <span>דיוור / סושיאל</span>
+            <b>↔</b>
+            <span>מכירות</span>
+          </div>
+        </div>
+      </section>
+      <section id="system" className="modules-section">
+        <div className="section-inner">
+          <div className="section-heading reveal">
+            <span className="kicker">02 / ONE OPERATING SYSTEM</span>
+            <h2>
+              אני לא עוד מערכת.
+              <br />
+              <span>אני מחברת את כולן.</span>
+            </h2>
+            <p>
+              כל מה שהעסק צריך כדי לנהל שיווק ומכירות. לא אוסף כלים שלא מדברים
+              אחד עם השני.
+            </p>
+          </div>
+          <div className="module-layout">
+            <div className="module-list">
+              {modules.map((m, i) => (
+                <button
+                  key={m.n}
+                  className={"module-row " + (i === active ? "active" : "")}
+                  onClick={() => setActive(i)}
+                >
+                  <span className="module-number">{m.n}</span>
+                  <span>{m.title}</span>
+                  <span className="module-arrow">↗</span>
+                </button>
+              ))}
+            </div>
+            <div className="module-stage">
+              <div className="stage-glow" />
+              <div className="module-stage-inner" key={active}>
+                <div className="module-icon">{modules[active].icon}</div>
+                <span className="stage-label">
+                  CARMEN / MODULE {modules[active].n}
+                </span>
+                <h3>{modules[active].title}</h3>
+                <p>{modules[active].desc}</p>
+                <div className="module-line">
+                  <span>CONNECTED TO CARMEN OS</span>
+                  <span className="green">●</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="workflow" className="journey">
+        <div className="section-inner">
+          <div className="reveal">
+            <span className="kicker">03 / FROM LEAD TO ACTION</span>
+            <h2>
+              ליד נכנס.
+              <br />
+              <span>אני כבר על זה.</span>
+            </h2>
+            <p>פחות לעבור בין מערכות. יותר לדעת מה קורה בכל שלב.</p>
+          </div>
+          <div className="journey-track">
+            {[
+              { n: "01", t: "ליד נכנס", d: "כל פנייה מקבלת מקום" },
+              { n: "02", t: "WhatsApp", d: "תקשורת אוטומטית" },
+              { n: "03", t: "CRM", d: "תיעוד ומעקב" },
+              { n: "04", t: "משימה", d: "המשך טיפול בצוות" },
+            ].map((s) => (
+              <div className="journey-step reveal" key={s.n}>
+                <span>{s.n}</span>
+                <div className="journey-dot" />
+                <h3>{s.t}</h3>
+                <p>{s.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="data-section">
+        <div className="section-inner data-grid">
+          <div className="reveal">
+            <span className="kicker">04 / SEE THE WHOLE PICTURE</span>
+            <h2>
+              הנתונים לא צריכים לחכות
+              <br />
+              <span>לסוף החודש.</span>
+            </h2>
+            <p>
+              דוחות ודשבורדים שמחברים את המספרים לתמונה ברורה. בלי לחפש בין עשר
+              מערכות.
+            </p>
+          </div>
+          <div
+            className="dashboard"
+            aria-label="המחשת דשבורד, ללא נתונים אמיתיים"
+          >
+            <div className="dash-top">
+              <span>OVERVIEW / ILLUSTRATION</span>
+              <span className="green">● CARMEN OS</span>
+            </div>
+            <div className="dash-cards">
+              <div>
+                <small>CAMPAIGNS</small>
+                <strong>CONNECTED</strong>
+              </div>
+              <div>
+                <small>LEADS</small>
+                <strong>IN SYNC</strong>
+              </div>
+            </div>
+            <div className="chart-bars">
+              {[32, 45, 39, 65, 53, 76, 68, 90, 82].map((h, i) => (
+                <i key={i} style={{ height: h + "%" }} />
+              ))}
+            </div>
+            <small className="dash-foot">
+              Illustrative visualization — not live business data
+            </small>
+          </div>
+        </div>
+      </section>
+      <section className="control-section light-section">
+        <div className="section-inner reveal">
+          <span className="kicker">05 / YOU STAY IN CONTROL</span>
+          <h2>
+            אני עובדת בדרך שלך.
+            <br />
+            <em>אתה מחליט כמה אני עושה לבד.</em>
+          </h2>
+          <p>
+            מייעוץ חכם ועד ניהול שיווק כמעט מלא — אתה קובע את רמת העצמאות, וכרמן
+            מתאימה את עצמה לדרך שבה העסק שלך רוצה לעבוד.
+          </p>
 
-                <h2 className="text-3xl md:text-4xl font-bold text-white mb-6 leading-tight">
-                  פתח חשבונות
-                  <br />
-                  <span className="text-[#36d399]">ללקוחות שלך</span>
-                </h2>
+          <div className="control-console">
+            <div className="control-dial-wrap">
+              <div className="control-dial-scene">
+                <div
+                  className="control-dial"
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="רמת העבודה של כרמן"
+                  aria-valuemin={1}
+                  aria-valuemax={4}
+                  aria-valuenow={controlMode + 1}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setControlMode((controlMode + 1) % controlModes.length);
+                    }
+                    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setControlMode(
+                        (controlMode - 1 + controlModes.length) %
+                          controlModes.length,
+                      );
+                    }
+                  }}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    updateControlDial(e.currentTarget, e.clientX, e.clientY);
+                  }}
+                  onPointerMove={(e) => {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      updateControlDial(e.currentTarget, e.clientX, e.clientY);
+                    }
+                  }}
+                >
+                  <div className="control-dial-rings" aria-hidden="true" />
+                  <div
+                    className="control-dial-knob"
+                    style={{
+                      transform: `rotate(${controlMode * 90}deg)`,
+                    }}
+                    aria-hidden="true"
+                  >
+                    <span />
+                  </div>
+                  <div className="control-dial-center">
+                    <small>MODE</small>
+                    <strong>{controlModes[controlMode].n}</strong>
+                    <span>{controlModes[controlMode].label}</span>
+                  </div>
 
-                <p className="text-white/50 text-lg mb-8 leading-relaxed">
-                  אפשר ללקוחות שלך לנהל את העסק שלהם דרך המערכת שלך. כל לקוח
-                  מקבל גישה מותאמת אישית לנתונים שלו בלבד.
-                </p>
-
-                <div className="space-y-4">
-                  {multiTenantBenefits.map((benefit, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-[#36d399]/10 flex items-center justify-center flex-shrink-0">
-                        <benefit.icon className="h-5 w-5 text-[#36d399]" />
-                      </div>
-                      <span className="text-white/70">{benefit.text}</span>
-                    </div>
+                  {controlModes.map((mode, index) => (
+                    <button
+                      key={mode.n}
+                      type="button"
+                      className={`control-dial-stop stop-${index} ${
+                        controlMode === index ? "active" : ""
+                      }`}
+                      aria-pressed={controlMode === index}
+                      aria-label={`בחרו במצב ${mode.n}: ${mode.label}`}
+                      title={`לחצו להפעלת מצב: ${mode.label}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setControlMode(index);
+                      }}
+                    >
+                      <span>{mode.n}</span>
+                      <b>{mode.label}</b>
+                      <span className="control-stop-tap" aria-hidden="true">
+                        ↗
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
+              <p className="control-drag-hint">
+                ↔ גררו את הגלגל או לחצו על אחד מארבעת המצבים
+              </p>
+            </div>
 
-              {/* Visual Element */}
-              <div className="relative">
-                <div className="relative p-8 rounded-3xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10">
-                  {/* Organization Cards Stack */}
-                  <div className="space-y-4">
-                    {[
-                      "סוכנות שיווק ראשית",
-                      "לקוח - חברת טכנולוגיה",
-                      "לקוח - מסעדה",
-                    ].map((org, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10"
-                        style={{ transform: `translateX(${idx * 10}px)` }}
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-lg ${idx === 0 ? "bg-[#36d399]" : "bg-white/10"} flex items-center justify-center`}
-                        >
-                          <Building2
-                            className={`h-5 w-5 ${idx === 0 ? "text-[#0A1526]" : "text-white/50"}`}
-                          />
-                        </div>
-                        <div>
-                          <div
-                            className={`text-sm font-medium ${idx === 0 ? "text-white" : "text-white/70"}`}
-                          >
-                            {org}
-                          </div>
-                          <div className="text-xs text-white/40">
-                            {idx === 0 ? "מנהל" : "לקוח"}
-                          </div>
-                        </div>
-                        {idx === 0 && (
-                          <Check className="h-5 w-5 text-[#36d399] mr-auto" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Decorative Elements */}
-                <div className="absolute -top-4 -right-4 w-24 h-24 border border-[#36d399]/20 rounded-full" />
-                <div className="absolute -bottom-4 -left-4 w-16 h-16 border border-[#36d399]/10 rounded-full" />
+            <div
+              className="control-mode-card"
+              data-mode={controlMode + 1}
+              aria-live="polite"
+              key={controlMode}
+            >
+              <span className="control-mode-kicker">
+                CARMEN / MODE {controlModes[controlMode].n}
+              </span>
+              <h3>{controlModes[controlMode].title}</h3>
+              <p>{controlModes[controlMode].description}</p>
+              <div className="control-mode-list">
+                {controlModes[controlMode].bullets.map((item) => (
+                  <span key={item}>
+                    <i>✓</i>
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="control-mode-status">
+                <span>רמת מעורבות כרמן</span>
+                <b>{controlModes[controlMode].short}</b>
               </div>
             </div>
           </div>
         </div>
       </section>
-
-      {/* Options Selector Demo */}
-      <section className="relative">
-        <OptionsSelector />
-      </section>
-
-      {/* CTA Section */}
-      <section className="relative py-24">
-        <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto text-center p-12 rounded-3xl bg-gradient-to-br from-[#36d399]/20 to-[#36d399]/5 border border-[#36d399]/20 relative overflow-hidden">
-            {/* Background Circles */}
-            <div className="absolute top-0 right-0 w-40 h-40 bg-[#36d399]/20 rounded-full blur-[60px]" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#36d399]/10 rounded-full blur-[40px]" />
-
-            <div className="relative">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-                רוצים להצטרף?
-              </h2>
-              <p className="text-white/60 text-lg mb-8">
-                הירשמו לרשימת המתנה ונעדכן אתכם כשהגישה תיפתח
-              </p>
-              <AnimatedJoinButton
-                text="הרשמה לרשימת המתנה"
-                hoverText="הצטרפו!"
-                width={320}
-                onClick={() => setWaitlistDialogOpen(true)}
-              />
+      <section className="audience">
+        <div className="section-inner reveal">
+          <span className="kicker">06 / BUILT TO SCALE</span>
+          <h2>
+            לעסק אחד.
+            <br />
+            או למאה לקוחות.
+          </h2>
+          <div className="audience-cards">
+            <div>
+              <span>↗</span>
+              <h3>לעסקים</h3>
+              <p>מקום אחד לנהל בו את השיווק, המכירות והפעילות.</p>
+            </div>
+            <div>
+              <span>↗</span>
+              <h3>לסוכנויות</h3>
+              <p>תמונה אחידה של לקוחות, משימות, דוחות ותהליכים.</p>
+            </div>
+            <div>
+              <span>↗</span>
+              <h3>עם צוות מומחים</h3>
+              <p>כרמן לצד אנשי מקצוע שמובילים את הפעילות השיווקית.</p>
             </div>
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-12">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <img src={logoImage} alt="AfterLead" className="h-8 w-auto" />
-              <span className="text-lg font-semibold text-white">
-                AfterLead
-              </span>
-            </div>
-
-            <div className="flex items-center gap-6 text-sm">
-              <Link
-                to="/privacy"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                מדיניות פרטיות
-              </Link>
-              <Link
-                to="/terms"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                תנאי שימוש
-              </Link>
-              <a
-                href="mailto:support@afterlead.co.il"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                צור קשר
-              </a>
-            </div>
-
-            <div className="text-white/30 text-sm">
-              © {new Date().getFullYear()} AfterLead. כל הזכויות שמורות.
-            </div>
-          </div>
+      <section id="contact" className="closing">
+        <div className="closing-glow" />
+        <div className="section-inner reveal">
+          <span className="kicker">READY FOR WHAT'S NEXT?</span>
+          <h2>
+            בוא נדבר על
+            <br />
+            <span>העסק שלך.</span>
+          </h2>
+          <p>
+            אני כרמן. בוא נראה איך אפשר לחבר את כל השיווק והמכירות שלך למקום
+            אחד.
+          </p>
+          <a
+            className="button primary"
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            בואו נכיר <span>↗</span>
+          </a>
         </div>
+      </section>
+      <footer className="footer">
+        <a className="brand" href="#">
+          <img
+            className="carmen-brand-wordmark-image"
+            src="/brand/carmen/wordmark-soft.webp"
+            alt="Carmen Marketing OS"
+          />
+        </a>
+        <span>© {new Date().getFullYear()} Carmen Marketing OS</span>
+        <a href="#">חזרה למעלה ↑</a>
       </footer>
-
-      {/* Demo Request Dialog */}
-      <DemoRequestDialog
-        open={waitlistDialogOpen}
-        onOpenChange={setWaitlistDialogOpen}
-      />
-    </div>
+    </main>
   );
-};
-
-export default Landing;
+}

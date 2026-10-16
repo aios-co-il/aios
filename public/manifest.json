@@ -1,26 +1,26 @@
 {
-  "name": "AfterLead Marketing",
-  "short_name": "AfterLead",
-  "description": "פלטפורמת CRM לסוכנויות דיגיטל",
+  "name": "Carmen Marketing OS",
+  "short_name": "Carmen",
+  "description": "מערכת שיווק ומכירות מחוברת לעסקים ולסוכנויות — במקום אחד.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
   "dir": "rtl",
   "lang": "he",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
+  "background_color": "#0A1526",
+  "theme_color": "#A7F5DE",
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
-      "sizes": "192x192",
+      "src": "/brand/carmen/symbol-soft.png",
+      "sizes": "1172x1058",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
+      "src": "/brand/carmen/symbol-soft.png",
+      "sizes": "1172x1058",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ]
 }
