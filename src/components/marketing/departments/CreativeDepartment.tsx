@@ -1507,7 +1507,7 @@ export function CreativeDepartment({
       setProducingStep("שולח להפקה…");
       const sceneEngine = getSceneEngine(selected.payload);
       const soundEngine = getSoundEngine(selected.payload);
-      const separateSound = soundRunsSeparately(soundEngine);
+      const separateSound = soundRunsSeparately(soundEngine, sceneEngine);
       const result = await produceVideo({
         itemId: selected.id,
         stageId: ensureCreativeStageReady(context).creativeStage.id,

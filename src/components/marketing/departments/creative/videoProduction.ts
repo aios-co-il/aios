@@ -102,7 +102,7 @@ export function productionPlan(
   ].filter(
     (frame, index, list) => list.findIndex((f) => f.id === frame.id) === index,
   );
-  const separateSound = soundRunsSeparately(soundEngine);
+  const separateSound = soundRunsSeparately(soundEngine, sceneEngine);
   const voices = separateSound ? framesToVoice(frames) : [];
   const music = separateSound && !hasMusic && frames.length > 0;
   const clipEstimate = sceneEstimate(sceneEngine, clips);

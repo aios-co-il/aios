@@ -75,5 +75,7 @@ test("voice bills the spoken characters and music bills the storyboard length", 
   assert.equal(musicEstimate(frames).seconds, 10);
   assert.equal(musicEstimate(frames).usd, 0.08);
   assert.equal(soundRunsSeparately("elevenlabs"), true);
-  assert.equal(soundRunsSeparately("higgsfield"), false);
+  assert.equal(soundRunsSeparately("higgsfield", "higgsfield"), false);
+  // Higgsfield sound only exists inside Higgsfield clips: other engines still need voice.
+  assert.equal(soundRunsSeparately("higgsfield", "kling"), true);
 });

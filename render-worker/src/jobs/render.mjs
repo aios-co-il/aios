@@ -63,7 +63,7 @@ export async function loadFilmSources(db, run) {
   };
 }
 
-/** Builds the finished MP4 from approved clips, their voiceovers and the music bed. */
+/** Builds the finished MP4 from each scene's current clip, its voiceover and the music bed. */
 export async function renderFilm({ db, run, log = console.log }) {
   const item = await loadRunItem(db, run);
   const sources = await loadFilmSources(db, run);

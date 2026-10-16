@@ -6,7 +6,7 @@ export const VIDEO_DIRECTOR_TOOLS = [
   {
     name: "get_video_storyboard",
     description:
-      "סטוריבורד של פרויקט וידאו: סצנות, סטטוס, קליפ מאושר, קריינות, מוזיקה והרכב אחרון.",
+      "סטוריבורד של פרויקט וידאו: סצנות, סטטוס, קליפ נוכחי, קריינות, מוזיקה והרכב אחרון.",
     parameters: {
       type: "object",
       properties: {
@@ -18,7 +18,7 @@ export const VIDEO_DIRECTOR_TOOLS = [
   {
     name: "render_video_film",
     description:
-      "שולח הרכבת סרט מהקליפים המאושרים. ההרכבה מקומית ולא עולה כסף. לא מפעיל מנועי סצנות.",
+      "שולח הרכבת סרט מהקליפ הנוכחי של כל סצנה (סצנה בלי קליפ לא נכנסת). ההרכבה מקומית ולא עולה כסף. לא מפעיל מנועי סצנות.",
     parameters: {
       type: "object",
       properties: {
@@ -133,6 +133,7 @@ export async function executeVideoDirectorTool(
       stage_id: project.current_stage_id,
       scene_engine: project.payload?.video?.scene_engine ?? "mock",
       sound_engine: project.payload?.video?.sound_engine ?? "elevenlabs",
+      clip_count: sceneRows.filter((scene) => !!scene.clip_asset_id).length,
       approved_count: sceneRows.filter(
         (scene) => scene.status === "clip_approved",
       ).length,
@@ -153,7 +154,7 @@ export async function executeVideoDirectorTool(
     });
     if (queued.error) {
       if (queued.error.message.includes("no approved clips"))
-        return { error: "אין קליפים מאושרים להרכבה" };
+        return { error: "אין לסצנות קליפים להרכבה" };
       return { error: queued.error.message };
     }
     const runs = rowsOf(queued.data) as { id?: string }[];

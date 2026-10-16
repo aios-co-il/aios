@@ -184,6 +184,11 @@ export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   };
 }
 
-/** Higgsfield sound is part of the clip, so it is not a separate paid sound job. */
-export const soundRunsSeparately = (engine: SoundEngine) =>
-  engine === "elevenlabs";
+/**
+ * Higgsfield sound is generated inside a Higgsfield clip, so it is not a separate paid job.
+ * With any other scene engine the clips carry no sound, so voice and music still run.
+ */
+export const soundRunsSeparately = (
+  engine: SoundEngine,
+  sceneEngine: SceneEngine = "higgsfield",
+) => engine === "elevenlabs" || sceneEngine !== "higgsfield";
