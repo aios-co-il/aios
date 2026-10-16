@@ -24,7 +24,7 @@ STAGING_DOMAIN=<configured-in-vercel>
 PRODUCTION_DOMAIN=<configured-in-vercel>
 ```
 
-When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability. Never merge to `main` without an explicit `מאשר לפרודקשן`.
+When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability.
 
 ## Canonical URLs
 
@@ -51,7 +51,6 @@ feature/* or fix/*
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
     → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
-    → מאשר לפרודקשן
     → merge develop → main
     → Production (aios.co.il)
 ```
@@ -86,7 +85,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 - Staging auth allows `http://localhost:8080` and `https://*.vercel.app`; email signup autoconfirm is on
 - WhatsApp send paths go through `IntegrationGuard`
 - Staging / Preview / Dev visual banner via `VITE_APP_ENV`
-- `deploy-staging-edge-functions.yml` runs on matching **`develop` pushes**, manual dispatch, and reusable workflow calls from the main-to-develop sync
+- `deploy-staging-develop.yml` runs on matching **`develop` pushes**, manual dispatch, and reusable workflow calls from the main-to-develop sync (edge functions only for the last two)
 
 ## Code, data and deployment synchronization
 
@@ -135,9 +134,9 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Merge **`develop` → `main`** only after `מאשר לפרודקשן` (Production deploy + `deploy-edge-function.yml`).
+5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
 6. Main pushes automatically run `sync-develop-from-main`. A release PR must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
-7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification and `מאשר לפרודקשן`.
+7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 
 ## Development agents (Preview / Staging)
@@ -166,4 +165,8 @@ Lazy snapshot renderers keep full report/export code out of the client-card entr
 
 Workflow files define automation triggers; this document defines the environment model and operational constraints. Confirm external service state separately before claiming a deployment or data sync is healthy.
 
-- Check `.github/workflows/sync-develop-from-main.yml`, `deploy-staging-edge-functions.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
+- Check `.github/workflows/sync-develop-from-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
+
+## Database and edge-function deploys
+
+Label-gated migration and edge-function deploys, drift recovery and GitHub config: `docs/agents/db-deploys.md`.

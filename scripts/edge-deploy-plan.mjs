@@ -2,7 +2,11 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+// Generated, type-only: erased at bundle time, so it never changes runtime code.
+const GENERATED_TYPES = "supabase/functions/_shared/database.types.ts";
+
 export function deploymentPlan(files, available, requested = "") {
+  files = files.filter((file) => file !== GENERATED_TYPES);
   const names = new Set(available);
   if (requested.trim()) {
     const selected = [...new Set(requested.trim().split(/\s+/))];
@@ -55,6 +59,7 @@ export function productionChanges(
   return files.filter((file) => {
     if (file.startsWith("supabase/functions/_shared/staging-outbound."))
       return false;
+    if (file === GENERATED_TYPES) return false;
     if (
       stagingOnly.some((name) => file.startsWith(`supabase/functions/${name}/`))
     )
