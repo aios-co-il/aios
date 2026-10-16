@@ -170,6 +170,9 @@ jobs:
       - name: TypeScript gate regression tests
         run: pnpm test:typecheck
 
+      - name: Component regression tests
+        run: pnpm test:components
+
       - name: Regression guards (dashboards + permission personas)
         run: pnpm test:guards
         env:

@@ -845,7 +845,7 @@ export function ImportLeadsWithMapping() {
               applyImportedStatus(lead, strValue, statusKeyMap);
               break;
             }
-            case "tags":
+            case "tags": {
               // Parse tags and ACCUMULATE from multiple columns
               const newTags = strValue
                 .split(",")
@@ -853,35 +853,41 @@ export function ImportLeadsWithMapping() {
                 .filter((t) => t);
               rowTags = [...rowTags, ...newTags];
               break;
+            }
             case "updates":
               // Already handled separately
               break;
             case "monthly_budget":
             case "three_month_budget":
-            case "estimated_deal_value":
+            case "estimated_deal_value": {
               const num = parseFloat(strValue.replace(/[^\d.-]/g, ""));
               if (!isNaN(num) && num > 0) lead[sysField] = num;
               break;
-            case "created_at":
+            }
+            case "created_at": {
               const createdDate = parseDate(strValue);
               if (createdDate) lead.created_at = createdDate + "T00:00:00Z";
               break;
-            case "proposal_date":
+            }
+            case "proposal_date": {
               const propDate = parseDate(strValue);
               if (propDate) {
                 lead.proposal_date = propDate;
                 lead.proposal_sent_date = propDate;
               }
               break;
-            case "follow_up_date":
+            }
+            case "follow_up_date": {
               const followUpDate = parseDate(strValue);
               if (followUpDate) lead.follow_up_date = followUpDate;
               break;
-            case "meeting_date":
+            }
+            case "meeting_date": {
               const meetingDate = parseDate(strValue);
               if (meetingDate) lead.meeting_date = meetingDate;
               break;
-            case "won_date":
+            }
+            case "won_date": {
               const wonDate = parseDate(strValue);
               if (wonDate) {
                 lead.won_date = wonDate;
@@ -890,6 +896,7 @@ export function ImportLeadsWithMapping() {
                 lead.status = "closed";
               }
               break;
+            }
           }
         });
 

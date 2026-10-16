@@ -7,6 +7,7 @@ name: Sync develop from main
 
 permissions:
   contents: write
+  pull-requests: read
 
 on:
   push:
@@ -55,7 +56,7 @@ jobs:
 
   staging-edge:
     needs: sync
-    uses: ./.github/workflows/deploy-staging-edge-functions.yml
+    uses: ./.github/workflows/deploy-staging-develop.yml
     with:
       source_sha: ${{ needs.sync.outputs.sha }}
     secrets: inherit

@@ -1,1 +1,0 @@
-ALTER TABLE public.ahrefs_reports ADD COLUMN IF NOT EXISTS comparison_data JSONB DEFAULT NULL;

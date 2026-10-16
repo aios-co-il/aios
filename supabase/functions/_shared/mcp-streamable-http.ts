@@ -91,11 +91,12 @@ export async function handleStreamableMcpRequest(
           clearInterval(timer);
           controller.close();
         }, 120_000);
-        // @ts-ignore deno compat
-        controller._cleanup = () => {
-          clearInterval(timer);
-          clearTimeout(closer);
-        };
+        Object.assign(controller, {
+          _cleanup: () => {
+            clearInterval(timer);
+            clearTimeout(closer);
+          },
+        });
       },
       cancel() {
         // no-op

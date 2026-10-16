@@ -11,6 +11,18 @@ test("shared-only and config changes redeploy complete bundles", () => {
     assert.deepEqual(deploymentPlan([path], available), available);
   }
 });
+test("generated database types do not trigger a redeploy", () => {
+  const types = "supabase/functions/_shared/database.types.ts";
+  assert.deepEqual(deploymentPlan([types], available), []);
+  assert.deepEqual(
+    deploymentPlan(
+      [types, "supabase/functions/crm-records/index.ts"],
+      available,
+    ),
+    ["crm-records"],
+  );
+  assert.deepEqual(productionChanges([types], "", "", []), []);
+});
 test("verification/workflow recovery changes do not replay deployed runtime code", () => {
   assert.deepEqual(
     deploymentPlan(

@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { formatAttachmentsForPrompt } from "./commandCenterAttachments";
+
+// These formatting tests do not need a hosted Supabase client.
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 describe("formatAttachmentsForPrompt", () => {
   it("includes user text and attachment URLs", () => {

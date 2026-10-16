@@ -14,8 +14,21 @@ on:
       base_revision:
         type: string
         default: ""
+      # "pr" deploys a labelled PR head to Staging: the head need not be the
+      # develop tip, and the edge-deployed-staging tag is left untouched.
+      mode:
+        type: string
+        default: "branch"
+      base_ref:
+        type: string
+        default: "develop"
+      # Required in "pr" mode: used to refuse a superseded head commit.
+      pr_number:
+        type: string
+        default: ""
 permissions:
   contents: write
+  pull-requests: read
 concurrency:
   group: edge-deploy-${{ inputs.environment }}
   # Staging can resume atomic row/source checkpoints when a newer revision arrives.
@@ -25,6 +38,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    environment: ${{ inputs.environment }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
       PROJECT_REF: ${{ inputs.environment == 'staging' && (secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm') || 'zvoijyneresvkadpprel' }}
@@ -33,7 +47,18 @@ jobs:
       DEPLOY_FUNCTIONS: ${{ inputs.function_names }}
       SOURCE_SHA: ${{ inputs.source_sha }}
       BOOTSTRAP_BEFORE: ${{ inputs.base_revision }}
+      DEPLOY_MODE: ${{ inputs.mode }}
+      BASE_REF: ${{ inputs.base_ref }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
     steps:
+      - name: Validate mode
+        run: |
+          case "$DEPLOY_MODE" in
+            branch|pr) ;;
+            *) echo "::error::Unknown mode '$DEPLOY_MODE' (expected branch or pr)"; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -50,6 +75,18 @@ jobs:
           set -euo pipefail
           BRANCH=main
           if [ "$DEPLOY_ENV" = staging ]; then BRANCH=develop; fi
+          if [ "$DEPLOY_MODE" = pr ]; then
+            # The job may have queued behind other runs: the PR can have closed, released
+            # the label, or moved to a newer head (a closed PR keeps its head ref).
+            REASON=$(.github/scripts/check-staging-holder.sh "$PR_NUMBER" "$SOURCE_SHA" | sed -n 's/^reason=//p')
+            if [ -n "$REASON" ]; then
+              echo "::error::$REASON; refusing to deploy."
+              exit 1
+            fi
+            git fetch origin "$BASE_REF"
+            echo "DEPLOY_BEFORE=$(git merge-base HEAD "origin/$BASE_REF")" >> "$GITHUB_ENV"
+            exit 0
+          fi
           git fetch origin "$BRANCH" --tags
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$BRANCH)" ]; then
             echo "::error::This revision is no longer the environment head. Run the current revision."
@@ -72,17 +109,23 @@ jobs:
         env:
           STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
         run: python3 scripts/verify-staging-containment.py --prepare-only
+      # PR mode diffs against the base branch (set above); a checkpoint left by another
+      # holder is a known gap, handled in a follow-up.
       - name: Recover a completed Staging source deployment
-        if: inputs.environment == 'staging'
+        if: inputs.environment == 'staging' && inputs.mode != 'pr'
         env:
           STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
         run: |
           set -euo pipefail
           RECOVERED=$(python3 scripts/verify-staging-containment.py --deployment-base)
-          if [ -n "$RECOVERED" ] && git cat-file -e "$RECOVERED^{commit}" 2>/dev/null; then
-            git merge-base --is-ancestor "$RECOVERED" HEAD
+          if [ -n "$RECOVERED" ] && git cat-file -e "$RECOVERED^{commit}" 2>/dev/null && git merge-base --is-ancestor "$RECOVERED" HEAD; then
             echo "DEPLOY_BEFORE=$RECOVERED" >> "$GITHUB_ENV"
             echo "Resuming from deployed sources; containment verification remains required."
+          else
+            # No checkpoint, or one outside this revision's history (e.g. another PR's
+            # cancelled deploy): an empty base redeploys every function.
+            echo "DEPLOY_BEFORE=" >> "$GITHUB_ENV"
+            echo "No usable deployment checkpoint for this revision; redeploying all functions."
           fi
       - name: Deploy complete source bundles
         run: |
@@ -106,7 +149,7 @@ jobs:
         run: |
           python3 scripts/verify-staging-containment.py
       - name: Record successful revision
-        if: inputs.function_names == ''
+        if: inputs.function_names == '' && inputs.mode != 'pr'
         run: |
           set -euo pipefail
           git tag -f "edge-deployed-$DEPLOY_ENV" "$SOURCE_SHA"
@@ -115,7 +158,7 @@ jobs:
 
   mirror:
     needs: deploy
-    if: inputs.environment == 'staging' && inputs.function_names == ''
+    if: inputs.environment == 'staging' && inputs.function_names == '' && inputs.mode != 'pr'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:

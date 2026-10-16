@@ -159,7 +159,6 @@ serve(async (req) => {
 
         if (error) {
           // Handle duplicate key gracefully
-          // @ts-ignore - edge runtime error shape
           if (error.code === "23505") {
             return new Response(
               JSON.stringify({

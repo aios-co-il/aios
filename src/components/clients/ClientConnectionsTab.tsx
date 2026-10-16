@@ -84,7 +84,7 @@ export function ClientConnectionsTab({
   const allChannels = CLIENT_CHANNELS;
 
   const fieldValue = (key: ChannelFieldKey): string =>
-    edits[key] ?? c?.[key] ?? "" ?? "";
+    edits[key] ?? c?.[key] ?? "";
   const setFieldValue = (key: ChannelFieldKey, value: string) => {
     setEdits((prev) => ({ ...prev, [key]: value }));
     // Clear resolved page preview when meta_ads_account_id changes

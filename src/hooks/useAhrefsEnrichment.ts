@@ -38,9 +38,9 @@ export function useAhrefsEnrichment() {
     country: string,
     accessToken: string,
     anonKey: string,
-    projectId: string,
+    supabaseUrl: string,
   ): Promise<AhrefsKeyword[]> => {
-    const url = `https://${projectId}.supabase.co/functions/v1/ahrefs-auth?action=fetch-keywords`;
+    const url = `${supabaseUrl}/functions/v1/ahrefs-auth?action=fetch-keywords`;
     const resp = await fetch(url, {
       method: "POST",
       headers: {
@@ -91,7 +91,7 @@ export function useAhrefsEnrichment() {
     ) => {
       setIsLoading(true);
       try {
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         const session = (await supabase.auth.getSession()).data.session;
         const token = session?.access_token || anonKey;
@@ -139,7 +139,7 @@ export function useAhrefsEnrichment() {
             country,
             token,
             anonKey,
-            projectId,
+            supabaseUrl,
           ),
           fetchKeywordsForPeriod(
             domain,
@@ -149,7 +149,7 @@ export function useAhrefsEnrichment() {
             country,
             token,
             anonKey,
-            projectId,
+            supabaseUrl,
           ),
         ]);
 

@@ -1,1 +1,0 @@
-ALTER TYPE public.automation_trigger ADD VALUE IF NOT EXISTS 'whatsapp_message_received';
