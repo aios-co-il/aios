@@ -28,6 +28,7 @@
 // The Manus API key is read from tenant_integrations (integration_type='manus').
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { getRepoSlug } from "../_shared/github-repo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -86,7 +87,7 @@ const TOOLS = [
     name: "request_dev_task",
     description:
       "Send a software-development task to Manus (David's coding agent). " +
-      "Manus reads the AIOS repository (davidcastelnuovo/aios), implements the change, and opens a pull request — " +
+      "Manus reads the AIOS repository, implements the change, and opens a pull request — " +
       "exactly the way David asks Manus to fix a bug or build a feature. " +
       "Use for bug fixes, new features, refactors, edge-function changes, migrations, or config work. " +
       "Asynchronous: returns a task URL; the PR appears once Manus finishes.",
@@ -521,7 +522,7 @@ async function handleToolCall(
     const prompt =
       `[Carmen → Manus · DEV TASK]\n` +
       `Requested by Carmen (AIOS agent), on behalf of David.\n\n` +
-      `Repository: davidcastelnuovo/aios\n` +
+      `Repository: ${getRepoSlug()}\n` +
       `Base branch: ${branch}\n\n` +
       `Task:\n${task}\n` +
       (context ? `\nContext:\n${context}\n` : ``) +

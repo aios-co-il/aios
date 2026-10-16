@@ -3,6 +3,8 @@
  * Does NOT use tenant-wide cursor_sticky_agents (that stays for general Carmen dev work).
  */
 
+import { getRepoUrl } from "./github-repo.ts";
+
 export type GoalCursorFireResult = {
   cursorAgentId: string;
   sessionUrl: string;
@@ -169,9 +171,7 @@ async function createGoalCursorAgent(
   promptText: string,
   opts?: { name?: string; startingRef?: string },
 ): Promise<GoalCursorFireResult> {
-  const repoUrl =
-    Deno.env.get("CURSOR_REPO_URL") ||
-    "https://github.com/davidcastelnuovo/aios";
+  const repoUrl = getRepoUrl();
   const startingRef = opts?.startingRef || "develop";
   const envName = Deno.env.get("CURSOR_CLOUD_ENV_NAME") || "";
   const { cursorModelBody, resolveCodingCursorModel } =

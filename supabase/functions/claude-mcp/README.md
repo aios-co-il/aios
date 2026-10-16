@@ -27,7 +27,7 @@ returned session URL is what Carmen reports back so David can watch the run.
 ### 1. Create a routine (David, in the Claude Code web UI)
 
 1. Go to **https://claude.ai/code/routines** and create a routine.
-2. **Repositories:** add the AIOS repo (`davidcastelnuovo/aios`).
+2. **Repositories:** add the AIOS repo (`$GITHUB_REPO`).
 3. **Prompt:** make it generic so it handles both dev and general asks. The
    per-call `text` Carmen sends carries the actual task. Recommended prompt:
 

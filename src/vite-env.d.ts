@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_ENV?: string;
+  readonly VITE_GITHUB_REPO?: string;
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
 }

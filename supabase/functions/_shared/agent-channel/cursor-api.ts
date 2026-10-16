@@ -3,14 +3,13 @@ import {
   cursorModelBody,
   resolveCodingCursorModel,
 } from "../cursorCreativeModel.ts";
+import { getRepoUrl } from "../github-repo.ts";
 
 export type CloudAgentResult = { url: string; id: string; reused: boolean };
 export type FollowUpOutcome =
   | { kind: "ok"; id: string; url: string; reused: true }
   | { kind: "busy"; id: string; url: string }
   | { kind: "gone" };
-
-const DEFAULT_REPO = "https://github.com/davidcastelnuovo/aios";
 
 function authHeaders(apiKey: string, basic = false): Record<string, string> {
   return {
@@ -112,7 +111,7 @@ export async function createCloudAgent(args: {
   envName?: string;
   autoCreatePR?: boolean;
 }): Promise<CloudAgentResult> {
-  const repoUrl = Deno.env.get("CURSOR_REPO_URL") || DEFAULT_REPO;
+  const repoUrl = getRepoUrl();
   const startingRef =
     args.startingRef || Deno.env.get("CURSOR_STARTING_REF") || "main";
   const envName = args.envName || Deno.env.get("CURSOR_CLOUD_ENV_NAME") || "";
