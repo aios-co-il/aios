@@ -1,4 +1,9 @@
 import { useState } from "react";
+import {
+  useCarmenIdentity,
+  readAgentIdentity,
+} from "@/hooks/useCarmenIdentity";
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -38,9 +43,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-const CARMEN_AVATAR =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310419663030948028/XGJWpzb5zh76ZdoV37Q3K8/carmen-agents-avatar_17945787.png";
-
 function isCarmen(name: string) {
   const n = (name || "").toLowerCase();
   return n.includes("carmen") || name?.includes("כרמן");
@@ -72,6 +74,8 @@ export function AgentEditor({
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const carmen = isCarmen(agent.name);
+  const visualIdentity = readAgentIdentity(agent.metadata);
+  const identity = useCarmenIdentity();
 
   const updateEngine = useMutation({
     mutationFn: async (engine: string) => {
@@ -98,10 +102,13 @@ export function AgentEditor({
     >
       <div className="p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 flex-wrap">
         {carmen ? (
-          <img
-            src={CARMEN_AVATAR}
-            alt={agent.name}
-            className="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover"
+          <CarmenPortrait
+            image={
+              visualIdentity.avatarUrl ||
+              (visualIdentity.avatarPath ? identity.image : undefined)
+            }
+            custom={!!(visualIdentity.avatarUrl || visualIdentity.avatarPath)}
+            name={visualIdentity.displayName || agent.name}
           />
         ) : (
           <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-muted flex items-center justify-center">
@@ -111,7 +118,7 @@ export function AgentEditor({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-bold text-base md:text-lg truncate">
-              {agent.name}
+              {visualIdentity.displayName || agent.name}
             </h2>
             {carmen && <Crown className="h-4 w-4 text-amber-500" />}
             {agent.active ? (
@@ -175,6 +182,8 @@ function AgentTabsWithUrl({
     params.set("tab", v);
     setParams(params, { replace: true });
   };
+  const visualIdentity = readAgentIdentity(agent.metadata);
+  const identity = useCarmenIdentity();
 
   const groups: { label: string; items: { value: string; label: string }[] }[] =
     [

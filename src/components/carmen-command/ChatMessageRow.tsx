@@ -1,3 +1,6 @@
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { File as FileIcon, Image as ImageIcon, Wrench } from "lucide-react";
@@ -79,6 +82,7 @@ export function ChatMessageRow({
   channel,
   tool,
 }: ChatMessageRowProps) {
+  const identity = useCarmenIdentity();
   if (role === "tool_call") {
     return (
       <p className="flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--cc-text-dim)]">
@@ -94,13 +98,20 @@ export function ChatMessageRow({
 
   return (
     <div className={`cc-msg-row${isUser ? " is-user" : " is-agent"}`}>
-      {!isUser && (
-        <span
-          className="cc-msg-avatar"
-          style={{ backgroundImage: `url(${sprite})` }}
-          aria-hidden
-        />
-      )}
+      {!isUser &&
+        (sprite === CARMEN_CHARACTER ? (
+          <CarmenPortrait
+            image={identity.image}
+            name={identity.name}
+            custom={identity.custom}
+          />
+        ) : (
+          <span
+            className="cc-msg-avatar"
+            style={{ backgroundImage: `url(${sprite})` }}
+            aria-hidden
+          />
+        ))}
       <div className={`cc-msg-bubble${isUser ? " is-user" : ""}`}>
         {(content || !hasAttachments) && (
           <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">

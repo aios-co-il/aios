@@ -1,9 +1,10 @@
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { LogOut, Building2, PanelRightOpen } from "lucide-react";
+import { LogOut, Building2 } from "lucide-react";
 import { GlobalApprovalsBell } from "@/components/agents/GlobalApprovalsBell";
 import { HeaderModuleShortcuts } from "./HeaderModuleShortcuts";
-import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -41,10 +42,8 @@ function RouteContentLoader() {
   return <CarmenLoadingScreen />;
 }
 
-const CARMEN_ICON =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310419663030948028/XGJWpzb5zh76ZdoV37Q3K8/carmen-icon-CyF3DNNJ8Z9Uhfz7EpYJcQ.webp";
-
 export function AppLayout() {
+  const identity = useCarmenIdentity();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedAgency, setSelectedAgency, agencies } = useAgency();
@@ -238,37 +237,24 @@ export function AppLayout() {
                   </div>
                 )}
                 <GlobalApprovalsBell />
-                {/* Carmen button in header — opens the full-screen Command Center (allowlisted users only) */}
+                {/* Carmen work session entry point (allowlisted users only). */}
                 {commandCenterAccess.allowed && (
                   <>
                     <button
-                      type="button"
-                      onClick={sidecar.toggle}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all ${
-                        sidecar.open
-                          ? "border-sky-400 bg-sky-400/15 text-sky-300"
-                          : "border-border text-muted-foreground hover:border-sky-400/70 hover:text-sky-400"
-                      }`}
-                      title="כרמן — סיידבר תיקון מערכת (המסך נשאר גלוי)"
-                      aria-label="פתח/סגור סיידבר תיקון מערכת של כרמן"
-                      aria-pressed={sidecar.open}
-                    >
-                      <PanelRightOpen className="h-4 w-4" />
-                    </button>
-                    <button
                       onClick={() => {
                         const slug = currentTenant?.slug;
-                        if (slug) navigate(`/t/${slug}/command-center`);
+                        if (slug) sidecar.toggle();
                       }}
                       className="relative group"
-                      title="כרמן — מרכז פיקוד ובקרה"
-                      aria-label="פתח את מרכז הפיקוד של כרמן"
+                      title={`פגישת עבודה עם ${identity.name}`}
+                      aria-label={`פתח פגישת עבודה עם ${identity.name}`}
+                      aria-expanded={sidecar.open}
                     >
                       <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
-                      <img
-                        src={CARMEN_ICON}
-                        alt="כרמן"
-                        className="h-9 w-9 rounded-full object-cover border-2 border-sky-400/70 group-hover:scale-110 group-hover:border-sky-300 transition-all duration-200"
+                      <CarmenPortrait
+                        image={identity.image}
+                        name={identity.name}
+                        custom={identity.custom}
                       />
                     </button>
                   </>
@@ -281,7 +267,7 @@ export function AppLayout() {
                       className="rounded-full"
                     >
                       <img
-                        src={logo}
+                        src="/brand/carmen/symbol-soft.webp"
                         alt="Logo"
                         className="h-8 w-8 object-contain"
                       />

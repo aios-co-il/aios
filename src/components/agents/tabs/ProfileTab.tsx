@@ -1,3 +1,4 @@
+import { AgentVisualIdentity } from "../AgentVisualIdentity";
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +90,7 @@ export function ProfileTab({
 
   return (
     <div className="max-w-4xl space-y-4 pb-24">
+      <AgentVisualIdentity key={agent.id} agent={agent} />
       {/* ===== Identity card ===== */}
       <Card className="p-5">
         <SectionHeader

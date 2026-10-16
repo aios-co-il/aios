@@ -95,13 +95,6 @@
       "count": 2
     },
     {
-      "file": "src/components/agents/tabs/ProfileTab.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ name: any; talent: any; personality: any; soul: any; system_prompt: any; writing_style: any; response_length: any; language: any; max_tool_rounds: any; active: any; metadata: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | null | undefined; allowed_tools?: string[] | undefined; created_at?: string | null | undefined; engine?: string | undefined; id?: string | undefined; language?: string | undefined; ... 9 more ...; writing_style?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ name: any; talent: any; personality: any; soul: any; system_prompt: any; writing_style: any; response_length: any; language: any; max_tool_rounds: any; active: any; metadata: any; }' is not assignable to type '{ metadata: never; }'.\n    Types of property 'metadata' are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "form",
-      "count": 1
-    },
-    {
       "file": "src/components/agents/tabs/RunsTab.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -125,7 +118,7 @@
     {
       "file": "src/components/agents/tabs/TasksTab.tsx",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | null | undefined; ... 17 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | null | undefined; ... 17 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | null | undefined; ... 17 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
       "count": 1
     },
@@ -426,7 +419,7 @@
     {
       "file": "src/components/clients/ClientsChatView.tsx",
       "code": 2345,
-      "message": "Argument of type '{ [x: string]: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ active_chat_provider?: \"manychat\" | \"green_api\" | \"internal\" | \"manus_wa\" | \"meta_whatsapp\" | null | undefined; active_flags?: Json | undefined; agency_id?: string | undefined; ... 37 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ [x: string]: any; }' is not assignable to type '{ [x: string]: never; [x: number]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
+      "message": "Argument of type '{ [x: string]: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ active_chat_provider?: \"manychat\" | \"green_api\" | \"internal\" | \"manus_wa\" | \"meta_whatsapp\" | null | undefined; active_flags?: Json | undefined; agency_id?: string | undefined; ... 38 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ [x: string]: any; }' is not assignable to type '{ [x: string]: never; [x: number]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
       "source": "{ [field]: value }",
       "count": 1
     },
@@ -503,7 +496,7 @@
     {
       "file": "src/components/dynamic-tables/GoogleSearchConsoleTableDialog.tsx",
       "code": 2345,
-      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string | null; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
+      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
       "source": "data",
       "count": 1
     },
@@ -1090,13 +1083,6 @@
     },
     {
       "file": "src/components/tasks/TaskDetailDialog.tsx",
-      "code": 2339,
-      "message": "Property 'self_reminder_at' does not exist on type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 28 more ...; updated_at: string; } | Task'.\n  Property 'self_reminder_at' does not exist on type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 28 more ...; updated_at: string; }'.",
-      "source": "self_reminder_at",
-      "count": 2
-    },
-    {
-      "file": "src/components/tasks/TaskDetailDialog.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
       "source": "tenantId",
@@ -1133,21 +1119,21 @@
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 32 more ...; task_collaborators: { ...; }[]; }' to type 'FullTask' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 32 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n    Types of property 'task_updates' are incompatible.\n      Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n        Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 36 more ...; task_collaborators: { ...; }[]; }' to type 'FullTask' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 36 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n    Types of property 'task_updates' are incompatible.\n      Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n        Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "data as FullTask",
       "count": 1
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "(data || []) as FullTask[]",
       "count": 1
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assignment_notification_sent_at: string | null; assigned_agent: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 33 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "(recurringExtra || []) as FullTask[]",
       "count": 1
     },
@@ -1163,13 +1149,6 @@
       "code": 2719,
       "message": "Type 'Task | null' is not assignable to type 'Task | null'. Two different types with this name exist, but they are unrelated.\n  Type 'Task' is not assignable to type 'Task'. Two different types with this name exist, but they are unrelated.\n    Types of property 'created_at' are incompatible.\n      Type 'string | null | undefined' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
       "source": "task",
-      "count": 1
-    },
-    {
-      "file": "src/components/tasks/WeeklyTaskBoard.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agency_id: string; assignment_notification_sent_at?: string | null | undefined; assigned_agent?: string | null | undefined; attachments?: Json | undefined; campaigner_id?: string | ... 1 more ... | undefined; ... 29 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ campaigner_id: string | null; sales_person_id: string | null; due_date: string; due_time: string; duration_minutes: number; impersonated_by?: string | undefined; title: string; notes: string | null; ... 4 more ...; created_by: string | null; }' is not assignable to parameter of type 'RejectExcessProperties<{ agency_id: string; assignment_notification_sent_at?: string | null | undefined; assigned_agent?: string | null | undefined; attachments?: Json | undefined; campaigner_id?: string | ... 1 more ... | undefined; ... 29 more ...; updated_at?: string | undefined; }, { ...; }>'.\n      Type '{ campaigner_id: string | null; sales_person_id: string | null; due_date: string; due_time: string; duration_minutes: number; impersonated_by?: string | undefined; title: string; notes: string | null; ... 4 more ...; created_by: string | null; }' is not assignable to type '{ impersonated_by: never; }'.\n        Types of property 'impersonated_by' are incompatible.\n          Type 'string | undefined' is not assignable to type 'never'.\n            Type 'undefined' is not assignable to type 'never'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agency_id: string; assignment_notification_sent_at?: string | null | undefined; assigned_agent?: string | null | undefined; attachments?: Json | undefined; campaigner_id?: string | ... 1 more ... | undefined; ... 29 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'campaigner_id' does not exist in type 'RejectExcessProperties<{ agency_id: string; assignment_notification_sent_at?: string | null | undefined; assigned_agent?: string | null | undefined; attachments?: Json | undefined; campaigner_id?: string | ... 1 more ... | undefined; ... 29 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
       "count": 1
     },
     {
@@ -1223,218 +1202,64 @@
     },
     {
       "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2322,
-      "message": "Type 'false' is not assignable to type 'never'.",
-      "source": "is_default",
+      "code": 2345,
+      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
+      "source": "tenantId",
+      "count": 4
+    },
+    {
+      "file": "src/hooks/useBroadcastDomains.ts",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>[]'.",
+      "source": "tenant_id",
+      "count": 1
+    },
+    {
+      "file": "src/hooks/useBroadcastLists.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
+      "source": "tenantId",
+      "count": 1
+    },
+    {
+      "file": "src/hooks/useBroadcastLists.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "source": "listId",
       "count": 2
     },
     {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'never'.\n  Type 'null' is not assignable to type 'never'.",
-      "source": "from_name",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2322,
-      "message": "Type 'string' is not assignable to type 'never'.",
-      "source": "default_local",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2322,
-      "message": "Type 'string' is not assignable to type 'never'.",
-      "source": "domain",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2322,
-      "message": "Type 'true' is not assignable to type 'never'.",
-      "source": "is_default",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2345,
-      "message": "Argument of type '\"id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"id\"",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2345,
-      "message": "Argument of type '\"tenant_id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"tenant_id\"",
-      "count": 4
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_email_domains\") .select(\"*\")",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
+      "file": "src/hooks/useBroadcastLists.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"broadcast_email_domains\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"broadcast_email_domains\"' is not assignable to parameter of type 'never'.",
-      "source": "\"broadcast_email_domains\"",
-      "count": 7
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; ... 4 more ...; tenant_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ list_id: string; tenant_id: string | null; entity_type: string; name: any; phone: string | null; email: any; added_via: string; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; id?: string | undefined; list_id: string; name?: string | ... 1 more ... | undefined; phone?: string | ... 1 more ... |...'.\n      Type '{ list_id: string; tenant_id: string | null; entity_type: string; name: any; phone: string | null; email: any; added_via: string; }[]' is missing the following properties from type '{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; id?: string | undefined; list_id: string; name?: string | ... 1 more ... | undefined; phone?: string | ... 1 more ... | undefined; tenant_id: ...': list_id, tenant_id\n  Overload 2 of 2, '(values: RejectExcessProperties<{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; ... 4 more ...; tenant_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ list_id: string; tenant_id: string | null; entity_type: string; name: any; phone: string | null; email: any; added_via: string; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; id?: string | undefined; list_id: string; name?: string | ... 1 more ... | undefined; phone?: string | ... 1 more ... |...'.\n      Type '{ list_id: string; tenant_id: string | null; entity_type: string; name: any; phone: string | null; email: any; added_via: string; }' is not assignable to type 'RejectExcessProperties<{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; id?: string | undefined; list_id: string; name?: string | ... 1 more ... | undefined; phone?: string | ... 1 more ... |...'.\n        Type '{ list_id: string; tenant_id: string | null; entity_type: string; name: any; phone: string | null; email: any; added_via: string; }' is not assignable to type '{ added_via?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; entity_id?: string | null | undefined; entity_type?: string | undefined; id?: string | undefined; list_id: string; name?: string | ... 1 more ... | undefined; phone?: string | ... 1 more ... | undefined; tenant_id: ...'.\n          Types of property 'tenant_id' are incompatible.\n            Type 'string | null' is not assignable to type 'string'.\n              Type 'null' is not assignable to type 'string'.",
+      "source": "payload.slice(i, i + 500)",
+      "count": 1
     },
     {
-      "file": "src/hooks/useBroadcastDomains.ts",
+      "file": "src/hooks/useBroadcastLists.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { .....'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ auto_sync_enabled?: boolean | undefined; created_at?: string | undefined; created_by?: string | null | undefined; description?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ auto_sync_enabled?: boolean | undefined; created_at?: string | undefined; created_by?: string | null | undefined; description?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ auto_sync_enabled?: boolean | undefined; created_at?: string | undefined; created_by?: string | null | undefined; description?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2322,
-      "message": "Type 'boolean' is not assignable to type 'never'.",
-      "source": "auto_sync_enabled",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2322,
-      "message": "Type 'string' is not assignable to type 'never'.",
-      "source": "kind",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2345,
-      "message": "Argument of type '\"id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"id\"",
-      "count": 6
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2345,
-      "message": "Argument of type '\"list_id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"list_id\"",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2345,
-      "message": "Argument of type '\"tenant_id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"tenant_id\"",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2353,
-      "message": "Object literal may only specify known properties, and 'member_count' does not exist in type 'RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { .....'.",
-      "source": "member_count",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_list_members\") .select(\"*\")",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_list_rules\") .select(\"*\")",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_lists\") .insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"רשימה חדשה\", description: payload.description ?? null, kind: payload.kind ?? \"static\", source: payload.source ?? \"manual\", }) .select()",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcast_lists\") .select(\"*\")",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"broadcast_list_members\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"broadcast_list_members\"' is not assignable to parameter of type 'never'.",
-      "source": "\"broadcast_list_members\"",
-      "count": 4
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"broadcast_list_rules\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"broadcast_list_rules\"' is not assignable to parameter of type 'never'.",
-      "source": "\"broadcast_list_rules\"",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"broadcast_lists\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"broadcast_lists\"' is not assignable to parameter of type 'never'.",
-      "source": "\"broadcast_lists\"",
-      "count": 6
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { .....'.",
-      "source": "list_id",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { .....'.",
-      "source": "tenant_id",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[]'.",
+      "source": "insert",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcasts.ts",
       "code": 2345,
-      "message": "Argument of type '\"id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"id\"",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useBroadcasts.ts",
-      "code": 2345,
-      "message": "Argument of type '\"tenant_id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"tenant_id\"",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcasts.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcasts\") .insert({ tenant_id: tenantId, created_by: userId, name: payload.name ?? \"דיוור חדש\", channel: payload.channel ?? \"whatsapp\", provider: payload.provider ?? \"green_api\", integration_id: payload.integration_id ?? null, body_text: payload.body_text ?? null, media_url: payload.media_url ?? null, subject: payload.subject ?? null, from_email: payload.from_email ?? null, from_name: payload.from_name ?? null, reply_to: payload.reply_to ?? null, audience_filter: (payload.audience_filter ?? { source: \"leads\", }) as any, scheduled_at: payload.scheduled_at ?? null, throttle_min_seconds: payload.throttle_min_seconds ?? 12, throttle_max_seconds: payload.throttle_max_seconds ?? 20, daily_cap: payload.daily_cap ?? 300, }) .select()",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useBroadcasts.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"broadcasts\") .select(\"*\")",
+      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
+      "source": "tenantId",
       "count": 1
     },
     {
       "file": "src/hooks/useBroadcasts.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"broadcasts\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"broadcasts\"' is not assignable to parameter of type 'never'.",
-      "source": "\"broadcasts\"",
-      "count": 5
-    },
-    {
-      "file": "src/hooks/useBroadcasts.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ contact_name?: string | null | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; } | ... 183 more ... | { ...; }, { ...; } | ... 183 more ... | { .....'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ audience_filter?: Json | undefined; body_text?: string | null | undefined; channel?: string | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; ... 20 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ audience_filter?: Json | undefined; body_text?: string | null | undefined; channel?: string | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; ... 20 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ audience_filter?: Json | undefined; body_text?: string | null | undefined; channel?: string | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; ... 20 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
       "count": 1
     },
@@ -1567,7 +1392,7 @@
     {
       "file": "src/lib/cursorTaskSessions.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type 'never'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 254 more ... | \"wordpress_sites_shared_tenants\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 254 more ... | \"wordpress_sites_shared_tenants\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"14.17\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 262 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type 'never'.",
       "source": "\"cursor_task_sessions\"",
       "count": 1
     },
@@ -1616,7 +1441,7 @@
     {
       "file": "src/lib/insertSignatureDocument.ts",
       "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ completed_at?: string | null | undefined; content?: string | null | undefined; created_at?: string | null | undefined; created_by: string; document_type?: string | undefined; document_fields?: Json | undefined; ... 11 more ...; updated_at?: string | ... 1 more ... | undefined; }'.\n  No index signature with a parameter of type 'string' was found on type '{ completed_at?: string | null | undefined; content?: string | null | undefined; created_at?: string | null | undefined; created_by: string; document_type?: string | undefined; document_fields?: Json | undefined; ... 11 more ...; updated_at?: string | ... 1 more ... | undefined; }'.",
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ business_stamp_company_id?: string | null | undefined; business_stamp_name?: string | null | undefined; client_id?: string | null | undefined; completed_at?: string | null | undefined; ... 15 more ...; updated_at?: string | ... 1 more ... | undefined; }'.\n  No index signature with a parameter of type 'string' was found on type '{ business_stamp_company_id?: string | null | undefined; business_stamp_name?: string | null | undefined; client_id?: string | null | undefined; completed_at?: string | null | undefined; ... 15 more ...; updated_at?: string | ... 1 more ... | undefined; }'.",
       "source": "next[key]",
       "count": 1
     },
@@ -1761,13 +1586,6 @@
       "count": 3
     },
     {
-      "file": "src/lib/wooDashboardQueries.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"wordpress_sites_shared_tenants\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"agent_evals\" | \"agent_knowledge_folders\" | \"agent_runs\" | \"clients\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | \"automations\" | ... 174 more ... | \"zoom_recordings\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"13.0.5\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 183 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"wordpress_sites_shared_tenants\"' is not assignable to parameter of type 'never'.",
-      "source": "\"wordpress_sites_shared_tenants\"",
-      "count": 1
-    },
-    {
       "file": "src/pages/AccountingIntegrations.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
@@ -1895,15 +1713,8 @@
     },
     {
       "file": "src/pages/DMMDashboard.tsx",
-      "code": 2352,
-      "message": "Conversion of type 'SelectQueryError<\"column 'campaign_active' does not exist on 'crm_tables'.\">[]' to type 'PulseCampaignTable[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ error: true; } & String' is missing the following properties from type 'PulseCampaignTable': id, client_id, integration_type",
-      "source": "(tables ?? []) as PulseCampaignTable[]",
-      "count": 1
-    },
-    {
-      "file": "src/pages/DMMDashboard.tsx",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(predicate: (value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => value is { ...; }, thisArg?: any): { ...; }[]', gave the following error.\n    Argument of type '(client: { id: string; name: string; services?: string[]; }) => boolean' is not assignable to parameter of type '(value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ....'.\n      Types of parameters 'client' and 'value' are incompatible.\n        Type '{ id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }' is not assignable to type '{ id: string; name: string; services?: string[] | undefined; }'.\n          Types of property 'services' are incompatible.\n            Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n              Type 'null' is not assignable to type 'string[] | undefined'.\n  Overload 2 of 2, '(predicate: (value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => unknown, thisArg?: any): { ...; }[]', gave the following error.\n    Argument of type '(client: { id: string; name: string; services?: string[]; }) => boolean' is not assignable to parameter of type '(value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ....'.\n      Types of parameters 'client' and 'value' are incompatible.\n        Type '{ id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\"; agency_id: string; is_seo_client: boolean | null; services: string[] | null; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }' is not assignable to type '{ id: string; name: string; services?: string[] | undefined; }'.\n          Types of property 'services' are incompatible.\n            Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n              Type 'null' is not assignable to type 'string[] | undefined'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(predicate: (value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | ... 3 more ... | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => value is { ...; }, thisArg?: any): { ...; }[]', gave the following error.\n    Argument of type '(client: { id: string; name: string; services?: string[]; }) => boolean' is not assignable to parameter of type '(value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | ... 3 more ... | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => value is { ...; }'.\n      Types of parameters 'client' and 'value' are incompatible.\n        Type '{ id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }' is not assignable to type '{ id: string; name: string; services?: string[] | undefined; }'.\n          Types of property 'services' are incompatible.\n            Type 'Json' is not assignable to type 'string[] | undefined'.\n              Type 'null' is not assignable to type 'string[] | undefined'.\n  Overload 2 of 2, '(predicate: (value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | ... 3 more ... | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => unknown, thisArg?: any): { ...; }[]', gave the following error.\n    Argument of type '(client: { id: string; name: string; services?: string[]; }) => boolean' is not assignable to parameter of type '(value: { id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | ... 3 more ... | null; agencies: { ...; }; client_team: { ...; }[]; }, index: number, array: { ...; }[]) => unknown'.\n      Types of parameters 'client' and 'value' are incompatible.\n        Type '{ id: string; name: string; status: \"active\" | \"paused\" | \"ended\" | \"onboarding\" | \"inactive\"; agency_id: string; is_seo_client: boolean | null; services: Json; mood_status: \"happy\" | \"wavering\" | \"churn_risk\" | \"not_progressing\" | null; agencies: { ...; }; client_team: { ...; }[]; }' is not assignable to type '{ id: string; name: string; services?: string[] | undefined; }'.\n          Types of property 'services' are incompatible.\n            Type 'Json' is not assignable to type 'string[] | undefined'.\n              Type 'null' is not assignable to type 'string[] | undefined'.",
       "source": "(client: { id: string; name: string; services?: string[] }) => {",
       "count": 1
     },
@@ -1938,7 +1749,7 @@
     {
       "file": "src/pages/GoogleAdsSettings.tsx",
       "code": 2345,
-      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string | null; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
+      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
       "source": "data",
       "count": 1
     },
@@ -2008,14 +1819,14 @@
     {
       "file": "src/pages/GreenAPISettings.tsx",
       "code": 2345,
-      "message": "Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, ...'.\n  Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n    Types of property 'tenant_id' are incompatible.\n      Type 'string | null' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
+      "message": "Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n    Types of property 'tenant_id' are incompatible.\n      Type 'string | null' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
       "source": "integrationData",
       "count": 1
     },
     {
       "file": "src/pages/GreenAPISettings.tsx",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, ...'.\n      Property 'tenant_id' is missing in type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' but required in type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, ...'.\n      Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | ... 1 more ... | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n        Types of property 'tenant_id' are incompatible.\n          Type 'string | null' is not assignable to type 'string'.\n            Type 'null' is not assignable to type 'string'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n      Property 'tenant_id' is missing in type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' but required in type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n      Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n        Types of property 'tenant_id' are incompatible.\n          Type 'string | null' is not assignable to type 'string'.\n            Type 'null' is not assignable to type 'string'.",
       "source": "insert",
       "count": 1
     },
@@ -2099,7 +1910,7 @@
     {
       "file": "src/pages/MenuManagement.tsx",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; hidden_from_child_tenants?: boolean | ... 1 more ... | undefined; ... 9 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; hidden_from_child_tenants?: boolean | ... 1 more ... | undefined; ... 9 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; hidden_from_child_tenants?: boolean | ... 1 more ... | undefined; ... 9 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
       "count": 1
     },
