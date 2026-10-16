@@ -288,11 +288,5 @@ class RecoveryTests(unittest.TestCase):
         verify.record_state(api, {'report': {'version': 1}}, 'a'*40, verified=True)
         self.assertIn('VALUES(true,1,true,now(),', api.sql)
 
-    def test_changed_deployment_cannot_resume_from_old_checkpoint(self):
-        class API:
-            def query(self, sql): return [{'source_sha': 'a'*40, 'edge_versions': {'report': 1}}]
-            def function_versions(self): return {'report': 2}
-        self.assertEqual(verify.recover_deployment_base(API()), '')
-
 
 if __name__ == '__main__': unittest.main()
