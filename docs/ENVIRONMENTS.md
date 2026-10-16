@@ -164,7 +164,7 @@ Lazy snapshot renderers keep full report/export code out of the client-card entr
 
 Workflow files define automation triggers; this document defines the environment model and operational constraints. Confirm external service state separately before claiming a deployment or data sync is healthy.
 
-- Check `.github/workflows/sync-develop-from-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
+- Check `.github/workflows/check-develop-has-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
 
 ## Database and edge-function deploys
 

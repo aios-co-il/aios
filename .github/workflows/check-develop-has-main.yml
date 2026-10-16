@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sync-develop-from-main
+  group: check-develop-has-main
   cancel-in-progress: false
 
 jobs:
