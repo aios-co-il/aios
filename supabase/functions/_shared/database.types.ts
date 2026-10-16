@@ -9270,6 +9270,7 @@ export type Database = {
           email: string;
           full_name: string | null;
           id: string;
+          leads_default_view: string | null;
           notification_group_link: string | null;
           phone: string | null;
           sales_person_id: string | null;
@@ -9285,6 +9286,7 @@ export type Database = {
           email: string;
           full_name?: string | null;
           id: string;
+          leads_default_view?: string | null;
           notification_group_link?: string | null;
           phone?: string | null;
           sales_person_id?: string | null;
@@ -9300,6 +9302,7 @@ export type Database = {
           email?: string;
           full_name?: string | null;
           id?: string;
+          leads_default_view?: string | null;
           notification_group_link?: string | null;
           phone?: string | null;
           sales_person_id?: string | null;
