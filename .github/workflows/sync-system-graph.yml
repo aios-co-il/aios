@@ -15,8 +15,8 @@ jobs:
     permissions:
       contents: read
     env:
-      PROJECT_REF: zvoijyneresvkadpprel
-      SUPABASE_URL: https://zvoijyneresvkadpprel.supabase.co
+      PROJECT_REF: ${{ vars.PROD_PROJECT_REF }}
+      SUPABASE_URL: https://${{ vars.PROD_PROJECT_REF }}.supabase.co
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
     steps:
       - name: Checkout repository

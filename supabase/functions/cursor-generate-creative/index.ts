@@ -27,10 +27,10 @@ import {
   CREATIVE_DIRECT_SKIN,
   CREATIVE_DIRECT_SKIN_SLUG,
 } from "../_shared/creativeDirectStanding.ts";
+import { getRepoUrl } from "../_shared/github-repo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const DEFAULT_REPO = "https://github.com/davidcastelnuovo/aios";
 const CREATIVE_MARKER = "[CREATIVE AGENT]";
 const CREATIVE_DIRECT_NAME = "AIOS Creative Direct";
 const CREATIVE_DIRECT_OPEN_MARKER = "[CREATIVE AGENT] opened Creative Direct";
@@ -411,7 +411,7 @@ async function createCreativeAgent(
   else {
     body.repos = [
       {
-        url: Deno.env.get("CURSOR_REPO_URL") || DEFAULT_REPO,
+        url: getRepoUrl(),
         startingRef: Deno.env.get("CURSOR_STARTING_REF") || "main",
       },
     ];

@@ -25,7 +25,7 @@
 //   GROK_MODEL_ID       default cursor-grok-4.6-high-fast
 //   GROK_STICKY         "false" to disable sticky reuse (default true)
 //   GROK_STICKY_AGENT_ID force one global sticky agent id (bc-…)
-//   CURSOR_CLOUD_ENV_NAME / CURSOR_REPO_URL / CURSOR_STARTING_REF / CURSOR_AUTO_CREATE_PR
+//   CURSOR_CLOUD_ENV_NAME / CURSOR_STARTING_REF / CURSOR_AUTO_CREATE_PR
 //   CURSOR_DEFAULT_TENANT_ID / CLAUDE_DEFAULT_TENANT_ID  fallback tenant
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
@@ -36,6 +36,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
+import { getRepoUrl } from "../_shared/github-repo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -58,7 +59,6 @@ const CARMEN_MCP_STREAMABLE_URL =
   "https://zvoijyneresvkadpprel.supabase.co/functions/v1/carmen-mcp/mcp";
 const PROTOCOL_VERSION = "2024-11-05";
 const MAX_TEXT = 100_000;
-const DEFAULT_REPO = "https://github.com/davidcastelnuovo/aios";
 const DEFAULT_GROK_MODEL = "cursor-grok-4.6-high-fast";
 const STICKY_ENABLED =
   (Deno.env.get("GROK_STICKY") || "true").toLowerCase() !== "false";
@@ -550,7 +550,7 @@ async function createGrokAgent(
     omitModel?: boolean;
   },
 ): Promise<FireResult> {
-  const repoUrl = Deno.env.get("CURSOR_REPO_URL") || DEFAULT_REPO;
+  const repoUrl = getRepoUrl();
   const startingRef =
     opts?.startingRef || Deno.env.get("CURSOR_STARTING_REF") || "main";
   const envName = Deno.env.get("CURSOR_CLOUD_ENV_NAME") || "";

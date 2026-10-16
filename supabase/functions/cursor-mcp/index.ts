@@ -13,7 +13,6 @@
 //   CURSOR_MCP_BEARER       Carmen's MCP client (mcp-connect / agent_mcp_connections)
 //   GROK_CURSOR_MCP_BEARER  Grok Bot direct → Cursor only (separate from Carmen)
 // Optional:
-//   CURSOR_REPO_URL         default https://github.com/davidcastelnuovo/aios
 //   CURSOR_STARTING_REF     default main
 //   CURSOR_CLOUD_ENV_NAME   named Cursor cloud environment (preferred over bare repos)
 //   CURSOR_MODEL_ID         e.g. composer-2.5 — omit for account default
@@ -54,6 +53,7 @@ import {
   trackCursorTaskSession,
   touchCursorTaskSession,
 } from "../_shared/cursor-session-tracker.ts";
+import { getRepoUrl } from "../_shared/github-repo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -72,7 +72,6 @@ const CURSOR_MCP_STREAMABLE_URL =
   "https://zvoijyneresvkadpprel.supabase.co/functions/v1/cursor-mcp/mcp";
 const PROTOCOL_VERSION = "2024-11-05";
 const MAX_TEXT = 100_000;
-const DEFAULT_REPO = "https://github.com/davidcastelnuovo/aios";
 const STICKY_ENABLED =
   (Deno.env.get("CURSOR_STICKY") || "true").toLowerCase() !== "false";
 
@@ -597,7 +596,7 @@ async function createCursorAgent(
     startingRef?: string;
   },
 ): Promise<FireResult> {
-  const repoUrl = Deno.env.get("CURSOR_REPO_URL") || DEFAULT_REPO;
+  const repoUrl = getRepoUrl();
   const startingRef =
     opts?.startingRef || Deno.env.get("CURSOR_STARTING_REF") || "main";
   const envName = Deno.env.get("CURSOR_CLOUD_ENV_NAME") || "";
