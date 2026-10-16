@@ -1,5 +1,6 @@
 # History stays linear on `main` and `develop`, so nothing merges main into develop.
 # A hotfix lands on `main` first, then is cherry-picked onto `develop` in its own PR.
+# It runs on `main` pushes (a hotfix landed) and `develop` pushes (a backport landed).
 # This check fails when a `main` commit has no patch-equivalent on `develop`, i.e. the
 # hotfix was not ported yet and Staging lags Production.
 
@@ -10,7 +11,7 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -27,13 +28,9 @@ jobs:
 
       - name: Fail on main commits missing from develop
         run: |
-          set -euo pipefail
-          git fetch origin develop main
-          # `git cherry` marks commits with no patch-equivalent upstream with "+".
-          missing=$(git cherry origin/develop origin/main | grep '^+' || true)
-          if [ -n "$missing" ]; then
-            echo "::error::main has commits with no equivalent on develop. Cherry-pick them onto develop in a PR:"
-            echo "$missing" | while read -r _ sha; do git log -1 --format='  %h %s' "$sha"; done
+          git fetch --no-tags origin develop
+          if ! scripts/main-missing-from.sh origin/develop; then
+            echo "::error::Cherry-pick the commits above onto develop in a PR."
             exit 1
           fi
           echo "develop contains every main change"
