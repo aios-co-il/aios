@@ -1118,7 +1118,7 @@ export function StepConfigPanel({
                         <p className="mt-2 text-right text-[11px] text-muted-foreground">
                           תיקון Flow ב-ManyChat (שדות ישנים על איש קשר קיים):{" "}
                           <a
-                            href="https://github.com/davidcastelnuovo/aios/blob/main/docs/manychat-flow-remap-guide.md"
+                            href={`https://github.com/${import.meta.env.VITE_GITHUB_REPO}/blob/main/docs/manychat-flow-remap-guide.md`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline"

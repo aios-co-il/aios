@@ -12,12 +12,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   mirror:
+    environment: staging
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      PRODUCTION_REF: zvoijyneresvkadpprel
-      STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
+      PRODUCTION_REF: ${{ vars.PROD_PROJECT_REF }}
+      STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
         with:

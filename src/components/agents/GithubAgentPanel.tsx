@@ -36,7 +36,9 @@ export function GithubAgentPanel() {
   const queryClient = useQueryClient();
   const [showToken, setShowToken] = useState(false);
   const [tokenInput, setTokenInput] = useState("");
-  const [repoInput, setRepoInput] = useState("davidcastelnuovo/after-lead");
+  const [repoInput, setRepoInput] = useState(
+    import.meta.env.VITE_GITHUB_REPO ?? "",
+  );
   const [chatMessage, setChatMessage] = useState("");
   const [chatResponse, setChatResponse] = useState<any>(null);
   const [isSending, setIsSending] = useState(false);

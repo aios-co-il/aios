@@ -38,13 +38,6 @@ VALUES(true,1,{flag},{stamp},{mirror.literal(sha)},{mirror.literal(f'https://{ap
 ON CONFLICT(singleton) DO UPDATE SET guard_version=1,outbound_blocked=EXCLUDED.outbound_blocked,verified_at=EXCLUDED.verified_at,source_sha=EXCLUDED.source_sha,own_origin=EXCLUDED.own_origin,edge_versions=EXCLUDED.edge_versions""")
 
 
-def recover_deployment_base(api):
-    rows = api.query('SELECT source_sha,edge_versions FROM environment_sync.safety WHERE singleton AND guard_version=1')
-    if rows and re.fullmatch(r'[0-9a-f]{40}', rows[0]['source_sha'] or '') and rows[0]['edge_versions'] == api.function_versions():
-        return rows[0]['source_sha']
-    return ''
-
-
 def verified_sources_unchanged(api, versions, root, sha, *, run=subprocess.run):
     rows = api.query('SELECT verified_at,source_sha,edge_versions FROM environment_sync.safety WHERE singleton AND guard_version=1')
     if not rows or not rows[0]['verified_at'] or rows[0]['edge_versions'] != versions:
@@ -52,6 +45,9 @@ def verified_sources_unchanged(api, versions, root, sha, *, run=subprocess.run):
     previous = rows[0]['source_sha'] or ''
     if not re.fullmatch(r'[0-9a-f]{40}', previous) or not re.fullmatch(r'[0-9a-f]{40}', sha):
         return False
+    # A squash-merged or rebased PR leaves the previous revision outside this history.
+    if run(['git', 'cat-file', '-e', f'{previous}^{{commit}}'], cwd=root, capture_output=True).returncode != 0:
+        run(['git', 'fetch', '--no-tags', 'origin', previous], cwd=root, capture_output=True)
     # A previous complete source review remains valid only when ALL function
     # files are identical and the complete live version map is unchanged.
     result = run(['git', 'diff', '--quiet', previous, sha, '--', 'supabase/functions'],
@@ -66,11 +62,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--prepare-only', action='store_true')
     modes.add_argument('--record-deployment', action='store_true')
-    modes.add_argument('--deployment-base', action='store_true')
     options = parser.parse_args()
-    if options.deployment_base:
-        print(recover_deployment_base(api))
-        return
     for name in ['install_staging_data_mirror.sql', 'install_staging_outbound_guard.sql', 'reconcile_staging_report_columns.sql']:
         api.query((root / 'supabase/ops' / name).read_text())
     api.query('UPDATE environment_sync.safety SET outbound_blocked=false WHERE singleton')

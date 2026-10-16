@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getRepoSlug } from "../_shared/github-repo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -421,7 +422,7 @@ async function handleFixCode(
     .eq("credential_type", "github_token")
     .single();
 
-  const repo = cred?.metadata?.repo || "davidcastelnuovo/after-lead";
+  const repo = cred?.metadata?.repo || getRepoSlug();
   const [owner, repoName] = repo.split("/");
 
   try {
@@ -649,9 +650,12 @@ async function readGithubFile(
   token: string,
   filePath: string,
 ): Promise<string> {
+  // Resolved outside the try so a missing GITHUB_REPO surfaces to the handler;
+  // only the file fetch is best-effort.
+  const repo = getRepoSlug();
   try {
     const resp = await fetch(
-      `${GITHUB_API}/repos/davidcastelnuovo/after-lead/contents/${filePath}`,
+      `${GITHUB_API}/repos/${repo}/contents/${filePath}`,
       {
         headers: {
           Authorization: `token ${token}`,
