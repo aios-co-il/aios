@@ -666,8 +666,19 @@
     user-select: none;
     outline: none;
     background:
-      radial-gradient(circle at 38% 30%, #ffffff 0 8%, #e8fff7 15%, transparent 33%),
-      radial-gradient(circle at 50% 52%, #d7fff1 0 20%, #8de4c9 38%, #1b6d5d 61%, #0a1526 73%);
+      radial-gradient(
+        circle at 38% 30%,
+        #ffffff 0 8%,
+        #e8fff7 15%,
+        transparent 33%
+      ),
+      radial-gradient(
+        circle at 50% 52%,
+        #d7fff1 0 20%,
+        #8de4c9 38%,
+        #1b6d5d 61%,
+        #0a1526 73%
+      );
     border: 1px solid #6dbca8;
     box-shadow:
       inset 0 18px 35px #ffffffcc,
@@ -709,7 +720,7 @@
     position: absolute;
     inset: 17%;
     border-radius: 50%;
-    transition: transform 0.46s cubic-bezier(.2,.85,.28,1.16);
+    transition: transform 0.46s cubic-bezier(0.2, 0.85, 0.28, 1.16);
     pointer-events: none;
   }
   .control-dial-knob:before {
@@ -750,16 +761,22 @@
     color: #f2fffb;
     background: radial-gradient(circle at 35% 28%, #275a58, #0a2230 66%);
     border: 1px solid #9be8d3a8;
-    box-shadow: inset 0 5px 16px #ffffff1c, 0 12px 30px #001b1d6b;
+    box-shadow:
+      inset 0 5px 16px #ffffff1c,
+      0 12px 30px #001b1d6b;
     text-align: center;
   }
   .control-dial-center small {
-    font: 600 10px Outfit, sans-serif;
-    letter-spacing: .22em;
+    font:
+      600 10px Outfit,
+      sans-serif;
+    letter-spacing: 0.22em;
     color: #a7f5de;
   }
   .control-dial-center strong {
-    font: 700 clamp(32px, 4vw, 48px) Outfit, sans-serif;
+    font:
+      700 clamp(32px, 4vw, 48px) Outfit,
+      sans-serif;
     line-height: 1;
     margin: 4px 0;
   }
@@ -782,10 +799,12 @@
     color: #315f58;
     cursor: pointer;
     font-family: Assistant, Arial, sans-serif;
-    transition: .25s ease;
+    transition: 0.25s ease;
   }
   .control-dial-stop span {
-    font: 700 10px Outfit, sans-serif;
+    font:
+      700 10px Outfit,
+      sans-serif;
     color: #3aa98c;
   }
   .control-dial-stop b {
@@ -798,14 +817,38 @@
     box-shadow: 0 9px 24px #0a493426;
     transform: scale(1.06);
   }
-  .stop-0 { top: 2%; left: 50%; transform: translateX(-50%); }
-  .stop-1 { right: -1%; top: 50%; transform: translateY(-50%); }
-  .stop-2 { bottom: 2%; left: 50%; transform: translateX(-50%); }
-  .stop-3 { left: -1%; top: 50%; transform: translateY(-50%); }
-  .stop-0.active { transform: translateX(-50%) scale(1.06); }
-  .stop-1.active { transform: translateY(-50%) scale(1.06); }
-  .stop-2.active { transform: translateX(-50%) scale(1.06); }
-  .stop-3.active { transform: translateY(-50%) scale(1.06); }
+  .stop-0 {
+    top: 2%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .stop-1 {
+    right: -1%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .stop-2 {
+    bottom: 2%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .stop-3 {
+    left: -1%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .stop-0.active {
+    transform: translateX(-50%) scale(1.06);
+  }
+  .stop-1.active {
+    transform: translateY(-50%) scale(1.06);
+  }
+  .stop-2.active {
+    transform: translateX(-50%) scale(1.06);
+  }
+  .stop-3.active {
+    transform: translateY(-50%) scale(1.06);
+  }
   .control-drag-hint {
     margin: 28px 0 0 !important;
     font-size: 14px !important;
@@ -821,11 +864,13 @@
       linear-gradient(145deg, #123a3a, #071927 72%);
     border: 1px solid #4c9d88;
     box-shadow: 0 35px 90px #06432b2c;
-    animation: stagein .4s ease-out;
+    animation: stagein 0.4s ease-out;
   }
   .control-mode-kicker {
-    font: 600 11px Outfit, sans-serif;
-    letter-spacing: .18em;
+    font:
+      600 11px Outfit,
+      sans-serif;
+    letter-spacing: 0.18em;
     color: #a7f5de;
   }
   .control-mode-card h3 {
@@ -1507,13 +1552,22 @@
   }
 }
 
-
 /* Carmen 2026 mint refinement */
 @scope (.carmen-site) {
-  .carmen-brand-wordmark-image { filter: drop-shadow(0 0 14px rgba(167,245,222,.22)); }
-  .hero-carmen-symbol { filter: drop-shadow(0 24px 55px rgba(124,242,207,.22)); }
-  .nav-cta, .button.primary { border-color: rgba(167,245,222,.85); }
-  .button.primary { background: linear-gradient(135deg, #dffbf2 0%, #a7f5de 55%, #7cf2cf 100%); box-shadow: 0 10px 34px rgba(124,242,207,.18); }
+  .carmen-brand-wordmark-image {
+    filter: drop-shadow(0 0 14px rgba(167, 245, 222, 0.22));
+  }
+  .hero-carmen-symbol {
+    filter: drop-shadow(0 24px 55px rgba(124, 242, 207, 0.22));
+  }
+  .nav-cta,
+  .button.primary {
+    border-color: rgba(167, 245, 222, 0.85);
+  }
+  .button.primary {
+    background: linear-gradient(135deg, #dffbf2 0%, #a7f5de 55%, #7cf2cf 100%);
+    box-shadow: 0 10px 34px rgba(124, 242, 207, 0.18);
+  }
 }
 
 @scope (.carmen-site) {
@@ -1526,12 +1580,13 @@
     max-height: 68%;
     object-fit: contain;
     object-position: bottom center;
-    filter: drop-shadow(0 26px 48px rgba(0,0,0,.36)) drop-shadow(0 0 24px rgba(167,245,222,.14));
+    filter: drop-shadow(0 26px 48px rgba(0, 0, 0, 0.36))
+      drop-shadow(0 0 24px rgba(167, 245, 222, 0.14));
     pointer-events: none;
   }
   .hero-carmen-symbol {
-    opacity: .46 !important;
-    transform: translate(-50%, -50%) scale(.96);
+    opacity: 0.46 !important;
+    transform: translate(-50%, -50%) scale(0.96);
   }
   @media (max-width: 900px) {
     .hero-carmen-character {
@@ -1539,10 +1594,10 @@
       transform: translateX(-50%);
       width: min(56vw, 300px);
       max-height: 54%;
-      opacity: .96;
+      opacity: 0.96;
     }
     .hero-carmen-symbol {
-      opacity: .28 !important;
+      opacity: 0.28 !important;
     }
   }
 }
@@ -1586,8 +1641,8 @@
     z-index: 1;
     pointer-events: none;
     image-rendering: auto;
-    filter: drop-shadow(0 23px 35px rgba(0, 9, 22, .42))
-      drop-shadow(0 0 15px rgba(167, 245, 222, .09));
+    filter: drop-shadow(0 23px 35px rgba(0, 9, 22, 0.42))
+      drop-shadow(0 0 15px rgba(167, 245, 222, 0.09));
   }
   /* Let Carmen overlap just the decorative left edge of the marketing panel. */
   .hero-art .glass-panel,
@@ -1601,7 +1656,11 @@
     z-index: 2;
   }
   .hero-art .glass-panel {
-    background: linear-gradient(145deg, rgba(18, 56, 59, .94), rgba(7, 23, 38, .92));
+    background: linear-gradient(
+      145deg,
+      rgba(18, 56, 59, 0.94),
+      rgba(7, 23, 38, 0.92)
+    );
     -webkit-backdrop-filter: blur(22px);
     backdrop-filter: blur(22px);
   }
@@ -1642,27 +1701,32 @@
     min-width: 120px;
     min-height: 74px;
     padding: 10px 16px;
-    border: 1px solid rgba(255, 255, 255, .94);
+    border: 1px solid rgba(255, 255, 255, 0.94);
     border-radius: 19px;
     color: #0a2430;
-    background:
-      linear-gradient(158deg,
-        rgba(255, 255, 255, .90) 0%,
-        rgba(var(--mode-tint), .58) 52%,
-        rgba(240, 255, 252, .64) 100%);
+    background: linear-gradient(
+      158deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(var(--mode-tint), 0.58) 52%,
+      rgba(240, 255, 252, 0.64) 100%
+    );
     -webkit-backdrop-filter: blur(19px) saturate(1.45);
     backdrop-filter: blur(19px) saturate(1.45);
     box-shadow:
-      0 15px 32px rgba(7, 43, 45, .26),
-      inset 0 2px 0 rgba(255, 255, 255, .98),
-      inset 0 -13px 18px rgba(var(--mode-edge), .17),
-      0 0 0 1px rgba(var(--mode-edge), .38);
+      0 15px 32px rgba(7, 43, 45, 0.26),
+      inset 0 2px 0 rgba(255, 255, 255, 0.98),
+      inset 0 -13px 18px rgba(var(--mode-edge), 0.17),
+      0 0 0 1px rgba(var(--mode-edge), 0.38);
     cursor: pointer;
     touch-action: manipulation;
     text-shadow: none;
     opacity: 1;
-    transition: border-color .24s, background .24s, box-shadow .24s,
-      filter .24s, transform .24s;
+    transition:
+      border-color 0.24s,
+      background 0.24s,
+      box-shadow 0.24s,
+      filter 0.24s,
+      transform 0.24s;
   }
   .control-dial-stop::before {
     content: "";
@@ -1672,7 +1736,11 @@
     right: 12px;
     height: 29%;
     border-radius: 12px 12px 45% 45%;
-    background: linear-gradient(180deg, rgba(255,255,255,.73), rgba(255,255,255,0));
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.73),
+      rgba(255, 255, 255, 0)
+    );
     pointer-events: none;
   }
   .control-dial-stop b {
@@ -1684,7 +1752,9 @@
   }
   .control-dial-stop span:first-child {
     position: relative;
-    font: 700 12px Outfit, sans-serif;
+    font:
+      700 12px Outfit,
+      sans-serif;
     color: #17634f;
   }
   .control-stop-tap {
@@ -1695,41 +1765,66 @@
     font-weight: 800;
     color: #12634f;
   }
-  .stop-0 { --mode-tint: 188, 251, 224; --mode-edge: 40, 172, 130; }
-  .stop-1 { --mode-tint: 166, 239, 224; --mode-edge: 28, 147, 143; }
-  .stop-2 { --mode-tint: 180, 230, 248; --mode-edge: 42, 134, 175; }
-  .stop-3 { --mode-tint: 155, 239, 196; --mode-edge: 26, 167, 109; }
+  .stop-0 {
+    --mode-tint: 188, 251, 224;
+    --mode-edge: 40, 172, 130;
+  }
+  .stop-1 {
+    --mode-tint: 166, 239, 224;
+    --mode-edge: 28, 147, 143;
+  }
+  .stop-2 {
+    --mode-tint: 180, 230, 248;
+    --mode-edge: 42, 134, 175;
+  }
+  .stop-3 {
+    --mode-tint: 155, 239, 196;
+    --mode-edge: 26, 167, 109;
+  }
 
   .control-dial-stop.active {
-    border: 2px solid rgba(var(--mode-edge), .9);
-    background: linear-gradient(150deg, #ffffff 0%, rgba(var(--mode-tint), .86) 62%, #f9fffd 100%);
+    border: 2px solid rgba(var(--mode-edge), 0.9);
+    background: linear-gradient(
+      150deg,
+      #ffffff 0%,
+      rgba(var(--mode-tint), 0.86) 62%,
+      #f9fffd 100%
+    );
     box-shadow:
-      0 0 0 5px rgba(var(--mode-tint), .70),
-      0 16px 33px rgba(3, 45, 48, .29),
-      0 0 29px rgba(var(--mode-edge), .42),
+      0 0 0 5px rgba(var(--mode-tint), 0.7),
+      0 16px 33px rgba(3, 45, 48, 0.29),
+      0 0 29px rgba(var(--mode-edge), 0.42),
       inset 0 2px 0 #fff,
-      inset 0 -12px 20px rgba(var(--mode-edge), .23);
+      inset 0 -12px 20px rgba(var(--mode-edge), 0.23);
   }
   .control-dial-stop:hover {
     filter: brightness(1.08) saturate(1.1);
-    border-color: rgba(var(--mode-edge), .96);
+    border-color: rgba(var(--mode-edge), 0.96);
     box-shadow:
-      0 0 0 5px rgba(var(--mode-tint), .66),
-      0 15px 36px rgba(7, 43, 45, .35),
-      inset 0 2px 0 rgba(255,255,255,1);
+      0 0 0 5px rgba(var(--mode-tint), 0.66),
+      0 15px 36px rgba(7, 43, 45, 0.35),
+      inset 0 2px 0 rgba(255, 255, 255, 1);
   }
   .control-dial-stop:focus-visible {
     outline: 3px solid #08644f;
     outline-offset: 5px;
   }
   .stop-0:hover,
-  .stop-0.active { transform: translateX(-50%) scale(1.075); }
+  .stop-0.active {
+    transform: translateX(-50%) scale(1.075);
+  }
   .stop-1:hover,
-  .stop-1.active { transform: translateY(-50%) scale(1.075); }
+  .stop-1.active {
+    transform: translateY(-50%) scale(1.075);
+  }
   .stop-2:hover,
-  .stop-2.active { transform: translateX(-50%) scale(1.075); }
+  .stop-2.active {
+    transform: translateX(-50%) scale(1.075);
+  }
   .stop-3:hover,
-  .stop-3.active { transform: translateY(-50%) scale(1.075); }
+  .stop-3.active {
+    transform: translateY(-50%) scale(1.075);
+  }
 
   .control-drag-hint {
     color: #164b44 !important;
@@ -1739,17 +1834,20 @@
   }
   .control-mode-card[data-mode="2"] {
     border-color: #57aaa0;
-    background: radial-gradient(circle at 10% 8%, #60d5bb32, transparent 35%),
+    background:
+      radial-gradient(circle at 10% 8%, #60d5bb32, transparent 35%),
       linear-gradient(145deg, #123b3d, #071927 72%);
   }
   .control-mode-card[data-mode="3"] {
     border-color: #60a6c1;
-    background: radial-gradient(circle at 10% 8%, #56b5d633, transparent 35%),
+    background:
+      radial-gradient(circle at 10% 8%, #56b5d633, transparent 35%),
       linear-gradient(145deg, #173948, #071927 72%);
   }
   .control-mode-card[data-mode="4"] {
     border-color: #54b48c;
-    background: radial-gradient(circle at 10% 8%, #5ed2a037, transparent 35%),
+    background:
+      radial-gradient(circle at 10% 8%, #5ed2a037, transparent 35%),
       linear-gradient(145deg, #123d37, #071927 72%);
   }
 
@@ -1763,23 +1861,35 @@
     }
   }
   @media (max-width: 550px) {
-    .control-dial-scene { width: min(340px, 82vw); }
+    .control-dial-scene {
+      width: min(340px, 82vw);
+    }
     .control-dial-stop {
       min-width: 82px;
       min-height: 57px;
       padding: 8px 8px;
       border-radius: 13px;
     }
-    .control-dial-stop b { font-size: 12px; }
-    .control-dial-stop span:first-child { font-size: 10px; }
-    .control-stop-tap { left: 5px; top: 5px; font-size: 12px; }
+    .control-dial-stop b {
+      font-size: 12px;
+    }
+    .control-dial-stop span:first-child {
+      font-size: 10px;
+    }
+    .control-stop-tap {
+      left: 5px;
+      top: 5px;
+      font-size: 12px;
+    }
     .hero-art .hero-carmen-character {
       width: min(62vw, 270px);
       max-height: 72%;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .control-dial-stop { transition: none; }
+    .control-dial-stop {
+      transition: none;
+    }
   }
 }
 
