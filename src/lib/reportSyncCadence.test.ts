@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   PULSE_REFRESH_CRONS,
   REPORT_SYNC_SCHEDULES,
+  WOO_SYNC_SCHEDULE,
 } from "./cronJobsCatalog.ts";
 
 function minutesOfDay(cron: string): number[] {
@@ -32,25 +33,29 @@ test("report sync runs twice a day and finishes before each pulse refresh", () =
   }
 });
 
-test("WooCommerce schedule is deployed consistently to staging and production", () => {
-  const wooSchedule = REPORT_SYNC_SCHEDULES.find(
-    (job) => job.jobname === "sync-woocommerce-twice-daily",
+test("WooCommerce sync starts 15 minutes before each live campaign sync", () => {
+  const campaignHours = [5, 12];
+  const slots = minutesOfDay(WOO_SYNC_SCHEDULE.cron).sort((a, b) => a - b);
+  assert.deepEqual(
+    slots,
+    campaignHours.map((hour) => hour * 60 - 15),
   );
-  assert.ok(wooSchedule);
+});
 
+test("WooCommerce schedule preserves the working cron command", () => {
   const stagingSql = readFileSync(
-    "supabase/ops/apply_woocommerce_report_sync_staging.sql",
+    "supabase/ops/apply_woocommerce_campaign_cadence_staging.sql",
     "utf8",
   );
   const productionSql = readFileSync(
-    "supabase/ops/apply_woocommerce_report_sync_production.sql",
+    "supabase/ops/apply_woocommerce_campaign_cadence_production.sql",
     "utf8",
   );
 
   assert.equal(stagingSql, productionSql);
-  assert.match(stagingSql, /\/functions\/v1\/cron-sync-woocommerce/);
-  assert.ok(stagingSql.includes(`'${wooSchedule.jobname}'`));
-  assert.ok(stagingSql.includes(`'${wooSchedule.cron}'`));
-  assert.match(stagingSql, /service_role_key/);
+  assert.ok(stagingSql.includes(`'${WOO_SYNC_SCHEDULE.jobname}'`));
+  assert.ok(stagingSql.includes(`'${WOO_SYNC_SCHEDULE.cron}'`));
   assert.match(stagingSql, /woocommerce-hourly-sync/);
+  assert.match(stagingSql, /woo_sync_enabled = true/);
+  assert.doesNotMatch(stagingSql, /Bearer /);
 });
