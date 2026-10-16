@@ -4,6 +4,7 @@ name: Deploy Prod
 # protection on `main`; functions wait for migrations when both changed.
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
@@ -29,14 +30,19 @@ jobs:
     name: Resolve changes
     runs-on: ubuntu-latest
     outputs:
-      migrations: ${{ steps.filter.outputs.migrations }}
-      functions: ${{ steps.filter.outputs.functions }}
+      migrations: ${{ steps.filter.outputs.migrations || 'true' }}
+      functions: ${{ steps.filter.outputs.functions || 'true' }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dorny/paths-filter@v3
         id: filter
+        # Without `base`, a push to main diffs against the default branch (`develop`),
+        # which is empty after a fast-forward release. Manual runs deploy everything:
+        # `supabase db push` and the function deploy skip what is already applied.
+        if: github.event_name != 'workflow_dispatch'
         with:
+          base: ${{ github.event.before }}
           filters: |
             migrations:
               - 'supabase/migrations/**'
