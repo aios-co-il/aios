@@ -1271,20 +1271,6 @@
       "count": 1
     },
     {
-      "file": "src/hooks/useLeadsViewMode.ts",
-      "code": 2339,
-      "message": "Property 'leads_default_view' does not exist on type 'SelectQueryError<\"column 'leads_default_view' does not exist on 'profiles'.\">'.",
-      "source": "leads_default_view",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useLeadsViewMode.ts",
-      "code": 2353,
-      "message": "Object literal may only specify known properties, and 'leads_default_view' does not exist in type 'RejectExcessProperties<{ avatar_url?: string | null | undefined; calendar_iframe_code?: string | null | undefined; campaigner_id?: string | null | undefined; created_at?: string | undefined; email?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>'.",
-      "source": "leads_default_view",
-      "count": 1
-    },
-    {
       "file": "src/hooks/useSyncProfileTeamMember.ts",
       "code": 2345,
       "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; agency_id?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; ... 4 more ...; updated_at?: string | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
