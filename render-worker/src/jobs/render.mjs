@@ -26,10 +26,13 @@ export async function loadFilmSources(db, run) {
   const scenes =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,duration_s,clip_asset_id,voice_asset_id&order=position`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,voiceover_text,duration_s,clip_asset_id,voice_asset_id&order=position`,
     )) ?? [];
+  // Narration removed from the storyboard leaves its old voice asset linked; drop it.
+  const voiceOf = (scene) =>
+    String(scene.voiceover_text ?? "").trim() ? scene.voice_asset_id : null;
   const assetIds = scenes
-    .flatMap((scene) => [scene.clip_asset_id, scene.voice_asset_id])
+    .flatMap((scene) => [scene.clip_asset_id, voiceOf(scene)])
     .filter(Boolean);
   const assets = new Map(
     (assetIds.length
@@ -53,7 +56,7 @@ export async function loadFilmSources(db, run) {
         overlayText: scene.overlay_text,
         durationS: scene.duration_s,
         clipPath: assets.get(scene.clip_asset_id) || null,
-        voicePath: assets.get(scene.voice_asset_id) || null,
+        voicePath: assets.get(voiceOf(scene)) || null,
       }))
       .filter((scene) => scene.clipPath),
     musicPath: music?.url || null,

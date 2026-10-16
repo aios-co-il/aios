@@ -13,6 +13,8 @@ import {
 } from "../providers/elevenlabsSound.mjs";
 
 const BUCKET = "creative-video";
+/** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
+const VOICE_USD_PER_1000_CHARS = 0.12;
 
 /** <item folder>/<scene or music>/<kind>-<run>.mp3: one file per run, stable across retries. */
 const assetPath = (run, folder, kind) =>
@@ -37,9 +39,15 @@ async function generateOnce({ db, run, path, generate }) {
     );
   }
   const meta = result.meta ?? {};
-  await db.update("marketing_runs", `id=eq.${run.id}`, {
-    output: { ...(run.output ?? {}), audio_path: path, audio_meta: meta },
-  });
+  try {
+    await db.update("marketing_runs", `id=eq.${run.id}`, {
+      output: { ...(run.output ?? {}), audio_path: path, audio_meta: meta },
+    });
+  } catch (error) {
+    throw finalError(
+      `audio was stored at ${path} but the run could not record it (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+    );
+  }
   return meta;
 }
 
@@ -89,8 +97,10 @@ export async function generateVoice({ db, run, apiKey, log = console.log }) {
     output: { path, provider: "elevenlabs", voice_id: meta.voice_id ?? null },
     provider: "elevenlabs",
     credits: 0,
-    // The approved estimate; ElevenLabs bills characters, not a returned price.
-    costUsd: Number(run.input?.estimate?.usd) || 0,
+    // ElevenLabs bills characters and returns no price: this scene's share, not the batch total.
+    costUsd:
+      Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
+      10000,
   };
 }
 

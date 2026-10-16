@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { probe } from "../ffmpeg.mjs";
 
 const ffmpeg = (args) =>
   new Promise((resolve, reject) => {
@@ -66,6 +67,8 @@ async function segment(timeline, scene, index, dir) {
   const fitted = join(dir, `fit-${index}.mp4`);
   const filters = [
     `scale=${timeline.width}:${timeline.height}:force_original_aspect_ratio=increase,crop=${timeline.width}:${timeline.height}`,
+    // Providers cap clips at 5–15 s while a scene may run longer: hold the last frame.
+    `tpad=stop_mode=clone:stop_duration=${duration}`,
   ];
   const lines = wrapOverlay(scene.overlayText).split("\n").filter(Boolean);
   const lineFiles = [];
@@ -95,9 +98,20 @@ async function segment(timeline, scene, index, dir) {
     String(timeline.fps),
     fitted,
   ]);
+  // Voiceover first; otherwise the clip's own sound (engines that generate audio), else silence.
+  const clipHasAudio =
+    !scene.voicePath &&
+    (await probe(scene.clipPath).catch(() => null))?.hasAudio;
   const audioArgs = scene.voicePath
     ? ["-i", scene.voicePath]
-    : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"];
+    : clipHasAudio
+      ? ["-i", scene.clipPath]
+      : [
+          "-f",
+          "lavfi",
+          "-i",
+          "anullsrc=channel_layout=stereo:sample_rate=48000",
+        ];
   await ffmpeg([
     "-hide_banner",
     "-loglevel",

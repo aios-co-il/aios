@@ -94,10 +94,17 @@ export async function generateClip({
       aspect,
       generateAudio: input.generate_audio === true,
     }));
-    await db.update("marketing_runs", `id=eq.${run.id}`, {
-      provider: provider.name,
-      provider_job_id: jobId,
-    });
+    try {
+      await db.update("marketing_runs", `id=eq.${run.id}`, {
+        provider: provider.name,
+        provider_job_id: jobId,
+      });
+    } catch (error) {
+      // The provider already accepted (and charges for) the job: never submit it again.
+      throw finalError(
+        `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+      );
+    }
     log(`[clip] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
 

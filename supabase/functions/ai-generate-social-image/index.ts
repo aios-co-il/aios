@@ -102,6 +102,35 @@ const resolveGoogleKey = async (
   return settings.google_api_key || Deno.env.get("GEMINI_API_KEY") || null;
 };
 
+const callerDenied = async (
+  req: Request,
+  admin: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  tenantId: string,
+): Promise<{ status: number; error: string } | null> => {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer "))
+    return { status: 401, error: "Unauthorized" };
+  const {
+    data: { user },
+  } = await createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: authHeader } },
+  }).auth.getUser();
+  if (!user) return { status: 401, error: "Unauthorized" };
+  const [{ data: membership }, { data: superAdmin }] = await Promise.all([
+    admin
+      .from("tenant_users")
+      .select("user_id")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    admin.rpc("is_super_admin", { _user_id: user.id }),
+  ]);
+  return membership || superAdmin === true
+    ? null
+    : { status: 403, error: "No access to this tenant" };
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -145,6 +174,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // The service role bypasses RLS and this function spends the tenant's own AI keys:
+    // only a signed-in member of tenant_id (or a super admin) may call it.
+    const denied = await callerDenied(req, supabase, supabaseUrl, tenant_id);
+    if (denied)
+      return new Response(JSON.stringify({ error: denied.error }), {
+        status: denied.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
 
     const refs = uniqueUrls([
       ...(Array.isArray(reference_image_urls) ? reference_image_urls : []),

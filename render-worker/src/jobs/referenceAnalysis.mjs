@@ -8,22 +8,26 @@ import {
   transcribe,
 } from "../analysis.mjs";
 import { detectCuts, extractAudio, extractFrame, probe } from "../ffmpeg.mjs";
+import { assertTenantPath, loadRunItem } from "../guard.mjs";
 import { buildShots, keyframeTime, shotTranscript } from "../shots.mjs";
 
 const MAX_SECONDS = 180;
 
 /** Reads the project brief the proposal should be written for. */
 async function loadBrief(db, run) {
+  // Scoped to the run's tenant: run rows are written by tenant members.
   const [item] = await db.select(
     "marketing_work_items",
-    `id=eq.${run.item_id}&select=title,client_id,payload`,
+    `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=title,client_id,payload`,
   );
+  if (!item)
+    throw new Error("run item is not in the run's tenant (is required)");
   const payload = item?.payload ?? {};
   let client = null;
   if (item?.client_id) {
     [client] = await db.select(
       "clients",
-      `id=eq.${item.client_id}&select=name,industry,website`,
+      `id=eq.${encodeURIComponent(item.client_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=name,industry,website`,
     );
   }
   return [
@@ -43,8 +47,14 @@ async function loadBrief(db, run) {
  * and a proposed storyboard that copies pace and structure, not content.
  */
 export async function analyzeReference({ db, run, keys, log = console.log }) {
-  const { bucket = "creative-video", path } = run.input ?? {};
-  if (!path) throw new Error("run.input.path is required");
+  // Only the studio bucket, only inside this run's own project folder.
+  const bucket = "creative-video";
+  const item = await loadRunItem(db, run);
+  const path = assertTenantPath(run.tenant_id, run.input?.path);
+  if (!path.startsWith(`${item.folder}/`))
+    throw new Error(
+      "reference path is outside the run's project (is required)",
+    );
   const dir = await mkdtemp(join(tmpdir(), "reference-"));
   const startedAt = Date.now();
   try {
