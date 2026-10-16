@@ -14896,6 +14896,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      advance_video_production: {
+        Args: { p_item_id: string };
+        Returns: string;
+      };
       archive_leads: { Args: { p_lead_ids: string[] }; Returns: number };
       assign_role_by_email: {
         Args: {
@@ -14903,10 +14907,6 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"];
         };
         Returns: string;
-      };
-      bump_skill_usage_by_slug: {
-        Args: { p_slugs: string[]; p_tenant_id: string };
-        Returns: undefined;
       };
       attach_video_scene_asset: {
         Args: {
@@ -14916,7 +14916,28 @@ export type Database = {
           p_scene_id: string;
           p_url: string;
         };
-        Returns: Database["public"]["Tables"]["marketing_assets"]["Row"];
+        Returns: {
+          content: string | null;
+          created_at: string;
+          id: string;
+          item_id: string;
+          meta: Json;
+          run_id: string | null;
+          stage_id: string | null;
+          tenant_id: string;
+          type: string;
+          url: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_assets";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      bump_skill_usage_by_slug: {
+        Args: { p_slugs: string[]; p_tenant_id: string };
+        Returns: undefined;
       };
       can_access_agency: {
         Args: { _agency_id: string; _user_id: string };
@@ -15019,6 +15040,40 @@ export type Database = {
           priority: number;
           tenant_id: string;
         }[];
+      };
+      claim_video_run: {
+        Args: { p_kinds: string[]; p_worker?: string };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       claude_notify_david: {
         Args: { p_chat_id?: string; p_message: string; p_tenant?: string };
@@ -15496,10 +15551,6 @@ export type Database = {
         Args: { p_error: Json; p_provider_message_id: string };
         Returns: boolean;
       };
-      migrate_storyboard_to_video_scenes: {
-        Args: { p_item_id?: string };
-        Returns: number;
-      };
       match_agent_memory: {
         Args: {
           p_agent_id: string;
@@ -15534,6 +15585,10 @@ export type Database = {
         Args: { _auth_user_id: string; _email: string };
         Returns: undefined;
       };
+      migrate_storyboard_to_video_scenes: {
+        Args: { p_item_id?: string };
+        Returns: number;
+      };
       next_task_recurrence_date: {
         Args: {
           as_of_date?: string;
@@ -15551,10 +15606,6 @@ export type Database = {
         Args: { p_lead_ids: string[] };
         Returns: number;
       };
-      save_video_storyboard: {
-        Args: { p_item_id: string; p_scenes: Json };
-        Returns: Database["public"]["Tables"]["marketing_video_scenes"]["Row"][];
-      };
       produce_video: {
         Args: {
           p_aspect?: string;
@@ -15570,14 +15621,6 @@ export type Database = {
         };
         Returns: Json;
       };
-      advance_video_production: {
-        Args: { p_item_id: string };
-        Returns: string;
-      };
-      set_video_production: {
-        Args: { p_item_id: string; p_patch: Json };
-        Returns: Json;
-      };
       queue_video_clips: {
         Args: {
           p_aspect?: string;
@@ -15588,15 +15631,71 @@ export type Database = {
           p_scene_ids: string[];
           p_stage_id?: string;
         };
-        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       queue_video_render: {
-        Args: {
-          p_aspect?: string;
-          p_item_id: string;
-          p_stage_id?: string;
+        Args: { p_aspect?: string; p_item_id: string; p_stage_id?: string };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
         };
-        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
       };
       queue_video_sound: {
         Args: {
@@ -15609,7 +15708,37 @@ export type Database = {
           p_stage_id?: string;
           p_voice_id?: string;
         };
-        Returns: Database["public"]["Tables"]["marketing_runs"]["Row"][];
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
@@ -15639,6 +15768,39 @@ export type Database = {
       };
       run_ddl_once: { Args: { sql: string }; Returns: string };
       run_system_cron_job_now: { Args: { p_jobid: number }; Returns: string };
+      save_video_storyboard: {
+        Args: { p_item_id: string; p_scenes: Json };
+        Returns: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_video_scenes";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       search_contacts_for_chat:
         | {
             Args: { p_search_term: string };
@@ -15680,6 +15842,10 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      set_video_production: {
+        Args: { p_item_id: string; p_patch: Json };
+        Returns: Json;
+      };
       signature_png_is_valid: { Args: { _value: string }; Returns: boolean };
       submit_signature_by_token:
         | {
