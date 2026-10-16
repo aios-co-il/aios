@@ -116,12 +116,19 @@ jobs:
         run: |
           set -euo pipefail
           RECOVERED=$(python3 scripts/verify-staging-containment.py --deployment-base)
-          if [ -n "$RECOVERED" ] && git cat-file -e "$RECOVERED^{commit}" 2>/dev/null && git merge-base --is-ancestor "$RECOVERED" HEAD; then
+          # The checkpoint is what Staging verifiably runs, so a tree diff against it is
+          # correct for any commit. A PR may be rebased or follow another holder, which
+          # leaves the checkpoint outside this head's history; branch deploys still
+          # require it to be an ancestor.
+          if [ -n "$RECOVERED" ] && ! git cat-file -e "$RECOVERED^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$RECOVERED" 2>/dev/null || true
+          fi
+          if [ -n "$RECOVERED" ] && git cat-file -e "$RECOVERED^{commit}" 2>/dev/null && { [ "$DEPLOY_MODE" = pr ] || git merge-base --is-ancestor "$RECOVERED" HEAD; }; then
             echo "DEPLOY_BEFORE=$RECOVERED" >> "$GITHUB_ENV"
             echo "Resuming from deployed sources; containment verification remains required."
           else
-            # No checkpoint, or one outside this revision's history (e.g. another PR's
-            # cancelled deploy): an empty base redeploys every function.
+            # No checkpoint, or one that cannot be fetched, or (branch deploys) one outside
+            # this revision's history: an empty base redeploys every function.
             echo "DEPLOY_BEFORE=" >> "$GITHUB_ENV"
             echo "No usable deployment checkpoint for this revision; redeploying all functions."
           fi
