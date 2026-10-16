@@ -6,7 +6,8 @@ Branch: `chore/github-repo-env`. Items marked (agent) were done in code; the res
 
 - [ ] Add `DB_PASSWORD` (secret) and `SUPABASE_PROJECT_REF` (variable) to the Staging and Production GitHub environments (copy values from `STAGING_DB_PASSWORD`, `PROD_DB_PASSWORD`, `STAGING_PROJECT_REF`, `PROD_PROJECT_REF`)
 - [ ] Update the workflows to use them; remove the hardcoded project refs and `SUPABASE_STAGING_PROJECT_ID` fallbacks in `deploy-edge-reusable.yml`
-- [ ] Verify on Staging, then delete the old secrets and repo variables
+- [ ] Keep repo variable `PROD_PROJECT_REF` (Staging jobs that also need Production's ref)
+- [ ] Verify on Staging, then delete `STAGING_DB_PASSWORD`, `PROD_DB_PASSWORD`, and the `STAGING_PROJECT_REF` repo variable
 - [ ] Rebase `chore/github-repo-env` on `develop`
 
 ## Before merging this branch

@@ -143,13 +143,14 @@ jobs:
     if: inputs.environment == 'staging' && inputs.function_names == '' && inputs.mode != 'pr'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: staging
     concurrency:
       group: staging-business-data-mirror
       cancel-in-progress: false
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
       PRODUCTION_REF: ${{ vars.PROD_PROJECT_REF }}
-      STAGING_REF: ${{ vars.STAGING_PROJECT_REF }}
+      STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
         with:
