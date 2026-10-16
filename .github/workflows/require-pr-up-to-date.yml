@@ -30,11 +30,21 @@ jobs:
       - name: Fail if behind base
         env:
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin "refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           if git merge-base --is-ancestor "origin/${BASE_REF}" HEAD; then
             echo "OK — HEAD contains latest origin/${BASE_REF}"
+            exit 0
+          fi
+          # Release PR: rebase-merges and cherry-picked hotfixes give main and develop
+          # equivalent patches under different SHAs, so ancestry can't hold. Accept the
+          # PR when every main commit has a patch-equivalent in HEAD.
+          if [ "$BASE_REF" = main ] && [ "$HEAD_REF" = develop ] && [ "$SAME_REPO" = true ] \
+            && scripts/main-missing-from.sh HEAD; then
+            echo "OK — every main change has an equivalent in HEAD"
             exit 0
           fi
           BEHIND=$(git rev-list --count HEAD.."origin/${BASE_REF}" || true)

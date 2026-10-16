@@ -2,9 +2,8 @@ name: Deploy Staging (develop)
 
 # Keeps Staging on `develop`. A push re-applies migrations (`supabase db push` skips
 # what a labelled PR already applied, so this only catches what was merged without a
-# staging deploy) and redeploys changed edge functions. sync-develop-from-main.yml
-# calls it for the bot push that GitHub does not trigger workflows for; that call and
-# manual dispatch deploy edge functions only.
+# staging deploy) and redeploys changed edge functions. Manual dispatch and reusable
+# calls deploy edge functions only.
 
 on:
   push:
@@ -47,7 +46,7 @@ jobs:
       migrations: ${{ steps.filter.outputs.migrations || 'false' }}
       functions: ${{ steps.filter.outputs.functions || 'true' }}
     steps:
-      # A reusable call (sync-develop-from-main) inherits the caller's `push` event;
+      # A reusable call inherits the caller's `push` event;
       # source_sha identifies it, and it deploys functions only.
       - uses: actions/checkout@v4
         if: github.event_name == 'push' && inputs.source_sha == ''

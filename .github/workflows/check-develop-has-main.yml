@@ -1,0 +1,36 @@
+# History stays linear on `main` and `develop`, so nothing merges main into develop.
+# A hotfix lands on `main` first, then is cherry-picked onto `develop` in its own PR.
+# It runs on `main` pushes (a hotfix landed) and `develop` pushes (a backport landed).
+# This check fails when a `main` commit has no patch-equivalent on `develop`, i.e. the
+# hotfix was not ported yet and Staging lags Production.
+
+name: Check develop has main
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: check-develop-has-main
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail on main commits missing from develop
+        run: |
+          git fetch --no-tags origin develop
+          if ! scripts/main-missing-from.sh origin/develop; then
+            echo "::error::Cherry-pick the commits above onto develop in a PR."
+            exit 1
+          fi
+          echo "develop contains every main change"
