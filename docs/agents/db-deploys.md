@@ -6,7 +6,7 @@ Migrations in `supabase/migrations/**` are applied with `supabase db push`; the 
 - **`develop` → `main` release PRs** are exempt: Staging already runs `develop`.
 - **Push to `develop`:** `deploy-staging-develop.yml` re-applies migrations (idempotent) and redeploys functions. It deploys even while a labelled PR holds Staging and may overwrite that PR's functions; push to the PR (or re-run `Deploy Staging`) to redeploy it.
 - **Push to `main`:** `deploy-prod.yml` pushes migrations to Production, then deploys functions.
-- **Drift recovery:** comment `/db-fix` or `/db-force-push` on a labelled PR. Dry-run migration history first with Actions → **Supabase migration dry run**.
+- **Drift recovery:** comment `/db-fix` or `/db-force-push` on a labelled PR.
 
 ### GitHub config
 
