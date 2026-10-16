@@ -1,0 +1,18 @@
+Connecting to remote database...
+[?25l│
+◆  Do you want to push these migrations to the remote database?
+│   • 20261009000100_catchup_shipped_schema.sql
+│   • 20261013120000_carmen_marketing_manager_persona.sql
+│  
+│  ● Yes / ○ No
+└
+[999D[7A[1B[J◇  Do you want to push these migrations to the remote database?
+│   • 20261009000100_catchup_shipped_schema.sql
+│   • 20261013120000_carmen_marketing_manager_persona.sql
+│  
+│  Yes
+[?25hApplying migration 20261009000100_catchup_shipped_schema.sql...
+Applying migration 20261013120000_carmen_marketing_manager_persona.sql...
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.121.0 (currently installed v2.117.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

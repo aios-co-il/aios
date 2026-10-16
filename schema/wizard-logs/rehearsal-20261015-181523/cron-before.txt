@@ -1,0 +1,17 @@
+1|broadcast-dispatch-every-min|t
+2|broadcast-list-sync-hourly|t
+4|sync-facebook-insights-twice-daily|t
+5|sync-google-ads-twice-daily|t
+6|sync-google-analytics-twice-daily|t
+7|dispatch-agent-tasks-every-5min|t
+8|carmen-memory-worker-every-2min|t
+9|carmen-health-probe|t
+10|task-notification-worker-every-minute|t
+11|check-overdue-tasks-daily|t
+12|meeting-bot-reconcile-every-minute|t
+13|cron-sync-facebook-ecommerce-daily|t
+17|autonomous-goal-worker|t
+20|meta-operational-check-2h|t
+21|google-ads-operational-check-2h|t
+25|campaign-pulse-sunday-0730|t
+26|sync-woocommerce-twice-daily|t

@@ -1,0 +1,1 @@
+marketing_assets rows / distinct ids / null ids: 226 / 226 / 0

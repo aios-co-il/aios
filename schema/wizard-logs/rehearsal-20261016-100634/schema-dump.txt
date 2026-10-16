@@ -1,0 +1,4 @@
+Dumping schemas from remote database...
+Dumped schema to /Users/chiptus/repos/david-castel/aios/schema/wizard-logs/rehearsal-20261016-100634/current-schema.sql.
+A new version of Supabase CLI is available: v2.121.0 (currently installed v2.117.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
