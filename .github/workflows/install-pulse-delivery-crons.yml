@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      PROJECT_REF: zvoijyneresvkadpprel
+      PROJECT_REF: ${{ vars.PROD_PROJECT_REF }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
