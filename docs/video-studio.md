@@ -14,7 +14,7 @@ Goal: Carmen produces a complete promo video inside AIOS (storyboard → stills 
 
 ## Phase 1 data model
 
-Migration: `supabase/migrations/20261014070000_video_studio_foundation.sql` (idempotent, additive, no DROP/DELETE/REVOKE). Applied to AIOS Staging on 2026-10-13; Production waits for `מאשר לפרודקשן`.
+Migration: `supabase/migrations/20261016140000_video_studio_foundation.sql` (idempotent, additive, no DROP/DELETE/REVOKE). Applied to AIOS Staging on 2026-10-13; Production waits for `מאשר לפרודקשן`.
 
 - **`marketing_video_scenes`** — one row per storyboard scene. `position` is numeric so a drag can take the midpoint. `still_asset_id`, `clip_asset_id`, `voice_asset_id` point at the current version in `marketing_assets`; `focal_x` (0–100) is the horizontal focus used for 1:1 and 9:16 crops. RLS: tenant members (and super admins) by `tenant_id`; a trigger rejects a scene whose `item_id` belongs to another tenant.
 - **Status** (`marketing_video_scene_status`): `draft → still_generating → still_ready → still_approved → clip_generating → clip_ready → clip_approved`, plus `failed`. The guard trigger returns a scene to `draft` when `visual_prompt` changes without a new still, and sets `clip_stale` when the still or prompt changes after a clip exists (only that scene is re-animated).
@@ -38,7 +38,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Fixed character: one uploaded picture (`payload.video.character_ref_url`) goes first in the references of every scene where "הדמות מופיעה בסצנה" is on (`meta.has_character`), with a `character` reference role.
 - Still model per project (`payload.video.still_model`): `gpt-image-1` or Nano Banana Pro (`gemini-3-pro-image`, falls back to `-preview`) through `ai-generate-social-image`. It uses the tenant's Google key from the LLM integration (or `GEMINI_API_KEY`), and the cost is estimated at $0.134 per image.
 - Video still prompts drop studio names (Pixar, Disney, DreamWorks…) and always end with "No text, no letters, no logos."
-- Migration `20261014090000_video_studio_storyboard_flags.sql`: `save_video_storyboard` also stores `locked` and `meta.has_character`.
+- Migration `20261016140100_video_studio_storyboard_flags.sql`: `save_video_storyboard` also stores `locked` and `meta.has_character`.
 - Edge functions reach Staging only after merge to `develop` (the Staging deployer adds the outbound guard), so Nano Banana Pro works on Staging after that merge; the Preview still renders with gpt-image-1.
 
 ## Phase 3 reference video
@@ -50,14 +50,14 @@ The Staging mirror only adds or updates rows from Production and its preflight o
   3. describes the shots in one vision call;
   4. writes `output.proposal.frames`: one frame per reference shot, with the same durations and camera language, original content for the client's brief, and no copied characters, brands, text or studio names.
 - "הצעת סטוריבורד" shows the keyframes next to the proposed scenes. "החלף את הסטוריבורד בהצעה" replaces the storyboard, including `motion_prompt`, which `save_video_storyboard` now stores.
-- Migration `20261014110000_video_studio_run_claim.sql` is applied on Staging.
+- Migration `20261016140200_video_studio_run_claim.sql` is applied on Staging.
 - **The worker is not deployed yet:** runs stay queued until it runs on the Droplet against Staging.
 
 ## Phase 4 animation
 
 - The scene sheet gained "מה זז בסצנה?" (`motion_prompt`), plus "הנפש סצנה" / "הנפש מחדש" and "אשר קליפ" (`clip_approved`). "הנפש הכול" in the toolbar takes approved stills without a clip, failed scenes, and scenes whose clip is outdated (`clip_stale`). Current clips are not animated again.
 - Before anything is queued, a dialog shows the seconds, the estimated cost and the Kling credits ($0.85 per 5 s block; scenes over 5 s are 10 s clips). Confirming saves the storyboard, so typed motion prompts are included, then calls `queue_video_clips`.
-- Migration `20261014130000_video_studio_clip_queue.sql` is applied on Staging. `queue_video_clips(item, scene_ids, aspect, estimate, stage)` queues one `kind = 'clip'` run per scene that has a still and no clip run in flight, then sets those scenes to `clip_generating`. A double click or a second tab cannot queue the same scene twice.
+- Migration `20261016140300_video_studio_clip_queue.sql` is applied on Staging. `queue_video_clips(item, scene_ids, aspect, estimate, stage)` queues one `kind = 'clip'` run per scene that has a still and no clip run in flight, then sets those scenes to `clip_generating`. A double click or a second tab cannot queue the same scene twice.
 - The worker runs clips in parallel (`CONCURRENCY`, 8 by default) through the provider adapter (`mock` or `kling`; see `render-worker/README.md`). Each run fails on its own; after its last attempt the scene shows `failed` and "הנפש הכול" picks it up again.
 - The strip follows `marketing_video_scenes` over Realtime. A live update replaces an untouched draft. A draft with unsaved edits keeps them and only takes the status and clip fields. Cards play their clip on hover, and the sheet has a player; clips use signed URLs from the private bucket.
 - **Before turning on `VIDEO_PROVIDER=kling`:** confirm the request shape with one paid clip (the Kling docs could not be reached from here). Until then Staging uses the free `mock` provider.
@@ -68,13 +68,13 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Scene engines: free preview, Kling, ElevenLabs (`veo-3.1-fast-generate-001` through `POST /v1/flows/video`, the approved still as the first frame), and Higgsfield PixVerse V6 (`POST /pixverse/v6/image-to-video`). The budget dialog uses that engine's estimate.
 - Sound: ElevenLabs writes a voiceover per scene (`eleven_v4`, with word timestamps) and one music bed (`music_v2_5`). Higgsfield has no separate voice or music API; choosing it makes the clip itself carry generated audio.
 - Keys live in the tenant LLM integration: `elevenlabs_api_key`, `higgsfield_api_key_id`, `higgsfield_api_key_secret`. Environment variables on the worker override them.
-- Migration `20261014160000_video_studio_engines.sql` records the chosen engine on each clip run and adds `queue_video_sound`. Apply it on Staging before trying the new buttons. Production waits for `מאשר לפרודקשן`.
+- Migration `20261016140400_video_studio_engines.sql` records the chosen engine on each clip run and adds `queue_video_sound`. Apply it on Staging before trying the new buttons. Production waits for `מאשר לפרודקשן`.
 - The worker must be running. Until then voice, music and paid clips stay queued. The rates in the dialog are planning estimates until the first paid run.
 
 ## Phase 6 film assembly
 
 - "הרכב סרט" is enabled when at least one scene is `clip_approved`. The confirm dialog says the assembly is local and costs $0.
-- Migration `20261014170000_video_studio_render.sql` adds `queue_video_render`. It stores the approved clips (and their voice paths) plus the latest `music` asset on the run, so the worker does not trust a path sent from the browser. A render already queued or running is left as-is. Apply it on Staging before using the button. Production waits for `מאשר לפרודקשן`.
+- Migration `20261016140500_video_studio_render.sql` adds `queue_video_render`. It stores the approved clips (and their voice paths) plus the latest `music` asset on the run, so the worker does not trust a path sent from the browser. A render already queued or running is left as-is. Apply it on Staging before using the button. Production waits for `מאשר לפרודקשן`.
 - The same migration drops the original `marketing_assets.type` check (`copy`, `image`, `video`, `brief`, `data`). The app already stores stills, clips, voice, music, renders, reference videos, storyboards and SEO plans, and existing rows are left in place.
 - `render-worker` claims `kind = 'render'` and assembles an MP4 with ffmpeg from `buildTimeline`. The file is `creative-video/<tenant>/<client>/<item>/render/film-v<n>.mp4`, saved as a `render` asset with `meta.provider = compose`. The screen polls the run every 4 s and plays the signed MP4.
 - The film is assembled with ffmpeg only: clips fitted to the frame, `overlay_text` burned in as centred Hebrew titles (ffmpeg's fribidi orders the text), voice per scene and music at 0.18. No Remotion render runs, so no Remotion licence is needed for now.
@@ -82,7 +82,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 ## Phase 7 video director
 
 - Carmen tools `get_video_storyboard` and `render_video_film` live in `supabase/functions/_shared/video-director-tools.ts` and are registered on `run-ai-agent` without rewriting it.
-- Migration `20261014180000_video_director_skin.sql` seeds the global skin `video_director` ("במאית וידאו"). She can read a storyboard and queue a compose render. She does not start a paid scene or sound engine, does not publish, and does not mix WhatsApp connections. Copy and creative skins can hand off to her.
+- Migration `20261016140600_video_director_skin.sql` seeds the global skin `video_director` ("במאית וידאו"). She can read a storyboard and queue a compose render. She does not start a paid scene or sound engine, does not publish, and does not mix WhatsApp connections. Copy and creative skins can hand off to her.
 - Edge functions reach Staging only after merge to `develop`. This branch is for Claude's review before publish.
 
 ## Provider checks (before writing provider code)
