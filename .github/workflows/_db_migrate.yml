@@ -70,21 +70,13 @@ jobs:
         id: push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-          TARGET: ${{ inputs.target }}
-          PROD_REF: ${{ vars.PROD_PROJECT_REF }}
-          STAGING_REF: ${{ vars.STAGING_PROJECT_REF }}
-          PROD_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-          STAGING_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           set -euo pipefail
-          # Pick the target's own settings; never fall back to the other project.
-          if [ "$TARGET" = production ]; then
-            PROJECT_REF="$PROD_REF"; DB_PASSWORD="$PROD_PASSWORD"
-          else
-            PROJECT_REF="$STAGING_REF"; DB_PASSWORD="$STAGING_PASSWORD"
-          fi
+          # Both values come from the "${{ inputs.target }}" environment; never fall back to another project.
           if [ -z "$PROJECT_REF" ] || [ -z "$DB_PASSWORD" ]; then
-            echo "::error::Missing project ref or database password for $TARGET."
+            echo "::error::Missing SUPABASE_PROJECT_REF or DB_PASSWORD in the ${{ inputs.target }} environment."
             exit 1
           fi
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"

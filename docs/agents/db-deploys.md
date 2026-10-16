@@ -12,8 +12,10 @@ Migrations in `supabase/migrations/**` are applied with `supabase db push`; the 
 
 | Kind                                  | Name                                                                            |
 | ------------------------------------- | ------------------------------------------------------------------------------- |
-| Variable                              | `PROD_PROJECT_REF`, `STAGING_PROJECT_REF`                                       |
-| Secret                                | `BASE_ACCESS_TOKEN` (existing), `PROD_DB_PASSWORD`, `STAGING_DB_PASSWORD`       |
+| Environment variable                  | `SUPABASE_PROJECT_REF` (set per `staging` / `production` environment)           |
+| Repo variables (cross-env jobs only)  | `PROD_PROJECT_REF`, `STAGING_PROJECT_REF`                                       |
+| Environment secret                    | `DB_PASSWORD` (set per `staging` / `production` environment)                    |
+| Repo secret                           | `BASE_ACCESS_TOKEN` (existing)                                                  |
 | Environments                          | `staging`, `production` (no required reviewer)                                  |
 | Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans, no bots |
 | Label                                 | `staging`                                                                       |

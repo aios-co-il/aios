@@ -28,8 +28,8 @@ jobs:
       - name: Generate types from staging schema
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-          PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
-          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
           # Invoke the pinned CLI directly: scripts/gen-types.sh comes from the PR head

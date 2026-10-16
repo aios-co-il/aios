@@ -41,8 +41,8 @@ jobs:
     environment: ${{ inputs.environment }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      PROJECT_REF: ${{ inputs.environment == 'staging' && (secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm') || 'zvoijyneresvkadpprel' }}
-      PRODUCTION_REF: zvoijyneresvkadpprel
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      PRODUCTION_REF: ${{ vars.PROD_PROJECT_REF }}
       DEPLOY_ENV: ${{ inputs.environment }}
       DEPLOY_FUNCTIONS: ${{ inputs.function_names }}
       SOURCE_SHA: ${{ inputs.source_sha }}
@@ -107,7 +107,7 @@ jobs:
       - name: Close Staging import gate during deployment
         if: inputs.environment == 'staging'
         env:
-          STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
+          STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: python3 scripts/verify-staging-containment.py --prepare-only
       - name: Deploy complete source bundles
         run: |
@@ -117,7 +117,7 @@ jobs:
       - name: Record source deployment before verification
         if: inputs.environment == 'staging'
         env:
-          STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
+          STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: python3 scripts/verify-staging-containment.py --record-deployment
       - name: Keep agent credentials connected on Staging
         if: inputs.environment == 'staging'
@@ -127,7 +127,7 @@ jobs:
       - name: Verify Staging containment
         if: inputs.environment == 'staging'
         env:
-          STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
+          STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: |
           python3 scripts/verify-staging-containment.py
       - name: Record successful revision
@@ -148,8 +148,8 @@ jobs:
       cancel-in-progress: false
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      PRODUCTION_REF: zvoijyneresvkadpprel
-      STAGING_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID || 'mzjsuvatrzhciojmbbbm' }}
+      PRODUCTION_REF: ${{ vars.PROD_PROJECT_REF }}
+      STAGING_REF: ${{ vars.STAGING_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
         with:

@@ -166,8 +166,8 @@ jobs:
         if: steps.extract.outputs.found == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-          PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
-          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           COMMAND: ${{ steps.extract.outputs.command }}
         run: |
           set -euo pipefail
@@ -243,8 +243,8 @@ jobs:
         id: push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-          PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
-          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           set -euo pipefail
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
