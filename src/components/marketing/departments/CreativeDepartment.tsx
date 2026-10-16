@@ -232,6 +232,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { CreativeStudioChat } from "./creative/CreativeStudioChat";
+import { studioContextAddon, type StudioUiAction } from "./creative/studioChat";
 import { toast } from "sonner";
 import {
   Archive,
@@ -342,6 +344,12 @@ export function CreativeDepartment({
     "projects" | "project" | "scene" | "versions" | "edit" | null
   >(null);
   const [storyboardDraft, setStoryboardDraft] = useState<StoryboardFrame[]>([]);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [sceneFocus, setSceneFocus] = useState<{
+    id: string;
+    n: number;
+  } | null>(null);
+  const [openSceneId, setOpenSceneId] = useState<string | null>(null);
   const [generateProgress, setGenerateProgress] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CreativeVariation | null>(
     null,
@@ -3371,6 +3379,74 @@ export function CreativeDepartment({
       </div>
     ) : null;
 
+  /** Carmen's studio_ui_action runs here, through the same handlers as the buttons. */
+  const runStudioAction = (action: StudioUiAction) => {
+    if (!selected || action.item_id !== selected.id) return;
+    const frame = action.scene_id
+      ? storyboardDraft.find((value) => value.id === action.scene_id)
+      : undefined;
+    const variation =
+      variations.find((value) => value.id === action.variation_id) ??
+      variations.find((value) => value.id === selectedVariationId);
+    switch (action.type) {
+      case "produce_video":
+        requestProduce();
+        break;
+      case "animate_scene":
+        if (frame) requestAnimate([frame]);
+        break;
+      case "regenerate_frame":
+        if (frame) {
+          setSceneFocus({ id: frame.id, n: Date.now() });
+          void generateStoryboardFrame(frame);
+        }
+        break;
+      case "generate_variations":
+        void generateAllFromCopy(
+          action.mixed_structure ? "mixed" : "same",
+          action.text_as_layers,
+        );
+        break;
+      case "single_variation":
+        requestSingleVariation(undefined, action.text_as_layers);
+        break;
+      case "revise_variation":
+        if (variation) {
+          setSelectedVariationId(variation.id);
+          setReviseTarget(variation);
+          setReviseNote(action.note ?? "");
+        }
+        break;
+      case "approve_to_campaigns":
+        if (canHandoff) handoff.mutate();
+        break;
+      case "focus_scene":
+        if (frame) setSceneFocus({ id: frame.id, n: Date.now() });
+        break;
+      case "focus_variation":
+        if (variation) setSelectedVariationId(variation.id);
+        break;
+      case "open_drawer":
+        if (action.drawer) setWorkspacePanel(action.drawer);
+        break;
+    }
+  };
+
+  const chatContext = () => {
+    const ordered = [...storyboardDraft].sort((a, b) => a.order - b.order);
+    const sceneIndex = ordered.findIndex((frame) => frame.id === openSceneId);
+    const shown = variations.find((value) => value.id === selectedVariationId);
+    return studioContextAddon({
+      itemId: selected?.id ?? "",
+      title: selected?.title ?? "",
+      mode: isVideoWorkspace ? "video" : "static",
+      sceneCount: storyboardDraft.length,
+      sceneNumber: sceneIndex >= 0 ? sceneIndex + 1 : null,
+      variationCount: variations.length,
+      variationName: shown ? shown.copyLabel || shown.name : null,
+    });
+  };
+
   const railItems: {
     key: string;
     label: string;
@@ -3417,6 +3493,13 @@ export function CreativeDepartment({
           icon: History,
           active: workspacePanel === "versions",
           onClick: () => toggleWorkspacePanel("versions"),
+        },
+        {
+          key: "chat",
+          label: "צ׳אט עם כרמן",
+          icon: MessageSquare,
+          active: chatOpen,
+          onClick: () => setChatOpen((open) => !open),
         },
         {
           key: "carmen",
@@ -3518,6 +3601,8 @@ export function CreativeDepartment({
               <CreativeStoryboardEditor
                 frames={storyboardDraft}
                 onChange={setStoryboardDraft}
+                focusRequest={sceneFocus}
+                onSelectFrame={setOpenSceneId}
                 onSave={() => persistStoryboard(storyboardDraft)}
                 onGenerateFrame={async (frame) => {
                   const merged = storyboardDraft.map((value) =>
@@ -3714,6 +3799,18 @@ export function CreativeDepartment({
             </div>
           )}
         </main>
+        {selected && chatOpen && (
+          <CreativeStudioChat
+            tenantId={tenantId}
+            clientId={selected.client_id ?? null}
+            itemId={selected.id}
+            mode={isVideoWorkspace ? "video" : "static"}
+            contextAddon={chatContext}
+            onUiAction={runStudioAction}
+            onTurnDone={() => void refresh()}
+            onClose={() => setChatOpen(false)}
+          />
+        )}
       </div>
 
       <Sheet

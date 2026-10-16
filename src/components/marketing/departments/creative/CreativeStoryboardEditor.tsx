@@ -120,6 +120,10 @@ interface Props {
   titleSlot?: ReactNode;
   /** Trailing action, e.g. "אשר לקמפיינים". */
   endSlot?: ReactNode;
+  /** A scene to bring into view (from the Carmen chat); `n` re-fires the same scene. */
+  focusRequest?: { id: string; n: number } | null;
+  /** Reports the scene the user has open, for the chat context. */
+  onSelectFrame?: (id: string | null) => void;
   film?: {
     status: string;
     url?: string | null;
@@ -353,6 +357,8 @@ export function CreativeStoryboardEditor({
   dirty,
   titleSlot,
   endSlot,
+  focusRequest,
+  onSelectFrame,
   film,
   reference,
   clips,
@@ -384,6 +390,16 @@ export function CreativeStoryboardEditor({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  useEffect(() => {
+    if (focusRequest && frames.some((frame) => frame.id === focusRequest.id))
+      setSelectedFrameId(focusRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires per request only
+  }, [focusRequest]);
+
+  useEffect(() => {
+    onSelectFrame?.(selectedFrameId);
+  }, [selectedFrameId, onSelectFrame]);
 
   useEffect(() => {
     if (!selectedFrameId && frames[0]?.id) setSelectedFrameId(frames[0].id);
