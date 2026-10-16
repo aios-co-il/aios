@@ -47,7 +47,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.116.0
+          version: 2.117.0
 
       - name: Recheck Staging ownership before pushing
         if: inputs.target == 'staging' && inputs.pr_number != ''

@@ -68,7 +68,7 @@ jobs:
           node-version: "24"
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.116.0
+          version: 2.117.0
       - name: Require current environment revision and resolve complete range
         id: revision
         run: |
