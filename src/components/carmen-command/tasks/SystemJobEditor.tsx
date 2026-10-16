@@ -177,6 +177,10 @@ export function SystemJobEditor({
               setSchedule(`${m} ${utcHour} * * *`);
             }}
           />
+          <span className="text-xs text-muted-foreground">
+            ההמרה לפי השעון הנוכחי; pg_cron רץ ב-UTC, אז במעבר שעון קיץ/חורף
+            הריצה תזוז בשעה.
+          </span>
         </div>
         <Input
           id="job-schedule"
