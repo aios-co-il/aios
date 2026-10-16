@@ -1,3 +1,6 @@
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import {
   forwardRef,
   useCallback,
@@ -160,6 +163,7 @@ export const CarmenChatBar = forwardRef<
   },
   ref,
 ) {
+  const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
   useEffect(() => {
     if (!isSidecar) return;
@@ -1625,7 +1629,7 @@ export const CarmenChatBar = forwardRef<
             {visibleMessages.length === 0 && !streamingText && (
               <p className="py-8 text-center text-sm text-[var(--cc-text-dim)]">
                 {isSidecar
-                  ? "תיאורי מה לתקן במסך שאתה רואה. כרמן מקבלת את הנתיב וההקשר. 'שלחי לפיתוח' / 'תריצי דרך קרסר' → Cursor."
+                  ? "אני כאן איתך. אפשר לכתוב לי או לשלוח הודעה קולית, ולהמשיך לעבוד במערכת."
                   : isShared
                     ? "מרחב משותף (קולבוריישן) — כולם שומעים, ורואים גם תקשורת בין האייג׳נטים. נפתח רק כאן."
                     : "שיחה ישירה — רק אתה והאייג׳נט שנבחר. בלי הודעות מכרמן או ממושבים אחרים."}
@@ -1644,11 +1648,19 @@ export const CarmenChatBar = forwardRef<
             ))}
             {streamingText && (
               <div className="cc-msg-row is-agent">
-                <span
-                  className="cc-msg-avatar"
-                  style={{ backgroundImage: `url(${streamSprite})` }}
-                  aria-hidden
-                />
+                {streamSprite === CARMEN_CHARACTER ? (
+                  <CarmenPortrait
+                    image={identity.image}
+                    name={identity.name}
+                    custom={identity.custom}
+                  />
+                ) : (
+                  <span
+                    className="cc-msg-avatar"
+                    style={{ backgroundImage: `url(${streamSprite})` }}
+                    aria-hidden
+                  />
+                )}
                 <div className="cc-msg-bubble">
                   <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
                     {streamingText}
