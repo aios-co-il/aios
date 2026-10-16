@@ -218,7 +218,17 @@ export function AgentTaskEditor({
           // the dispatcher doesn't fire it a second time.
           scheduled_at: when === "at" ? new Date(at).toISOString() : null,
         });
-        if (isNew || task?.status !== "running") {
+        // Only a new task or a newly scheduled time starts a fresh run. Editing
+        // the title or prompt of a finished task must not re-queue it (that
+        // could resend an old WhatsApp reminder).
+        // The picker has minute precision, so compare whole minutes.
+        const minute = (v: string) => Math.floor(new Date(v).getTime() / 60000);
+        const rescheduled =
+          when === "at" &&
+          (task?.schedule_type !== "once" ||
+            !task?.scheduled_at ||
+            minute(task.scheduled_at) !== minute(at));
+        if (isNew || (rescheduled && task?.status !== "running")) {
           Object.assign(payload, { status: "pending", last_run: null });
         }
       }
