@@ -1,13 +1,12 @@
-# Keep Staging (`develop`) on the newest code.
-# Normal release flow is still feature → develop → main.
-# After a merge/hotfix lands on `main`, Staging must not lag — auto-merge main → develop.
-# Also available manually for emergency backports.
+# History stays linear on `main` and `develop`, so nothing merges main into develop.
+# A hotfix lands on `main` first, then is cherry-picked onto `develop` in its own PR.
+# This check fails when a `main` commit has no patch-equivalent on `develop`, i.e. the
+# hotfix was not ported yet and Staging lags Production.
 
-name: Sync develop from main
+name: Check develop has main
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: read
 
 on:
   push:
@@ -19,51 +18,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
+  check:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: ${{ steps.sync.outputs.sha }}
     steps:
-      - name: Checkout develop
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: develop
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Merge main into develop
-        id: sync
+      - name: Fail on main commits missing from develop
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo "develop already contains main — Staging is current"
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-            exit 0
+          git fetch origin develop main
+          # `git cherry` marks commits with no patch-equivalent upstream with "+".
+          missing=$(git cherry origin/develop origin/main | grep '^+' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::main has commits with no equivalent on develop. Cherry-pick them onto develop in a PR:"
+            echo "$missing" | while read -r _ sha; do git log -1 --format='  %h %s' "$sha"; done
+            exit 1
           fi
-          if git merge-base --is-ancestor HEAD origin/main; then
-            git merge --ff-only origin/main
-          else
-            git merge --no-edit -m "chore: sync develop from main (keep Staging current)" origin/main
-          fi
-          git push origin HEAD:develop
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "Staging (develop) updated from main"
-
-  staging-edge:
-    needs: sync
-    uses: ./.github/workflows/deploy-staging-develop.yml
-    with:
-      source_sha: ${{ needs.sync.outputs.sha }}
-    secrets: inherit
-
-  staging-build:
-    needs: sync
-    uses: ./.github/workflows/ci-frontend.yml
-    with:
-      source_sha: ${{ needs.sync.outputs.sha }}
-    secrets: inherit
+          echo "develop contains every main change"

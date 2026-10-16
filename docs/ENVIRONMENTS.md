@@ -59,7 +59,7 @@ feature/* or fix/*
 
 **Branch freshness (required):** every PR must contain the latest tip of its base (`develop` or `main`) before merge. CI workflow `Require PR up to date with base` fails stale heads — enable it as a required status check in GitHub branch protection. Cloud Agents must `git fetch origin <base>` and merge/rebase before opening or updating a PR.
 
-**Staging stays current:** on every push to `main`, workflow `Sync develop from main` merges `main` → `develop` to bring Staging code up to date with Production hotfixes; conflicts or failed runs require attention. Manual `workflow_dispatch` remains available.
+**Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then a second PR cherry-picks it onto `develop`. On every push to `main`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
 
 | Git         | Deploy             | Data                                                      |
 | ----------- | ------------------ | --------------------------------------------------------- |
@@ -90,7 +90,6 @@ The following setup is documented for these environments; Vercel variables, Supa
 ## Code, data and deployment synchronization
 
 - Code: feature → reviewed Preview → `develop` → verify → approved `main` release. Main hotfixes automatically merge back into develop. Conflicts fail visibly; no force-push or “ours/theirs” overwrite is used.
-- A bot push does not trigger GitHub push workflows. `sync-develop-from-main.yml` therefore explicitly calls Staging Edge deployment and frontend CI at the resulting SHA.
 - Edge deployment uses the last **successfully deployed** environment tag as its base. Shared module/config changes redeploy complete bundles. Both environments pin the same Supabase CLI. A superseded SHA cannot deploy over the current environment head.
 - Vercel builds each environment from source with its own variables. Never promote a Preview build containing Staging URLs to Production.
 - Data: `scripts/staging-data-manifest.json` lists the mirrored business tables, including clients, report definitions/records, SEO, WooCommerce, analytics and permissions. The scheduled workflow targets a five-minute cadence after this workflow is released on the default branch; GitHub scheduling is best-effort, not real-time replication.
@@ -135,7 +134,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
 5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
-6. Main pushes automatically run `sync-develop-from-main`. A release PR must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
+6. Main pushes run `Check develop has main`. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 
