@@ -10,3 +10,4 @@ There **is** a development environment. Never tell David or Carmen that it does 
 - **Development environment** = Vercel Preview URL of the current branch (Staging data). Always send it when work finishes.
 - If asked whether a staging / development environment exists: **yes**. Send the Preview URL.
 - Environment details: `docs/ENVIRONMENTS.md`.
+- Before describing Staging data as current or outbound delivery as blocked, verify deployment/containment results and mirror freshness per `docs/ENVIRONMENTS.md`.
