@@ -7,6 +7,10 @@ on:
         description: "staging or production"
         required: true
         type: string
+      # Set for a labelled-PR deploy to Staging: the PR must still hold the lock.
+      pr_number:
+        type: string
+        default: ""
     outputs:
       migrate_status:
         description: "Outcome of the migration push step (success/failure)"
@@ -14,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   migrate:
@@ -43,6 +48,23 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
+
+      - name: Recheck Staging ownership before pushing
+        if: inputs.target == 'staging' && inputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr_number }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        # The job may have waited on the concurrency group; the PR can have closed,
+        # released the label, or moved to a new commit since `check-lock` ran.
+        run: |
+          set -euo pipefail
+          REASON=$(.github/scripts/check-staging-holder.sh "$PR" "$SOURCE_SHA" | sed -n 's/^reason=//p')
+          if [[ -n "$REASON" ]]; then
+            echo "::error::$REASON; refusing to modify Staging."
+            exit 1
+          fi
 
       - name: Push migrations
         id: push

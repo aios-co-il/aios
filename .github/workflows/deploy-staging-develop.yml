@@ -33,6 +33,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: deploy-staging-develop
@@ -85,6 +86,7 @@ jobs:
     uses: ./.github/workflows/deploy-edge-reusable.yml
     permissions:
       contents: write
+      pull-requests: read
     with:
       environment: staging
       source_sha: ${{ inputs.source_sha || github.sha }}

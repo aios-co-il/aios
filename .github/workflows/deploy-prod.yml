@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: deploy-prod
@@ -62,6 +63,7 @@ jobs:
     uses: ./.github/workflows/deploy-edge-reusable.yml
     permissions:
       contents: write
+      pull-requests: read
     with:
       environment: production
       source_sha: ${{ github.sha }}

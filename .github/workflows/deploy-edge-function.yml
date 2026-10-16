@@ -4,6 +4,7 @@ name: Deploy Supabase Edge Function
 # so they can wait for database migrations.
 permissions:
   contents: write
+  pull-requests: read
 
 on:
   workflow_dispatch:
