@@ -604,8 +604,14 @@ async function createCursorAgent(
   const autoCreatePR =
     (Deno.env.get("CURSOR_AUTO_CREATE_PR") || "true").toLowerCase() !== "false";
 
+  // A named cloud environment cannot be combined with `repos`, so its
+  // startingRef is never sent; instruct the agent to branch from it instead.
+  const promptWithRef = envName
+    ? `Before editing, create your work branch from "${startingRef}" and open the pull request against "${startingRef}".\n\n${promptText}`
+    : promptText;
+
   const body: Record<string, unknown> = {
-    prompt: { text: promptText },
+    prompt: { text: promptWithRef },
     autoCreatePR,
     name: (opts?.name || "Carmen → Cursor").slice(0, 100),
     model: cursorModelBody(resolveCodingCursorModel(modelId)),
