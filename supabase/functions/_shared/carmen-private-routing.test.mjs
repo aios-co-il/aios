@@ -230,3 +230,36 @@ test("authorized Ana private target never equals David chat", () => {
   assert.equal(target.phone, anaPhone);
   assert.notEqual(target.chatId, `${davidPhone}@c.us`);
 });
+
+test("manusGroupSenderCandidates: bare Manus group sender ids become @ candidates", async () => {
+  const { manusGroupSenderCandidates } =
+    await import("./carmen-private-routing.mjs");
+  const group = "120363401602556975@g.us";
+  // Real phone + LID → LID first, so the payload phone resolves it and teaches wa_lid_map.
+  assert.deepEqual(
+    manusGroupSenderCandidates(
+      { senderPhone: "972549757611", senderLid: "147669615943883" },
+      group,
+    ),
+    ["147669615943883@lid"],
+  );
+  // Gateway could not resolve: senderPhone is the LID itself.
+  assert.deepEqual(
+    manusGroupSenderCandidates(
+      { senderPhone: "224686986293269", senderLid: "224686986293269" },
+      group,
+    ),
+    ["224686986293269@lid"],
+  );
+  // Phone only.
+  assert.deepEqual(
+    manusGroupSenderCandidates({ senderPhone: "972549757611" }, group),
+    ["972549757611@c.us"],
+  );
+  // Never the group id, never junk.
+  assert.deepEqual(
+    manusGroupSenderCandidates({ senderPhone: "120363401602556975" }, group),
+    [],
+  );
+  assert.deepEqual(manusGroupSenderCandidates({}, group), []);
+});

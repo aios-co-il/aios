@@ -24,6 +24,7 @@ import {
 import {
   isUsableLidKey,
   looksLikeRealPhone,
+  manusGroupSenderCandidates,
   outboundThirdPartyGuardDecision,
   pickInboundLidDigits,
   pickPayloadRealPhone,
@@ -61,7 +62,8 @@ function isUnresolvedGroupAuthor(
   const groupDigits = groupChatId.split("@")[0].replace(/\D/g, "");
   if (!authorPhone) return true;
   if (authorPhone === groupDigits) return true;
-  if (/@lid/i.test(authorRaw)) return true;
+  // A @lid author already resolved to a real phone needs no Green API pairing wait.
+  if (/@lid/i.test(authorRaw) && !looksLikeRealPhone(authorPhone)) return true;
   return !isIsraeliMobileTail(authorPhone);
 }
 
@@ -1375,6 +1377,8 @@ Deno.serve(async (req) => {
         key.participant,
         (msgContainer as any)?.participant,
         (msgContainer as any)?.author,
+        // Manus sends bare digits here (no @), which the filter below dropped.
+        ...manusGroupSenderCandidates(payload, groupChatId),
       ].filter(
         (v: any) => typeof v === "string" && v.includes("@"),
       ) as string[];
