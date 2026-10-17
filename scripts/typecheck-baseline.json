@@ -61,13 +61,6 @@
     },
     {
       "file": "src/components/agents/tabs/CarmenConversationAccessTab.tsx",
-      "code": 2352,
-      "message": "Conversion of type '(SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">)[] | undefined' to type '{ phone: string; display_name?: string | null | undefined; status?: string | undefined; surfaces?: string[] | null | undefined; dev_escalation_tier?: string | null | undefined; }[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '(SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">)[]' is not comparable to type '{ phone: string; display_name?: string | null | undefined; status?: string | undefined; surfaces?: string[] | null | undefined; dev_escalation_tier?: string | null | undefined; }[]'.\n    Type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">' is not comparable to type '{ phone: string; display_name?: string | null | undefined; status?: string | undefined; surfaces?: string[] | null | undefined; dev_escalation_tier?: string | null | undefined; }'.\n      Property 'phone' is missing in type '{ error: true; } & String' but required in type '{ phone: string; display_name?: string | null | undefined; status?: string | undefined; surfaces?: string[] | null | undefined; dev_escalation_tier?: string | null | undefined; }'.",
-      "source": "identities as Array<{ phone: string; display_name?: string | null; status?: string; surfaces?: string[] | null; dev_escalation_tier?: string | null; }>",
-      "count": 2
-    },
-    {
-      "file": "src/components/agents/tabs/CarmenConversationAccessTab.tsx",
       "code": 7006,
       "message": "Parameter 'g' implicitly has an 'any' type.",
       "source": "g",

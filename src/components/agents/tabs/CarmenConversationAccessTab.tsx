@@ -158,14 +158,16 @@ export function CarmenConversationAccessTab({
     queryFn: async () => {
       const columns =
         "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
-      let { data, error } = await supabase
-        .from("carmen_whatsapp_identities" as any)
+      // relationship_note is newer than the generated types; fall back if absent.
+      const primary = await (supabase as any)
+        .from("carmen_whatsapp_identities")
         .select(columns)
         .eq("tenant_id", tenantId!)
         .order("display_name");
-      if (error) {
-        const fallback = await supabase
-          .from("carmen_whatsapp_identities" as any)
+      let data = primary.data;
+      if (primary.error) {
+        const fallback = await (supabase as any)
+          .from("carmen_whatsapp_identities")
           .select(
             "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
           )
@@ -254,7 +256,7 @@ export function CarmenConversationAccessTab({
           await supabase
             .from("carmen_whatsapp_identities" as any)
             .update(withoutNote)
-            .eq("id", existing.id);
+            .eq("id", (existing as unknown as { id: string }).id);
         }
       }
     }
@@ -492,9 +494,9 @@ export function CarmenConversationAccessTab({
     mutationFn: async () => {
       if (!tenantId) throw new Error("חסר tenant");
       const selectedGroups = (manusGroups || []).filter(
-        (group) => openMemberGroups || groupIds.includes(group.id),
+        (group: any) => openMemberGroups || groupIds.includes(group.id),
       );
-      const missing = selectedGroups.filter((group) => {
+      const missing = selectedGroups.filter((group: any) => {
         const link = clientRows.find(
           (row) => row.whatsapp_group_id === group.id,
         );
@@ -502,7 +504,7 @@ export function CarmenConversationAccessTab({
       });
       if (missing.length > 0) {
         throw new Error(
-          `שייכי לקוח וסוכנות: ${missing.map((group) => group.group_name).join(", ")}`,
+          `שייכי לקוח וסוכנות: ${missing.map((group: any) => group.group_name).join(", ")}`,
         );
       }
       await persistPolicy({

@@ -858,7 +858,9 @@ Deno.serve(async (req) => {
             .eq("status", "pending")
             .gte("created_at", pendingSince)
             .limit(10);
-        let { data: pendings, error: pendingErr } = await pendingQuery();
+        const pendingRes = await pendingQuery();
+        const pendingErr = pendingRes.error;
+        let pendings = pendingRes.data;
         if (pendingErr) {
           const fallback = await supabase
             .from("wa_pending_activations")
