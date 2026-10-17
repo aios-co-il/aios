@@ -20,6 +20,8 @@ Hard rules for every agent:
 4. Automations stay connection-scoped (`carmen_integration_id` / Manus vs Green). Do not bypass dual-channel guards.
 5. **Do not replay old WhatsApp notifications.** Fixing Carmen delivery does not authorize sending missed task assignments, updates, or reminders. Backfill only after David explicitly approves that send. Database changes for the fix go to Staging first.
 
+Approved phones stay on `carmen_whatsapp_identities` / `carmen_access_policies.private_phones`. Approved groups stay on `allowed_group_ids` (Manus only) and take their client and agency from `carmen_client_group_access`. Carmen introduces herself as the digital marketing manager of that agency. Group verification reuses `wa_pending_activations.group_chat_id`: the code is sent privately and typed in the group. `relationship_note` is tone only and does not grant access.
+
 ## AI providers (replacing the former Lovable AI gateway)
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.

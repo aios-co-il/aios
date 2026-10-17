@@ -51,6 +51,7 @@ import {
 type ClientGroupRow = {
   id?: string;
   client_id: string;
+  agency_id?: string;
   whatsapp_group_id: string;
   allow_client_contacts: boolean;
   allow_assigned_campaigners: boolean;
@@ -119,7 +120,20 @@ export function CarmenConversationAccessTab({
     queryFn: async () => {
       const { data } = await supabase
         .from("clients")
-        .select("id, name, whatsapp_group_id")
+        .select("id, name, whatsapp_group_id, agency_id")
+        .eq("tenant_id", tenantId!)
+        .order("name");
+      return data || [];
+    },
+  });
+
+  const { data: agencies } = useQuery({
+    queryKey: ["carmen-access-agencies", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("agencies")
+        .select("id, name")
         .eq("tenant_id", tenantId!)
         .order("name");
       return data || [];
@@ -142,13 +156,25 @@ export function CarmenConversationAccessTab({
     queryKey: ["carmen-identities", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("carmen_whatsapp_identities" as any)
-        .select(
-          "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
-        )
+      const columns =
+        "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
+      // relationship_note is newer than the generated types; fall back if absent.
+      const primary = await (supabase as any)
+        .from("carmen_whatsapp_identities")
+        .select(columns)
         .eq("tenant_id", tenantId!)
         .order("display_name");
+      let data = primary.data;
+      if (primary.error) {
+        const fallback = await (supabase as any)
+          .from("carmen_whatsapp_identities")
+          .select(
+            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
+          )
+          .eq("tenant_id", tenantId!)
+          .order("display_name");
+        data = fallback.data;
+      }
       return data || [];
     },
   });
@@ -171,6 +197,7 @@ export function CarmenConversationAccessTab({
           status?: string;
           surfaces?: string[] | null;
           dev_escalation_tier?: string | null;
+          relationship_note?: string | null;
         }>,
         automationPhones: automationCfg?.carmen_allowed_phones,
       }),
@@ -213,15 +240,24 @@ export function CarmenConversationAccessTab({
         .eq("phone", phone)
         .maybeSingle();
       if (existing?.id) {
-        await supabase
+        const patch = {
+          surfaces: entry.surfaces?.length
+            ? entry.surfaces
+            : ["whatsapp_private"],
+          dev_escalation_tier: entry.dev_escalation_tier || null,
+          relationship_note: entry.relationship_note?.trim() || null,
+        };
+        const { error: noteError } = await supabase
           .from("carmen_whatsapp_identities" as any)
-          .update({
-            surfaces: entry.surfaces?.length
-              ? entry.surfaces
-              : ["whatsapp_private"],
-            dev_escalation_tier: entry.dev_escalation_tier || null,
-          })
+          .update(patch)
           .eq("id", existing.id);
+        if (noteError && /relationship_note/.test(noteError.message || "")) {
+          const { relationship_note: _note, ...withoutNote } = patch;
+          await supabase
+            .from("carmen_whatsapp_identities" as any)
+            .update(withoutNote)
+            .eq("id", (existing as unknown as { id: string }).id);
+        }
       }
     }
   };
@@ -390,6 +426,47 @@ export function CarmenConversationAccessTab({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const persistClientGroups = async () => {
+    for (const row of clientRows) {
+      if (!row.client_id || !row.whatsapp_group_id) continue;
+      if (!manusGroupIdSet.has(row.whatsapp_group_id)) continue;
+      const payload = {
+        tenant_id: tenantId,
+        client_id: row.client_id,
+        agency_id: row.agency_id || null,
+        whatsapp_group_id: row.whatsapp_group_id,
+        allow_client_contacts: row.allow_client_contacts,
+        allow_assigned_campaigners: row.allow_assigned_campaigners,
+        info_boundary: row.info_boundary,
+        updated_at: new Date().toISOString(),
+      };
+      const write = row.id
+        ? supabase
+            .from("carmen_client_group_access" as any)
+            .update(payload)
+            .eq("id", row.id)
+        : supabase.from("carmen_client_group_access" as any).upsert(payload, {
+            onConflict: "tenant_id,client_id,whatsapp_group_id",
+          });
+      const { error } = await write;
+      if (error && /agency_id/.test(error.message || "")) {
+        const { agency_id: _agency, ...withoutAgency } = payload;
+        const retry = row.id
+          ? supabase
+              .from("carmen_client_group_access" as any)
+              .update(withoutAgency)
+              .eq("id", row.id)
+          : supabase
+              .from("carmen_client_group_access" as any)
+              .upsert(withoutAgency, {
+                onConflict: "tenant_id,client_id,whatsapp_group_id",
+              });
+        const { error: retryError } = await retry;
+        if (retryError) throw retryError;
+      } else if (error) throw error;
+    }
+  };
+
   const save = useMutation({
     mutationFn: async () => {
       await persistPolicy({
@@ -399,34 +476,69 @@ export function CarmenConversationAccessTab({
         openMemberGroups,
         denyMessage,
       });
-
-      for (const row of clientRows) {
-        if (!row.client_id || !row.whatsapp_group_id) continue;
-        if (!manusGroupIdSet.has(row.whatsapp_group_id)) continue;
-        const { error } = await supabase
-          .from("carmen_client_group_access" as any)
-          .upsert(
-            {
-              tenant_id: tenantId,
-              client_id: row.client_id,
-              whatsapp_group_id: row.whatsapp_group_id,
-              allow_client_contacts: row.allow_client_contacts,
-              allow_assigned_campaigners: row.allow_assigned_campaigners,
-              info_boundary: row.info_boundary,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "tenant_id,client_id,whatsapp_group_id" },
-          );
-        if (error) throw error;
-      }
+      await persistClientGroups();
     },
     onSuccess: () => {
       setPhonesDirty(false);
       toast.success("הרשאות שיחה נשמרו");
       qc.invalidateQueries({ queryKey: policyKey });
       qc.invalidateQueries({ queryKey: ["carmen-identities", tenantId] });
+      qc.invalidateQueries({
+        queryKey: ["carmen-client-group-access", tenantId],
+      });
     },
     onError: (e: Error) => toast.error(e.message || "שמירה נכשלה"),
+  });
+
+  const introduce = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("חסר tenant");
+      const selectedGroups = (manusGroups || []).filter(
+        (group: any) => openMemberGroups || groupIds.includes(group.id),
+      );
+      const missing = selectedGroups.filter((group: any) => {
+        const link = clientRows.find(
+          (row) => row.whatsapp_group_id === group.id,
+        );
+        return !link?.client_id || !link?.agency_id;
+      });
+      if (missing.length > 0) {
+        throw new Error(
+          `שייכי לקוח וסוכנות: ${missing.map((group: any) => group.group_name).join(", ")}`,
+        );
+      }
+      await persistPolicy({
+        phones,
+        groupIds,
+        requireDirect,
+        openMemberGroups,
+        denyMessage,
+      });
+      await persistClientGroups();
+      const { data, error } = await supabase.functions.invoke(
+        "carmen-introduce-group",
+        { body: { tenantId, agentId: agent.id } },
+      );
+      if (error) throw new Error(error.message || "שליחת הקודים נכשלה");
+      if (data?.error) throw new Error(String(data.error));
+      return data as { groups?: number; codes?: number; reason?: string };
+    },
+    onSuccess: (data) => {
+      setPhonesDirty(false);
+      qc.invalidateQueries({ queryKey: policyKey });
+      if (data?.reason === "missing_client_or_agency") {
+        toast.message("לכל קבוצה מאושרת צריך לקוח וסוכנות");
+        return;
+      }
+      if (!data?.codes) {
+        toast.message("סמן קבוצות Manus ומספרים עם סימון קבוצה, ואז שלח שוב");
+        return;
+      }
+      toast.success(
+        `כרמן הציגה את עצמה ב-${data.groups} קבוצות ושלחה קוד ל-${data.codes} מספרים`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || "שליחת הקודים נכשלה"),
   });
 
   const addPhone = () => {
@@ -496,6 +608,31 @@ export function CarmenConversationAccessTab({
 
   const groupName = (id: string) =>
     (manusGroups || []).find((g: any) => g.id === id)?.group_name || id;
+
+  const assignGroupLink = (
+    groupId: string,
+    patch: { client_id?: string; agency_id?: string },
+  ) => {
+    setClientRows((prev) => {
+      const idx = prev.findIndex((row) => row.whatsapp_group_id === groupId);
+      if (idx < 0) {
+        return [
+          ...prev,
+          {
+            client_id: patch.client_id || "",
+            agency_id: patch.agency_id || "",
+            whatsapp_group_id: groupId,
+            allow_client_contacts: true,
+            allow_assigned_campaigners: true,
+            info_boundary: "external_only",
+          },
+        ];
+      }
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+  };
 
   const approvedCount = useMemo(
     () => (identities || []).filter((i: any) => i.status === "approved").length,
@@ -605,6 +742,7 @@ export function CarmenConversationAccessTab({
                 <TableHead className="text-right w-16">פרטי</TableHead>
                 <TableHead className="text-right w-16">קבוצה</TableHead>
                 <TableHead className="text-right">Escalation</TableHead>
+                <TableHead className="text-right">יחס</TableHead>
                 <TableHead className="text-right w-16" />
               </TableRow>
             </TableHeader>
@@ -612,7 +750,7 @@ export function CarmenConversationAccessTab({
               {phones.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center text-sm text-muted-foreground py-6"
                   >
                     אין עדיין מורשים לשיחה פרטית — הוסף מספר או סנכרן מאוטומציה.
@@ -686,6 +824,22 @@ export function CarmenConversationAccessTab({
                         <SelectItem value="full">מלא (כל הסוכנים)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={row.relationship_note || ""}
+                      placeholder="טון דיבור"
+                      className="h-8 text-right"
+                      onChange={(e) => {
+                        setPhonesDirty(true);
+                        const next = [...phones];
+                        next[idx] = {
+                          ...row,
+                          relationship_note: e.target.value,
+                        };
+                        setPhones(next);
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     <Button
@@ -841,27 +995,78 @@ export function CarmenConversationAccessTab({
           ) : (
             (manusGroups || []).map((g: any) => {
               const allowed = openMemberGroups || groupIds.includes(g.id);
+              const link = clientRows.find(
+                (row) => row.whatsapp_group_id === g.id,
+              );
               return (
-                <label
-                  key={g.id}
-                  className={`flex w-full items-center gap-2 py-1.5 px-1 ${openMemberGroups ? "opacity-80" : "cursor-pointer"}`}
-                  dir="rtl"
-                >
-                  <Checkbox
-                    className="shrink-0"
-                    checked={allowed}
-                    disabled={openMemberGroups}
-                    onCheckedChange={() => toggleGroup(g.id)}
-                  />
-                  <span className="min-w-0 flex-1 text-sm text-right truncate">
-                    {g.group_name}
-                  </span>
+                <div key={g.id} className="py-1.5 px-1 space-y-1" dir="rtl">
+                  <div className="flex w-full items-center gap-2">
+                    <Checkbox
+                      className="shrink-0"
+                      checked={allowed}
+                      disabled={openMemberGroups}
+                      onCheckedChange={() => toggleGroup(g.id)}
+                    />
+                    <span className="min-w-0 flex-1 text-sm text-right truncate">
+                      {g.group_name}
+                    </span>
+                    {allowed && (
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        מורשה להגיב
+                      </Badge>
+                    )}
+                  </div>
                   {allowed && (
-                    <Badge variant="outline" className="text-[10px] shrink-0">
-                      מורשה להגיב
-                    </Badge>
+                    <div className="grid grid-cols-2 gap-2 pr-6">
+                      <Select
+                        value={link?.client_id || undefined}
+                        onValueChange={(value) => {
+                          const client = (clients || []).find(
+                            (row: { id: string; agency_id?: string | null }) =>
+                              row.id === value,
+                          );
+                          assignGroupLink(g.id, {
+                            client_id: value,
+                            agency_id:
+                              client?.agency_id || link?.agency_id || "",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-right">
+                          <SelectValue placeholder="לקוח" />
+                        </SelectTrigger>
+                        <SelectContent dir="rtl">
+                          {(clients || []).map(
+                            (client: { id: string; name: string }) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={link?.agency_id || undefined}
+                        onValueChange={(value) =>
+                          assignGroupLink(g.id, { agency_id: value })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-right">
+                          <SelectValue placeholder="סוכנות" />
+                        </SelectTrigger>
+                        <SelectContent dir="rtl">
+                          {(agencies || []).map(
+                            (agency: { id: string; name: string }) => (
+                              <SelectItem key={agency.id} value={agency.id}>
+                                {agency.name}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
-                </label>
+                </div>
               );
             })
           )}
@@ -872,6 +1077,24 @@ export function CarmenConversationAccessTab({
             לבדיקת זהות שולח).
           </p>
         )}
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={introduce.isPending}
+            onClick={() => introduce.mutate()}
+          >
+            {introduce.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            הציגי את עצמך ושלחי קודים
+          </Button>
+          <p className="text-[11px] text-muted-foreground text-right">
+            כל קבוצה מאושרת משויכת ללקוח ולסוכנות. כרמן מציגה את עצמה כמנהלת
+            השיווק הדיגיטלי של הסוכנות, שולחת קוד פרטי, והקוד נכתב בקבוצה.
+          </p>
+        </div>
       </Card>
 
       <Card className="p-4 space-y-4 w-full">
@@ -908,7 +1131,12 @@ export function CarmenConversationAccessTab({
                   manusGroupIdSet.has(cl.whatsapp_group_id)
                     ? cl.whatsapp_group_id
                     : row.whatsapp_group_id;
-                next[idx] = { ...row, client_id: v, whatsapp_group_id: wg };
+                next[idx] = {
+                  ...row,
+                  client_id: v,
+                  agency_id: cl?.agency_id || row.agency_id,
+                  whatsapp_group_id: wg,
+                };
                 setClientRows(next);
               }}
             >

@@ -104,6 +104,7 @@ export type PrivatePhoneRow = {
   source?: "policy" | "identity" | "automation";
   dev_escalation_tier?: "full" | "bugfix" | null;
   surfaces?: string[];
+  relationship_note?: string;
 };
 
 type IdentityRow = {
@@ -112,6 +113,7 @@ type IdentityRow = {
   status?: string;
   surfaces?: string[] | null;
   dev_escalation_tier?: string | null;
+  relationship_note?: string | null;
 };
 
 /** Merge all sources that grant private WhatsApp access for display in Agent Hub. */
