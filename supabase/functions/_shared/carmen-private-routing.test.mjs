@@ -63,13 +63,13 @@ test("inbound LID resolves via wa_lid_map / alias / payload to Ana", () => {
   );
 });
 
-test("single allowed phone may resolve LID (backward compatible)", () => {
+test("an unknown LID is never attributed to the single allowed phone", () => {
   const resolved = resolveInboundLidToPhone({
-    lidDigits: "123",
+    lidDigits: "224686986293269",
     allowedPhones: [davidPhone],
   });
-  assert.equal(resolved.phone, davidPhone);
-  assert.equal(resolved.reason, "single_allowed_phone");
+  assert.equal(resolved.phone, null);
+  assert.equal(resolved.reason, "unresolved_single_allowed");
 });
 
 test("resolved inbound LID must not be marked as David outbound", () => {

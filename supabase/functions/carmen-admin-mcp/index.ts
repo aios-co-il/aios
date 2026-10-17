@@ -9,6 +9,7 @@
 //
 // Auth: Authorization: Bearer == CLAUDE_MCP_BEARER.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { timingSafeEqual } from "../_shared/security.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -159,8 +160,15 @@ Deno.serve(async (req) => {
   }
   const { id, method, params } = msg ?? {};
 
-  const requiredBearer = Deno.env.get("CLAUDE_MCP_BEARER");
-  if (requiredBearer && bearerFrom(req) !== requiredBearer) {
+  // Fail closed: with no CLAUDE_MCP_BEARER configured, nobody gets in (it used
+  // to skip the check entirely and expose admin tools to anyone).
+  const requiredBearer = Deno.env.get("CLAUDE_MCP_BEARER") || "";
+  const presentedBearer = bearerFrom(req) || "";
+  if (
+    !requiredBearer ||
+    !presentedBearer ||
+    !timingSafeEqual(presentedBearer, requiredBearer)
+  ) {
     return rpcError(
       id,
       -32001,

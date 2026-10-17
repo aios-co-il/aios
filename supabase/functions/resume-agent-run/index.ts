@@ -1,6 +1,7 @@
 // resume-agent-run — apply approval decision, log the outcome on the action trace,
 // and re-invoke run-ai-agent-v2 to continue the ReAct loop from the next step.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { requireAuth } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +37,40 @@ Deno.serve(async (req) => {
       .eq("id", approval_id)
       .single();
     if (aErr || !approval) throw aErr ?? new Error("not found");
+
+    // Service calls pass; a signed-in user must belong to the approval's tenant.
+    // (The gateway JWT check alone lets the public anon key through.)
+    const caller = await requireAuth(req);
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (caller.kind === "user") {
+      const { data: membership } = await supabase
+        .from("tenant_users")
+        .select("user_id")
+        .eq("tenant_id", approval.tenant_id)
+        .eq("user_id", caller.userId)
+        .limit(1)
+        .maybeSingle();
+      const { data: superAdmin } = membership
+        ? { data: null }
+        : await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", caller.userId)
+            .eq("role", "super_admin")
+            .limit(1)
+            .maybeSingle();
+      if (!membership && !superAdmin) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     if (approval.status !== "pending") {
       return new Response(

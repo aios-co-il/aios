@@ -12,6 +12,7 @@ import {
   fetchKnownEntityNames,
 } from "../_shared/carmen.ts";
 import { resolveGroupParticipantPhone } from "../_shared/carmen-group-sender.ts";
+import { timingSafeEqual } from "../_shared/security.ts";
 import {
   isCarmenManusGroup,
   observeManusGroupMember,
@@ -381,6 +382,37 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 404,
         },
+      );
+    }
+
+    // Webhook authentication. configure-green-api stores a random token and
+    // tells Green API to send it as `Authorization: Bearer <token>`. Without
+    // it anyone who knows the (public) instance id could forge messages "from"
+    // any phone. Connections not yet re-configured have no token and are still
+    // accepted, loudly, until an admin re-saves them.
+    const expectedWebhookToken = String(
+      (integration.settings as Record<string, unknown> | null)
+        ?.webhook_url_token || "",
+    );
+    if (expectedWebhookToken) {
+      const presented = (req.headers.get("authorization") || "")
+        .replace(/^Bearer\s+/i, "")
+        .trim();
+      if (!presented || !timingSafeEqual(presented, expectedWebhookToken)) {
+        console.error(
+          "❌ Green webhook token mismatch for instance",
+          instanceId,
+        );
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+    } else {
+      console.warn(
+        "⚠️ Green webhook without token for instance",
+        instanceId,
+        "— re-save the connection to enable webhook authentication",
       );
     }
 

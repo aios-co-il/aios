@@ -145,3 +145,30 @@ test("relationship note reads the approved identity and skips everyone else", ()
     "",
   );
 });
+
+test("group code: only a short message with just the code, from the right phone", () => {
+  const pendings = [
+    { id: "a", code: "482913", group_chat_id: "g@g.us", phone: "972501111111" },
+    { id: "b", code: "135790", group_chat_id: "g@g.us", phone: "972502222222" },
+  ];
+  assert.equal(matchGroupActivation("482913", pendings, "g@g.us")?.id, "a");
+  assert.equal(matchGroupActivation(" 482 913 ", pendings, "g@g.us")?.id, "a");
+  // Packed guesses no longer scan for any pending code.
+  assert.equal(
+    matchGroupActivation("111111 482913 135790", pendings, "g@g.us"),
+    null,
+  );
+  assert.equal(
+    matchGroupActivation(`x ${"9".repeat(60)} 482913`, pendings, "g@g.us"),
+    null,
+  );
+  // Sender's known phone must be the one the code was sent to.
+  assert.equal(
+    matchGroupActivation("482913", pendings, "g@g.us", "972502222222"),
+    null,
+  );
+  assert.equal(
+    matchGroupActivation("482913", pendings, "g@g.us", "0501111111")?.id,
+    "a",
+  );
+});

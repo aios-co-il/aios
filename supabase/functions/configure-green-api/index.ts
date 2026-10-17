@@ -33,9 +33,15 @@ serve(async (req) => {
     // Configure Green API settings via their API
     const settingsUrl = `https://api.green-api.com/waInstance${instanceId}/setSettings/${apiToken}`;
 
+    // Green API sends this back as `Authorization: Bearer <token>` on every
+    // webhook; green-api-webhook rejects calls without it once it is stored.
+    const webhookUrlToken =
+      crypto.randomUUID().replace(/-/g, "") +
+      crypto.randomUUID().replace(/-/g, "");
+
     const settingsPayload = {
       webhookUrl: webhookUrl,
-      webhookUrlToken: "",
+      webhookUrlToken,
       outgoingWebhook: "yes",
       outgoingMessageWebhook: "yes",
       outgoingAPIMessageWebhook: "yes",
@@ -73,6 +79,31 @@ serve(async (req) => {
       result = JSON.parse(responseText);
     } catch {
       result = { raw: responseText };
+    }
+
+    // Store the token only after Green accepted it. If this write fails the
+    // webhook keeps accepting untokened calls (old behavior) instead of
+    // dropping real messages.
+    const admin = createClient(
+      supabaseUrl,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: rows } = await admin
+      .from("tenant_integrations")
+      .select("id, settings")
+      .eq("integration_type", "green_api")
+      .eq("instance_id", String(instanceId))
+      .eq("api_key", apiToken);
+    for (const row of rows || []) {
+      await admin
+        .from("tenant_integrations")
+        .update({
+          settings: {
+            ...((row.settings as Record<string, unknown>) || {}),
+            webhook_url_token: webhookUrlToken,
+          },
+        })
+        .eq("id", row.id);
     }
 
     return new Response(

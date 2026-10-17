@@ -109,6 +109,7 @@ import {
   formatApprovalExecutionReply,
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,
+  filterApprovalsForCaller,
   pickLatestPendingApproval,
 } from "../_shared/wa-approval-flow.ts";
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
@@ -5625,6 +5626,13 @@ async function executeTool(
       callerRole,
     );
   const isTeamManager = callerRole === "team_manager";
+  // Who may see / confirm rows in agent_approval_queue (see wa-approval-flow).
+  const approvalCaller = {
+    callerPhone,
+    callerUserId: actorUserId,
+    isManager: isManagerRole,
+    chatId: waNotify?.chat_id || null,
+  };
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
     ? callerManagedAgencyIds
     : [];
@@ -6819,6 +6827,7 @@ async function executeTool(
           context: {
             caller_role: callerRole,
             caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
             client_id: args.client_id,
           },
           status: "pending",
@@ -7109,6 +7118,7 @@ async function executeTool(
           context: {
             caller_role: callerRole,
             caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
             client_id: args.client_id,
             source,
             variant_previews,
@@ -9234,6 +9244,7 @@ async function executeTool(
           context: {
             caller_role: callerRole,
             caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
             automation_name: auto.name,
           },
           status: "pending",
@@ -10293,7 +10304,11 @@ async function executeTool(
           description: "פעולת הנהלת חשבונות — דורשת אישור משתמש מפורש",
           tool_name: name,
           tool_input: args,
-          context: { caller_role: callerRole, caller_phone: callerPhone },
+          context: {
+            caller_role: callerRole,
+            caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
+          },
           status: "pending",
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         })
@@ -11674,7 +11689,11 @@ async function executeTool(
           description: `טריגר: ${spec.trigger_type} | שלבים: ${stepSummary}`,
           tool_name: "create_automation",
           tool_input: spec,
-          context: { caller_role: callerRole, caller_phone: callerPhone },
+          context: {
+            caller_role: callerRole,
+            caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
+          },
           status: "pending",
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         })
@@ -11730,17 +11749,21 @@ async function executeTool(
 
     // ============ APPROVAL HELPERS ============
     case "list_pending_approvals": {
-      const { data, error } = await supabase
+      const { data: rawApprovals, error } = await supabase
         .from("agent_approval_queue")
         .select(
-          "id, action_type, title, description, tool_name, tool_input, context, created_at, status, requested_by",
+          "id, action_type, title, description, tool_name, tool_input, context, created_at, status, requested_by, expires_at",
         )
         .eq("tenant_id", tenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
+        .limit(50);
       if (error) throw error;
-      const preferred = pickLatestPendingApproval(data || [], {
+      const data = filterApprovalsForCaller(
+        rawApprovals || [],
+        approvalCaller,
+      ).slice(0, args.limit || 10);
+      const preferred = pickLatestPendingApproval(data, {
         preferMeta: true,
       });
       return {
@@ -11767,12 +11790,16 @@ async function executeTool(
         const { data } = await supabase
           .from("agent_approval_queue")
           .select(
-            "id, status, tool_name, title, description, tool_input, context",
+            "id, status, tool_name, title, description, tool_input, context, requested_by, expires_at",
           )
           .eq("tenant_id", tenantId)
           .eq("id", approvalId)
           .maybeSingle();
-        matchedRow = data;
+        // Someone else's request, another chat's, or expired → not this caller's.
+        matchedRow =
+          filterApprovalsForCaller(data ? [data] : [], approvalCaller)[0] ||
+          null;
+        if (!matchedRow) approvalId = null;
         if (
           matchedRow &&
           matchedRow.status !== "pending" &&
@@ -11787,28 +11814,36 @@ async function executeTool(
         const { data: pendingRows } = await supabase
           .from("agent_approval_queue")
           .select(
-            "id, status, tool_name, title, description, tool_input, context, created_at",
+            "id, status, tool_name, title, description, tool_input, context, created_at, requested_by, expires_at",
           )
           .eq("tenant_id", tenantId)
           .eq("status", "pending")
           .order("created_at", { ascending: false })
-          .limit(10);
-        matchedRow = pickLatestPendingApproval(pendingRows || [], {
-          preferMeta: true,
-          toolName: args.tool_name || undefined,
-        });
+          .limit(50);
+        matchedRow = pickLatestPendingApproval(
+          filterApprovalsForCaller(pendingRows || [], approvalCaller),
+          {
+            preferMeta: true,
+            toolName: args.tool_name || undefined,
+          },
+        );
         approvalId = matchedRow?.id || null;
       }
       if (!approvalId) {
         const { data: recent } = await supabase
           .from("agent_approval_queue")
           .select(
-            "id, status, tool_name, title, description, tool_input, context, created_at",
+            "id, status, tool_name, title, description, tool_input, context, created_at, requested_by, expires_at",
           )
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: false })
-          .limit(8);
-        const recoveryPayload = buildNoPendingRecovery(recent || []);
+          .limit(30);
+        const recoveryPayload = buildNoPendingRecovery(
+          filterApprovalsForCaller(recent || [], {
+            ...approvalCaller,
+            ignoreExpiry: true,
+          }).slice(0, 8),
+        );
         return {
           success: false,
           error: "no_pending_approval",
@@ -11859,6 +11894,20 @@ async function executeTool(
       };
     }
     case "reject_pending_approval": {
+      const { data: rejectRow } = await supabase
+        .from("agent_approval_queue")
+        .select("id, status, context, requested_by, expires_at")
+        .eq("tenant_id", tenantId)
+        .eq("id", asUuidOrNull(args.approval_id))
+        .maybeSingle();
+      if (
+        !filterApprovalsForCaller(rejectRow ? [rejectRow] : [], {
+          ...approvalCaller,
+          ignoreExpiry: true,
+        }).length
+      ) {
+        return { success: false, error: "approval_not_found_for_caller" };
+      }
       const { error } = await supabase
         .from("agent_approval_queue")
         .update({
@@ -11913,7 +11962,11 @@ async function executeTool(
           description: "פעולת mutating שדורשת אישור משתמש בוואטסאפ",
           tool_name: name,
           tool_input: args,
-          context: { caller_role: callerRole, caller_phone: callerPhone },
+          context: {
+            caller_role: callerRole,
+            caller_phone: callerPhone,
+            chat_id: waNotify?.chat_id || null,
+          },
           status: "pending",
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         })
@@ -15152,27 +15205,44 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const { data: pendingRows } = await supabase
         .from("agent_approval_queue")
         .select(
-          "id, action_type, title, description, tool_name, tool_input, context, created_at, status",
+          "id, action_type, title, description, tool_name, tool_input, context, created_at, status, requested_by, expires_at",
         )
         .eq("tenant_id", resolvedTenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-        .limit(10);
-      pendingForConfirm = pickLatestPendingApproval(pendingRows || [], {
-        preferMeta: true,
-      });
+        .limit(50);
+      // Only this caller's own requests (or any, for managers), from this chat.
+      const confirmCaller = {
+        callerPhone,
+        callerUserId: callerUserId || asUuidOrNull(resolvedUserId),
+        isManager:
+          !!callerRole &&
+          ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
+            callerRole,
+          ),
+        chatId: wa_notify?.chat_id || null,
+      };
+      pendingForConfirm = pickLatestPendingApproval(
+        filterApprovalsForCaller(pendingRows || [], confirmCaller),
+        { preferMeta: true },
+      );
       if (userSaidApprove) {
         systemPrompt += buildApprovalConfirmPromptRule(pendingForConfirm);
         if (!pendingForConfirm) {
           const { data: recent } = await supabase
             .from("agent_approval_queue")
             .select(
-              "id, status, tool_name, title, description, tool_input, context, created_at",
+              "id, status, tool_name, title, description, tool_input, context, created_at, requested_by, expires_at",
             )
             .eq("tenant_id", resolvedTenantId)
             .order("created_at", { ascending: false })
-            .limit(8);
-          const recoveryPayload = buildNoPendingRecovery(recent || []);
+            .limit(30);
+          const recoveryPayload = buildNoPendingRecovery(
+            filterApprovalsForCaller(recent || [], {
+              ...confirmCaller,
+              ignoreExpiry: true,
+            }).slice(0, 8),
+          );
           systemPrompt += `\n\n${recoveryPayload.instruction_for_carmen}`;
           if (recoveryPayload.recovery) {
             systemPrompt += `\n[recovery_json]=${JSON.stringify(recoveryPayload.recovery)}`;

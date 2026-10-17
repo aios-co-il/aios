@@ -108,6 +108,50 @@ export function isMetaApprovalTool(toolName) {
  * Pick the best pending row from a newest-first list.
  * Prefer Meta mutating tools when preferMeta is true.
  */
+const phoneTail9 = (v) =>
+  String(v || "")
+    .replace(/\D/g, "")
+    .slice(-9);
+
+/**
+ * Whether the current caller may see / confirm an approval row.
+ * - Expired rows (expires_at in the past) never match, unless ignoreExpiry.
+ * - A row created in a WhatsApp chat matches only in that same chat, so a "כן"
+ *   in a private chat can't confirm something asked in a group (or vice versa).
+ * - Managers may confirm any row; anyone else only rows they requested
+ *   (same phone, or same user id).
+ */
+export function approvalBelongsToCaller(row, caller = {}) {
+  if (!row) return false;
+  const now = caller.now ?? Date.now();
+  if (!caller.ignoreExpiry && row.expires_at) {
+    const exp = Date.parse(row.expires_at);
+    if (Number.isFinite(exp) && exp < now) return false;
+  }
+  const ctx =
+    (row.context && typeof row.context === "object" && row.context) || {};
+  const rowChat = ctx.chat_id ? String(ctx.chat_id) : "";
+  const chatId = caller.chatId ? String(caller.chatId) : "";
+  if (rowChat && chatId && rowChat !== chatId) return false;
+  if (caller.isManager) return true;
+  const callerTail = phoneTail9(caller.callerPhone);
+  if (callerTail.length === 9 && phoneTail9(ctx.caller_phone) === callerTail)
+    return true;
+  if (
+    row.requested_by &&
+    caller.callerUserId &&
+    row.requested_by === caller.callerUserId
+  )
+    return true;
+  return false;
+}
+
+export function filterApprovalsForCaller(rows, caller = {}) {
+  return (Array.isArray(rows) ? rows : []).filter((row) =>
+    approvalBelongsToCaller(row, caller),
+  );
+}
+
 export function pickLatestPendingApproval(rows, opts = {}) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
   if (list.length === 0) return null;
