@@ -1,0 +1,67 @@
+name: Creative Remotion smoke render
+on:
+  push:
+    branches: [feature/creative-video-production-792]
+    paths:
+      - "workers/creative-video/remotion/**"
+      - ".github/workflows/creative-remotion-smoke.yml"
+  pull_request:
+    paths:
+      - "workers/creative-video/remotion/**"
+      - ".github/workflows/creative-remotion-smoke.yml"
+  workflow_dispatch:
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: workers/creative-video/remotion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Compile composition
+        run: npx remotion compositions src/index.ts --log=error
+      - name: Render low-resolution smoke test
+        run: npx remotion render src/index.ts CarmenVideo /tmp/carmen-smoke.mp4 --scale=0.25 --frames=0-89 --codec=h264 --concurrency=2 --log=error
+      - name: Install ffprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+        working-directory: .
+      - name: Render full composition
+        run: npx remotion render src/index.ts CarmenVideo /tmp/carmen-full.mp4 --scale=0.5 --codec=h264 --concurrency=2 --log=error
+      - name: Render manifest-driven job
+        run: node render-job.mjs fixtures/demo-manifest.json /tmp/carmen-job.mp4
+      - name: Verify manifest-driven job
+        run: |
+          test -s /tmp/carmen-job.mp4
+          test -s /tmp/carmen-job.mp4.json
+          ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 /tmp/carmen-job.mp4
+        working-directory: .
+      - name: Verify full video duration
+        run: |
+          test -s /tmp/carmen-full.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,nb_frames -of default=noprint_wrappers=1 /tmp/carmen-full.mp4
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 /tmp/carmen-full.mp4
+        working-directory: .
+      - name: Verify MP4 has video frames
+        run: |
+          test -s /tmp/carmen-smoke.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,nb_frames -of default=noprint_wrappers=1 /tmp/carmen-smoke.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-remotion-smoke
+          path: /tmp/carmen-smoke.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-remotion-full
+          path: /tmp/carmen-full.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-manifest-job
+          path: |
+            /tmp/carmen-job.mp4
+            /tmp/carmen-job.mp4.json

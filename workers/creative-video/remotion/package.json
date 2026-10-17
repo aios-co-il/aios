@@ -1,0 +1,25 @@
+{
+  "name": "@carmen/creative-remotion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "remotion render src/index.ts CarmenVideo out.mp4 --codec h264",
+    "compositions": "remotion compositions src/index.ts",
+    "render:job": "node render-job.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/renderer": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7"
+  }
+}
