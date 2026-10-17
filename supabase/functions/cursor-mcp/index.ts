@@ -1008,9 +1008,9 @@ async function handleToolCall(
       `[Carmen → Cursor · DEV TASK]\n` +
       `Requested by Carmen (AIOS agent), on behalf of David.\n\n` +
       `Task:\n${task}\n` +
-      (branch ? `\nBase/target branch: ${branch}\n` : ``) +
+      `\nBase/target branch: ${branch || "develop"}\n` +
       (context ? `\nContext:\n${context}\n` : ``) +
-      `\nPlease implement this in the AIOS codebase and open a pull request against the develop branch (never main) when done.` +
+      `\nPlease implement this in the AIOS codebase and open a pull request against the base/target branch above when done.` +
       (await recentDispatchContext(ctx.tenantId)) +
       teachingBlock(ctx.tenantId) +
       callbackBlock;
