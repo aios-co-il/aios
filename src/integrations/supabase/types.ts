@@ -8416,16 +8416,22 @@ export type Database = {
       };
       marketing_runs: {
         Row: {
+          attempts: number;
           cost_usd: number;
           created_at: string;
           created_by: string | null;
+          credits: number | null;
           error: string | null;
           finished_at: string | null;
           id: string;
           input: Json;
           item_id: string;
+          kind: string | null;
           model: string | null;
           output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
           stage_id: string;
           started_at: string | null;
           status: string;
@@ -8435,16 +8441,22 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          attempts?: number;
           cost_usd?: number;
           created_at?: string;
           created_by?: string | null;
+          credits?: number | null;
           error?: string | null;
           finished_at?: string | null;
           id?: string;
           input?: Json;
           item_id: string;
+          kind?: string | null;
           model?: string | null;
           output?: Json;
+          provider?: string | null;
+          provider_job_id?: string | null;
+          scene_id?: string | null;
           stage_id: string;
           started_at?: string | null;
           status?: string;
@@ -8454,16 +8466,22 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          attempts?: number;
           cost_usd?: number;
           created_at?: string;
           created_by?: string | null;
+          credits?: number | null;
           error?: string | null;
           finished_at?: string | null;
           id?: string;
           input?: Json;
           item_id?: string;
+          kind?: string | null;
           model?: string | null;
           output?: Json;
+          provider?: string | null;
+          provider_job_id?: string | null;
+          scene_id?: string | null;
           stage_id?: string;
           started_at?: string | null;
           status?: string;
@@ -8472,7 +8490,15 @@ export type Database = {
           tokens_out?: number;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "marketing_runs_scene_id_fkey";
+            columns: ["scene_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_video_scenes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_stage_templates: {
         Row: {
@@ -8584,6 +8610,117 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      marketing_video_scenes: {
+        Row: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        };
+        Insert: {
+          clip_asset_id?: string | null;
+          clip_stale?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          duration_s?: number;
+          focal_x?: number;
+          id?: string;
+          item_id: string;
+          locked?: boolean;
+          meta?: Json;
+          motion_prompt?: string;
+          overlay_text?: string;
+          position: number;
+          shot?: string;
+          status?: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id?: string | null;
+          tenant_id: string;
+          title?: string;
+          updated_at?: string;
+          visual_prompt?: string;
+          voice_asset_id?: string | null;
+          voiceover_text?: string;
+        };
+        Update: {
+          clip_asset_id?: string | null;
+          clip_stale?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+          duration_s?: number;
+          focal_x?: number;
+          id?: string;
+          item_id?: string;
+          locked?: boolean;
+          meta?: Json;
+          motion_prompt?: string;
+          overlay_text?: string;
+          position?: number;
+          shot?: string;
+          status?: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id?: string | null;
+          tenant_id?: string;
+          title?: string;
+          updated_at?: string;
+          visual_prompt?: string;
+          voice_asset_id?: string | null;
+          voiceover_text?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "marketing_video_scenes_clip_asset_id_fkey";
+            columns: ["clip_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_still_asset_id_fkey";
+            columns: ["still_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_video_scenes_voice_asset_id_fkey";
+            columns: ["voice_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_assets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_work_items: {
         Row: {
@@ -14759,6 +14896,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      advance_video_production: {
+        Args: { p_item_id: string };
+        Returns: string;
+      };
       archive_leads: { Args: { p_lead_ids: string[] }; Returns: number };
       assign_role_by_email: {
         Args: {
@@ -14766,6 +14907,33 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"];
         };
         Returns: string;
+      };
+      attach_video_scene_asset: {
+        Args: {
+          p_kind: string;
+          p_meta?: Json;
+          p_run_id?: string;
+          p_scene_id: string;
+          p_url: string;
+        };
+        Returns: {
+          content: string | null;
+          created_at: string;
+          id: string;
+          item_id: string;
+          meta: Json;
+          run_id: string | null;
+          stage_id: string | null;
+          tenant_id: string;
+          type: string;
+          url: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_assets";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       bump_skill_usage_by_slug: {
         Args: { p_slugs: string[]; p_tenant_id: string };
@@ -14872,6 +15040,40 @@ export type Database = {
           priority: number;
           tenant_id: string;
         }[];
+      };
+      claim_video_run: {
+        Args: { p_kinds: string[]; p_worker?: string };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       claude_notify_david: {
         Args: { p_chat_id?: string; p_message: string; p_tenant?: string };
@@ -15383,6 +15585,10 @@ export type Database = {
         Args: { _auth_user_id: string; _email: string };
         Returns: undefined;
       };
+      migrate_storyboard_to_video_scenes: {
+        Args: { p_item_id?: string };
+        Returns: number;
+      };
       next_task_recurrence_date: {
         Args: {
           as_of_date?: string;
@@ -15399,6 +15605,140 @@ export type Database = {
       permanently_delete_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
+      };
+      produce_video: {
+        Args: {
+          p_aspect?: string;
+          p_estimate?: Json;
+          p_generate_audio?: boolean;
+          p_item_id: string;
+          p_music_prompt?: string;
+          p_provider?: string;
+          p_stage_id?: string;
+          p_voice_id?: string;
+          p_with_music?: boolean;
+          p_with_voice?: boolean;
+        };
+        Returns: Json;
+      };
+      queue_video_clips: {
+        Args: {
+          p_aspect?: string;
+          p_estimate?: Json;
+          p_generate_audio?: boolean;
+          p_item_id: string;
+          p_provider?: string;
+          p_scene_ids: string[];
+          p_stage_id?: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      queue_video_render: {
+        Args: { p_aspect?: string; p_item_id: string; p_stage_id?: string };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      queue_video_sound: {
+        Args: {
+          p_estimate?: Json;
+          p_item_id: string;
+          p_kind: string;
+          p_prompt?: string;
+          p_provider?: string;
+          p_scene_ids?: string[];
+          p_stage_id?: string;
+          p_voice_id?: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
@@ -15428,6 +15768,39 @@ export type Database = {
       };
       run_ddl_once: { Args: { sql: string }; Returns: string };
       run_system_cron_job_now: { Args: { p_jobid: number }; Returns: string };
+      save_video_storyboard: {
+        Args: { p_item_id: string; p_scenes: Json };
+        Returns: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_video_scenes";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       search_contacts_for_chat:
         | {
             Args: { p_search_term: string };
@@ -15469,6 +15842,10 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      set_video_production: {
+        Args: { p_item_id: string; p_patch: Json };
+        Returns: Json;
+      };
       signature_png_is_valid: { Args: { _value: string }; Returns: boolean };
       submit_signature_by_token:
         | {
@@ -15701,6 +16078,15 @@ export type Database = {
         | "target_seo"
         | "target_organic"
         | "measurement";
+      marketing_video_scene_status:
+        | "draft"
+        | "still_generating"
+        | "still_ready"
+        | "still_approved"
+        | "clip_generating"
+        | "clip_ready"
+        | "clip_approved"
+        | "failed";
       onboarding_status:
         | "research_meeting"
         | "receiving_access"
@@ -15974,6 +16360,16 @@ export const Constants = {
         "target_seo",
         "target_organic",
         "measurement",
+      ],
+      marketing_video_scene_status: [
+        "draft",
+        "still_generating",
+        "still_ready",
+        "still_approved",
+        "clip_generating",
+        "clip_ready",
+        "clip_approved",
+        "failed",
       ],
       onboarding_status: [
         "research_meeting",

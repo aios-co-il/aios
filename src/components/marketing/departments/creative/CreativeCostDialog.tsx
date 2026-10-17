@@ -16,13 +16,15 @@ import {
   type CostTotals,
   type ImageGenerationCost,
 } from "@/components/marketing/departments/creative/imageCost";
-import type { CreativeItem } from "@/components/marketing/departments/creative/types";
+import type {
+  CreativeItem,
+  StoryboardFrame,
+} from "@/components/marketing/departments/creative/types";
 import {
   defaultFormat,
   getBriefText,
   getLinkedCopyText,
   getProjectType,
-  getStoryboard,
 } from "@/components/marketing/departments/creative/utils";
 import { imageSizeForFormat } from "@/components/marketing/departments/creative/visualStyles";
 import { estimateCreativeImageCall } from "@/components/marketing/lib/generateCreativeImage";
@@ -42,17 +44,15 @@ interface Props {
   onSelect?: (id: string) => void;
 }
 
-export function buildNextGenerateEstimate(item: CreativeItem): {
-  cost: ImageGenerationCost;
-  count: number;
-} {
+export function buildNextGenerateEstimate(
+  item: CreativeItem,
+  storyboard: StoryboardFrame[] = [],
+): { cost: ImageGenerationCost; count: number } {
   const format = defaultFormat(item.payload);
   const size = imageSizeForFormat(format);
   const isVideo = getProjectType(item.payload) === "video";
   const copyBlocks = splitCopyVariations(getLinkedCopyText(item));
-  const missingFrames = getStoryboard(item.payload).filter(
-    (frame) => !frame.imageUrl,
-  ).length;
+  const missingFrames = storyboard.filter((frame) => !frame.imageUrl).length;
   const count = isVideo
     ? Math.max(missingFrames, 1)
     : Math.max(copyBlocks.length, 1);
