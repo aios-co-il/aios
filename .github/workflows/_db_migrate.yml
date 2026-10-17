@@ -74,10 +74,10 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           set -euo pipefail
-          # Both values come from the "${{ inputs.target }}" environment; never fall back to another project.
           if [ -z "$PROJECT_REF" ] || [ -z "$DB_PASSWORD" ]; then
             echo "::error::Missing SUPABASE_PROJECT_REF or DB_PASSWORD in the ${{ inputs.target }} environment."
             exit 1
           fi
           supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
-          supabase db push --password "$DB_PASSWORD"
+          # Versions recorded out of band (or merged out of order) sort before the remote head.
+          supabase db push --include-all --password "$DB_PASSWORD"
