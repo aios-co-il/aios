@@ -236,3 +236,23 @@ export function buildPrivateRoutingAcceptanceCases() {
     unauthorizedPhone: "972501111111",
   };
 }
+
+/**
+ * Bare-digit sender ids for a Manus GROUP message, as `@`-suffixed candidates.
+ *
+ * Current Manus group payloads carry `senderPhone` / `senderLid` as plain digits
+ * (no `@c.us` / `@lid`). The group author picker only accepted `@` ids, so these
+ * were dropped and every group author ended up unresolved. The LID wins when it
+ * exists so the existing layer can resolve it (payload phone or wa_lid_map) and
+ * keep teaching the map; a real phone is used directly only when there is no LID.
+ */
+export function manusGroupSenderCandidates(payload, groupChatId = "") {
+  const groupDigits = digitsOnly(String(groupChatId).split("@")[0]);
+  const lid = digitsOnly(payload?.senderLid);
+  if (lid && lid !== groupDigits && isUsableLidKey(lid)) return [`${lid}@lid`];
+  const phone = digitsOnly(payload?.senderPhone);
+  if (phone && phone !== groupDigits && looksLikeRealPhone(phone)) {
+    return [`${phone}@c.us`];
+  }
+  return [];
+}

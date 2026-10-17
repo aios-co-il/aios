@@ -13,4 +13,5 @@ export {
   pickPrivateCarmenTarget,
   outboundThirdPartyGuardDecision,
   buildPrivateRoutingAcceptanceCases,
+  manusGroupSenderCandidates,
 } from "./carmen-private-routing.mjs";
