@@ -6,6 +6,10 @@
 // broken rewrite querying a non-existent `agents` table → every agent call 404'd). This is the
 // known-good monolithic version from main; CI redeploys it via the Supabase CLI. (re-deploy: a stray placeholder bundle had overwritten v40).
 import type {} from "../_shared/edge-runtime.d.ts";
+import {
+  automationInstructionsBlock,
+  sanitizeCarmenInstructions,
+} from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
@@ -13526,6 +13530,13 @@ async function handleRunAgent(
       conversation_id,
       wa_notify,
     } = bodyJson;
+    // Per-task engine override (agent_tasks.engine_model). Only internal
+    // service calls may set it — stripped from user requests in Deno.serve.
+    const modelOverride =
+      typeof bodyJson.model_override === "string" &&
+      bodyJson.model_override.trim()
+        ? bodyJson.model_override.trim()
+        : null;
     const pinSkillsOnly =
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
@@ -14604,6 +14615,19 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
+    // Per-automation instructions for this WhatsApp conversation (set on the
+    // Carmen automation; stripped in Deno.serve for non-service callers).
+    if (
+      surface === "whatsapp" &&
+      bodyJson.carmen_automation &&
+      typeof bodyJson.carmen_automation === "object"
+    ) {
+      systemPrompt += automationInstructionsBlock(
+        sanitizeCarmenInstructions(
+          bodyJson.carmen_automation.carmen_instructions,
+        ),
+      );
+    }
     const promptAddon =
       typeof bodyJson.system_prompt_addon === "string"
         ? bodyJson.system_prompt_addon.trim()
@@ -14991,7 +15015,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 5. Run agent with tool loop
-    const model = resolveModel(agent.engine || "gemini-3-flash");
+    const model = resolveModel(
+      modelOverride || agent.engine || "gemini-3-flash",
+    );
     const maxRounds = agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"
@@ -15235,7 +15261,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: true,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(agent.engine || "gemini-3-flash"),
+          model: resolveModel(
+            modelOverride || agent.engine || "gemini-3-flash",
+          ),
           execution_time_ms: executionTime,
           tools_used: ["execute_pending_approval"],
           tool_log: [
@@ -15301,7 +15329,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!execResult?.success,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(agent.engine || "gemini-3-flash"),
+          model: resolveModel(
+            modelOverride || agent.engine || "gemini-3-flash",
+          ),
           execution_time_ms: executionTime,
           tools_used: ["join_meeting_for_client"],
           tool_log: [
@@ -15370,7 +15400,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!digest,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(agent.engine || "gemini-3-flash"),
+          model: resolveModel(
+            modelOverride || agent.engine || "gemini-3-flash",
+          ),
           execution_time_ms: executionTime,
           tools_used: ["get_latest_campaign_pulse"],
           tool_log: [
@@ -16090,6 +16122,11 @@ Deno.serve(async (req) => {
   // Never trust a browser-supplied user id. Bind interactive requests to the
   // verified JWT identity; service-to-service calls keep their explicit user.
   if (auth.kind === "user") bodyJson.user_id = auth.userId;
+  if (auth.kind !== "service") {
+    delete bodyJson.model_override;
+    // Per-automation Carmen instructions are admin config: service-to-service only.
+    delete bodyJson.carmen_automation;
+  }
 
   if (bodyJson.direct_tool) {
     if (auth.kind !== "service") {

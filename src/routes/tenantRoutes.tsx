@@ -1,4 +1,5 @@
 import { Route, Navigate } from "react-router-dom";
+import { CarmenRedirect } from "@/components/carmen-command/CarmenRedirect";
 import { TenantAppShell } from "@/components/layout/TenantAppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
@@ -232,12 +233,33 @@ export function tenantRoutes() {
         <Route path="signatures" element={<Signatures />} />
         <Route path="manus-settings" element={<ManusSettings />} />
         <Route path="manus-tasks" element={<ManusTasksPage />} />
-        <Route path="agents" element={<AgentHub />} />
-        <Route path="agent-tasks" element={<AgentTasksPage />} />
-        <Route path="skins" element={<SkinsManager />} />
+        <Route
+          path="agents"
+          element={<CarmenRedirect panel="" fallback={<AgentHub />} />}
+        />
+        <Route
+          path="agent-tasks"
+          element={
+            <CarmenRedirect panel="tasks" fallback={<AgentTasksPage />} />
+          }
+        />
+        <Route
+          path="skins"
+          element={
+            <CarmenRedirect
+              panel="settings/skins"
+              fallback={<SkinsManager />}
+            />
+          }
+        />
         <Route
           path="carmen-access"
-          element={<Navigate to="../agents?tab=access" replace />}
+          element={
+            <CarmenRedirect
+              panel="settings/tools"
+              fallback={<Navigate to="../agents?tab=access" replace />}
+            />
+          }
         />
         <Route
           path="carmen-studio"

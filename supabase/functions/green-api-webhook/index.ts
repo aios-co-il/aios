@@ -2,6 +2,10 @@
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
 // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
+import {
+  resolveCarmenConnectionRole,
+  type CarmenConnectionRole,
+} from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   handleCarmenMessage,
@@ -1732,14 +1736,19 @@ Deno.serve(async (req) => {
 
     // ===========================
     // CARMEN WHATSAPP SESSION HANDLER (via shared helper)
-    // Skip if tenant also has an active manus_wa integration — manus-wa-webhook
-    // owns Carmen routing in that case to avoid duplicate replies from both providers.
+    // Connection role (settings.carmen_role, see carmen-connection-role.ts):
+    //  - primary: full Carmen (default when the tenant has no active Manus).
+    //  - secondary: default when Manus is Carmen's phone. Carmen only wakes for
+    //    a trigger-word message through an automation pinned to THIS
+    //    connection, so Manus and Green never both answer the same chat.
+    //  - none: never.
+    // If the Manus lookup fails we treat the connection as secondary (fail closed).
     // ===========================
     let carmenOutcome: string | null = null;
     let isKnownBotGroupMessage = false;
-    let skipCarmenForManusOwner = false;
+    let carmenRole: CarmenConnectionRole = "secondary";
     try {
-      const { data: manusOwner } = await supabaseClient
+      const { data: manusOwner, error: manusErr } = await supabaseClient
         .from("tenant_integrations")
         .select("id")
         .eq("tenant_id", tenantId)
@@ -1747,18 +1756,17 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
-      skipCarmenForManusOwner = Boolean(manusOwner?.id);
-      if (skipCarmenForManusOwner) {
-        console.log(
-          "[green-api] skipping Carmen — manus_wa owns replies for this tenant",
-          {
-            tenantId,
-            integrationId: manusOwner.id,
-          },
-        );
-      }
+      if (manusErr) throw manusErr;
+      carmenRole = resolveCarmenConnectionRole(integration, {
+        tenantHasActiveManus: Boolean(manusOwner?.id),
+      });
     } catch (err) {
-      console.error("[green-api] manus_wa ownership check failed:", err);
+      console.error(
+        "[green-api] manus_wa ownership check failed — Carmen in secondary mode:",
+        err,
+      );
+      carmenRole =
+        integration?.settings?.carmen_role === "none" ? "none" : "secondary";
     }
     if (isGroup && isIncoming && sourcePhoneNumber) {
       try {
@@ -1796,7 +1804,7 @@ Deno.serve(async (req) => {
     if (
       (isIncoming || isManualOutgoing) &&
       !isKnownBotGroupMessage &&
-      !skipCarmenForManusOwner
+      carmenRole !== "none"
     ) {
       try {
         // A manual outgoing message inside a group is still a GROUP turn. Keep
@@ -1829,6 +1837,7 @@ Deno.serve(async (req) => {
           // Operator mirror: this channel sees ALL the operator's personal groups,
           // so open-member-groups mode must never activate here.
           sourceChannel: "operator_mirror",
+          connectionRole: carmenRole,
           sendMessage: async (chatId: string, message: string) => {
             return await sendGreenApiMessage(
               instanceId,

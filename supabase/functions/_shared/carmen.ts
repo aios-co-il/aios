@@ -7,6 +7,12 @@
 // group / one private chat = one session. Phone is last-speaker metadata only.
 
 import {
+  buildCarmenAutomationContext,
+  secondaryCarmenGate,
+  type CarmenAutomationContext,
+  type CarmenConnectionRole,
+} from "./carmen-connection-role.ts";
+import {
   originChatsMatch,
   replyDestinationIsConsistent,
   requireOriginChatId,
@@ -687,6 +693,8 @@ export async function findCarmenSessionAutomation(
     chatId?: string | null;
     phoneNumber?: string | null;
     messageText?: string | null;
+    /** Secondary connections: only automations pinned to THIS integration. */
+    pinnedOnly?: boolean;
   },
 ): Promise<any | null> {
   const { data: flowSteps } = await supabase
@@ -735,7 +743,9 @@ export async function findCarmenSessionAutomation(
       if (hit) foreignPhoneAllowed.push(s);
     }
   }
-  const ranked = [...pinnedMatches, ...unpinned, ...foreignPhoneAllowed];
+  const ranked = ctx?.pinnedOnly
+    ? [...pinnedMatches]
+    : [...pinnedMatches, ...unpinned, ...foreignPhoneAllowed];
   if (ranked.length === 0) return null;
 
   // Channel-aware ranking: when multiple Carmen automations are pinned to the same
@@ -1001,6 +1011,7 @@ export async function runCarmenAI(
   senderPhone?: string | null,
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
+  automationCtx?: CarmenAutomationContext | null,
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1040,6 +1051,8 @@ export async function runCarmenAI(
       : undefined,
     surface: "whatsapp",
     wa_notify: waNotify || null,
+    // Admin-authored per-automation instructions (service-only in run-ai-agent).
+    ...(automationCtx ? { carmen_automation: automationCtx } : {}),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1213,6 +1226,12 @@ export interface CarmenContext {
    * default-deny so Carmen never answers in the operator's private groups.
    */
   sourceChannel?: "own_instance" | "operator_mirror" | null;
+  /**
+   * Role of the receiving connection. "secondary" (e.g. the owner's personal
+   * phone) only wakes Carmen for a trigger-word message through an automation
+   * pinned to this connection — see secondaryCarmenGate. Default: primary.
+   */
+  connectionRole?: CarmenConnectionRole;
   /** Transport-specific send function. Returns true on success. */
   sendMessage: (chatId: string, message: string) => Promise<boolean>;
   /** True when the inbound message was a voice note (transcribed audio). */
@@ -1640,6 +1659,7 @@ export async function handleCarmenMessage(
     isGroup,
     sourceChannel,
     sendMessage,
+    connectionRole,
   } = ctx;
   const chatId = origin.chatId;
 
@@ -1657,7 +1677,13 @@ export async function handleCarmenMessage(
     supabase,
     tenantId,
     integrationId,
-    { isGroup, chatId, phoneNumber, messageText },
+    {
+      isGroup,
+      chatId,
+      phoneNumber,
+      messageText,
+      pinnedOnly: connectionRole === "secondary",
+    },
   );
 
   // HARD GUARD: if no flow-based Carmen automation is pinned to this integration,
@@ -1688,6 +1714,26 @@ export async function handleCarmenMessage(
   }
 
   const cfg = earlyAutomation?.configuration || {};
+
+  if (connectionRole === "none") {
+    return { handled: false, reason: "connection_role_none" };
+  }
+  if (connectionRole === "secondary") {
+    const gate = secondaryCarmenGate({
+      isIncoming,
+      isManualOutgoing,
+      isGroup,
+      hasTrigger: messageHasTrigger(normalizedMsg, resolveTriggerKeywords(cfg)),
+      pinnedIntegrationId: cfg.carmen_integration_id,
+      integrationId,
+      scopeMode: cfg.carmen_scope_mode,
+    });
+    if (!gate.allow) {
+      return { handled: false, reason: `secondary_${gate.reason}` };
+    }
+  }
+  // Per-automation instructions for this conversation.
+  const automationCtx = buildCarmenAutomationContext(earlyAutomation?.id, cfg);
   const idleMinutes =
     Number(cfg.session_timeout_minutes) > 0
       ? Number(cfg.session_timeout_minutes)
@@ -2093,6 +2139,9 @@ export async function handleCarmenMessage(
         effectivePhone,
         effectiveName,
         waNotify,
+        // Only the automation that routes this session may contribute
+        // instructions — never another automation's.
+        routingAutomationId === earlyAutomation?.id ? automationCtx : null,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -2430,6 +2479,7 @@ export async function handleCarmenMessage(
       phoneNumber,
       senderName,
       waNotify,
+      automationCtx,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {
@@ -2505,6 +2555,7 @@ export async function handleCarmenMessage(
         phoneNumber,
         senderName,
         waNotify,
+        automationCtx,
       );
     } catch (err) {
       console.error("[CARMEN] contextual opener failed, falling back:", err);

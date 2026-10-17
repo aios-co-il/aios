@@ -309,7 +309,12 @@ export const MENU_TABS: MenuTab[] = [
             route: "/automations",
             icon: Zap,
           },
-          { key: "agents", label: "סוכני AI", route: "/agents", icon: Bot },
+          {
+            key: "agents",
+            label: "כרמן וסוכני AI",
+            route: "/agents",
+            icon: Bot,
+          },
           {
             key: "visual-workspace",
             label: "Visual Workspace",

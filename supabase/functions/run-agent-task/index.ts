@@ -16,6 +16,14 @@ function originatingNotifyIsValid(notify: any): boolean {
   });
 }
 
+const UI_TASK_MODES = new Set([
+  "sales",
+  "support",
+  "copywriting",
+  "analyst",
+  "scheduler",
+  "onboarding",
+]);
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -513,6 +521,16 @@ Deno.serve(async (req) => {
         user_id: userId,
         conversation_history: previousHistory,
         surface: "task",
+        // Per-task executor engine chosen in Carmen's tasks panel.
+        ...(task.engine_model ? { model_override: task.engine_model } : {}),
+        ...(Array.isArray(task.task_skills) && task.task_skills.length
+          ? { task_skills: task.task_skills }
+          : {}),
+        // Only the specialist modes chosen in the tasks UI; internal markers
+        // such as "agent" / "background" / "anomaly_alert" stay server-side.
+        ...(UI_TASK_MODES.has(task.task_mode)
+          ? { task_mode: task.task_mode }
+          : {}),
       }),
     });
 

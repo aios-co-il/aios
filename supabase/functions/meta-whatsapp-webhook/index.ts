@@ -4,6 +4,10 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { handleCarmenMessage } from "../_shared/carmen.ts";
 import {
+  type CarmenConnectionRole,
+  resolveCarmenConnectionRole,
+} from "../_shared/carmen-connection-role.ts";
+import {
   collectWebhookMessages,
   DEFAULT_LEAD_THANKS_TEXT,
   digitsOnly,
@@ -612,8 +616,33 @@ Deno.serve(async (request) => {
                 if (copyError) throw copyError;
               }
 
+              // Respect the connection's Carmen role (primary/secondary/none),
+              // like the Green and Manus webhooks. Fail closed to secondary.
+              let connectionRole: CarmenConnectionRole =
+                settings?.carmen_role === "none" ? "none" : "secondary";
+              try {
+                const { data: manusOwner, error: manusErr } = await admin
+                  .from("tenant_integrations")
+                  .select("id")
+                  .eq("tenant_id", target.tenantId)
+                  .eq("integration_type", "manus_wa")
+                  .eq("is_active", true)
+                  .limit(1)
+                  .maybeSingle();
+                if (manusErr) throw manusErr;
+                connectionRole = resolveCarmenConnectionRole(integration, {
+                  tenantHasActiveManus: Boolean(manusOwner?.id),
+                });
+              } catch (roleErr) {
+                console.error(
+                  "[meta-wa] manus_wa ownership check failed — Carmen in secondary mode:",
+                  roleErr,
+                );
+              }
+
               await handleCarmenMessage({
                 supabase: admin,
+                connectionRole,
                 tenantId: target.tenantId,
                 integrationId: integration.id,
                 connectionUserId: target.userId,

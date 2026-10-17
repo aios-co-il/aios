@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Loader2,
   Wrench,
@@ -169,7 +168,8 @@ export function AgentAccessTab({ agent }: { agent: any }) {
         </div>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-280px)]">
+      {/* Content-height: the hosting page/panel owns scrolling (no viewport-height nesting). */}
+      <div>
         <div className="grid gap-4 md:grid-cols-2 pl-2">
           {/* Tools */}
           <Card className="p-4 space-y-3 md:col-span-2">
@@ -243,7 +243,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
             )}
           </Card>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

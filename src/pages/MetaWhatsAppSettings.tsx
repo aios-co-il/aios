@@ -217,7 +217,14 @@ function loadFacebookSdk(appId: string, version: string) {
   });
 }
 
-export default function MetaWhatsAppSettings() {
+export type MetaWhatsAppSettingsProps = {
+  /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */
+  embedded?: boolean;
+};
+
+export default function MetaWhatsAppSettings({
+  embedded = false,
+}: MetaWhatsAppSettingsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
@@ -656,38 +663,47 @@ export default function MetaWhatsAppSettings() {
   };
 
   return (
-    <div className="container mx-auto max-w-5xl p-6" dir="rtl">
-      <Button
-        variant="ghost"
-        onClick={() => navigate(buildPath("/integrations"))}
-        className="mb-6"
-      >
-        <ArrowRight className="ml-2 h-4 w-4" />
-        חזרה לאינטגרציות
-      </Button>
+    <div
+      className={embedded ? "w-full" : "container mx-auto max-w-5xl p-6"}
+      dir="rtl"
+    >
+      {!embedded && (
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(buildPath("/integrations"))}
+            className="mb-6"
+          >
+            <ArrowRight className="ml-2 h-4 w-4" />
+            חזרה לאינטגרציות
+          </Button>
 
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 p-2.5">
-              <MessageCircle className="h-7 w-7 text-white" />
-            </div>
+          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold">WhatsApp Business הרשמי</h1>
-              <p className="text-muted-foreground">
-                חיבור ישיר ל־Meta WhatsApp Cloud API
-              </p>
+              <div className="mb-2 flex items-center gap-3">
+                <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 p-2.5">
+                  <MessageCircle className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold">
+                    WhatsApp Business הרשמי
+                  </h1>
+                  <p className="text-muted-foreground">
+                    חיבור ישיר ל־Meta WhatsApp Cloud API
+                  </p>
+                </div>
+              </div>
             </div>
+            <Badge
+              variant="outline"
+              className="gap-1.5 border-emerald-500/40 text-emerald-700"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              API רשמי של Meta
+            </Badge>
           </div>
-        </div>
-        <Badge
-          variant="outline"
-          className="gap-1.5 border-emerald-500/40 text-emerald-700"
-        >
-          <ShieldCheck className="h-4 w-4" />
-          API רשמי של Meta
-        </Badge>
-      </div>
+        </>
+      )}
 
       {configError && (
         <Alert variant="destructive" className="mb-6">
@@ -700,7 +716,14 @@ export default function MetaWhatsAppSettings() {
         </Alert>
       )}
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+      {/* lg: is a viewport breakpoint; inside a narrow host panel keep one column. */}
+      <div
+        className={
+          embedded
+            ? "mb-6 grid gap-6"
+            : "mb-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]"
+        }
+      >
         <Card>
           <CardHeader>
             <CardTitle>חיבור מספר WhatsApp</CardTitle>

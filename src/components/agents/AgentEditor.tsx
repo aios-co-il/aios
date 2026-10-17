@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useCarmenIdentity,
   readAgentIdentity,
@@ -47,7 +48,29 @@ function isCarmen(name: string) {
   return n.includes("carmen") || name?.includes("כרמן");
 }
 
-export function AgentEditor({ agent }: { agent: any }) {
+export interface AgentEditorProps {
+  agent: any;
+  /**
+   * Render inside a host panel (Carmen's screen). Tabs use local/controlled
+   * state instead of the URL ?tab= param, buttons that navigate to other routes
+   * are hidden, and the layout is content-height (the host owns scrolling).
+   */
+  embedded?: boolean;
+  /** Controlled active tab (e.g. "profile", "runs"). Puts tabs in controlled mode. */
+  tab?: string;
+  /** Called when the user picks a tab in controlled/embedded mode. */
+  onTabChange?: (tab: string) => void;
+  /** Replaces navigation to /llm-settings from the brain selectors. */
+  onManageKeys?: () => void;
+}
+
+export function AgentEditor({
+  agent,
+  embedded = false,
+  tab,
+  onTabChange,
+  onManageKeys,
+}: AgentEditorProps) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const carmen = isCarmen(agent.name);
@@ -70,7 +93,13 @@ export function AgentEditor({ agent }: { agent: any }) {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
+    <div
+      className={
+        embedded
+          ? "flex flex-col"
+          : "flex-1 flex flex-col h-full overflow-hidden"
+      }
+    >
       <div className="p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 flex-wrap">
         {carmen ? (
           <CarmenPortrait
@@ -110,21 +139,49 @@ export function AgentEditor({ agent }: { agent: any }) {
           <BrainSelector
             value={agent.engine}
             onChange={(v) => updateEngine.mutate(v)}
+            onManageKeys={onManageKeys}
           />
         </div>
       </div>
 
-      <AgentTabsWithUrl agent={agent} />
+      <AgentTabsWithUrl
+        agent={agent}
+        embedded={embedded}
+        tab={tab}
+        onTabChange={onTabChange}
+        onManageKeys={onManageKeys}
+      />
     </div>
   );
 }
 
-function AgentTabsWithUrl({ agent }: { agent: any }) {
+function AgentTabsWithUrl({
+  agent,
+  embedded = false,
+  tab,
+  onTabChange,
+  onManageKeys,
+}: Omit<AgentEditorProps, "agent"> & { agent: any }) {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { buildPath } = useTenantPath();
-  const initial = params.get("tab") || "profile";
   const carmen = isCarmen(agent.name);
+  // Embedded (or explicitly controlled) tabs never read/write the URL, so the
+  // host route's query string is left alone.
+  const controlled = embedded || tab !== undefined;
+  const [localTab, setLocalTab] = useState(tab ?? "profile");
+  const initial = controlled
+    ? (tab ?? localTab)
+    : params.get("tab") || "profile";
+  const selectTab = (v: string) => {
+    if (controlled) {
+      if (tab === undefined) setLocalTab(v);
+      onTabChange?.(v);
+      return;
+    }
+    params.set("tab", v);
+    setParams(params, { replace: true });
+  };
   const visualIdentity = readAgentIdentity(agent.metadata);
   const identity = useCarmenIdentity();
 
@@ -184,11 +241,10 @@ function AgentTabsWithUrl({ agent }: { agent: any }) {
   return (
     <Tabs
       value={initial}
-      onValueChange={(v) => {
-        params.set("tab", v);
-        setParams(params, { replace: true });
-      }}
-      className="flex-1 flex flex-col overflow-hidden"
+      onValueChange={selectTab}
+      className={
+        embedded ? "flex flex-col" : "flex-1 flex flex-col overflow-hidden"
+      }
     >
       <div className="mx-4 mt-3 flex items-center gap-2 flex-wrap">
         <DropdownMenu>
@@ -212,10 +268,7 @@ function AgentTabsWithUrl({ agent }: { agent: any }) {
                 {g.items.map((it) => (
                   <DropdownMenuItem
                     key={it.value}
-                    onSelect={() => {
-                      params.set("tab", it.value);
-                      setParams(params, { replace: true });
-                    }}
+                    onSelect={() => selectTab(it.value)}
                     className={
                       it.value === initial ? "bg-accent font-medium" : ""
                     }
@@ -228,25 +281,39 @@ function AgentTabsWithUrl({ agent }: { agent: any }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
-          variant="default"
-          size="sm"
-          className="gap-2"
-          onClick={() => navigate(buildPath("/agent-tasks"))}
-        >
-          <ListTodo className="h-4 w-4" />
-          משימות סוכן
-        </Button>
+        {/* These navigate to other routes — hidden when embedded in Carmen's screen. */}
+        {!embedded && carmen && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate(buildPath("/command-center?settings="))}
+          >
+            <Crown className="h-4 w-4" />
+            מסך כרמן (הכל במקום אחד)
+          </Button>
+        )}
+        {!embedded && (
+          <Button
+            variant={carmen ? "outline" : "default"}
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate(buildPath("/agent-tasks"))}
+          >
+            <ListTodo className="h-4 w-4" />
+            משימות סוכן
+          </Button>
+        )}
       </div>
-      <div className="flex-1 overflow-auto p-4">
+      <div className={embedded ? "p-4" : "flex-1 overflow-auto p-4"}>
         <TabsContent value="profile" className="mt-0">
-          <ProfileTab agent={agent} />
+          <ProfileTab agent={agent} onManageKeys={onManageKeys} />
         </TabsContent>
         <TabsContent value="goals" className="mt-0">
           <GoalsTab agentId={agent.id} />
         </TabsContent>
         <TabsContent value="tasks" className="mt-0">
-          <TasksTab agent={agent} />
+          <TasksTab agent={agent} hideFullViewLink={embedded} />
         </TabsContent>
         <TabsContent value="tools" className="mt-0">
           <ToolsTab agent={agent} />
@@ -283,7 +350,7 @@ function AgentTabsWithUrl({ agent }: { agent: any }) {
         </TabsContent>
         {/* Identity & growth — available for every agent */}
         <TabsContent value="skins" className="mt-0">
-          <SkinsManager />
+          <SkinsManager embedded={embedded} />
         </TabsContent>
         <TabsContent value="access" className="mt-0">
           <AgentAccessTab agent={agent} />

@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Activity,
   Brain,
@@ -112,14 +111,16 @@ export function RunsTab({ agent }: { agent: any }) {
   });
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-220px)]">
+    // Content-height layout: stacks (list above detail) until the container is
+    // wide enough, so it fits embedded panels without viewport-height nesting.
+    <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4 items-start">
       <Card className="p-2 overflow-hidden flex flex-col">
         <div className="flex items-center gap-2 px-2 py-1">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="font-semibold text-sm">ריצות אחרונות</h3>
           <Badge variant="outline">{runs.length}</Badge>
         </div>
-        <ScrollArea className="flex-1 mt-2">
+        <div className="mt-2 max-h-[40vh] xl:max-h-[65vh] overflow-y-auto">
           <div className="space-y-1">
             {runs.length === 0 && (
               <div className="text-xs text-muted-foreground p-3 text-center">
@@ -185,16 +186,16 @@ export function RunsTab({ agent }: { agent: any }) {
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </Card>
 
       <Card className="p-3 overflow-hidden flex flex-col">
         {!selectedRunId ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
             בחר ריצה כדי לראות את הצעדים
           </div>
         ) : (
-          <ScrollArea className="flex-1">
+          <div className="max-h-[65vh] overflow-y-auto">
             <div className="space-y-2">
               {steps.length === 0 && (
                 <div className="text-xs text-muted-foreground p-3 text-center">
@@ -250,7 +251,7 @@ export function RunsTab({ agent }: { agent: any }) {
                 );
               })}
             </div>
-          </ScrollArea>
+          </div>
         )}
       </Card>
     </div>

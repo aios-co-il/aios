@@ -1,7 +1,7 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { File as FileIcon, Image as ImageIcon, Wrench } from "lucide-react";
 import { spriteForMessage } from "@/lib/agentSeats";
@@ -15,6 +15,14 @@ interface ChatMessageRowProps {
   channel?: string | null;
   tool?: string;
 }
+
+// Links in agent replies must never navigate away from Carmen's screen:
+// open them in a new tab. Spread props so prose/cc-md link styling is kept.
+const MARKDOWN_COMPONENTS: Components = {
+  a: ({ node: _node, ...props }) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
+};
 
 function AttachmentStrip({
   attachments,
@@ -107,7 +115,10 @@ export function ChatMessageRow({
       <div className={`cc-msg-bubble${isUser ? " is-user" : ""}`}>
         {(content || !hasAttachments) && (
           <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={MARKDOWN_COMPONENTS}
+            >
               {content ?? ""}
             </ReactMarkdown>
           </div>

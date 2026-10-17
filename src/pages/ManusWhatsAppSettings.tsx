@@ -63,7 +63,14 @@ type Integration = {
   created_at: string;
 };
 
-export default function ManusWhatsAppSettings() {
+export type ManusWhatsAppSettingsProps = {
+  /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */
+  embedded?: boolean;
+};
+
+export default function ManusWhatsAppSettings({
+  embedded = false,
+}: ManusWhatsAppSettingsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
@@ -296,36 +303,54 @@ export default function ManusWhatsAppSettings() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl" dir="rtl">
-      <Button
-        variant="ghost"
-        onClick={() => navigate(buildPath("/chat-integrations"))}
-        className="mb-6"
-      >
-        <ArrowRight className="h-4 w-4 ml-2" />
-        חזרה לאינטגרציות
-      </Button>
-
-      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600">
-              <Webhook className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold">Manus WhatsApp Gateway</h1>
-          </div>
-          <p className="text-muted-foreground">
-            ניהול חיבורים שלך ל-Manus. כל חיבור = Instance נפרד ב-Manus (לדוגמה:
-            כרמן, וואטסאפ לקוחות וכו׳).
+    <div
+      className={embedded ? "w-full" : "container mx-auto p-6 max-w-4xl"}
+      dir="rtl"
+    >
+      {embedded ? (
+        <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-muted-foreground">
+            כל חיבור = Instance נפרד ב-Manus (לדוגמה: כרמן, וואטסאפ לקוחות
+            וכו׳).
           </p>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4 ml-2" />
+            הוסף חיבור Manus
+          </Button>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 ml-2" />
-          הוסף חיבור Manus
-        </Button>
-      </div>
+      ) : (
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(buildPath("/chat-integrations"))}
+            className="mb-6"
+          >
+            <ArrowRight className="h-4 w-4 ml-2" />
+            חזרה לאינטגרציות
+          </Button>
 
-      <Card className="mb-6">
+          <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600">
+                  <Webhook className="h-6 w-6 text-white" />
+                </div>
+                <h1 className="text-3xl font-bold">Manus WhatsApp Gateway</h1>
+              </div>
+              <p className="text-muted-foreground">
+                ניהול חיבורים שלך ל-Manus. כל חיבור = Instance נפרד ב-Manus
+                (לדוגמה: כרמן, וואטסאפ לקוחות וכו׳).
+              </p>
+            </div>
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4 ml-2" />
+              הוסף חיבור Manus
+            </Button>
+          </div>
+        </>
+      )}
+
+      <Card className={embedded ? "mb-4" : "mb-6"}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-primary" />
@@ -459,7 +484,9 @@ export default function ManusWhatsAppSettings() {
                         </Badge>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div
+                      className={`flex gap-2${embedded ? " flex-wrap" : ""}`}
+                    >
                       <Button
                         variant="outline"
                         size="sm"

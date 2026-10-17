@@ -63,7 +63,14 @@ const SCHEDULE_LABELS: Record<string, string> = {
   recurring: "חוזר",
 };
 
-export function TasksTab({ agent }: { agent: any }) {
+export function TasksTab({
+  agent,
+  hideFullViewLink,
+}: {
+  agent: any;
+  /** Hide the "full view" button that navigates to /agent-tasks (e.g. when embedded in Carmen's screen). */
+  hideFullViewLink?: boolean;
+}) {
   const { tenantId } = useCurrentTenant();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -167,13 +174,15 @@ export function TasksTab({ agent }: { agent: any }) {
             <SelectItem value="recurring">חוזרות</SelectItem>
           </SelectContent>
         </Select>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => navigate(buildPath("/agent-tasks"))}
-        >
-          תצוגה מלאה
-        </Button>
+        {!hideFullViewLink && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(buildPath("/agent-tasks"))}
+          >
+            תצוגה מלאה
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
