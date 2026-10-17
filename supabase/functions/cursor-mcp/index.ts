@@ -95,7 +95,7 @@ const TOOLS = [
         },
         branch: {
           type: "string",
-          description: "Optional base branch (startingRef). Default: main.",
+          description: "Optional base branch (startingRef). Default: develop.",
         },
         goal_id: {
           type: "string",
@@ -598,7 +598,7 @@ async function createCursorAgent(
 ): Promise<FireResult> {
   const repoUrl = getRepoUrl();
   const startingRef =
-    opts?.startingRef || Deno.env.get("CURSOR_STARTING_REF") || "main";
+    opts?.startingRef || Deno.env.get("CURSOR_STARTING_REF") || "develop";
   const envName = Deno.env.get("CURSOR_CLOUD_ENV_NAME") || "";
   const modelId = Deno.env.get("CURSOR_MODEL_ID") || "";
   const autoCreatePR =
@@ -1010,7 +1010,7 @@ async function handleToolCall(
       `Task:\n${task}\n` +
       (branch ? `\nBase/target branch: ${branch}\n` : ``) +
       (context ? `\nContext:\n${context}\n` : ``) +
-      `\nPlease implement this in the AIOS codebase and open a pull request when done.` +
+      `\nPlease implement this in the AIOS codebase and open a pull request against the develop branch (never main) when done.` +
       (await recentDispatchContext(ctx.tenantId)) +
       teachingBlock(ctx.tenantId) +
       callbackBlock;
