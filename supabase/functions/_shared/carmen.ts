@@ -23,6 +23,10 @@ import {
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
 import {
+  loadGroupAgencyVoice,
+  loadRelationshipNote,
+} from "./carmen-group-verification.ts";
+import {
   SURFACE_GROUP,
   identityAllowsSurface,
   mergeCarmenScopeConfig,
@@ -1978,6 +1982,20 @@ export async function handleCarmenMessage(
           rosterErr,
         );
       }
+    }
+    try {
+      identityContext += await loadRelationshipNote(
+        supabase,
+        tenantId,
+        phoneNumber,
+      );
+    } catch (noteErr) {
+      console.warn("[carmen] relationship note failed (non-fatal)", noteErr);
+    }
+    try {
+      identityContext += await loadGroupAgencyVoice(supabase, tenantId, chatId);
+    } catch (voiceErr) {
+      console.warn("[carmen] agency voice failed (non-fatal)", voiceErr);
     }
   }
 

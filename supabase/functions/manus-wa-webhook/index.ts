@@ -32,6 +32,7 @@ import {
   shouldMarkResolvedLidAsOutgoing,
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
+import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -846,16 +847,30 @@ Deno.serve(async (req) => {
       messageText.trim()
     ) {
       try {
-        const { data: pendings } = await supabase
-          .from("wa_pending_activations")
-          .select("id, phone, code, activation_message_id")
-          .eq("tenant_id", tenantId)
-          .eq("status", "pending")
-          .gte(
-            "created_at",
-            new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-          )
-          .limit(10);
+        const pendingSince = new Date(
+          Date.now() - 48 * 60 * 60 * 1000,
+        ).toISOString();
+        const pendingQuery = () =>
+          supabase
+            .from("wa_pending_activations")
+            .select("id, phone, code, activation_message_id, group_chat_id")
+            .eq("tenant_id", tenantId)
+            .eq("status", "pending")
+            .gte("created_at", pendingSince)
+            .limit(10);
+        let { data: pendings, error: pendingErr } = await pendingQuery();
+        if (pendingErr) {
+          const fallback = await supabase
+            .from("wa_pending_activations")
+            .select("id, phone, code, activation_message_id")
+            .eq("tenant_id", tenantId)
+            .eq("status", "pending")
+            .gte("created_at", pendingSince)
+            .limit(10);
+          pendings = fallback.data;
+        } else {
+          pendings = (pendings || []).filter((row: any) => !row.group_chat_id);
+        }
         if (pendings && pendings.length > 0) {
           const quotedId = String(
             (payload as any).quotedMsgId ||
@@ -1748,6 +1763,59 @@ Deno.serve(async (req) => {
           console.warn(
             "[manus-wa group] chat_messages insert error (non-fatal):",
             insertErr,
+          );
+        }
+      }
+
+      if (!isOutgoingFromPhone && messageText.trim()) {
+        try {
+          const { data: boundGroup } = await supabase
+            .from("whatsapp_groups")
+            .select("id")
+            .eq("tenant_id", groupTenantId)
+            .eq("group_chat_id", groupChatId)
+            .limit(1)
+            .maybeSingle();
+          const bound = await consumeGroupActivation(supabase, {
+            tenantId: groupTenantId,
+            groupChatId,
+            groupId: boundGroup?.id || null,
+            messageText,
+            lid: /@lid/i.test(authorRaw || "") ? authorRaw : "",
+            senderName,
+            connectionUserId,
+          });
+          if (bound.phone) {
+            authorPhone = String(bound.phone).replace(/\D/g, "");
+            if (boundGroup?.id) {
+              fetch(
+                `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({
+                    integrationId: integ.id,
+                    tenantId: groupTenantId,
+                    groupId: boundGroup.id,
+                    senderUserId: connectionUserId,
+                    message: "זיהיתי אותך ✅",
+                  }),
+                },
+              ).catch((sendErr) =>
+                console.warn(
+                  "[manus-wa group] activation confirm failed",
+                  sendErr,
+                ),
+              );
+            }
+          }
+        } catch (bindErr) {
+          console.warn(
+            "[manus-wa group] activation bind failed (non-fatal)",
+            bindErr,
           );
         }
       }

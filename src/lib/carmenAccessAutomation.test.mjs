@@ -11,6 +11,7 @@ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", ()
         display_name: "אנה",
         status: "approved",
         surfaces: ["whatsapp_private"],
+        relationship_note: "דבר קצר",
       },
     ],
     policyPhones: [
@@ -21,7 +22,14 @@ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", ()
   assert.ok(
     out.some((r) => r.phone === "972501111111" && r.source === "automation"),
   );
-  assert.ok(out.some((r) => r.phone === "972502222222" && r.label === "אנה"));
+  assert.ok(
+    out.some(
+      (r) =>
+        r.phone === "972502222222" &&
+        r.label === "אנה" &&
+        r.relationship_note === "דבר קצר",
+    ),
+  );
   assert.ok(out.some((r) => r.phone === "972503333333" && r.label === "דוד"));
 });
 

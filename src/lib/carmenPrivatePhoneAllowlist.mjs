@@ -48,6 +48,7 @@ export function mergePrivatePhoneAllowlist(params) {
         status: id.status,
         surfaces,
         dev_escalation_tier: id.dev_escalation_tier || null,
+        relationship_note: id.relationship_note || undefined,
         source: "identity",
       },
       2,
