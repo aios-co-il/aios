@@ -3,12 +3,12 @@ on:
   push:
     branches: [feature/creative-video-production-792]
     paths:
-      - 'workers/creative-video/remotion/**'
-      - '.github/workflows/creative-remotion-smoke.yml'
+      - "workers/creative-video/remotion/**"
+      - ".github/workflows/creative-remotion-smoke.yml"
   pull_request:
     paths:
-      - 'workers/creative-video/remotion/**'
-      - '.github/workflows/creative-remotion-smoke.yml'
+      - "workers/creative-video/remotion/**"
+      - ".github/workflows/creative-remotion-smoke.yml"
   workflow_dispatch:
 jobs:
   render:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Compile composition

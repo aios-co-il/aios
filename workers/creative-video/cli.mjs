@@ -3,7 +3,9 @@ import { renderVideo } from "./render.mjs";
 
 const [manifestPath, outputPath] = process.argv.slice(2);
 if (!manifestPath || !outputPath) {
-  console.error("Usage: node workers/creative-video/cli.mjs <manifest.json> <output.mp4>");
+  console.error(
+    "Usage: node workers/creative-video/cli.mjs <manifest.json> <output.mp4>",
+  );
   process.exit(2);
 }
 try {
