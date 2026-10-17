@@ -42,8 +42,8 @@ export function isCreativeDepartmentItem(
   if (payload.intake_source === "copy_link") return true;
   if (creativeStageId && item.current_stage_id === creativeStageId) return true;
   if (Array.isArray(payload.variations)) return true;
-  if (payload.project_type === "video" && Array.isArray(payload.storyboard))
-    return true;
+  // Video scenes live in marketing_video_scenes; older items may still carry payload.storyboard.
+  if (payload.project_type === "video") return true;
   if (payload.project_type === "static" && !!payload.image_url) return true;
   if (!department && !!payload.image_url) return true;
   return false;

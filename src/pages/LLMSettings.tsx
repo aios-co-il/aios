@@ -53,7 +53,37 @@ const PROVIDERS = [
     helpUrl: "https://aistudio.google.com/app/apikey",
     color: "from-blue-500 to-indigo-600",
   },
+  {
+    key: "elevenlabs_api_key",
+    name: "ElevenLabs (סצנות וסאונד)",
+    placeholder: "xi-...",
+    help: "elevenlabs.io/app/settings/api-keys",
+    helpUrl: "https://elevenlabs.io/app/settings/api-keys",
+    color: "from-zinc-700 to-zinc-900",
+  },
+  {
+    key: "higgsfield_api_key_id",
+    name: "Higgsfield — מזהה מפתח",
+    placeholder: "key id",
+    help: "docs.higgsfield.ai",
+    helpUrl: "https://docs.higgsfield.ai/docs",
+    color: "from-fuchsia-500 to-pink-600",
+  },
+  {
+    key: "higgsfield_api_key_secret",
+    name: "Higgsfield — סוד המפתח",
+    placeholder: "key secret",
+    help: "docs.higgsfield.ai",
+    helpUrl: "https://docs.higgsfield.ai/docs",
+    color: "from-fuchsia-500 to-pink-600",
+  },
 ] as const;
+
+const emptyKeyForm = (): Record<ProviderKey, string> =>
+  Object.fromEntries(PROVIDERS.map((provider) => [provider.key, ""])) as Record<
+    ProviderKey,
+    string
+  >;
 
 type ProviderKey = (typeof PROVIDERS)[number]["key"];
 
@@ -87,15 +117,11 @@ export default function LLMSettings() {
   const savedSettings = (integration?.settings as Record<string, string>) || {};
 
   // Inputs hold NEW values only. An empty input means "keep the existing key".
-  const [form, setForm] = useState<Record<ProviderKey, string>>({
-    openai_api_key: "",
-    anthropic_api_key: "",
-    google_api_key: "",
-  });
+  const [form, setForm] = useState<Record<ProviderKey, string>>(emptyKeyForm);
 
   useEffect(() => {
     // Reset inputs whenever the saved record loads/changes.
-    setForm({ openai_api_key: "", anthropic_api_key: "", google_api_key: "" });
+    setForm(emptyKeyForm());
   }, [integration?.id]);
 
   const hasKey = (key: ProviderKey) =>
@@ -149,11 +175,7 @@ export default function LLMSettings() {
     },
     onSuccess: () => {
       toast({ title: "נשמר בהצלחה", description: "מפתחות ה-AI עודכנו" });
-      setForm({
-        openai_api_key: "",
-        anthropic_api_key: "",
-        google_api_key: "",
-      });
+      setForm(emptyKeyForm());
       queryClient.invalidateQueries({
         queryKey: ["llm-integration", tenantId],
       });
@@ -185,8 +207,8 @@ export default function LLMSettings() {
         <div>
           <h1 className="text-3xl font-bold">מודלי AI (LLMs)</h1>
           <p className="text-muted-foreground">
-            חבר את מפתחות ה-API שלך ל-GPT, Claude ו-Gemini. הסוכנים (כולל כרמן)
-            ישתמשו במפתחות אלה כ"מוח".
+            חבר את מפתחות ה-API שלך. הסוכנים משתמשים ב-GPT, Claude ו-Gemini.
+            סטודיו הווידאו משתמש ב-ElevenLabs וב-Higgsfield.
           </p>
         </div>
       </div>

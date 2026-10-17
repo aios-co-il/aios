@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ensurePipelineForClient } from "@/components/marketing/lib/ensurePipeline";
@@ -46,6 +46,17 @@ import { CreativeImage } from "@/components/marketing/departments/creative/Creat
 import { CreativeLayerEditor } from "@/components/marketing/departments/creative/CreativeLayerEditor";
 import { CreativeStoryboardEditor } from "@/components/marketing/departments/creative/CreativeStoryboardEditor";
 import {
+  REFERENCE_MAX_BYTES,
+  isReferenceRunActive,
+  proposalToFrames,
+} from "@/components/marketing/departments/creative/videoReference";
+import {
+  getCharacterRefUrl,
+  getStillModel,
+  sanitizeVideoStillPrompt,
+  type StillModel,
+} from "@/components/marketing/departments/creative/videoStill";
+import {
   CreativeEraseDialog,
   type EraseJob,
 } from "@/components/marketing/departments/creative/CreativeEraseDialog";
@@ -72,7 +83,6 @@ import {
   getApprovedCopyConcepts,
   getConceptBrief,
   cameFromCopy,
-  getStoryboard,
   getStoryboardStyle,
   getVariations,
   isVariationLiveText,
@@ -80,12 +90,50 @@ import {
   makeVariation,
   projectTypeLabel,
   pickStoryboardReferences,
+  storyboardFrameX,
 } from "@/components/marketing/departments/creative/utils";
 import { mergeCreativeVariations } from "@/components/marketing/departments/creative/mergeVariations";
+import {
+  approveSceneClip,
+  approveSceneStill,
+  fetchLatestReferenceRun,
+  fetchLatestRenderRun,
+  queueVideoRender,
+  fetchSceneStillVersions,
+  fetchVideoStoryboards,
+  persistedStillsOf,
+  queueReferenceAnalysis,
+  queueSceneClips,
+  queueSceneSound,
+  produceVideo,
+  fetchVideoProduction,
+  saveVideoStoryboard,
+  selectSceneStill,
+  signCreativeVideoPaths,
+} from "@/components/marketing/departments/creative/videoScenesStore";
 import {
   formatUsd,
   summarizeStoredImageCosts,
 } from "@/components/marketing/departments/creative/imageCost";
+import { mergeServerScenes } from "@/components/marketing/departments/creative/videoClip";
+import {
+  getProduction,
+  productionPlan,
+  productionProgress,
+  type ProductionPlan,
+} from "@/components/marketing/departments/creative/videoProduction";
+import {
+  getSceneEngine,
+  getSoundEngine,
+  getVoiceId,
+  musicEstimate,
+  sceneEstimate,
+  soundRunsSeparately,
+  framesToVoice,
+  voiceEstimate,
+  type SceneEngine,
+  type SoundEngine,
+} from "@/components/marketing/departments/creative/videoEngines";
 import { VisualStyleSelect } from "@/components/marketing/departments/creative/VisualStyleSelect";
 import { pickVariationComposition } from "@/components/marketing/departments/creative/compositions";
 import { isOptionalCostume } from "@/components/marketing/departments/creative/adaptiveTreatment";
@@ -141,10 +189,19 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -175,6 +232,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { CreativeStudioChat } from "./creative/CreativeStudioChat";
+import { studioContextAddon, type StudioUiAction } from "./creative/studioChat";
 import { toast } from "sonner";
 import {
   Archive,
@@ -183,11 +242,14 @@ import {
   Coins,
   Clock3,
   Clapperboard,
+  FolderOpen,
   History,
   Image as ImageIcon,
+  Layers,
   Link2,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Palette,
   PenLine,
   Plus,
@@ -205,6 +267,16 @@ interface Props {
   tenantId: string;
   onClientChange?: (id: string | null) => void;
 }
+
+const NO_STORYBOARDS: Record<string, StoryboardFrame[]> = {};
+const NO_FRAMES: StoryboardFrame[] = [];
+
+const resolveCharacterRef = async (
+  payload: Record<string, unknown> | null,
+): Promise<string | undefined> => {
+  const url = getCharacterRefUrl(payload);
+  return url ? ((await resolveCreativeImageUrl(url)) ?? url) : undefined;
+};
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -272,6 +344,12 @@ export function CreativeDepartment({
     "projects" | "project" | "scene" | "versions" | "edit" | null
   >(null);
   const [storyboardDraft, setStoryboardDraft] = useState<StoryboardFrame[]>([]);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [sceneFocus, setSceneFocus] = useState<{
+    id: string;
+    n: number;
+  } | null>(null);
+  const [openSceneId, setOpenSceneId] = useState<string | null>(null);
   const [generateProgress, setGenerateProgress] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CreativeVariation | null>(
     null,
@@ -301,6 +379,10 @@ export function CreativeDepartment({
   const abortControllersRef = useRef<AbortController[]>([]);
   const cursorJobIdsRef = useRef<Set<string>>(new Set());
   const persistChainRef = useRef(Promise.resolve());
+  /** Scene id → stored still URL, as last loaded from or saved to marketing_video_scenes. */
+  const persistedStillsRef = useRef<
+    Map<string, Map<string, string | undefined>>
+  >(new Map());
   const [activeJobs, setActiveJobs] = useState(0);
   const [busyIds, setBusyIds] = useState<string[]>([]);
 
@@ -435,9 +517,26 @@ export function CreativeDepartment({
   const generateAllLabel = generateFromConcepts
     ? "צור לכל הקונספטים"
     : "צור לכל הקופי";
+  // Sorted so a save (which reorders items by updated_at) keeps the same query key.
+  const videoItemIds = useMemo(
+    () =>
+      items
+        .filter((item) => getProjectType(item.payload) === "video")
+        .map((item) => item.id)
+        .sort(),
+    [items],
+  );
+  const { data: storyboards = NO_STORYBOARDS, isPending: loadingScenes } =
+    useQuery({
+      queryKey: ["creative-video-scenes", tenantId, videoItemIds.join(",")],
+      enabled: videoItemIds.length > 0,
+      queryFn: () => fetchVideoStoryboards(tenantId, videoItemIds),
+      // A new project changes the key; keep showing the loaded storyboards meanwhile.
+      placeholderData: (previous) => previous,
+    });
   const storyboard = useMemo(
-    () => getStoryboard(selected?.payload ?? null),
-    [selected?.payload],
+    () => (selectedId ? storyboards[selectedId] : undefined) ?? NO_FRAMES,
+    [storyboards, selectedId],
   );
   const selectedVariation =
     variations.find((variation) => variation.id === selectedVariationId) ??
@@ -472,8 +571,9 @@ export function CreativeDepartment({
     return items.map((item) => {
       const isVideo = getProjectType(item.payload) === "video";
       const format = defaultFormat(item.payload);
+      const frames = storyboards[item.id] ?? NO_FRAMES;
       const images = isVideo
-        ? getStoryboard(item.payload).map((frame) => ({
+        ? frames.map((frame) => ({
             generationCost: frame.generationCost,
             imageUrl: frame.imageUrl,
             format,
@@ -484,7 +584,7 @@ export function CreativeDepartment({
             source: variation.source,
             format: variation.format,
           }));
-      const next = buildNextGenerateEstimate(item);
+      const next = buildNextGenerateEstimate(item, frames);
       return {
         item,
         spent: summarizeStoredImageCosts(
@@ -496,7 +596,7 @@ export function CreativeDepartment({
         nextCount: next.count,
       };
     });
-  }, [items, runCosts]);
+  }, [items, runCosts, storyboards]);
 
   const { data: context, isLoading: loadingContext } = useQuery({
     queryKey: ["creative-department-context", selected?.client_id, tenantId],
@@ -604,9 +704,82 @@ export function CreativeDepartment({
     setPendingStyleId(null);
   }, [selectedId]);
 
+  // Keyed by content: a refetch under a new query key (e.g. after creating a project)
+  // returns new objects for unchanged storyboards and must not reset an unsaved draft.
+  const storyboardSignature = useMemo(
+    () => JSON.stringify(storyboard),
+    [storyboard],
+  );
+  // Live updates (clip jobs finishing) keep unsaved edits; see mergeServerScenes.
+  const lastServerStoryboardRef = useRef<{
+    itemId: string | null;
+    frames: StoryboardFrame[];
+  }>({ itemId: null, frames: NO_FRAMES });
   useEffect(() => {
-    setStoryboardDraft(storyboard);
-  }, [storyboard, selectedId]);
+    const last = lastServerStoryboardRef.current;
+    setStoryboardDraft((draft) =>
+      last.itemId === selectedId
+        ? mergeServerScenes(draft, storyboard, last.frames)
+        : storyboard,
+    );
+    lastServerStoryboardRef.current = {
+      itemId: selectedId,
+      frames: storyboard,
+    };
+    if (selectedId)
+      persistedStillsRef.current.set(selectedId, persistedStillsOf(storyboard));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- storyboardSignature stands in for storyboard
+  }, [storyboardSignature, selectedId]);
+
+  // Scene status and clips change from the render worker; refetch when they do.
+  const watchScenes = !!selectedId && projectType === "video";
+  useEffect(() => {
+    if (!watchScenes || !selectedId) return;
+    const channel = supabase
+      .channel(`creative-video-scenes-${selectedId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_video_scenes",
+          filter: `item_id=eq.${selectedId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ["creative-video-scenes", tenantId],
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [watchScenes, selectedId, tenantId, queryClient]);
+
+  const clipPaths = useMemo(
+    () =>
+      storyboardDraft
+        .map((frame) => frame.clipPath)
+        .filter((path): path is string => !!path)
+        .sort(),
+    [storyboardDraft],
+  );
+  const { data: signedClips = {} } = useQuery({
+    queryKey: ["creative-video-clip-urls", clipPaths.join(",")],
+    enabled: clipPaths.length > 0,
+    queryFn: () => signCreativeVideoPaths(clipPaths),
+    staleTime: 30 * 60_000,
+  });
+  const clipUrls = useMemo(
+    () =>
+      Object.fromEntries(
+        storyboardDraft
+          .filter((frame) => frame.clipPath && signedClips[frame.clipPath])
+          .map((frame) => [frame.id, signedClips[frame.clipPath!]]),
+      ),
+    [storyboardDraft, signedClips],
+  );
 
   useEffect(() => {
     if (!selectedVariationId && variations[0]?.id)
@@ -662,6 +835,9 @@ export function CreativeDepartment({
       }),
       queryClient.invalidateQueries({
         queryKey: ["creative-project-runs", tenantId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["creative-video-scenes", tenantId],
       }),
     ]);
   };
@@ -814,18 +990,28 @@ export function CreativeDepartment({
     );
   };
 
+  const saveScenes = async (itemId: string, nextFrames: StoryboardFrame[]) => {
+    await saveVideoStoryboard({
+      tenantId,
+      itemId,
+      frames: nextFrames,
+      persistedStills: persistedStillsRef.current.get(itemId) ?? new Map(),
+    });
+    persistedStillsRef.current.set(itemId, persistedStillsOf(nextFrames));
+  };
+
   const persistStoryboard = async (
     nextFrames: StoryboardFrame[],
     message = "ה-storyboard נשמר",
   ) => {
     if (!selected) return;
+    await saveScenes(selected.id, nextFrames);
     const existingStyle = getStoryboardStyle(selected.payload);
     const firstImage = [...nextFrames]
       .sort((a, b) => a.order - b.order)
       .find((frame) => frame.imageUrl)?.imageUrl;
     const nextPayload = {
       ...(selected.payload ?? {}),
-      storyboard: nextFrames,
       storyboard_style: {
         lock: buildVisualStyleLock(selected.payload, { storyboard: true }),
         referenceImageUrl: existingStyle.referenceImageUrl || firstImage,
@@ -928,9 +1114,19 @@ export function CreativeDepartment({
           ),
         )
       ).filter((url): url is string => !!url);
-      const referenceImageUrls = [...storyboardRefs, ...styleRefs].filter(
-        (url, index, list) => list.indexOf(url) === index,
-      );
+      const stillModel = getStillModel(selected.payload);
+      const characterRef =
+        frame.hasCharacter !== false
+          ? await resolveCharacterRef(selected.payload)
+          : undefined;
+      // The fixed character goes first; earlier frames follow for continuity.
+      const referenceImageUrls = (
+        characterRef
+          ? [characterRef, ...storyboardRefs]
+          : [...storyboardRefs, ...styleRefs]
+      )
+        .filter((url, index, list) => !!url && list.indexOf(url) === index)
+        .slice(0, stillModel === "nano-banana-pro" ? 3 : 2);
       const conceptLock = resolveVisualPrompt(
         selected.payload,
         getApprovedCopyConcepts(selected),
@@ -964,13 +1160,19 @@ export function CreativeDepartment({
         tenantId,
         itemId: selected.id,
         stageId: readyContext.creativeStage.id,
-        prompt: framePrompt,
+        prompt: sanitizeVideoStillPrompt(framePrompt),
         referenceImageUrls,
-        referenceRole: referenceImageUrls.length ? "continuity" : undefined,
+        referenceRole: characterRef
+          ? "character"
+          : referenceImageUrls.length
+            ? "continuity"
+            : undefined,
         size: imageSizeForFormat(defaultFormat(selected.payload)),
         quality: "medium",
         liveTextLayers: true,
         signal: generationSignal(),
+        imageModel: stillModel,
+        format: defaultFormat(selected.payload),
       });
       if (shouldLock) {
         toast.message(
@@ -1001,6 +1203,459 @@ export function CreativeDepartment({
     }
   };
 
+  const updateVideoSettings = async (patch: Record<string, unknown>) => {
+    if (!selected) return;
+    const current = (selected.payload?.video ?? {}) as Record<string, unknown>;
+    const { error } = await supabase
+      .from("marketing_work_items")
+      .update({
+        payload: {
+          ...(selected.payload ?? {}),
+          video: { ...current, ...patch },
+        } as never,
+      })
+      .eq("id", selected.id)
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+    await refresh();
+  };
+
+  const [characterUploading, setCharacterUploading] = useState(false);
+  const uploadCharacter = async (file: File) => {
+    if (!selected) return;
+    setCharacterUploading(true);
+    try {
+      const asset = await uploadCreativeAsset({
+        supabase,
+        tenantId,
+        itemId: selected.id,
+        file,
+        kind: "reference",
+      });
+      await updateVideoSettings({ character_ref_url: asset.url });
+      toast.success("תמונת הדמות נשמרה ותישלח כרפרנס בכל סצנה");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "העלאת תמונת הדמות נכשלה"));
+    } finally {
+      setCharacterUploading(false);
+    }
+  };
+
+  const changeStillModel = (model: StillModel) =>
+    updateVideoSettings({ still_model: model }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת המודל נכשלה")),
+    );
+
+  const changeSceneEngine = (engine: SceneEngine) =>
+    updateVideoSettings({ scene_engine: engine }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת מנוע הסצנות נכשלה")),
+    );
+
+  const changeSoundEngine = (engine: SoundEngine) =>
+    updateVideoSettings({ sound_engine: engine }).catch((error: unknown) =>
+      toast.error(errorMessage(error, "שמירת מנוע הסאונד נכשלה")),
+    );
+
+  const editFrameWithPrompt = async (
+    frame: StoryboardFrame,
+    instruction: string,
+  ) => {
+    if (!selected || !frame.imageUrl) return;
+    const readyContext = ensureCreativeStageReady(context);
+    setGenerating(true);
+    try {
+      const current = await resolveCreativeImageUrl(frame.imageUrl);
+      const characterRef =
+        frame.hasCharacter !== false
+          ? await resolveCharacterRef(selected.payload)
+          : undefined;
+      const referenceImageUrls = [current, characterRef].filter(
+        (url): url is string => !!url,
+      );
+      const { imageUrl, cost } = await generateCreativeImage({
+        supabase,
+        tenantId,
+        itemId: selected.id,
+        stageId: readyContext.creativeStage.id,
+        prompt: sanitizeVideoStillPrompt(
+          [
+            `Director change for storyboard frame ${frame.order}: ${instruction}`,
+            "Change only what the director asks. Keep the same characters, framing, world, lighting and color grade.",
+          ].join("\n"),
+        ),
+        referenceImageUrls,
+        referenceRole: "revision",
+        size: imageSizeForFormat(defaultFormat(selected.payload)),
+        quality: "medium",
+        liveTextLayers: true,
+        imageModel: getStillModel(selected.payload),
+        format: defaultFormat(selected.payload),
+      });
+      const next = storyboardDraft.map((value) =>
+        value.id === frame.id
+          ? { ...value, imageUrl, generationCost: cost }
+          : value,
+      );
+      setStoryboardDraft(next);
+      await persistStoryboard(next, "הפריים עודכן — גרסה חדשה נשמרה");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עריכת הפריים נכשלה"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const approveFrame = async (frame: StoryboardFrame, approved: boolean) => {
+    try {
+      await approveSceneStill(tenantId, frame.id, approved);
+      toast.success(approved ? "הפריים אושר" : "האישור בוטל");
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עדכון האישור נכשל"));
+    }
+  };
+
+  const [clipConfirm, setClipConfirm] = useState<StoryboardFrame[] | null>(
+    null,
+  );
+  const [soundConfirm, setSoundConfirm] = useState<"voice" | "music" | null>(
+    null,
+  );
+  const [renderConfirm, setRenderConfirm] = useState(false);
+  const [queueingClips, setQueueingClips] = useState(false);
+
+  /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
+  const requestAnimate = (frames: StoryboardFrame[]) => {
+    if (frames.length === 0) return;
+    const edited = new Map(frames.map((frame) => [frame.id, frame]));
+    setStoryboardDraft((draft) =>
+      draft.map((frame) => edited.get(frame.id) ?? frame),
+    );
+    setClipConfirm(frames);
+  };
+
+  const confirmAnimate = async () => {
+    if (!selected || !clipConfirm) return;
+    setQueueingClips(true);
+    try {
+      const edited = new Map(clipConfirm.map((frame) => [frame.id, frame]));
+      const merged = storyboardDraft.map(
+        (frame) => edited.get(frame.id) ?? frame,
+      );
+      // Motion prompts typed in the sheet are saved before the worker reads them.
+      await saveScenes(selected.id, merged);
+      const sceneEngine = getSceneEngine(selected.payload);
+      const estimate = sceneEstimate(sceneEngine, clipConfirm);
+      const queued = await queueSceneClips({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        sceneIds: clipConfirm.map((frame) => frame.id),
+        aspect: defaultFormat(selected.payload),
+        estimate: { usd: estimate.usd, credits: estimate.credits },
+        provider: sceneEngine,
+        generateAudio:
+          getSoundEngine(selected.payload) === "higgsfield" &&
+          sceneEngine === "higgsfield",
+      });
+      setStoryboardDraft(
+        merged.map((frame) =>
+          edited.has(frame.id)
+            ? { ...frame, status: "clip_generating" as const }
+            : frame,
+        ),
+      );
+      setClipConfirm(null);
+      toast.success(
+        queued > 0 ? `${queued} סצנות נשלחו להנפשה` : "הסצנות כבר בהנפשה",
+      );
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסצנות להנפשה נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
+  const confirmSound = async () => {
+    if (!selected || !soundConfirm) return;
+    const kind = soundConfirm;
+    setQueueingClips(true);
+    try {
+      await saveScenes(selected.id, storyboardDraft);
+      const estimate =
+        kind === "voice"
+          ? voiceEstimate(storyboardDraft)
+          : musicEstimate(storyboardDraft);
+      const queued = await queueSceneSound({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        kind,
+        sceneIds:
+          kind === "voice"
+            ? framesToVoice(storyboardDraft).map((frame) => frame.id)
+            : [],
+        estimate: { usd: estimate.usd, credits: estimate.credits },
+        prompt:
+          kind === "music"
+            ? "Instrumental commercial bed matching the storyboard, no vocals and no lyrics."
+            : undefined,
+        voiceId: getVoiceId(selected.payload),
+      });
+      setSoundConfirm(null);
+      toast.success(
+        queued > 0
+          ? kind === "voice"
+            ? `${queued} קריינות נשלחו`
+            : "המוזיקה נשלחה"
+          : "הסאונד כבר בעבודה",
+      );
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסאונד נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
+  const confirmRender = async () => {
+    if (!selected) return;
+    setQueueingClips(true);
+    try {
+      const queued = await queueVideoRender({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        aspect: defaultFormat(selected.payload),
+      });
+      setRenderConfirm(false);
+      toast.success(queued > 0 ? "הסרט נשלח להרכבה" : "הסרט כבר בהרכבה");
+      await queryClient.invalidateQueries({
+        queryKey: ["creative-render-run", tenantId, selected.id],
+      });
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "שליחת הסרט להרכבה נכשלה"));
+    } finally {
+      setQueueingClips(false);
+    }
+  };
+
+  const approveClip = async (frame: StoryboardFrame, approved: boolean) => {
+    try {
+      await approveSceneClip(tenantId, frame.id, approved);
+      toast.success(approved ? "הקליפ אושר" : "אישור הקליפ בוטל");
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "עדכון אישור הקליפ נכשל"));
+    }
+  };
+
+  const selectFrameVersion = async (
+    frame: StoryboardFrame,
+    assetId: string,
+  ) => {
+    try {
+      await selectSceneStill(tenantId, frame.id, assetId);
+      await refresh();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "החזרת הגרסה נכשלה"));
+    }
+  };
+
+  // One-click production: state lives on the project (payload.video.production) and the
+  // worker moves it on; the screen polls it while it runs.
+  const { data: productionInfo } = useQuery({
+    queryKey: ["creative-video-production", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchVideoProduction(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      query.state.data?.production?.status === "running" ? 3000 : false,
+  });
+  const production = productionInfo?.production ?? null;
+  const productionRunning = production?.status === "running";
+  const [produceConfirm, setProduceConfirm] = useState<ProductionPlan | null>(
+    null,
+  );
+  const [producingStep, setProducingStep] = useState<string | null>(null);
+  // When a production finishes, load the new film right away.
+  const productionStatus = production?.status;
+  useEffect(() => {
+    if (!selectedId || !productionStatus || productionStatus === "running")
+      return;
+    void queryClient.invalidateQueries({
+      queryKey: ["creative-render-run", tenantId, selectedId],
+    });
+  }, [productionStatus, selectedId, tenantId, queryClient]);
+
+  const confirmProduce = async (approvedPlan?: ProductionPlan) => {
+    const plan = approvedPlan ?? produceConfirm;
+    if (!selected || !plan) return;
+    setProduceConfirm(null);
+    beginGeneration();
+    setGenerating(true);
+    try {
+      let current = [...storyboardDraft].sort((a, b) => a.order - b.order);
+      setProducingStep("שומר את הסטוריבורד…");
+      await saveScenes(selected.id, current);
+      // Stills are made here, in order, so every frame keeps the style of frame 1.
+      for (const [index, frame] of plan.stills.entries()) {
+        throwIfGenerationAborted(generateAbortRef.current);
+        setProducingStep(`יוצר פריים ${index + 1} מתוך ${plan.stills.length}…`);
+        const latest = current.find((value) => value.id === frame.id) ?? frame;
+        current = await generateStoryboardFrame(latest, current, {
+          lock: false,
+        });
+      }
+      throwIfGenerationAborted(generateAbortRef.current);
+      setProducingStep("שולח להפקה…");
+      const sceneEngine = getSceneEngine(selected.payload);
+      const soundEngine = getSoundEngine(selected.payload);
+      const separateSound = soundRunsSeparately(soundEngine, sceneEngine);
+      const result = await produceVideo({
+        itemId: selected.id,
+        stageId: ensureCreativeStageReady(context).creativeStage.id,
+        aspect: defaultFormat(selected.payload),
+        provider: sceneEngine,
+        estimate: {
+          usd: plan.usd.total,
+          clips: { usd: plan.usd.clips, credits: plan.credits },
+          voice: { usd: plan.usd.voice },
+          music: { usd: plan.usd.music },
+        },
+        withVoice: separateSound,
+        withMusic: separateSound,
+        voiceId: getVoiceId(selected.payload),
+        generateAudio:
+          soundEngine === "higgsfield" && sceneEngine === "higgsfield",
+      });
+      toast.success(
+        result.status === "running"
+          ? "הסרט כבר בהפקה"
+          : result.clips > 0
+            ? `ההפקה התחילה: ${result.clips} סצנות בהנפשה`
+            : "הסרט בהרכבה",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["creative-video-production", tenantId, selected.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["creative-render-run", tenantId, selected.id],
+        }),
+        refresh(),
+      ]);
+    } catch (error: unknown) {
+      if (isGenerationAborted(error))
+        toast.message("ההפקה נעצרה — מה שכבר נוצר נשמר");
+      else toast.error(errorMessage(error, "הפקת הסרט נכשלה"));
+    } finally {
+      setGenerating(false);
+      setGenerateProgress(null);
+      setProducingStep(null);
+    }
+  };
+
+  const requestProduce = () => {
+    if (!selected) return;
+    if (!selected.client_id) {
+      toast.error("יש לשייך לקוח לפרויקט לפני הפקת סרט");
+      return;
+    }
+    const plan = productionPlan(storyboardDraft, {
+      sceneEngine: getSceneEngine(selected.payload),
+      soundEngine: getSoundEngine(selected.payload),
+      stillModel: getStillModel(selected.payload),
+      hasMusic: productionInfo?.hasMusic ?? false,
+    });
+    // Only the free assembly is left: nothing to approve.
+    if (plan.assembleOnly) void confirmProduce(plan);
+    else setProduceConfirm(plan);
+  };
+
+  const { data: renderRun } = useQuery({
+    queryKey: ["creative-render-run", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchLatestRenderRun(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      productionRunning || isReferenceRunActive(query.state.data)
+        ? 4000
+        : false,
+  });
+  const renderPath = renderRun?.output?.path;
+  const { data: filmUrl } = useQuery({
+    queryKey: ["creative-render-url", renderRun?.id, renderPath],
+    enabled: renderRun?.status === "completed" && !!renderPath,
+    queryFn: async () => {
+      const signed = await signCreativeVideoPaths([renderPath!]);
+      return signed[renderPath!] ?? null;
+    },
+    staleTime: 30 * 60_000,
+  });
+
+  const { data: referenceRun } = useQuery({
+    queryKey: ["creative-reference-run", tenantId, selectedId],
+    enabled: !!selectedId && projectType === "video",
+    queryFn: () => fetchLatestReferenceRun(tenantId, selectedId!),
+    refetchInterval: (query) =>
+      isReferenceRunActive(query.state.data) ? 4000 : false,
+  });
+  const [referenceUploading, setReferenceUploading] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const proposalFrames = referenceRun?.output?.proposal?.frames ?? [];
+  const proposalShots = referenceRun?.output?.shots ?? [];
+  const { data: keyframeUrls = {} } = useQuery({
+    queryKey: ["creative-reference-keyframes", referenceRun?.id],
+    enabled: proposalOpen && proposalShots.length > 0,
+    queryFn: () =>
+      signCreativeVideoPaths(
+        proposalShots
+          .map((shot) => shot.keyframe_path)
+          .filter((path): path is string => !!path),
+      ),
+    staleTime: 30 * 60_000,
+  });
+
+  const uploadReference = async (file: File) => {
+    if (!selected) return;
+    if (!file.type.startsWith("video/")) {
+      toast.error("בחרו קובץ וידאו (mp4, mov או webm)");
+      return;
+    }
+    if (file.size > REFERENCE_MAX_BYTES) {
+      toast.error("סרטון הרפרנס גדול מ-200MB");
+      return;
+    }
+    setReferenceUploading(true);
+    try {
+      const readyContext = ensureCreativeStageReady(context);
+      await queueReferenceAnalysis({
+        tenantId,
+        clientId: selected.client_id,
+        itemId: selected.id,
+        stageId: readyContext.creativeStage.id,
+        file,
+      });
+      toast.success("הרפרנס הועלה. כרמן מפרקת אותו לשוטים ותציע סטוריבורד");
+      await queryClient.invalidateQueries({
+        queryKey: ["creative-reference-run", tenantId, selected.id],
+      });
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "העלאת סרטון הרפרנס נכשלה"));
+    } finally {
+      setReferenceUploading(false);
+    }
+  };
+
+  const applyReferenceProposal = async () => {
+    if (!selected || proposalFrames.length === 0) return;
+    const next = proposalToFrames(proposalFrames, storyboardFrameX);
+    setStoryboardDraft(next);
+    await persistStoryboard(next, "הסטוריבורד הוחלף בהצעה מהרפרנס");
+    setProposalOpen(false);
+  };
+
+  const loadFrameVersions = useCallback(
+    (frameId: string) => fetchSceneStillVersions(tenantId, frameId),
+    [tenantId],
+  );
+
   const generateAllStoryboardFrames = async () => {
     if (!selected?.client_id) {
       toast.error("יש לשייך לקוח לפרויקט לפני יצירת פריימים");
@@ -1008,6 +1663,7 @@ export function CreativeDepartment({
     }
     const queued = [...storyboardDraft]
       .sort((a, b) => a.order - b.order)
+      .filter((frame) => !frame.locked)
       .filter((frame) => frame.visualPrompt?.trim() || frame.voiceover?.trim());
     if (queued.length === 0) {
       toast.error("מלא/י הנחיות לפריימים לפני יצירה לפי סדר");
@@ -2144,6 +2800,8 @@ export function CreativeDepartment({
     mutationFn: async () => {
       if (!selected || !context?.campaignStage)
         throw new Error("שלב הקמפיינים לא נמצא");
+      if (projectType === "video")
+        await saveScenes(selected.id, storyboardDraft);
       const { error } = await supabase
         .from("marketing_work_items")
         .update({
@@ -2152,7 +2810,6 @@ export function CreativeDepartment({
           payload: {
             ...(selected.payload ?? {}),
             variations,
-            storyboard: storyboardDraft,
             creative_approved: true,
             department: "campaigns",
           },
@@ -2265,7 +2922,7 @@ export function CreativeDepartment({
                   <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {owner?.name || "ללא לקוח"} · {projectTypeLabel(type)} ·{" "}
                     {type === "video"
-                      ? `${getStoryboard(item.payload).length} סצנות`
+                      ? `${storyboards[item.id]?.length ?? 0} סצנות`
                       : `${getVariations(item.payload).length} וריאציות`}
                   </div>
                 </div>
@@ -2551,241 +3208,346 @@ export function CreativeDepartment({
     </>
   );
 
-  const workspaceHeader = selected ? (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-card/50 px-4 py-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-700 text-white">
+  // Studio top bar: who/what on one side, the one primary action on the other.
+  // Everything else lives in the side rail drawers or the ⋯ menu.
+  const studioModeLabel = selected
+    ? `${isVideoWorkspace ? "סרטון" : projectTypeLabel(projectType)} · ${defaultFormat(selected.payload)}`
+    : "";
+  const studioTitle = selected ? (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-violet-600 text-white">
         {isVideoWorkspace ? (
           <Clapperboard className="h-4 w-4" />
         ) : (
           <Palette className="h-4 w-4" />
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-sm font-bold">{selected.title}</h2>
-        <p className="text-[11px] text-muted-foreground">
-          {projectTypeLabel(projectType)} ·{" "}
-          {getVisualStyle(selected.payload).label} · {CREATIVE_DIRECT_LABEL_HE}
-          {selectedVariation && (
-            <> · {selectedVariationLiveText ? "שכבות" : "סופי"}</>
+      <div className="min-w-0">
+        <h2 className="max-w-[16rem] truncate text-sm font-bold">
+          {selected.title}
+        </h2>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Badge variant="secondary" className="h-5 px-2 text-[10px]">
+            {studioModeLabel}
+          </Badge>
+          {!isVideoWorkspace && (
+            <span className="truncate">
+              {getVisualStyle(selected.payload).label}
+            </span>
           )}
-        </p>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/30 p-1">
-        <Button
-          size="sm"
-          variant={workspacePanel === "projects" ? "secondary" : "ghost"}
-          className="h-8"
-          onClick={() => toggleWorkspacePanel("projects")}
-        >
-          פרויקטים
-        </Button>
-        <Button
-          size="sm"
-          variant={workspacePanel === "project" ? "secondary" : "ghost"}
-          className="h-8 gap-1.5"
-          onClick={() => toggleWorkspacePanel("project")}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          הגדרות פרויקט
-        </Button>
-        {isVideoWorkspace ? (
+      <DropdownMenu dir="rtl">
+        <DropdownMenuTrigger asChild>
           <Button
-            size="sm"
-            variant={workspacePanel === "scene" ? "secondary" : "ghost"}
-            className="h-8"
-            onClick={() => toggleWorkspacePanel("scene")}
-            disabled={storyboardDraft.length === 0}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label="עוד פעולות"
           >
-            סצנה
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
-        ) : selectedVariationLiveText ? (
-          <Button
-            size="sm"
-            variant={workspacePanel === "edit" ? "secondary" : "ghost"}
-            className="h-8"
-            onClick={() => toggleWorkspacePanel("edit")}
-            disabled={!variationDraft}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[15rem]">
+          <DropdownMenuItem onClick={() => setLinkCopyOpen(true)}>
+            <Link2 className="me-2 h-3.5 w-3.5" />
+            משוך קופי וקונספטים
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setCostOpen(true)}>
+            <Coins className="me-2 h-3.5 w-3.5" />
+            עלויות ·{" "}
+            {formatUsd(
+              costRows.find((row) => row.item.id === selected.id)?.spent
+                .costUsd ?? 0,
+            )}
+          </DropdownMenuItem>
+          {!isVideoWorkspace && (
+            <DropdownMenuCheckboxItem
+              checked={nextLiveTextLayers}
+              onCheckedChange={(checked) => setNextLiveTextLayers(!!checked)}
+            >
+              טקסט כשכבות עריכות כברירת מחדל
+            </DropdownMenuCheckboxItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setDeleteTarget(selected)}
           >
-            שכבות
-          </Button>
-        ) : null}
-        <Button
-          size="sm"
-          variant={workspacePanel === "versions" ? "secondary" : "ghost"}
-          className="h-8"
-          onClick={() => toggleWorkspacePanel("versions")}
-        >
-          גרסאות
-        </Button>
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
-        title="מחיקת פרויקט"
-        onClick={() => setDeleteTarget(selected)}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        מחק
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        onClick={() => setCostOpen(true)}
-      >
-        <Coins className="h-3.5 w-3.5" />
-        {formatUsd(
-          costRows.find((row) => row.item.id === selected.id)?.spent.costUsd ??
-            0,
-        )}
-      </Button>
-      <div
-        className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5"
-        title="ברירת מחדל כשלא בוחרים במפורש בלחיצה"
-      >
-        <span
-          className={`text-[10px] font-medium ${!nextLiveTextLayers ? "text-foreground" : "text-muted-foreground"}`}
-        >
-          ברירת מחדל · סופי
-        </span>
-        <Switch
-          checked={nextLiveTextLayers}
-          onCheckedChange={setNextLiveTextLayers}
-          aria-label="ברירת מחדל למודעה חדשה"
-        />
-        <span
-          className={`text-[10px] font-medium ${nextLiveTextLayers ? "text-foreground" : "text-muted-foreground"}`}
-        >
-          שכבות
-        </span>
-      </div>
-      <VisualStyleSelect
-        compact
-        value={selectedStyleId}
-        onChange={(style) => void persistVisualStyle(style)}
-      />
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        onClick={() => setLinkCopyOpen(true)}
-      >
-        <Link2 className="h-3.5 w-3.5" />
-        משוך מקופי
-      </Button>
-      {!isVideoWorkspace && (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600"
-                disabled={loadingContext || !selected.client_id}
-              >
-                {workInFlight ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-3.5 w-3.5" />
-                )}
-                {generateAllLabel}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[17rem]">
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("same", false)}
-              >
-                {generateFromConcepts
-                  ? "לכל קונספט · עם טקסט (סופי)"
-                  : "לכל הקופי · עם טקסט (סופי)"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("same", true)}
-              >
-                {generateFromConcepts
-                  ? "לכל קונספט · בלי טקסט (שכבות)"
-                  : "לכל הקופי · בלי טקסט (שכבות)"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("mixed", false)}
-              >
-                {generateFromConcepts
-                  ? "מבנה שונה לכל קונספט · עם טקסט"
-                  : "מבנה שונה לכל קופי · עם טקסט"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void generateAllFromCopy("mixed", true)}
-              >
-                {generateFromConcepts
-                  ? "מבנה שונה לכל קונספט · בלי טקסט"
-                  : "מבנה שונה לכל קופי · בלי טקסט"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={loadingContext || !selected.client_id}
-              >
-                {workInFlight ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-3.5 w-3.5" />
-                )}
-                וריאציה אחת
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuItem
-                onClick={() => requestSingleVariation(undefined, false)}
-              >
-                עם טקסט (סופי)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => requestSingleVariation(undefined, true)}
-              >
-                בלי טקסט (שכבות)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      )}
-      {workInFlight && (
-        <Button
-          variant="destructive"
-          size="sm"
-          className="gap-1.5"
-          onClick={stopGeneration}
-        >
-          <Square className="h-3.5 w-3.5 fill-current" />
-          עצור
-        </Button>
-      )}
-      <Button
-        size="sm"
-        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-        onClick={() => handoff.mutate()}
-        disabled={handoff.isPending || !canHandoff}
-      >
-        <Send className="h-3.5 w-3.5" />
-        אשר לקמפיינים
-      </Button>
+            <Trash2 className="me-2 h-3.5 w-3.5" />
+            מחק פרויקט
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  ) : null;
+
+  const approveButton = selected ? (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+      onClick={() => handoff.mutate()}
+      disabled={handoff.isPending || !canHandoff}
+    >
+      <Send className="h-3.5 w-3.5" />
+      אשר לקמפיינים
+    </Button>
+  ) : null;
+
+  const staticGenerateMenu =
+    selected && !isVideoWorkspace ? (
+      <DropdownMenu dir="rtl">
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
+            disabled={loadingContext || !selected.client_id}
+          >
+            {workInFlight ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <WandSparkles className="h-3.5 w-3.5" />
+            )}
+            צור וריאציות
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[17rem]">
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            {generateFromConcepts ? "לכל הקונספטים" : "לכל הקופי"}
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("same", false)}
+          >
+            עם טקסט על התמונה
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("same", true)}
+          >
+            טקסט כשכבות עריכות
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("mixed", false)}
+          >
+            מבנה שונה לכל אחד · עם טקסט
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => void generateAllFromCopy("mixed", true)}
+          >
+            מבנה שונה לכל אחד · שכבות
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            וריאציה אחת
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => requestSingleVariation(undefined, false)}
+          >
+            עם טקסט על התמונה
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => requestSingleVariation(undefined, true)}
+          >
+            טקסט כשכבות עריכות
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+
+  // The video studio puts this same title and approve button into its own toolbar,
+  // so there is a single bar per mode.
+  const workspaceHeader =
+    selected && !isVideoWorkspace ? (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card/50 px-4 py-2">
+        {studioTitle}
+        <div className="flex items-center gap-2">
+          {workInFlight && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5"
+              onClick={stopGeneration}
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+              עצור
+            </Button>
+          )}
+          {staticGenerateMenu}
+          {approveButton}
+        </div>
+      </div>
+    ) : null;
+
+  /** Carmen's studio_ui_action runs here, through the same handlers as the buttons. */
+  const runStudioAction = (action: StudioUiAction) => {
+    if (!selected || action.item_id !== selected.id) return;
+    const frame = action.scene_id
+      ? storyboardDraft.find((value) => value.id === action.scene_id)
+      : undefined;
+    const variation =
+      variations.find((value) => value.id === action.variation_id) ??
+      variations.find((value) => value.id === selectedVariationId);
+    switch (action.type) {
+      case "produce_video":
+        requestProduce();
+        break;
+      case "animate_scene":
+        if (frame) requestAnimate([frame]);
+        break;
+      case "regenerate_frame":
+        if (frame) {
+          setSceneFocus({ id: frame.id, n: Date.now() });
+          void generateStoryboardFrame(frame);
+        }
+        break;
+      case "generate_variations":
+        void generateAllFromCopy(
+          action.mixed_structure ? "mixed" : "same",
+          action.text_as_layers,
+        );
+        break;
+      case "single_variation":
+        requestSingleVariation(undefined, action.text_as_layers);
+        break;
+      case "revise_variation":
+        if (variation) {
+          setSelectedVariationId(variation.id);
+          setReviseTarget(variation);
+          setReviseNote(action.note ?? "");
+        }
+        break;
+      case "approve_to_campaigns":
+        if (canHandoff) handoff.mutate();
+        break;
+      case "focus_scene":
+        if (frame) setSceneFocus({ id: frame.id, n: Date.now() });
+        break;
+      case "focus_variation":
+        if (variation) setSelectedVariationId(variation.id);
+        break;
+      case "open_drawer":
+        if (action.drawer) setWorkspacePanel(action.drawer);
+        break;
+    }
+  };
+
+  const chatContext = () => {
+    const ordered = [...storyboardDraft].sort((a, b) => a.order - b.order);
+    const sceneIndex = ordered.findIndex((frame) => frame.id === openSceneId);
+    const shown = variations.find((value) => value.id === selectedVariationId);
+    return studioContextAddon({
+      itemId: selected?.id ?? "",
+      title: selected?.title ?? "",
+      mode: isVideoWorkspace ? "video" : "static",
+      sceneCount: storyboardDraft.length,
+      sceneNumber: sceneIndex >= 0 ? sceneIndex + 1 : null,
+      variationCount: variations.length,
+      variationName: shown ? shown.copyLabel || shown.name : null,
+    });
+  };
+
+  const railItems: {
+    key: string;
+    label: string;
+    icon: typeof Settings;
+    active: boolean;
+    disabled?: boolean;
+    onClick: () => void;
+  }[] = selected
+    ? [
+        {
+          key: "projects",
+          label: "פרויקטים",
+          icon: FolderOpen,
+          active: workspacePanel === "projects",
+          onClick: () => toggleWorkspacePanel("projects"),
+        },
+        {
+          key: "project",
+          label: "מקורות ומותג",
+          icon: Settings,
+          active: workspacePanel === "project",
+          onClick: () => toggleWorkspacePanel("project"),
+        },
+        isVideoWorkspace
+          ? {
+              key: "scene",
+              label: "סצנה",
+              icon: Clapperboard,
+              active: workspacePanel === "scene",
+              disabled: storyboardDraft.length === 0,
+              onClick: () => toggleWorkspacePanel("scene"),
+            }
+          : {
+              key: "edit",
+              label: "שכבות",
+              icon: Layers,
+              active: workspacePanel === "edit",
+              disabled: !variationDraft || !selectedVariationLiveText,
+              onClick: () => toggleWorkspacePanel("edit"),
+            },
+        {
+          key: "versions",
+          label: "גרסאות והערות",
+          icon: History,
+          active: workspacePanel === "versions",
+          onClick: () => toggleWorkspacePanel("versions"),
+        },
+        {
+          key: "chat",
+          label: "צ׳אט עם כרמן",
+          icon: MessageSquare,
+          active: chatOpen,
+          onClick: () => setChatOpen((open) => !open),
+        },
+        {
+          key: "carmen",
+          label: CREATIVE_DIRECT_LABEL_HE,
+          icon: Sparkles,
+          active: false,
+          disabled: openingCreativeDirect,
+          onClick: () =>
+            creativeDirectUrl
+              ? window.open(creativeDirectUrl, "_blank", "noopener")
+              : void openCreativeDirect(),
+        },
+      ]
+    : [];
+
+  const studioRail = selected ? (
+    <TooltipProvider delayDuration={150}>
+      <nav
+        aria-label="מגירות הסטודיו"
+        className="flex w-12 shrink-0 flex-col items-center gap-1 border-e bg-card/40 py-2"
+      >
+        {railItems.map((item) => (
+          <Tooltip key={item.key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={item.label}
+                aria-pressed={item.active}
+                disabled={item.disabled}
+                onClick={item.onClick}
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40",
+                  item.active && "bg-muted text-foreground",
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{item.label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </nav>
+    </TooltipProvider>
   ) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {workspaceHeader}
-      <CreativeDirectDock
-        agentUrl={creativeDirectUrl}
-        opening={openingCreativeDirect}
-        onOpen={() => void openCreativeDirect()}
-      />
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" dir="rtl">
         <aside
           className={cn(
@@ -2828,12 +3590,19 @@ export function CreativeDepartment({
           </div>
           {projectsList}
         </aside>
+        {studioRail}
         <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
           {selected ? (
-            isVideoWorkspace ? (
+            isVideoWorkspace && loadingScenes && !storyboards[selected.id] ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : isVideoWorkspace ? (
               <CreativeStoryboardEditor
                 frames={storyboardDraft}
                 onChange={setStoryboardDraft}
+                focusRequest={sceneFocus}
+                onSelectFrame={setOpenSceneId}
                 onSave={() => persistStoryboard(storyboardDraft)}
                 onGenerateFrame={async (frame) => {
                   const merged = storyboardDraft.map((value) =>
@@ -2842,8 +3611,64 @@ export function CreativeDepartment({
                   setStoryboardDraft(merged);
                   await generateStoryboardFrame(frame, merged);
                 }}
-                onGenerateAll={generateAllStoryboardFrames}
-                onStop={stopGeneration}
+                onEditWithPrompt={editFrameWithPrompt}
+                loadVersions={loadFrameVersions}
+                onSelectVersion={selectFrameVersion}
+                character={{
+                  url: getCharacterRefUrl(selected.payload),
+                  uploading: characterUploading,
+                  onUpload: (file) => void uploadCharacter(file),
+                  onClear: () =>
+                    void updateVideoSettings({ character_ref_url: null }).catch(
+                      (error: unknown) =>
+                        toast.error(errorMessage(error, "הסרת הדמות נכשלה")),
+                    ),
+                }}
+                reference={{
+                  status: referenceUploading
+                    ? "uploading"
+                    : referenceRun
+                      ? (referenceRun.status as
+                          "queued" | "running" | "completed" | "failed")
+                      : "idle",
+                  error: referenceRun?.error,
+                  onUpload: (file) => void uploadReference(file),
+                  onOpenProposal: () => setProposalOpen(true),
+                }}
+                clips={{
+                  urls: clipUrls,
+                  onAnimate: requestAnimate,
+                }}
+                stillModel={getStillModel(selected.payload)}
+                onStillModelChange={(model) => void changeStillModel(model)}
+                sceneEngine={getSceneEngine(selected.payload)}
+                onSceneEngineChange={(engine) => void changeSceneEngine(engine)}
+                soundEngine={getSoundEngine(selected.payload)}
+                onSoundEngineChange={(engine) => void changeSoundEngine(engine)}
+                production={{
+                  running:
+                    getProduction(selected.payload)?.status === "running" ||
+                    production?.status === "running",
+                  busyLabel: producingStep,
+                  progress: productionProgress(
+                    storyboardDraft,
+                    production ?? null,
+                    renderRun?.status,
+                  ),
+                  hasFilm: !!filmUrl,
+                  error:
+                    production?.status === "failed" ? production.error : null,
+                  onProduce: requestProduce,
+                  onStop: producingStep ? stopGeneration : undefined,
+                }}
+                dirty={JSON.stringify(storyboardDraft) !== storyboardSignature}
+                titleSlot={studioTitle}
+                endSlot={approveButton}
+                film={{
+                  status: renderRun?.status ?? "idle",
+                  url: filmUrl,
+                  error: renderRun?.error,
+                }}
                 generating={generating}
                 saving={saving}
                 scenePanelOpen={workspacePanel === "scene"}
@@ -2922,124 +3747,19 @@ export function CreativeDepartment({
                 }
               />
             ) : (
-              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                <ImageIcon className="mb-4 h-14 w-14 opacity-30" />
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+                <ImageIcon className="h-14 w-14 opacity-30" />
                 <h3 className="text-lg font-bold text-foreground">
-                  גריד וריאציות
+                  עוד אין וריאציות
                 </h3>
-                <p className="mt-2 max-w-md text-sm">
-                  {generateFromConcepts
-                    ? "כל קונספט מאושר מקבל קריאייטיב עם הקופי שמשויך אליו בגריד."
-                    : "כל וריאציית קופי מקבלת קריאייטיב — בוחרים עם טקסט על התמונה (סופי) או בלי (שכבות לעריכה)."}{" "}
-                  לחצו על כרטיס, כתבו מה לתקן, ו{CREATIVE_DIRECT_LABEL_HE} יוצר
-                  וריאציה חדשה.
+                <p className="max-w-md text-sm">
+                  {copyJobs.length > 0
+                    ? generateFromConcepts
+                      ? `יש ${copyJobs.length} קונספטים מאושרים עם קופי. לחצו ״צור וריאציות״ ותקבלו קריאייטיב לכל אחד.`
+                      : `יש ${copyBlocks.length} וריאציות קופי. לחצו ״צור וריאציות״ ותקבלו קריאייטיב לכל אחת.`
+                    : "עוד אין קופי משויך. משכו קופי וקונספטים מתפריט ⋯, או הוסיפו בריף במגירת ״מקורות ומותג״."}
                 </p>
-                {copyJobs.length > 0 && (
-                  <p className="mt-2 text-xs">
-                    {generateFromConcepts
-                      ? `נמצאו ${copyJobs.length} קונספטים מאושרים עם קופי משויך`
-                      : `נמצאו ${copyBlocks.length} וריאציות קופי משויכות`}
-                  </p>
-                )}
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setWorkspacePanel("project")}
-                  >
-                    עריכת פרויקט
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="gap-2 bg-gradient-to-r from-pink-600 to-violet-600"
-                        disabled={loadingContext || !selected.client_id}
-                      >
-                        {workInFlight ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <WandSparkles className="h-4 w-4" />
-                        )}
-                        {generateAllLabel}
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="center"
-                      className="min-w-[17rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("same", false)}
-                      >
-                        {generateFromConcepts
-                          ? "לכל קונספט · עם טקסט (סופי)"
-                          : "לכל הקופי · עם טקסט (סופי)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("same", true)}
-                      >
-                        {generateFromConcepts
-                          ? "לכל קונספט · בלי טקסט (שכבות)"
-                          : "לכל הקופי · בלי טקסט (שכבות)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("mixed", false)}
-                      >
-                        {generateFromConcepts
-                          ? "מבנה שונה לכל קונספט · עם טקסט"
-                          : "מבנה שונה לכל קופי · עם טקסט"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void generateAllFromCopy("mixed", true)}
-                      >
-                        {generateFromConcepts
-                          ? "מבנה שונה לכל קונספט · בלי טקסט"
-                          : "מבנה שונה לכל קופי · בלי טקסט"}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="gap-2"
-                        disabled={loadingContext || !selected.client_id}
-                      >
-                        {workInFlight ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <WandSparkles className="h-4 w-4" />
-                        )}
-                        וריאציה אחת
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="center"
-                      className="min-w-[14rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => requestSingleVariation(undefined, false)}
-                      >
-                        עם טקסט (סופי)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => requestSingleVariation(undefined, true)}
-                      >
-                        בלי טקסט (שכבות)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  {workInFlight && (
-                    <Button
-                      variant="destructive"
-                      className="gap-2"
-                      onClick={stopGeneration}
-                    >
-                      <Square className="h-4 w-4 fill-current" />
-                      עצור
-                    </Button>
-                  )}
-                </div>
+                {staticGenerateMenu}
               </div>
             )
           ) : (
@@ -3079,6 +3799,18 @@ export function CreativeDepartment({
             </div>
           )}
         </main>
+        {selected && chatOpen && (
+          <CreativeStudioChat
+            tenantId={tenantId}
+            clientId={selected.client_id ?? null}
+            itemId={selected.id}
+            mode={isVideoWorkspace ? "video" : "static"}
+            contextAddon={chatContext}
+            onUiAction={runStudioAction}
+            onTurnDone={() => void refresh()}
+            onClose={() => setChatOpen(false)}
+          />
+        )}
       </div>
 
       <Sheet
@@ -3150,11 +3882,194 @@ export function CreativeDepartment({
               onClientChange(createdClientId);
           }
           setSelectedId(id);
-          setWorkspacePanel("project");
+          setWorkspacePanel(null);
           setCreateOpen(false);
           await refresh();
         }}
       />
+
+      <AlertDialog
+        open={!!clipConfirm}
+        onOpenChange={(open) => !open && !queueingClips && setClipConfirm(null)}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right">
+            <AlertDialogTitle>
+              {clipConfirm?.length === 1
+                ? "להנפיש את הסצנה?"
+                : `להנפיש ${clipConfirm?.length ?? 0} סצנות?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              {clipConfirm &&
+                selected &&
+                (() => {
+                  const estimate = sceneEstimate(
+                    getSceneEngine(selected.payload),
+                    clipConfirm,
+                  );
+                  const credits =
+                    estimate.credits > 0
+                      ? ` · ${estimate.credits.toLocaleString()} קרדיטים`
+                      : "";
+                  return `${estimate.label}: ${estimate.seconds} שניות · הערכה ${formatUsd(estimate.usd)}${credits}. הקליפים נוצרים במקביל; סצנה שנכשלת לא עוצרת את האחרות.`;
+                })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-start">
+            <AlertDialogAction
+              disabled={queueingClips}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmAnimate();
+              }}
+            >
+              {queueingClips && (
+                <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
+              )}
+              אשר תקציב והנפש
+            </AlertDialogAction>
+            <AlertDialogCancel disabled={queueingClips}>
+              ביטול
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!produceConfirm}
+        onOpenChange={(open) => !open && setProduceConfirm(null)}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right">
+            <AlertDialogTitle>
+              {selected && getProduction(selected.payload)?.status === "done"
+                ? "לעדכן את הסרט?"
+                : "להפיק את הסרט?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-right text-sm">
+                {produceConfirm && (
+                  <>
+                    <ul className="space-y-1">
+                      {produceConfirm.stills.length > 0 && (
+                        <li>
+                          {produceConfirm.stills.length} פריימים חדשים ·{" "}
+                          {formatUsd(produceConfirm.usd.stills)}
+                        </li>
+                      )}
+                      {produceConfirm.clips.length > 0 && (
+                        <li>
+                          הנפשת {produceConfirm.clips.length} סצנות ·{" "}
+                          {formatUsd(produceConfirm.usd.clips)}
+                        </li>
+                      )}
+                      {produceConfirm.voices.length > 0 && (
+                        <li>
+                          קריינות ל־{produceConfirm.voices.length} סצנות ·{" "}
+                          {formatUsd(produceConfirm.usd.voice)}
+                        </li>
+                      )}
+                      {produceConfirm.music && (
+                        <li>
+                          מוזיקת רקע · {formatUsd(produceConfirm.usd.music)}
+                        </li>
+                      )}
+                      <li>הרכבת הסרט · חינם</li>
+                    </ul>
+                    <p className="font-semibold text-foreground">
+                      סה״כ בערך {formatUsd(produceConfirm.usd.total)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      רק מה שחסר או השתנה נוצר מחדש. אפשר לסגור את המסך אחרי
+                      שהפריימים נוצרו; הסרט ממשיך להיווצר בשרת.
+                    </p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-start">
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmProduce();
+              }}
+            >
+              אשר והפק
+            </AlertDialogAction>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>
+        <DialogContent
+          className="max-h-[85vh] max-w-3xl overflow-hidden p-0"
+          dir="rtl"
+        >
+          <DialogHeader className="border-b px-6 py-4 text-right">
+            <DialogTitle>הצעת סטוריבורד מהרפרנס</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {proposalShots.length} שוטים
+              {referenceRun?.output?.video?.duration
+                ? ` · ${Math.round(referenceRun.output.video.duration)} שנ׳`
+                : ""}
+              . אותו קצב ומבנה, תוכן מקורי ללקוח.
+              {referenceRun?.output?.proposal?.concept?.name
+                ? ` קונספט: ${referenceRun.output.proposal.concept.name}`
+                : ""}
+            </p>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-2 p-4">
+              {proposalFrames.map((frame, index) => {
+                const shot = proposalShots[index];
+                const keyframe = shot?.keyframe_path
+                  ? keyframeUrls[shot.keyframe_path]
+                  : undefined;
+                return (
+                  <div key={index} className="flex gap-3 rounded-md border p-2">
+                    <div className="w-32 shrink-0 overflow-hidden rounded bg-muted">
+                      {keyframe ? (
+                        <img
+                          src={keyframe}
+                          alt={`שוט ${index + 1} ברפרנס`}
+                          className="aspect-video w-full object-cover"
+                        />
+                      ) : (
+                        <div className="aspect-video w-full" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 text-xs">
+                      <div className="font-bold">
+                        {index + 1}. {frame.title} · {frame.duration} שנ׳ ·{" "}
+                        {frame.shot}
+                      </div>
+                      <div className="mt-1 text-muted-foreground">
+                        {frame.visualPrompt}
+                      </div>
+                      {frame.voiceover && (
+                        <div className="mt-1">🎙 {frame.voiceover}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 border-t px-6 py-3">
+            <Button variant="outline" onClick={() => setProposalOpen(false)}>
+              סגור
+            </Button>
+            <Button
+              onClick={() => void applyReferenceProposal()}
+              disabled={proposalFrames.length === 0}
+            >
+              החלף את הסטוריבורד בהצעה
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={conceptPickerOpen} onOpenChange={setConceptPickerOpen}>
         <DialogContent className="max-w-lg" dir="rtl">
@@ -3625,8 +4540,6 @@ function ManualCreativeDialog({
           at,
         });
       }
-      if (projectType === "video")
-        payload.storyboard = [makeStoryboardFrame(1)];
 
       const { data, error } = await supabase
         .from("marketing_work_items")
@@ -3643,6 +4556,14 @@ function ManualCreativeDialog({
         .select("id")
         .single();
       if (error) throw error;
+      if (projectType === "video") {
+        await saveVideoStoryboard({
+          tenantId,
+          itemId: data.id,
+          frames: [makeStoryboardFrame(1)],
+          persistedStills: new Map(),
+        });
+      }
       if (linkedCopy) {
         const { error: stampError } = await supabase
           .from("marketing_work_items")

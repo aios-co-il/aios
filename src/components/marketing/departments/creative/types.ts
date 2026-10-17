@@ -22,12 +22,38 @@ export interface StoryboardFrame {
   visualPrompt: string;
   overlayText: string;
   voiceover: string;
+  /** What moves in the scene (camera and subject); used when animating. */
+  motionPrompt?: string;
   duration: number;
   imageUrl?: string;
   generationCost?: ImageGenerationCost;
   x: number;
   y: number;
+  /** marketing_video_scenes.status; set for scenes loaded from the table. */
+  status?: VideoSceneStatus;
+  locked?: boolean;
+  /** The project's fixed character appears in this scene (default true). */
+  hasCharacter?: boolean;
+  stillAssetId?: string;
+  /** Current clip (marketing_assets id) and its path in the private creative-video bucket. */
+  clipAssetId?: string;
+  clipPath?: string;
+  /** The still or prompt changed after the clip was made. */
+  clipStale?: boolean;
+  /** Current voiceover asset and the text it was spoken from. */
+  voiceAssetId?: string;
+  voiceText?: string;
 }
+
+export type VideoSceneStatus =
+  | "draft"
+  | "still_generating"
+  | "still_ready"
+  | "still_approved"
+  | "clip_generating"
+  | "clip_ready"
+  | "clip_approved"
+  | "failed";
 
 export interface CreativeComment {
   id: string;

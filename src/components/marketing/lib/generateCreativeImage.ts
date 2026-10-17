@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { StillModel } from "@/components/marketing/departments/creative/videoStill";
 import { invokeErrorMessage } from "@/components/marketing/lib/invokeErrorMessage";
 import { resolveCreativeImageUrl } from "@/components/marketing/lib/resolveCreativeImageUrl";
 import {
   costFromApiUsage,
+  nanoBananaProCost,
   estimateGptImage1,
   type ImageGenerationCost,
   type ImageQuality,
@@ -38,6 +40,9 @@ interface GenerateCreativeImageArgs {
   imagePngBase64?: string;
   inpaint?: boolean;
   signal?: AbortSignal;
+  /** Storyboard stills can use Nano Banana Pro; everything else stays on gpt-image-1. */
+  imageModel?: StillModel;
+  format?: string;
 }
 
 async function invokeSocialImage(
@@ -55,6 +60,8 @@ async function invokeSocialImage(
   maskPngBase64?: string,
   imagePngBase64?: string,
   inpaint?: boolean,
+  imageModel?: StillModel,
+  format?: string,
 ) {
   return supabase.functions.invoke("ai-generate-social-image", {
     body: {
@@ -73,6 +80,8 @@ async function invokeSocialImage(
       quality,
       mask_png_base64: maskPngBase64,
       image_png_base64: imagePngBase64,
+      image_model: imageModel,
+      format,
     },
     signal,
   });
@@ -164,6 +173,8 @@ export async function generateCreativeImage({
   maskPngBase64,
   imagePngBase64,
   inpaint,
+  imageModel,
+  format,
 }: GenerateCreativeImageArgs): Promise<{
   imageUrl: string;
   usedFallback: boolean;
@@ -192,17 +203,21 @@ export async function generateCreativeImage({
     maskPngBase64,
     imagePngBase64,
     inpaint,
+    imageModel,
+    format,
   );
+  const nanoBanana = imageModel === "nano-banana-pro";
   if (!socialResult.error && !socialResult.data?.error) {
     const imageUrl = socialResult.data?.image_url;
     if (imageUrl && typeof imageUrl === "string") {
-      const cost =
-        costFromApiUsage(
-          socialResult.data?.usage,
-          quality,
-          size,
-          referenceImageUrls?.length ?? 0,
-        ) ?? estimate;
+      const cost = nanoBanana
+        ? nanoBananaProCost(quality, size, referenceImageUrls?.length ?? 0)
+        : (costFromApiUsage(
+            socialResult.data?.usage,
+            quality,
+            size,
+            referenceImageUrls?.length ?? 0,
+          ) ?? estimate);
       await logCreativeRun(supabase, {
         tenantId,
         itemId,
@@ -228,6 +243,8 @@ export async function generateCreativeImage({
         socialResult.response,
       )
     : (socialResult.data?.error ?? "לא התקבלה תמונה");
+  // The stage pipeline renders with gpt-image-1, so it is no fallback for Nano Banana Pro.
+  if (nanoBanana) throw new Error(socialError);
 
   const stageResult = await invokeMarketingStage(supabase, itemId, stageId);
   if (!stageResult.error && !stageResult.data?.error) {
