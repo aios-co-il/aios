@@ -1,13 +1,14 @@
-"""Phase timing and the GitHub step summary."""
+"""Run state: phase timing, results and the GitHub step summary."""
 import os
 import time
 from .sql import batches
 
 
-class RunLog:
-    # Phase timings plus a Markdown step summary, written even when a run fails.
+class Run:
+    # Everything one mirror run produces; the summary is written even on failure.
     def __init__(self):
         self.phases, self.failed, self.progress = [], None, {}
+        self.results, self.failures, self.rejected = [], [], []
 
     def phase(self, name):
         log = self
@@ -23,10 +24,16 @@ class RunLog:
                 if error and log.failed is None: log.failed = (name, str(error))
         return Phase()
 
-    def write_summary(self, results, failures, rejected):
+    def merge_removed(self, result):
+        for existing in self.results:
+            if existing['table'] == result['table']:
+                existing['removed_rows'] += result['removed_rows']
+
+    def write_summary(self):
+        results, rejected = self.results, self.rejected
         path = os.environ.get('GITHUB_STEP_SUMMARY')
         if not path: return
-        failures = list(failures)
+        failures = list(self.failures)
         if self.failed and not failures:
             failures.insert(0, {'table': self.failed[0], 'error': self.failed[1]})
         # Tables that failed after committing some batches keep those rows.
