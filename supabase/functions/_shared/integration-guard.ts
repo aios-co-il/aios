@@ -1,5 +1,9 @@
 import { type AppEnv, resolveAppEnv } from "./app-env.ts";
 
+// Must equal STAGING_WHATSAPP_TEST_NUMBERS in staging-outbound.mjs (enforced by its test).
+// Not imported: Production deploys skip staging-outbound changes.
+export const STAGING_WHATSAPP_TEST_NUMBERS = ["972507677613"];
+
 export type GuardDecision = "ALLOW" | "BLOCK" | "DRY_RUN";
 
 export type GuardResult = {
@@ -104,6 +108,10 @@ export function checkWhatsAppSend(
     integration: "whatsapp",
     action: "send_message",
     destination,
-    allowlistRaw: Deno.env.get("STAGING_ALLOWED_PHONE_NUMBERS"),
+    // The Staging test numbers are always allowed; the edge guard enforces the same list.
+    allowlistRaw: [
+      Deno.env.get("STAGING_ALLOWED_PHONE_NUMBERS") ?? "",
+      ...STAGING_WHATSAPP_TEST_NUMBERS,
+    ].join(","),
   });
 }

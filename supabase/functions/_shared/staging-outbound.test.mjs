@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   outboundAllowed,
   installStagingOutboundGuard,
+  stagingRequestAllowed,
+  STAGING_WHATSAPP_TEST_NUMBERS,
 } from "./staging-outbound.mjs";
 const own = "https://staging.supabase.co";
 test("external sends and production calls blocked regardless of verb", () => {
@@ -112,4 +115,78 @@ test("guard never calls network for blocked request and disables redirect bypass
   assert.equal(calls.length, 0);
   await runtime.fetch(`${own}/rest/v1/clients`);
   assert.equal(calls[0][1].redirect, "error");
+});
+const david = "972507677613";
+const green = "https://api.green-api.com/waInstance1101/sendMessage/tok";
+const greenUpload =
+  "https://api.green-api.com/waInstance1101/sendFileByUpload/tok";
+const manus =
+  "https://whatsappgw-pzpyrrww.manus.space/api/v1/instances/abc/send/text";
+const meta = "https://graph.facebook.com/v21.0/123456/messages";
+const post = (body) => ({ method: "POST", body });
+test("WhatsApp test sends reach only David's direct chat", async () => {
+  for (const [url, init] of [
+    [green, post(JSON.stringify({ chatId: `${david}@c.us`, message: "hi" }))],
+    [manus, post(JSON.stringify({ to: david, body: "hi" }))],
+    [
+      meta,
+      post(JSON.stringify({ messaging_product: "whatsapp", to: `+${david}` })),
+    ],
+    [
+      greenUpload,
+      post(
+        (() => {
+          const f = new FormData();
+          f.append("chatId", `${david}@c.us`);
+          return f;
+        })(),
+      ),
+    ],
+  ])
+    assert.equal(await stagingRequestAllowed(url, init, own), true, url);
+  assert.equal(
+    await stagingRequestAllowed(
+      new Request(green, post(JSON.stringify({ chatId: `${david}@c.us` }))),
+      undefined,
+      own,
+    ),
+    true,
+  );
+  for (const [url, init] of [
+    [green, post(JSON.stringify({ chatId: "972501234567@c.us" }))],
+    [green, post(JSON.stringify({ chatId: `${david}-1600000000@g.us` }))],
+    [green, post(JSON.stringify({ chatId: `0${david.slice(3)}@c.us` }))],
+    [green, post(JSON.stringify({ chatId: `1${david}@c.us` }))],
+    [green, { method: "GET" }],
+    [green, post("not json")],
+    [
+      `${green}?chatId=${david}`,
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
+    ],
+    [
+      "https://api.green-api.com/waInstance1101/sendPoll/tok",
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
+    ],
+    [
+      "https://whatsappgw-pzpyrrww.manus.space/api/v1/instances/abc/send/group",
+      post(JSON.stringify({ to: david, groupId: "x@g.us" })),
+    ],
+    [manus, post(JSON.stringify({ to: [david, "972501234567"] }))],
+    [meta, post(JSON.stringify({ to: "972501234567" }))],
+    [
+      "https://evil.example/waInstance1101/sendMessage/tok",
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
+    ],
+  ])
+    assert.equal(await stagingRequestAllowed(url, init, own), false, url);
+});
+test("app-level allowlist matches the edge guard list", async () => {
+  const source = await readFile(
+    new URL("./integration-guard.ts", import.meta.url),
+    "utf8",
+  );
+  const list = /export const STAGING_WHATSAPP_TEST_NUMBERS = (\[[^\]]*\])/.exec(
+    source,
+  )[1];
+  assert.deepEqual(JSON.parse(list), STAGING_WHATSAPP_TEST_NUMBERS);
 });

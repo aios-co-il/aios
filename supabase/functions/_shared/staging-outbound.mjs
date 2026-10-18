@@ -126,6 +126,80 @@ export function outboundAllowed(url, method, ownOrigin) {
   ].includes(target.hostname);
 }
 
+// Staging may deliver WhatsApp test messages to these numbers only (David).
+// Hardcoded so copied data or env values cannot widen it. Groups stay blocked.
+export const STAGING_WHATSAPP_TEST_NUMBERS = ["972507677613"];
+
+/** Returns the recipient field name for a reviewed WhatsApp send endpoint, else null. */
+export function whatsappSendRecipientField(url, method) {
+  if (method.toUpperCase() !== "POST") return null;
+  const target = new URL(url);
+  if (target.search) return null;
+  if (
+    target.hostname === "api.green-api.com" &&
+    /^\/waInstance\d+\/(sendMessage|sendFileByUrl|sendFileByUpload)\/[^/]+$/.test(
+      target.pathname,
+    )
+  )
+    return "chatId";
+  if (
+    target.hostname === "whatsappgw-pzpyrrww.manus.space" &&
+    /^\/api\/v1\/instances\/[^/]+\/send\/(text|image|file)$/.test(
+      target.pathname,
+    )
+  )
+    return "to";
+  if (
+    target.hostname === "graph.facebook.com" &&
+    /^\/v\d+(\.\d+)?\/\d+\/messages$/.test(target.pathname)
+  )
+    return "to";
+  return null;
+}
+
+/** True only for a direct chat with an exact test number (no groups, no suffix matching). */
+export function isStagingWhatsAppTestRecipient(value) {
+  if (typeof value !== "string") return false;
+  const match = /^\+?(\d+)(@c\.us|@s\.whatsapp\.net)?$/.exec(value.trim());
+  return Boolean(match) && STAGING_WHATSAPP_TEST_NUMBERS.includes(match[1]);
+}
+
+async function readRecipient(input, init, field) {
+  try {
+    let body = init?.body;
+    if (body === undefined && input instanceof Request)
+      body = await input.clone().text();
+    if (body instanceof FormData || body instanceof URLSearchParams) {
+      const values = body.getAll(field);
+      return values.length === 1 ? values[0] : null;
+    }
+    if (typeof body !== "string") return null;
+    const parsed = JSON.parse(body);
+    // Meta accepts recipient lists only via "to"; reject any batch/group shape.
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return null;
+    if ("groupId" in parsed || "recipients" in parsed) return null;
+    return parsed[field];
+  } catch {
+    return null;
+  }
+}
+
+export async function stagingRequestAllowed(input, init, origin) {
+  const url =
+    typeof input === "string" || input instanceof URL
+      ? String(input)
+      : input.url;
+  const method =
+    init?.method || (input instanceof Request ? input.method : "GET");
+  if (outboundAllowed(url, method, origin)) return true;
+  const field = whatsappSendRecipientField(url, method);
+  if (!field) return false;
+  return isStagingWhatsAppTestRecipient(
+    await readRecipient(input, init, field),
+  );
+}
+
 export function installStagingOutboundGuard(ownUrl, runtime = globalThis) {
   const origin = new URL(ownUrl).origin;
   const originalFetch = runtime.fetch.bind(runtime);
@@ -136,7 +210,7 @@ export function installStagingOutboundGuard(ownUrl, runtime = globalThis) {
         : input.url;
     const method =
       init?.method || (input instanceof Request ? input.method : "GET");
-    if (!outboundAllowed(url, method, origin)) {
+    if (!(await stagingRequestAllowed(input, init, origin))) {
       // No recipient, token, body, URL query or client data enters the log.
       console.info("[staging-outbound] blocked", method, new URL(url).hostname);
       return new Response(
