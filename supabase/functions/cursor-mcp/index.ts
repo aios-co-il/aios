@@ -645,8 +645,6 @@ async function fireCursorAgent(
     name?: string;
     startingRef?: string;
     tenantId?: string | null;
-    /** Always open a new agent and leave the sticky pointer alone. */
-    fresh?: boolean;
   },
 ): Promise<FireResult> {
   const apiKey = Deno.env.get("CURSOR_API_KEY") || "";
@@ -655,13 +653,6 @@ async function fireCursorAgent(
   }
   const text =
     promptText.length > MAX_TEXT ? promptText.slice(0, MAX_TEXT) : promptText;
-
-  // Dev tasks get their own agent and PR. The sticky row doubles as the
-  // Cursor Direct chat, so following up or re-pointing it would drop the
-  // task into (or hijack) David's direct conversation.
-  if (opts?.fresh) {
-    return await createCursorAgent(apiKey, text, opts);
-  }
 
   if (STICKY_ENABLED) {
     const stickyId = await getStickyAgentId(opts?.tenantId ?? null);
@@ -1063,7 +1054,6 @@ async function handleToolCall(
           name: meta.displayName,
           startingRef: branch || undefined,
           tenantId: ctx.tenantId,
-          fresh: true,
         });
       }
     } else {
@@ -1071,7 +1061,6 @@ async function handleToolCall(
         name: meta.displayName,
         startingRef: branch || undefined,
         tenantId: ctx.tenantId,
-        fresh: true,
       });
     }
     await logDispatch({

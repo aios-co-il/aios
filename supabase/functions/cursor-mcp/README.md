@@ -30,10 +30,6 @@ By default Carmen reuses **one Cloud Agent per tenant**
 keeps the same conversation and workspace. A new agent is created only when none
 exists or the sticky one is gone.
 
-`request_dev_task` (without `goal_id`) is the exception: each dev task opens
-its own agent and PR and never touches the sticky row, because that row is
-also the Cursor Direct chat.
-
 Optional secrets: `CURSOR_STICKY_AGENT_ID` (force a specific `bc-…`),
 `CURSOR_STICKY=false` to disable.
 
