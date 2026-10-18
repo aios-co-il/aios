@@ -1,6 +1,7 @@
 """Phase timing and the GitHub step summary."""
 import os
 import time
+from .sql import batches
 
 
 class RunLog:
