@@ -191,7 +191,33 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+  mirror-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mirror: ${{ steps.filter.outputs.mirror }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
+      - id: filter
+        name: Detect mirror script changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Pushes and reusable calls always run; only PRs are narrowed.
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|staging-data-manifest\.json|test_staging_mirror)'; then
+            echo "mirror=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mirror=false" >> "$GITHUB_OUTPUT"
+          fi
+
   mirror-sql:
+    needs: mirror-changes
+    if: needs.mirror-changes.outputs.mirror == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
