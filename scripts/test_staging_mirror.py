@@ -168,7 +168,7 @@ class MirrorTests(unittest.TestCase):
         manifest = json.loads(Path(__file__).with_name('staging-data-manifest.json').read_text())
         self.assertIn('crm_records', manifest['replace_on_sync'])
         self.assertTrue(set(manifest['replace_on_sync']) <= set(manifest['tables']))
-        source = Path(__file__).with_name('sync-staging-data.py').read_text()
+        source = (Path(__file__).with_name('staging_mirror') / 'cli.py').read_text()
         self.assertIn("manifest.get('replace_on_sync', [])", source)
 
     def test_source_cannot_be_target(self):
