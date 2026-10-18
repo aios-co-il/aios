@@ -1,5 +1,5 @@
--- Aborts the surrounding transaction unless Staging outbound containment is verified.
--- Prefixed to every write so a closed gate cannot be bypassed by a stray import.
+-- Safety latch: refuse any write to Staging until outbound containment is verified,
+-- so a mirror run can never trigger real emails or messages to customers.
 DO $gate$ BEGIN
 IF NOT EXISTS(SELECT 1 FROM environment_sync.safety WHERE singleton AND outbound_blocked AND guard_version=1) THEN
  RAISE EXCEPTION 'Staging containment is not verified';

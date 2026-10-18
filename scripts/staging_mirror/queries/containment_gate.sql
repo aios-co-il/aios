@@ -1,3 +1,3 @@
--- Reads the verified containment record and the Edge function versions it was checked against.
--- Returns no row while outbound traffic is not blocked.
+-- Confirms Staging is sealed off from the outside world, and that no Edge function
+-- was redeployed since, before any customer data is copied in.
 SELECT guard_version,edge_versions FROM environment_sync.safety WHERE singleton AND outbound_blocked

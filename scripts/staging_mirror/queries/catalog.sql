@@ -1,5 +1,5 @@
--- Lists public tables with their columns (name, type, generated, not null) and primary key.
--- Run on Production and Staging so preflight can compare the two schemas.
+-- Lets preflight confirm Production and Staging schemas still match before copying,
+-- so a schema drift fails the run early instead of corrupting rows mid-import.
 select c.relname as name,
  (select jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'generated',a.attgenerated,'not_null',a.attnotnull) order by a.attnum)
   from pg_catalog.pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) as columns,
