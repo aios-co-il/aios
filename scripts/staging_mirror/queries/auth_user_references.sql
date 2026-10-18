@@ -1,5 +1,5 @@
--- Used in the identity parents phase, before tables are mirrored.
--- The columns it returns are read from Production to learn which user IDs need a placeholder in Staging.
+-- Lists every single-column foreign key from a public table to auth.users:
+-- the table and the column that holds the user ID.
 SELECT child.relname AS child,a.attname AS column
 FROM pg_constraint c JOIN pg_class child ON child.oid=c.conrelid
 JOIN pg_namespace n ON n.oid=child.relnamespace
