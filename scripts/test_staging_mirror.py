@@ -58,6 +58,10 @@ class MirrorTests(unittest.TestCase):
         guard = json.dumps({'message': 'ERROR: P0001: Pending Staging invitations require identity reconciliation\nCONTEXT: PL/pgSQL'})
         self.assertEqual(mirror.safe_database_error(guard),
                          ' (SQLSTATE P0001, message: Pending Staging invitations require identity reconciliation)')
+        other = json.dumps({'message': 'ERROR: P0001: some other exception'})
+        self.assertEqual(mirror.safe_database_error(other), ' (SQLSTATE P0001)')
+        leaked = json.dumps({'message': 'ERROR: P0001: x\nDETAIL: ERROR: P0001: Staging containment is not verified private@example.com'})
+        self.assertEqual(mirror.safe_database_error(leaked), ' (SQLSTATE P0001)')
     def test_legacy_json_skill_strings_fit_staging_arrays_without_changing_source(self):
         for value, expected in [('seo', ['seo']), ('["seo","copy"]', ['seo','copy']), (['seo'], ['seo']), (None, None)]:
             row = {'task_skills': value}
