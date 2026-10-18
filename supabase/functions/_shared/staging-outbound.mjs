@@ -1,3 +1,8 @@
+import {
+  envTestNumbers,
+  whatsappTestSendAllowed,
+} from "./staging-whatsapp-test.ts";
+
 /** Installed before an Edge entrypoint loads, only by the Staging deployer.
  * Independent of APP_ENV and copied database data. No production opt-out flag.
  */
@@ -126,7 +131,11 @@ export function outboundAllowed(url, method, ownOrigin) {
   ].includes(target.hostname);
 }
 
-export function installStagingOutboundGuard(ownUrl, runtime = globalThis) {
+export function installStagingOutboundGuard(
+  ownUrl,
+  runtime = globalThis,
+  testNumbers = envTestNumbers(),
+) {
   const origin = new URL(ownUrl).origin;
   const originalFetch = runtime.fetch.bind(runtime);
   runtime.fetch = async (input, init) => {
@@ -136,7 +145,10 @@ export function installStagingOutboundGuard(ownUrl, runtime = globalThis) {
         : input.url;
     const method =
       init?.method || (input instanceof Request ? input.method : "GET");
-    if (!outboundAllowed(url, method, origin)) {
+    if (
+      !outboundAllowed(url, method, origin) &&
+      !(await whatsappTestSendAllowed(input, init, testNumbers))
+    ) {
       // No recipient, token, body, URL query or client data enters the log.
       console.info("[staging-outbound] blocked", method, new URL(url).hostname);
       return new Response(

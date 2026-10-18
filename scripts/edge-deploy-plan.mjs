@@ -57,7 +57,10 @@ export function productionChanges(
       .join("\n");
   };
   return files.filter((file) => {
-    if (file.startsWith("supabase/functions/_shared/staging-outbound."))
+    if (
+      file.startsWith("supabase/functions/_shared/staging-outbound.") ||
+      file.startsWith("supabase/functions/_shared/staging-whatsapp-test.")
+    )
       return false;
     if (file === GENERATED_TYPES) return false;
     if (
