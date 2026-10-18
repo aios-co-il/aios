@@ -142,6 +142,12 @@ export function whatsappSendRecipientField(url, method) {
     )
   )
     return "chatId";
+  // Per-instance upload host: https://{first 4 digits of idInstance}.media.greenapi.com
+  const media = /^(\d{4})\.media\.greenapi\.com$/.exec(target.hostname);
+  const upload = /^\/waInstance(\d+)\/sendFileByUpload\/[^/]+$/.exec(
+    target.pathname,
+  );
+  if (media && upload && upload[1].startsWith(media[1])) return "chatId";
   if (
     target.hostname === "whatsappgw-pzpyrrww.manus.space" &&
     /^\/api\/v1\/instances\/[^/]+\/send\/(text|image|file)$/.test(

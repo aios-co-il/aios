@@ -129,6 +129,10 @@ test("WhatsApp test sends reach only David's direct chat", async () => {
     [green, post(JSON.stringify({ chatId: `${david}@c.us`, message: "hi" }))],
     [manus, post(JSON.stringify({ to: david, body: "hi" }))],
     [
+      "https://7103.media.greenapi.com/waInstance7103954455/sendFileByUpload/tok",
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
+    ],
+    [
       meta,
       post(JSON.stringify({ messaging_product: "whatsapp", to: `+${david}` })),
     ],
@@ -170,6 +174,14 @@ test("WhatsApp test sends reach only David's direct chat", async () => {
     [
       "https://whatsappgw-pzpyrrww.manus.space/api/v1/instances/abc/send/group",
       post(JSON.stringify({ to: david, groupId: "x@g.us" })),
+    ],
+    [
+      "https://9999.media.greenapi.com/waInstance7103954455/sendFileByUpload/tok",
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
+    ],
+    [
+      "https://7103.media.greenapi.com/waInstance7103954455/sendMessage/tok",
+      post(JSON.stringify({ chatId: `${david}@c.us` })),
     ],
     [manus, post(JSON.stringify({ to: [david, "972501234567"] }))],
     [meta, post(JSON.stringify({ to: "972501234567" }))],
