@@ -5,7 +5,10 @@ import {
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
-import { greenApiUploadEndpoints } from "../_shared/green-api-upload-endpoints.ts";
+import {
+  greenApiUploadEndpoints,
+  isPreSubmitConnectError,
+} from "../_shared/green-api-upload-endpoints.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,8 +32,8 @@ function greenApiAbortSignal() {
 
 /**
  * POST the upload to each endpoint in turn. Moves on only when the host could
- * not be reached (network / TLS error or timeout); an HTTP answer from Green
- * (even an error) is returned as is.
+ * not be reached at all (DNS / connect / TLS), so the file is never sent
+ * twice; a timeout or an HTTP answer from Green (even an error) is final.
  */
 async function fetchGreenApiUpload(
   endpoints: string[],
@@ -42,6 +45,9 @@ async function fetchGreenApiUpload(
       return await fetchGreenApiUploadOnce(endpoint, uploadFormData);
     } catch (err) {
       lastErr = err;
+      if (!isPreSubmitConnectError(err)) {
+        throw err;
+      }
       console.warn(
         "[send-green-api-file] upload host unreachable, trying next",
         new URL(endpoint).host,
@@ -299,11 +305,7 @@ Deno.serve(async (req) => {
     const usedGroupChat = chatTarget.via === "group";
 
     // sendFileByUpload on the instance media host, legacy host as fallback.
-    const uploadEndpoints = greenApiUploadEndpoints(
-      instanceId,
-      apiToken,
-      integration.settings?.media_url,
-    );
+    const uploadEndpoints = greenApiUploadEndpoints(instanceId, apiToken);
     let body: any;
 
     const mimeType = file.type;

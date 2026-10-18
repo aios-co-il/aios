@@ -3,8 +3,8 @@
  * Safe for unit tests; no network / Production writes.
  */
 
-// Per attempt. Two attempts (instance media host, then legacy host) must fit
-// inside the browser's SEND_REPORT_CLIENT_TIMEOUT_MS.
+// Per upload attempt. A second host is tried only after a fast connect failure,
+// so one attempt plus the chat_messages insert must fit the browser's wait.
 export const GREEN_API_UPSTREAM_TIMEOUT_MS = 25_000;
 export const CHAT_MESSAGES_INSERT_TIMEOUT_MS = 15_000;
 export const SEND_REPORT_CLIENT_TIMEOUT_MS = 60_000;
