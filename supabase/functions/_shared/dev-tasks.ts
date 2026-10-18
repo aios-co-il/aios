@@ -471,6 +471,127 @@ export async function approveDevTask(
   return data as DevTaskRow;
 }
 
+/** Pulls the Claude Code session link out of claude-mcp's reply text. */
+export function extractClaudeSessionUrl(text: string): string {
+  const m = text.match(/https:\/\/claude\.ai\/code\/[^\s)"'<>]+/i);
+  return m ? m[0] : "";
+}
+
+/**
+ * Sends a dev task to Claude Code through claude-mcp `request_dev_task`.
+ * Each call fires a fresh routine session, so it never lands in the
+ * Claude Direct chat. The session link is kept in cursor_session_url
+ * (the task's agent-session link column); cursor_session_id stays empty.
+ */
+async function dispatchDevTaskToClaude(
+  supabase: { from: (t: string) => any },
+  task: DevTaskRow,
+  args: { tenantId: string; taskId: string; actorUserId?: string | null },
+): Promise<DispatchDevTaskResult> {
+  if (task.cursor_session_url && task.status === "in_progress") {
+    const sessionUrl = String(task.cursor_session_url);
+    return {
+      task,
+      sessionUrl,
+      cursorAgentId: "",
+      timedOut: false,
+      delivered: true,
+      userStatus: `כבר נשלח ל-Claude. סשן: ${sessionUrl}`,
+    };
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  if (!supabaseUrl) throw new Error("SUPABASE_URL missing");
+  const bearer = Deno.env.get("CLAUDE_MCP_BEARER") || "";
+  const { task: prompt, context } = buildDevTaskPrompt(task);
+
+  let sessionUrl = "";
+  let dispatchError: string | null = null;
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/claude-mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "request_dev_task",
+          arguments: {
+            task: prompt,
+            context,
+            branch: task.base_branch || "develop",
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    const raw = await resp.text();
+    if (!resp.ok)
+      throw new Error(`claude-mcp ${resp.status}: ${raw.slice(0, 400)}`);
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      /* keep raw */
+    }
+    const content = parsed?.result?.content;
+    const flat = Array.isArray(content)
+      ? content.map((c: any) => c?.text ?? "").join("\n")
+      : raw;
+    if (parsed?.result?.isError) throw new Error(flat.slice(0, 400));
+    sessionUrl = extractClaudeSessionUrl(flat) || "";
+    if (!sessionUrl && !/Dispatched/i.test(flat)) {
+      throw new Error(`claude-mcp: unexpected reply: ${flat.slice(0, 200)}`);
+    }
+  } catch (e: unknown) {
+    dispatchError = e instanceof Error ? e.message : String(e);
+    console.warn("[dev-tasks] claude dispatch error:", dispatchError);
+  }
+
+  const delivered = !dispatchError;
+  const patch: Record<string, unknown> = {
+    status: delivered ? "in_progress" : "approved",
+    dispatch_error: dispatchError,
+    dispatched_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (sessionUrl) patch.cursor_session_url = sessionUrl;
+
+  const { data: updated, error: upErr } = await supabase
+    .from("dev_tasks")
+    .update(patch)
+    .eq("id", args.taskId)
+    .eq("tenant_id", args.tenantId)
+    .select("*")
+    .single();
+  if (upErr) throw upErr;
+
+  await logDevTaskEvent(supabase, {
+    devTaskId: args.taskId,
+    tenantId: args.tenantId,
+    eventType: delivered ? "dispatched" : "dispatch_failed",
+    actorUserId: args.actorUserId,
+    detail: { agent: "claude", sessionUrl, error: dispatchError },
+  });
+
+  return {
+    task: updated as DevTaskRow,
+    sessionUrl,
+    cursorAgentId: "",
+    timedOut: false,
+    delivered,
+    dispatchToolError: dispatchError,
+    userStatus: delivered
+      ? `נשלח ל-Claude Code. סשן: ${sessionUrl || "(הקישור יופיע בסשן של Claude)"}`
+      : `שליחה ל-Claude נכשלה: ${dispatchError}`,
+  };
+}
+
 export async function dispatchDevTask(
   supabase: { from: (t: string) => any },
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
@@ -496,9 +617,12 @@ export async function dispatchDevTask(
   }
 
   const agent = String(task.assigned_agent || "cursor").toLowerCase();
+  if (agent === "claude") {
+    return await dispatchDevTaskToClaude(supabase, task as DevTaskRow, args);
+  }
   if (agent !== "cursor") {
     throw new Error(
-      `Dispatch for agent "${agent}" is not wired yet — use cursor or update manually.`,
+      `Dispatch for agent "${agent}" is not wired yet — use cursor or claude, or update manually.`,
     );
   }
 
