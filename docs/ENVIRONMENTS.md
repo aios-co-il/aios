@@ -1,6 +1,6 @@
 # AIOS environments
 
-**A development environment exists.** Say so whenever asked.
+**There IS a development environment. Never tell David or Carmen that it does not exist.**
 
 What to say when asked:
 
@@ -24,7 +24,7 @@ STAGING_DOMAIN=<configured-in-vercel>
 PRODUCTION_DOMAIN=<configured-in-vercel>
 ```
 
-When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the Staging alias from [Canonical URLs](#canonical-urls); include the custom domain only after verifying its branch assignment and availability.
+When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability.
 
 ## Canonical URLs
 
@@ -36,11 +36,13 @@ When a task finishes, **always send David the development environment link**: th
 
 ### Staging domain
 
-Use the `develop` alias in the table above as the stable Staging deployment. The intended custom domain is `https://staging.aios.co.il`; verify its Vercel branch assignment and Cloudflare DNS before declaring it available. A configured URL in documentation is not a DNS/HTTP health check.
+Use `https://after-lead-git-develop-aios-crm.vercel.app` as the stable Staging deployment alias. The intended custom domain is `https://staging.aios.co.il`; verify its Vercel branch assignment and Cloudflare DNS before declaring it available. A configured URL in documentation is not a DNS/HTTP health check.
 
 **Important:** A feature-branch Preview does **not** update when you merge elsewhere. After merge to `develop`, use **Staging** — not an old branch URL.
 
 `after-lead-aios-crm.vercel.app` is a **Production** alias, not Staging.
+
+The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no header space taken.
 
 ## Flow (staging-first)
 
@@ -48,21 +50,16 @@ Use the `develop` alias in the table above as the stable Staging deployment. The
 feature/* or fix/*
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
-    → Staging — verify full picture
+    → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
     → merge develop → main
     → Production (aios.co.il)
 ```
 
 **`develop` is the release candidate.** `main` only moves after Staging is verified.
 
-## Branches and releases
+**Branch freshness (required):** every PR must contain the latest tip of its base before merge. On `develop` the ruleset rule "Require branches to be up to date before merging" enforces it. On `main`, CI workflow `Require PR up to date with main` (check `Branch contains latest main`) does, and also accepts a `develop` release PR that holds `main`'s commits as patch-equivalents; make it a required check in the `main` ruleset. Cloud Agents must `git fetch origin <base>` and merge/rebase before opening or updating a PR.
 
-`main` and `develop` stay linear (`.github/rulesets/develop.json`); nothing merges between them. Rulesets for both branches are GitHub settings and list the required checks.
-
-- **Freshness:** every PR must contain the latest tip of its base. Rebase onto the base; do not merge it in. `develop`: ruleset rule "Require branches to be up to date before merging". `main`: workflow `Require PR up to date with main` (check `Branch contains latest main`), which also accepts a `develop` release PR whose `main` commits are patch-equivalents (`scripts/main-missing-from.sh`).
-- **Release** (`develop` → `main`): fast-forward `main` to `develop` through the bypass actor, or rebase-merge. Squash would leave a `main` commit with no equivalent on `develop`.
-- **Hotfix:** PR to `main`, squash-merged as one commit. Then `git cherry-pick -x <sha>` onto `develop` in a second PR. A multi-commit backport is rebase-merged.
-- **Drift check:** workflow `Check develop has main` runs on `main` and `develop` pushes and fails while a `main` commit has no patch-equivalent on `develop`. Backport before the next release.
+**Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then a second PR cherry-picks it onto `develop`. On every push to `main` or `develop`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
 
 | Git         | Deploy             | Data                                                      |
 | ----------- | ------------------ | --------------------------------------------------------- |
@@ -88,14 +85,23 @@ The following setup is documented for these environments; Vercel variables, Supa
 - Staging auth allows `http://localhost:8080` and `https://*.vercel.app`; email signup autoconfirm is on
 - WhatsApp send paths go through `IntegrationGuard`
 - Staging / Preview / Dev visual banner via `VITE_APP_ENV`
-- `deploy-staging-develop.yml` runs on matching **`develop` pushes** and manual dispatch (edge functions only for manual runs)
+- `deploy-staging-develop.yml` runs on matching **`develop` pushes**, manual dispatch, and reusable workflow calls from the main-to-develop sync (edge functions only for the last two)
 
 ## Code, data and deployment synchronization
 
-- Code: feature → reviewed Preview → `develop` → verify → approved `main` release. Hotfixes follow [Branches and releases](#branches-and-releases).
+- Code: feature → reviewed Preview → `develop` → verify → approved `main` release. Main hotfixes automatically merge back into develop. Conflicts fail visibly; no force-push or “ours/theirs” overwrite is used.
 - Edge deployment uses the last **successfully deployed** environment tag as its base. Shared module/config changes redeploy complete bundles. Both environments pin the same Supabase CLI. A superseded SHA cannot deploy over the current environment head.
 - Vercel builds each environment from source with its own variables. Never promote a Preview build containing Staging URLs to Production.
-- Data mirror (manifest, checkpoints, rejected rows, ID alignment, `environment_sync.table_state`): `docs/agents/staging-sync.md`.
+- Data: `scripts/staging-data-manifest.json` lists the mirrored business tables, including clients, report definitions/records, SEO, WooCommerce, analytics and permissions. The scheduled workflow targets a five-minute cadence after this workflow is released on the default branch; GitHub scheduling is best-effort, not real-time replication.
+- Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; scheduled runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
+- A newer Staging revision supersedes an older deployment/mirror run. Each completed import transaction keeps its row checkpoint; the new run closes the gate, verifies containment, and resumes. Production deployments remain serialized without cancellation. Report definitions/records and their dependency chain load before unrelated history tables.
+- Staging-only test rows are retained. Existing Staging schema, RLS policies, function bodies, operational queues, credentials and environment/agent connections are not replaced by a data refresh. New user IDs are provisioned for data/RLS relations without cloning passwords or sessions; existing Staging logins remain unchanged. A new identity that matches an old Staging invitation fails reconciliation rather than activating the invitation's permissions. New integration parent rows are inactive placeholders until configured in Staging.
+- Structural differences fail preflight instead of replaying Production's migration history over Staging. The additive reconciliation SQL adds the observed missing report columns only.
+- Import joins use equality on validated non-null keys so PostgreSQL can use primary-key lookups; typed batch rows are expanded once with `jsonb_populate_recordset`.
+- Legacy IDs are aligned only for reviewed, unambiguous logical keys in module permissions, menu items, monthly SEO updates and global skills. The transaction refuses inbound foreign keys or a canonical ID already in use, preserves record fields, records the ID mapping privately and suppresses user-trigger side effects. Conflicting Carmen instructions and referenced route/tag IDs remain explicit rejections.
+- Historical source user IDs whose Auth account is gone are represented by banned Staging identities with non-deliverable `@staging.invalid` addresses; passwords, sessions and invitation grants are never reconstructed.
+- An invalid row no longer rolls back every valid row in its batch. The bulk transaction falls back to row-level subtransactions only for data constraint errors. Rejected source projections are retained privately in `environment_sync.rejected_rows`, with schema-only error metadata; their checkpoints are not advanced. They retry automatically, and a run with any rejection remains red. Gate, permission, timeout and bookkeeping errors still abort the transaction.
+- `environment_sync.table_state` contains the last successful sync per table. A red workflow is an incomplete sync and must not be described as up to date. Previously cloned rows that were already deleted from Production before the first managed sync need explicit baseline reconciliation; they are not silently deleted as presumed test data.
 
 ## Staging outbound containment
 
@@ -119,14 +125,16 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 
 **Workaround:** email + password on Staging works if Google is not configured yet.
 
+Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
+
 ## Agent working rules
 
-1. Branch from `develop`. Hotfixes David asked for on Production may branch from `main`, and need the backport PR to `develop` (see [Branches and releases](#branches-and-releases)).
+1. Branch from `develop`. Hotfixes David asked for on Production may branch from `main`.
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
-4. After merge to `develop`, verify on Staging.
+4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
 5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
-6. Review the release PR's file diff before merge: it must contain the current `main` revision and exactly the Staging changes approved for release. Freshness and drift checks: [Branches and releases](#branches-and-releases).
+6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 
