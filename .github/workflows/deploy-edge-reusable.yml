@@ -103,7 +103,7 @@ jobs:
           fi
           echo "DEPLOY_BEFORE=$BEFORE" >> "$GITHUB_ENV"
       - name: Guard tests
-        run: node --test scripts/edge-deploy-plan.test.mjs scripts/deploy-edge.test.mjs supabase/functions/_shared/staging-outbound.test.mjs
+        run: node --test scripts/edge-deploy-plan.test.mjs scripts/deploy-edge.test.mjs supabase/functions/_shared/staging-outbound.test.mjs supabase/functions/_shared/staging-whatsapp-test.test.ts
       - name: Close Staging import gate during deployment
         if: inputs.environment == 'staging'
         env:
