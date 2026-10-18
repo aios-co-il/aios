@@ -57,7 +57,7 @@ def run_mirror(options, results, failures, rejected, run):
             reconcile_legacy_keys(api, table)
             reconcile_referenced_legacy_keys(api, table)
             result = mirror_table(api, table, inventory=incoming[table['name']], previous_rows=previous.get(table['name'], []),
-                                  record_state=False, outbound_fks=outbound_fks)
+                                  record_state=False, outbound_fks=outbound_fks, progress=run.progress)
         results.append(result)
         print(json.dumps(result), flush=True)
     with run.phase('identity parents'):

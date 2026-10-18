@@ -238,7 +238,7 @@ SELECT table_name,now(),source_rows,changed_rows FROM jsonb_to_recordset({json_s
 ON CONFLICT(table_name) DO UPDATE SET last_success_at=EXCLUDED.last_success_at,source_rows=EXCLUDED.source_rows,changed_rows=EXCLUDED.changed_rows""")
 
 
-def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows=None, record_state=True, outbound_fks=None):
+def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows=None, record_state=True, outbound_fks=None, progress=None):
     name, keys, columns = table['name'], table['keys'], table['columns']
     relation = 'public.' + ident(name)
     # One aggregate row avoids Management API result-row caps. No customer body
@@ -277,6 +277,8 @@ def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows
                 rejected_count = outcome[0]['rejected_rows']
                 rejected += rejected_count
                 applied += count - rejected_count
+                # Batches commit one by one; keep them if a later batch fails.
+                if progress is not None: progress[name] = applied
     removed = [item['row_key'] for key, item in previous.items() if key not in incoming] if delete_only else []
     deleted = 0
     for group in batches(removed):
