@@ -182,16 +182,39 @@ jobs:
       - name: Environment and report regression tests
         run: node --test scripts/edge-deploy-plan.test.mjs scripts/deploy-edge.test.mjs supabase/functions/_shared/staging-outbound.test.mjs supabase/functions/_shared/meeting-summary-prompts.test.ts supabase/functions/_shared/signature-field-text.test.ts supabase/functions/_shared/signature-email-template.test.ts supabase/functions/_shared/report-sync-window.test.ts src/lib/carmenLoaderSignal.test.ts src/lib/clipboardFiles.test.ts src/lib/reportRecords.test.ts src/lib/reportCoverage.test.ts src/lib/reportSyncCadence.test.ts src/lib/dashboardDateFilters.test.ts src/lib/weeklyAdsComparison.test.ts src/lib/adAccountUrl.test.ts src/lib/gaPropertyMatch.test.ts supabase/functions/_shared/gaDomain.test.ts src/lib/leadTableLayout.test.ts src/lib/leadTableColumns.test.ts src/lib/leadViewMode.test.ts src/lib/leadStageFilter.test.ts src/lib/recordingPlayback.test.ts src/lib/recordingSummaryTarget.test.ts src/lib/sharedReportTabs.test.ts src/lib/signatureFieldGuide.test.ts src/lib/signatureDate.test.ts src/lib/teamMemberMatch.test.ts supabase/functions/_shared/automation-status.test.ts src/components/marketing/departments/creative/videoScenes.test.ts src/components/marketing/departments/creative/videoStill.test.ts src/components/marketing/departments/creative/videoReference.test.ts src/components/marketing/departments/creative/videoClip.test.ts src/components/marketing/departments/creative/videoProduction.test.ts src/components/marketing/departments/creative/videoEngines.test.ts supabase/functions/_shared/video-director-tools.test.ts supabase/functions/_shared/creative-studio-tools.test.ts src/components/marketing/departments/creative/studioChat.test.ts render-worker/test/shots.test.mjs render-worker/test/ffmpeg.test.mjs render-worker/test/clip.test.mjs render-worker/test/engines.test.mjs render-worker/test/timeline.test.mjs
 
-      - name: Mirror contract tests
-        run: python3 -m unittest discover -s scripts -p 'test_staging_mirror.py'
-
       - name: Carmen pulse regression tests
         run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs
 
       - name: Build frontend
         run: pnpm build
 
+  mirror-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mirror: ${{ steps.filter.outputs.mirror }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
+      - id: filter
+        name: Detect mirror script changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Pushes and reusable calls always run; only PRs are narrowed.
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$'; then
+            echo "mirror=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mirror=false" >> "$GITHUB_OUTPUT"
+          fi
+
   mirror-sql:
+    needs: mirror-changes
+    if: needs.mirror-changes.outputs.mirror == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -211,6 +234,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
+      - name: Mirror contract tests
+        run: python3 -m unittest discover -s scripts -p 'test_staging_mirror.py'
       - name: Verify mirror transactions on disposable PostgreSQL
         env:
           MIRROR_TEST_DSN: postgresql://mirror_test:disposable_test_only@localhost:5432/mirror_test

@@ -137,23 +137,3 @@ jobs:
           git tag -f "edge-deployed-$DEPLOY_ENV" "$SOURCE_SHA"
           git push origin "refs/tags/edge-deployed-$DEPLOY_ENV" --force
           echo "### $DEPLOY_ENV Edge revision: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
-
-  mirror:
-    needs: deploy
-    if: inputs.environment == 'staging' && inputs.function_names == '' && inputs.mode != 'pr'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    environment: staging
-    concurrency:
-      group: staging-business-data-mirror
-      cancel-in-progress: false
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      PRODUCTION_REF: ${{ vars.PROD_PROJECT_REF }}
-      STAGING_REF: ${{ vars.SUPABASE_PROJECT_REF }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.source_sha }}
-      - name: Reconcile business data
-        run: python3 scripts/sync-staging-data.py --apply
