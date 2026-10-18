@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { ChatMessageRow } from "./ChatMessageRow";
-import { revealLatestAnswer } from "./chatScroll";
 import { ThinkingGalaxy } from "./ThinkingGalaxy";
 import {
   collectCarmenUiContext,
@@ -177,9 +176,7 @@ export function CarmenSidecar({
               if (parsed.type === "token") {
                 answer += parsed.content;
                 setStreamingText(answer);
-                requestAnimationFrame(() =>
-                  revealLatestAnswer(listRef.current),
-                );
+                scrollDown();
               }
             } catch {
               /* partial */
@@ -203,7 +200,7 @@ export function CarmenSidecar({
         toast({ title: "שגיאה", description: msg, variant: "destructive" });
       } finally {
         setIsStreaming(false);
-        requestAnimationFrame(() => revealLatestAnswer(listRef.current));
+        scrollDown();
       }
     },
     [

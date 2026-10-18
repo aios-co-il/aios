@@ -8,7 +8,7 @@ export function answerScrollTarget(opts: {
   scrollTop: number;
   scrollHeight: number;
   clientHeight: number;
-  /** Top of the latest answer, in the list's scroll coordinates; null if the last row is not an answer. */
+  /** Top of the latest answer, in the list's scroll coordinates; null when there is none. */
   answerTop: number | null;
   padding?: number;
 }): number | null {
@@ -20,17 +20,17 @@ export function answerScrollTarget(opts: {
   return target > opts.scrollTop ? target : null;
 }
 
-/** Scrolls `list` so the latest agent message (`.cc-msg-row.is-agent`) shows from its start. */
-export function revealLatestAnswer(list: HTMLElement | null) {
+/** Scrolls `list` so `answer` (the latest Carmen reply) shows from its start. */
+export function scrollToAnswerStart(
+  list: HTMLElement | null,
+  answer: HTMLElement | null,
+) {
   if (!list) return;
-  const rows = list.querySelectorAll<HTMLElement>(".cc-msg-row");
-  const last = rows[rows.length - 1];
-  const answerTop =
-    last && last.classList.contains("is-agent")
-      ? last.getBoundingClientRect().top -
-        list.getBoundingClientRect().top +
-        list.scrollTop
-      : null;
+  const answerTop = answer
+    ? answer.getBoundingClientRect().top -
+      list.getBoundingClientRect().top +
+      list.scrollTop
+    : null;
   const target = answerScrollTarget({
     scrollTop: list.scrollTop,
     scrollHeight: list.scrollHeight,

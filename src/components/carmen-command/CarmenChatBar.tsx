@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -38,7 +39,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
 import { ChatMessageRow } from "./ChatMessageRow";
-import { revealLatestAnswer } from "./chatScroll";
+import { scrollToAnswerStart } from "./chatScroll";
 import { ChatTopicRail } from "./ChatTopicRail";
 import { ThinkingGalaxy } from "./ThinkingGalaxy";
 import type { BrainChannel } from "./useBrainChannel";
@@ -241,9 +242,18 @@ export const CarmenChatBar = forwardRef<
     );
   };
   // Carmen's answers open at their first line; the reader scrolls down.
+  // answerRef points at the latest reply (streaming bubble or last assistant
+  // row); the layout effect scrolls once React has committed the new text.
+  const answerRef = useRef<HTMLDivElement>(null);
+  const revealPendingRef = useRef(false);
   const revealAnswer = () => {
-    requestAnimationFrame(() => revealLatestAnswer(listRef.current));
+    revealPendingRef.current = true;
   };
+  useLayoutEffect(() => {
+    if (!revealPendingRef.current) return;
+    revealPendingRef.current = false;
+    scrollToAnswerStart(listRef.current, answerRef.current);
+  }, [messages, streamingText]);
 
   const stopSpeech = useCallback(() => {
     ttsGenRef.current++;
@@ -1643,6 +1653,13 @@ export const CarmenChatBar = forwardRef<
             {visibleMessages.map((m, i) => (
               <ChatMessageRow
                 key={m.id || i}
+                rowRef={
+                  !streamingText &&
+                  m.role === "assistant" &&
+                  i === visibleMessages.length - 1
+                    ? answerRef
+                    : undefined
+                }
                 role={m.role as "user" | "assistant" | "tool_call"}
                 content={m.content}
                 attachments={m.attachments}
@@ -1652,7 +1669,7 @@ export const CarmenChatBar = forwardRef<
               />
             ))}
             {streamingText && (
-              <div className="cc-msg-row is-agent">
+              <div ref={answerRef} className="cc-msg-row is-agent">
                 {streamSprite === CARMEN_CHARACTER ? (
                   <CarmenPortrait
                     image={identity.image}
