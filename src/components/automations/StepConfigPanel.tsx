@@ -4794,52 +4794,9 @@ function LeadSourceConfig({
             facebook_form_fields: selected.formFields || [],
           });
           setShowFbDialog(false);
-
-          // Register form in tenant_integrations.settings.form_mappings so cron + sync include it,
-          // then trigger an initial sync.
-          try {
-            const { data: integ } = await supabase
-              .from("tenant_integrations")
-              .select("id, settings")
-              .eq("id", selected.integrationId)
-              .maybeSingle();
-            if (integ) {
-              const currentSettings = (integ.settings as any) || {};
-              const formMappings = { ...(currentSettings.form_mappings || {}) };
-              if (!formMappings[selected.formId]) {
-                formMappings[selected.formId] = {
-                  form_name: selected.formName,
-                  page_id: selected.pageId,
-                  page_name: selected.pageName,
-                  agency_id: null,
-                  sales_person_ids: [],
-                  fields: {},
-                };
-                await supabase
-                  .from("tenant_integrations")
-                  .update({
-                    settings: {
-                      ...currentSettings,
-                      form_mappings: formMappings,
-                    },
-                  })
-                  .eq("id", selected.integrationId);
-              }
-            }
-            // Kick off an initial sync (fire-and-forget)
-            supabase.functions
-              .invoke("sync-facebook-leads", {
-                body: {
-                  tenant_id: tenantId,
-                  integration_id: selected.integrationId,
-                  form_id: selected.formId,
-                  days: 30,
-                },
-              })
-              .catch((e) => console.warn("Initial FB sync failed:", e));
-          } catch (e) {
-            console.warn("Failed to register form mapping:", e);
-          }
+          // No CRM form mapping or lead sync here: a trigger only starts the
+          // flow. The webhook and the cron's flow pass deliver these leads, and
+          // a CRM lead is created only by a create_lead step.
         }}
       />
     </>
