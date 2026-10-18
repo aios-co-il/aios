@@ -3286,7 +3286,7 @@ const ALL_TOOLS = [
   {
     name: "dispatch_dev_task",
     description:
-      "שליחת משימת פיתוח מאושרת ל-Cursor. מחזיר delivered/userStatus — אם delivered=true דווחי שנשלח גם כשיש dispatchToolError (reconciled). אם verificationFailed=true או timeout/delivery_unconfirmed — אמרי שלא אומתה הגעה (ייתכן שנשלח); אסור להגיד שקרסר לא קיבל. צייני dispatchToolError ו/או attach_dev_task_session.",
+      "שליחת משימת פיתוח מאושרת לסוכן הקוד שלה (assigned_agent: cursor או claude). כל משימה נפתחת בסשן חדש משלה — לא בצ׳אט הישיר עם Cursor/Claude. מחזיר delivered/userStatus — אם delivered=true דווחי שנשלח גם כשיש dispatchToolError (reconciled). אם verificationFailed=true או timeout/delivery_unconfirmed — אמרי שלא אומתה הגעה (ייתכן שנשלח); אסור להגיד שקרסר לא קיבל. צייני dispatchToolError ו/או attach_dev_task_session.",
     parameters: {
       type: "object",
       properties: { dev_task_id: { type: "string" } },
