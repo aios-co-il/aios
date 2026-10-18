@@ -1,7 +1,12 @@
 """SQL literal/identifier helpers and batching."""
 import json
 import re
-from .api import Management
+from pathlib import Path
+
+
+def load_query(name):
+    # Static SQL lives in queries/*.sql so it is readable and highlighted as SQL.
+    return (Path(__file__).parent / 'queries' / (name + '.sql')).read_text().rstrip('\n')
 
 
 def ident(value):
@@ -38,7 +43,4 @@ def read_all(api, query, *, source=False):
     return api.query(f"SELECT coalesce(jsonb_agg(q),'[]'::jsonb) AS items FROM ({query}) q", source=source)[0]['items']
 
 
-IMPORT_GATE = """DO $gate$ BEGIN
-IF NOT EXISTS(SELECT 1 FROM environment_sync.safety WHERE singleton AND outbound_blocked AND guard_version=1) THEN
- RAISE EXCEPTION 'Staging containment is not verified';
-END IF; END $gate$;"""
+IMPORT_GATE = load_query('import_gate')

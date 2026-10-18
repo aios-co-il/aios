@@ -10,6 +10,7 @@ from .legacy import reconcile_legacy_keys, reconcile_referenced_legacy_keys
 from .mirror import mirror_table
 from .plan import CATALOG, dependency_order, load_outbound_foreign_keys, preflight
 from .runlog import RunLog
+from .sql import load_query
 
 
 def main():
@@ -43,14 +44,14 @@ def run_mirror(options, results, failures, rejected, run):
     print(f'Preflight: {len(plan)} business tables; source uses the read-only API')
     if not options.apply: return
     with run.phase('containment gate'):
-        gate = api.query("SELECT guard_version,edge_versions FROM environment_sync.safety WHERE singleton AND outbound_blocked")
+        gate = api.query(load_query('containment_gate'))
         if not gate or gate[0]['guard_version'] != 1:
             raise RuntimeError('Staging outbound containment has not been verified')
         if not gate[0]['edge_versions'] or api.function_versions() != gate[0]['edge_versions']:
             api.query("UPDATE environment_sync.safety SET outbound_blocked=false WHERE singleton")
             raise RuntimeError('Staging Edge deployments changed since containment verification')
     with run.phase('inventory'):
-        foreign_keys = api.query("SELECT child.relname AS child,parent.relname AS parent FROM pg_catalog.pg_constraint c JOIN pg_catalog.pg_class child ON child.oid=c.conrelid JOIN pg_catalog.pg_class parent ON parent.oid=c.confrelid JOIN pg_catalog.pg_namespace n ON n.oid=child.relnamespace WHERE c.contype='f' AND n.nspname='public'")
+        foreign_keys = api.query(load_query('foreign_key_edges'))
         plan = dependency_order(plan, foreign_keys)
         outbound_fks = load_outbound_foreign_keys(api)
         incoming, previous = load_inventory(api, plan)
