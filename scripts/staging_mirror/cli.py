@@ -5,9 +5,11 @@ import os
 from pathlib import Path
 from .api import Management
 from .identity import ensure_identity_parents, ensure_integration_parents, referenced_auth_users
+from .inventory import load_inventory, record_table_states
 from .legacy import reconcile_legacy_keys, reconcile_referenced_legacy_keys
+from .mirror import mirror_table
+from .plan import CATALOG, dependency_order, load_outbound_foreign_keys, preflight
 from .runlog import RunLog
-from .table import CATALOG, dependency_order, load_inventory, load_outbound_foreign_keys, mirror_table, preflight, record_table_states
 
 
 def main():
