@@ -4,6 +4,8 @@ import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { useEffect, useRef, useState } from "react";
 import { History, PanelRightClose, Maximize2, X } from "lucide-react";
 import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
+import { BrainRouteSelector } from "./BrainRouteSelector";
+import { CarmenSkinSwitcher } from "./CarmenSkinSwitcher";
 import { useBrainChannel } from "./useBrainChannel";
 import { useSystemFixContext } from "@/hooks/useSystemFixContext";
 import type { CarmenFaceState } from "./CarmenFace";
@@ -33,11 +35,15 @@ export function CommandCenterSidecar({
   const [faceState, setFaceState] = useState<CarmenFaceState>("idle");
   const audioLevelRef = useRef(0);
 
+  // The session opens on Carmen's internal brain once; after that the brain
+  // selector in the header owns the choice.
+  const initialBrainApplied = useRef(false);
   useEffect(() => {
+    if (initialBrainApplied.current) return;
     const internal = brain.routes.find((r) => r.slug === "internal");
-    if (internal && brain.selected.slug !== "internal") {
-      brain.selectRoute(internal, null);
-    }
+    if (!internal) return;
+    initialBrainApplied.current = true;
+    if (brain.selected.slug !== "internal") brain.selectRoute(internal, null);
   }, [brain.routes, brain.selected.slug, brain]);
 
   return (
@@ -83,6 +89,22 @@ export function CommandCenterSidecar({
       </header>
 
       {session && (
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--cc-line)] px-3 py-2"
+          data-testid="carmen-session-controls"
+        >
+          <BrainRouteSelector
+            routes={brain.routes}
+            value={brain.selected.id}
+            status={brain.status}
+            externalUrl={brain.externalUrl}
+            onChange={(route) => brain.selectRoute(route, null)}
+          />
+          <CarmenSkinSwitcher />
+        </div>
+      )}
+
+      {session && (
         <div className="carmen-session-video" aria-label={identity.name}>
           <button
             type="button"
@@ -98,6 +120,7 @@ export function CommandCenterSidecar({
             <Maximize2 className="h-4 w-4" />
           </button>
           <img
+            key={identity.image}
             src={identity.image}
             alt=""
             className={`carmen-session-character ${identity.custom ? "is-custom" : ""}`}

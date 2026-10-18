@@ -2,6 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
+import {
+  readActiveSkin,
+  readSkinAvatars,
+  signProfileImage,
+} from "@/lib/profileAvatars";
 
 export type AgentIdentity = {
   displayName?: string;
@@ -50,12 +55,22 @@ export function useCarmenIdentity() {
         if (signError) throw signError;
         identity.avatarUrl = signed.signedUrl;
       }
-      return identity;
+      const activeSkin = readActiveSkin(data?.metadata);
+      const skinAvatarUrl = activeSkin
+        ? await signProfileImage(
+            tenantId!,
+            readSkinAvatars(data?.metadata)[activeSkin]?.avatarPath,
+          )
+        : undefined;
+      return { ...identity, activeSkin, skinAvatarUrl };
     },
   });
+  // A skin's own avatar wins over Carmen's base avatar while that skin is active.
+  const image = query.data?.skinAvatarUrl || query.data?.avatarUrl;
   return {
     name: query.data?.displayName || "כרמן",
-    image: query.data?.avatarUrl || CARMEN_CHARACTER,
-    custom: !!query.data?.avatarUrl,
+    image: image || CARMEN_CHARACTER,
+    custom: !!image,
+    activeSkin: query.data?.activeSkin ?? null,
   };
 }

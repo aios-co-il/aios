@@ -18,7 +18,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import { Menu, Plug } from "lucide-react";
+import { ConnectedAgentProfiles } from "@/components/agents/ConnectedAgentProfiles";
 import { toast } from "sonner";
 
 export default function AgentHub() {
@@ -28,6 +29,7 @@ export default function AgentHub() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [connectedOpen, setConnectedOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTalent, setNewTalent] = useState("");
 
@@ -141,13 +143,40 @@ export default function AgentHub() {
         />
       )}
 
-      {selectedAgent ? (
-        <AgentEditor key={selectedAgent.id} agent={selectedAgent} />
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground p-6 text-center">
-          בחר סוכן מהרשימה או צור סוכן חדש
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <div className="flex justify-end border-b px-3 py-1.5 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => setConnectedOpen(true)}
+          >
+            <Plug className="h-3.5 w-3.5" />
+            סוכנים מחוברים
+          </Button>
         </div>
-      )}
+        {selectedAgent ? (
+          <AgentEditor key={selectedAgent.id} agent={selectedAgent} />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground p-6 text-center">
+            בחר סוכן מהרשימה או צור סוכן חדש
+          </div>
+        )}
+      </div>
+
+      <Dialog open={connectedOpen} onOpenChange={setConnectedOpen}>
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          dir="rtl"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-right">
+              פרופילי סוכנים מחוברים
+            </DialogTitle>
+          </DialogHeader>
+          <ConnectedAgentProfiles />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>

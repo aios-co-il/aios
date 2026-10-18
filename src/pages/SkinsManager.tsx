@@ -27,8 +27,12 @@ import {
   Building2,
   Wrench,
   Zap,
+  ImagePlus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCarmenSkins } from "@/hooks/useCarmenSkins";
+import { validateAvatarFile } from "@/lib/profileAvatars";
 
 // One row of ai_skills as a "skin" (role-persona). Global skins are read-only
 // for non-super-admins; a tenant can clone a global skin to an editable override
@@ -64,10 +68,12 @@ const toList = (v: string): string[] =>
 
 function SkinCard({
   skin,
+  avatarUrl,
   onEdit,
   onClone,
 }: {
   skin: Skin;
+  avatarUrl?: string;
   onEdit: (s: Skin) => void;
   onClone: (s: Skin) => void;
 }) {
@@ -95,7 +101,15 @@ function SkinCard({
           <code className="text-[10px] text-muted-foreground">{skin.slug}</code>
         </div>
         <div className="flex items-center gap-1.5">
-          <Sparkles className="h-4 w-4 text-orange-500" />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              className="h-7 w-7 rounded-full object-cover"
+            />
+          ) : (
+            <Sparkles className="h-4 w-4 text-orange-500" />
+          )}
           <span className="font-medium">{skin.name}</span>
         </div>
       </div>
@@ -167,6 +181,26 @@ export default function SkinsManager({ embedded = false }: SkinsManagerProps) {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Partial<Skin> | null>(null);
+  const carmenSkins = useCarmenSkins();
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarFor = (slug?: string) =>
+    carmenSkins.skins.find((x) => x.slug === slug)?.avatarUrl;
+
+  const changeAvatar = async (slug: string, file: File | null) => {
+    if (file) {
+      const invalid = validateAvatarFile(file);
+      if (invalid) return toast.error(invalid);
+    }
+    setAvatarBusy(true);
+    try {
+      await carmenSkins.setSkinAvatar(slug, file);
+      toast.success(file ? "תמונת הסקין עודכנה" : "תמונת הסקין הוסרה");
+    } catch (e: any) {
+      toast.error("עדכון התמונה נכשל: " + (e?.message || e));
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const { data: skins, isLoading } = useQuery({
     queryKey: ["skins-manager", tenantId],
@@ -262,6 +296,7 @@ export default function SkinsManager({ embedded = false }: SkinsManagerProps) {
               <SkinCard
                 key={s.id}
                 skin={s}
+                avatarUrl={avatarFor(s.slug)}
                 onEdit={setEditing}
                 onClone={cloneToTenant}
               />
@@ -279,6 +314,7 @@ export default function SkinsManager({ embedded = false }: SkinsManagerProps) {
             <SkinCard
               key={s.id}
               skin={s}
+              avatarUrl={avatarFor(s.slug)}
               onEdit={setEditing}
               onClone={cloneToTenant}
             />
@@ -339,6 +375,65 @@ export default function SkinsManager({ embedded = false }: SkinsManagerProps) {
           </DialogHeader>
           {editing && (
             <div className="space-y-3 text-right">
+              <div className="flex items-center justify-end gap-3 rounded-lg border p-3">
+                <div className="space-y-1 text-right">
+                  <Label>תמונת פרופיל לסקין</Label>
+                  {editing.id && editing.scope === "tenant" ? (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                        {avatarBusy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ImagePlus className="h-3.5 w-3.5" />
+                        )}
+                        {avatarFor(editing.slug)
+                          ? "החלפת תמונה"
+                          : "העלאת תמונה"}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          disabled={avatarBusy || !carmenSkins.canEdit}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = "";
+                            if (f && editing.slug)
+                              changeAvatar(editing.slug, f);
+                          }}
+                        />
+                      </label>
+                      {avatarFor(editing.slug) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          disabled={avatarBusy}
+                          onClick={() => changeAvatar(editing.slug!, null)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          הסרה
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      שמור את הסקין כדי להוסיף תמונה. PNG / JPG / WebP עד 5MB.
+                    </p>
+                  )}
+                </div>
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                  {avatarFor(editing.slug) ? (
+                    <img
+                      src={avatarFor(editing.slug)}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Sparkles className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>שם</Label>
