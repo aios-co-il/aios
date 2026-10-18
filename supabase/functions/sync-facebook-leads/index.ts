@@ -17,7 +17,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { tenant_id, integration_id, form_id, since_date, days } =
+    const { tenant_id, integration_id, form_id, since_date, days, preview } =
       await req.json();
 
     if (!tenant_id) {
@@ -26,6 +26,49 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Preview returns the form's leads straight from Facebook and writes
+    // nothing. It returns lead data, so the caller must be able to see the
+    // integration under RLS.
+    if (preview) {
+      if (!integration_id || !form_id) {
+        return new Response(
+          JSON.stringify({
+            error: "integration_id and form_id are required for preview",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const callerClient = createClient(
+        supabaseUrl,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        {
+          global: {
+            headers: { Authorization: req.headers.get("Authorization") ?? "" },
+          },
+        },
+      );
+      const { data: visible } = await callerClient
+        .from("tenant_integrations")
+        .select("id")
+        .eq("id", integration_id)
+        .maybeSingle();
+      if (!visible) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+    const previewLeads: Array<{
+      leadgen_id: string;
+      form_id: string;
+      created_time: string;
+      field_data: Record<string, string>;
+    }> = [];
 
     // Get Facebook integrations for this tenant (both own and shared)
     let query = supabase
@@ -144,6 +187,16 @@ serve(async (req) => {
             const fieldData: Record<string, string> = {};
             for (const field of lead.field_data || []) {
               fieldData[field.name] = field.values?.[0] || "";
+            }
+
+            if (preview) {
+              previewLeads.push({
+                leadgen_id: leadgenId,
+                form_id: formId,
+                created_time: lead.created_time,
+                field_data: fieldData,
+              });
+              continue;
             }
 
             const leadPhone = fieldData.phone_number || fieldData.phone || "";
@@ -339,6 +392,7 @@ serve(async (req) => {
         success: true,
         synced: totalSynced,
         skipped: totalSkipped,
+        ...(preview ? { leads: previewLeads } : {}),
         errors: errors.length > 0 ? errors : undefined,
       }),
       {
