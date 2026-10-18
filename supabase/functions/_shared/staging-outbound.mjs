@@ -1,11 +1,12 @@
+import {
+  envTestNumbers,
+  whatsappTestSendAllowed,
+} from "./staging-whatsapp-test.ts";
+
 /** Installed before an Edge entrypoint loads, only by the Staging deployer.
  * Independent of APP_ENV and copied database data. No production opt-out flag.
  */
-export function outboundAllowed(
-  url: string,
-  method: string,
-  ownOrigin: string,
-): boolean {
+export function outboundAllowed(url, method, ownOrigin) {
   const target = new URL(url);
   if (target.protocol !== "https:") return false;
   if (target.origin === ownOrigin) {
@@ -36,7 +37,7 @@ export function outboundAllowed(
   )
     return true;
   // Carmen can think and read reports; messaging, publishing and management stay blocked.
-  const inference: Record<string, RegExp> = {
+  const inference = {
     "api.openai.com":
       /^\/v1\/(responses|chat\/completions|embeddings|audio\/transcriptions|audio\/speech|images\/generations|images\/edits)\/?$/,
     "api.anthropic.com": /^\/v1\/messages\/?$/,
@@ -117,9 +118,7 @@ export function outboundAllowed(
       ["method", "_method"].some(
         (key) =>
           target.searchParams.has(key) &&
-          !["GET", "HEAD"].includes(
-            (target.searchParams.get(key) ?? "").toUpperCase(),
-          ),
+          !["GET", "HEAD"].includes(target.searchParams.get(key).toUpperCase()),
       )
     )
       return false;
@@ -132,132 +131,24 @@ export function outboundAllowed(
   ].includes(target.hostname);
 }
 
-type FetchInput = string | URL | Request;
-type Runtime = { fetch: typeof fetch };
-
-/** Digits-only numbers from STAGING_ALLOWED_PHONE_NUMBERS (comma/space separated). */
-export function parseTestNumbers(raw: string | undefined | null): string[] {
-  return (raw || "")
-    .split(/[\s,]+/)
-    .map((item) => item.replace(/\D/g, ""))
-    .filter((item) => item.length >= 8);
-}
-
-function envTestNumbers(): string[] {
-  // Staging-only secret, read once at install. Unset keeps every WhatsApp send blocked.
-  const deno = (
-    globalThis as { Deno?: { env: { get(key: string): string | undefined } } }
-  ).Deno;
-  return parseTestNumbers(deno?.env.get("STAGING_ALLOWED_PHONE_NUMBERS"));
-}
-
-/** Returns the recipient field name for a reviewed WhatsApp send endpoint, else null. */
-export function whatsappSendRecipientField(
-  url: string,
-  method: string,
-): string | null {
-  if (method.toUpperCase() !== "POST") return null;
-  const target = new URL(url);
-  if (target.search) return null;
-  if (
-    target.hostname === "api.green-api.com" &&
-    /^\/waInstance\d+\/(sendMessage|sendFileByUrl|sendFileByUpload)\/[^/]+$/.test(
-      target.pathname,
-    )
-  )
-    return "chatId";
-  // Per-instance upload host: https://{first 4 digits of idInstance}.media.greenapi.com
-  const media = /^(\d{4})\.media\.greenapi\.com$/.exec(target.hostname);
-  const upload = /^\/waInstance(\d+)\/sendFileByUpload\/[^/]+$/.exec(
-    target.pathname,
-  );
-  if (media && upload && upload[1].startsWith(media[1])) return "chatId";
-  if (
-    target.hostname === "whatsappgw-pzpyrrww.manus.space" &&
-    /^\/api\/v1\/instances\/[^/]+\/send\/(text|image|file)$/.test(
-      target.pathname,
-    )
-  )
-    return "to";
-  if (
-    target.hostname === "graph.facebook.com" &&
-    /^\/v\d+(\.\d+)?\/\d+\/messages$/.test(target.pathname)
-  )
-    return "to";
-  return null;
-}
-
-/** True only for a direct chat with an exact test number (no groups, no suffix matching). */
-export function isStagingWhatsAppTestRecipient(
-  value: unknown,
-  testNumbers: string[],
-): boolean {
-  if (typeof value !== "string") return false;
-  const match = /^\+?(\d+)(@c\.us|@s\.whatsapp\.net)?$/.exec(value.trim());
-  return match !== null && testNumbers.includes(match[1]);
-}
-
-async function readRecipient(
-  input: FetchInput,
-  init: RequestInit | undefined,
-  field: string,
-): Promise<unknown> {
-  try {
-    let body: unknown = init?.body;
-    if (body === undefined && input instanceof Request)
-      body = await input.clone().text();
-    if (body instanceof FormData || body instanceof URLSearchParams) {
-      const values = body.getAll(field);
-      return values.length === 1 ? values[0] : null;
-    }
-    if (typeof body !== "string") return null;
-    const parsed: unknown = JSON.parse(body);
-    // Reject batch or group shapes; only a single direct recipient passes.
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      return null;
-    if ("groupId" in parsed || "recipients" in parsed) return null;
-    return (parsed as Record<string, unknown>)[field];
-  } catch {
-    return null;
-  }
-}
-
-export async function stagingRequestAllowed(
-  input: FetchInput,
-  init: RequestInit | undefined,
-  origin: string,
-  testNumbers: string[],
-): Promise<boolean> {
-  const url =
-    typeof input === "string" || input instanceof URL
-      ? String(input)
-      : input.url;
-  const method =
-    init?.method || (input instanceof Request ? input.method : "GET");
-  if (outboundAllowed(url, method, origin)) return true;
-  const field = whatsappSendRecipientField(url, method);
-  if (!field || testNumbers.length === 0) return false;
-  return isStagingWhatsAppTestRecipient(
-    await readRecipient(input, init, field),
-    testNumbers,
-  );
-}
-
 export function installStagingOutboundGuard(
-  ownUrl: string,
-  runtime: Runtime = globalThis,
-  testNumbers: string[] = envTestNumbers(),
-): void {
+  ownUrl,
+  runtime = globalThis,
+  testNumbers = envTestNumbers(),
+) {
   const origin = new URL(ownUrl).origin;
   const originalFetch = runtime.fetch.bind(runtime);
-  runtime.fetch = async (input: FetchInput, init?: RequestInit) => {
+  runtime.fetch = async (input, init) => {
     const url =
       typeof input === "string" || input instanceof URL
         ? String(input)
         : input.url;
     const method =
       init?.method || (input instanceof Request ? input.method : "GET");
-    if (!(await stagingRequestAllowed(input, init, origin, testNumbers))) {
+    if (
+      !outboundAllowed(url, method, origin) &&
+      !(await whatsappTestSendAllowed(input, init, testNumbers))
+    ) {
       // No recipient, token, body, URL query or client data enters the log.
       console.info("[staging-outbound] blocked", method, new URL(url).hostname);
       return new Response(

@@ -70,7 +70,7 @@ export function deployFunctions({
         wrapped = true;
         writeFileSync(
           entry,
-          `import { installStagingOutboundGuard } from '../_shared/staging-outbound.ts';\ninstallStagingOutboundGuard(Deno.env.get('SUPABASE_URL')!);\nawait import('./_aios-source.ts');\n`,
+          `import { installStagingOutboundGuard } from '../_shared/staging-outbound.mjs';\ninstallStagingOutboundGuard(Deno.env.get('SUPABASE_URL')!);\nawait import('./_aios-source.ts');\n`,
         );
       }
       let deployed = false;
