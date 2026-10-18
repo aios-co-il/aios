@@ -225,7 +225,19 @@ serve(async (req) => {
               agency_id: formMapping.agency_id || null,
               sales_person_id:
                 salesPersonIds.length > 0 ? salesPersonIds[0] : null, // Primary for backwards compatibility
-              notes: `Facebook Lead ID: ${leadgenId}\nForm ID: ${formId}\nSource: Facebook Lead Ads\nCreated: ${lead.created_time}`,
+              facebook_form_id: formId,
+              facebook_leadgen_id: leadgenId,
+              form_data: fieldData,
+              // fb_ lines let automation tests resolve {{fb_*}} template fields.
+              notes: [
+                `Facebook Lead ID: ${leadgenId}`,
+                `Form ID: ${formId}`,
+                `Source: Facebook Lead Ads`,
+                `Created: ${lead.created_time}`,
+                ...Object.entries(fieldData)
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => `fb_${k}: ${v}`),
+              ].join("\n"),
             };
 
             // Apply custom field mappings
