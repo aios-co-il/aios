@@ -103,9 +103,10 @@ def main():
             tracked = root / 'supabase/functions' / name / 'index.ts'
             if not tracked.exists() or original.read_text() != tracked.read_text():
                 raise RuntimeError(f'{name}: deployed source differs from reviewed revision')
-            guard = base / '_shared/staging-outbound.mjs'
-            if guard.read_text() != (root / 'supabase/functions/_shared/staging-outbound.mjs').read_text():
-                raise RuntimeError(f'{name}: deployed outbound guard differs from reviewed source')
+            for guard_file in ('staging-outbound.mjs', 'staging-whatsapp-test.ts'):
+                guard = base / '_shared' / guard_file
+                if not guard.exists() or guard.read_text() != (root / 'supabase/functions/_shared' / guard_file).read_text():
+                    raise RuntimeError(f'{name}: deployed outbound guard differs from reviewed source')
             if index % 20 == 0 or index == len(versions):
                 print(f'Verified {index}/{len(versions)} Staging entrypoints', flush=True)
     finish_verification(api, versions, sha)
