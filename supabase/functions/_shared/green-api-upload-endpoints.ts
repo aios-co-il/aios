@@ -13,12 +13,13 @@ export function greenApiUploadEndpoints(
   const id = String(instanceId || "").replace(/\D/g, "");
   const path = `/waInstance${id}/sendFileByUpload/${apiToken}`;
   const hosts: string[] = [];
-  const custom = String(mediaUrl || "")
-    .trim()
-    .replace(/\/+$/, "");
-  if (/^https:\/\//.test(custom)) hosts.push(custom);
-  if (id.length >= 4)
+  const custom = mediaUrl || "";
+  if (/^https:\/\//.test(custom)) {
+    hosts.push(custom);
+  }
+  if (id.length >= 4) {
     hosts.push(`https://${id.slice(0, 4)}.media.greenapi.com`);
+  }
   hosts.push("https://api.green-api.com");
   return [...new Set(hosts)].map((host) => `${host}${path}`);
 }

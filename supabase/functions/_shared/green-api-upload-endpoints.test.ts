@@ -16,7 +16,7 @@ test("uploads go to the instance media host first, legacy host as fallback", () 
     greenApiUploadEndpoints(
       "7103954455",
       "tok",
-      "https://9999.media.greenapi.com/",
+      "https://9999.media.greenapi.com",
     )[0],
     "https://9999.media.greenapi.com/waInstance7103954455/sendFileByUpload/tok",
   );
