@@ -3488,6 +3488,7 @@ export type Database = {
       };
       carmen_client_group_access: {
         Row: {
+          agency_id: string | null;
           allow_assigned_campaigners: boolean;
           allow_client_contacts: boolean;
           client_id: string;
@@ -3499,6 +3500,7 @@ export type Database = {
           whatsapp_group_id: string;
         };
         Insert: {
+          agency_id?: string | null;
           allow_assigned_campaigners?: boolean;
           allow_client_contacts?: boolean;
           client_id: string;
@@ -3510,6 +3512,7 @@ export type Database = {
           whatsapp_group_id: string;
         };
         Update: {
+          agency_id?: string | null;
           allow_assigned_campaigners?: boolean;
           allow_client_contacts?: boolean;
           client_id?: string;
@@ -3521,6 +3524,13 @@ export type Database = {
           whatsapp_group_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "carmen_client_group_access_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "carmen_client_group_access_client_id_fkey";
             columns: ["client_id"];
@@ -3814,6 +3824,7 @@ export type Database = {
           escalation_agents: string[];
           id: string;
           phone: string;
+          relationship_note: string | null;
           role_title: string | null;
           scope_mode: string;
           status: string;
@@ -3835,6 +3846,7 @@ export type Database = {
           escalation_agents?: string[];
           id?: string;
           phone: string;
+          relationship_note?: string | null;
           role_title?: string | null;
           scope_mode?: string;
           status?: string;
@@ -3856,6 +3868,7 @@ export type Database = {
           escalation_agents?: string[];
           id?: string;
           phone?: string;
+          relationship_note?: string | null;
           role_title?: string | null;
           scope_mode?: string;
           status?: string;
@@ -14068,6 +14081,7 @@ export type Database = {
           completed_at: string | null;
           completed_lid: string | null;
           created_at: string;
+          group_chat_id: string | null;
           id: string;
           integration_id: string | null;
           phone: string;
@@ -14080,6 +14094,7 @@ export type Database = {
           completed_at?: string | null;
           completed_lid?: string | null;
           created_at?: string;
+          group_chat_id?: string | null;
           id?: string;
           integration_id?: string | null;
           phone: string;
@@ -14092,6 +14107,7 @@ export type Database = {
           completed_at?: string | null;
           completed_lid?: string | null;
           created_at?: string;
+          group_chat_id?: string | null;
           id?: string;
           integration_id?: string | null;
           phone?: string;
