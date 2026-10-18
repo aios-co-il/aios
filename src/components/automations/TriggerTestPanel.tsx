@@ -671,7 +671,8 @@ export function TriggerTestPanel({
 
     try {
       // Build the final payload
-      const finalPayload = { ...payload };
+      // trigger-automation reads the test flag from the payload, not the body.
+      const finalPayload = { ...payload, test: true };
       // Remove internal keys
       delete finalPayload._raw_json;
 
