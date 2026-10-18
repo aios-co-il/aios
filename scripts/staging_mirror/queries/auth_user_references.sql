@@ -1,3 +1,5 @@
+-- Single-column foreign keys from public tables to auth.users.
+-- Used to find which Production user IDs the mirrored rows reference.
 SELECT child.relname AS child,a.attname AS column
 FROM pg_constraint c JOIN pg_class child ON child.oid=c.conrelid
 JOIN pg_namespace n ON n.oid=child.relnamespace

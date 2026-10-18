@@ -1,3 +1,5 @@
+-- Single-column foreign keys per child table, with the referenced parent column.
+-- Used to skip source rows whose parent row is missing in Production.
 SELECT child.relname AS child, parent.relname AS parent, a.attname AS column,
 (SELECT parent_col.attname FROM pg_attribute parent_col
  WHERE parent_col.attrelid=c.confrelid AND parent_col.attnum=c.confkey[1]) AS parent_column
