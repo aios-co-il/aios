@@ -1,0 +1,1 @@
+SELECT guard_version,edge_versions FROM environment_sync.safety WHERE singleton AND outbound_blocked

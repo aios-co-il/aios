@@ -1,5 +1,5 @@
 """Auth identity and integration parent rows that must exist before table imports."""
-from .sql import IMPORT_GATE, batches, ident, json_sql, read_all
+from .sql import IMPORT_GATE, batches, ident, json_sql, load_query, read_all
 
 
 def ensure_identity_parents(api, referenced_users=()):
@@ -52,12 +52,7 @@ ON CONFLICT(id) DO NOTHING; COMMIT;""")
 
 def referenced_auth_users(api, tables):
     allowed = {table['name'] for table in tables}
-    edges = api.query("""SELECT child.relname AS child,a.attname AS column
-FROM pg_constraint c JOIN pg_class child ON child.oid=c.conrelid
-JOIN pg_namespace n ON n.oid=child.relnamespace
-JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=c.conkey[1]
-WHERE c.contype='f' AND n.nspname='public' AND c.confrelid='auth.users'::regclass
-AND cardinality(c.conkey)=1""")
+    edges = api.query(load_query('auth_user_references'))
     queries = [f"SELECT {ident(edge['column'])} AS id FROM public.{ident(edge['child'])} WHERE {ident(edge['column'])} IS NOT NULL"
                for edge in edges if edge['child'] in allowed]
     if not queries: return []

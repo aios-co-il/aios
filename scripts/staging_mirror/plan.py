@@ -1,5 +1,6 @@
 """Preflight against both schemas and foreign-key load order."""
 import re
+from .sql import load_query
 
 
 def dependency_order(tables, foreign_keys):
@@ -24,32 +25,14 @@ def dependency_order(tables, foreign_keys):
 
 
 def load_outbound_foreign_keys(api):
-    rows = api.query("""SELECT child.relname AS child, parent.relname AS parent, a.attname AS column,
-(SELECT parent_col.attname FROM pg_attribute parent_col
- WHERE parent_col.attrelid=c.confrelid AND parent_col.attnum=c.confkey[1]) AS parent_column
-FROM pg_constraint c
-JOIN pg_class child ON child.oid=c.conrelid
-JOIN pg_class parent ON parent.oid=c.confrelid
-JOIN pg_namespace n ON n.oid=child.relnamespace
-JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=c.conkey[1]
-WHERE c.contype='f' AND n.nspname='public' AND cardinality(c.confkey)=1""")
+    rows = api.query(load_query('outbound_foreign_keys'))
     grouped = {}
     for row in rows:
         grouped.setdefault(row['child'], []).append(row)
     return grouped
 
 
-CATALOG = """
-select c.relname as name,
- (select jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'generated',a.attgenerated,'not_null',a.attnotnull) order by a.attnum)
-  from pg_catalog.pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) as columns,
- (select jsonb_agg(a.attname order by u.ordinality) from pg_catalog.pg_index i
-  cross join lateral unnest(i.indkey) with ordinality u(attnum,ordinality)
-  join pg_catalog.pg_attribute a on a.attrelid=i.indrelid and a.attnum=u.attnum
-  where i.indrelid=c.oid and i.indisprimary) as pk
-from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace
-where n.nspname='public' and c.relkind='r' order by c.relname
-"""
+CATALOG = load_query('catalog')
 
 
 def preflight(names, source, target):
