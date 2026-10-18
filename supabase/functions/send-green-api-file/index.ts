@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   resolveGreenApiChatTarget,
+  greenApiUploadEndpoints,
   withTimeout,
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
@@ -26,7 +27,32 @@ function greenApiAbortSignal() {
   return undefined;
 }
 
+/**
+ * POST the upload to each endpoint in turn. Moves on only when the host could
+ * not be reached (network / TLS error or timeout); an HTTP answer from Green
+ * (even an error) is returned as is.
+ */
 async function fetchGreenApiUpload(
+  endpoints: string[],
+  uploadFormData: FormData,
+): Promise<Response> {
+  let lastErr: unknown = null;
+  for (const endpoint of endpoints) {
+    try {
+      return await fetchGreenApiUploadOnce(endpoint, uploadFormData);
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        "[send-green-api-file] upload host unreachable, trying next",
+        new URL(endpoint).host,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  throw lastErr ?? new Error("Green API upload failed");
+}
+
+async function fetchGreenApiUploadOnce(
   endpoint: string,
   uploadFormData: FormData,
 ): Promise<Response> {
@@ -272,8 +298,13 @@ Deno.serve(async (req) => {
     const chatId: string = chatTarget.chatId;
     const usedGroupChat = chatTarget.via === "group";
 
-    // Determine API endpoint based on file type
-    let endpoint: string;
+    // sendFileByUpload on the instance media host, legacy host as fallback.
+    const uploadEndpoints = greenApiUploadEndpoints(
+      instanceId,
+      apiToken,
+      (integration?.settings as Record<string, unknown> | null)?.media_url as
+        string | undefined,
+    );
     let body: any;
 
     const mimeType = file.type;
@@ -281,15 +312,16 @@ Deno.serve(async (req) => {
     const uploadBlob = new Blob([fileBytes], { type: mimeType });
 
     if (fileType === "voice" || mimeType.startsWith("audio/")) {
-      endpoint = `https://api.green-api.com/waInstance${instanceId}/sendFileByUpload/${apiToken}`;
-
       // For voice messages, use sendFileByUpload with audio file
       const uploadFormData = new FormData();
       uploadFormData.append("chatId", chatId);
       uploadFormData.append("file", uploadBlob, fileName);
       if (caption) uploadFormData.append("caption", caption);
 
-      const response = await fetchGreenApiUpload(endpoint, uploadFormData);
+      const response = await fetchGreenApiUpload(
+        uploadEndpoints,
+        uploadFormData,
+      );
 
       const responseData = await response.json();
 
@@ -332,22 +364,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For images, videos, documents
-    if (mimeType.startsWith("image/")) {
-      endpoint = `https://api.green-api.com/waInstance${instanceId}/sendFileByUpload/${apiToken}`;
-    } else if (mimeType.startsWith("video/")) {
-      endpoint = `https://api.green-api.com/waInstance${instanceId}/sendFileByUpload/${apiToken}`;
-    } else {
-      endpoint = `https://api.green-api.com/waInstance${instanceId}/sendFileByUpload/${apiToken}`;
-    }
-
+    // Images, videos and documents use the same upload endpoint.
     // Use FormData for file upload
     const uploadFormData = new FormData();
     uploadFormData.append("chatId", chatId);
     uploadFormData.append("file", uploadBlob, fileName);
     if (caption) uploadFormData.append("caption", caption);
 
-    const response = await fetchGreenApiUpload(endpoint, uploadFormData);
+    const response = await fetchGreenApiUpload(uploadEndpoints, uploadFormData);
 
     const responseData = await response.json();
 

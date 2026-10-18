@@ -186,7 +186,7 @@ jobs:
         run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs
 
       - name: Build frontend
-        run: pnpm build
+        run: pnpm build supabase/functions/_shared/send-green-api-file-chat-resolve.test.mjs
 
   mirror-changes:
     runs-on: ubuntu-latest

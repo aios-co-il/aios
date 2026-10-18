@@ -3,7 +3,9 @@
  * Safe for unit tests; no network / Production writes.
  */
 
-export const GREEN_API_UPSTREAM_TIMEOUT_MS = 45_000;
+// Per attempt. Two attempts (instance media host, then legacy host) must fit
+// inside the browser's SEND_REPORT_CLIENT_TIMEOUT_MS.
+export const GREEN_API_UPSTREAM_TIMEOUT_MS = 25_000;
 export const CHAT_MESSAGES_INSERT_TIMEOUT_MS = 15_000;
 export const SEND_REPORT_CLIENT_TIMEOUT_MS = 60_000;
 
@@ -150,4 +152,25 @@ export function clientSendTimeoutMessage(err) {
     return "שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API";
   }
   return null;
+}
+
+/**
+ * Upload endpoints for sendFileByUpload, in the order to try them.
+ * Green API serves uploads from a per-instance media host
+ * (https://{first 4 digits of idInstance}.media.greenapi.com). The shared
+ * api.green-api.com host timed out / dropped TLS for report uploads, so it is
+ * only the fallback. A stored settings.media_url wins when present.
+ */
+export function greenApiUploadEndpoints(instanceId, apiToken, mediaUrl = "") {
+  const id = String(instanceId || "").replace(/\D/g, "");
+  const path = `/waInstance${id}/sendFileByUpload/${apiToken}`;
+  const hosts = [];
+  const custom = String(mediaUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (/^https:\/\//.test(custom)) hosts.push(custom);
+  if (id.length >= 4)
+    hosts.push(`https://${id.slice(0, 4)}.media.greenapi.com`);
+  hosts.push("https://api.green-api.com");
+  return [...new Set(hosts)].map((host) => `${host}${path}`);
 }
