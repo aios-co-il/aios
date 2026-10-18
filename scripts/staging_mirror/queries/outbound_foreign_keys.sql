@@ -1,5 +1,5 @@
--- Lets the mirror skip Production rows that point at a missing parent,
--- so one orphaned row cannot fail the whole batch.
+-- Loaded once in the inventory phase. While upserting, each fetched Production row is checked
+-- against these keys; rows whose parent is missing are skipped and reported as source orphans.
 SELECT child.relname AS child, parent.relname AS parent, a.attname AS column,
 (SELECT parent_col.attname FROM pg_attribute parent_col
  WHERE parent_col.attrelid=c.confrelid AND parent_col.attnum=c.confkey[1]) AS parent_column

@@ -1,5 +1,5 @@
--- Lets preflight confirm Production and Staging schemas still match before copying,
--- so a schema drift fails the run early instead of corrupting rows mid-import.
+-- First step of every run (preflight phase): sent to both Production and Staging.
+-- preflight() compares the two results against the manifest and fails the run on a missing table or column.
 select c.relname as name,
  (select jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'generated',a.attgenerated,'not_null',a.attnotnull) order by a.attnum)
   from pg_catalog.pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) as columns,
