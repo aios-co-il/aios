@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  extractClaudeSessionUrl,
   extractDevTaskId,
   extractPrUrlFromAgentReply,
   matchDispatchRowToDevTask,
@@ -103,5 +104,18 @@ Deno.test(
       ),
       false,
     );
+  },
+);
+
+Deno.test(
+  "extractClaudeSessionUrl reads the session link from claude-mcp",
+  () => {
+    assertEquals(
+      extractClaudeSessionUrl(
+        "✅ Dispatched the dev task to Claude Code.\nSession: https://claude.ai/code/session_01AbC",
+      ),
+      "https://claude.ai/code/session_01AbC",
+    );
+    assertEquals(extractClaudeSessionUrl("(session created)"), "");
   },
 );
