@@ -6,7 +6,7 @@ import time
 class RunLog:
     # Phase timings plus a Markdown step summary, written even when a run fails.
     def __init__(self):
-        self.phases, self.failed = [], None
+        self.phases, self.failed, self.progress = [], None, {}
 
     def phase(self, name):
         log = self
@@ -28,11 +28,17 @@ class RunLog:
         failures = list(failures)
         if self.failed and not failures:
             failures.insert(0, {'table': self.failed[0], 'error': self.failed[1]})
+        # Tables that failed after committing some batches keep those rows.
+        done = {r['table'] for r in results}
+        partial = {t: n for t, n in self.progress.items() if t not in done and n}
+        copied = sum(r['changed_rows'] for r in results) + sum(partial.values())
         lines = ['## Staging data mirror', '',
                  f'Result: **{"failed" if failures or rejected else "ok"}**; '
-                 f'{len(results)} tables synced, {sum(r["changed_rows"] for r in results)} rows copied.', '']
+                 f'{len(results)} tables synced, {copied} rows copied.', '']
         if failures:
-            lines += ['### Failed', ''] + [f"- `{f['table']}`: {f['error']}" for f in failures] + ['']
+            lines += ['### Failed', ''] + [
+                f"- `{f['table']}`: {f['error']}" + (f" ({partial[f['table']]} rows copied before failing)" if f['table'] in partial else '')
+                for f in failures] + ['']
         if rejected:
             lines += ['### Rejected rows', ''] + [f"- `{r['table']}`: {r['rejected_rows']}" for r in rejected] + ['']
         lines += ['### Tables', '', '| Table | Source rows | Copied | Removed | Rejected |', '| --- | ---: | ---: | ---: | ---: |']
