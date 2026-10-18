@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { File as FileIcon, Image as ImageIcon, Wrench } from "lucide-react";
 import { spriteForMessage } from "@/lib/agentSeats";
 import type { CommandCenterAttachment } from "@/lib/commandCenterAttachments";
+import type { Ref } from "react";
 
 interface ChatMessageRowProps {
   role: "user" | "assistant" | "tool_call";
@@ -14,6 +15,8 @@ interface ChatMessageRowProps {
   speaker?: string | null;
   channel?: string | null;
   tool?: string;
+  /** Ref to the row element, used to scroll a reply into view from its start. */
+  rowRef?: Ref<HTMLDivElement>;
 }
 
 // Links in agent replies must never navigate away from Carmen's screen:
@@ -81,6 +84,7 @@ export function ChatMessageRow({
   speaker,
   channel,
   tool,
+  rowRef,
 }: ChatMessageRowProps) {
   const identity = useCarmenIdentity();
   if (role === "tool_call") {
@@ -97,7 +101,10 @@ export function ChatMessageRow({
   const hasAttachments = !!attachments?.length;
 
   return (
-    <div className={`cc-msg-row${isUser ? " is-user" : " is-agent"}`}>
+    <div
+      ref={rowRef}
+      className={`cc-msg-row${isUser ? " is-user" : " is-agent"}`}
+    >
       {!isUser &&
         (sprite === CARMEN_CHARACTER ? (
           <CarmenPortrait
