@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import {
   outboundAllowed,
   installStagingOutboundGuard,
+  parseTestNumbers,
   stagingRequestAllowed,
-  STAGING_WHATSAPP_TEST_NUMBERS,
-} from "./staging-outbound.mjs";
+} from "./staging-outbound.ts";
+type FetchArg = string | URL | Request;
 const own = "https://staging.supabase.co";
 test("external sends and production calls blocked regardless of verb", () => {
   for (const [url, method] of [
@@ -100,12 +100,12 @@ test("Claude Direct can fire a routine but not manage routines", () => {
   );
 });
 test("guard never calls network for blocked request and disables redirect bypass", async () => {
-  const calls = [];
+  const calls: [FetchArg, RequestInit | undefined][] = [];
   const runtime = {
-    fetch: async (...args) => {
-      calls.push(args);
+    fetch: (async (...args: [FetchArg, RequestInit?]) => {
+      calls.push([args[0], args[1]]);
       return new Response("{}");
-    },
+    }) as typeof fetch,
   };
   installStagingOutboundGuard(own, runtime);
   const res = await runtime.fetch(
@@ -114,16 +114,17 @@ test("guard never calls network for blocked request and disables redirect bypass
   assert.equal(res.status, 409);
   assert.equal(calls.length, 0);
   await runtime.fetch(`${own}/rest/v1/clients`);
-  assert.equal(calls[0][1].redirect, "error");
+  assert.equal(calls[0][1]?.redirect, "error");
 });
 const david = "972507677613";
+const numbers = parseTestNumbers(`+${david}, 05`);
 const green = "https://api.green-api.com/waInstance1101/sendMessage/tok";
 const greenUpload =
   "https://api.green-api.com/waInstance1101/sendFileByUpload/tok";
 const manus =
   "https://whatsappgw-pzpyrrww.manus.space/api/v1/instances/abc/send/text";
 const meta = "https://graph.facebook.com/v21.0/123456/messages";
-const post = (body) => ({ method: "POST", body });
+const post = (body: BodyInit): RequestInit => ({ method: "POST", body });
 test("WhatsApp test sends reach only David's direct chat", async () => {
   for (const [url, init] of [
     [green, post(JSON.stringify({ chatId: `${david}@c.us`, message: "hi" }))],
@@ -147,12 +148,17 @@ test("WhatsApp test sends reach only David's direct chat", async () => {
       ),
     ],
   ])
-    assert.equal(await stagingRequestAllowed(url, init, own), true, url);
+    assert.equal(
+      await stagingRequestAllowed(url, init, own, numbers),
+      true,
+      url,
+    );
   assert.equal(
     await stagingRequestAllowed(
       new Request(green, post(JSON.stringify({ chatId: `${david}@c.us` }))),
       undefined,
       own,
+      numbers,
     ),
     true,
   );
@@ -190,15 +196,35 @@ test("WhatsApp test sends reach only David's direct chat", async () => {
       post(JSON.stringify({ chatId: `${david}@c.us` })),
     ],
   ])
-    assert.equal(await stagingRequestAllowed(url, init, own), false, url);
+    assert.equal(
+      await stagingRequestAllowed(url, init, own, numbers),
+      false,
+      url,
+    );
 });
-test("app-level allowlist matches the edge guard list", async () => {
-  const source = await readFile(
-    new URL("./integration-guard.ts", import.meta.url),
-    "utf8",
+test("WhatsApp sends stay blocked when no test number is configured", async () => {
+  const init = post(JSON.stringify({ chatId: `${david}@c.us` }));
+  assert.equal(await stagingRequestAllowed(green, init, own, []), false);
+  assert.deepEqual(parseTestNumbers(undefined), []);
+});
+test("installed guard uses the configured test numbers", async () => {
+  const calls: unknown[] = [];
+  const runtime = {
+    fetch: (async (...args: unknown[]) => {
+      calls.push(args);
+      return new Response("{}");
+    }) as typeof fetch,
+  };
+  installStagingOutboundGuard(own, runtime, [david]);
+  const ok = await runtime.fetch(
+    green,
+    post(JSON.stringify({ chatId: `${david}@c.us` })),
   );
-  const list = /export const STAGING_WHATSAPP_TEST_NUMBERS = (\[[^\]]*\])/.exec(
-    source,
-  )[1];
-  assert.deepEqual(JSON.parse(list), STAGING_WHATSAPP_TEST_NUMBERS);
+  const blocked = await runtime.fetch(
+    green,
+    post(JSON.stringify({ chatId: "972501234567@c.us" })),
+  );
+  assert.equal(ok.status, 200);
+  assert.equal(blocked.status, 409);
+  assert.equal(calls.length, 1);
 });

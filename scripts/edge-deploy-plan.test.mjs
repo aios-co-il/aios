@@ -60,7 +60,7 @@ test("Staging infrastructure changes cannot redeploy older Production functions"
     "\n# Staging compatibility\n[functions.collaboration-mcp]\nverify_jwt = false\n";
   const files = [
     "supabase/config.toml",
-    "supabase/functions/_shared/staging-outbound.mjs",
+    "supabase/functions/_shared/staging-outbound.ts",
     "supabase/functions/collaboration-mcp/index.ts",
     "scripts/deploy-edge.mjs",
     ".github/workflows/deploy-edge-reusable.yml",
