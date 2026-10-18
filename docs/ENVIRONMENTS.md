@@ -57,7 +57,7 @@ feature/* or fix/*
 
 **`develop` is the release candidate.** `main` only moves after Staging is verified.
 
-**Branch freshness (required):** every PR must contain the latest tip of its base before merge. On `develop` the ruleset rule "Require branches to be up to date before merging" enforces it. On `main`, CI workflow `Require PR up to date with main` (check `Branch contains latest main`) does, and also accepts a `develop` release PR that holds `main`'s commits as patch-equivalents; make it a required check in the `main` ruleset. Cloud Agents must `git fetch origin <base>` and merge/rebase before opening or updating a PR.
+**Branch freshness (required):** every PR must contain the latest tip of its base before merge. Cloud Agents `git fetch origin <base>` and merge/rebase before opening or updating a PR. Enforced by the ruleset rule "Require branches to be up to date before merging" on `develop` and by check `Branch contains latest main` on `main`.
 
 **Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then a second PR cherry-picks it onto `develop`. On every push to `main` or `develop`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
 
