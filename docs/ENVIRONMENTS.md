@@ -57,7 +57,7 @@ feature/* or fix/*
 
 **`develop` is the release candidate.** `main` only moves after Staging is verified.
 
-**Branch freshness (required):** every PR must contain the latest tip of its base (`develop` or `main`) before merge. CI workflow `Require PR up to date with base` fails stale heads — enable it as a required status check in GitHub branch protection. Cloud Agents must `git fetch origin <base>` and merge/rebase before opening or updating a PR.
+**Branch freshness (required):** every PR must contain the latest tip of its base before merge. Cloud Agents `git fetch origin <base>` and merge/rebase before opening or updating a PR. Enforced by the ruleset rule "Require branches to be up to date before merging" on `develop` and by check `Branch contains latest main` on `main`.
 
 **Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then a second PR cherry-picks it onto `develop`. On every push to `main` or `develop`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
 
@@ -134,7 +134,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
 5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
-6. `Check develop has main` runs on `main` and `develop` pushes; `Branch up to date with base` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
+6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 

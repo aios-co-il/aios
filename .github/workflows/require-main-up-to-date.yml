@@ -1,24 +1,26 @@
-# Fail PRs whose head is behind the base branch.
+# Fail PRs into `main` whose head is behind `main`.
 # Prevents stale-branch merges that silently overwrite newer fixes
 # (see docs/postmortems/2026-09-09-dmm-dashboards-regression.md).
+# `develop` uses the ruleset rule "Require branches to be up to date before merging"
+# instead. This workflow stays for `main` because a release PR may hold the main
+# commits as patch-equivalents rather than ancestors, which the ruleset rule rejects.
 #
-# Enable as a required status check in GitHub branch protection for
-# `develop` and `main` → "Branch up to date with base".
+# Enable as a required status check in the `main` ruleset → "Branch contains latest main".
 
-name: Require PR up to date with base
+name: Require PR up to date with main
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
-  group: pr-up-to-date-${{ github.event.pull_request.number }}
+  group: pr-main-up-to-date-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   up-to-date:
-    name: Branch up to date with base
+    name: Branch contains latest main
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR head
@@ -49,9 +51,8 @@ jobs:
           fi
           BEHIND=$(git rev-list --count HEAD.."origin/${BASE_REF}" || true)
           echo "::error::PR branch is ${BEHIND} commit(s) behind origin/${BASE_REF}."
-          echo "Rebase or merge the latest base before merging:"
+          echo "Rebase onto the latest base before merging (history is linear, do not merge it in):"
           echo "  git fetch origin ${BASE_REF}"
-          echo "  git merge origin/${BASE_REF}"
-          echo "  # or: git rebase origin/${BASE_REF}"
+          echo "  git rebase origin/${BASE_REF}"
           echo "Stale merges overwrite newer call sites (DMM dashboards / Clients Dialog regressions)."
           exit 1
