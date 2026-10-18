@@ -1,11 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   resolveGreenApiChatTarget,
-  greenApiUploadEndpoints,
   withTimeout,
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
+import { greenApiUploadEndpoints } from "../_shared/green-api-upload-endpoints.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -302,8 +302,7 @@ Deno.serve(async (req) => {
     const uploadEndpoints = greenApiUploadEndpoints(
       instanceId,
       apiToken,
-      (integration?.settings as Record<string, unknown> | null)?.media_url as
-        string | undefined,
+      integration.settings?.media_url,
     );
     let body: any;
 
