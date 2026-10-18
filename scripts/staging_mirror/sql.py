@@ -6,7 +6,10 @@ from pathlib import Path
 
 def load_query(name):
     # Static SQL lives in queries/*.sql so it is readable and highlighted as SQL.
-    return (Path(__file__).parent / 'queries' / (name + '.sql')).read_text().rstrip('\n')
+    # Leading comment lines document the file and are not sent to the database.
+    lines = (Path(__file__).parent / 'queries' / (name + '.sql')).read_text().rstrip('\n').split('\n')
+    while lines and lines[0].startswith('--'): lines.pop(0)
+    return '\n'.join(lines)
 
 
 def ident(value):
