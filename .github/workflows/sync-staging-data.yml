@@ -1,10 +1,10 @@
 name: Mirror live business data to Staging
 on:
   workflow_dispatch:
-  # GitHub schedules run from the default branch. This starts after the reviewed
-  # infrastructure release reaches main; deployment verification also runs a sync.
+  # GitHub schedules run from the default branch. Develop deploys no longer run
+  # the mirror; a failed nightly run stays red in Actions.
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 2 * * *"
 permissions:
   contents: read
 concurrency:

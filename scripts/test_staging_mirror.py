@@ -55,6 +55,9 @@ class MirrorTests(unittest.TestCase):
         body = json.dumps({'message': 'ERROR:  23505: duplicate key violates unique constraint "connections_org_unique"\nDETAIL: Key (email)=(private@example.com) already exists.\nINSERT secret-value'})
         self.assertEqual(mirror.safe_database_error(body), ' (SQLSTATE 23505, constraint connections_org_unique)')
         self.assertEqual(mirror.safe_database_error('private raw body'), '')
+        guard = json.dumps({'message': 'ERROR: P0001: Pending Staging invitations require identity reconciliation\nCONTEXT: PL/pgSQL'})
+        self.assertEqual(mirror.safe_database_error(guard),
+                         ' (SQLSTATE P0001, message: Pending Staging invitations require identity reconciliation)')
     def test_legacy_json_skill_strings_fit_staging_arrays_without_changing_source(self):
         for value, expected in [('seo', ['seo']), ('["seo","copy"]', ['seo','copy']), (['seo'], ['seo']), (None, None)]:
             row = {'task_skills': value}
