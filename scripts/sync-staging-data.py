@@ -590,7 +590,7 @@ SELECT table_name,now(),source_rows,changed_rows FROM jsonb_to_recordset({json_s
 ON CONFLICT(table_name) DO UPDATE SET last_success_at=EXCLUDED.last_success_at,source_rows=EXCLUDED.source_rows,changed_rows=EXCLUDED.changed_rows""")
 
 
-def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows=None, record_state=True, outbound_fks=None):
+def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows=None, record_state=True, outbound_fks=None, progress=None):
     name, keys, columns = table['name'], table['keys'], table['columns']
     relation = 'public.' + ident(name)
     # One aggregate row avoids Management API result-row caps. No customer body
@@ -629,6 +629,8 @@ def mirror_table(api, table, *, delete_only=False, inventory=None, previous_rows
                 rejected_count = outcome[0]['rejected_rows']
                 rejected += rejected_count
                 applied += count - rejected_count
+                # Batches commit one by one; keep them if a later batch fails.
+                if progress is not None: progress[name] = applied
     removed = [item['row_key'] for key, item in previous.items() if key not in incoming] if delete_only else []
     deleted = 0
     for group in batches(removed):
@@ -654,7 +656,7 @@ DELETE FROM environment_sync.managed_rows WHERE table_name={literal(name)} AND r
 class RunLog:
     # Phase timings plus a Markdown step summary, written even when a run fails.
     def __init__(self):
-        self.phases, self.failed = [], None
+        self.phases, self.failed, self.progress = [], None, {}
 
     def phase(self, name):
         log = self
@@ -676,11 +678,17 @@ class RunLog:
         failures = list(failures)
         if self.failed and not failures:
             failures.insert(0, {'table': self.failed[0], 'error': self.failed[1]})
+        # Tables that failed after committing some batches keep those rows.
+        done = {r['table'] for r in results}
+        partial = {t: n for t, n in self.progress.items() if t not in done and n}
+        copied = sum(r['changed_rows'] for r in results) + sum(partial.values())
         lines = ['## Staging data mirror', '',
                  f'Result: **{"failed" if failures or rejected else "ok"}**; '
-                 f'{len(results)} tables synced, {sum(r["changed_rows"] for r in results)} rows copied.', '']
+                 f'{len(results)} tables synced, {copied} rows copied.', '']
         if failures:
-            lines += ['### Failed', ''] + [f"- `{f['table']}`: {f['error']}" for f in failures] + ['']
+            lines += ['### Failed', ''] + [
+                f"- `{f['table']}`: {f['error']}" + (f" ({partial[f['table']]} rows copied before failing)" if f['table'] in partial else '')
+                for f in failures] + ['']
         if rejected:
             lines += ['### Rejected rows', ''] + [f"- `{r['table']}`: {r['rejected_rows']}" for r in rejected] + ['']
         lines += ['### Tables', '', '| Table | Source rows | Copied | Removed | Rejected |', '| --- | ---: | ---: | ---: | ---: |']
@@ -737,7 +745,7 @@ def run_mirror(options, results, failures, rejected, run):
             reconcile_legacy_keys(api, table)
             reconcile_referenced_legacy_keys(api, table)
             result = mirror_table(api, table, inventory=incoming[table['name']], previous_rows=previous.get(table['name'], []),
-                                  record_state=False, outbound_fks=outbound_fks)
+                                  record_state=False, outbound_fks=outbound_fks, progress=run.progress)
         results.append(result)
         print(json.dumps(result), flush=True)
     with run.phase('identity parents'):

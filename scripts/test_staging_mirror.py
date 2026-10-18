@@ -17,6 +17,21 @@ credentials_spec.loader.exec_module(credentials)
 
 
 class MirrorTests(unittest.TestCase):
+    def test_summary_counts_rows_committed_before_a_table_failed(self):
+        import os, tempfile
+        run = mirror.RunLog()
+        run.progress.update({'clients': 7, 'leads': 3})
+        with tempfile.NamedTemporaryFile('r+') as out:
+            os.environ['GITHUB_STEP_SUMMARY'] = out.name
+            try:
+                run.write_summary([{'table': 'clients', 'source_rows': 9, 'changed_rows': 7, 'removed_rows': 0, 'rejected_rows': 0}],
+                                  [{'table': 'leads', 'error': 'boom'}], [])
+            finally:
+                del os.environ['GITHUB_STEP_SUMMARY']
+            text = out.read()
+        self.assertIn('1 tables synced, 10 rows copied', text)
+        self.assertIn('`leads`: boom (3 rows copied before failing)', text)
+
     def test_reports_and_their_parents_precede_unrelated_history(self):
         names = ['history', 'crm_records', 'crm_tables', 'clients', 'tenants']
         edges = [{'child': child, 'parent': parent} for child, parent in

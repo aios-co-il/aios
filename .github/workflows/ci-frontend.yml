@@ -206,7 +206,7 @@ jobs:
         run: |
           set -euo pipefail
           # Pushes and reusable calls always run; only PRs are narrowed.
-          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|staging-data-manifest\.json|test_staging_mirror)'; then
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$'; then
             echo "mirror=true" >> "$GITHUB_OUTPUT"
           else
             echo "mirror=false" >> "$GITHUB_OUTPUT"
