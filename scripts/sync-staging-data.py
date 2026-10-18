@@ -17,7 +17,7 @@ from staging_mirror.cli import Session, apply_table, check_schemas, delete_remov
 from staging_mirror.identity import ensure_identity_parents, ensure_integration_parents, referenced_auth_users  # noqa: F401
 from staging_mirror.inventory import fingerprint_query, load_inventory, record_table_states, row_sql  # noqa: F401
 from staging_mirror.legacy import LEGACY_KEYS, REFERENCED_LEGACY_KEYS, legacy_key_sql, reconcile_legacy_keys, reconcile_referenced_legacy_keys, referenced_legacy_reconcile_sql  # noqa: F401
-from staging_mirror.mirror import filter_rows_missing_source_parents, mirror_table  # noqa: F401
+from staging_mirror.mirror import delete_removed, ensure_unique_staging_keys, filter_rows_missing_source_parents, mirror_table, source_fingerprints, upsert_changed  # noqa: F401
 from staging_mirror.plan import CATALOG, dependency_order, load_outbound_foreign_keys, preflight  # noqa: F401
 from staging_mirror.runlog import Run  # noqa: F401
 from staging_mirror.sql import IMPORT_GATE, batches, ident, json_sql, key_sql, key_text, literal, read_all  # noqa: F401
