@@ -7,6 +7,7 @@ import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
 import { BrainRouteSelector } from "./BrainRouteSelector";
 import { CarmenSkinSwitcher } from "./CarmenSkinSwitcher";
 import { useDraggableCard } from "./useDraggableCard";
+import { useCarmenSkins } from "@/hooks/useCarmenSkins";
 import { useBrainChannel } from "./useBrainChannel";
 import { useSystemFixContext } from "@/hooks/useSystemFixContext";
 import type { CarmenFaceState } from "./CarmenFace";
@@ -50,6 +51,16 @@ export function CommandCenterSidecar({
     initialBrainApplied.current = true;
     if (brain.selected.slug !== "internal") brain.selectRoute(internal, null);
   }, [brain.routes, brain.selected.slug, brain]);
+
+  // Each session opens on Carmen's base skin; a skin is picked per task.
+  const carmenSkins = useCarmenSkins();
+  const initialSkinApplied = useRef(false);
+  useEffect(() => {
+    if (!session || initialSkinApplied.current || carmenSkins.isLoading) return;
+    if (!carmenSkins.canEdit) return;
+    initialSkinApplied.current = true;
+    if (carmenSkins.activeSlug) carmenSkins.setActiveSkin(null).catch(() => {});
+  }, [session, carmenSkins]);
 
   return (
     <div
@@ -142,6 +153,7 @@ export function CommandCenterSidecar({
           onFaceState={setFaceState}
           audioLevelRef={audioLevelRef}
           mode="sidecar"
+          startFresh={session}
           contextMetadata={contextMetadata}
           composerAccessory={
             session ? (

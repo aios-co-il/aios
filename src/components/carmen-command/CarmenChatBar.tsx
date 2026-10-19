@@ -127,6 +127,8 @@ interface CarmenChatBarProps {
   sidecarPlaceholder?: string;
   /** Extra controls shown inside the composer, above the input row. */
   composerAccessory?: ReactNode;
+  /** Open on a new conversation instead of restoring the last one; past chats stay in history. */
+  startFresh?: boolean;
 }
 
 const CARMEN_VOICES = [
@@ -166,6 +168,7 @@ export const CarmenChatBar = forwardRef<
     contextMetadata = null,
     sidecarPlaceholder,
     composerAccessory,
+    startFresh = false,
   },
   ref,
 ) {
@@ -1361,11 +1364,15 @@ export const CarmenChatBar = forwardRef<
     }
   }, [learnFromConversation, tenantId, brain]);
 
+  const restoredRef = useRef(startFresh);
+  const seatSlugRef = useRef(brain.selected.slug);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
       learnFromConversation();
       rememberConv(conv.id);
       const nextRoute = routeForRestoredChat(brain.routes, conv);
+      // This chat picks its own seat; the seat-switch effect must not reset it.
+      seatSlugRef.current = nextRoute.slug;
       brain.selectRoute(nextRoute, conv.id);
       brain.setStatus(
         (topicIsLive(conv.status)
@@ -1431,8 +1438,6 @@ export const CarmenChatBar = forwardRef<
     },
   });
 
-  const restoredRef = useRef(false);
-  const seatSlugRef = useRef(brain.selected.slug);
   const routeScopedConversations = conversationsForRoute(
     pastConversations ?? [],
     brain.selected,
@@ -1480,7 +1485,9 @@ export const CarmenChatBar = forwardRef<
     const saved = localStorage.getItem(
       lastConversationStorageKeyForSeat(tenantId, nextSlug),
     );
-    const hit = scoped.find((c) => c.id === saved) || scoped[0];
+    const hit = startFresh
+      ? undefined
+      : scoped.find((c) => c.id === saved) || scoped[0];
     if (hit) {
       if (hit.id !== conversationIdRef.current) loadConversation(hit);
       return;
@@ -1501,6 +1508,7 @@ export const CarmenChatBar = forwardRef<
     loadConversation,
     brain,
     onConversationIdChange,
+    startFresh,
   ]);
 
   /* ---------- Mute (keep the conversation, stop listening) ---------- */

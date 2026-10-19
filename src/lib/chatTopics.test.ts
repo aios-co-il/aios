@@ -13,6 +13,19 @@ test("topic title falls back and collapses whitespace", () => {
   assert.equal(topicTitle("  היי   כרמן  "), "היי כרמן");
 });
 
+test("topic title keeps the first sentence and cuts long ones at a word", () => {
+  assert.equal(
+    topicTitle("תבני לי דוח לידים לשבוע שעבר. ואז תשלחי לדוד"),
+    "תבני לי דוח לידים לשבוע שעבר",
+  );
+  assert.equal(
+    topicTitle(
+      "אני רוצה שתבדקי את כל הקמפיינים של הלקוח בפייסבוק ותגידי לי מה לשפר מחר",
+    ),
+    "אני רוצה שתבדקי את כל הקמפיינים של הלקוח…",
+  );
+});
+
 test("live statuses are the ones that keep running in the background", () => {
   assert.equal(topicIsLive("idle"), false);
   assert.equal(topicIsLive("debating"), true);
