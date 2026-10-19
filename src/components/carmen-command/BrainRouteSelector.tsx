@@ -77,7 +77,7 @@ export function BrainRouteSelector({
       className={`flex min-w-0 ${compact ? "" : "max-w-[16rem]"} flex-col gap-0.5 ${className}`}
       dir="rtl"
     >
-      <DropdownMenu>
+      <DropdownMenu dir="rtl">
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
             type="button"
@@ -103,7 +103,9 @@ export function BrainRouteSelector({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="cc-root z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
+          side={compact ? "top" : "bottom"}
+          collisionPadding={8}
+          className="cc-root cc-menu z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
         >
           {groups.map((type, i) => (
             <div key={type}>

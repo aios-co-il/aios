@@ -24,6 +24,7 @@ export function CarmenSkinSwitcher({
 
   return (
     <Select
+      dir="rtl"
       value={active ? active.slug : BASE}
       disabled={isLoading}
       onValueChange={(v) =>
@@ -44,7 +45,7 @@ export function CarmenSkinSwitcher({
           </span>
         </span>
       </SelectTrigger>
-      <SelectContent className="cc-root z-[90] max-h-80 border-[var(--cc-line-strong)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]">
+      <SelectContent className="cc-root cc-menu z-[90] max-h-80 border-[var(--cc-line-strong)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]">
         <SelectItem value={BASE} textValue="רגיל">
           רגיל (ללא סקין)
         </SelectItem>
