@@ -145,6 +145,11 @@ export function CommandCenterSidecar({
           </div>
         </div>
       )}
+      {brain.noBrainAccess && (
+        <p className="m-3 rounded-lg border border-[var(--cc-line)] p-3 text-center text-sm text-[var(--cc-text-dim)]">
+          אין לך הרשאה לאף מוח של כרמן. אפשר לבקש גישה ממנהל המערכת.
+        </p>
+      )}
       <div className="carmen-session-chat flex min-h-0 flex-1 flex-col overflow-hidden p-2">
         <CarmenChatBar
           ref={chatRef}

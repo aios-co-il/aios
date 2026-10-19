@@ -48,6 +48,7 @@ export function useBrainChannel(tenantId: string | null) {
     initialSelectedRoute(),
   );
   const [status, setStatus] = useState<ConversationChannelStatus>("idle");
+  const [noBrainAccess, setNoBrainAccess] = useState(false);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [channelHealth, setChannelHealth] = useState<ChannelHealth | null>(
     null,
@@ -67,15 +68,18 @@ export function useBrainChannel(tenantId: string | null) {
         });
         if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
+        // A restricted user gets exactly the brains they may use, even none.
         const list =
-          Array.isArray(json.routes) && json.routes.length
+          Array.isArray(json.routes) && (json.routes.length || json.restricted)
             ? (json.routes as BrainRoute[])
             : FALLBACK_BRAIN_ROUTES;
         setRoutes(list);
-        setSelected(
-          (prev) =>
-            list.find((r) => r.slug === prev.slug) || pickDefaultRoute(list),
-        );
+        setNoBrainAccess(!!json.restricted && list.length === 0);
+        if (list.length)
+          setSelected(
+            (prev) =>
+              list.find((r) => r.slug === prev.slug) || pickDefaultRoute(list),
+          );
       } catch {
         setSelected((prev) =>
           pickDefaultRoute(FALLBACK_BRAIN_ROUTES, prev.slug),
@@ -264,6 +268,7 @@ export function useBrainChannel(tenantId: string | null) {
     routes,
     selected,
     selectRoute,
+    noBrainAccess,
     status,
     setStatus,
     externalUrl,

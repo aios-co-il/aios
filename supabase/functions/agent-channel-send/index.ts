@@ -98,9 +98,29 @@ Deno.serve(async (req) => {
   if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
   await ensureDefaultRoutes(sb, tenantId, agentId);
 
+  // Per-user brain permissions (Carmen settings → הרשאות).
+  const { brainLevel, BUGFIX_ONLY_PREAMBLE } =
+    await import("../_shared/carmen-brain-access.ts");
+  const { data: accessRow } = await sb
+    .from("carmen_command_center_access")
+    .select("enabled, brain_access")
+    .eq("tenant_id", tenantId)
+    .eq("agent_id", agentId)
+    .eq("user_id", auth.userId)
+    .maybeSingle();
   if (action === "list_routes") {
-    const routes = await ensureDefaultRoutes(sb, tenantId, agentId);
-    return json(200, { ok: true, routes, agent_id: agentId });
+    const { allowedRoutes } = await import("../_shared/carmen-brain-access.ts");
+    const routes = allowedRoutes(
+      await ensureDefaultRoutes(sb, tenantId, agentId),
+      accessRow,
+    );
+    return json(200, {
+      ok: true,
+      routes,
+      agent_id: agentId,
+      // true when this user has a permissions row: the list is exact, even if empty.
+      restricted: !!accessRow,
+    });
   }
 
   if (action === "channel_health") {
@@ -228,6 +248,14 @@ Deno.serve(async (req) => {
   });
   if (!route) return json(400, { error: "brain route not found" });
 
+  const level = brainLevel(accessRow, route.slug);
+  if (!level) {
+    return json(403, {
+      error: "אין לך הרשאה למוח הזה. בקש/י גישה ממנהל המערכת.",
+      code: "brain_not_allowed",
+    });
+  }
+
   if (action === "select_route") {
     if (body.conversation_id) {
       await sb
@@ -327,7 +355,11 @@ Deno.serve(async (req) => {
       agentId,
       conversationId: conv.id,
       route,
-      content,
+      // Coding brains on "bug fixes only" get the limit written into the task.
+      content:
+        level === "bugfix" && route.route_type === "direct_channel"
+          ? BUGFIX_ONLY_PREAMBLE + content
+          : content,
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,

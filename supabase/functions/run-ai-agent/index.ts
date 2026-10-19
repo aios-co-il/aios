@@ -16153,6 +16153,38 @@ Deno.serve(async (req) => {
             ? "grok_bot"
             : "internal_chat";
 
+  // Per-user Carmen permissions: a user restricted away from Carmen's main
+  // brain cannot reach it by calling this function directly.
+  if (
+    auth.kind === "user" &&
+    surface === "internal_chat" &&
+    typeof bodyJson.tenant_id === "string" &&
+    bodyJson.tenant_id
+  ) {
+    const { brainLevel } = await import("../_shared/carmen-brain-access.ts");
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    let q = sb
+      .from("carmen_command_center_access")
+      .select("enabled, brain_access")
+      .eq("tenant_id", bodyJson.tenant_id)
+      .eq("user_id", auth.userId);
+    if (typeof bodyJson.agent_id === "string" && bodyJson.agent_id)
+      q = q.eq("agent_id", bodyJson.agent_id);
+    const { data: accessRow } = await q.limit(1).maybeSingle();
+    if (!brainLevel(accessRow, "internal")) {
+      return new Response(
+        JSON.stringify({
+          error: "אין לך הרשאה למוח הראשי של כרמן. בקש/י גישה ממנהל המערכת.",
+          code: "brain_not_allowed",
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
   if (!wantStream) {
     return await handleRunAgent(bodyJson, surface, undefined);
   }

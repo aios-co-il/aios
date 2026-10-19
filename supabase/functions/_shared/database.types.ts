@@ -3547,9 +3547,11 @@ export type Database = {
       carmen_command_center_access: {
         Row: {
           agent_id: string;
+          brain_access: Json;
           campaigner_id: string | null;
           created_at: string;
           dev_escalation_tier: string | null;
+          enabled: boolean;
           id: string;
           surfaces: string[];
           tenant_id: string;
@@ -3558,9 +3560,11 @@ export type Database = {
         };
         Insert: {
           agent_id: string;
+          brain_access?: Json;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;
+          enabled?: boolean;
           id?: string;
           surfaces?: string[];
           tenant_id: string;
@@ -3569,9 +3573,11 @@ export type Database = {
         };
         Update: {
           agent_id?: string;
+          brain_access?: Json;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;
+          enabled?: boolean;
           id?: string;
           surfaces?: string[];
           tenant_id?: string;

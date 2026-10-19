@@ -9,6 +9,7 @@ import {
   Contact,
   HeartPulse,
   Library,
+  KeyRound,
   ListTodo,
   MessageCircle,
   Palette,
@@ -46,6 +47,7 @@ import { McpConnectionsTab } from "@/components/agents/tabs/McpConnectionsTab";
 import { EvalsTab } from "@/components/agents/tabs/EvalsTab";
 import { AgentAccessTab } from "@/components/agents/tabs/AgentAccessTab";
 import { CarmenConversationAccessTab } from "@/components/agents/tabs/CarmenConversationAccessTab";
+import { CarmenPermissionsTab } from "@/components/agents/tabs/CarmenPermissionsTab";
 import { AgentLearningTab } from "@/components/agents/tabs/AgentLearningTab";
 import { HeartbeatSettingsPanel } from "@/components/agents/HeartbeatSettingsPanel";
 import SkinsManager from "@/pages/SkinsManager";
@@ -96,6 +98,7 @@ export type SettingsSection =
   | "whatsapp"
   | "automations"
   | "phones"
+  | "permissions"
   | "agents"
   | "approvals"
   | "costs";
@@ -153,6 +156,12 @@ export const SETTINGS_SECTIONS: {
     label: "מספרי טלפון מאושרים",
     hint: "מי מותר לדבר עם כרמן",
     icon: Contact,
+  },
+  {
+    value: "permissions",
+    label: "הרשאות",
+    hint: "מי עובד עם כרמן ובאילו מוחות",
+    icon: KeyRound,
   },
   {
     value: "agents",
@@ -577,6 +586,8 @@ export function CarmenPanel({
         return <CarmenAutomationsList tenantId={tenantId} />;
       case "phones":
         return <CarmenConversationAccessTab agent={agent} />;
+      case "permissions":
+        return <CarmenPermissionsTab agent={agent} />;
       case "agents":
         if (parts[2])
           return (
