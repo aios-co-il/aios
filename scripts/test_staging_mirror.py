@@ -269,6 +269,7 @@ class RecoveryTests(unittest.TestCase):
             functions = root / 'supabase/functions'
             (functions / '_shared').mkdir(parents=True)
             (functions / '_shared/staging-outbound.mjs').write_text('guard')
+            (functions / '_shared/staging-whatsapp-test.ts').write_text('whatsapp guard')
             for name in ['report', 'leads']:
                 (functions / name).mkdir()
                 (functions / name / 'index.ts').write_text(f'{name} source')
