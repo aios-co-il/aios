@@ -6,6 +6,7 @@ import { History, PanelRightClose, Maximize2, X } from "lucide-react";
 import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
 import { BrainRouteSelector } from "./BrainRouteSelector";
 import { CarmenSkinSwitcher } from "./CarmenSkinSwitcher";
+import { useDraggableCard } from "./useDraggableCard";
 import { useBrainChannel } from "./useBrainChannel";
 import { useSystemFixContext } from "@/hooks/useSystemFixContext";
 import type { CarmenFaceState } from "./CarmenFace";
@@ -34,6 +35,10 @@ export function CommandCenterSidecar({
   const chatRef = useRef<CarmenChatBarHandle>(null);
   const [faceState, setFaceState] = useState<CarmenFaceState>("idle");
   const audioLevelRef = useRef(0);
+  const videoCard = useDraggableCard("aios:carmen-video-pos", {
+    x: 24,
+    y: 88,
+  });
 
   // The session opens on Carmen's internal brain once; after that the brain
   // selector in the header owns the choice.
@@ -89,7 +94,14 @@ export function CommandCenterSidecar({
       </header>
 
       {session && (
-        <div className="carmen-session-video" aria-label={identity.name}>
+        <div
+          ref={videoCard.ref}
+          className="carmen-session-video"
+          aria-label={identity.name}
+          title="אפשר לגרור את החלון"
+          style={videoCard.style}
+          {...videoCard.handlers}
+        >
           <button
             type="button"
             title="פתח במסך מלא — הגדרות וכלים"
@@ -133,17 +145,18 @@ export function CommandCenterSidecar({
           contextMetadata={contextMetadata}
           composerAccessory={
             session ? (
-              <>
+              <div className="grid w-full grid-cols-2 gap-2">
                 <BrainRouteSelector
                   routes={brain.routes}
                   value={brain.selected.id}
                   status={brain.status}
                   externalUrl={brain.externalUrl}
                   onChange={(route) => brain.selectRoute(route, null)}
-                  className="min-w-0 flex-1"
+                  compact
+                  className="min-w-0"
                 />
-                <CarmenSkinSwitcher className="min-w-0 max-w-none" />
-              </>
+                <CarmenSkinSwitcher className="h-9 w-full min-w-0" />
+              </div>
             ) : undefined
           }
           sidecarPlaceholder={

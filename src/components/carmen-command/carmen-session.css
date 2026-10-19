@@ -30,25 +30,37 @@
   min-height: 0;
   height: 100%;
 }
+/* Carmen's picture: a floating video-call card the user can drag anywhere. */
 .carmen-session-video {
-  position: relative;
-  flex: 0 0 auto;
-  height: clamp(140px, 26dvh, 240px);
+  position: fixed;
+  z-index: 70;
+  width: 236px;
+  aspect-ratio: 1;
   overflow: hidden;
-  border-bottom: 1px solid rgb(136 193 255 / 26%);
+  border: 1px solid rgb(136 193 255 / 26%);
+  border-radius: 16px;
   background: radial-gradient(ellipse at 55% 40%, #254c69, #0a1526 80%);
+  box-shadow: 0 20px 60px #02091855;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.carmen-session-video:active {
+  cursor: grabbing;
 }
 .carmen-session-character {
   position: absolute;
-  width: 100%;
+  width: 140%;
   max-width: none;
-  left: 0;
+  left: -20%;
   top: 0;
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 20%;
+  pointer-events: none;
   transform-origin: 50% 65%;
   animation: carmen-breathe 6s ease-in-out infinite;
+}
+.carmen-session-character.is-custom {
+  width: 100%;
+  left: 0;
 }
 .carmen-session-caption {
   position: absolute;
@@ -117,7 +129,7 @@
     border: 0;
   }
   .carmen-session-video {
-    height: 120px;
+    width: 140px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

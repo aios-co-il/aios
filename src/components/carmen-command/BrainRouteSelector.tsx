@@ -28,6 +28,8 @@ interface BrainRouteSelectorProps {
   status?: string | null;
   externalUrl?: string | null;
   className?: string;
+  /** One-line trigger without the note underneath; the note moves to the tooltip. */
+  compact?: boolean;
 }
 
 function RouteIcon({ type }: { type: BrainRouteType }) {
@@ -58,6 +60,7 @@ export function BrainRouteSelector({
   status,
   externalUrl,
   className = "",
+  compact = false,
 }: BrainRouteSelectorProps) {
   const list = routes.length ? routes : FALLBACK_BRAIN_ROUTES;
   const current =
@@ -71,15 +74,25 @@ export function BrainRouteSelector({
 
   return (
     <div
-      className={`flex min-w-0 max-w-[16rem] flex-col gap-0.5 ${className}`}
+      className={`flex min-w-0 ${compact ? "" : "max-w-[16rem]"} flex-col gap-0.5 ${className}`}
       dir="rtl"
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
             type="button"
-            title="בורר מוח — משנה את נתיב השליחה"
-            className="flex h-11 w-full min-w-[11rem] items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50"
+            title={
+              compact
+                ? [
+                    "בורר מוח — משנה את נתיב השליחה",
+                    billingNoteForRoute(current?.provider),
+                    statusLabel(status),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "בורר מוח — משנה את נתיב השליחה"
+            }
+            className={`flex ${compact ? "h-9 min-w-0" : "h-11 min-w-[11rem]"} w-full items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50`}
           >
             <RouteIcon type={current?.route_type || "internal"} />
             <span className="min-w-0 flex-1 truncate text-right">
@@ -114,31 +127,32 @@ export function BrainRouteSelector({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {(waiting || externalUrl || billingNoteForRoute(current?.provider)) && (
-        <p className="px-1 text-[10px] leading-snug text-[var(--cc-text-dim)]">
-          {billingNoteForRoute(current?.provider)}
-          {(waiting || externalUrl) && billingNoteForRoute(current?.provider)
-            ? " · "
-            : null}
-          {statusLabel(status)}
-          {waiting && (
-            <Loader2 className="mr-1 inline h-2.5 w-2.5 animate-spin" />
-          )}
-          {externalUrl && (
-            <>
-              {" · "}
-              <a
-                href={externalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[var(--cc-accent)] hover:underline"
-              >
-                סשן
-              </a>
-            </>
-          )}
-        </p>
-      )}
+      {!compact &&
+        (waiting || externalUrl || billingNoteForRoute(current?.provider)) && (
+          <p className="px-1 text-[10px] leading-snug text-[var(--cc-text-dim)]">
+            {billingNoteForRoute(current?.provider)}
+            {(waiting || externalUrl) && billingNoteForRoute(current?.provider)
+              ? " · "
+              : null}
+            {statusLabel(status)}
+            {waiting && (
+              <Loader2 className="mr-1 inline h-2.5 w-2.5 animate-spin" />
+            )}
+            {externalUrl && (
+              <>
+                {" · "}
+                <a
+                  href={externalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--cc-accent)] hover:underline"
+                >
+                  סשן
+                </a>
+              </>
+            )}
+          </p>
+        )}
     </div>
   );
 }
