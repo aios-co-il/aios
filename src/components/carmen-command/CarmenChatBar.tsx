@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
@@ -124,6 +125,8 @@ interface CarmenChatBarProps {
   mode?: "default" | "sidecar";
   contextMetadata?: SystemFixContextMetadata | null;
   sidecarPlaceholder?: string;
+  /** Extra controls shown inside the composer, above the input row. */
+  composerAccessory?: ReactNode;
 }
 
 const CARMEN_VOICES = [
@@ -162,6 +165,7 @@ export const CarmenChatBar = forwardRef<
     mode = "default",
     contextMetadata = null,
     sidecarPlaceholder,
+    composerAccessory,
   },
   ref,
 ) {
@@ -1702,6 +1706,11 @@ export const CarmenChatBar = forwardRef<
         <p className="cc-channel-health" role="status">
           {brain.healthBanner}
         </p>
+      )}
+      {composerAccessory && (
+        <div className="cc-composer-accessory flex shrink-0 items-center gap-2 border-t border-[var(--cc-line)] px-2 pt-2">
+          {composerAccessory}
+        </div>
       )}
       {(attachments.length > 0 || uploadingAttachments) && (
         <div className="cc-attach-preview flex shrink-0 flex-wrap gap-2 border-t border-[var(--cc-line)] px-3 py-2">

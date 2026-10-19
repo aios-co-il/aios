@@ -89,23 +89,6 @@ export function CommandCenterSidecar({
       </header>
 
       {session && (
-        <div
-          className="carmen-session-controls"
-          data-testid="carmen-session-controls"
-        >
-          <BrainRouteSelector
-            routes={brain.routes}
-            value={brain.selected.id}
-            status={brain.status}
-            externalUrl={brain.externalUrl}
-            onChange={(route) => brain.selectRoute(route, null)}
-            className="w-full"
-          />
-          <CarmenSkinSwitcher className="w-full min-w-0 max-w-none" />
-        </div>
-      )}
-
-      {session && (
         <div className="carmen-session-video" aria-label={identity.name}>
           <button
             type="button"
@@ -148,6 +131,21 @@ export function CommandCenterSidecar({
           audioLevelRef={audioLevelRef}
           mode="sidecar"
           contextMetadata={contextMetadata}
+          composerAccessory={
+            session ? (
+              <>
+                <BrainRouteSelector
+                  routes={brain.routes}
+                  value={brain.selected.id}
+                  status={brain.status}
+                  externalUrl={brain.externalUrl}
+                  onChange={(route) => brain.selectRoute(route, null)}
+                  className="min-w-0 flex-1"
+                />
+                <CarmenSkinSwitcher className="min-w-0 max-w-none" />
+              </>
+            ) : undefined
+          }
           sidecarPlaceholder={
             session
               ? `מה נעשה יחד? כתוב ל${identity.name}…`

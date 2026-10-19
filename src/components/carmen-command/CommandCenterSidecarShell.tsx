@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { CommandCenterSidecar } from "./CommandCenterSidecar";
 import "./carmen-session.css";
@@ -33,21 +32,20 @@ export function CommandCenterSidecarShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
+  // In RTL the first flex child sits on the right, so the session column
+  // docks on the right edge and the page content shrinks beside it.
   return (
-    <>
-      {children}
-      {open &&
-        createPortal(
-          <aside
-            className="carmen-session"
-            aria-label="פגישת עבודה עם כרמן"
-            dir="rtl"
-          >
-            <div className="carmen-session-aura" aria-hidden="true" />
-            <CommandCenterSidecar onClose={() => setOpen(false)} session />
-          </aside>,
-          document.body,
-        )}
-    </>
+    <div className="carmen-session-layout">
+      {open && (
+        <aside
+          className="carmen-session"
+          aria-label="פגישת עבודה עם כרמן"
+          dir="rtl"
+        >
+          <CommandCenterSidecar onClose={() => setOpen(false)} session />
+        </aside>
+      )}
+      <div className="carmen-session-content">{children}</div>
+    </div>
   );
 }
