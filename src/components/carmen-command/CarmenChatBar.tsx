@@ -1438,6 +1438,49 @@ export const CarmenChatBar = forwardRef<
     },
   });
 
+  const renameConversation = useCallback(
+    async (conv: TopicChat, title: string) => {
+      const { error } = await (supabase as any)
+        .from("ai_conversations")
+        .update({ title })
+        .eq("id", conv.id);
+      if (error) {
+        toast({
+          title: "שינוי השם נכשל",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["cc-conversations", tenantId],
+      });
+    },
+    [queryClient, tenantId, toast],
+  );
+
+  const deleteConversation = useCallback(
+    async (conv: TopicChat) => {
+      const { error } = await (supabase as any)
+        .from("ai_conversations")
+        .delete()
+        .eq("id", conv.id);
+      if (error) {
+        toast({
+          title: "המחיקה נכשלה",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (conv.id === conversationIdRef.current) startNewConversation();
+      queryClient.invalidateQueries({
+        queryKey: ["cc-conversations", tenantId],
+      });
+    },
+    [queryClient, tenantId, toast, startNewConversation],
+  );
+
   const routeScopedConversations = conversationsForRoute(
     pastConversations ?? [],
     brain.selected,
@@ -1646,6 +1689,8 @@ export const CarmenChatBar = forwardRef<
               loadConversation(conv);
             }}
             onNew={startNewConversation}
+            onRename={renameConversation}
+            onDelete={deleteConversation}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
