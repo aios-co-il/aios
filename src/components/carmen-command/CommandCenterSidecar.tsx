@@ -90,7 +90,7 @@ export function CommandCenterSidecar({
 
       {session && (
         <div
-          className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--cc-line)] px-3 py-2"
+          className="carmen-session-controls"
           data-testid="carmen-session-controls"
         >
           <BrainRouteSelector
@@ -99,8 +99,9 @@ export function CommandCenterSidecar({
             status={brain.status}
             externalUrl={brain.externalUrl}
             onChange={(route) => brain.selectRoute(route, null)}
+            className="w-full"
           />
-          <CarmenSkinSwitcher />
+          <CarmenSkinSwitcher className="w-full min-w-0 max-w-none" />
         </div>
       )}
 

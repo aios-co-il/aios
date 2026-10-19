@@ -82,6 +82,26 @@
   background: #a7f5de;
   border-radius: 50%;
 }
+/* Brain + skin selectors: a card right under Carmen's picture. */
+.carmen-session-controls {
+  position: absolute;
+  top: 380px;
+  left: 24px;
+  width: 236px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgb(136 193 255 / 26%);
+  border-radius: 16px;
+  background: #101f35;
+  box-shadow: 0 20px 60px #02091855;
+  pointer-events: auto;
+}
+.carmen-session-controls button {
+  min-width: 0;
+  height: 36px;
+}
 .carmen-session-panel[data-face-state="speaking"] .carmen-session-dot {
   animation: carmen-speaking 1s ease-in-out infinite;
 }
@@ -134,6 +154,11 @@
     top: 120px;
     width: 154px;
   }
+  .carmen-session-controls {
+    left: 12px;
+    top: 282px;
+    width: 154px;
+  }
   .carmen-session-panel .carmen-session-chat {
     width: calc(100vw - 24px);
     bottom: max(12px, env(safe-area-inset-bottom));
@@ -147,6 +172,10 @@
   }
   .carmen-session-video {
     top: 120px;
+    width: 160px;
+  }
+  .carmen-session-controls {
+    top: 288px;
     width: 160px;
   }
   .carmen-session-panel .carmen-session-chat {
