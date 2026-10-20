@@ -121,7 +121,8 @@ export function BroadcastLists() {
                       לפי סינון
                     </Badge>
                   )}
-                  {l.source_config?.sync_automation_id && (
+                  {(l.source_config?.auto_sync ||
+                    l.source_config?.sync_automation_id) && (
                     <Badge variant="secondary" className="text-xs">
                       <Zap className="ml-1 h-3 w-3" />
                       מסונכרנת
@@ -316,8 +317,9 @@ function ListDetailDialog({
             {syncAutomationId && (
               <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
                 <span>
-                  הרשימה מסונכרנת עם אוטומציה: מי שנכנס לשלב/סטטוס נכנס, מי
-                  שיוצא – יוצא. אפשר לערוך אותה (למשל להוסיף שליחת טמפלייט).
+                  הרשימה מסונכרנת: מי שמתחיל לעמוד בסינון נכנס, מי שמפסיק יוצא.
+                  כיבוי האוטומציה עוצר את הסנכרון; אפשר גם להוסיף לה צעדים (למשל
+                  שליחת טמפלייט).
                 </span>
                 <Button
                   size="sm"
@@ -648,9 +650,7 @@ function NewListDialog({
   const [filter, setFilter] = useState<CrmListFilter>(EMPTY_FILTER);
   const [preview, setPreview] = useState<{ total: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  // Client status changes don't fire automations yet, so clients can't be synced.
-  const effectiveKind =
-    kind === "synced" && filter.source === "clients" ? "dynamic" : kind;
+  const effectiveKind = kind;
 
   const runPreview = async () => {
     setBusy(true);
@@ -671,14 +671,20 @@ function NewListDialog({
         kind:
           type === "crm" && effectiveKind === "dynamic" ? "dynamic" : "static",
         source: type === "crm" ? "crm_filter" : "manual",
-        source_config: type === "crm" ? filter : {},
+        // auto_sync: the database adds / removes members on every change.
+        source_config:
+          type === "crm"
+            ? { ...filter, auto_sync: effectiveKind === "synced" }
+            : {},
       });
       if (type === "crm") {
         const res = await materialize({
           mode: effectiveKind === "dynamic" ? "preview" : "freeze",
           listId: l.id,
         });
-        if (effectiveKind === "synced") {
+        // Lead lists also get an editable automation (on/off switch and a
+        // place for extra steps on status changes).
+        if (effectiveKind === "synced" && filter.source === "leads") {
           const automationId = await createSyncAutomation(l);
           l.source_config = {
             ...(l.source_config || {}),
@@ -689,7 +695,7 @@ function NewListDialog({
           effectiveKind === "dynamic"
             ? `רשימה דינמית · ${res.total} תואמים כרגע`
             : effectiveKind === "synced"
-              ? `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר ואוטומציית סנכרון`
+              ? `נוצרה רשימה מסונכרנת עם ${res.added ?? 0} אנשי קשר`
               : `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר`,
         );
       }
@@ -755,23 +761,21 @@ function NewListDialog({
                 }}
               />
               <div className="space-y-2 rounded-lg border p-3">
-                {filter.source === "leads" && (
-                  <label className="flex items-start gap-2 text-sm">
-                    <input
-                      type="radio"
-                      checked={kind === "synced"}
-                      onChange={() => setKind("synced")}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="font-medium">
-                        מסונכרנת עם אוטומציה (מומלץ)
-                      </span>{" "}
-                      – נוצרת אוטומציה שאפשר לערוך: ליד שנכנס לשלב/סטטוס נכנס
-                      לרשימה, ליד שיוצא ממנו יוצא מהרשימה.
-                    </span>
-                  </label>
-                )}
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={kind === "synced"}
+                    onChange={() => setKind("synced")}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-medium">מסונכרנת (מומלץ)</span> – מי
+                    שמתחיל לעמוד בסינון נכנס לרשימה ומי שמפסיק יוצא ממנה, בכל
+                    שינוי: שלב, סטטוס, סוכנות, איש מכירות, קמפיינר או תגית.
+                    {filter.source === "leads" &&
+                      " נוצרת גם אוטומציה שאפשר לערוך ולכבות."}
+                  </span>
+                </label>
                 <label className="flex items-start gap-2 text-sm">
                   <input
                     type="radio"
