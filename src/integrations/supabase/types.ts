@@ -15096,9 +15096,26 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      broadcast_filter_hit: {
+        Args: { p_current: string; p_mode: string; p_values: Json };
+        Returns: boolean;
+      };
       broadcast_list_add_members: {
         Args: { p_added_via?: string; p_list_id: string; p_rows: Json };
         Returns: number;
+      };
+      broadcast_list_sync_entity: {
+        Args: {
+          p_entity_id: string;
+          p_entity_type: string;
+          p_tenant_id: string;
+        };
+        Returns: undefined;
+      };
+      broadcast_normalize_phone: { Args: { p: string }; Returns: string };
+      broadcast_tenant_has_synced_lists: {
+        Args: { p_tenant_id: string };
+        Returns: boolean;
       };
       bump_skill_usage_by_slug: {
         Args: { p_slugs: string[]; p_tenant_id: string };
