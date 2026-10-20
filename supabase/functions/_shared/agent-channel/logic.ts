@@ -328,14 +328,19 @@ export function resolveCallbackOrigin(
 export function parseBrainRoute(
   row: Database["public"]["Tables"]["agent_brain_routes"]["Row"] | null,
 ): BrainRouteRow | null {
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
+
   const { route_type, provider, config } = row;
   if (
     route_type !== "internal" &&
     route_type !== "direct_channel" &&
     route_type !== "parliament"
-  )
+  ) {
     return null;
+  }
+
   if (
     provider !== null &&
     provider !== "cursor" &&
@@ -345,8 +350,10 @@ export function parseBrainRoute(
     provider !== "chatgpt" &&
     provider !== "internal" &&
     provider !== "parliament"
-  )
+  ) {
     return null;
+  }
+
   return {
     ...row,
     route_type,
