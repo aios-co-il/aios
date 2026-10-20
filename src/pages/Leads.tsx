@@ -1242,12 +1242,22 @@ export default function Leads() {
     }
   }, [leadIdFromUrl]);
 
-  // Set default selected mobile stage when stages load
+  // Kanban columns follow the stage filter so unselected stages are hidden.
+  const KANBAN_STAGES = useMemo(
+    () =>
+      PIPELINE_STAGES.filter((stage) =>
+        leadMatchesStageFilter(stage.id, filterStageIds, stageFilterMode),
+      ),
+    [PIPELINE_STAGES, filterStageIds, stageFilterMode],
+  );
+
+  // Keep the mobile stage on a column the filter still shows
   useEffect(() => {
-    if (PIPELINE_STAGES.length > 0 && !selectedMobileStage) {
-      setSelectedMobileStage(PIPELINE_STAGES[0].id);
+    if (KANBAN_STAGES.length === 0) return;
+    if (!KANBAN_STAGES.some((stage) => stage.id === selectedMobileStage)) {
+      setSelectedMobileStage(KANBAN_STAGES[0].id);
     }
-  }, [PIPELINE_STAGES, selectedMobileStage]);
+  }, [KANBAN_STAGES, selectedMobileStage]);
 
   // Fetch total count for pagination - skip for Kanban view (not needed)
   const { data: totalLeadsCount = 0 } = useQuery({
@@ -3595,7 +3605,7 @@ export default function Leads() {
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
               >
-                {PIPELINE_STAGES.map((stage) => {
+                {KANBAN_STAGES.map((stage) => {
                   if (stage.id !== selectedMobileStage) return null;
                   const allStageLeads = getLeadsByStage(stage.id);
                   const totalInStage = getLeadsCountByStage(stage.id);
@@ -3774,7 +3784,7 @@ export default function Leads() {
                   </SheetHeader>
                   <ScrollArea className="h-[320px] mt-6">
                     <div className="grid gap-3 px-1">
-                      {PIPELINE_STAGES.map((stage) => {
+                      {KANBAN_STAGES.map((stage) => {
                         const stageCount = getLeadsCountByStage(stage.id);
                         const isSelected = selectedMobileStage === stage.id;
                         return (
@@ -3815,10 +3825,10 @@ export default function Leads() {
               <div
                 className="hidden md:grid gap-0"
                 style={{
-                  gridTemplateColumns: `repeat(${PIPELINE_STAGES.length}, minmax(0, 1fr))`,
+                  gridTemplateColumns: `repeat(${Math.max(KANBAN_STAGES.length, 1)}, minmax(0, 1fr))`,
                 }}
               >
-                {PIPELINE_STAGES.map((stage, index) => {
+                {KANBAN_STAGES.map((stage, index) => {
                   const allStageLeads = getLeadsByStage(stage.id);
                   const totalInStage = getLeadsCountByStage(stage.id);
                   const loadedCount = getLoadedCountByStage(stage.id);
@@ -3840,7 +3850,7 @@ export default function Leads() {
                       key={stage.id}
                       className="relative min-w-0 overflow-hidden"
                       style={{
-                        zIndex: PIPELINE_STAGES.length - index,
+                        zIndex: KANBAN_STAGES.length - index,
                       }}
                     >
                       <DroppableStage
