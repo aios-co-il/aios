@@ -713,7 +713,7 @@ Deno.serve(async (req: Request) => {
     const mediaAuth: MediaAuth = {
       apiKey: integ.api_key as string | undefined,
       gateway:
-        (settingsettings.gateway_url as string) ||
+        (settings.gateway_url as string) ||
         "https://whatsappgw-pzpyrrww.manus.space",
       supabase,
       tenantId,
