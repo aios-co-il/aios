@@ -1,11 +1,12 @@
+import assert from "node:assert/strict";
 import { manusPayloadSchema } from "./payload-schema.ts";
 
 for (const value of [null, [], "invalid", 42, true]) {
   Deno.test(`rejects non-object envelope ${JSON.stringify(value)}`, () => {
-    if (manusPayloadSchema.safeParse(value).success)
-      throw new Error("Invalid envelope accepted");
+    assert.equal(manusPayloadSchema.safeParse(value).success, false);
   });
 }
+
 for (const [name, value] of Object.entries({
   flat: {
     instanceId: "test",
@@ -20,7 +21,11 @@ for (const [name, value] of Object.entries({
   },
   wrappedBody: { body: { key: { participant: "972500000000@c.us" } } },
   voice: {
-    media: { url: "https://example.test/audio", mimetype: "audio/ogg" },
+    media: {
+      url: "https://example.test/audio",
+      mimetype: "audio/ogg",
+      providerToken: "opaque",
+    },
     hasMedia: true,
   },
   ack: { event: "message_ack", ack: 3, messageId: "message" },
@@ -30,11 +35,58 @@ for (const [name, value] of Object.entries({
     participant: "member@lid",
     quotedMsg: { id: "quoted" },
   },
+  numericIds: { instance_id: 7, id: 42, from: 972500000000 },
+  flags: { fromMe: "false", hasMedia: 1, key: { fromMe: true } },
+  nullable: {
+    from: null,
+    messageId: null,
+    media: null,
+    data: null,
+    body: null,
+  },
+  futureEvent: {
+    event: "provider_new_event",
+    direction: "provider_new_direction",
+    providerField: [1, { keep: true }],
+  },
+  nestedExtensions: {
+    data: {
+      message: {
+        key: { remoteJid: "group@g.us", future: 1 },
+        audioMessage: { url: "opaque-media-reference", future: { keep: true } },
+        future: true,
+      },
+    },
+  },
+  textObject: { text: { body: "hi" } },
 })) {
   Deno.test(`preserves ${name} provider fields`, () => {
     const result = manusPayloadSchema.safeParse(value);
-    if (!result.success) throw new Error("Valid object rejected");
-    if (JSON.stringify(result.data) !== JSON.stringify(value))
-      throw new Error("Provider fields changed");
+    assert.equal(result.success, true);
+    if (result.success) assert.deepEqual(result.data, value);
+  });
+}
+
+for (const [name, value] of Object.entries({
+  event: { event: {} },
+  identifier: { from: [] },
+  sender: { senderName: 42 },
+  ack: { ack: {} },
+  flag: { fromMe: "yes" },
+  mediaFlag: { hasMedia: [] },
+  key: { key: [] },
+  keyIdentifier: { key: { remoteJid: {} } },
+  wrapper: { data: "invalid" },
+  nestedWrapper: { data: { message: [] } },
+  wrappedMessageId: { payload: { messageId: false } },
+  body: { body: [] },
+  media: { audioMessage: [] },
+  mediaUrl: { audioMessage: { url: 42 } },
+  mediaMime: { media: { mimetype: false } },
+  quotedMessage: { quotedMsg: { id: {} } },
+  context: { contextInfo: { stanzaId: [] } },
+})) {
+  Deno.test(`rejects malformed known ${name} field`, () => {
+    assert.equal(manusPayloadSchema.safeParse(value).success, false);
   });
 }
