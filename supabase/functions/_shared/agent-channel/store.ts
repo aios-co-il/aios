@@ -18,6 +18,9 @@ import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+// Typed callers select their generated schema without changing legacy channel inference.
+export function serviceClient(): SupabaseClient;
+export function serviceClient<Schema>(): SupabaseClient<Schema>;
 export function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false },

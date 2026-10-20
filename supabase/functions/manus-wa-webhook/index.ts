@@ -1,3 +1,4 @@
+import { createWebhookHandler } from "./request-handler.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
@@ -502,15 +503,18 @@ function ok(body: Record<string, unknown>, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
+  req,
+  outer,
+) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = serviceClient() as SupabaseClient<Database>;
+    const supabase = serviceClient<Database>();
 
     const url = new URL(req.url);
-    const rawPayload: unknown = await req.json();
+    const rawPayload = outer;
 
     // Diagnostic: log top-level shape so we can see exactly what Manus sends
     try {
@@ -526,8 +530,6 @@ Deno.serve(async (req: Request) => {
 
     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
     // { data }, { message }, { payload }, { event, data: {...} }, etc.
-    const outer = pickObj(rawPayload);
-    if (!outer) return ok({ error: "Invalid payload" }, 400);
     const inner =
       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
     const key = pickObj(inner.key, outer.key) || {};
@@ -927,22 +929,21 @@ Deno.serve(async (req: Request) => {
         const pendingQuery = () =>
           supabase
             .from("wa_pending_activations")
-            .select("id, phone, code, activation_message_id, group_chat_id")
+            .select("*")
             .eq("tenant_id", tenantId)
             .eq("status", "pending")
             .gte("created_at", pendingSince)
-            .limit(10)
-            .returns<
-              Array<
-                Pick<
-                  Database["public"]["Tables"]["wa_pending_activations"]["Row"],
-                  "id" | "phone" | "code" | "activation_message_id"
-                > & { group_chat_id?: string | null }
-              >
-            >();
+            .limit(10);
         const pendingRes = await pendingQuery();
         const pendingErr = pendingRes.error;
-        let pendings = pendingRes.data;
+        let pendings =
+          pendingRes.data?.map((row) => ({
+            id: row.id,
+            phone: row.phone,
+            code: row.code,
+            activation_message_id: row.activation_message_id,
+            group_chat_id: "group_chat_id" in row ? row.group_chat_id : null,
+          })) ?? null;
         if (pendingErr) {
           const fallback = await supabase
             .from("wa_pending_activations")
@@ -951,7 +952,9 @@ Deno.serve(async (req: Request) => {
             .eq("status", "pending")
             .gte("created_at", pendingSince)
             .limit(10);
-          pendings = fallback.data;
+          pendings =
+            fallback.data?.map((row) => ({ ...row, group_chat_id: null })) ??
+            null;
         } else {
           pendings = (pendings || []).filter((row) => !row.group_chat_id);
         }
@@ -1961,7 +1964,10 @@ Deno.serve(async (req: Request) => {
                     "X-Api-Key": apiKey,
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify({ groupId: groupChatId, body: message }),
+                  body: JSON.stringify({
+                    groupId: groupChatId,
+                    body: message,
+                  }),
                   signal: controller.signal,
                 },
               );
@@ -2233,4 +2239,6 @@ Deno.serve(async (req: Request) => {
     console.error("manus-wa-webhook error:", msg);
     return ok({ error: msg }, 500);
   }
-});
+};
+
+Deno.serve(createWebhookHandler(handleManusPayload));
