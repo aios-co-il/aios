@@ -3,7 +3,9 @@
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
 // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "../_shared/database.types.ts";
+import { serviceClient } from "../_shared/agent-channel/store.ts";
 import {
   findCarmenSessionAutomation,
   groupMessageInvokesCarmen,
@@ -34,13 +36,6 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
-
-function createServiceClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,7 +146,7 @@ interface ManusMessageContainer {
 type MediaAuth = {
   apiKey?: string;
   gateway?: string;
-  supabase?: ReturnType<typeof createServiceClient>;
+  supabase?: SupabaseClient<Database>;
   tenantId?: string;
 };
 type VoiceResolveResult = {
@@ -512,7 +507,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = createServiceClient();
+    const supabase = serviceClient() as SupabaseClient<Database>;
 
     const url = new URL(req.url);
     const rawPayload: unknown = await req.json();
@@ -531,7 +526,8 @@ Deno.serve(async (req) => {
 
     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
     // { data }, { message }, { payload }, { event, data: {...} }, etc.
-    const outer = pickObj(rawPayload) || {};
+    const outer = pickObj(rawPayload);
+    if (!outer) return ok({ error: "Invalid payload" }, 400);
     const inner =
       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
     const key = pickObj(inner.key, outer.key) || {};
@@ -703,7 +699,7 @@ Deno.serve(async (req) => {
         "— received headers:",
         JSON.stringify(Object.fromEntries(req.headers)),
         "received secret:",
-        headerSecret ? `${String(headerSecret).slice(0, 6)}…` : "(none)",
+        headerSecret ? `${headerSecret.slice(0, 6)}…` : "(none)",
       );
       return ok({ received: true, ignored: "secret_mismatch" }, 200);
     }
@@ -716,7 +712,7 @@ Deno.serve(async (req) => {
     const mediaAuth: MediaAuth = {
       apiKey: integ.api_key as string | undefined,
       gateway:
-        (settings.gateway_url as string) ||
+        (settingsettings.gateway_url as string) ||
         "https://whatsappgw-pzpyrrww.manus.space",
       supabase,
       tenantId,
@@ -1931,7 +1927,7 @@ Deno.serve(async (req) => {
           sendMessage: async (_chatId: string, message: string) => {
             const gatewaySettings = settings;
             const baseUrl =
-              gatewaySettings.gateway_url ||
+              gatewaySettingsettings.gateway_url ||
               "https://whatsappgw-pzpyrrww.manus.space";
             const instanceId = gatewaySettings.instance_id;
             const apiKey = integ.api_key;
