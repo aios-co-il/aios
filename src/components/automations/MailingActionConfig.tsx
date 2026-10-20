@@ -15,6 +15,7 @@ export const MAILING_ACTION_OPTIONS = [
   { value: "remove_from_mailing_list", label: "הסרה מרשימת דיוור" },
   { value: "send_template_to_contact", label: "שליחת טמפלייט לאיש הקשר" },
   { value: "send_template_to_list", label: "שליחת טמפלייט לרשימת דיוור" },
+  { value: "sync_mailing_list", label: "סנכרון לרשימת דיוור לפי הסינון" },
 ] as const;
 
 export const MAILING_ACTION_LABELS: Record<string, string> = Object.fromEntries(
@@ -27,6 +28,8 @@ const HINTS: Record<string, string> = {
   remove_from_mailing_list: "מוציא את הליד/הלקוח מהטריגר מהרשימה.",
   send_template_to_contact:
     "שולח את הטמפלייט רק לאיש הקשר מהטריגר, דרך מנוע הדיוור (קצב שליחה, הסרה מרשימה, סטטיסטיקה). כל איש קשר מקבל טמפלייט זה פעם אחת לכל אוטומציה.",
+  sync_mailing_list:
+    "בודק אם הליד/הלקוח מהטריגר עונה עכשיו לסינון של הרשימה: אם כן – נכנס לרשימה, אם לא – יוצא ממנה. עבור רשימות שנוצרו מסינון CRM.",
   send_template_to_list:
     "יוצר דיוור מלא מהטמפלייט לכל הרשימה. כדי למנוע הצפה – לא נשלח שוב לאותה רשימה לפני שעבר מרווח הזמן.",
 };
@@ -48,7 +51,8 @@ export default function MailingActionConfig({
   const needsTemplate = actionType.startsWith("send_template");
   const listOnlyStatic =
     actionType === "add_to_mailing_list" ||
-    actionType === "remove_from_mailing_list";
+    actionType === "remove_from_mailing_list" ||
+    actionType === "sync_mailing_list";
 
   const { data: lists = [] } = useQuery({
     queryKey: ["automation-broadcast-lists", tenantId],
@@ -56,7 +60,7 @@ export default function MailingActionConfig({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("broadcast_lists")
-        .select("id, name, kind, member_count")
+        .select("id, name, kind, source, member_count")
         .eq("tenant_id", tenantId)
         .order("name");
       if (error) throw error;
@@ -97,9 +101,11 @@ export default function MailingActionConfig({
   const selectedTemplate = templates.find(
     (t) => t.id === configuration?.template_id,
   );
-  const visibleLists = listOnlyStatic
-    ? lists.filter((l) => l.kind === "static")
-    : lists;
+  const visibleLists = lists.filter(
+    (l) =>
+      (!listOnlyStatic || l.kind === "static") &&
+      (actionType !== "sync_mailing_list" || l.source === "crm_filter"),
+  );
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -169,24 +175,25 @@ export default function MailingActionConfig({
         </div>
       )}
 
-      {actionType !== "send_template_to_list" && (
-        <div className="space-y-2">
-          <Label className="block text-right">על מי הפעולה</Label>
-          <Select
-            value={configuration?.entity || "auto"}
-            onValueChange={(v) => onConfigChange("entity", v)}
-          >
-            <SelectTrigger className="text-right">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">אוטומטי לפי הטריגר</SelectItem>
-              <SelectItem value="lead">הליד</SelectItem>
-              <SelectItem value="client">הלקוח</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {actionType !== "send_template_to_list" &&
+        actionType !== "sync_mailing_list" && (
+          <div className="space-y-2">
+            <Label className="block text-right">על מי הפעולה</Label>
+            <Select
+              value={configuration?.entity || "auto"}
+              onValueChange={(v) => onConfigChange("entity", v)}
+            >
+              <SelectTrigger className="text-right">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">אוטומטי לפי הטריגר</SelectItem>
+                <SelectItem value="lead">הליד</SelectItem>
+                <SelectItem value="client">הלקוח</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
       {needsTemplate && selectedTemplate?.channel === "whatsapp" && (
         <div className="space-y-2">
