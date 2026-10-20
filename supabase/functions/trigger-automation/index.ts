@@ -42,6 +42,11 @@ import {
   sendSignatureDocumentEmails,
 } from "../_shared/signature-automation.ts";
 import {
+  executeMailingAction,
+  MAILING_ACTION_TYPES,
+  type MailingActionType,
+} from "../_shared/broadcast-automation.ts";
+import {
   impliedStatusKind,
   leadStatusUpdateColumns,
   readStatusFilters,
@@ -3529,6 +3534,27 @@ Deno.serve(async (req) => {
                     stepConfig,
                     stepData,
                     tenantId,
+                  );
+                  previousStepOutput = stepResponse;
+                } else if (
+                  (MAILING_ACTION_TYPES as readonly string[]).includes(
+                    effectiveActionType,
+                  )
+                ) {
+                  stepResponse = await executeMailingAction(
+                    effectiveActionType as MailingActionType,
+                    supabase,
+                    stepConfig,
+                    stepData,
+                    tenantId,
+                    {
+                      automationId: automation.id,
+                      triggerType:
+                        (requestBody as any).trigger_type ||
+                        automation.trigger_type,
+                      resolveOwnerId: resolveTenantOwnerId,
+                      resolveEmailFrom: resolveAutomationEmailFrom,
+                    },
                   );
                   previousStepOutput = stepResponse;
                 }

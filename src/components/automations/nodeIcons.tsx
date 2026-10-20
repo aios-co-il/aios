@@ -48,6 +48,9 @@ import {
   Zap,
   FileText,
   LucideIcon,
+  ListPlus,
+  ListMinus,
+  Send,
 } from "lucide-react";
 
 // ─── Brand SVG components ────────────────────────────────────────────────────
@@ -765,6 +768,34 @@ export const NODE_ICON_MAP: Record<string, NodeIconConfig> = {
     color: "#0d9488",
     bgColor: "rgba(13,148,136,0.12)",
     borderColor: "rgba(13,148,136,0.35)",
+    category: "action_crm",
+  },
+  add_to_mailing_list: {
+    icon: ListPlus,
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.12)",
+    borderColor: "rgba(124,58,237,0.35)",
+    category: "action_crm",
+  },
+  remove_from_mailing_list: {
+    icon: ListMinus,
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.12)",
+    borderColor: "rgba(124,58,237,0.35)",
+    category: "action_crm",
+  },
+  send_template_to_contact: {
+    icon: Send,
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.12)",
+    borderColor: "rgba(124,58,237,0.35)",
+    category: "action_crm",
+  },
+  send_template_to_list: {
+    icon: Send,
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.12)",
+    borderColor: "rgba(124,58,237,0.35)",
     category: "action_crm",
   },
   add_lead_update: {

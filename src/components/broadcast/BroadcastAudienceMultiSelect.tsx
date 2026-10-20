@@ -30,8 +30,9 @@ interface BroadcastAudienceMultiSelectProps {
   options: Option[];
   selected: string[];
   onSelectedChange: (values: string[]) => void;
-  mode: AudienceFilterMode;
-  onModeChange: (mode: AudienceFilterMode) => void;
+  mode?: AudienceFilterMode;
+  /** Omit to hide the include / exclude toggle (include only). */
+  onModeChange?: (mode: AudienceFilterMode) => void;
   emptyLabel?: string;
 }
 
@@ -40,7 +41,7 @@ export function BroadcastAudienceMultiSelect({
   options,
   selected,
   onSelectedChange,
-  mode,
+  mode = "include",
   onModeChange,
   emptyLabel = "הכל",
 }: BroadcastAudienceMultiSelectProps) {
@@ -79,18 +80,20 @@ export function BroadcastAudienceMultiSelect({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <Label>{label}</Label>
-        <Select
-          value={mode}
-          onValueChange={(v) => onModeChange(v as AudienceFilterMode)}
-        >
-          <SelectTrigger className="h-8 w-[130px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-background z-[100]">
-            <SelectItem value="include">שלח ל...</SelectItem>
-            <SelectItem value="exclude">החרג...</SelectItem>
-          </SelectContent>
-        </Select>
+        {onModeChange && (
+          <Select
+            value={mode}
+            onValueChange={(v) => onModeChange(v as AudienceFilterMode)}
+          >
+            <SelectTrigger className="h-8 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-[100]">
+              <SelectItem value="include">שלח ל...</SelectItem>
+              <SelectItem value="exclude">החרג...</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <Popover open={open} onOpenChange={setOpen}>
@@ -163,7 +166,7 @@ export function BroadcastAudienceMultiSelect({
         </PopoverContent>
       </Popover>
 
-      {selected.length > 0 && (
+      {selected.length > 0 && onModeChange && (
         <p className="text-xs text-muted-foreground">
           {mode === "include" ? "ישלח רק לנבחרים" : "לא יישלח לנבחרים"}
         </p>

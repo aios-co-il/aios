@@ -5,6 +5,7 @@
 //   otherwise             → import rows using fieldMap { "<header>": "name|phone|email" }
 // Callable by an authenticated user (frontend) or by service role (sync cron).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { fieldKeyFromHeader } from "../_shared/broadcast-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -183,52 +184,57 @@ Deno.serve(async (req) => {
       const key = phone || email!;
       if (seen.has(key)) continue;
       seen.add(key);
+      // Unmapped columns become merge fields ({{column}}) for templates.
+      const custom_fields: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        if (map[h] || map[h.trim()]) return;
+        const key = fieldKeyFromHeader(h);
+        const value = String(row[i] ?? "").trim();
+        if (key && value) custom_fields[key] = value;
+      });
       members.push({
-        list_id: listId,
-        tenant_id: tenantId,
         entity_type: "manual",
         name,
         phone,
         email,
-        added_via: "sheet",
+        custom_fields,
       });
     }
 
     let inserted = 0;
     for (let i = 0; i < members.length; i += 500) {
       const chunk = members.slice(i, i + 500);
-      const { error, count } = await db
-        .from("broadcast_list_members")
-        .upsert(chunk, {
-          onConflict: "list_id,phone",
-          ignoreDuplicates: true,
-          count: "exact",
-        });
-      if (error && !String(error.message).includes("duplicate")) throw error;
-      inserted += count ?? 0;
+      const { data, error } = await db.rpc("broadcast_list_add_members", {
+        p_list_id: listId,
+        p_rows: chunk,
+        p_added_via: "sheet",
+      });
+      if (error) throw error;
+      inserted += Number(data || 0);
     }
 
-    // Recompute member count + sync metadata
-    const { count: total } = await db
-      .from("broadcast_list_members")
-      .select("id", { count: "exact", head: true })
-      .eq("list_id", listId);
+    // member_count is maintained by trg_blmembers_count.
     await db
       .from("broadcast_lists")
       .update({
-        member_count: total ?? 0,
         last_synced_at: new Date().toISOString(),
         last_sync_status: "success",
         source: "google_sheet",
         source_config: { sheetId, range: sheetRange, fieldMap: map },
       })
       .eq("id", listId);
+    const { data: listRow } = await db
+      .from("broadcast_lists")
+      .select("member_count")
+      .eq("id", listId)
+      .maybeSingle();
 
     return new Response(
       JSON.stringify({
         success: true,
         parsed: members.length,
-        total: total ?? 0,
+        inserted,
+        total: listRow?.member_count ?? 0,
       }),
       { status: 200, headers: corsHeaders },
     );
