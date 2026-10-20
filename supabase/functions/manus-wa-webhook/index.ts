@@ -4,7 +4,7 @@
 // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { Database } from "../_shared/database.types.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
 import { serviceClient } from "../_shared/agent-channel/store.ts";
 import {
   findCarmenSessionAutomation,
@@ -70,14 +70,14 @@ function isUnresolvedGroupAuthor(
 }
 
 /** Inspect a JSON object without assuming the provider's envelope shape. */
-function pickObj(...candidates: unknown[]): Record<string, unknown> | null {
+function pickObj(...candidates: unknown[]): Record<string, Json> | null {
   for (const candidate of candidates) {
     if (
       candidate &&
       typeof candidate === "object" &&
       !Array.isArray(candidate)
     ) {
-      return candidate as Record<string, unknown>;
+      return candidate as Record<string, Json>;
     }
   }
   return null;
@@ -87,57 +87,57 @@ function pickObj(...candidates: unknown[]): Record<string, unknown> | null {
 // code applies its existing coercion. Only the fields this webhook reads belong
 // to the contract; the original object is still retained for raw_provider_data.
 interface ManusPayload {
-  event?: unknown;
-  from?: unknown;
-  to?: unknown;
-  body?: unknown;
-  fromMe?: unknown;
-  direction?: unknown;
-  id?: unknown;
-  messageId?: unknown;
-  senderName?: unknown;
-  author?: unknown;
-  hasMedia?: unknown;
-  chatId?: unknown;
-  senderLid?: unknown;
-  senderPn?: unknown;
-  participantPn?: unknown;
-  senderPhone?: unknown;
-  senderNumber?: unknown;
-  quotedMsgId?: unknown;
-  quotedMessageId?: unknown;
-  quotedMsg?: unknown;
-  groupId?: unknown;
-  fromName?: unknown;
-  authorName?: unknown;
-  participant?: unknown;
-  groupName?: unknown;
-  chatName?: unknown;
-  subject?: unknown;
-  ack?: unknown;
-  type?: unknown;
-  messageType?: unknown;
-  mediaType?: unknown;
-  mimeType?: unknown;
-  mime_type?: unknown;
-  media?: unknown;
-  file?: unknown;
-  attachment?: unknown;
-  audio?: unknown;
+  event?: Json;
+  from?: Json;
+  to?: Json;
+  body?: Json;
+  fromMe?: Json;
+  direction?: Json;
+  id?: Json;
+  messageId?: Json;
+  senderName?: Json;
+  author?: Json;
+  hasMedia?: Json;
+  chatId?: Json;
+  senderLid?: Json;
+  senderPn?: Json;
+  participantPn?: Json;
+  senderPhone?: Json;
+  senderNumber?: Json;
+  quotedMsgId?: Json;
+  quotedMessageId?: Json;
+  quotedMsg?: Json;
+  groupId?: Json;
+  fromName?: Json;
+  authorName?: Json;
+  participant?: Json;
+  groupName?: Json;
+  chatName?: Json;
+  subject?: Json;
+  ack?: Json;
+  type?: Json;
+  messageType?: Json;
+  mediaType?: Json;
+  mimeType?: Json;
+  mime_type?: Json;
+  media?: Json;
+  file?: Json;
+  attachment?: Json;
+  audio?: Json;
 }
 interface ManusMessageContainer {
-  audioMessage?: unknown;
-  message?: unknown;
-  type?: unknown;
-  contextInfo?: unknown;
-  participant?: unknown;
-  author?: unknown;
-  conversation?: unknown;
-  text?: unknown;
-  body?: unknown;
-  imageMessage?: unknown;
-  videoMessage?: unknown;
-  documentMessage?: unknown;
+  audioMessage?: Json;
+  message?: Json;
+  type?: Json;
+  contextInfo?: Json;
+  participant?: Json;
+  author?: Json;
+  conversation?: Json;
+  text?: Json;
+  body?: Json;
+  imageMessage?: Json;
+  videoMessage?: Json;
+  documentMessage?: Json;
 }
 
 // ── Incoming voice notes → transcript (OpenAI Whisper) ────────────────
@@ -152,7 +152,7 @@ type MediaAuth = {
 type VoiceResolveResult = {
   messageText: string;
   isVoice: boolean;
-  voiceMeta: Record<string, unknown>;
+  voiceMeta: Record<string, Json>;
 };
 // Tracks URL-less Manus payloads that were positively matched to a Green API voice transcript.
 // WeakSet keeps the classification request-local without mutating the payload persisted to the database.
@@ -502,7 +502,7 @@ function ok(body: Record<string, unknown>, status = 200) {
   });
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
 
@@ -705,7 +705,8 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = integ.tenant_id;
-    const connectionUserId = integ.user_id;
+    // Existing routing requires the integration owner; preserve its runtime value.
+    const connectionUserId = integ.user_id!;
     const event = payload.event;
 
     // Credentials + diagnostics for resolving inbound voice-note media.
@@ -733,7 +734,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (msg) {
-        const update: Record<string, unknown> = {};
+        const update: Database["public"]["Tables"]["chat_messages"]["Update"] =
+          {};
         if (ack >= 3 && !msg.read_at) update.read_at = new Date().toISOString();
         if (Object.keys(update).length > 0) {
           await supabase.from("chat_messages").update(update).eq("id", msg.id);
@@ -929,7 +931,15 @@ Deno.serve(async (req) => {
             .eq("tenant_id", tenantId)
             .eq("status", "pending")
             .gte("created_at", pendingSince)
-            .limit(10);
+            .limit(10)
+            .returns<
+              Array<
+                Pick<
+                  Database["public"]["Tables"]["wa_pending_activations"]["Row"],
+                  "id" | "phone" | "code" | "activation_message_id"
+                > & { group_chat_id?: string | null }
+              >
+            >();
         const pendingRes = await pendingQuery();
         const pendingErr = pendingRes.error;
         let pendings = pendingRes.data;
@@ -1107,8 +1117,10 @@ Deno.serve(async (req) => {
         counterpartRaw = `${counterpartPhone}@c.us`;
         normalized = normalizePhone(counterpartPhone);
         sourcePhoneNumber = String(
-          pairedOutgoing.raw_provider_data?.senderData?.sender ||
-            pairedOutgoing.raw_provider_data?.instanceData?.wid ||
+          pickObj(pickObj(pairedOutgoing.raw_provider_data)?.senderData)
+            ?.sender ||
+            pickObj(pickObj(pairedOutgoing.raw_provider_data)?.instanceData)
+              ?.wid ||
             "",
         )
           .split("@")[0]
@@ -1573,7 +1585,7 @@ Deno.serve(async (req) => {
           }
           for (const row of paired || []) {
             const participant = String(
-              row?.raw_provider_data?.senderData?.sender ||
+              pickObj(pickObj(row?.raw_provider_data)?.senderData)?.sender ||
                 row?.sender_phone ||
                 "",
             )
@@ -1651,7 +1663,7 @@ Deno.serve(async (req) => {
           .select("id, created_at")
           .eq("tenant_id", tenantId)
           .eq("direction", "outbound")
-          .eq("group_id", null)
+          .filter("group_id", "eq", null)
           .in("provider", ["manus_wa", "green_api"])
           .eq("message_text", messageText)
           .gte("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString())
