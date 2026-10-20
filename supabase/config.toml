@@ -1,5 +1,13 @@
 project_id = "zvoijyneresvkadpprel"
 
+[db.seed]
+enabled = true
+sql_paths = [
+  "./seeds/00_auth.sql",
+  "./seeds/10_tenancy.sql",
+  "./seeds/20_demo_business.sql",
+]
+
 [auth]
 site_url = "http://localhost:8080"
 additional_redirect_urls = ["http://localhost:*/**", "http://127.0.0.1:*/**"]
