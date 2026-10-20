@@ -78,6 +78,7 @@ const AgentTasksPage = lazy(() => import("@/pages/AgentTasksPage"));
 const SkinsManager = lazy(() => import("@/pages/SkinsManager"));
 const TelephonySettings = lazy(() => import("@/pages/TelephonySettings"));
 const MaskyooSettings = lazy(() => import("@/pages/MaskyooSettings"));
+const PbxSettings = lazy(() => import("@/pages/PbxSettings"));
 const TelegramSettings = lazy(() => import("@/pages/TelegramSettings"));
 const GithubAgent = lazy(() => import("@/pages/GithubAgent"));
 const WordPressSettings = lazy(() => import("@/pages/WordPressSettings"));
@@ -268,6 +269,7 @@ export function tenantRoutes() {
         <Route path="github-agent" element={<GithubAgent />} />
         <Route path="telephony-settings" element={<TelephonySettings />} />
         <Route path="maskyoo-settings" element={<MaskyooSettings />} />
+        <Route path="pbx-settings" element={<PbxSettings />} />
         <Route path="wordpress-settings" element={<WordPressSettings />} />
         <Route
           path="landing-page-submissions"
