@@ -888,3 +888,7 @@ verify_jwt = true
 
 [functions.webhook-meta-leads]
 verify_jwt = true
+
+# Meta Data Deletion Request Callback; Meta posts a signed_request verified inside the function.
+[functions.meta-data-deletion]
+verify_jwt = false
