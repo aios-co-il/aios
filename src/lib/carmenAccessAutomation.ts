@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
-import {
-  mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore,
-  decodePrivatePhoneRows as decodePrivatePhoneRowsCore,
+export {
+  mergePrivatePhoneAllowlist,
+  decodePrivatePhoneRows,
 } from "./carmenPrivatePhoneAllowlist.mjs";
 
 export type CarmenAutomationConfig = Record<string, unknown> & {
@@ -110,7 +110,7 @@ export type PrivatePhoneRow = {
   relationship_note?: string;
 };
 
-type IdentityRow = {
+export type IdentityRow = {
   phone: string;
   display_name?: string | null;
   status?: string;
@@ -118,16 +118,3 @@ type IdentityRow = {
   dev_escalation_tier?: string | null;
   relationship_note?: string | null;
 };
-
-/** Merge all sources that grant private WhatsApp access for display in Agent Hub. */
-export function mergePrivatePhoneAllowlist(params: {
-  policyPhones?: PrivatePhoneRow[];
-  identities?: IdentityRow[];
-  automationPhones?: string[];
-}): PrivatePhoneRow[] {
-  return mergePrivatePhoneAllowlistCore(params) as PrivatePhoneRow[];
-}
-
-export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[] {
-  return decodePrivatePhoneRowsCore(value);
-}
