@@ -50,6 +50,16 @@ export function phoneMatchKey(phone: unknown): string | null {
   return n.slice(-9);
 }
 
+/**
+ * ILIKE pattern matching the key's digits in order, with any separators.
+ * Leading zeros are dropped so "+972-3-…" still matches a "03…" key; callers
+ * confirm candidates with phoneMatchKey.
+ */
+export function phoneLikePattern(key: string): string {
+  const digits = key.replace(/\D/g, "").replace(/^0+/, "");
+  return "%" + digits.split("").join("%");
+}
+
 /** Picks the extension and caller number for the user placing the call. */
 export function resolveCaller(
   settings: PbxSettings,

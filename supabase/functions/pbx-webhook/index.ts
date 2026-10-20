@@ -7,6 +7,8 @@ import {
   leadPhoneCandidates,
   mapCallStatus,
   parsePbxEvent,
+  phoneLikePattern,
+  phoneMatchKey,
   secretsMatch,
   type PbxSettings,
 } from "../_shared/pbx.ts";
@@ -146,25 +148,30 @@ Deno.serve(async (req) => {
     let clientId: string | null = existing?.client_id ?? null;
     if (!leadId && !clientId) {
       for (const key of leadPhoneCandidates(event)) {
-        const { data: lead } = await supabase
+        // Phones are stored in many formats ("050-123-4567", "+972 50…"), so
+        // fetch loose matches and confirm on the normalized digits.
+        const pattern = phoneLikePattern(key);
+        const { data: leads } = await supabase
           .from("leads")
-          .select("id")
+          .select("id, phone")
           .eq("tenant_id", tenantId)
-          .ilike("phone", `%${key}`)
+          .ilike("phone", pattern)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(20);
+        const lead = (leads || []).find((l) => phoneMatchKey(l.phone) === key);
         if (lead) {
           leadId = lead.id;
           break;
         }
-        const { data: client } = await supabase
+        const { data: clients } = await supabase
           .from("clients")
-          .select("id")
+          .select("id, phone")
           .eq("tenant_id", tenantId)
-          .ilike("phone", `%${key}`)
-          .limit(1)
-          .maybeSingle();
+          .ilike("phone", pattern)
+          .limit(20);
+        const client = (clients || []).find(
+          (c) => phoneMatchKey(c.phone) === key,
+        );
         if (client) {
           clientId = client.id;
           break;
