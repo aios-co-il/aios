@@ -1,9 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-export {
-  mergePrivatePhoneAllowlist,
-  decodePrivatePhoneRows,
-} from "./carmenPrivatePhoneAllowlist";
-
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
   carmen_allowed_phones?: string[];
@@ -99,8 +94,3 @@ export function buildPolicyFromAutomation(
     requireDirectAddress: true,
   };
 }
-
-export type {
-  PrivatePhoneRow,
-  IdentityRow,
-} from "./carmenPrivatePhoneAllowlist";
