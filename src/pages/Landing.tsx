@@ -635,6 +635,13 @@ export default function Landing() {
           />
         </a>
         <span>© {new Date().getFullYear()} Carmen Marketing OS</span>
+        <nav className="footer-legal" aria-label="מידע משפטי">
+          <Link to="/privacy">מדיניות פרטיות</Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/terms">תנאי שימוש</Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/data-deletion">מחיקת מידע</Link>
+        </nav>
         <a href="#">חזרה למעלה ↑</a>
       </footer>
     </main>

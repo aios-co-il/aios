@@ -998,6 +998,18 @@
   .footer > a:last-child {
     color: white;
   }
+  .footer-legal {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .footer-legal a {
+    color: #9db4ad;
+    text-decoration: none;
+  }
+  .footer-legal a:hover {
+    color: white;
+  }
   .reveal {
     opacity: 0;
     transform: translateY(38px);
