@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 

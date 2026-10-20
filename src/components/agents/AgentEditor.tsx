@@ -4,9 +4,9 @@ import {
   readAgentIdentity,
 } from "@/hooks/useCarmenIdentity";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+import type { Tables } from "@/integrations/supabase/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +50,7 @@ function isCarmen(name: string) {
 }
 
 export interface AgentEditorProps {
-  agent: AgentProfile;
+  agent: Tables<"ai_agents">;
   /**
    * Render inside a host panel (Carmen's screen). Tabs use local/controlled
    * state instead of the URL ?tab= param, buttons that navigate to other routes
@@ -162,7 +162,7 @@ function AgentTabsWithUrl({
   tab,
   onTabChange,
   onManageKeys,
-}: Omit<AgentEditorProps, "agent"> & { agent: AgentProfile }) {
+}: Omit<AgentEditorProps, "agent"> & { agent: Tables<"ai_agents"> }) {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { buildPath } = useTenantPath();

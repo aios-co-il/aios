@@ -1,7 +1,7 @@
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -23,7 +23,7 @@ import { AGENT_TOOLS_CATALOG } from "@/lib/agentToolsCatalog";
 // denylist on ai_agents (disabled_tools / disabled_skins / disabled_integrations),
 // which run-ai-agent subtracts at runtime.
 
-export function AgentAccessTab({ agent }: { agent: AgentProfile }) {
+export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [offTools, setOffTools] = useState<Set<string>>(new Set());
