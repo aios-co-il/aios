@@ -190,6 +190,7 @@ import {
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
+import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
   SearchClient,
@@ -1100,7 +1101,7 @@ async function makeZoomMeetingCreator(
   tenantId: string,
   titleHint?: string,
 ) {
-  return async (existing) => {
+  return async (existing: CalendarEventLike) => {
     const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
     if (!zoomAuth.accessToken) {
       return {
@@ -4797,7 +4798,7 @@ async function fbAnalyzeCampaignInline(
 
   const fields =
     "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
-  const cplFrom = (ins) => {
+  const cplFrom = (ins: MetaNode | null | undefined) => {
     if (!ins) return null;
     const leadAction = (ins.cost_per_action_type || []).find(
       (a) =>
@@ -5145,7 +5146,7 @@ async function findAutomationForMetaForm(
   const { data, error } = await query.order("name").limit(100).returns<
     Array<
       Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
-        tenant_id: string;
+        tenant_id: string | null;
       }
     >
   >();
