@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergePrivatePhoneAllowlist } from "./carmenPrivatePhoneAllowlist.mjs";
+import {
+  decodePrivatePhoneRows,
+  mergePrivatePhoneAllowlist,
+} from "./carmenPrivatePhoneAllowlist.mjs";
 
 test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
   const out = mergePrivatePhoneAllowlist({
@@ -91,4 +94,25 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
   ];
   assert.equal(preferred.carmen_scope_mode, "specific_phone");
   assert.deepEqual(mergedPhones, ["972507677613", "972545612156"]);
+});
+
+test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
+  const rows = decodePrivatePhoneRows([
+    null,
+    4,
+    { phone: 42 },
+    {
+      phone: "972501111111",
+      source: "custom-source",
+      dev_escalation_tier: "custom-tier",
+      surfaces: ["whatsapp_private", 42],
+      label: "Owner",
+    },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].source, "custom-source");
+  assert.equal(rows[0].dev_escalation_tier, "custom-tier");
+  assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
+  assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
+  assert.deepEqual(decodePrivatePhoneRows(null), []);
 });
