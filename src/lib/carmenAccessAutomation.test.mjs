@@ -1,5 +1,8 @@
 import { expect, test } from "vitest";
-import { mergePrivatePhoneAllowlist } from "./carmenPrivatePhoneAllowlist.mjs";
+import {
+  decodePrivatePhoneRows,
+  mergePrivatePhoneAllowlist,
+} from "./carmenPrivatePhoneAllowlist.mjs";
 
 test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
   const out = mergePrivatePhoneAllowlist({
@@ -92,4 +95,25 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
   ];
   expect(preferred.carmen_scope_mode).toBe("specific_phone");
   expect(mergedPhones).toStrictEqual(["972507677613", "972545612156"]);
+});
+
+test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
+  const rows = decodePrivatePhoneRows([
+    null,
+    4,
+    { phone: 42 },
+    {
+      phone: "972501111111",
+      source: "custom-source",
+      dev_escalation_tier: "custom-tier",
+      surfaces: ["whatsapp_private", 42],
+      label: "Owner",
+    },
+  ]);
+  expect(rows.length).toBe(1);
+  expect(rows[0].source).toBe("custom-source");
+  expect(rows[0].dev_escalation_tier).toBe("custom-tier");
+  expect(rows[0].surfaces).toStrictEqual(["whatsapp_private"]);
+  expect(mergePrivatePhoneAllowlist({ policyPhones: rows }).length).toBe(1);
+  expect(decodePrivatePhoneRows(null)).toStrictEqual([]);
 });
