@@ -14,8 +14,9 @@ select
 from (values
   ('aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'admin@aios.test',   'Dev Super Admin'),
   ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'agency@aios.test',  'Dev Agency Owner'),
-  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'user@aios.test',    'Dev Client User'),
-  ('aaaaaaaa-0000-0000-0000-000000000004'::uuid, 'carmen@aios.test',  'Carmen Service User')
+  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'campaigner@aios.test','Dev Campaigner'),
+  ('aaaaaaaa-0000-0000-0000-000000000004'::uuid, 'carmen@aios.test',  'Carmen Service User'),
+  ('aaaaaaaa-0000-0000-0000-000000000005'::uuid, 'client-owner@aios.test', 'Dev Client Owner')
 ) as u(id, email, full_name)
 on conflict (id) do nothing;
 
