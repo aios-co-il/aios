@@ -791,6 +791,13 @@ export const NODE_ICON_MAP: Record<string, NodeIconConfig> = {
     borderColor: "rgba(124,58,237,0.35)",
     category: "action_crm",
   },
+  sync_mailing_list: {
+    icon: ListPlus,
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.12)",
+    borderColor: "rgba(124,58,237,0.35)",
+    category: "action_crm",
+  },
   send_template_to_list: {
     icon: Send,
     color: "#7c3aed",

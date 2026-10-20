@@ -153,6 +153,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   remove_from_mailing_list: "הסרה מרשימת דיוור",
   send_template_to_contact: "שליחת טמפלייט לאיש הקשר",
   send_template_to_list: "שליחת טמפלייט לרשימה",
+  sync_mailing_list: "סנכרון לרשימת דיוור",
   add_lead_update: "הוסף עדכון לליד",
   add_client_update: "הוסף עדכון ללקוח",
   create_manychat_subscriber: "צור subscriber",
