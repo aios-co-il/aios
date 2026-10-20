@@ -289,3 +289,5 @@ export function getModuleById(id: string): ModuleConfig | undefined {
 export function getCategoryById(id: string): PermissionCategory | undefined {
   return PERMISSION_CATEGORIES.find((c) => c.id === id);
 }
+
+// AIO-147: temporary change to trigger a Vercel Preview; revert before merge.
