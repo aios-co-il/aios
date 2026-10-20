@@ -10,7 +10,7 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   fetchCarmenManusGroups,
@@ -194,7 +194,7 @@ export function CarmenConversationAccessTab({
     () =>
       mergePrivatePhoneAllowlist({
         policyPhones: Array.isArray(policy?.private_phones)
-          ? policy.private_phones.filter(isPrivatePhoneRow)
+          ? (policy.private_phones as unknown as PrivatePhoneRow[])
           : [],
         identities,
         automationPhones: automationCfg?.carmen_allowed_phones,
@@ -1202,49 +1202,5 @@ export function CarmenConversationAccessTab({
         />
       </Card>
     </div>
-  );
-}
-
-function isPrivatePhoneRow(value: unknown): value is PrivatePhoneRow {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("phone" in value) ||
-    typeof value.phone !== "string"
-  )
-    return false;
-  if (
-    "label" in value &&
-    value.label !== undefined &&
-    typeof value.label !== "string"
-  )
-    return false;
-  if (
-    "status" in value &&
-    value.status !== undefined &&
-    typeof value.status !== "string"
-  )
-    return false;
-  if (
-    "source" in value &&
-    value.source !== undefined &&
-    value.source !== "policy" &&
-    value.source !== "identity" &&
-    value.source !== "automation"
-  )
-    return false;
-  if (
-    "dev_escalation_tier" in value &&
-    value.dev_escalation_tier !== undefined &&
-    value.dev_escalation_tier !== null &&
-    value.dev_escalation_tier !== "full" &&
-    value.dev_escalation_tier !== "bugfix"
-  )
-    return false;
-  return (
-    !("surfaces" in value) ||
-    value.surfaces === undefined ||
-    (Array.isArray(value.surfaces) &&
-      value.surfaces.every((surface) => typeof surface === "string"))
   );
 }

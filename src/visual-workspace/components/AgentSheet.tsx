@@ -1,4 +1,3 @@
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
 import type { Tables } from "@/integrations/supabase/types";
 import type { AgentRole } from "../types/visualWorkspaceTypes";
 import { useEffect, useState } from "react";
@@ -10,7 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { AgentAvatar } from "./AgentAvatar";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -23,7 +22,7 @@ interface Props {
 
 export function AgentSheet({ agentId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
-  const [agent, setAgent] = useState<AgentProfile | null>(null);
+  const [agent, setAgent] = useState<Tables<"ai_agents"> | null>(null);
   const [runs, setRuns] = useState<
     Pick<
       Tables<"agent_runs">,

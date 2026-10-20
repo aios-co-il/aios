@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 
 // Owners who may use the ORG OpenAI key. Everyone else gets access by adding
 // a personal API key (user_api_keys) in their profile — bring-your-own-key.
