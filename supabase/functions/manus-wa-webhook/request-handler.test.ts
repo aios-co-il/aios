@@ -1,3 +1,7 @@
+import {
+  spy,
+  assertSpyCalls,
+} from "https://raw.githubusercontent.com/denoland/std/0.224.0/testing/mock.ts";
 import { createWebhookHandler } from "./request-handler.ts";
 
 function assert(condition: boolean, message: string): asserts condition {
@@ -9,11 +13,10 @@ for (const variant of ["body", "header", "query"]) {
     Deno.test(
       `rejects ${JSON.stringify(payload)} with ${variant} instance before database access`,
       async () => {
-        let calls = 0;
-        const handler = createWebhookHandler(async () => {
-          calls++;
+        const failedHandler = spy(async () => {
           throw new Error("Unexpected database access");
         });
+        const handler = createWebhookHandler(failedHandler);
         const response = await handler(
           new Request(
             `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
@@ -34,10 +37,7 @@ for (const variant of ["body", "header", "query"]) {
           (await response.json()).error === "Invalid payload",
           "Expected invalid-payload response",
         );
-        assert(
-          calls === 0,
-          "Invalid payload must not invoke downstream/database code",
-        );
+        assertSpyCalls(failedHandler, 0);
       },
     );
   }

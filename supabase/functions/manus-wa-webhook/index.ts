@@ -511,7 +511,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = serviceClient<Database>();
+    const supabase = serviceClient();
 
     const url = new URL(req.url);
     const rawPayload = outer;

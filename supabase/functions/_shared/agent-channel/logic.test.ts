@@ -7,6 +7,8 @@ import {
   capabilitiesForProvider,
   markParliamentFailed,
   parliamentSeatsFromConfig,
+  parseBrainRoute,
+  withParliamentContext,
   recordParliamentAnswer,
   resolveCallbackOrigin,
   type ParliamentState,
@@ -68,4 +70,40 @@ test("resolveCallbackOrigin prefers session codex over stated chatgpt", () => {
   assert.equal(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
   assert.equal(resolveCallbackOrigin(undefined, "codex"), "codex");
   assert.equal(resolveCallbackOrigin(null, null), "internal");
+});
+
+test("database route parser validates enums and handles absent routes", () => {
+  const row = {
+    id: "route",
+    tenant_id: "tenant",
+    agent_id: null,
+    slug: "parliament",
+    label: "Parliament",
+    route_type: "parliament",
+    provider: "parliament",
+    connection_id: null,
+    config: { rounds: 2 },
+    active: true,
+    created_at: "now",
+    updated_at: "now",
+  };
+  assert.deepEqual(parseBrainRoute(row)?.config, { rounds: 2 });
+  assert.equal(parseBrainRoute(row)?.route_type, "parliament");
+  assert.equal(parseBrainRoute(null), null);
+  assert.equal(parseBrainRoute({ ...row, route_type: "invalid" }), null);
+  assert.equal(parseBrainRoute({ ...row, provider: "invalid" }), null);
+  assert.deepEqual(parseBrainRoute({ ...row, config: null })?.config, {});
+});
+
+test("parliament context keeps existing metadata and serializable state", () => {
+  const state = base();
+  const context = { conversation_id: "conversation", nested: { keep: true } };
+  const result = withParliamentContext(context, state);
+  assert.deepEqual(result, { ...context, parliament: state });
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
+  assert.deepEqual(context, {
+    conversation_id: "conversation",
+    nested: { keep: true },
+  });
+  assert.deepEqual(withParliamentContext(null, state), { parliament: state });
 });
