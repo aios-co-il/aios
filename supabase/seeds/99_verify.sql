@@ -12,7 +12,7 @@ begin
       ('profiles',      (select count(*) from public.profiles where email like '%@aios.test'), 4),
       ('tenants',       (select count(*) from public.tenants where id::text like 'bbbbbbbb-%'), 3),
       ('tenant_users',  (select count(*) from public.tenant_users where tenant_id::text like 'bbbbbbbb-%'), 4),
-      ('user_roles',    (select count(*) from public.user_roles where tenant_id::text like 'bbbbbbbb-%'), 4),
+      ('user_roles',    (select count(*) from public.user_roles where tenant_id::text like 'bbbbbbbb-%'), 6),
       ('agencies',      (select count(*) from public.agencies where id::text like 'cccccccc-%'), 1),
       ('clients',       (select count(*) from public.clients where id::text like 'dddddddd-%'), 2),
       ('leads',         (select count(*) from public.leads where id::text like 'eeeeeeee-%'), 2),

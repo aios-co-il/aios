@@ -1,8 +1,8 @@
 -- Demo tenants. The Carmen tenant id is fixed so CARMEN_TENANT_ID can point at it.
-insert into public.tenants (id, name, slug, org_type, status) values
-  ('bbbbbbbb-0000-0000-0000-000000000001', 'Demo Agency', 'demo-agency', 'organization', 'active'),
-  ('bbbbbbbb-0000-0000-0000-000000000002', 'Demo Client', 'demo-client', 'organization', 'active'),
-  ('bbbbbbbb-0000-0000-0000-000000000003', 'Carmen',      'carmen',      'organization', 'active')
+insert into public.tenants (id, name, slug, org_type, status, allow_super_admin_access) values
+  ('bbbbbbbb-0000-0000-0000-000000000001', 'Demo Agency', 'demo-agency', 'organization', 'active', true),
+  ('bbbbbbbb-0000-0000-0000-000000000002', 'Demo Client', 'demo-client', 'organization', 'active', true),
+  ('bbbbbbbb-0000-0000-0000-000000000003', 'Carmen',      'carmen',      'organization', 'active', true)
 on conflict (id) do nothing;
 
 insert into public.tenant_users (tenant_id, user_id, role)
@@ -19,7 +19,9 @@ where not exists (
 
 insert into public.user_roles (user_id, role, tenant_id) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'super_admin',  'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'owner',        'bbbbbbbb-0000-0000-0000-000000000001'),
   ('aaaaaaaa-0000-0000-0000-000000000002', 'agency_owner', 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'owner',        'bbbbbbbb-0000-0000-0000-000000000001'),
   ('aaaaaaaa-0000-0000-0000-000000000003', 'campaigner',   'bbbbbbbb-0000-0000-0000-000000000002'),
   ('aaaaaaaa-0000-0000-0000-000000000004', 'owner',        'bbbbbbbb-0000-0000-0000-000000000003')
 on conflict do nothing;
