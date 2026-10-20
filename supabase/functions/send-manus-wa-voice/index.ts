@@ -7,6 +7,7 @@
 // POST body: { tenant_id: string, to: string, text: string, voice?: string }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { aiSpeak } from "../_shared/ai.ts";
+import { requireAuth } from "../_shared/security.ts";
 
 const DEFAULT_GATEWAY = "https://whatsappgw-pzpyrrww.manus.space";
 const corsHeaders = {
@@ -37,6 +38,11 @@ function cleanForSpeech(raw: string): string {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
+
+  // Internal only: manus-wa-webhook calls this with the service-role key.
+  // verify_jwt is off, so without this anyone could send from Carmen's WhatsApp.
+  const caller = await requireAuth(req);
+  if (caller?.kind !== "service") return json({ error: "Unauthorized" }, 401);
 
   try {
     const { tenant_id, to, text, voice } = await req.json();

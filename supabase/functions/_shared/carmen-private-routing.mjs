@@ -94,7 +94,6 @@ export function pickPayloadRealPhone(candidates = [], lidDigits = "") {
  *  0) payload real-phone field (senderPn / participantPn / …)
  *  1) carmen_lid_aliases[lid]
  *  2) wa_lid_map.phone for this lid
- *  3) single allowed phone (only when exactly one number is authorized)
  *
  * Explicitly does NOT use "most recent active session" when multiple phones
  * are allowed — that was the Ana→David private-chat bug.
@@ -144,11 +143,16 @@ export function resolveInboundLidToPhone({
     return { phone: fromMap, reason: "wa_lid_map" };
   }
 
-  if (allowed.length === 1) {
-    return { phone: allowed[0], reason: "single_allowed_phone" };
-  }
-
-  return { phone: null, reason: "unresolved_multi_allowed" };
+  // No "single allowed phone" guess: with exactly one authorized number, any
+  // unknown LID used to be treated as that person (and saved to wa_lid_map for
+  // good), so a stranger's DM ran with the owner's identity. Unknown stays unknown.
+  return {
+    phone: null,
+    reason:
+      allowed.length === 1
+        ? "unresolved_single_allowed"
+        : "unresolved_multi_allowed",
+  };
 }
 
 /**

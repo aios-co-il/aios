@@ -73,13 +73,31 @@ export function groupsReadyToIntroduce(groups) {
   );
 }
 
-/** A group-scoped activation matches only when its code is typed in that group. */
-export function matchGroupActivation(messageText, pendings, groupChatId) {
-  const text = String(messageText || "");
+/**
+ * A group-scoped activation matches only when its code is typed in that group,
+ * as a short message whose only digits are the code ("123456" / "הקוד 123456").
+ * A message packed with thousands of numbers used to be scanned for any pending
+ * code, which made the 6-digit codes guessable in ~100 messages.
+ * When the sender's real phone is known, it must be the phone the code was sent to.
+ */
+export function matchGroupActivation(
+  messageText,
+  pendings,
+  groupChatId,
+  senderPhone = "",
+) {
+  const text = String(messageText || "").trim();
+  if (!text || text.length > 40) return null;
+  const typed = digitsOnly(text);
+  if (typed.length !== 6) return null;
+  const senderTail = phoneTail(senderPhone);
   return (
     (pendings || []).find((pending) => {
       if (!pending?.code || pending.group_chat_id !== groupChatId) return false;
-      return new RegExp(`(^|\\D)${pending.code}(\\D|$)`).test(text);
+      if (pending.code !== typed) return false;
+      if (senderTail.length === 9 && phoneTail(pending.phone) !== senderTail)
+        return false;
+      return true;
     }) || null
   );
 }
@@ -259,6 +277,7 @@ export async function consumeGroupActivation(supabase, args) {
     args.messageText,
     data || [],
     args.groupChatId,
+    args.senderPhone || "",
   );
   if (!hit) return { matched: false, phone: null };
   const lid = digitsOnly(args.lid);

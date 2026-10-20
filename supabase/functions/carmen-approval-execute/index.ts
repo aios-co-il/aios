@@ -3,6 +3,7 @@
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by campaign-scheduler-cron.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { requireAuth } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,6 +59,15 @@ async function invokeEdgeFn(name: string, payload: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
+  // Internal only (run-ai-agent, resume-agent-run). The gateway JWT check
+  // passes with the public anon key, so without this anyone holding an
+  // approval id could execute it.
+  const caller = await requireAuth(req);
+  if (caller?.kind !== "service")
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: corsHeaders,
+    });
   try {
     const supabase = createClient(SB_URL, SB_SERVICE);
     const body = await req.json().catch(() => ({}));

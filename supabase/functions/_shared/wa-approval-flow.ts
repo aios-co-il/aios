@@ -6,6 +6,8 @@ export {
   isExplicitRejectionPhrase,
   isMetaApprovalTool,
   pickLatestPendingApproval,
+  approvalBelongsToCaller,
+  filterApprovalsForCaller,
   buildNoPendingRecovery,
   buildApprovalConfirmPromptRule,
   formatApprovalExecutionReply,

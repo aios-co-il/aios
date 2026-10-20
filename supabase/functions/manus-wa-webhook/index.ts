@@ -34,6 +34,7 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
+import { timingSafeEqual } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -588,8 +589,8 @@ Deno.serve(async (req) => {
 
     if (!instanceId) {
       console.error(
-        "Missing instanceId. Headers:",
-        JSON.stringify(Object.fromEntries(req.headers)),
+        "Missing instanceId. Header names:",
+        JSON.stringify([...req.headers.keys()]),
       );
       return ok({ error: "Missing instanceId" }, 400);
     }
@@ -613,23 +614,28 @@ Deno.serve(async (req) => {
     const settings = (integ.settings as any) || {};
     const expectedSecret: string = settings.webhook_secret || "";
 
-    // Auto-heal: if DB has no secret yet, accept the first webhook secret we see and persist it.
-    if (!expectedSecret && headerSecret) {
-      const merged = { ...settings, webhook_secret: headerSecret };
-      await supabase
-        .from("tenant_integrations")
-        .update({ settings: merged })
-        .eq("id", integ.id);
-      console.log("Auto-healed webhook_secret for instance", instanceId);
-    } else if (expectedSecret && expectedSecret !== headerSecret) {
-      // Log diagnostic info so we can see exactly what Manus sends, then ACK 200 so Manus doesn't disable the webhook.
+    // Never adopt a secret from the request itself: the old "auto-heal" let the
+    // first caller (possibly an attacker) choose the secret for an instance.
+    // Instances created by manage-manus-wa always store one.
+    if (!expectedSecret) {
+      console.warn(
+        "⚠️ manus webhook without stored webhook_secret for instance",
+        instanceId,
+        "— unauthenticated; set settings.webhook_secret to the gateway secret",
+      );
+    } else if (
+      !headerSecret ||
+      !timingSafeEqual(headerSecret, expectedSecret)
+    ) {
+      // ACK 200 so the gateway doesn't disable the webhook. Header names only —
+      // never log header values (authorization / apikey).
       console.error(
         "Webhook secret mismatch for instance",
         instanceId,
-        "— received headers:",
-        JSON.stringify(Object.fromEntries(req.headers)),
-        "received secret:",
-        headerSecret ? `${headerSecret.slice(0, 6)}…` : "(none)",
+        "— header names:",
+        JSON.stringify([...req.headers.keys()]),
+        "secret present:",
+        Boolean(headerSecret),
       );
       return ok({ received: true, ignored: "secret_mismatch" }, 200);
     }
@@ -1141,7 +1147,7 @@ Deno.serve(async (req) => {
           ),
           lidAliases,
           waLidMapPhone,
-          // Only use single-allowed fallback for specific_phone scope; otherwise leave unresolved
+          // allowedPhones only labels the unresolved reason; it never resolves a LID
           allowedPhones:
             scopeMode === "specific_phone"
               ? allowedPhones
@@ -1788,6 +1794,8 @@ Deno.serve(async (req) => {
             groupId: boundGroup?.id || null,
             messageText,
             lid: /@lid/i.test(authorRaw || "") ? authorRaw : "",
+            // Known real phone of the typer: the code must have been sent to it.
+            senderPhone: looksLikeRealPhone(authorPhone) ? authorPhone : "",
             senderName,
             connectionUserId,
           });

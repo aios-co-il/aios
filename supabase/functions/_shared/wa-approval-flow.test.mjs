@@ -9,6 +9,7 @@ import {
   isExplicitRejectionPhrase,
   isMetaApprovalTool,
   pickLatestPendingApproval,
+  filterApprovalsForCaller,
 } from "./wa-approval-flow.mjs";
 
 const cases = buildApprovalFlowAcceptanceCases();
@@ -112,4 +113,50 @@ test("formatApprovalExecutionReply never claims success on failure", () => {
 test("isMetaApprovalTool covers duplicate variants", () => {
   assert.equal(isMetaApprovalTool("fb_duplicate_ad_variants"), true);
   assert.equal(isMetaApprovalTool("list_clients"), false);
+});
+
+test("approvals: only the requester (or a manager), only in the origin chat, not expired", () => {
+  const now = Date.parse("2026-10-17T10:00:00Z");
+  const future = "2026-10-18T10:00:00Z";
+  const rows = [
+    {
+      id: "ana-group",
+      requested_by: null,
+      expires_at: future,
+      context: { caller_phone: "972501111111", chat_id: "g1@g.us" },
+    },
+    {
+      id: "ana-private",
+      requested_by: null,
+      expires_at: future,
+      context: { caller_phone: "972501111111", chat_id: "972501111111@c.us" },
+    },
+    {
+      id: "old",
+      requested_by: null,
+      expires_at: "2026-10-16T10:00:00Z",
+      context: { caller_phone: "972501111111" },
+    },
+    { id: "ui", requested_by: "user-1", expires_at: future, context: {} },
+  ];
+  const ids = (caller) =>
+    filterApprovalsForCaller(rows, { now, ...caller }).map((r) => r.id);
+  // Ana in the group: only her group request.
+  assert.deepEqual(ids({ callerPhone: "0501111111", chatId: "g1@g.us" }), [
+    "ana-group",
+  ]);
+  // Another member saying "כן" in the same group: nothing.
+  assert.deepEqual(ids({ callerPhone: "972502222222", chatId: "g1@g.us" }), []);
+  // Manager in the group: rows from this chat (or without a chat), never other chats.
+  assert.deepEqual(ids({ isManager: true, chatId: "g1@g.us" }), [
+    "ana-group",
+    "ui",
+  ]);
+  // UI user (no chat): their own row.
+  assert.deepEqual(ids({ callerUserId: "user-1" }), ["ui"]);
+  // Expired row is skipped unless explicitly ignored.
+  assert.ok(!ids({ callerPhone: "972501111111" }).includes("old"));
+  assert.ok(
+    ids({ callerPhone: "972501111111", ignoreExpiry: true }).includes("old"),
+  );
 });
