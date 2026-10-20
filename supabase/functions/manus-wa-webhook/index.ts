@@ -1937,11 +1937,9 @@ Deno.serve(async (req: Request) => {
           ),
           sendVoice: makeVoiceSender(groupTenantId),
           sendMessage: async (_chatId: string, message: string) => {
-            const gatewaySettings = settings;
             const baseUrl =
-              gatewaySettingsettings.gateway_url ||
-              "https://whatsappgw-pzpyrrww.manus.space";
-            const instanceId = gatewaySettings.instance_id;
+              settings.gateway_url || "https://whatsappgw-pzpyrrww.manus.space";
+            const instanceId = settings.instance_id;
             const apiKey = integ.api_key;
             if (!instanceId || !apiKey) return false;
             // IMPORTANT: bound the gateway call with a timeout. Without it, a stalled Manus
