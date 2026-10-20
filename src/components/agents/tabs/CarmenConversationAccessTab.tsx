@@ -1,6 +1,11 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   Loader2,
   Phone,
@@ -22,6 +27,7 @@ import {
   buildPolicyFromAutomation,
   fetchCarmenAutomationConfig,
   mergePrivatePhoneAllowlist,
+  decodePrivatePhoneRows,
   type PrivatePhoneRow,
   type ManusGroupRow,
 } from "@/lib/carmenAccessAutomation";
@@ -86,31 +92,30 @@ export function CarmenConversationAccessTab({
 
   const { data: policy, isLoading: policyLoading } = useQuery({
     queryKey: policyKey,
-    enabled: !!tenantId && !!agent.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("carmen_access_policies")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .eq("agent_id", agent.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("carmen_access_policies")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .eq("agent_id", agent.id)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        }
+      : skipToken,
   });
 
   const { data: manusGroups, isLoading: groupsLoading } = useQuery<
     ManusGroupRow[]
   >({
     queryKey: ["carmen-manus-groups", tenantId],
-    enabled: !!tenantId,
-    queryFn: () => fetchCarmenManusGroups(tenantId!),
+    queryFn: tenantId ? () => fetchCarmenManusGroups(tenantId) : skipToken,
   });
 
   const { data: manusSyncInfo } = useQuery({
     queryKey: ["carmen-manus-sync-info", tenantId],
-    enabled: !!tenantId,
-    queryFn: () => fetchManusGroupsSyncInfo(tenantId!),
+    queryFn: tenantId ? () => fetchManusGroupsSyncInfo(tenantId) : skipToken,
   });
 
   const manusGroupIdSet = useMemo(
@@ -120,87 +125,98 @@ export function CarmenConversationAccessTab({
 
   const { data: clients } = useQuery({
     queryKey: ["carmen-access-clients", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("clients")
-        .select("id, name, whatsapp_group_id, agency_id")
-        .eq("tenant_id", tenantId!)
-        .order("name");
-      return data || [];
-    },
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("clients")
+            .select("id, name, whatsapp_group_id, agency_id")
+            .eq("tenant_id", tenantId)
+            .order("name");
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: agencies } = useQuery({
     queryKey: ["carmen-access-agencies", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agencies")
-        .select("id, name")
-        .eq("tenant_id", tenantId!)
-        .order("name");
-      return data || [];
-    },
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("agencies")
+            .select("id, name")
+            .eq("tenant_id", tenantId)
+            .order("name");
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: clientGroupAccess } = useQuery({
     queryKey: ["carmen-client-group-access", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("carmen_client_group_access")
-        .select("*")
-        .eq("tenant_id", tenantId!);
-      return data || [];
-    },
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("carmen_client_group_access")
+            .select("*")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: identities } = useQuery({
     queryKey: ["carmen-identities", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const columns =
-        "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
-      // relationship_note is newer than the generated types; fall back if absent.
-      const primary = await supabase
-        .from("carmen_whatsapp_identities")
-        .select(columns)
-        .eq("tenant_id", tenantId!)
-        .order("display_name");
-      let data = primary.data;
-      if (primary.error) {
-        const fallback = await supabase
-          .from("carmen_whatsapp_identities")
-          .select(
-            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
-          )
-          .eq("tenant_id", tenantId!)
-          .order("display_name");
-        data =
-          fallback.data?.map((row) => ({ ...row, relationship_note: null })) ??
-          null;
-      }
-      return data || [];
-    },
+    queryFn: tenantId
+      ? async () => {
+          const columns =
+            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
+          // relationship_note is newer than the generated types; fall back if absent.
+          const primary = await supabase
+            .from("carmen_whatsapp_identities")
+            .select(columns)
+            .eq("tenant_id", tenantId)
+            .order("display_name");
+          let data = primary.data;
+          if (primary.error) {
+            const fallback = await supabase
+              .from("carmen_whatsapp_identities")
+              .select(
+                "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
+              )
+              .eq("tenant_id", tenantId)
+              .order("display_name");
+            data =
+              fallback.data?.map((row) => ({
+                ...row,
+                relationship_note: null,
+              })) ?? null;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: automationCfg, isLoading: automationLoading } = useQuery({
     queryKey: ["carmen-automation-cfg", tenantId, agent.id],
-    enabled: !!tenantId && !!agent.id,
-    queryFn: () => fetchCarmenAutomationConfig(tenantId!, agent.id),
+    queryFn:
+      tenantId && agent.id
+        ? () => fetchCarmenAutomationConfig(tenantId, agent.id)
+        : skipToken,
   });
+
+  const policyPhones = useMemo(
+    () => decodePrivatePhoneRows(policy?.private_phones),
+    [policy?.private_phones],
+  );
 
   const mergedPhones = useMemo(
     () =>
       mergePrivatePhoneAllowlist({
-        policyPhones: Array.isArray(policy?.private_phones)
-          ? (policy.private_phones as unknown as PrivatePhoneRow[])
-          : [],
+        policyPhones,
         identities,
         automationPhones: automationCfg?.carmen_allowed_phones,
       }),
-    [policy?.private_phones, identities, automationCfg?.carmen_allowed_phones],
+    [policyPhones, identities, automationCfg?.carmen_allowed_phones],
   );
 
   const persistPolicy = async (draft: {
@@ -215,7 +231,7 @@ export function CarmenConversationAccessTab({
       manusGroupIdSet.has(id),
     );
     const payload = {
-      tenant_id: tenantId!,
+      tenant_id: tenantId,
       agent_id: agent.id,
       private_phones: draft.phones.map((entry) => ({ ...entry })),
       allowed_group_ids: allowedManusGroups,
@@ -341,9 +357,7 @@ export function CarmenConversationAccessTab({
     }).length;
     const automationPhoneCount =
       automationCfg.carmen_allowed_phones?.length ?? 0;
-    const policyPhoneCount = Array.isArray(policy?.private_phones)
-      ? policy.private_phones.length
-      : 0;
+    const policyPhoneCount = policyPhones.length;
     const needsSeed =
       !policy ||
       (automationCfg.carmen_open_member_groups === true &&
