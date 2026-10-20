@@ -43,15 +43,12 @@ function RouteContentLoader() {
 }
 
 export function AppLayout() {
-  const identity = useCarmenIdentity();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedAgency, setSelectedAgency, agencies } = useAgency();
   const { userId } = useCurrentUser();
   const { currentTenantId, setCurrentTenantId, currentTenant } = useTenant();
-  const commandCenterAccess = useCommandCenterAccess();
   const contentFadeRef = useCarmenContentFade<HTMLDivElement>();
-  const sidecar = useCommandCenterSidecar();
 
   // Fetch available tenants for the user
   const { data: userTenants } = useQuery({
@@ -238,27 +235,7 @@ export function AppLayout() {
                 )}
                 <GlobalApprovalsBell />
                 {/* Carmen work session entry point (allowlisted users only). */}
-                {commandCenterAccess.allowed && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const slug = currentTenant?.slug;
-                        if (slug) sidecar.toggle();
-                      }}
-                      className="relative group"
-                      title={`פגישת עבודה עם ${identity.name}`}
-                      aria-label={`פתח פגישת עבודה עם ${identity.name}`}
-                      aria-expanded={sidecar.open}
-                    >
-                      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
-                      <CarmenPortrait
-                        image={identity.image}
-                        name={identity.name}
-                        custom={identity.custom}
-                      />
-                    </button>
-                  </>
-                )}
+                <CarmenSessionButton />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -304,5 +281,30 @@ export function AppLayout() {
         </div>
       </SidebarProvider>
     </ViewAsProvider>
+  );
+}
+
+/** Header entry point for a Carmen session. Lives inside ViewAsProvider so
+ * "view as" previews the viewed user's access. */
+function CarmenSessionButton() {
+  const identity = useCarmenIdentity();
+  const access = useCommandCenterAccess();
+  const sidecar = useCommandCenterSidecar();
+  if (!access.allowed) return null;
+  return (
+    <button
+      onClick={() => sidecar.toggle()}
+      className="relative group"
+      title={`פגישת עבודה עם ${identity.name}`}
+      aria-label={`פתח פגישת עבודה עם ${identity.name}`}
+      aria-expanded={sidecar.open}
+    >
+      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
+      <CarmenPortrait
+        image={identity.image}
+        name={identity.name}
+        custom={identity.custom}
+      />
+    </button>
   );
 }

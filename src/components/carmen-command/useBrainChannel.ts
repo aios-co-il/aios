@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewAs } from "@/contexts/ViewAsContext";
+import { allowedRoutes } from "../../../supabase/functions/_shared/carmen-brain-access";
 import {
   FALLBACK_BRAIN_ROUTES,
   channelHealthBanner,
@@ -53,6 +55,7 @@ export function useBrainChannel(tenantId: string | null) {
   const [channelHealth, setChannelHealth] = useState<ChannelHealth | null>(
     null,
   );
+  const { viewAsUserId } = useViewAs();
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
 
@@ -69,12 +72,28 @@ export function useBrainChannel(tenantId: string | null) {
         if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
         // A restricted user gets exactly the brains they may use, even none.
-        const list =
+        let list =
           Array.isArray(json.routes) && (json.routes.length || json.restricted)
             ? (json.routes as BrainRoute[])
             : FALLBACK_BRAIN_ROUTES;
+        let restricted = !!json.restricted;
+        // "View as": the server answers for the signed-in admin, so apply the
+        // viewed user's permissions here to preview what they would see.
+        if (viewAsUserId) {
+          const { data: viewedRow } = await (supabase as any)
+            .from("carmen_command_center_access")
+            .select("enabled, brain_access")
+            .eq("tenant_id", tenantId)
+            .eq("user_id", viewAsUserId)
+            .limit(1)
+            .maybeSingle();
+          if (viewedRow) {
+            list = allowedRoutes(list, viewedRow);
+            restricted = true;
+          }
+        }
         setRoutes(list);
-        setNoBrainAccess(!!json.restricted && list.length === 0);
+        setNoBrainAccess(restricted && list.length === 0);
         if (list.length)
           setSelected(
             (prev) =>
@@ -103,7 +122,7 @@ export function useBrainChannel(tenantId: string | null) {
         /* health is advisory */
       }
     })();
-  }, [tenantId]);
+  }, [tenantId, viewAsUserId]);
 
   const selectRoute = useCallback(
     async (route: BrainRoute, conversationId?: string | null) => {

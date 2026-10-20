@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewAs } from "@/contexts/ViewAsContext";
 import { carmenEnabledFor } from "../../../supabase/functions/_shared/carmen-brain-access";
 
 // Owners who may use the ORG OpenAI key. Everyone else gets access by adding
@@ -12,10 +13,38 @@ export function useCommandCenterAccess(): {
   loading: boolean;
 } {
   const [state, setState] = useState({ allowed: false, loading: true });
+  const { viewAsUserId } = useViewAs();
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        // "View as": show Carmen the way that user would see her. Their
+        // personal API key is private (RLS), so only the permissions row and
+        // the owner allowlist count here.
+        if (viewAsUserId) {
+          const [{ data: permRow }, { data: prof }] = await Promise.all([
+            (supabase as any)
+              .from("carmen_command_center_access")
+              .select("enabled, brain_access")
+              .eq("user_id", viewAsUserId)
+              .limit(1)
+              .maybeSingle(),
+            supabase
+              .from("profiles")
+              .select("email")
+              .eq("id", viewAsUserId)
+              .maybeSingle(),
+          ]);
+          const viewedEmail = String(prof?.email ?? "").toLowerCase();
+          if (mounted)
+            setState({
+              allowed: permRow
+                ? carmenEnabledFor(permRow)
+                : COMMAND_CENTER_ALLOWLIST.includes(viewedEmail),
+              loading: false,
+            });
+          return;
+        }
         const { data } = await supabase.auth.getUser();
         const email = data.user?.email?.toLowerCase() ?? "";
         if (COMMAND_CENTER_ALLOWLIST.includes(email)) {
@@ -51,6 +80,6 @@ export function useCommandCenterAccess(): {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [viewAsUserId]);
   return state;
 }

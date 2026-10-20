@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { CommandCenterSidecar } from "./CommandCenterSidecar";
+import { useCommandCenterAccess } from "./access";
 import "./carmen-session.css";
 
 const ignoreOpenChange = () => {};
@@ -20,7 +21,8 @@ export function CommandCenterSidecarShell({
   onOpenChange,
 }: CommandCenterSidecarShellProps) {
   const ctx = useCommandCenterSidecar();
-  const open = embedded ? (openProp ?? false) : ctx.open;
+  const access = useCommandCenterAccess();
+  const open = (embedded ? (openProp ?? false) : ctx.open) && access.allowed;
   const setOpen = embedded ? (onOpenChange ?? ignoreOpenChange) : ctx.setOpen;
 
   useEffect(() => {
