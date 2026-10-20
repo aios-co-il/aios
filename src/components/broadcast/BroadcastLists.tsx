@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import {
   useBroadcastLists,
   type BroadcastList,
@@ -119,6 +121,12 @@ export function BroadcastLists() {
                       לפי סינון
                     </Badge>
                   )}
+                  {l.source_config?.sync_automation_id && (
+                    <Badge variant="secondary" className="text-xs">
+                      <Zap className="ml-1 h-3 w-3" />
+                      מסונכרנת
+                    </Badge>
+                  )}
                   {l.kind === "dynamic" && (
                     <Badge variant="secondary" className="text-xs">
                       <RefreshCw className="ml-1 h-3 w-3" />
@@ -180,6 +188,10 @@ function ListDetailDialog({
   } = useBroadcastLists();
   const { statuses: leadStatuses } = useLeadStatuses();
   const members = useMembers(list.id);
+  const navigate = useNavigate();
+  const { buildPath } = useTenantPath();
+  const syncAutomationId: string | undefined =
+    list.source_config?.sync_automation_id;
   const rules = useRules(list.id);
 
   // manual add
@@ -301,6 +313,24 @@ function ListDetailDialog({
 
           {/* MEMBERS */}
           <TabsContent value="members" className="space-y-3">
+            {syncAutomationId && (
+              <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
+                <span>
+                  הרשימה מסונכרנת עם אוטומציה: מי שנכנס לשלב/סטטוס נכנס, מי
+                  שיוצא – יוצא. אפשר לערוך אותה (למשל להוסיף שליחת טמפלייט).
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(buildPath(`automations/flow/${syncAutomationId}`))
+                  }
+                >
+                  <Zap className="ml-1 h-4 w-4" />
+                  פתח אוטומציה
+                </Button>
+              </div>
+            )}
             {list.source === "crm_filter" && (
               <div className="flex items-center justify-between rounded-md bg-muted p-2 text-xs">
                 <span>
@@ -609,13 +639,18 @@ function NewListDialog({
   onClose: () => void;
   onCreated: (l: BroadcastList) => void;
 }) {
-  const { createList, materialize } = useBroadcastLists();
+  const { createList, materialize, createSyncAutomation } = useBroadcastLists();
   const [name, setName] = useState("");
   const [type, setType] = useState<"manual" | "crm">("manual");
-  const [kind, setKind] = useState<"dynamic" | "static">("dynamic");
+  // synced = static members kept up to date by an editable automation (leads only)
+  const [kind, setKind] = useState<"synced" | "dynamic" | "static">("synced");
+
   const [filter, setFilter] = useState<CrmListFilter>(EMPTY_FILTER);
   const [preview, setPreview] = useState<{ total: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Client status changes don't fire automations yet, so clients can't be synced.
+  const effectiveKind =
+    kind === "synced" && filter.source === "clients" ? "dynamic" : kind;
 
   const runPreview = async () => {
     setBusy(true);
@@ -633,19 +668,29 @@ function NewListDialog({
     try {
       const l = await createList.mutateAsync({
         name: name.trim() || "רשימה חדשה",
-        kind: type === "crm" ? kind : "static",
+        kind:
+          type === "crm" && effectiveKind === "dynamic" ? "dynamic" : "static",
         source: type === "crm" ? "crm_filter" : "manual",
         source_config: type === "crm" ? filter : {},
       });
       if (type === "crm") {
         const res = await materialize({
-          mode: kind === "static" ? "freeze" : "preview",
+          mode: effectiveKind === "dynamic" ? "preview" : "freeze",
           listId: l.id,
         });
+        if (effectiveKind === "synced") {
+          const automationId = await createSyncAutomation(l);
+          l.source_config = {
+            ...(l.source_config || {}),
+            sync_automation_id: automationId,
+          };
+        }
         toast.success(
-          kind === "static"
-            ? `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר`
-            : `רשימה דינמית · ${res.total} תואמים כרגע`,
+          effectiveKind === "dynamic"
+            ? `רשימה דינמית · ${res.total} תואמים כרגע`
+            : effectiveKind === "synced"
+              ? `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר ואוטומציית סנכרון`
+              : `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר`,
         );
       }
       onCreated(l);
@@ -710,10 +755,27 @@ function NewListDialog({
                 }}
               />
               <div className="space-y-2 rounded-lg border p-3">
+                {filter.source === "leads" && (
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={kind === "synced"}
+                      onChange={() => setKind("synced")}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="font-medium">
+                        מסונכרנת עם אוטומציה (מומלץ)
+                      </span>{" "}
+                      – נוצרת אוטומציה שאפשר לערוך: ליד שנכנס לשלב/סטטוס נכנס
+                      לרשימה, ליד שיוצא ממנו יוצא מהרשימה.
+                    </span>
+                  </label>
+                )}
                 <label className="flex items-start gap-2 text-sm">
                   <input
                     type="radio"
-                    checked={kind === "dynamic"}
+                    checked={effectiveKind === "dynamic"}
                     onChange={() => setKind("dynamic")}
                     className="mt-1"
                   />

@@ -615,3 +615,82 @@ export async function recipientForEntity(
     ? leadRecipient(data, lk)
     : clientRecipient(data, lk);
 }
+
+/**
+ * Does one lead / client match a CRM filter right now? Used by the
+ * sync_mailing_list automation action to add or remove a single member
+ * without resolving the whole audience.
+ */
+export async function entityMatchesFilter(
+  db: Db,
+  tenantId: string,
+  filter: AudienceFilter,
+  entityType: "lead" | "client",
+  entityId: string,
+): Promise<boolean> {
+  if (filter.source !== (entityType === "lead" ? "leads" : "clients"))
+    return false;
+  const table = entityType === "lead" ? "leads" : "clients";
+  const cols =
+    entityType === "lead"
+      ? "id, status, response_status, sales_person_id, agency_id, archived_at"
+      : "id, status, services, agency_id";
+  const { data: row, error } = await db
+    .from(table)
+    .select(cols)
+    .eq("tenant_id", tenantId)
+    .eq("id", entityId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) return false;
+
+  if (hasItems(filter.agencyIds) && !filter.agencyIds.includes(row.agency_id))
+    return false;
+
+  if (entityType === "lead") {
+    if (row.archived_at) return false;
+    if (!modeMatch(filter.stageKeys, filter.stageMode, row.status))
+      return false;
+    if (!modeMatch(filter.statusKeys, filter.statusMode, row.response_status))
+      return false;
+    if (
+      hasItems(filter.salesPersonIds) &&
+      !filter.salesPersonIds.includes(row.sales_person_id)
+    )
+      return false;
+  } else {
+    if (!modeMatch(filter.statuses, filter.statusMode, row.status))
+      return false;
+    if (
+      hasItems(filter.serviceTags) &&
+      !(Array.isArray(row.services) ? row.services : []).some((s: string) =>
+        filter.serviceTags!.includes(s),
+      )
+    )
+      return false;
+    if (hasItems(filter.campaignerIds)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: team } = await db
+        .from("client_team")
+        .select("campaigner_id, end_date")
+        .eq("client_id", entityId)
+        .in("campaigner_id", filter.campaignerIds);
+      if (!(team || []).some((t: Db) => !t.end_date || t.end_date >= today))
+        return false;
+    }
+  }
+
+  if (hasItems(filter.tagIds)) {
+    const col = entityType === "lead" ? "lead_id" : "client_id";
+    const { data: tags } = await db
+      .from("chat_contact_tags")
+      .select("tag_id")
+      .eq("tenant_id", tenantId)
+      .eq(col, entityId)
+      .in("tag_id", filter.tagIds)
+      .limit(1);
+    const tagged = (tags || []).length > 0;
+    if (filter.tagMode === "exclude" ? tagged : !tagged) return false;
+  }
+  return true;
+}
