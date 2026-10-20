@@ -72,8 +72,29 @@ export default function Privacy() {
                   אירועים ופגישות, כתובת האימייל המקושרת לחשבון Google שלך
                 </li>
                 <li>
-                  <strong>Facebook Lead Ads:</strong> לידים מקמפיינים פרסומיים,
-                  מידע על טפסים וקמפיינים, שם מלא, אימייל וטלפון של לידים
+                  <strong>Meta (Facebook / Instagram):</strong> רשימת הדפים
+                  והחשבונות העסקיים שלך, ניהול וקריאת קמפיינים וחשבונות מודעות
+                  (ads_management), לידים מטפסי Lead Ads (שם מלא, אימייל,
+                  טלפון), פרסום וניהול פוסטים, תגובות והודעות בדפים, ופרסום תוכן
+                  וניהול תגובות ב-Instagram. המידע משמש רק להפעלת הפעולות שהגדרת
+                  במערכת
+                </li>
+                <li>
+                  <strong>Google Ads:</strong> קריאת נתוני קמפיינים, עלויות
+                  וביצועים מחשבון המודעות המחובר לצורך דוחות ומעקב
+                </li>
+                <li>
+                  <strong>Google Analytics:</strong> קריאה בלבד של נתוני תנועה
+                  והמרות מהנכסים שבחרת, לצורך דוחות
+                </li>
+                <li>
+                  <strong>Google Search Console:</strong> קריאה בלבד של נתוני
+                  חיפוש, שאילתות ומיקומים מהאתרים שאימתת, לצורך דוחות SEO
+                </li>
+                <li>
+                  <strong>Gmail:</strong> קריאה, שליחה ותיוג של הודעות בתיבה
+                  שחיברת, לצורך תיעוד תקשורת עם לקוחות ושליחת הודעות מהמערכת
+                  בשמך
                 </li>
                 <li>
                   <strong>WhatsApp (Green API):</strong> הודעות נכנסות ויוצאות,
@@ -148,8 +169,10 @@ export default function Privacy() {
               </h3>
               <ul className="list-disc pr-6 space-y-1">
                 <li>Supabase - אחסון מידע ואימות משתמשים</li>
-                <li>Google Cloud - שירותי יומן</li>
-                <li>Meta (Facebook) - קבלת לידים מפרסום</li>
+                <li>
+                  Google - יומן, Google Ads, Analytics, Search Console, Gmail
+                </li>
+                <li>Meta (Facebook / Instagram) - לידים, מודעות, דפים ותוכן</li>
                 <li>Green API - אינטגרציית WhatsApp</li>
                 <li>ManyChat - אוטומציות הודעות</li>
               </ul>
@@ -177,8 +200,8 @@ export default function Privacy() {
                 </p>
                 <ul className="list-disc pr-6 space-y-1">
                   <li>
-                    ניגשים רק למידע הנדרש לפונקציונליות שביקשת (יצירת אירועים
-                    ביומן, שליפת פרטי יומן)
+                    ניגשים רק למידע הנדרש לפונקציונליות שביקשת (יומן, Google
+                    Ads, Analytics, Search Console, Gmail)
                   </li>
                   <li>
                     לא נעביר מידע מ-Google לצדדים שלישיים, למעט לצורך אספקת
@@ -274,7 +297,14 @@ export default function Privacy() {
                   <strong>תיקון:</strong> לתקן מידע לא מדויק או חסר
                 </li>
                 <li>
-                  <strong>מחיקה:</strong> לבקש מחיקת המידע שלך ("הזכות להישכח")
+                  <strong>מחיקה:</strong> לבקש מחיקת המידע שלך ("הזכות להישכח").
+                  למחיקת מידע מאינטגרציות Meta ו-Google ראה{" "}
+                  <Link
+                    to="/data-deletion"
+                    className="text-primary hover:underline"
+                  >
+                    הוראות מחיקת מידע
+                  </Link>
                 </li>
                 <li>
                   <strong>העברה:</strong> לקבל את המידע שלך בפורמט מובנה
