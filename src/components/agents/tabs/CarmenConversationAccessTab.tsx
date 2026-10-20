@@ -1,3 +1,4 @@
+import type { Tables } from "@/integrations/supabase/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -56,7 +57,7 @@ type ClientGroupRow = {
   whatsapp_group_id: string;
   allow_client_contacts: boolean;
   allow_assigned_campaigners: boolean;
-  info_boundary: "external_only" | "full";
+  info_boundary: Tables<"carmen_client_group_access">["info_boundary"];
 };
 
 function normalizePhone(p: string) {
