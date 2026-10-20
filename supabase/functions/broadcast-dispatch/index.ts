@@ -11,13 +11,10 @@
 //             directly (the green file function requires a real user, not service role)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
+  buildEmailContent,
   buildTemplateVars,
-  htmlToText,
   renderTemplate,
-  sanitizeEmailHtml,
-  textToEmailHtml,
   type TemplateVars,
-  wrapEmailHtml,
 } from "../_shared/broadcast-template.ts";
 
 const corsHeaders = {
@@ -135,15 +132,16 @@ async function sendOne(
   if (b.channel === "email") {
     if (!r.email) return { ok: false, error: "missing_email" };
     const unsubUrl = `${SB_URL}/functions/v1/broadcast-unsubscribe?r=${r.id}`;
-    const richHtml = b.body_html
-      ? renderTemplate(sanitizeEmailHtml(b.body_html), vars, { html: true })
-      : null;
-    const text = richHtml ? body || htmlToText(richHtml) : body;
-    const html =
-      (richHtml ? wrapEmailHtml(richHtml) : textToEmailHtml(body)) +
-      `<hr style="margin-top:24px;border:none;border-top:1px solid #eee"/>` +
-      `<p style="font-family:system-ui,Arial,sans-serif;font-size:12px;color:#999" dir="rtl">` +
-      `אם אינך מעוניין/ת לקבל דיוורים, ניתן <a href="${unsubUrl}">להסיר את עצמך מהרשימה</a>.</p>`;
+    const { html, text } = buildEmailContent({
+      bodyHtml: b.body_html,
+      bodyText: b.body_text,
+      htmlMode: b.html_mode,
+      vars,
+      footerHtml:
+        `<hr style="margin-top:24px;border:none;border-top:1px solid #eee"/>` +
+        `<p style="font-family:system-ui,Arial,sans-serif;font-size:12px;color:#999" dir="rtl">` +
+        `אם אינך מעוניין/ת לקבל דיוורים, ניתן <a href="${unsubUrl}">להסיר את עצמך מהרשימה</a>.</p>`,
+    });
     const res = await invokeEdgeFn("send-resend-email", {
       to: r.email,
       subject: renderTemplate(b.subject || b.name, vars),

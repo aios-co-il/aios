@@ -2744,6 +2744,7 @@ export type Database = {
           daily_cap: number;
           from_email: string | null;
           from_name: string | null;
+          html_mode: boolean;
           id: string;
           integration_id: string | null;
           last_error: string | null;
@@ -2777,6 +2778,7 @@ export type Database = {
           daily_cap?: number;
           from_email?: string | null;
           from_name?: string | null;
+          html_mode?: boolean;
           id?: string;
           integration_id?: string | null;
           last_error?: string | null;
@@ -2810,6 +2812,7 @@ export type Database = {
           daily_cap?: number;
           from_email?: string | null;
           from_name?: string | null;
+          html_mode?: boolean;
           id?: string;
           integration_id?: string | null;
           last_error?: string | null;
@@ -9132,6 +9135,7 @@ export type Database = {
           channel: string;
           created_at: string;
           created_by: string | null;
+          html_mode: boolean;
           id: string;
           media_url: string | null;
           name: string;
@@ -9146,6 +9150,7 @@ export type Database = {
           channel?: string;
           created_at?: string;
           created_by?: string | null;
+          html_mode?: boolean;
           id?: string;
           media_url?: string | null;
           name: string;
@@ -9160,6 +9165,7 @@ export type Database = {
           channel?: string;
           created_at?: string;
           created_by?: string | null;
+          html_mode?: boolean;
           id?: string;
           media_url?: string | null;
           name?: string;

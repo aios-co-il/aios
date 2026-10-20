@@ -4,6 +4,8 @@ import {
   buildTemplateVars,
   fieldKeyFromHeader,
   htmlToText,
+  injectBeforeBodyEnd,
+  sanitizeRawEmailHtml,
   normalizePhone,
   renderTemplate,
   sanitizeEmailHtml,
@@ -92,5 +94,26 @@ test("resolveTargetEntity picks the trigger's lead or client", () => {
   assert.equal(
     resolveTargetEntity({ entity: "client" }, { id: "L1" }, "lead_created"),
     null,
+  );
+});
+
+test("raw email HTML keeps styles but drops scripts", () => {
+  const raw =
+    '<html><head><style>.a{color:red}</style></head><body><table onclick="x()"><tr><td class="a">{{first_name}}</td></tr></table><script>alert(1)</script></body></html>';
+  const out = sanitizeRawEmailHtml(raw);
+  assert.ok(out.includes("<style>.a{color:red}</style>"));
+  assert.ok(out.includes("<table>"));
+  assert.equal(out.includes("script"), false);
+  assert.equal(out.includes("onclick"), false);
+});
+
+test("footer goes before </body> or at the end", () => {
+  assert.equal(
+    injectBeforeBodyEnd("<html><body>x</body></html>", "<p>f</p>"),
+    "<html><body>x<p>f</p></body></html>",
+  );
+  assert.equal(
+    injectBeforeBodyEnd("<div>x</div>", "<p>f</p>"),
+    "<div>x</div><p>f</p>",
   );
 });

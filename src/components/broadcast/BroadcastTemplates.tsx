@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { EmailRichEditorHandle } from "@/components/broadcast/EmailRichEditor";
 import {
   STANDARD_TEMPLATE_FIELDS,
+  buildEmailContent,
   buildTemplateVars,
   renderTemplate,
   templateFieldKeys,
@@ -237,6 +238,10 @@ function TemplateEditorDialog({
   const [name, setName] = useState(template?.name || "");
   const [subject, setSubject] = useState(template?.subject || "");
   const [bodyHtml, setBodyHtml] = useState(template?.body_html || "");
+  const [htmlMode, setHtmlMode] = useState(!!template?.html_mode);
+  // Remounts the rich editor with the current HTML after leaving HTML mode.
+  const [editorKey, setEditorKey] = useState(0);
+  const htmlRef = useRef<HTMLTextAreaElement>(null);
   const [bodyText, setBodyText] = useState(template?.body_text || "");
   const [mediaUrl, setMediaUrl] = useState(template?.media_url || "");
   const [uploading, setUploading] = useState(false);
@@ -284,17 +289,22 @@ function TemplateEditorDialog({
   const insertField = (token: string) => {
     if (channel === "email" && focus === "subject")
       return insertInto(subjectRef.current, subject, setSubject, token);
+    if (channel === "email" && htmlMode)
+      return insertInto(htmlRef.current, bodyHtml, setBodyHtml, token);
     if (channel === "email") return editorRef.current?.insertText(token);
     insertInto(textRef.current, bodyText, setBodyText, token);
   };
 
   const previewHtml = useMemo(() => {
     if (channel !== "email") return "";
+    if (htmlMode)
+      return buildEmailContent({ bodyHtml, htmlMode: true, vars: previewVars })
+        .html;
     const raw = bodyHtml
       ? wrapEmailHtml(renderTemplate(bodyHtml, previewVars, { html: true }))
       : textToEmailHtml(renderTemplate(bodyText, previewVars));
     return DOMPurify.sanitize(raw);
-  }, [channel, bodyHtml, bodyText, previewVars]);
+  }, [channel, bodyHtml, bodyText, previewVars, htmlMode]);
 
   const unknownKeys = useMemo(() => {
     const known = new Set([
@@ -339,7 +349,13 @@ function TemplateEditorDialog({
         name: name.trim(),
         channel,
         subject: channel === "email" ? subject.trim() : null,
-        body_html: channel === "email" ? DOMPurify.sanitize(bodyHtml) : null,
+        body_html:
+          channel !== "email"
+            ? null
+            : htmlMode
+              ? bodyHtml
+              : DOMPurify.sanitize(bodyHtml),
+        html_mode: channel === "email" && htmlMode,
         body_text: channel === "whatsapp" ? bodyText : null,
         media_url: channel === "whatsapp" ? mediaUrl || null : null,
       });
@@ -359,7 +375,8 @@ function TemplateEditorDialog({
           body: {
             tenantId,
             subject,
-            bodyHtml: DOMPurify.sanitize(bodyHtml),
+            bodyHtml: htmlMode ? bodyHtml : DOMPurify.sanitize(bodyHtml),
+            htmlMode,
             vars: previewVars,
           },
         },
@@ -434,23 +451,55 @@ function TemplateEditorDialog({
                   className="space-y-1"
                   onFocusCapture={() => setFocus("body")}
                 >
-                  <Label>תוכן</Label>
-                  <Suspense
-                    fallback={
-                      <div className="flex h-[260px] items-center justify-center rounded-md border">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      </div>
-                    }
-                  >
-                    <EmailRichEditor
-                      ref={editorRef}
-                      initialHtml={template?.body_html || ""}
-                      onChange={setBodyHtml}
+                  <div className="flex items-center justify-between">
+                    <Label>תוכן</Label>
+                    <div className="flex rounded-md border text-xs">
+                      {(["rich", "html"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          className={`px-2 py-1 ${(m === "html") === htmlMode ? "bg-primary text-primary-foreground" : ""}`}
+                          onClick={() => {
+                            if ((m === "html") === htmlMode) return;
+                            if (m === "rich") setEditorKey((k) => k + 1);
+                            setHtmlMode(m === "html");
+                          }}
+                        >
+                          {m === "rich" ? "עורך" : "HTML"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {htmlMode ? (
+                    <Textarea
+                      ref={htmlRef}
+                      dir="ltr"
+                      rows={14}
+                      className="font-mono text-xs"
+                      value={bodyHtml}
+                      onChange={(e) => setBodyHtml(e.target.value)}
+                      placeholder="<html>...</html>  — הדבק כאן HTML מוכן"
                     />
-                  </Suspense>
+                  ) : (
+                    <Suspense
+                      fallback={
+                        <div className="flex h-[260px] items-center justify-center rounded-md border">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        </div>
+                      }
+                    >
+                      <EmailRichEditor
+                        key={editorKey}
+                        ref={editorRef}
+                        initialHtml={bodyHtml}
+                        onChange={setBodyHtml}
+                      />
+                    </Suspense>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    הקלד / לכותרות, רשימות ותמונות. קישור להסרה מהרשימה מתווסף
-                    אוטומטית.
+                    {htmlMode
+                      ? "ה־HTML נשלח כמו שהוא (סקריפטים מוסרים). אפשר להשתמש בשדות דינמיים כמו {{first_name}}. קישור להסרה מתווסף לפני </body>."
+                      : "הקלד / לכותרות, רשימות ותמונות. קישור להסרה מהרשימה מתווסף אוטומטית."}
                   </p>
                 </div>
               </>
@@ -515,7 +564,16 @@ function TemplateEditorDialog({
                 <div className="mb-3 border-b pb-2 text-sm font-semibold">
                   {renderTemplate(subject, previewVars) || "ללא נושא"}
                 </div>
-                <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                {htmlMode ? (
+                  <iframe
+                    title="תצוגה מקדימה"
+                    sandbox=""
+                    srcDoc={previewHtml}
+                    className="h-[480px] w-full rounded border-0 bg-white"
+                  />
+                ) : (
+                  <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                )}
               </div>
             ) : (
               <div className="rounded-md border bg-[#e5ddd5] p-4">

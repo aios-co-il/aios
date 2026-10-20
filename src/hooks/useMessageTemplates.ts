@@ -12,6 +12,7 @@ export interface MessageTemplate {
   channel: TemplateChannel;
   subject: string | null;
   body_html: string | null;
+  html_mode: boolean;
   body_text: string | null;
   media_url: string | null;
   created_by: string | null;
@@ -22,7 +23,13 @@ export interface MessageTemplate {
 
 export type MessageTemplateInput = Pick<
   MessageTemplate,
-  "name" | "channel" | "subject" | "body_html" | "body_text" | "media_url"
+  | "name"
+  | "channel"
+  | "subject"
+  | "body_html"
+  | "html_mode"
+  | "body_text"
+  | "media_url"
 >;
 
 export function useMessageTemplates(channel?: TemplateChannel) {
@@ -93,6 +100,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         channel: t.channel,
         subject: t.subject,
         body_html: t.body_html,
+        html_mode: t.html_mode,
         body_text: t.body_text,
         media_url: t.media_url,
       });
