@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 export {
   mergePrivatePhoneAllowlist,
   decodePrivatePhoneRows,
-} from "./carmenPrivatePhoneAllowlist.mjs";
+} from "./carmenPrivatePhoneAllowlist";
 
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
@@ -100,21 +100,7 @@ export function buildPolicyFromAutomation(
   };
 }
 
-export type PrivatePhoneRow = {
-  phone: string;
-  label?: string;
-  status?: string;
-  source?: string;
-  dev_escalation_tier?: string | null;
-  surfaces?: string[];
-  relationship_note?: string;
-};
-
-export type IdentityRow = {
-  phone: string;
-  display_name?: string | null;
-  status?: string;
-  surfaces?: string[] | null;
-  dev_escalation_tier?: string | null;
-  relationship_note?: string | null;
-};
+export type {
+  PrivatePhoneRow,
+  IdentityRow,
+} from "./carmenPrivatePhoneAllowlist";

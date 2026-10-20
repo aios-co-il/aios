@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import {
   decodePrivatePhoneRows,
   mergePrivatePhoneAllowlist,
-} from "./carmenPrivatePhoneAllowlist.mjs";
+} from "./carmenPrivatePhoneAllowlist.ts";
 
 test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
   const out = mergePrivatePhoneAllowlist({
@@ -116,4 +116,18 @@ test("stored phone decoder preserves custom backend metadata and rejects malform
   expect(rows[0].surfaces).toStrictEqual(["whatsapp_private"]);
   expect(mergePrivatePhoneAllowlist({ policyPhones: rows }).length).toBe(1);
   expect(decodePrivatePhoneRows(null)).toStrictEqual([]);
+});
+
+test("stored custom sources normalize to policy while preserving escalation metadata", () => {
+  const stored = decodePrivatePhoneRows([
+    {
+      phone: "972501111111",
+      source: "legacy",
+      dev_escalation_tier: "custom-tier",
+    },
+  ]);
+  const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
+  assert.equal(stored[0].source, "legacy");
+  assert.equal(merged[0].source, "policy");
+  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
 });
