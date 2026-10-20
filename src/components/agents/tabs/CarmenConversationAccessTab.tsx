@@ -1,3 +1,8 @@
+import {
+  mergePrivatePhoneAllowlist,
+  decodePrivatePhoneRows,
+  type PrivatePhoneRow,
+} from "@/lib/carmenPrivatePhoneAllowlist";
 import type { Tables } from "@/integrations/supabase/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -26,9 +31,6 @@ import {
 import {
   buildPolicyFromAutomation,
   fetchCarmenAutomationConfig,
-  mergePrivatePhoneAllowlist,
-  decodePrivatePhoneRows,
-  type PrivatePhoneRow,
   type ManusGroupRow,
 } from "@/lib/carmenAccessAutomation";
 import { Button } from "@/components/ui/button";
