@@ -90,3 +90,36 @@ for (const [name, value] of Object.entries({
     assert.equal(manusPayloadSchema.safeParse(value).success, false);
   });
 }
+
+Deno.test(
+  "validates each consumed container layer without recursive schemas",
+  () => {
+    for (const outer of ["data", "message", "payload", "body"]) {
+      const valid = {
+        [outer]: {
+          message: { from: "member@lid", audioMessage: { url: "opaque" } },
+        },
+      };
+      assert.deepEqual(manusPayloadSchema.parse(valid), valid);
+      assert.equal(
+        manusPayloadSchema.safeParse({ [outer]: { message: { from: [] } } })
+          .success,
+        false,
+      );
+    }
+  },
+);
+
+Deno.test(
+  "preserves deeper extensions beyond the layers the handler consumes",
+  () => {
+    const payload = {
+      data: {
+        message: {
+          data: { providerExtension: { from: ["opaque", "extension"] } },
+        },
+      },
+    };
+    assert.deepEqual(manusPayloadSchema.parse(payload), payload);
+  },
+);

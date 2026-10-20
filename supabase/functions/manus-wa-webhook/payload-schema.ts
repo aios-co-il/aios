@@ -35,70 +35,84 @@ const key = z
   .passthrough()
   .nullish();
 
-// The gateway uses the same message fields at the top level and inside wrappers.
-// Do not restrict event/direction strings to today's vocabulary or coerce values.
-export const manusPayloadSchema: z.ZodType<Record<string, unknown>> = z.lazy(
-  () =>
-    z
-      .object({
-        event: text,
-        type: text,
-        messageType: text,
-        instanceId: identifier,
-        instance_id: identifier,
-        secret: text,
-        id: identifier,
-        messageId: identifier,
-        from: identifier,
-        to: identifier,
-        chatId: identifier,
-        remoteJid: identifier,
-        recipientId: identifier,
-        participant: identifier,
-        participantPn: identifier,
-        senderPn: identifier,
-        senderLid: identifier,
-        senderPhone: identifier,
-        senderNumber: identifier,
-        author: identifier,
-        senderName: text,
-        fromName: text,
-        authorName: text,
-        pushName: text,
-        groupId: identifier,
-        groupName: text,
-        chatName: text,
-        subject: text,
-        fromMe: flag,
-        hasMedia: flag,
-        direction: text,
-        ack: identifier,
-        body: z.union([z.string(), manusPayloadSchema]).nullish(),
-        text: z.union([z.string(), manusPayloadSchema]).nullish(),
-        content: z.union([z.string(), manusPayloadSchema]).nullish(),
-        conversation: text,
-        data: manusPayloadSchema.nullish(),
-        payload: manusPayloadSchema.nullish(),
-        message: manusPayloadSchema.nullish(),
-        key,
-        contextInfo: z
-          .object({ stanzaId: identifier, participant: identifier })
-          .passthrough()
-          .nullish(),
-        quotedMsgId: identifier,
-        quotedMessageId: identifier,
-        quotedMsg: z.object({ id: identifier }).passthrough().nullish(),
-        mediaType: text,
-        mimeType: text,
-        mime_type: text,
-        media: z.union([z.string(), media]).nullish(),
-        file: z.union([z.string(), media]).nullish(),
-        attachment: z.union([z.string(), media]).nullish(),
-        audio: z.union([z.string(), media]).nullish(),
-        audioMessage: media.nullish(),
-        imageMessage: media.nullish(),
-        videoMessage: media.nullish(),
-        documentMessage: media.nullish(),
-      })
-      .passthrough(),
-);
+const providerObject = z.record(z.string(), z.unknown());
+
+// Shared fields apply to messages and envelopes; opaque extensions stay intact.
+const messageFields = z
+  .object({
+    event: text,
+    type: text,
+    messageType: text,
+    instanceId: identifier,
+    instance_id: identifier,
+    secret: text,
+    id: identifier,
+    messageId: identifier,
+    from: identifier,
+    to: identifier,
+    chatId: identifier,
+    remoteJid: identifier,
+    recipientId: identifier,
+    participant: identifier,
+    participantPn: identifier,
+    senderPn: identifier,
+    senderLid: identifier,
+    senderPhone: identifier,
+    senderNumber: identifier,
+    author: identifier,
+    senderName: text,
+    fromName: text,
+    authorName: text,
+    pushName: text,
+    groupId: identifier,
+    groupName: text,
+    chatName: text,
+    subject: text,
+    fromMe: flag,
+    hasMedia: flag,
+    direction: text,
+    ack: identifier,
+    body: z.union([z.string(), providerObject]).nullish(),
+    text: z.union([z.string(), providerObject]).nullish(),
+    content: z.union([z.string(), providerObject]).nullish(),
+    conversation: text,
+    data: providerObject.nullish(),
+    payload: providerObject.nullish(),
+    message: providerObject.nullish(),
+    key,
+    contextInfo: z
+      .object({ stanzaId: identifier, participant: identifier })
+      .passthrough()
+      .nullish(),
+    quotedMsgId: identifier,
+    quotedMessageId: identifier,
+    quotedMsg: z.object({ id: identifier }).passthrough().nullish(),
+    mediaType: text,
+    mimeType: text,
+    mime_type: text,
+    media: z.union([z.string(), media]).nullish(),
+    file: z.union([z.string(), media]).nullish(),
+    attachment: z.union([z.string(), media]).nullish(),
+    audio: z.union([z.string(), media]).nullish(),
+    audioMessage: media.nullish(),
+    imageMessage: media.nullish(),
+    videoMessage: media.nullish(),
+    documentMessage: media.nullish(),
+  })
+  .passthrough();
+
+function withContainers(child: z.ZodType<Record<string, unknown>>) {
+  return messageFields.extend({
+    data: child.nullish(),
+    payload: child.nullish(),
+    message: child.nullish(),
+    body: z.union([z.string(), child]).nullish(),
+    text: z.union([z.string(), child]).nullish(),
+    content: z.union([z.string(), child]).nullish(),
+  });
+}
+
+// Normalization reads the outer event, one wrapper, then its message container.
+// Model those three layers directly; deeper provider extensions remain opaque.
+const wrappedMessage = withContainers(messageFields);
+export const manusPayloadSchema = withContainers(wrappedMessage);
