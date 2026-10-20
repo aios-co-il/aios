@@ -135,6 +135,11 @@ export function LeadFilterPresetTabs({
       ? (pipelineStages.find((s) => s.id === activeStageIds[0]) ?? null)
       : null;
 
+  // Hidden stages are left out of the menu entirely.
+  const menuStages = hidingStages
+    ? pipelineStages.filter((stage) => !activeStageIds.includes(stage.id))
+    : pipelineStages;
+
   const pipelineTriggerLabel = hidingStages
     ? activeStageIds.length === 1
       ? `הסתר ${pipelineStages.find((stage) => stage.id === activeStageIds[0])?.label ?? "שלב"}`
@@ -298,7 +303,7 @@ export function LeadFilterPresetTabs({
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="my-1" />
-            {pipelineStages.map((stage) => {
+            {menuStages.map((stage) => {
               const count = stageCounts?.[stage.id];
               const isActive =
                 !hidingStages && activeStageIds.includes(stage.id);
