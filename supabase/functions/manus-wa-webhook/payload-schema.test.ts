@@ -123,3 +123,15 @@ Deno.test(
     assert.deepEqual(manusPayloadSchema.parse(payload), payload);
   },
 );
+
+Deno.test("preserves inferred types through both container layers", () => {
+  const parsed = manusPayloadSchema.parse({
+    data: { message: { from: "member@lid", audioMessage: { url: "opaque" } } },
+  });
+  // These assignments also fail Deno's type check if composition widens to unknown.
+  const sender: string | number | null | undefined = parsed.data?.message?.from;
+  const mediaUrl: string | null | undefined =
+    parsed.data?.message?.audioMessage?.url;
+  assert.equal(sender, "member@lid");
+  assert.equal(mediaUrl, "opaque");
+});

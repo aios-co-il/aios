@@ -101,7 +101,9 @@ const messageFields = z
   })
   .passthrough();
 
-function withContainers(child: z.ZodType<Record<string, unknown>>) {
+function withContainers<Child extends z.ZodType<Record<string, unknown>>>(
+  child: Child,
+) {
   return messageFields.extend({
     data: child.nullish(),
     payload: child.nullish(),
