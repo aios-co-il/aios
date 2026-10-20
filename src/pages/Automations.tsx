@@ -88,6 +88,10 @@ const ACTION_LABELS: Record<string, string> = {
   add_client_update: "הוסף עדכון ללקוח",
   create_task: "צור משימה",
   send_signature: "שלח הסכם (חתימה דיגיטלית)",
+  add_to_mailing_list: "הוספה לרשימת דיוור",
+  remove_from_mailing_list: "הסרה מרשימת דיוור",
+  send_template_to_contact: "שליחת טמפלייט לאיש הקשר",
+  send_template_to_list: "שליחת טמפלייט לרשימה",
 };
 
 export default function Automations() {

@@ -4,6 +4,11 @@ import {
   type BroadcastList,
 } from "@/hooks/useBroadcastLists";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
+import {
+  CrmListFilterBuilder,
+  type CrmListFilter,
+} from "@/components/broadcast/CrmListFilterBuilder";
+import { ListFileImport } from "@/components/broadcast/ListFileImport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +49,8 @@ import {
   Zap,
   Loader2,
   RefreshCw,
+  Filter,
+  Eye,
 } from "lucide-react";
 
 const LEAD_SOURCES = [
@@ -56,42 +63,16 @@ const LEAD_SOURCES = [
 ];
 
 export function BroadcastLists() {
-  const { lists, createList, deleteList } = useBroadcastLists();
+  const { lists, deleteList } = useBroadcastLists();
   const [openList, setOpenList] = useState<BroadcastList | null>(null);
-  const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    const name = newName.trim() || "רשימה חדשה";
-    const l = await createList.mutateAsync({ name });
-    setNewName("");
-    setCreating(false);
-    setOpenList(l);
-  };
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
-        {creating ? (
-          <>
-            <Input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="שם הרשימה"
-              className="max-w-xs"
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-            <Button onClick={handleCreate}>צור</Button>
-            <Button variant="ghost" onClick={() => setCreating(false)}>
-              ביטול
-            </Button>
-          </>
-        ) : (
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="ml-1 h-4 w-4" /> רשימה חדשה
-          </Button>
-        )}
+        <Button onClick={() => setCreating(true)}>
+          <Plus className="ml-1 h-4 w-4" /> רשימה חדשה
+        </Button>
       </div>
 
       {lists.isLoading ? (
@@ -128,11 +109,20 @@ export function BroadcastLists() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Users className="h-4 w-4" /> {l.member_count} נמענים
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
+                  {l.source === "crm_filter" && (
+                    <Badge variant="outline" className="text-xs">
+                      <Filter className="ml-1 h-3 w-3" />
+                      {l.source_config?.source === "clients"
+                        ? "לקוחות"
+                        : "לידים"}{" "}
+                      לפי סינון
+                    </Badge>
+                  )}
                   {l.kind === "dynamic" && (
                     <Badge variant="secondary" className="text-xs">
                       <RefreshCw className="ml-1 h-3 w-3" />
-                      מסונכרן
+                      {l.source === "crm_filter" ? "דינמית" : "מסונכרן"}
                     </Badge>
                   )}
                   {l.source === "google_sheet" && (
@@ -147,9 +137,25 @@ export function BroadcastLists() {
         </div>
       )}
 
-      {openList && (
-        <ListDetailDialog list={openList} onClose={() => setOpenList(null)} />
+      {creating && (
+        <NewListDialog
+          onClose={() => setCreating(false)}
+          onCreated={(l) => {
+            setCreating(false);
+            setOpenList(l);
+          }}
+        />
       )}
+
+      {openList &&
+        (openList.source === "crm_filter" && openList.kind === "dynamic" ? (
+          <DynamicListDialog
+            list={openList}
+            onClose={() => setOpenList(null)}
+          />
+        ) : (
+          <ListDetailDialog list={openList} onClose={() => setOpenList(null)} />
+        ))}
     </div>
   );
 }
@@ -164,6 +170,7 @@ function ListDetailDialog({
   const {
     useMembers,
     addMembers,
+    materialize,
     removeMember,
     sheetHeaders,
     sheetImport,
@@ -188,6 +195,19 @@ function ListDetailDialog({
   // rule
   const [ruleStatuses, setRuleStatuses] = useState<string[]>([]);
   const [ruleSources, setRuleSources] = useState<string[]>([]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshFromFilter = async () => {
+    setRefreshing(true);
+    try {
+      const res = await materialize({ mode: "freeze", listId: list.id });
+      toast.success(`נוספו/עודכנו ${res.added ?? 0} אנשי קשר מהסינון`);
+    } catch (e: any) {
+      toast.error("הרענון נכשל: " + (e?.message || ""));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -281,6 +301,27 @@ function ListDetailDialog({
 
           {/* MEMBERS */}
           <TabsContent value="members" className="space-y-3">
+            {list.source === "crm_filter" && (
+              <div className="flex items-center justify-between rounded-md bg-muted p-2 text-xs">
+                <span>
+                  רשימה קבועה שנוצרה מסינון CRM. רענון מוסיף את מי שעונה לסינון
+                  עכשיו (לא מסיר קיימים).
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={refreshFromFilter}
+                  disabled={refreshing}
+                >
+                  {refreshing ? (
+                    <Loader2 className="ml-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="ml-1 h-4 w-4" />
+                  )}
+                  רענן מהסינון
+                </Button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <Input
                 placeholder="שם"
@@ -311,6 +352,7 @@ function ListDetailDialog({
                     <TableHead className="text-right">שם</TableHead>
                     <TableHead className="text-right">טלפון</TableHead>
                     <TableHead className="text-right">אימייל</TableHead>
+                    <TableHead className="text-right">שדות</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -323,6 +365,14 @@ function ListDetailDialog({
                       </TableCell>
                       <TableCell dir="ltr" className="text-right">
                         {mem.email || "—"}
+                      </TableCell>
+                      <TableCell
+                        className="max-w-[160px] truncate text-xs text-muted-foreground"
+                        title={Object.entries(mem.custom_fields || {})
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join("\n")}
+                      >
+                        {Object.keys(mem.custom_fields || {}).join(", ") || "—"}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -340,7 +390,7 @@ function ListDetailDialog({
                   {(members.data || []).length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="text-center text-muted-foreground py-6"
                       >
                         אין חברים ברשימה
@@ -354,6 +404,7 @@ function ListDetailDialog({
 
           {/* IMPORT */}
           <TabsContent value="import" className="space-y-5">
+            <ListFileImport listId={list.id} />
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
                 <Upload className="h-4 w-4" />
@@ -450,6 +501,10 @@ function ListDetailDialog({
 
           {/* RULES */}
           <TabsContent value="rules" className="space-y-4">
+            <p className="rounded-md bg-muted p-2 text-xs">
+              להוספה/הסרה כשמשתנה סטטוס או שלב במשפך – צור אוטומציה עם הפעולה
+              "הוספה לרשימת דיוור" או "הסרה מרשימת דיוור".
+            </p>
             <p className="text-sm text-muted-foreground">
               הוסף אוטומטית לרשימה כל ליד חדש שעונה לתנאים:
             </p>
@@ -540,6 +595,275 @@ function ListDetailDialog({
             </div>
           </TabsContent>
         </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const EMPTY_FILTER: CrmListFilter = { source: "leads" };
+
+function NewListDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (l: BroadcastList) => void;
+}) {
+  const { createList, materialize } = useBroadcastLists();
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"manual" | "crm">("manual");
+  const [kind, setKind] = useState<"dynamic" | "static">("dynamic");
+  const [filter, setFilter] = useState<CrmListFilter>(EMPTY_FILTER);
+  const [preview, setPreview] = useState<{ total: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const runPreview = async () => {
+    setBusy(true);
+    try {
+      setPreview(await materialize({ mode: "preview", filter }));
+    } catch (e: any) {
+      toast.error("שגיאה בתצוגה מקדימה: " + (e?.message || ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      const l = await createList.mutateAsync({
+        name: name.trim() || "רשימה חדשה",
+        kind: type === "crm" ? kind : "static",
+        source: type === "crm" ? "crm_filter" : "manual",
+        source_config: type === "crm" ? filter : {},
+      });
+      if (type === "crm") {
+        const res = await materialize({
+          mode: kind === "static" ? "freeze" : "preview",
+          listId: l.id,
+        });
+        toast.success(
+          kind === "static"
+            ? `נוצרה רשימה עם ${res.added ?? 0} אנשי קשר`
+            : `רשימה דינמית · ${res.total} תואמים כרגע`,
+        );
+      }
+      onCreated(l);
+    } catch (e: any) {
+      toast.error("יצירת הרשימה נכשלה: " + (e?.message || ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="max-h-[90vh] max-w-lg overflow-y-auto"
+        dir="rtl"
+      >
+        <DialogHeader>
+          <DialogTitle>רשימת דיוור חדשה</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>שם</Label>
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="למשל: לידים בשלב פגישה"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setType("manual")}
+              className={`rounded-lg border p-3 text-right text-sm ${type === "manual" ? "border-primary bg-primary/5" : ""}`}
+            >
+              <Upload className="mb-1 h-4 w-4" />
+              <div className="font-medium">מקובץ / ידני</div>
+              <div className="text-xs text-muted-foreground">
+                Excel, CSV, Google Sheets או הוספה ידנית
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("crm")}
+              className={`rounded-lg border p-3 text-right text-sm ${type === "crm" ? "border-primary bg-primary/5" : ""}`}
+            >
+              <Filter className="mb-1 h-4 w-4" />
+              <div className="font-medium">לפי סינון CRM</div>
+              <div className="text-xs text-muted-foreground">
+                סטטוס, שלב במשפך, סוכנות, קמפיינר
+              </div>
+            </button>
+          </div>
+
+          {type === "crm" && (
+            <>
+              <CrmListFilterBuilder
+                value={filter}
+                onChange={(f) => {
+                  setFilter(f);
+                  setPreview(null);
+                }}
+              />
+              <div className="space-y-2 rounded-lg border p-3">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={kind === "dynamic"}
+                    onChange={() => setKind("dynamic")}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-medium">דינמית</span> – מתעדכנת לבד:
+                    בכל שליחה נשלח למי שעונה לסינון באותו רגע.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={kind === "static"}
+                    onChange={() => setKind("static")}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-medium">קבועה</span> – צילום מצב
+                    עכשיו. אפשר להוסיף/להסיר דרך אוטומציה או ידנית.
+                  </span>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={runPreview}
+                  disabled={busy}
+                >
+                  <Eye className="ml-1 h-4 w-4" /> כמה עונים לסינון?
+                </Button>
+                {preview && (
+                  <span className="text-sm">{preview.total} אנשי קשר</span>
+                )}
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              ביטול
+            </Button>
+            <Button onClick={create} disabled={busy}>
+              {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin" />}
+              צור רשימה
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DynamicListDialog({
+  list,
+  onClose,
+}: {
+  list: BroadcastList;
+  onClose: () => void;
+}) {
+  const { updateList, materialize } = useBroadcastLists();
+  const [filter, setFilter] = useState<CrmListFilter>(
+    list.source_config?.source ? list.source_config : EMPTY_FILTER,
+  );
+  const [preview, setPreview] = useState<Awaited<
+    ReturnType<typeof materialize>
+  > | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const runPreview = async (save: boolean) => {
+    setBusy(true);
+    try {
+      if (save) {
+        await updateList.mutateAsync({ id: list.id, source_config: filter });
+        setPreview(await materialize({ mode: "preview", listId: list.id }));
+        toast.success("הסינון נשמר");
+      } else {
+        setPreview(await materialize({ mode: "preview", filter }));
+      }
+    } catch (e: any) {
+      toast.error("שגיאה: " + (e?.message || ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="max-h-[90vh] max-w-2xl overflow-y-auto"
+        dir="rtl"
+      >
+        <DialogHeader>
+          <DialogTitle>{list.name} · רשימה דינמית</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          הרשימה מחושבת מחדש בכל שליחה. מי שעובר לשלב/סטטוס שעונה לסינון נכנס
+          אליה אוטומטית, ומי שיוצא ממנו – יוצא.
+        </p>
+        <CrmListFilterBuilder
+          value={filter}
+          onChange={(f) => {
+            setFilter(f);
+            setPreview(null);
+          }}
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => runPreview(false)}
+            disabled={busy}
+          >
+            <Eye className="ml-1 h-4 w-4" /> תצוגה מקדימה
+          </Button>
+          <Button onClick={() => runPreview(true)} disabled={busy}>
+            {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin" />}
+            שמור סינון
+          </Button>
+        </div>
+        {preview && (
+          <div className="space-y-2">
+            <div className="text-sm">
+              {preview.total} אנשי קשר · {preview.withPhone} עם טלפון ·{" "}
+              {preview.withEmail} עם אימייל
+            </div>
+            <div className="max-h-64 overflow-y-auto rounded border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">שם</TableHead>
+                    <TableHead className="text-right">טלפון</TableHead>
+                    <TableHead className="text-right">אימייל</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preview.sample.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{r.name || "—"}</TableCell>
+                      <TableCell dir="ltr" className="text-right">
+                        {r.phone || "—"}
+                      </TableCell>
+                      <TableCell dir="ltr" className="text-right">
+                        {r.email || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -2479,6 +2479,7 @@ export type Database = {
         Row: {
           added_via: string;
           created_at: string;
+          custom_fields: Json;
           email: string | null;
           entity_id: string | null;
           entity_type: string;
@@ -2491,6 +2492,7 @@ export type Database = {
         Insert: {
           added_via?: string;
           created_at?: string;
+          custom_fields?: Json;
           email?: string | null;
           entity_id?: string | null;
           entity_type?: string;
@@ -2503,6 +2505,7 @@ export type Database = {
         Update: {
           added_via?: string;
           created_at?: string;
+          custom_fields?: Json;
           email?: string | null;
           entity_id?: string | null;
           entity_type?: string;
@@ -2669,6 +2672,7 @@ export type Database = {
           status: string;
           tenant_id: string;
           updated_at: string;
+          vars: Json;
         };
         Insert: {
           attempts?: number;
@@ -2691,6 +2695,7 @@ export type Database = {
           status?: string;
           tenant_id: string;
           updated_at?: string;
+          vars?: Json;
         };
         Update: {
           attempts?: number;
@@ -2713,6 +2718,7 @@ export type Database = {
           status?: string;
           tenant_id?: string;
           updated_at?: string;
+          vars?: Json;
         };
         Relationships: [
           {
@@ -2727,6 +2733,9 @@ export type Database = {
       broadcasts: {
         Row: {
           audience_filter: Json;
+          automation_id: string | null;
+          automation_step_key: string | null;
+          body_html: string | null;
           body_text: string | null;
           channel: string;
           completed_at: string | null;
@@ -2740,6 +2749,7 @@ export type Database = {
           last_error: string | null;
           media_url: string | null;
           name: string;
+          origin: string;
           provider: string;
           reply_to: string | null;
           scheduled_at: string | null;
@@ -2747,6 +2757,7 @@ export type Database = {
           stats: Json;
           status: string;
           subject: string | null;
+          template_id: string | null;
           tenant_id: string;
           throttle_max_seconds: number;
           throttle_min_seconds: number;
@@ -2755,6 +2766,9 @@ export type Database = {
         };
         Insert: {
           audience_filter?: Json;
+          automation_id?: string | null;
+          automation_step_key?: string | null;
+          body_html?: string | null;
           body_text?: string | null;
           channel?: string;
           completed_at?: string | null;
@@ -2768,6 +2782,7 @@ export type Database = {
           last_error?: string | null;
           media_url?: string | null;
           name?: string;
+          origin?: string;
           provider: string;
           reply_to?: string | null;
           scheduled_at?: string | null;
@@ -2775,6 +2790,7 @@ export type Database = {
           stats?: Json;
           status?: string;
           subject?: string | null;
+          template_id?: string | null;
           tenant_id: string;
           throttle_max_seconds?: number;
           throttle_min_seconds?: number;
@@ -2783,6 +2799,9 @@ export type Database = {
         };
         Update: {
           audience_filter?: Json;
+          automation_id?: string | null;
+          automation_step_key?: string | null;
+          body_html?: string | null;
           body_text?: string | null;
           channel?: string;
           completed_at?: string | null;
@@ -2796,6 +2815,7 @@ export type Database = {
           last_error?: string | null;
           media_url?: string | null;
           name?: string;
+          origin?: string;
           provider?: string;
           reply_to?: string | null;
           scheduled_at?: string | null;
@@ -2803,13 +2823,29 @@ export type Database = {
           stats?: Json;
           status?: string;
           subject?: string | null;
+          template_id?: string | null;
           tenant_id?: string;
           throttle_max_seconds?: number;
           throttle_min_seconds?: number;
           timezone?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_automation_id_fkey";
+            columns: ["automation_id"];
+            isOneToOne: false;
+            referencedRelation: "automations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcasts_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "message_templates";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       calendar_shares: {
         Row: {
@@ -9082,6 +9118,59 @@ export type Database = {
         };
         Relationships: [];
       };
+      message_templates: {
+        Row: {
+          archived_at: string | null;
+          body_html: string | null;
+          body_text: string | null;
+          channel: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          media_url: string | null;
+          name: string;
+          subject: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          body_html?: string | null;
+          body_text?: string | null;
+          channel?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          media_url?: string | null;
+          name: string;
+          subject?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          body_html?: string | null;
+          body_text?: string | null;
+          channel?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          media_url?: string | null;
+          name?: string;
+          subject?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       meta_whatsapp_tenant_credentials: {
         Row: {
           access_token: string;
@@ -14950,6 +15039,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      broadcast_list_add_members: {
+        Args: { p_added_via?: string; p_list_id: string; p_rows: Json };
+        Returns: number;
       };
       bump_skill_usage_by_slug: {
         Args: { p_slugs: string[]; p_tenant_id: string };

@@ -69,6 +69,9 @@ import {
 } from "./RecipientsListEditor";
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
+import MailingActionConfig, {
+  MAILING_ACTION_OPTIONS,
+} from "./MailingActionConfig";
 import StatusFilterTriggerConfig from "./StatusFilterTriggerConfig";
 import { StatusStageSelect } from "./StatusStageSelect";
 import {
@@ -197,6 +200,7 @@ const ACTION_OPTIONS = [
   { value: "webhook", label: "Webhook" },
   { value: "email", label: "אימייל" },
   { value: "send_signature", label: "שלח הסכם (חתימה דיגיטלית)" },
+  ...MAILING_ACTION_OPTIONS,
   { value: "notification", label: "התראה" },
   { value: "run_manus_task", label: "🤖 הרץ משימת Manus (ברקע)" },
   { value: "send_manus_direct", label: "💬 שלח הודעה ישירה ל-Manus" },
@@ -1614,6 +1618,17 @@ export function StepConfigPanel({
             {node.action_type === "send_signature" && (
               <SendSignatureActionConfig
                 tenantId={tenantId}
+                configuration={node.configuration}
+                onConfigChange={handleConfigChange}
+              />
+            )}
+
+            {MAILING_ACTION_OPTIONS.some(
+              (o) => o.value === node.action_type,
+            ) && (
+              <MailingActionConfig
+                tenantId={tenantId}
+                actionType={node.action_type!}
                 configuration={node.configuration}
                 onConfigChange={handleConfigChange}
               />

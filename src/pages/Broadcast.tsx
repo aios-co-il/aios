@@ -19,6 +19,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BroadcastLists } from "@/components/broadcast/BroadcastLists";
 import { BroadcastDomainSettings } from "@/components/broadcast/BroadcastDomainSettings";
+import { BroadcastTemplates } from "@/components/broadcast/BroadcastTemplates";
 import {
   Send,
   Plus,
@@ -27,6 +28,8 @@ import {
   Loader2,
   Users,
   Globe,
+  FileText,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +82,10 @@ export default function Broadcast() {
             <Users className="ml-1 h-4 w-4" />
             רשימות תפוצה
           </TabsTrigger>
+          <TabsTrigger value="templates">
+            <FileText className="ml-1 h-4 w-4" />
+            טמפלייטים
+          </TabsTrigger>
           <TabsTrigger value="settings">
             <Globe className="ml-1 h-4 w-4" />
             הגדרות שולח
@@ -128,6 +135,12 @@ export default function Broadcast() {
                       return (
                         <TableRow key={b.id}>
                           <TableCell className="font-medium">
+                            {b.origin === "automation" && (
+                              <Zap
+                                className="ml-1 inline h-3 w-3 text-amber-500"
+                                aria-label="אוטומציה"
+                              />
+                            )}
                             {b.name}
                           </TableCell>
                           <TableCell>
@@ -188,6 +201,10 @@ export default function Broadcast() {
 
         <TabsContent value="lists">
           <BroadcastLists />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <BroadcastTemplates />
         </TabsContent>
 
         <TabsContent value="settings">
