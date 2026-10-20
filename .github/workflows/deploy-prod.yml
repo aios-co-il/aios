@@ -1,4 +1,5 @@
 name: Deploy Prod
+run-name: Deploy Prod (${{ github.ref_name }})
 
 # Runs on every push to main that touches Supabase sources. Approval is branch
 # protection on `main`; functions wait for migrations when both changed.
@@ -33,7 +34,22 @@ jobs:
       migrations: ${{ steps.filter.outputs.migrations || 'true' }}
       functions: ${{ steps.filter.outputs.functions || 'true' }}
     steps:
+      # Fail visibly when a manual run selects a non-Production branch.
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Deploy Prod only runs from main (got $GITHUB_REF)"
+          exit 1
+
       - uses: actions/checkout@v4
+
+      # A manual run has no `github.event.before`, so the functions deploy needs this tag
+      # as its base. Fail now, before `migrate` applies anything.
+      - name: Require the edge deployment tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git ls-remote --exit-code --tags origin refs/tags/edge-deployed-production >/dev/null \
+            || { echo "::error::Tag edge-deployed-production is missing; a manual run cannot deploy functions."; exit 1; }
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -64,6 +80,7 @@ jobs:
     needs: [resolve, migrate]
     if: >
       always() &&
+      needs.resolve.result == 'success' &&
       needs.resolve.outputs.functions == 'true' &&
       needs.migrate.result != 'failure' && needs.migrate.result != 'cancelled'
     uses: ./.github/workflows/deploy-edge-reusable.yml
