@@ -1,7 +1,7 @@
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+import type { Tables } from "@/integrations/supabase/types";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ type ProfileDraft = {
   profile: string;
 };
 
-export function UserProfilesTab({ agent }: { agent: AgentProfile }) {
+export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
   const { currentTenantId } = useTenant();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<ProfileDraft | null>(null);

@@ -1,9 +1,9 @@
 import { AgentVisualIdentity } from "../AgentVisualIdentity";
 import type { LucideIcon } from "lucide-react";
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,7 +53,7 @@ export function ProfileTab({
   agent,
   onManageKeys,
 }: {
-  agent: AgentProfile;
+  agent: Tables<"ai_agents">;
   /** Forwarded to BrainSelector — replaces navigation to /llm-settings when provided. */
   onManageKeys?: () => void;
 }) {
@@ -456,7 +456,7 @@ const MOOD_OPTIONS: {
   },
 ];
 
-function MoodCard({ agent }: { agent: AgentProfile }) {
+function MoodCard({ agent }: { agent: Tables<"ai_agents"> }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.mood || "none";
@@ -537,7 +537,7 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
 ];
 
-function VoiceCard({ agent }: { agent: AgentProfile }) {
+function VoiceCard({ agent }: { agent: Tables<"ai_agents"> }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.voice || "none";
@@ -599,7 +599,7 @@ function CapabilitiesCard({
   agent,
   carmen,
 }: {
-  agent: AgentProfile;
+  agent: Tables<"ai_agents">;
   carmen: boolean;
 }) {
   const goals = useAgentGoals(agent.id);
@@ -793,7 +793,7 @@ function Field({
   );
 }
 
-function initialForm(agent: AgentProfile) {
+function initialForm(agent: Tables<"ai_agents">) {
   return {
     name: agent.name || "",
     talent: agent.talent || "",

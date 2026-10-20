@@ -1,7 +1,7 @@
-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/agentAccessClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import CarmenAccess from "./CarmenAccess";
 import { CloneToOrgDialog } from "@/components/sharing/CloneToOrgDialog";
 
 type CoreForm = Pick<
-  AgentProfile,
+  Tables<"ai_agents">,
   | "id"
   | "name"
   | "engine"
