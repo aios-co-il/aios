@@ -3,10 +3,8 @@
 //   { tenantId, subject, bodyHtml, vars? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
+  buildEmailContent,
   renderTemplate,
-  sanitizeEmailHtml,
-  htmlToText,
-  wrapEmailHtml,
 } from "../_shared/broadcast-template.ts";
 
 const corsHeaders = {
@@ -38,7 +36,7 @@ Deno.serve(async (req) => {
     const to = auth?.user?.email;
     if (!to) return json({ error: "unauthorized" }, 401);
 
-    const { tenantId, subject, bodyHtml, vars } = await req.json();
+    const { tenantId, subject, bodyHtml, htmlMode, vars } = await req.json();
     if (!tenantId) return json({ error: "missing_tenant" }, 400);
 
     // RLS: only domains of a tenant the user can see.
@@ -56,9 +54,11 @@ Deno.serve(async (req) => {
       );
 
     const v = vars && typeof vars === "object" ? vars : {};
-    const html = wrapEmailHtml(
-      renderTemplate(sanitizeEmailHtml(bodyHtml || ""), v, { html: true }),
-    );
+    const { html, text } = buildEmailContent({
+      bodyHtml: bodyHtml || "",
+      htmlMode: !!htmlMode,
+      vars: v,
+    });
     const res = await fetch(`${SB_URL}/functions/v1/send-resend-email`, {
       method: "POST",
       headers: {
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
         to,
         subject: `[בדיקה] ${renderTemplate(subject || "", v) || "טמפלייט"}`,
         html,
-        text: htmlToText(html),
+        text,
         fromEmail: `${domain.default_local || "noreply"}@${domain.domain}`,
         fromName: domain.from_name || undefined,
       }),

@@ -39,6 +39,7 @@ export interface Broadcast {
   integration_id: string | null;
   body_text: string | null;
   body_html: string | null;
+  html_mode: boolean;
   template_id: string | null;
   origin: "manual" | "automation";
   media_url: string | null;
@@ -100,6 +101,7 @@ export function useBroadcasts() {
           integration_id: payload.integration_id ?? null,
           body_text: payload.body_text ?? null,
           body_html: payload.body_html ?? null,
+          html_mode: payload.html_mode ?? false,
           template_id: payload.template_id ?? null,
           media_url: payload.media_url ?? null,
           subject: payload.subject ?? null,

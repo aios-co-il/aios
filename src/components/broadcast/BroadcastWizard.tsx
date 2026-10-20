@@ -81,6 +81,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     if (t.channel === "email") {
       setSubject(t.subject || "");
       setBodyHtml(t.body_html || "");
+      setHtmlMode(!!t.html_mode);
       setBodyText("");
     } else {
       setBodyText(t.body_text || "");
@@ -123,6 +124,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [groupSearch, setGroupSearch] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [htmlMode, setHtmlMode] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -163,6 +165,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setGroupSearch("");
       setBodyText("");
       setBodyHtml("");
+      setHtmlMode(false);
       setTemplateId(null);
       setTemplateMediaUrl(null);
       setMediaFile(null);
@@ -444,6 +447,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         reply_to: channel === "email" && replyTo.trim() ? replyTo.trim() : null,
         body_text: bodyText,
         body_html: channel === "email" && bodyHtml ? bodyHtml : null,
+        html_mode: channel === "email" && !!bodyHtml && htmlMode,
         template_id: templateId,
         media_url: channel === "email" ? null : templateMediaUrl,
         audience_filter: buildFilter(),
@@ -901,6 +905,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                     if (v === "none") {
                       setTemplateId(null);
                       setBodyHtml("");
+                      setHtmlMode(false);
                       setTemplateMediaUrl(null);
                     } else applyTemplate(v);
                   }}
@@ -1013,13 +1018,22 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             <Label>תוכן ההודעה</Label>
             {bodyHtml ? (
               <div className="space-y-2">
-                <div
-                  className="max-h-72 overflow-y-auto rounded-md border bg-white p-3 text-black"
-                  dir="rtl"
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(bodyHtml),
-                  }}
-                />
+                {htmlMode ? (
+                  <iframe
+                    title="תצוגה מקדימה"
+                    sandbox=""
+                    srcDoc={bodyHtml}
+                    className="h-72 w-full rounded-md border bg-white"
+                  />
+                ) : (
+                  <div
+                    className="max-h-72 overflow-y-auto rounded-md border bg-white p-3 text-black"
+                    dir="rtl"
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(bodyHtml),
+                    }}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
                   התוכן מגיע מהטמפלייט; שדות דינמיים יוחלפו לכל נמען. לעריכה –
                   טמפלייטים.
