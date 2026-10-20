@@ -5160,7 +5160,9 @@ async function findAutomationForMetaForm(
       `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
     );
   }
-  return matches[0];
+  const match = matches[0];
+  if (!match.tenant_id) throw new Error("Automation has no tenant");
+  return { ...match, tenant_id: match.tenant_id };
 }
 
 async function connectMetaFormToAutomation(
