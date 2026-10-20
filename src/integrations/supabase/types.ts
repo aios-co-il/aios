@@ -3596,7 +3596,7 @@ export type Database = {
       carmen_command_center_access: {
         Row: {
           agent_id: string;
-          brain_access: Json | null;
+          brain_access: Json;
           campaigner_id: string | null;
           created_at: string;
           dev_escalation_tier: string | null;
@@ -3609,7 +3609,7 @@ export type Database = {
         };
         Insert: {
           agent_id: string;
-          brain_access?: Json | null;
+          brain_access?: Json;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;
@@ -3622,7 +3622,7 @@ export type Database = {
         };
         Update: {
           agent_id?: string;
-          brain_access?: Json | null;
+          brain_access?: Json;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;
@@ -15129,10 +15129,6 @@ export type Database = {
           p_tenant: string;
         };
         Returns: Json;
-      };
-      carmen_member_has_personal_key: {
-        Args: { p_user_id: string };
-        Returns: boolean;
       };
       carmen_memory_decay_episodes: {
         Args: { p_lambda?: number };
