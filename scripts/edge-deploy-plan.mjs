@@ -59,7 +59,8 @@ export function productionChanges(
   return files.filter((file) => {
     if (
       file.startsWith("supabase/functions/_shared/staging-outbound.") ||
-      file.startsWith("supabase/functions/_shared/staging-whatsapp-test.")
+      file.startsWith("supabase/functions/_shared/staging-whatsapp-test.") ||
+      file.startsWith("supabase/functions/_shared/staging-email-test.")
     )
       return false;
     if (file === GENERATED_TYPES) return false;

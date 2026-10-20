@@ -62,6 +62,7 @@ test("Staging infrastructure changes cannot redeploy older Production functions"
     "supabase/config.toml",
     "supabase/functions/_shared/staging-outbound.mjs",
     "supabase/functions/_shared/staging-whatsapp-test.ts",
+    "supabase/functions/_shared/staging-email-test.ts",
     "supabase/functions/collaboration-mcp/index.ts",
     "scripts/deploy-edge.mjs",
     ".github/workflows/deploy-edge-reusable.yml",
