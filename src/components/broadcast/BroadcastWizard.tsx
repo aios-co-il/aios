@@ -24,6 +24,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import DOMPurify from "dompurify";
+import { useMessageTemplates } from "@/hooks/useMessageTemplates";
+import { TemplateFieldPicker } from "@/components/broadcast/BroadcastTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -67,6 +70,24 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const { create, update, previewAudience, launch } = useBroadcasts();
   const { lists } = useBroadcastLists();
   const { list: domainsQ } = useBroadcastDomains();
+  const { list: templatesQ } = useMessageTemplates();
+  const channelTemplates = (templatesQ.data || []).filter(
+    (t) => t.channel === channel,
+  );
+  const applyTemplate = (id: string) => {
+    const t = channelTemplates.find((x) => x.id === id);
+    if (!t) return;
+    setTemplateId(t.id);
+    if (t.channel === "email") {
+      setSubject(t.subject || "");
+      setBodyHtml(t.body_html || "");
+      setBodyText("");
+    } else {
+      setBodyText(t.body_text || "");
+      setBodyHtml("");
+      setTemplateMediaUrl(t.media_url || null);
+    }
+  };
   const domains = domainsQ.data || [];
   const defaultDomain = domains.find((d) => d.is_default) || domains[0];
 
@@ -101,6 +122,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -138,6 +162,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setSelectedGroupIds([]);
       setGroupSearch("");
       setBodyText("");
+      setBodyHtml("");
+      setTemplateId(null);
+      setTemplateMediaUrl(null);
       setMediaFile(null);
       setAudienceCount(null);
       setSendMode("now");
@@ -374,7 +401,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       return (audienceCount ?? 0) > 0;
     }
     if (step === 3) {
-      if (bodyText.trim().length === 0) return false;
+      if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0)
+        return false;
       if (channel === "email") {
         if (subject.trim().length === 0) return false;
         if (
@@ -415,6 +443,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             : null,
         reply_to: channel === "email" && replyTo.trim() ? replyTo.trim() : null,
         body_text: bodyText,
+        body_html: channel === "email" && bodyHtml ? bodyHtml : null,
+        template_id: templateId,
+        media_url: channel === "email" ? null : templateMediaUrl,
         audience_filter: buildFilter(),
       });
 
@@ -861,6 +892,33 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         {/* Step 3 — content */}
         {step === 3 && (
           <div className="space-y-3">
+            {channelTemplates.length > 0 && (
+              <div className="space-y-1">
+                <Label>טמפלייט (אופציונלי)</Label>
+                <Select
+                  value={templateId ?? "none"}
+                  onValueChange={(v) => {
+                    if (v === "none") {
+                      setTemplateId(null);
+                      setBodyHtml("");
+                      setTemplateMediaUrl(null);
+                    } else applyTemplate(v);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-[100]">
+                    <SelectItem value="none">ללא – כתיבה חופשית</SelectItem>
+                    {channelTemplates.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {channel === "email" && (
               <>
                 <div>
@@ -953,30 +1011,39 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
               </>
             )}
             <Label>תוכן ההודעה</Label>
-            {source !== "wa_groups" && (
-              <div className="flex flex-wrap gap-2 text-xs">
-                {["{{contact_name}}", "{{phone}}"].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    className="rounded border px-2 py-0.5"
-                    onClick={() => setBodyText((b) => b + " " + v)}
-                  >
-                    {v}
-                  </button>
-                ))}
+            {bodyHtml ? (
+              <div className="space-y-2">
+                <div
+                  className="max-h-72 overflow-y-auto rounded-md border bg-white p-3 text-black"
+                  dir="rtl"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(bodyHtml),
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  התוכן מגיע מהטמפלייט; שדות דינמיים יוחלפו לכל נמען. לעריכה –
+                  טמפלייטים.
+                </p>
               </div>
+            ) : (
+              <>
+                {source !== "wa_groups" && (
+                  <TemplateFieldPicker
+                    onPick={(v) => setBodyText((b) => (b ? `${b} ${v}` : v))}
+                  />
+                )}
+                <Textarea
+                  rows={6}
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  placeholder={
+                    source === "wa_groups"
+                      ? "שלום לכולם, ..."
+                      : "שלום {{contact_name}}, ..."
+                  }
+                />
+              </>
             )}
-            <Textarea
-              rows={6}
-              value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
-              placeholder={
-                source === "wa_groups"
-                  ? "שלום לכולם, ..."
-                  : "שלום {{contact_name}}, ..."
-              }
-            />
             {channel !== "email" && (
               <div>
                 <Label className="mb-1 flex items-center gap-1">

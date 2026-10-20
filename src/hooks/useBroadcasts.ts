@@ -17,6 +17,8 @@ export interface AudienceFilter {
   stageKeys?: string[]; // leads: pipeline stage (leads.status)
   stageMode?: AudienceFilterMode;
   salesPersonIds?: string[]; // leads
+  agencyIds?: string[]; // clients/leads: agency_id
+  campaignerIds?: string[]; // clients: client_team
   tagIds?: string[]; // clients/leads
   tagMode?: AudienceFilterMode;
   roles?: string[]; // campaigners
@@ -36,6 +38,9 @@ export interface Broadcast {
   provider: "green_api" | "manus_wa" | "resend";
   integration_id: string | null;
   body_text: string | null;
+  body_html: string | null;
+  template_id: string | null;
+  origin: "manual" | "automation";
   media_url: string | null;
   subject: string | null;
   from_email: string | null;
@@ -87,13 +92,15 @@ export function useBroadcasts() {
       const { data, error } = await supabase
         .from("broadcasts")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: tenantId!,
           created_by: userId,
           name: payload.name ?? "דיוור חדש",
           channel: payload.channel ?? "whatsapp",
           provider: payload.provider ?? "green_api",
           integration_id: payload.integration_id ?? null,
           body_text: payload.body_text ?? null,
+          body_html: payload.body_html ?? null,
+          template_id: payload.template_id ?? null,
           media_url: payload.media_url ?? null,
           subject: payload.subject ?? null,
           from_email: payload.from_email ?? null,
