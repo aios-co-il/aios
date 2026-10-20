@@ -39,16 +39,15 @@ export function AgentSheet({ agentId, onClose }: Props) {
   useEffect(() => {
     if (!agentId) return;
     setLoading(true);
-    const sb = supabase;
     Promise.all([
-      sb.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),
-      sb
+      supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),
+      supabase
         .from("agent_runs")
         .select("id,status,started_at,completed_at")
         .eq("agent_id", agentId)
         .order("started_at", { ascending: false })
         .limit(5),
-      sb
+      supabase
         .from("agent_action_log")
         .select("id,action_type,status,created_at")
         .eq("agent_id", agentId)

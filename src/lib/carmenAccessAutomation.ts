@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore } from "./carmenPrivatePhoneAllowlist.mjs";
+import {
+  mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore,
+  decodePrivatePhoneRows as decodePrivatePhoneRowsCore,
+} from "./carmenPrivatePhoneAllowlist.mjs";
 
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
@@ -101,8 +104,8 @@ export type PrivatePhoneRow = {
   phone: string;
   label?: string;
   status?: string;
-  source?: "policy" | "identity" | "automation";
-  dev_escalation_tier?: "full" | "bugfix" | null;
+  source?: string;
+  dev_escalation_tier?: string | null;
   surfaces?: string[];
   relationship_note?: string;
 };
@@ -123,4 +126,8 @@ export function mergePrivatePhoneAllowlist(params: {
   automationPhones?: string[];
 }): PrivatePhoneRow[] {
   return mergePrivatePhoneAllowlistCore(params) as PrivatePhoneRow[];
+}
+
+export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[] {
+  return decodePrivatePhoneRowsCore(value);
 }

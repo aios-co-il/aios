@@ -1,6 +1,11 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -66,20 +71,23 @@ function CoreTab() {
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["carmen-studio-core", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents")
-        .select(
-          "id,name,engine,personality,soul,talent,writing_style,response_length,language,mood,active",
-        )
-        .eq("tenant_id", tenantId!)
-        .eq("active", true);
-      const list = data || [];
-      return (
-        list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
-      );
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("ai_agents")
+            .select(
+              "id,name,engine,personality,soul,talent,writing_style,response_length,language,mood,active",
+            )
+            .eq("tenant_id", tenantId)
+            .eq("active", true);
+          const list = data || [];
+          return (
+            list.find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+            list[0] ||
+            null
+          );
+        }
+      : skipToken,
   });
 
   useEffect(() => {

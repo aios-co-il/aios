@@ -63,3 +63,33 @@ export function mergePrivatePhoneAllowlist(params) {
     (a.label || a.phone).localeCompare(b.label || b.phone, "he"),
   );
 }
+
+/** Decode stored JSON without discarding supported custom string metadata.
+ * @param {unknown} value
+ */
+export function decodePrivatePhoneRows(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row) => {
+    if (!row || typeof row !== "object" || typeof row.phone !== "string")
+      return [];
+    return [
+      {
+        phone: row.phone,
+        label: typeof row.label === "string" ? row.label : undefined,
+        status: typeof row.status === "string" ? row.status : undefined,
+        source: typeof row.source === "string" ? row.source : undefined,
+        dev_escalation_tier:
+          typeof row.dev_escalation_tier === "string"
+            ? row.dev_escalation_tier
+            : null,
+        surfaces: Array.isArray(row.surfaces)
+          ? row.surfaces.filter((surface) => typeof surface === "string")
+          : undefined,
+        relationship_note:
+          typeof row.relationship_note === "string"
+            ? row.relationship_note
+            : undefined,
+      },
+    ];
+  });
+}
