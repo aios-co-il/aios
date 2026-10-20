@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   decodePrivatePhoneRows,
   mergePrivatePhoneAllowlist,
-} from "./carmenPrivatePhoneAllowlist.mjs";
+} from "./carmenPrivatePhoneAllowlist.ts";
 
 test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
   const out = mergePrivatePhoneAllowlist({
@@ -115,4 +115,18 @@ test("stored phone decoder preserves custom backend metadata and rejects malform
   assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
   assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
   assert.deepEqual(decodePrivatePhoneRows(null), []);
+});
+
+test("stored custom sources normalize to policy while preserving escalation metadata", () => {
+  const stored = decodePrivatePhoneRows([
+    {
+      phone: "972501111111",
+      source: "legacy",
+      dev_escalation_tier: "custom-tier",
+    },
+  ]);
+  const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
+  assert.equal(stored[0].source, "legacy");
+  assert.equal(merged[0].source, "policy");
+  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
 });
