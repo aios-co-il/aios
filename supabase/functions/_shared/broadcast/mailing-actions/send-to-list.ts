@@ -18,28 +18,9 @@ export async function executeSendTemplateToList(
   const list = await loadList(db, tenantId, config.list_id);
   const stepKey = `list:${template.id}:${list.id}`;
 
-  // Guard against a trigger flood sending the whole list again and again.
+  // Reserve the send atomically: concurrent triggers serialize in the
+  // database, so a trigger burst cannot send the whole list twice.
   const hours = Math.max(0, Number(config.min_interval_hours ?? 24) || 0);
-  if (hours > 0) {
-    const since = new Date(Date.now() - hours * 3600_000).toISOString();
-    const { data: recent } = await db
-      .from("broadcasts")
-      .select("id, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("origin", "automation")
-      .eq("automation_id", ctx.automationId)
-      .eq("automation_step_key", stepKey)
-      .gte("created_at", since)
-      .limit(1)
-      .maybeSingle();
-    if (recent)
-      return {
-        success: true,
-        skipped: "sent_recently",
-        broadcast_id: recent.id,
-      };
-  }
-
   const fields = await broadcastFieldsFromTemplate(
     db,
     tenantId,
@@ -47,17 +28,36 @@ export async function executeSendTemplateToList(
     config,
     ctx,
   );
-  const { data: created, error } = await db
+  const name = `אוטומציה · ${template.name} → ${list.name}`;
+  const { data: reservation, error: reserveError } = await db
+    .rpc("broadcast_reserve_automation_send", {
+      p_tenant_id: tenantId,
+      p_automation_id: ctx.automationId,
+      p_step_key: stepKey,
+      p_min_interval_hours: hours,
+      p_name: name,
+      p_channel: fields.channel ?? template.channel,
+      p_provider: fields.provider,
+    })
+    .single();
+  if (reserveError) throw reserveError;
+  if (!reservation.reserved)
+    return {
+      success: true,
+      skipped: "sent_recently",
+      broadcast_id: reservation.broadcast_id,
+    };
+
+  const created = { id: reservation.broadcast_id };
+  const { error } = await db
     .from("broadcasts")
-    .insert({
+    .update({
       ...fields,
-      name: `אוטומציה · ${template.name} → ${list.name}`,
-      automation_step_key: stepKey,
+      name,
       audience_filter: { source: "list", listId: list.id },
       status: "draft",
     })
-    .select("id")
-    .single();
+    .eq("id", created.id);
   if (error) throw error;
 
   const SB_URL = Deno.env.get("SUPABASE_URL")!;
