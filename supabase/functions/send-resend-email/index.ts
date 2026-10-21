@@ -1,6 +1,10 @@
 // send-resend-email — sends a single email via the Resend API.
 // Body: { to, subject, html?, text?, fromEmail?, fromName?, replyTo?,
 //         headers?, tags?, attachments?: [{filename, content (base64) | path (URL), contentType}] }
+// A `path` attachment must be a public URL in our broadcast-media bucket;
+// others are dropped so a caller cannot make Resend fetch an arbitrary URL.
+import { attachmentUrlPrefix } from "../_shared/broadcast/template/email-attachments.ts";
+
 /** Attachment as callers send it (camelCase or snake_case accepted). */
 interface AttachmentInput {
   filename: string;
@@ -83,10 +87,20 @@ Deno.serve(async (req) => {
     if (replyTo) payload.reply_to = replyTo;
     if (headers && typeof headers === "object") payload.headers = headers;
     if (Array.isArray(tags)) payload.tags = tags;
-    if (Array.isArray(attachments) && attachments.length > 0) {
+    const allowedPrefix = attachmentUrlPrefix(
+      Deno.env.get("SUPABASE_URL") ?? "",
+    );
+    const allowedAttachments = (
+      Array.isArray(attachments) ? attachments : []
+    ).filter((a: AttachmentInput) => {
+      if (!a.path || a.content || a.path.startsWith(allowedPrefix)) return true;
+      console.warn(`send-resend-email: dropped attachment path ${a.path}`);
+      return false;
+    });
+    if (allowedAttachments.length > 0) {
       // Resend expects: [{ filename, content (base64 string), content_type, content_id? }]
       // Set content_id to enable inline CID references in HTML (cid:<content_id>)
-      payload.attachments = attachments.map(
+      payload.attachments = allowedAttachments.map(
         (a: AttachmentInput): ResendAttachment => {
           const att: ResendAttachment = { filename: a.filename };
           // path = a URL Resend downloads itself (stored broadcast attachments)

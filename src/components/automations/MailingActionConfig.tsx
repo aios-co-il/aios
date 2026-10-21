@@ -7,30 +7,11 @@ import {
   MailingTemplateSelect,
   MailingWhatsAppSelect,
 } from "@/components/automations/MailingActionSelects";
-
-export const MAILING_ACTION_OPTIONS = [
-  { value: "add_to_mailing_list", label: "הוספה לרשימת דיוור" },
-  { value: "remove_from_mailing_list", label: "הסרה מרשימת דיוור" },
-  { value: "send_template_to_contact", label: "שליחת טמפלייט לאיש הקשר" },
-  { value: "send_template_to_list", label: "שליחת טמפלייט לרשימת דיוור" },
-  { value: "sync_mailing_list", label: "סנכרון לרשימת דיוור לפי הסינון" },
-] as const;
-
-export const MAILING_ACTION_LABELS: Record<string, string> = Object.fromEntries(
-  MAILING_ACTION_OPTIONS.map((o) => [o.value, o.label]),
-);
-
-const HINTS: Record<string, string> = {
-  add_to_mailing_list:
-    "מכניס את הליד/הלקוח מהטריגר לרשימה קבועה. מתאים לטריגר שינוי סטטוס או שלב במשפך.",
-  remove_from_mailing_list: "מוציא את הליד/הלקוח מהטריגר מהרשימה.",
-  send_template_to_contact:
-    "שולח את הטמפלייט רק לאיש הקשר מהטריגר, דרך מנוע הדיוור (קצב שליחה, הסרה מרשימה, סטטיסטיקה). כל איש קשר מקבל טמפלייט זה פעם אחת לכל אוטומציה.",
-  sync_mailing_list:
-    "בודק אם הליד/הלקוח מהטריגר עונה עכשיו לסינון של הרשימה: אם כן – נכנס לרשימה, אם לא – יוצא ממנה. עבור רשימות שנוצרו מסינון CRM.",
-  send_template_to_list:
-    "יוצר דיוור מלא מהטמפלייט לכל הרשימה. כדי למנוע הצפה – לא נשלח שוב לאותה רשימה לפני שעבר מרווח הזמן.",
-};
+import {
+  MAILING_ACTIONS,
+  isMailingAction,
+} from "@/components/automations/mailingActions";
+import { listKind } from "@/lib/broadcastListKind";
 
 interface Props {
   tenantId: string;
@@ -45,12 +26,13 @@ export default function MailingActionConfig({
   configuration,
   onConfigChange,
 }: Props) {
-  const needsList = actionType !== "send_template_to_contact";
-  const needsTemplate = actionType.startsWith("send_template");
-  const listOnlyStatic =
-    actionType === "add_to_mailing_list" ||
-    actionType === "remove_from_mailing_list" ||
-    actionType === "sync_mailing_list";
+  const action = isMailingAction(actionType)
+    ? MAILING_ACTIONS[actionType]
+    : null;
+  const needsList = !!action?.needsList;
+  const needsTemplate = !!action?.needsTemplate;
+  const listKinds = action?.listKinds ?? [];
+  const listOnlyStatic = !listKinds.includes("dynamic");
 
   const { lists, templates, waIntegrations } = useMailingActionOptions(
     tenantId,
@@ -62,14 +44,14 @@ export default function MailingActionConfig({
   );
   const visibleLists = lists.filter(
     (l) =>
-      (!listOnlyStatic || l.kind === "static") &&
-      (actionType !== "sync_mailing_list" || l.source === "crm_filter"),
+      listKinds.includes(listKind(l)) &&
+      (!action?.crmFilterOnly || l.source === "crm_filter"),
   );
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 text-right">
-        <p className="text-xs text-blue-700">{HINTS[actionType]}</p>
+        <p className="text-xs text-blue-700">{action?.hint}</p>
       </div>
 
       {needsTemplate && (
@@ -89,13 +71,12 @@ export default function MailingActionConfig({
         />
       )}
 
-      {actionType !== "send_template_to_list" &&
-        actionType !== "sync_mailing_list" && (
-          <MailingEntitySelect
-            value={configuration?.entity || "auto"}
-            onChange={(v) => onConfigChange("entity", v)}
-          />
-        )}
+      {action?.pickEntity && (
+        <MailingEntitySelect
+          value={configuration?.entity || "auto"}
+          onChange={(v) => onConfigChange("entity", v)}
+        />
+      )}
 
       {needsTemplate && selectedTemplate?.channel === "whatsapp" && (
         <MailingWhatsAppSelect

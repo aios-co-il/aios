@@ -58,8 +58,10 @@ import {
 
 import {
   authorizeDirectAutomationRun,
+  authorizeTenantCaller,
   bearerToken,
 } from "../_shared/automation-run-auth.ts";
+import { userClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1528,6 +1530,24 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(clientFollowUp), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: clientFollowUp.sent ? 200 : 202,
+        });
+      }
+    }
+
+    // The generic path trusts the body's tenant_id (cooldown, execution log,
+    // automation lookup), so a non-service caller must belong to it.
+    if (!requestBody.automationId) {
+      const decision = await authorizeTenantCaller(
+        supabase,
+        userClient,
+        req.headers.get("Authorization"),
+        supabaseKey,
+        requestBody.tenant_id,
+      );
+      if (!decision.allowed) {
+        return new Response(JSON.stringify({ error: decision.error }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: decision.status,
         });
       }
     }
@@ -3586,6 +3606,7 @@ Deno.serve(async (req) => {
                         requestBody.trigger_type || automation.trigger_type,
                       resolveOwnerId: resolveTenantOwnerId,
                       resolveEmailFrom: resolveAutomationEmailFrom,
+                      enqueue: enqueueBroadcastAsService,
                     },
                   );
                   previousStepOutput = stepResponse;
@@ -4045,6 +4066,28 @@ async function resolveEmailRecipients(
     }
   }
   return Array.from(new Set(out));
+}
+
+/** Queue a draft broadcast through broadcast-enqueue as the service role. */
+async function enqueueBroadcastAsService(
+  broadcastId: string,
+): Promise<{ total: number }> {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const res = await fetch(`${url}/functions/v1/broadcast-enqueue`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ broadcastId }),
+  });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`broadcast-enqueue failed: ${result?.error || res.status}`);
+  }
+  return { total: Number(result?.total || 0) };
 }
 
 async function resolveAutomationEmailFrom(

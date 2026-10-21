@@ -1,11 +1,10 @@
 // Campaigner and WhatsApp-group sources.
-import type { DbClient } from "../../supabase-clients.ts";
 import { buildTemplateVars } from "../template/template-vars.ts";
 import { hasItems } from "./query.ts";
-import type { AudienceFilter, Recipient } from "./types.ts";
+import type { AudienceDb, AudienceFilter, Recipient } from "./types.ts";
 
 export async function resolveCampaigners(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {
@@ -38,7 +37,7 @@ export async function resolveCampaigners(
 }
 
 export async function resolveWaGroups(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {

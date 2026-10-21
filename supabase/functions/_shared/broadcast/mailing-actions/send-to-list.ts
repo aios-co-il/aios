@@ -5,15 +5,17 @@ import {
   broadcastFieldsFromTemplate,
   loadTemplate,
 } from "./template-fields.ts";
-import type { MailingActionContext } from "./types.ts";
+import { isTestRun, type MailingActionContext } from "./types.ts";
 
 export async function executeSendTemplateToList(
   db: DbClient,
   config: Record<string, unknown>,
-  _data: Record<string, unknown>,
+  data: Record<string, unknown>,
   tenantId: string,
   ctx: MailingActionContext,
 ) {
+  // A test run must not reserve the interval or send to the whole list.
+  if (isTestRun(data)) return { success: true, skipped: "test_run" };
   const template = await loadTemplate(db, tenantId, config.template_id);
   const list = await loadList(db, tenantId, config.list_id);
   const stepKey = `list:${template.id}:${list.id}`;
@@ -60,29 +62,17 @@ export async function executeSendTemplateToList(
     .eq("id", created.id);
   if (error) throw error;
 
-  const SB_URL = Deno.env.get("SUPABASE_URL")!;
-  const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const res = await fetch(`${SB_URL}/functions/v1/broadcast-enqueue`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SB_SERVICE}`,
-      apikey: SB_SERVICE,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ broadcastId: created.id }),
-  });
-  const result = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  let total: number;
+  try {
+    total = (await ctx.enqueue(created.id)).total;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     await db
       .from("broadcasts")
-      .update({
-        status: "failed",
-        last_error: String(result?.error || res.status),
-      })
+      .update({ status: "failed", last_error: message })
       .eq("id", created.id);
-    throw new Error(`broadcast-enqueue failed: ${result?.error || res.status}`);
+    throw e;
   }
-  const total = Number(result?.total || 0);
   const now = new Date().toISOString();
   await db
     .from("broadcasts")

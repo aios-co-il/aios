@@ -1,6 +1,10 @@
 // Shared types for mailing audience resolution.
 import type { Json } from "../../database.types.ts";
+import type { DbClient } from "../../supabase-clients.ts";
 import type { TemplateVars } from "../template/template-vars.ts";
+
+/** What audience resolution needs from a client: tables and RPCs. */
+export type AudienceDb = Pick<DbClient, "from" | "rpc">;
 
 export type AudienceFilter = {
   source: "clients" | "leads" | "campaigners" | "list" | "wa_groups";

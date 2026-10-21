@@ -2,26 +2,28 @@
 // recipients, dispatching on the filter's source.
 //
 // Used by broadcast-enqueue (send snapshot + dry-run preview) and
-// broadcast-list-materialize (CRM-filter list preview / freeze). The `db`
+// broadcast-list-materialize (CRM-filter list preview / refresh). The `db`
 // client decides visibility: a user-scoped client respects RLS, a service
 // client is trusted and must always be paired with an explicit tenantId.
 //
 // AudienceFilter (broadcasts.audience_filter, broadcast_lists.source_config):
 //   source: 'clients'|'leads'|'campaigners'|'list'|'wa_groups'
+//   leads/clients matching is the broadcast_matching_entity_ids RPC.
 //   leads:   stageKeys/stageMode (leads.status), statusKeys/statusMode
 //            (response_status), salesPersonIds, agencyIds, tagIds/tagMode
 //   clients: statuses/statusMode, serviceTags, agencyIds, campaignerIds
 //            (client_team), tagIds/tagMode
 //   campaigners: roles, activeOnly
-//   list: listId (static members, or a dynamic CRM-filter list's filter)
+//   list: listId (members of a static / synced list, or a dynamic CRM-filter
+//         list's filter resolved live)
 //   wa_groups: groupIds
 //   includeIds / excludeIds: manual pick within a source
-import type { DbClient } from "../../supabase-clients.ts";
 import { resolveClients, resolveLeads } from "./crm-sources.ts";
 import { resolveStaticList } from "./lists.ts";
 import { resolveCampaigners, resolveWaGroups } from "./other-sources.ts";
 import { hasItems } from "./query.ts";
 import {
+  type AudienceDb,
   type AudienceFilter,
   type Recipient,
   toAudienceFilter,
@@ -29,7 +31,7 @@ import {
 
 /** Resolve a filter to raw recipients (before reachability / opt-outs). */
 export async function resolveAudience(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   filter: AudienceFilter,
   depth = 0,
