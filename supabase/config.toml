@@ -43,6 +43,13 @@ WEBHOOK_TASK_INTAKE_SECRET = "encrypted:BCBNI4nzLZTfEZDh56URmP4dIm06FmcvpdBpeHTc
 project_id = "zvoijyneresvkadpprel"
 
 
+# Persistent branch: its config is only applied when a [remotes] block names its project ID.
+[remotes.develop]
+project_id = "efwzhyfpkocghdhhhaza"
+
+[remotes.develop.auth.sms.twilio]
+enabled = false
+
 [functions.public-table]
 verify_jwt = false
 
