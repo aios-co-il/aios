@@ -7,7 +7,7 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadBroadcastMedia } from "@/lib/uploadBroadcastMedia";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { emailEditorSchema, type EmailEditor } from "./emailEditorSchema";
 import { EmailFormattingToolbar } from "./EmailStyleSelect";
@@ -27,16 +27,8 @@ const EmailRichEditor = forwardRef<EmailRichEditorHandle, Props>(
   function EmailRichEditor({ initialHtml, onChange }, ref) {
     const { tenantId } = useCurrentTenant();
 
-    const uploadImage = async (file: File) => {
-      const ext = file.name.split(".").pop() || "png";
-      const path = `${tenantId}/templates/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("broadcast-media")
-        .upload(path, file, { upsert: false });
-      if (error) throw error;
-      return supabase.storage.from("broadcast-media").getPublicUrl(path).data
-        .publicUrl;
-    };
+    const uploadImage = async (file: File) =>
+      (await uploadBroadcastMedia(tenantId, "templates", file)).url;
 
     const editor: EmailEditor = useCreateBlockNote({
       schema: emailEditorSchema,

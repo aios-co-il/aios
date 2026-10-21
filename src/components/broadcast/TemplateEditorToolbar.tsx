@@ -11,13 +11,13 @@ import {
 export function TemplateEditorToolbar({
   onPick,
   customKeys,
-  staticLists,
+  sampleLists,
   sampleListId,
   onSampleListChange,
 }: {
   onPick: (token: string) => void;
   customKeys: string[];
-  staticLists: { id: string; name: string }[];
+  sampleLists: { id: string; name: string }[];
   sampleListId: string | undefined;
   onSampleListChange: (id: string | undefined) => void;
 }) {
@@ -33,7 +33,7 @@ export function TemplateEditorToolbar({
         </SelectTrigger>
         <SelectContent className="z-[100]">
           <SelectItem value="none">נתוני דוגמה</SelectItem>
-          {staticLists.map((l) => (
+          {sampleLists.map((l) => (
             <SelectItem key={l.id} value={l.id}>
               {l.name}
             </SelectItem>

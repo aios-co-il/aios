@@ -8,6 +8,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { MailingOptions } from "@/components/automations/useMailingActionOptions";
+import { listKind, type ListKind } from "@/lib/broadcastListKind";
+
+const LIST_KIND_SUFFIX: Record<ListKind, string> = {
+  static: "",
+  synced: " · מסונכרנת",
+  dynamic: " · דינמית",
+};
 
 function Field({
   label,
@@ -95,7 +102,7 @@ export function MailingListSelect({
           lists.map((l) => (
             <SelectItem key={l.id} value={l.id}>
               {l.name}
-              {l.kind === "dynamic" ? " · דינמית" : ""} ({l.member_count})
+              {LIST_KIND_SUFFIX[listKind(l)]} ({l.member_count})
             </SelectItem>
           ))
         )}

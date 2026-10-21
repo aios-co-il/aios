@@ -1,11 +1,10 @@
-import {
-  toEmailAttachments,
-  type EmailAttachment,
-} from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
+import { templateContent } from "../../../supabase/functions/_shared/broadcast/template/template-content.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { uploadBroadcastMedia } from "@/lib/uploadBroadcastMedia";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { useLeadPipelineStages } from "@/hooks/useLeadPipelineStages";
 import {
@@ -92,17 +91,26 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       return;
     }
     setTemplateId(t.id);
-    if (t.channel === "email") {
-      setSubject(t.subject || "");
-      setBodyHtml(t.body_html || "");
-      setHtmlMode(!!t.html_mode);
-      setAttachments(toEmailAttachments(t.attachments));
+    const content = templateContent(t);
+    if (content.channel === "email") {
+      setSubject(content.subject || "");
+      setBodyHtml(content.bodyHtml || "");
+      setHtmlMode(content.htmlMode);
+      setAttachments(content.attachments);
       setBodyText("");
     } else {
-      setBodyText(t.body_text || "");
+      setBodyText(content.bodyText || "");
       setBodyHtml("");
-      setTemplateMediaUrl(t.media_url || null);
+      setTemplateMediaUrl(content.mediaUrl);
     }
+  };
+  /** Switching channel drops the other channel's template and content. */
+  const pickChannel = (c: "whatsapp" | "email") => {
+    if (c === channel) return;
+    applyTemplate(null);
+    setSubject("");
+    setBodyText("");
+    setChannel(c);
   };
   const domains = domainsQ.data || [];
   const defaultDomain = domains.find((d) => d.is_default) || domains[0];
@@ -479,13 +487,13 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       let mediaUrl: string | null = null;
       if (mediaFile) {
         const ext = mediaFile.name.split(".").pop() || "jpg";
-        const path = `${tenantId}/${draft.id}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("broadcast-media")
-          .upload(path, mediaFile, { upsert: true });
-        if (upErr) throw upErr;
-        mediaUrl = supabase.storage.from("broadcast-media").getPublicUrl(path)
-          .data.publicUrl;
+        const uploaded = await uploadBroadcastMedia(
+          tenantId,
+          "broadcasts",
+          mediaFile,
+          { name: `${draft.id}.${ext}`, upsert: true },
+        );
+        mediaUrl = uploaded.url;
         await update.mutateAsync({ id: draft.id, media_url: mediaUrl });
       }
 
@@ -556,7 +564,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             <Label className="mt-2 block">ערוץ</Label>
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => setChannel("whatsapp")}
+                onClick={() => pickChannel("whatsapp")}
                 className={`rounded-lg border-2 p-3 text-center text-sm font-medium ${channel === "whatsapp" ? "border-primary" : "border-muted"}`}
               >
                 <MessageSquare className="mx-auto mb-1 h-5 w-5" /> WhatsApp
@@ -569,7 +577,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 WhatsApp רשמי (בקרוב)
               </button>
               <button
-                onClick={() => setChannel("email")}
+                onClick={() => pickChannel("email")}
                 className={`rounded-lg border-2 p-3 text-center text-sm font-medium ${channel === "email" ? "border-primary" : "border-muted"}`}
               >
                 <Mail className="mx-auto mb-1 h-5 w-5" /> אימייל

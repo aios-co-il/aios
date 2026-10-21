@@ -33,11 +33,10 @@ import {
   UserPlus,
   ArrowLeftRight,
   Play,
-  ListPlus,
-  ListMinus,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
 
 interface ExecutionHistoryPanelProps {
   open: boolean;
@@ -57,11 +56,7 @@ const ACTION_ICONS: Record<string, any> = {
   add_client_update: ClipboardList,
   create_task: ClipboardList,
   send_signature: FileText,
-  add_to_mailing_list: ListPlus,
-  remove_from_mailing_list: ListMinus,
-  send_template_to_contact: Send,
-  send_template_to_list: Send,
-  sync_mailing_list: ListPlus,
+  ...MAILING_ACTION_ICONS,
   create_lead: UserPlus,
   create_manychat_subscriber: UserPlus,
   update_status: ArrowLeftRight,
@@ -80,11 +75,7 @@ const ACTION_LABELS: Record<string, string> = {
   add_client_update: "עדכון לקוח",
   create_task: "יצירת משימה",
   send_signature: "שליחת הסכם (חתימה דיגיטלית)",
-  add_to_mailing_list: "הוספה לרשימת דיוור",
-  remove_from_mailing_list: "הסרה מרשימת דיוור",
-  send_template_to_contact: "שליחת טמפלייט לאיש הקשר",
-  send_template_to_list: "שליחת טמפלייט לרשימה",
-  sync_mailing_list: "סנכרון לרשימת דיוור",
+  ...MAILING_ACTION_LABELS,
   create_lead: "יצירת ליד",
   create_manychat_subscriber: "יצירת מנוי ManyChat",
   update_status: "עדכון סטאטוס",

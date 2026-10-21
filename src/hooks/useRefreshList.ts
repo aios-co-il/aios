@@ -5,16 +5,17 @@ import type { ListPreview } from "@/hooks/useBroadcastLists";
 import type { AudienceFilter } from "@/hooks/useBroadcasts";
 import { requireTenantId } from "@/lib/requireTenantId";
 
-export interface MaterializeOptions {
-  mode: "preview" | "freeze";
+export interface RefreshListOptions {
+  /** `preview` writes nothing; `refresh` replaces the list's members with the current matches. */
+  mode: "preview" | "refresh";
   listId?: string;
   filter?: AudienceFilter;
 }
 
-/** CRM-filter lists: preview a filter (or a saved list), or freeze matches into a static list. */
-export async function materializeList(
+/** CRM-filter lists: preview a filter (or a saved list), or refresh a list's members from it. */
+export async function refreshList(
   tenantId: string,
-  opts: MaterializeOptions,
+  opts: RefreshListOptions,
 ): Promise<ListPreview> {
   const { data, error } = await supabase.functions.invoke(
     "broadcast-list-materialize",
@@ -25,15 +26,15 @@ export async function materializeList(
   return data as ListPreview;
 }
 
-/** Mutation around materializeList; refreshes the list (and its members) when it changed. */
-export function useMaterializeList() {
+/** Mutation around refreshList; refetches the list (and its members) after a refresh. */
+export function useRefreshList() {
   const { tenantId } = useCurrentTenant();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (opts: MaterializeOptions) =>
-      materializeList(requireTenantId(tenantId), opts),
+    mutationFn: (opts: RefreshListOptions) =>
+      refreshList(requireTenantId(tenantId), opts),
     onSuccess: (_data, opts) => {
-      if (opts.mode !== "freeze" && !opts.listId) return;
+      if (opts.mode !== "refresh") return;
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
       if (opts.listId)
         qc.invalidateQueries({

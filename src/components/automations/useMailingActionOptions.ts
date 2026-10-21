@@ -7,7 +7,8 @@ export function useMailingActionOptions(
   { needsList, needsTemplate }: { needsList: boolean; needsTemplate: boolean },
 ) {
   const { data: lists = [] } = useQuery({
-    queryKey: ["automation-broadcast-lists", tenantId],
+    // Under the broadcast-lists prefix, so list mutations refresh it too.
+    queryKey: ["broadcast-lists", tenantId, "automation-options"],
     enabled: !!tenantId && needsList,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -21,7 +22,7 @@ export function useMailingActionOptions(
   });
 
   const { data: templates = [] } = useQuery({
-    queryKey: ["automation-message-templates", tenantId],
+    queryKey: ["message-templates", tenantId, "automation-options"],
     enabled: !!tenantId && needsTemplate,
     queryFn: async () => {
       const { data, error } = await supabase
