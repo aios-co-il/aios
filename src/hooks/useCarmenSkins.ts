@@ -49,17 +49,20 @@ export function useCarmenSkins() {
     enabled: !!tenantId && agentQuery.isSuccess,
     queryFn: async (): Promise<CarmenSkinOption[]> => {
       const { data, error } = await supabase
-        .from("ai_skills" as any)
+        .from("ai_skills")
         .select("slug,name,description,scope")
         .eq("is_active", true)
         .or(`scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`)
         .order("name");
       if (error) throw error;
-      const bySlug = new Map<string, any>();
+      type Row = NonNullable<typeof data>[number] & { slug: string };
+      const bySlug = new Map<string, Row>();
       // Tenant rows override the global skin with the same slug.
-      for (const row of (data as any[]) ?? [])
+      for (const row of data ?? []) {
+        if (!row.slug) continue;
         if (row.scope === "tenant" || !bySlug.has(row.slug))
-          bySlug.set(row.slug, row);
+          bySlug.set(row.slug, row as Row);
+      }
       const avatars = readSkinAvatars(agentQuery.data?.metadata);
       return Promise.all(
         [...bySlug.values()].map(async (r) => ({

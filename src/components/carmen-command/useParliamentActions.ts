@@ -34,7 +34,7 @@ export function useParliamentActions(
         conversation_id: conversationId,
         ...(extra || {}),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = res.json;
       if (!res.ok) throw new Error(json.error || "פעולת פרלמנט נכשלה");
       if (json.status) setStatus(json.status);
       return json;

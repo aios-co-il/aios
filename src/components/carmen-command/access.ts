@@ -20,9 +20,12 @@ export function useCommandCenterAccess(): {
       tenantId ?? null,
       viewAsUserId ?? null,
     ],
+    enabled: !!tenantId,
     staleTime: 5 * 60 * 1000,
     queryFn: () =>
       resolveCommandCenterAccess(tenantId ?? null, viewAsUserId ?? null),
   });
-  return { allowed: query.data ?? false, loading: query.isLoading };
+  // isPending stays true until the tenant is known, so pages wait instead of
+  // treating "no tenant yet" as "no access".
+  return { allowed: query.data ?? false, loading: query.isPending };
 }

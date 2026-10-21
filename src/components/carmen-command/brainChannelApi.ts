@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCarmenAccessRow } from "./carmenAccessApi";
 import { allowedRoutes } from "../../../supabase/functions/_shared/carmen-brain-access";
@@ -24,29 +25,32 @@ export type ChannelSendResult = {
   inline_reply?: string;
 };
 
-const FN = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-channel-send`;
-
-async function authHeader(): Promise<Record<string, string>> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) throw new Error("לא מחוברת");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${session.access_token}`,
-  };
-}
+export type ChannelResponse = {
+  ok: boolean;
+  status: number;
+  // The edge function's JSON body (or {} when it had none).
+  json: any;
+};
 
 /** POSTs one action to the `agent-channel-send` edge function. */
 export async function postChannel(
   body: Record<string, unknown>,
-): Promise<Response> {
-  const headers = await authHeader();
-  return fetch(FN, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+): Promise<ChannelResponse> {
+  const { data, error } = await supabase.functions.invoke(
+    "agent-channel-send",
+    { body },
+  );
+  if (!error) return { ok: true, status: 200, json: data ?? {} };
+  // Non-2xx: keep the status and error body the callers branch on.
+  if (error instanceof FunctionsHttpError) {
+    const res = error.context as Response;
+    return {
+      ok: false,
+      status: res.status,
+      json: await res.json().catch(() => ({})),
+    };
+  }
+  throw error;
 }
 
 /** Lists the brains the user may use, applying "view as" permissions. */
@@ -56,7 +60,7 @@ export async function fetchBrainRoutes(
 ): Promise<{ list: BrainRoute[]; restricted: boolean }> {
   const res = await postChannel({ action: "list_routes", tenant_id: tenantId });
   if (!res.ok) throw new Error(String(res.status));
-  const json = await res.json();
+  const json = res.json;
   // A restricted user gets exactly the brains they may use, even none.
   let list =
     Array.isArray(json.routes) && (json.routes.length || json.restricted)
@@ -84,7 +88,7 @@ export async function fetchChannelHealth(
     tenant_id: tenantId,
   });
   if (!res.ok) return null;
-  const json = await res.json();
+  const json = res.json;
   if (json && typeof json.ok === "boolean") return json as ChannelHealth;
   return null;
 }

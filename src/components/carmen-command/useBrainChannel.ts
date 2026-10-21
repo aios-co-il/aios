@@ -69,7 +69,7 @@ export function useBrainChannel(tenantId: string | null) {
         context_metadata: args.contextMetadata ?? undefined,
         attachments: args.attachments?.length ? args.attachments : undefined,
       });
-      const json = await res.json().catch(() => ({}));
+      const json = res.json;
       if (!res.ok) {
         if (
           sendPathForRoute(route) === "internal_stream" &&

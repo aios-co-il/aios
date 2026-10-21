@@ -12,6 +12,7 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
+import { internalBrainAllowed } from "../_shared/carmen-brain-guard.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
 import {
   classifyDirectTool,
@@ -14625,15 +14626,14 @@ async function handleRunAgent(
     if (
       isCarmen &&
       !pinSkillsOnly &&
-      typeof activeSkin === "string" &&
       activeSkin &&
       !(Array.isArray(task_skills) && task_skills.includes(activeSkin)) &&
-      !(((agent as any)?.disabled_skins || []) as string[]).includes(activeSkin)
+      !(agent.disabled_skins || []).includes(activeSkin)
     ) {
       try {
         const skinBlock = await buildSkillsBlockBySlug(
           [activeSkin],
-          (agent as any)?.tenant_id || tenant_id || null,
+          agent.tenant_id || tenant_id || null,
         );
         if (skinBlock) {
           systemPrompt += skinBlock;
@@ -16184,8 +16184,6 @@ Deno.serve(async (req) => {
   // Per-user Carmen permissions: a user restricted away from Carmen's main
   // brain cannot reach it by calling this function directly, on any surface.
   if (auth.kind === "user" && auth.userId) {
-    const { internalBrainAllowed } =
-      await import("../_shared/carmen-brain-guard.ts");
     const allowed = await internalBrainAllowed(
       createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
       {

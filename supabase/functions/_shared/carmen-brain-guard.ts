@@ -50,18 +50,8 @@ export async function internalBrainAllowed(
     tenantId = agent.tenant_id;
     carmenId = (await resolveCarmenAgent(sb, tenantId))?.id ?? "";
     if (!carmenId) return true; // no active Carmen to protect.
-    // Permission rows are written against the tenant's resolved Carmen. A
-    // restricted user may not reach another Carmen-named agent ("Carmen
-    // Test") whose id has no row of its own.
-    if (agent.id !== carmenId) {
-      const row = await loadCarmenAccessRow(
-        sb,
-        tenantId,
-        carmenId,
-        args.userId,
-      );
-      return !row;
-    }
+    // Permission rows are written against the tenant's resolved Carmen, so
+    // another Carmen-named agent ("Carmen Test") is checked against that row.
   } else {
     if (!tenantId) return true; // run-ai-agent rejects a request with neither.
     carmenId = (await resolveCarmenAgent(sb, tenantId))?.id ?? "";

@@ -1,5 +1,5 @@
 import { useCallback, type MutableRefObject } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { TopicChat } from "@/lib/chatTopics";
@@ -12,46 +12,46 @@ export function useConversationActions(
 ) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["cc-conversations", tenantId] });
+  const fail = (title: string) => (error: Error) =>
+    toast({ title, description: error.message, variant: "destructive" });
 
-  const run = useCallback(
-    async (failTitle: string, op: () => PromiseLike<{ error: any }>) => {
-      const { error } = await op();
-      if (error) {
-        toast({
-          title: failTitle,
-          description: error.message,
-          variant: "destructive",
-        });
-        return false;
-      }
-      queryClient.invalidateQueries({
-        queryKey: ["cc-conversations", tenantId],
-      });
-      return true;
+  const rename = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const { error } = await supabase
+        .from("ai_conversations")
+        .update({ title })
+        .eq("id", id);
+      if (error) throw error;
     },
-    [queryClient, tenantId, toast],
-  );
+    onSuccess: refresh,
+    onError: fail("שינוי השם נכשל"),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("ai_conversations")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, id) => {
+      if (id === conversationIdRef.current) startNewConversation();
+      return refresh();
+    },
+    onError: fail("המחיקה נכשלה"),
+  });
 
   const renameConversation = useCallback(
-    async (conv: TopicChat, title: string) => {
-      await run("שינוי השם נכשל", () =>
-        (supabase as any)
-          .from("ai_conversations")
-          .update({ title })
-          .eq("id", conv.id),
-      );
-    },
-    [run],
+    (conv: TopicChat, title: string) =>
+      rename.mutateAsync({ id: conv.id, title }).catch(() => undefined),
+    [rename],
   );
-
   const deleteConversation = useCallback(
-    async (conv: TopicChat) => {
-      const ok = await run("המחיקה נכשלה", () =>
-        (supabase as any).from("ai_conversations").delete().eq("id", conv.id),
-      );
-      if (ok && conv.id === conversationIdRef.current) startNewConversation();
-    },
-    [run, conversationIdRef, startNewConversation],
+    (conv: TopicChat) => remove.mutateAsync(conv.id).catch(() => undefined),
+    [remove],
   );
 
   return { renameConversation, deleteConversation };
