@@ -111,6 +111,26 @@ export function mergeCarmenScopeConfig(
   };
 }
 
+/**
+ * Effective scope mode for one incoming message.
+ * Policy private phones govern 1:1 chats only; in a group they must not force
+ * `specific_phone`, or every group (including the automation's allowlist) is blocked.
+ */
+export function resolveEffectiveScopeMode(
+  mergedScope,
+  automationMode,
+  isGroup,
+) {
+  const fallback = automationMode || "all";
+  const hasPolicy = !!mergedScope?.hasPolicy;
+  const policyGroups = (mergedScope?.allowedGroups || []).length > 0;
+  const policyPhones = (mergedScope?.allowedPhones || []).length > 0;
+  if (isGroup) return hasPolicy && policyGroups ? "specific_group" : fallback;
+  if (hasPolicy && policyPhones) return "specific_phone";
+  if (hasPolicy && policyGroups) return "specific_group";
+  return fallback;
+}
+
 export function isPhoneOnPolicyList(phoneDigits, allowedPhones) {
   const d = normalizePhoneDigits(phoneDigits);
   if (!d) return false;

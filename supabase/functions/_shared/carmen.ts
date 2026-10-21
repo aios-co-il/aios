@@ -31,6 +31,7 @@ import {
   identityAllowsSurface,
   mergeCarmenScopeConfig,
   parsePolicyPhones,
+  resolveEffectiveScopeMode,
   policyPhoneList,
   filterPolicyGroupsToManus,
 } from "./carmen-access-policy.ts";
@@ -2265,12 +2266,11 @@ export async function handleCarmenMessage(
   }
 
   // Scope enforcement — merged policy (Agent → הרשאות שיחה) overrides automation when set
-  const scopeMode =
-    mergedScope.hasPolicy && mergedScope.allowedPhones.length > 0
-      ? "specific_phone"
-      : mergedScope.hasPolicy && mergedScope.allowedGroups.length > 0
-        ? "specific_group"
-        : carmenAutomation.configuration?.carmen_scope_mode || "all";
+  const scopeMode = resolveEffectiveScopeMode(
+    mergedScope,
+    carmenAutomation.configuration?.carmen_scope_mode,
+    isGroup,
+  );
   const allowedPhones =
     mergedScope.allowedPhones.length > 0
       ? mergedScope.allowedPhones
