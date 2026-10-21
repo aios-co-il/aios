@@ -1,4 +1,10 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  allowedRoutes,
+  brainLevel,
+  BUGFIX_ONLY_PREAMBLE,
+} from "../_shared/carmen-brain-access.ts";
+import { loadCarmenAccessRow } from "../_shared/carmen-brain-guard.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
@@ -103,10 +109,6 @@ Deno.serve(async (req) => {
   await ensureDefaultRoutes(sb, tenantId, agentId);
 
   // Per-user brain permissions (Carmen settings → הרשאות).
-  const { brainLevel, BUGFIX_ONLY_PREAMBLE } =
-    await import("../_shared/carmen-brain-access.ts");
-  const { loadCarmenAccessRow } =
-    await import("../_shared/carmen-brain-guard.ts");
   const accessRow = await loadCarmenAccessRow(
     sb,
     tenantId,
@@ -114,7 +116,6 @@ Deno.serve(async (req) => {
     auth.userId,
   );
   if (action === "list_routes") {
-    const { allowedRoutes } = await import("../_shared/carmen-brain-access.ts");
     const routes = allowedRoutes(
       await ensureDefaultRoutes(sb, tenantId, agentId),
       accessRow,
@@ -253,6 +254,9 @@ Deno.serve(async (req) => {
   });
   if (!route) return json(400, { error: "brain route not found" });
 
+  // Each route is its own grant. Parliament included: its seats (Cursor,
+  // Claude, …) only answer a read-only round, so a "parliament" grant does not
+  // need the seat brains' own grants.
   const level = brainLevel(accessRow, route.slug);
   if (!level) {
     return json(403, {
@@ -360,11 +364,8 @@ Deno.serve(async (req) => {
       agentId,
       conversationId: conv.id,
       route,
-      // Coding brains on "bug fixes only" get the limit written into the task.
-      content:
-        level === "bugfix" && route.route_type === "direct_channel"
-          ? BUGFIX_ONLY_PREAMBLE + content
-          : content,
+      // A "bug fixes only" grant writes the limit into the task.
+      content: level === "bugfix" ? BUGFIX_ONLY_PREAMBLE + content : content,
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,

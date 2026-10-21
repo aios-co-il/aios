@@ -13,12 +13,15 @@ export function LevelSelect({
   disabled,
   allowBugfix,
   bugfixFirst = false,
+  noneLabel = LEVEL_LABEL[NONE],
   onChange,
 }: {
   value: string;
   disabled: boolean;
   allowBugfix: boolean;
   bugfixFirst?: boolean;
+  /** Label for the empty value (dev tasks: "ברירת מחדל", not "no access"). */
+  noneLabel?: string;
   onChange: (value: string) => void;
 }) {
   const levels = bugfixFirst ? ["bugfix", "full"] : ["full", "bugfix"];
@@ -33,7 +36,7 @@ export function LevelSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NONE}>{LEVEL_LABEL[NONE]}</SelectItem>
+        <SelectItem value={NONE}>{noneLabel}</SelectItem>
         {levels
           .filter((l) => l !== "bugfix" || allowBugfix)
           .map((l) => (

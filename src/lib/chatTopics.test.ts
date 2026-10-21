@@ -24,6 +24,8 @@ test("topic title keeps the first sentence and cuts long ones at a word", () => 
     ),
     "אני רוצה שתבדקי את כל הקמפיינים של הלקוח…",
   );
+  assert.equal(topicTitle("תבדקי את example.com"), "תבדקי את example.com");
+  assert.equal(topicTitle("מה קורה? ספרי לי"), "מה קורה");
 });
 
 test("live statuses are the ones that keep running in the background", () => {

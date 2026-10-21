@@ -47,8 +47,21 @@ export async function internalBrainAllowed(
       .maybeSingle();
     // Unknown agent: run-ai-agent rejects it on its own.
     if (!agent || !isCarmenName(agent.name)) return true;
-    carmenId = agent.id;
     tenantId = agent.tenant_id;
+    carmenId = (await resolveCarmenAgent(sb, tenantId))?.id ?? "";
+    if (!carmenId) return true; // no active Carmen to protect.
+    // Permission rows are written against the tenant's resolved Carmen. A
+    // restricted user may not reach another Carmen-named agent ("Carmen
+    // Test") whose id has no row of its own.
+    if (agent.id !== carmenId) {
+      const row = await loadCarmenAccessRow(
+        sb,
+        tenantId,
+        carmenId,
+        args.userId,
+      );
+      return !row;
+    }
   } else {
     if (!tenantId) return true; // run-ai-agent rejects a request with neither.
     carmenId = (await resolveCarmenAgent(sb, tenantId))?.id ?? "";

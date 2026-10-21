@@ -812,9 +812,9 @@ Claude Code health-check skill written to `ai_skills` (scope=tenant, created_by_
 - **How:** Code in `wooOrderRevenue.ts` + `calendarTimeZone.ts`; sync backfill last 21d in `sync-woocommerce-data` v1.4.0. For 4/4 ארבע על ארבע ops: `fix_4_4_woocommerce_revenue_sync.sql`.
 - **Origin:** Carmen → Cursor DEV TASK — Ana reported 4/4 last-week ₪3,380 vs Woo ₪6,252.
 
-## 2026-10-18 — Session window brain/skin selectors, skin avatars, connected-agent profiles
+## 2026-10-18 — Session window brain/skin selectors and skin avatars
 
 - No `ai_skills` row written (target tenant unknown); this entry is the repo record.
-- Per-skin avatars + active skin live on Carmen's `ai_agents.metadata` (`visual_identity.skins[slug].avatarPath`, `active_skin`); `useCarmenIdentity` returns the active skin's avatar, so every Carmen portrait updates at once. Hook: `useCarmenSkins`.
-- Connected-agent profiles (Cursor/Grok/Claude/Codex) live in `agent_brain_routes.config.profile` (`displayName`, `persona`, `instructions`, `avatarPath`); edited from AI Agents → "סוכנים מחוברים". Stored only; not yet injected into the agents' prompts.
+- Per-skin avatars live on Carmen's `ai_agents.metadata.visual_identity.skins[slug].avatarPath`. Hook: `useCarmenSkins`.
+- The active skin is per chat session only (`src/lib/carmenSessionSkin.ts`, in memory). It is sent as `active_skin` with each `run-ai-agent` request, which pins that skill into Carmen's prompt for that run. It is never stored on the shared agent row, so one user's choice doesn't change Carmen for others.
 - Images upload to `entity-attachments/<tenant>/agent-avatars/...` (tenant-folder RLS).

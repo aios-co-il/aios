@@ -2,11 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
-import {
-  readActiveSkin,
-  readSkinAvatars,
-  signProfileImage,
-} from "@/lib/profileAvatars";
+import { useSessionSkin } from "@/lib/carmenSessionSkin";
+import { readSkinAvatars, signProfileImage } from "@/lib/profileAvatars";
 
 export type AgentIdentity = {
   displayName?: string;
@@ -55,22 +52,27 @@ export function useCarmenIdentity() {
         if (signError) throw signError;
         identity.avatarUrl = signed.signedUrl;
       }
-      const activeSkin = readActiveSkin(data?.metadata);
-      const skinAvatarUrl = activeSkin
-        ? await signProfileImage(
-            tenantId!,
-            readSkinAvatars(data?.metadata)[activeSkin]?.avatarPath,
-          )
-        : undefined;
-      return { ...identity, activeSkin, skinAvatarUrl };
+      return { ...identity, skinAvatars: readSkinAvatars(data?.metadata) };
     },
   });
+  // The session's skin (this browser only) picks which avatar to show.
+  const activeSkin = useSessionSkin(tenantId);
+  const skinPath = activeSkin
+    ? query.data?.skinAvatars[activeSkin]?.avatarPath
+    : undefined;
+  const skinAvatar = useQuery({
+    queryKey: ["carmen-skin-avatar", tenantId, skinPath],
+    enabled: !!tenantId && !!skinPath,
+    staleTime: 30 * 60 * 1000,
+    queryFn: () => signProfileImage(tenantId!, skinPath),
+  });
   // A skin's own avatar wins over Carmen's base avatar while that skin is active.
-  const image = query.data?.skinAvatarUrl || query.data?.avatarUrl;
+  const image =
+    (skinPath ? skinAvatar.data : undefined) || query.data?.avatarUrl;
   return {
     name: query.data?.displayName || "כרמן",
     image: image || CARMEN_CHARACTER,
     custom: !!image,
-    activeSkin: query.data?.activeSkin ?? null,
+    activeSkin,
   };
 }

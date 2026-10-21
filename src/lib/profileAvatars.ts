@@ -22,11 +22,6 @@ export function readSkinAvatars(metadata: unknown): SkinAvatarMap {
   return out;
 }
 
-export function readActiveSkin(metadata: unknown): string | null {
-  const v = (metadata as Record<string, unknown> | null)?.active_skin;
-  return typeof v === "string" && v ? v : null;
-}
-
 export function validateAvatarFile(file: File): string | null {
   if (!EXT[file.type]) return "יש לבחור PNG, JPG או WebP";
   if (file.size > AVATAR_MAX_BYTES) return "גודל מקסימלי 5MB";

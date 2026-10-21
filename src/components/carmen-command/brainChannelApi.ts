@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCarmenAccessRow } from "./carmenAccessApi";
 import { allowedRoutes } from "../../../supabase/functions/_shared/carmen-brain-access";
 import {
   FALLBACK_BRAIN_ROUTES,
@@ -65,13 +66,7 @@ export async function fetchBrainRoutes(
   // "View as": the server answers for the signed-in admin, so apply the
   // viewed user's permissions here to preview what they would see.
   if (viewAsUserId) {
-    const { data: viewedRow } = await (supabase as any)
-      .from("carmen_command_center_access")
-      .select("enabled, brain_access")
-      .eq("tenant_id", tenantId)
-      .eq("user_id", viewAsUserId)
-      .limit(1)
-      .maybeSingle();
+    const viewedRow = await fetchCarmenAccessRow(tenantId, viewAsUserId);
     if (viewedRow) {
       list = allowedRoutes(list, viewedRow);
       restricted = true;

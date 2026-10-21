@@ -15,7 +15,7 @@ const TOPIC_MAX = 48;
  */
 export function topicTitle(title?: string | null): string {
   const first = String(title || "")
-    .split(/[\n.?!]/)
+    .split(/\n|[.?!](?=\s|$)/)
     .map((p) => p.replace(/\s+/g, " ").trim())
     .find(Boolean);
   if (!first) return "שיחה חדשה";

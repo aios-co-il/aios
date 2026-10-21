@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  readActiveSkin,
-  readSkinAvatars,
-  validateAvatarFile,
-} from "./profileAvatars";
+import { readSkinAvatars, validateAvatarFile } from "./profileAvatars";
+import { getSessionSkin, setSessionSkin } from "./carmenSessionSkin";
 
 describe("profileAvatars", () => {
   it("reads per-skin avatars and ignores malformed entries", () => {
@@ -14,9 +11,12 @@ describe("profileAvatars", () => {
     ).toEqual({ seo: { avatarPath: "t/a.png" } });
     expect(readSkinAvatars(null)).toEqual({});
   });
-  it("reads the active skin", () => {
-    expect(readActiveSkin({ active_skin: "copy" })).toBe("copy");
-    expect(readActiveSkin({ active_skin: "" })).toBeNull();
+  it("keeps the session skin per tenant, in memory only", () => {
+    setSessionSkin("t1", "copy");
+    expect(getSessionSkin("t1")).toBe("copy");
+    expect(getSessionSkin("t2")).toBeNull();
+    setSessionSkin("t1", null);
+    expect(getSessionSkin("t1")).toBeNull();
   });
   it("validates avatar files", () => {
     const png = new File(["x"], "a.png", { type: "image/png" });

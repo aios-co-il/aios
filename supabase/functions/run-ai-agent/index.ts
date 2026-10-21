@@ -14615,9 +14615,13 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
-    // Carmen's active skin (chosen in the session's skin selector and stored
-    // on her agent row) shapes her persona and instructions for this run.
-    const activeSkin = (agent as any)?.metadata?.active_skin;
+    // The skin picked in this chat session (sent per request, never stored on
+    // Carmen's shared agent row) shapes her persona for this run only.
+    const activeSkin =
+      typeof bodyJson.active_skin === "string" &&
+      /^[a-z0-9_-]{1,64}$/i.test(bodyJson.active_skin)
+        ? bodyJson.active_skin
+        : null;
     if (
       isCarmen &&
       !pinSkillsOnly &&

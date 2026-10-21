@@ -2,8 +2,8 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
+import { setSessionSkin, useSessionSkin } from "@/lib/carmenSessionSkin";
 import {
-  readActiveSkin,
   readSkinAvatars,
   signProfileImage,
   uploadProfileImage,
@@ -106,23 +106,12 @@ export function useCarmenSkins() {
   });
 
   const skins = skinsQuery.data ?? [];
-  const activeSlug = readActiveSkin(agentQuery.data?.metadata);
+  const activeSlug = useSessionSkin(tenantId);
 
+  // Session-only choice: never written to Carmen's shared agent row.
   const setActiveSkin = useCallback(
-    async (slug: string | null) => {
-      // Optimistic: swap the visible character before the write round-trips.
-      const url = skins.find((s) => s.slug === slug)?.avatarUrl;
-      qc.setQueryData(["carmen-identity", tenantId], (prev: any) =>
-        prev ? { ...prev, activeSkin: slug, skinAvatarUrl: url } : prev,
-      );
-      qc.setQueryData(["carmen-skins-agent", tenantId], (prev: any) =>
-        prev
-          ? { ...prev, metadata: { ...prev.metadata, active_skin: slug } }
-          : prev,
-      );
-      await patchMetadata.mutateAsync((m) => ({ ...m, active_skin: slug }));
-    },
-    [skins, qc, tenantId, patchMetadata],
+    async (slug: string | null) => setSessionSkin(tenantId, slug),
+    [tenantId],
   );
 
   const setSkinAvatar = useCallback(

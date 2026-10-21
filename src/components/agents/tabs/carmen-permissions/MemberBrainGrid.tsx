@@ -47,6 +47,7 @@ export function MemberBrainGrid({
           disabled={disabled}
           allowBugfix
           bugfixFirst
+          noneLabel="ברירת מחדל"
           onChange={(v) =>
             onPatch({ dev_escalation_tier: v === NONE ? null : (v as DevTier) })
           }

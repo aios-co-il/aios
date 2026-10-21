@@ -37,6 +37,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
+import { getSessionSkin } from "@/lib/carmenSessionSkin";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -460,6 +461,7 @@ export const CarmenChatBar = forwardRef<
             conversation_history: history,
             system_prompt_addon: promptAddon || undefined,
             context_metadata: ctxMeta ?? undefined,
+            active_skin: getSessionSkin(tenantId) ?? undefined,
           }),
         },
       );
@@ -852,6 +854,7 @@ export const CarmenChatBar = forwardRef<
                 .filter((m) => m.role === "user" || m.role === "assistant")
                 .map((m) => ({ role: m.role, content: m.content ?? "" }))
                 .slice(-24),
+              active_skin: getSessionSkin(tenantId) ?? undefined,
             }),
             signal: controller.signal,
           },
