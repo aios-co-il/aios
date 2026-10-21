@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast-template.ts";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -40,7 +41,7 @@ export interface Broadcast {
   body_text: string | null;
   body_html: string | null;
   html_mode: boolean;
-  attachments: unknown[];
+  attachments: EmailAttachment[];
   template_id: string | null;
   origin: "manual" | "automation";
   media_url: string | null;
@@ -103,7 +104,7 @@ export function useBroadcasts() {
           body_text: payload.body_text ?? null,
           body_html: payload.body_html ?? null,
           html_mode: payload.html_mode ?? false,
-          attachments: (payload.attachments ?? []) as any,
+          attachments: payload.attachments ?? [],
           template_id: payload.template_id ?? null,
           media_url: payload.media_url ?? null,
           subject: payload.subject ?? null,

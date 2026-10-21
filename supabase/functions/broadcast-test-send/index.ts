@@ -1,7 +1,7 @@
 // broadcast-test-send — sends one rendered email template to the signed-in
 // user's own address, so authors can check it before it reaches a list.
 //   { tenantId, subject, bodyHtml, vars? }
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import {
   buildEmailContent,
   renderTemplate,
@@ -17,8 +17,6 @@ const corsHeaders = {
 };
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
-const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
@@ -28,10 +26,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    const db = createClient(SB_URL, SB_ANON, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
+    const db = userClient(authHeader);
     const { data: auth } = await db.auth.getUser(
       authHeader.replace("Bearer ", ""),
     );
@@ -62,28 +57,28 @@ Deno.serve(async (req) => {
       htmlMode: !!htmlMode,
       vars: v,
     });
-    const res = await fetch(`${SB_URL}/functions/v1/send-resend-email`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SB_SERVICE}`,
-        apikey: SB_SERVICE,
-        "Content-Type": "application/json",
+    // send-resend-email is internal; call it as the service role.
+    const { error: sendError } = await serviceClient().functions.invoke(
+      "send-resend-email",
+      {
+        body: {
+          to,
+          subject: `[בדיקה] ${renderTemplate(subject || "", v) || "טמפלייט"}`,
+          html,
+          text,
+          fromEmail: `${domain.default_local || "noreply"}@${domain.domain}`,
+          fromName: domain.from_name || undefined,
+          attachments: emailAttachmentsForResend(
+            attachments,
+            attachmentUrlPrefix(SB_URL),
+          ),
+        },
       },
-      body: JSON.stringify({
-        to,
-        subject: `[בדיקה] ${renderTemplate(subject || "", v) || "טמפלייט"}`,
-        html,
-        text,
-        fromEmail: `${domain.default_local || "noreply"}@${domain.domain}`,
-        fromName: domain.from_name || undefined,
-        attachments: emailAttachmentsForResend(
-          attachments,
-          attachmentUrlPrefix(SB_URL),
-        ),
-      }),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok) return json({ error: out?.error || "send_failed" }, 502);
+    );
+    if (sendError) {
+      const detail = await sendError.context?.json?.().catch(() => null);
+      return json({ error: detail?.error || "send_failed" }, 502);
+    }
     return json({ success: true, to });
   } catch (e) {
     console.error("[broadcast-test-send]", e);

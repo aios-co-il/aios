@@ -40,6 +40,14 @@ AS $$
   END;
 $$;
 
+-- Re-checks ONE lead or client against every synced list of its tenant:
+--   * loads the record (and, for clients, its campaigners via client_team);
+--   * evaluates each list's CRM filter (stage/status, agency, sales person,
+--     services, campaigner, tags, not archived);
+--   * match + has phone/email → upsert it as a member (refreshing a changed
+--     phone/email); otherwise → remove it from that list.
+-- Called by the row triggers below on every relevant change, so list
+-- membership follows the CRM no matter where the change came from.
 CREATE OR REPLACE FUNCTION public.broadcast_list_sync_entity(
   p_tenant_id uuid,
   p_entity_type text,

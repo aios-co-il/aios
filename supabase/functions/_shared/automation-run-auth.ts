@@ -5,65 +5,46 @@
  * user may only when RLS would let them manage the automation: the owner of
  * its tenant, or a super admin (policy "Owners can manage automations").
  */
+import type { DbClient } from "./supabase-clients.ts";
 
+/** Result of the check: run it, or the HTTP status and error to return. */
 export type DirectRunDecision =
   { allowed: true } | { allowed: false; status: 401 | 403; error: string };
-
-// deno-lint-ignore no-explicit-any
-type Client = any;
 
 export function bearerToken(authHeader: string | null | undefined): string {
   return (authHeader || "").replace(/^Bearer\s+/i, "").trim();
 }
 
-/** role claim of a JWT, without verifying it. Only meaningful behind
- * verify_jwt = true, where the gateway has already checked the signature. */
-export function jwtRole(token: string): string | null {
-  const part = token.split(".")[1];
-  if (!part) return null;
-  try {
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
-    const role = JSON.parse(json)?.role;
-    return typeof role === "string" ? role : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function authorizeDirectAutomationRun(
-  supabase: Client,
+  supabase: Pick<DbClient, "auth" | "rpc">,
   token: string,
   serviceKey: string,
   automationTenantId: string,
 ): Promise<DirectRunDecision> {
   if (token && serviceKey && token === serviceKey) return { allowed: true };
-  if (jwtRole(token) === "service_role") return { allowed: true };
 
   const { data: userData, error: userError } = token
     ? await supabase.auth.getUser(token)
     : { data: null, error: new Error("missing token") };
-  const userId: string | undefined = userData?.user?.id;
+  const userId = userData?.user?.id;
   if (userError || !userId) {
     return { allowed: false, status: 401, error: "Unauthorized" };
   }
 
-  const rpcValue = async (fn: string, args: Record<string, unknown>) => {
-    const { data, error } = await supabase.rpc(fn, args);
-    if (error) throw error;
-    return data;
-  };
-
-  const tenantId = await rpcValue("get_user_tenant_id", { _user_id: userId });
-  if (
-    tenantId === automationTenantId &&
-    (await rpcValue("has_role", { _user_id: userId, _role: "owner" })) === true
-  ) {
-    return { allowed: true };
+  const tenant = await supabase.rpc("get_user_tenant_id", { _user_id: userId });
+  if (tenant.error) throw tenant.error;
+  if (tenant.data === automationTenantId) {
+    const owner = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "owner",
+    });
+    if (owner.error) throw owner.error;
+    if (owner.data === true) return { allowed: true };
   }
 
-  if ((await rpcValue("is_super_admin", { _user_id: userId })) === true) {
-    return { allowed: true };
-  }
+  const admin = await supabase.rpc("is_super_admin", { _user_id: userId });
+  if (admin.error) throw admin.error;
+  if (admin.data === true) return { allowed: true };
 
   return {
     allowed: false,

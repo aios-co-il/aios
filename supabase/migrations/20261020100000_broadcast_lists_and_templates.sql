@@ -6,11 +6,15 @@
 --    automations. The old client upsert used ON CONFLICT (list_id, phone),
 --    which cannot match the partial unique indexes.
 -- 3. member_count is kept by a trigger instead of client-side recounts.
--- 4. message_templates: reusable email / WhatsApp content.
--- 5. broadcasts gain template, HTML body and automation origin columns;
+-- 4. message_templates: reusable email / WhatsApp content (rich or raw HTML
+--    email via html_mode, plus file attachments).
+-- 5. broadcasts gain template, HTML body, html_mode, attachments and
+--    automation origin columns;
 --    recipients keep a per-recipient merge-field snapshot (vars).
 
 -- ── 1. List members ────────────────────────────────────────────────────────
+-- custom_fields: flat {column: value} map of the uploaded file's extra
+-- columns; read whole to build one recipient's merge fields.
 ALTER TABLE public.broadcast_list_members
   ADD COLUMN IF NOT EXISTS custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb;
 
@@ -104,9 +108,11 @@ BEGIN
   IF TG_OP = 'INSERT' THEN
     UPDATE public.broadcast_lists SET member_count = member_count + 1 WHERE id = NEW.list_id;
     RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.broadcast_lists SET member_count = GREATEST(member_count - 1, 0) WHERE id = OLD.list_id;
+    RETURN OLD;
   END IF;
-  UPDATE public.broadcast_lists SET member_count = GREATEST(member_count - 1, 0) WHERE id = OLD.list_id;
-  RETURN OLD;
+  RETURN NULL;
 END;
 $$;
 
@@ -128,6 +134,11 @@ CREATE TABLE IF NOT EXISTS public.message_templates (
   channel text NOT NULL DEFAULT 'email' CHECK (channel IN ('email','whatsapp')),
   subject text,
   body_html text,
+  -- true: body_html is ready-made HTML sent as-is (scripts stripped);
+  -- false: rich-editor HTML wrapped in the default RTL container.
+  html_mode boolean NOT NULL DEFAULT false,
+  -- [{name, path, url, size, content_type}] in Storage (broadcast-media).
+  attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
   body_text text,
   media_url text,
   created_by uuid,
@@ -146,16 +157,23 @@ CREATE TRIGGER trg_message_templates_updated_at
 
 ALTER TABLE public.message_templates ENABLE ROW LEVEL SECURITY;
 
+-- Read: templates of the user's current tenant (super admins: all).
 DROP POLICY IF EXISTS mtemplates_tenant_select ON public.message_templates;
 CREATE POLICY mtemplates_tenant_select ON public.message_templates FOR SELECT TO authenticated
   USING (tenant_id = public.get_effective_tenant_id() OR public.is_super_admin(auth.uid()));
+
+-- Create: only into the user's current tenant (super admins: any).
 DROP POLICY IF EXISTS mtemplates_tenant_insert ON public.message_templates;
 CREATE POLICY mtemplates_tenant_insert ON public.message_templates FOR INSERT TO authenticated
   WITH CHECK (tenant_id = public.get_effective_tenant_id() OR public.is_super_admin(auth.uid()));
+
+-- Edit: own-tenant templates, and they cannot be moved to another tenant.
 DROP POLICY IF EXISTS mtemplates_tenant_update ON public.message_templates;
 CREATE POLICY mtemplates_tenant_update ON public.message_templates FOR UPDATE TO authenticated
   USING (tenant_id = public.get_effective_tenant_id() OR public.is_super_admin(auth.uid()))
   WITH CHECK (tenant_id = public.get_effective_tenant_id() OR public.is_super_admin(auth.uid()));
+
+-- Delete: own-tenant templates (super admins: any).
 DROP POLICY IF EXISTS mtemplates_tenant_delete ON public.message_templates;
 CREATE POLICY mtemplates_tenant_delete ON public.message_templates FOR DELETE TO authenticated
   USING (tenant_id = public.get_effective_tenant_id() OR public.is_super_admin(auth.uid()));
@@ -167,6 +185,8 @@ GRANT ALL ON public.message_templates TO service_role;
 ALTER TABLE public.broadcasts
   ADD COLUMN IF NOT EXISTS template_id uuid REFERENCES public.message_templates(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS body_html text,
+  ADD COLUMN IF NOT EXISTS html_mode boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'manual',
   ADD COLUMN IF NOT EXISTS automation_id uuid REFERENCES public.automations(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS automation_step_key text;

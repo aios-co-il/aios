@@ -7,7 +7,8 @@
 //
 // Runs with the caller's JWT so RLS scopes every read and write to the
 // caller's tenant.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { userClient } from "../_shared/supabase-clients.ts";
+import type { Tables } from "../_shared/database.types.ts";
 import {
   type AudienceFilter,
   resolveAudience,
@@ -21,9 +22,6 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-const SB_URL = Deno.env.get("SUPABASE_URL")!;
-const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
@@ -34,16 +32,18 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader) return json({ error: "unauthorized" }, 401);
-    const db = createClient(SB_URL, SB_ANON, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
+    // Caller's JWT on purpose (not the service client): RLS keeps every
+    // read and write inside the caller's tenant.
+    const db = userClient(authHeader);
 
     const body = await req.json();
     const mode: string = body.mode === "freeze" ? "freeze" : "preview";
     let tenantId: string | undefined = body.tenantId;
     let filter: AudienceFilter | undefined = body.filter;
-    let list: any = null;
+    let list: Pick<
+      Tables<"broadcast_lists">,
+      "id" | "tenant_id" | "kind" | "source" | "source_config"
+    > | null = null;
 
     if (body.listId) {
       const { data, error } = await db
