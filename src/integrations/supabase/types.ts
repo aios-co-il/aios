@@ -2732,6 +2732,7 @@ export type Database = {
       };
       broadcasts: {
         Row: {
+          attachments: Json;
           audience_filter: Json;
           automation_id: string | null;
           automation_step_key: string | null;
@@ -2766,6 +2767,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          attachments?: Json;
           audience_filter?: Json;
           automation_id?: string | null;
           automation_step_key?: string | null;
@@ -2800,6 +2802,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          attachments?: Json;
           audience_filter?: Json;
           automation_id?: string | null;
           automation_step_key?: string | null;
@@ -9133,6 +9136,7 @@ export type Database = {
       message_templates: {
         Row: {
           archived_at: string | null;
+          attachments: Json;
           body_html: string | null;
           body_text: string | null;
           channel: string;
@@ -9148,6 +9152,7 @@ export type Database = {
         };
         Insert: {
           archived_at?: string | null;
+          attachments?: Json;
           body_html?: string | null;
           body_text?: string | null;
           channel?: string;
@@ -9163,6 +9168,7 @@ export type Database = {
         };
         Update: {
           archived_at?: string | null;
+          attachments?: Json;
           body_html?: string | null;
           body_text?: string | null;
           channel?: string;

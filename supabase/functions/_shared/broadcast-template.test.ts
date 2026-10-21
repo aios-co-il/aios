@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  attachmentUrlPrefix,
   buildTemplateVars,
+  wrapEmailHtml,
+  emailAttachmentsForResend,
   fieldKeyFromHeader,
   htmlToText,
   injectBeforeBodyEnd,
@@ -115,5 +118,34 @@ test("footer goes before </body> or at the end", () => {
   assert.equal(
     injectBeforeBodyEnd("<div>x</div>", "<p>f</p>"),
     "<div>x</div><p>f</p>",
+  );
+});
+
+test("attachments go to Resend by URL, only from our bucket", () => {
+  const prefix = attachmentUrlPrefix("https://x.supabase.co/");
+  assert.equal(
+    prefix,
+    "https://x.supabase.co/storage/v1/object/public/broadcast-media/",
+  );
+  const list = [
+    { name: "price.pdf", url: `${prefix}t1/attachments/a-price.pdf` },
+    { name: "evil.pdf", url: "https://evil.example/file.pdf" },
+    { name: "", url: `${prefix}t1/x.pdf` },
+    null,
+  ];
+  assert.deepEqual(emailAttachmentsForResend(list, prefix), [
+    { filename: "price.pdf", path: `${prefix}t1/attachments/a-price.pdf` },
+  ]);
+  assert.deepEqual(emailAttachmentsForResend("nope", prefix), []);
+});
+
+test("editor images get a responsive width", () => {
+  assert.match(
+    wrapEmailHtml('<p>x</p><img src="a.png" width="300">'),
+    /<img style="max-width:100%;height:auto" src="a.png" width="300">/,
+  );
+  assert.match(
+    wrapEmailHtml('<img style="width:10px" src="b.png">'),
+    /<img style="width:10px" src="b.png">/,
   );
 });

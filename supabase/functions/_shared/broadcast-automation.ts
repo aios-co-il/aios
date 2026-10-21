@@ -232,6 +232,10 @@ async function broadcastFieldsFromTemplate(
     body_text: template.body_text,
     body_html: template.channel === "email" ? template.body_html : null,
     html_mode: template.channel === "email" && !!template.html_mode,
+    attachments:
+      template.channel === "email" && Array.isArray(template.attachments)
+        ? template.attachments
+        : [],
     media_url: template.channel === "whatsapp" ? template.media_url : null,
     origin: "automation",
     automation_id: ctx.automationId,
