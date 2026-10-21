@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { BroadcastList } from "@/hooks/useBroadcastLists";
-import { useMaterializeList } from "@/hooks/useMaterializeList";
+import { useRefreshList } from "@/hooks/useRefreshList";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useCreateMailingList } from "@/components/broadcast/lists/useCreateMailingList";
 import {
   CrmListFilterBuilder,
@@ -36,15 +37,18 @@ export function NewListDialog({
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<NewListType>("manual");
-  const [kind, setKind] = useState<NewListKind>("synced");
+  const { isOwner } = useUserRole();
+  const [picked, setKind] = useState<NewListKind>("synced");
+  // Synced is the default, but only owners may create one.
+  const kind = picked === "synced" && !isOwner ? "static" : picked;
   const [filter, setFilter] = useState<CrmListFilter>(EMPTY_CRM_LIST_FILTER);
   const [preview, setPreview] = useState<{ total: number } | null>(null);
-  const materialize = useMaterializeList();
+  const refresher = useRefreshList();
   const { create, isPending: creating } = useCreateMailingList(onCreated);
-  const busy = materialize.isPending || creating;
+  const busy = refresher.isPending || creating;
 
   const runPreview = () =>
-    materialize.mutate(
+    refresher.mutate(
       { mode: "preview", filter },
       {
         onSuccess: setPreview,
@@ -86,6 +90,7 @@ export function NewListDialog({
                 value={kind}
                 onChange={setKind}
                 leads={filter.source === "leads"}
+                canSync={isOwner}
               />
               <div className="flex items-center gap-2">
                 <Button

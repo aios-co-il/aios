@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useBroadcastLists } from "@/hooks/useBroadcastLists";
+import { listKind } from "@/lib/broadcastListKind";
 import {
   buildTemplateVars,
   type TemplateVars,
@@ -7,10 +8,12 @@ import {
 import { SAMPLE_VARS } from "./templateUtils";
 
 /** Preview data for the template editor: the first member of the chosen
- * static list (or built-in sample vars) plus that list's custom columns. */
+ * static or synced list (or built-in sample vars) plus that list's custom columns. */
 export function useTemplateSample(sampleListId: string | undefined) {
   const { lists, useMembers } = useBroadcastLists();
-  const staticLists = (lists.data || []).filter((l) => l.kind === "static");
+  const sampleLists = (lists.data || []).filter(
+    (l) => listKind(l) !== "dynamic",
+  );
   const members = useMembers(sampleListId);
   const sampleMember = (members.data || [])[0];
   const customKeys = useMemo(() => {
@@ -33,5 +36,5 @@ export function useTemplateSample(sampleListId: string | undefined) {
     ? ` · ${sampleMember.name || sampleMember.email || sampleMember.phone}`
     : " · נתוני דוגמה";
 
-  return { staticLists, customKeys, previewVars, sampleLabel };
+  return { sampleLists, customKeys, previewVars, sampleLabel };
 }

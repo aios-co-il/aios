@@ -1,4 +1,4 @@
-import { useMaterializeList } from "@/hooks/useMaterializeList";
+import { useRefreshList } from "@/hooks/useRefreshList";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -6,11 +6,11 @@ import { Loader2, RefreshCw } from "lucide-react";
 
 /** Static CRM-filter list: add whoever matches the saved filter right now. */
 export function ListRefreshFromFilter({ listId }: { listId: string }) {
-  const materialize = useMaterializeList();
-  const refreshing = materialize.isPending;
+  const refresher = useRefreshList();
+  const refreshing = refresher.isPending;
   const refreshFromFilter = () =>
-    materialize.mutate(
-      { mode: "freeze", listId },
+    refresher.mutate(
+      { mode: "refresh", listId },
       {
         onSuccess: (res) =>
           toast.success(`נוספו/עודכנו ${res.added ?? 0} אנשי קשר מהסינון`),

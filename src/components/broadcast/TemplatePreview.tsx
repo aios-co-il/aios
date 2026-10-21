@@ -10,29 +10,19 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
-import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
+import type { TemplateDraft } from "./templateDraft";
 import { Label } from "@/components/ui/label";
 
 /** Live preview of the template rendered with sample or list-member vars. */
 export function TemplatePreview({
   channel,
   sampleLabel,
-  subject,
-  bodyHtml,
-  bodyText,
-  htmlMode,
-  mediaUrl,
-  attachments,
+  draft: { subject, bodyHtml, bodyText, htmlMode, mediaUrl, attachments },
   previewVars,
 }: {
   channel: TemplateChannel;
   sampleLabel: string;
-  subject: string;
-  bodyHtml: string;
-  bodyText: string;
-  htmlMode: boolean;
-  mediaUrl: string;
-  attachments: EmailAttachment[];
+  draft: TemplateDraft;
   previewVars: TemplateVars;
 }) {
   const previewHtml = useMemo(() => {
