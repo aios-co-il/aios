@@ -22,7 +22,7 @@ export function useCommandCenterAccess(): {
           return;
         }
         // Any user with a personal key gets in (RLS: own row only)
-        const { data: keyRow } = await (supabase as any)
+        const { data: keyRow } = await supabase
           .from("user_api_keys")
           .select("user_id")
           .limit(1)
