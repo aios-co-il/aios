@@ -1,3 +1,4 @@
+import type { Database } from "../database.types.ts";
 import {
   createClient,
   type SupabaseClient,
@@ -16,8 +17,8 @@ import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-export function serviceClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, SERVICE_KEY, {
+export function serviceClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false },
   });
 }
