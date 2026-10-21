@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   mergeCarmenScopeConfig,
-  resolveEffectiveScopeMode,
   parsePolicyPhones,
   policyPhoneList,
   resolveDevEscalationTier,
@@ -93,54 +92,62 @@ test("findGreenApiMirrorOnlyGroupIds excludes operator-only mirror groups", () =
   assert.deepEqual([...mirrorOnly], ["g-mirror"]);
 });
 
-test("resolveEffectiveScopeMode: policy phones do not block automation groups", () => {
+test("mergeCarmenScopeConfig: policy phones do not block automation groups", () => {
+  const cfg = {
+    carmen_scope_mode: "specific_group",
+    carmen_allowed_group_ids: ["120363406768318497@g.us"],
+  };
+  const policy = {
+    private_phones: [{ phone: "972507677613" }],
+    allowed_group_ids: [],
+  };
+  const inGroup = mergeCarmenScopeConfig(cfg, policy, [], { isGroup: true });
+  assert.equal(inGroup.scopeMode, "specific_group");
+  assert.deepEqual(inGroup.allowedGroups, ["120363406768318497@g.us"]);
+  const inPrivate = mergeCarmenScopeConfig(cfg, policy, [], {
+    isGroup: false,
+  });
+  assert.equal(inPrivate.scopeMode, "specific_phone");
+});
+
+test("mergeCarmenScopeConfig: groups stay default-deny without opt-in", () => {
+  const policy = { private_phones: [{ phone: "972507677613" }] };
+  const merged = mergeCarmenScopeConfig(
+    { carmen_scope_mode: "all" },
+    policy,
+    [],
+    { isGroup: true },
+  );
+  assert.equal(merged.scopeMode, "all");
+});
+
+test("mergeCarmenScopeConfig: policy groups that resolve to nothing deny", () => {
   const merged = mergeCarmenScopeConfig(
     {
       carmen_scope_mode: "specific_group",
       carmen_allowed_group_ids: ["120363406768318497@g.us"],
     },
-    { private_phones: [{ phone: "972507677613" }], allowed_group_ids: [] },
+    { private_phones: [], allowed_group_ids: ["green-api-group-uuid"] },
     [],
+    { isGroup: true },
   );
+  assert.equal(merged.scopeMode, "specific_group");
+  assert.deepEqual(merged.allowedGroups, []);
+});
+
+test("mergeCarmenScopeConfig: policy groups win in groups, phones in 1:1", () => {
+  const policy = {
+    private_phones: [{ phone: "972507677613" }],
+    allowed_group_ids: ["g1"],
+  };
+  const chats = ["120363406768318497@g.us"];
+  const cfg = { carmen_scope_mode: "all" };
   assert.equal(
-    resolveEffectiveScopeMode(merged, "specific_group", true),
+    mergeCarmenScopeConfig(cfg, policy, chats, { isGroup: true }).scopeMode,
     "specific_group",
   );
   assert.equal(
-    resolveEffectiveScopeMode(merged, "specific_group", false),
+    mergeCarmenScopeConfig(cfg, policy, chats, { isGroup: false }).scopeMode,
     "specific_phone",
   );
-});
-
-test("resolveEffectiveScopeMode: groups stay default-deny without opt-in", () => {
-  const merged = mergeCarmenScopeConfig(
-    { carmen_scope_mode: "all" },
-    { private_phones: [{ phone: "972507677613" }] },
-    [],
-  );
-  assert.equal(resolveEffectiveScopeMode(merged, "all", true), "all");
-  assert.equal(
-    resolveEffectiveScopeMode(merged, "specific_phone", true),
-    "specific_phone",
-  );
-});
-
-test("resolveEffectiveScopeMode: policy groups win in groups", () => {
-  const merged = mergeCarmenScopeConfig(
-    { carmen_scope_mode: "all" },
-    {
-      private_phones: [{ phone: "972507677613" }],
-      allowed_group_ids: ["g1"],
-    },
-    ["120363406768318497@g.us"],
-  );
-  assert.equal(
-    resolveEffectiveScopeMode(merged, "all", true),
-    "specific_group",
-  );
-  assert.equal(
-    resolveEffectiveScopeMode(merged, "all", false),
-    "specific_phone",
-  );
-  assert.equal(resolveEffectiveScopeMode(null, undefined, false), "all");
 });

@@ -85,17 +85,18 @@ test("Manus group identity reads senderLid and semantically deduplicates retries
   );
   assert.match(
     webhookSource,
-    /authorCandidates\.find\(\(c\) => c\.endsWith\('@c\.us'\)\)/,
+    /authorCandidates\.find\(\(c\) => c\.endsWith\(["']@c\.us["']\)\)/,
   );
   assert.match(webhookSource, /isUnresolvedGroupAuthor/);
-  assert.match(webhookSource, /provider:\s*'carmen_group_turn'/);
-  assert.match(webhookSource, /dedup:\s*'group_fingerprint'/);
+  assert.match(webhookSource, /provider:\s*["']carmen_group_turn["']/);
+  assert.match(webhookSource, /dedup:\s*["']group_fingerprint["']/);
 });
 
 test("greeting before her name addresses Carmen", () => {
   assert.equal(groupMessageInvokesCarmen("היי כרמן, זאת אנה"), true);
   assert.equal(groupMessageInvokesCarmen("בוקר טוב כרמן"), true);
   assert.equal(groupMessageInvokesCarmen("היי, דיברתי עם כרמן אתמול"), false);
+  assert.equal(groupMessageInvokesCarmen("היי, כרמן לא ענתה לי אתמול"), false);
 });
 
 test("opening with her name and asking her counts", () => {
@@ -107,4 +108,10 @@ test("opening with her name and asking her counts", () => {
   );
   assert.equal(groupMessageInvokesCarmen("כרמן זה נראה לך הגיוני"), true);
   assert.equal(groupMessageInvokesCarmen("כרמן בדוח של אתמול"), false);
+});
+
+test("reporting about her with an object marker stays silent", () => {
+  assert.equal(groupMessageInvokesCarmen("כרמן בדקה את הדוח של אתמול"), false);
+  assert.equal(groupMessageInvokesCarmen("כרמן קיבלה ממך את הקובץ"), false);
+  assert.equal(groupMessageInvokesCarmen("כרמן סיימה את הקמפיין?"), false);
 });

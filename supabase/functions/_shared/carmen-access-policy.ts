@@ -6,7 +6,6 @@ export {
   identityAllowsSurface,
   isPhoneOnPolicyList,
   mergeCarmenScopeConfig,
-  resolveEffectiveScopeMode,
   normalizePhoneDigits,
   parsePolicyPhones,
   policyPhoneList,
