@@ -2574,6 +2574,8 @@ export type Database = {
           description: string | null;
           id: string;
           kind: string;
+          last_sync_error: string | null;
+          last_sync_error_at: string | null;
           last_sync_status: string | null;
           last_synced_at: string | null;
           member_count: number;
@@ -2590,6 +2592,8 @@ export type Database = {
           description?: string | null;
           id?: string;
           kind?: string;
+          last_sync_error?: string | null;
+          last_sync_error_at?: string | null;
           last_sync_status?: string | null;
           last_synced_at?: string | null;
           member_count?: number;
@@ -2606,6 +2610,8 @@ export type Database = {
           description?: string | null;
           id?: string;
           kind?: string;
+          last_sync_error?: string | null;
+          last_sync_error_at?: string | null;
           last_sync_status?: string | null;
           last_synced_at?: string | null;
           member_count?: number;
@@ -15102,6 +15108,15 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      broadcast_entity_matches: {
+        Args: {
+          p_entity_id: string;
+          p_entity_type: string;
+          p_filter: Json;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       broadcast_filter_hit: {
         Args: { p_current: string; p_mode: string; p_values: Json };
         Returns: boolean;
@@ -15117,6 +15132,10 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: undefined;
+      };
+      broadcast_matching_entity_ids: {
+        Args: { p_entity_type: string; p_filter: Json; p_tenant_id: string };
+        Returns: string[];
       };
       broadcast_normalize_phone: { Args: { p: string }; Returns: string };
       broadcast_reserve_automation_send: {
