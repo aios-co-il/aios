@@ -22,17 +22,21 @@ BEGIN
     UPDATE public.leads
     SET notes = replace(notes, E'\n\n' || '[2026-10-19T13:38:00.274Z] לא', ''),
         created_at = COALESCE(first_created_at, created_at),
-        source = 'paid_ads'
+        source = COALESCE(first_source, source)
     WHERE id = v_merged_lead_id;
 
-    -- Drop tag links added by that merge (and by the source restore above);
-    -- links from before the merge stay.
+    -- Drop only the tag link the merge added (13:38-13:39) and any the source
+    -- restore above adds in this transaction (created_at = now()); tags users
+    -- added since the merge stay.
     DELETE FROM public.chat_contact_tags
     WHERE lead_id = v_merged_lead_id
-      AND created_at >= '2026-10-19 13:38:00+00';
+      AND (created_at BETWEEN '2026-10-19 13:38:00+00' AND '2026-10-19 13:39:00+00'
+           OR created_at = now());
   END IF;
 
-  -- 2) Create the lead that never got its own card
+  -- 2) Create the lead that never got its own card. The insert fires the same
+  -- triggers a webhook insert does (ManyChat sync, broadcast list rules), as
+  -- intended: the lead gets what it would have had on 2026-10-19.
   IF EXISTS (SELECT 1 FROM public.tenants WHERE id = v_tenant_id)
      AND NOT EXISTS (
        SELECT 1 FROM public.leads
