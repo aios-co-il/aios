@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Phone, PhoneOff, Loader2 } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -123,11 +124,12 @@ export function CallDialog({
         },
       });
 
-      // Non-2xx responses arrive as an error whose context holds the body.
+      // Non-2xx responses arrive as FunctionsHttpError; its context is the
+      // Response, whose body carries the function's error code and message.
       let result = data;
       if (error) {
-        const ctx = (error as { context?: Response }).context;
-        result = ctx ? await ctx.json().catch(() => null) : null;
+        if (!(error instanceof FunctionsHttpError)) throw error;
+        result = await error.context.json().catch(() => null);
         if (!result?.error) throw error;
       }
 
