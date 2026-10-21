@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { ListKind } from "@/lib/broadcastListKind";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { normalizePhone } from "../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 
 export interface BroadcastList {
@@ -9,13 +11,17 @@ export interface BroadcastList {
   tenant_id: string;
   name: string;
   description: string | null;
-  kind: "static" | "dynamic";
+  /** Read through listKind(). */
+  kind: ListKind;
   source: "manual" | "csv" | "google_sheet" | "crm_filter";
   /** crm_filter lists: the AudienceFilter (source leads | clients). */
   source_config: any;
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
   last_sync_status: string | null;
+  /** Synced lists: the last database sync failure (cleared on success). */
+  last_sync_error: string | null;
+  last_sync_error_at: string | null;
   member_count: number;
   created_at: string;
 }
@@ -80,7 +86,7 @@ export function useBroadcastLists() {
       const { data, error } = await supabase
         .from("broadcast_lists")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: requireTenantId(tenantId),
           created_by: userId,
           name: payload.name ?? "רשימה חדשה",
           description: payload.description ?? null,

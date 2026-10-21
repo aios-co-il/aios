@@ -4,7 +4,7 @@ import {
   type BroadcastList,
   type ListPreview,
 } from "@/hooks/useBroadcastLists";
-import { useMaterializeList } from "@/hooks/useMaterializeList";
+import { useRefreshList } from "@/hooks/useRefreshList";
 import {
   CrmListFilterBuilder,
   type CrmListFilter,
@@ -31,16 +31,16 @@ export function DynamicListDialog({
   onClose: () => void;
 }) {
   const { updateList } = useBroadcastLists();
-  const materialize = useMaterializeList();
+  const refresher = useRefreshList();
   const [filter, setFilter] = useState<CrmListFilter>(
     list.source_config?.source ? list.source_config : EMPTY_CRM_LIST_FILTER,
   );
   const [preview, setPreview] = useState<ListPreview | null>(null);
-  const busy = updateList.isPending || materialize.isPending;
+  const busy = updateList.isPending || refresher.isPending;
   const onError = (e: unknown) => toast.error("שגיאה: " + errorMessage(e));
 
   const runPreview = () =>
-    materialize.mutate(
+    refresher.mutate(
       { mode: "preview", filter },
       { onSuccess: setPreview, onError },
     );
@@ -50,7 +50,7 @@ export function DynamicListDialog({
       { id: list.id, source_config: filter },
       {
         onSuccess: () =>
-          materialize.mutate(
+          refresher.mutate(
             { mode: "preview", listId: list.id },
             {
               onSuccess: (p) => {

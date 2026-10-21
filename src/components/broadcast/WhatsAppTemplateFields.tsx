@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { draftField, type TemplateDraftProps } from "./templateDraft";
 import { useUploadTemplateImage } from "./useUploadTemplateImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,19 +10,15 @@ import { Loader2 } from "lucide-react";
 /** WhatsApp template: message text and an optional uploaded image. */
 export function WhatsAppTemplateFields({
   tenantId,
-  bodyText,
-  setBodyText,
+  draft: { bodyText, mediaUrl },
+  setDraft,
   textRef,
-  mediaUrl,
-  setMediaUrl,
-}: {
+}: TemplateDraftProps & {
   tenantId: string | null | undefined;
-  bodyText: string;
-  setBodyText: (text: string) => void;
   textRef: RefObject<HTMLTextAreaElement>;
-  mediaUrl: string;
-  setMediaUrl: (url: string) => void;
 }) {
+  const setBodyText = draftField(setDraft, "bodyText");
+  const setMediaUrl = draftField(setDraft, "mediaUrl");
   const upload = useUploadTemplateImage(tenantId, setMediaUrl);
   const uploading = upload.isPending;
 

@@ -4,6 +4,8 @@ import {
   type BroadcastList,
 } from "@/hooks/useBroadcastLists";
 import { useListSyncAutomation } from "@/hooks/useListSyncAutomation";
+import { useUserRole } from "@/hooks/useUserRole";
+import { listKind } from "@/lib/broadcastListKind";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 import { ListFileImport } from "@/components/broadcast/ListFileImport";
 import { NewListDialog } from "@/components/broadcast/lists/NewListDialog";
@@ -47,9 +49,11 @@ import {
 export function BroadcastLists() {
   const { lists, deleteList } = useBroadcastLists();
   const { deleteSyncAutomation } = useListSyncAutomation();
+  const { isOwner } = useUserRole();
   const removeList = (l: BroadcastList) => {
     const syncId: string | undefined = l.source_config?.sync_automation_id;
-    if (!syncId) return deleteList.mutate(l.id);
+    // Only owners may delete automations (RLS); the list delete alone is fine.
+    if (!syncId || !isOwner) return deleteList.mutate(l.id);
     // The list's own sync automation would only fail once the list is gone.
     deleteSyncAutomation.mutate(syncId, {
       onSettled: () => deleteList.mutate(l.id),
@@ -118,7 +122,8 @@ export function BroadcastLists() {
       )}
 
       {openList &&
-        (openList.source === "crm_filter" && openList.kind === "dynamic" ? (
+        (openList.source === "crm_filter" &&
+        listKind(openList) === "dynamic" ? (
           <DynamicListDialog
             list={openList}
             onClose={() => setOpenList(null)}

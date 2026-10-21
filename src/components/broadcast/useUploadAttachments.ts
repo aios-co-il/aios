@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { requireTenantId } from "@/lib/requireTenantId";
+import { uploadBroadcastMedia } from "@/lib/uploadBroadcastMedia";
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_TOTAL_ATTACHMENT_BYTES,
@@ -38,17 +38,17 @@ export function useUploadAttachments(
           break;
         }
         const safe = file.name.replace(/[^\w.-]+/g, "_").slice(-80);
-        const path = `${tid}/attachments/${crypto.randomUUID()}-${safe}`;
-        const { error } = await supabase.storage
-          .from("broadcast-media")
-          .upload(path, file, { contentType: file.type || undefined });
-        if (error) throw error;
+        const { path, url } = await uploadBroadcastMedia(
+          tid,
+          "attachments",
+          file,
+          { name: `${crypto.randomUUID()}-${safe}` },
+        );
         total += file.size;
         added.push({
           name: file.name,
           path,
-          url: supabase.storage.from("broadcast-media").getPublicUrl(path).data
-            .publicUrl,
+          url,
           size: file.size,
           content_type: file.type || "application/octet-stream",
         });

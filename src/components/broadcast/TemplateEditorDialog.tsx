@@ -6,16 +6,13 @@ import type {
 } from "@/hooks/useMessageTemplates";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { EmailRichEditorHandle } from "@/components/broadcast/EmailRichEditor";
-import {
-  toEmailAttachments,
-  type EmailAttachment,
-} from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { EmailTemplateFields } from "./EmailTemplateFields";
 import { TemplateEditorFooter } from "./TemplateEditorFooter";
 import { TemplateEditorToolbar } from "./TemplateEditorToolbar";
 import { TemplatePreview } from "./TemplatePreview";
 import { UnknownFieldsWarning } from "./UnknownFieldsWarning";
 import { WhatsAppTemplateFields } from "./WhatsAppTemplateFields";
+import { draftField, draftFrom, type TemplateDraft } from "./templateDraft";
 import { insertAtCursor } from "./templateUtils";
 import { useSaveTemplate } from "./useSaveTemplate";
 import { useTemplateSample } from "./useTemplateSample";
@@ -39,31 +36,26 @@ export function TemplateEditorDialog({
 }) {
   const { tenantId } = useCurrentTenant();
   const { handleSave, saving } = useSaveTemplate(template, channel, onClose);
-  const [name, setName] = useState(template?.name || "");
-  const [subject, setSubject] = useState(template?.subject || "");
-  const [bodyHtml, setBodyHtml] = useState(template?.body_html || "");
-  const [htmlMode, setHtmlMode] = useState(!!template?.html_mode);
+  const [draft, setDraft] = useState<TemplateDraft>(() => draftFrom(template));
   const htmlRef = useRef<HTMLTextAreaElement>(null);
-  const [bodyText, setBodyText] = useState(template?.body_text || "");
-  const [mediaUrl, setMediaUrl] = useState(template?.media_url || "");
-  const [attachments, setAttachments] = useState<EmailAttachment[]>(() =>
-    toEmailAttachments(template?.attachments),
-  );
   const [sampleListId, setSampleListId] = useState<string | undefined>();
   const editorRef = useRef<EmailRichEditorHandle>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
   const [focus, setFocus] = useState<"subject" | "body">("body");
-  const { staticLists, customKeys, previewVars, sampleLabel } =
+  const { sampleLists, customKeys, previewVars, sampleLabel } =
     useTemplateSample(sampleListId);
 
+  const { subject, bodyHtml, htmlMode, bodyText, attachments } = draft;
   const insertField = (token: string) => {
+    const set = (key: "subject" | "bodyHtml" | "bodyText") =>
+      draftField(setDraft, key);
     if (channel === "email" && focus === "subject")
-      return insertAtCursor(subjectRef.current, subject, setSubject, token);
+      return insertAtCursor(subjectRef.current, subject, set("subject"), token);
     if (channel === "email" && htmlMode)
-      return insertAtCursor(htmlRef.current, bodyHtml, setBodyHtml, token);
+      return insertAtCursor(htmlRef.current, bodyHtml, set("bodyHtml"), token);
     if (channel === "email") return editorRef.current?.insertText(token);
-    insertAtCursor(textRef.current, bodyText, setBodyText, token);
+    insertAtCursor(textRef.current, bodyText, set("bodyText"), token);
   };
 
   return (
@@ -83,13 +75,16 @@ export function TemplateEditorDialog({
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>שם הטמפלייט</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                value={draft.name}
+                onChange={(e) => draftField(setDraft, "name")(e.target.value)}
+              />
             </div>
 
             <TemplateEditorToolbar
               onPick={insertField}
               customKeys={customKeys}
-              staticLists={staticLists}
+              sampleLists={sampleLists}
               sampleListId={sampleListId}
               onSampleListChange={setSampleListId}
             />
@@ -97,27 +92,19 @@ export function TemplateEditorDialog({
             {channel === "email" ? (
               <EmailTemplateFields
                 tenantId={tenantId}
-                subject={subject}
-                setSubject={setSubject}
+                draft={draft}
+                setDraft={setDraft}
                 subjectRef={subjectRef}
-                bodyHtml={bodyHtml}
-                setBodyHtml={setBodyHtml}
-                htmlMode={htmlMode}
-                setHtmlMode={setHtmlMode}
                 htmlRef={htmlRef}
                 editorRef={editorRef}
-                attachments={attachments}
-                setAttachments={setAttachments}
                 onFocusChange={setFocus}
               />
             ) : (
               <WhatsAppTemplateFields
                 tenantId={tenantId}
-                bodyText={bodyText}
-                setBodyText={setBodyText}
+                draft={draft}
+                setDraft={setDraft}
                 textRef={textRef}
-                mediaUrl={mediaUrl}
-                setMediaUrl={setMediaUrl}
               />
             )}
 
@@ -130,12 +117,7 @@ export function TemplateEditorDialog({
           <TemplatePreview
             channel={channel}
             sampleLabel={sampleLabel}
-            subject={subject}
-            bodyHtml={bodyHtml}
-            bodyText={bodyText}
-            htmlMode={htmlMode}
-            mediaUrl={mediaUrl}
-            attachments={attachments}
+            draft={draft}
             previewVars={previewVars}
           />
         </div>
@@ -153,17 +135,7 @@ export function TemplateEditorDialog({
                 })
               : null
           }
-          onSave={() =>
-            handleSave({
-              name,
-              subject,
-              bodyHtml,
-              htmlMode,
-              bodyText,
-              mediaUrl,
-              attachments,
-            })
-          }
+          onSave={() => handleSave(draft)}
           saving={saving}
         />
       </DialogContent>

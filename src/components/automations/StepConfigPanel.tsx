@@ -69,9 +69,8 @@ import {
 } from "./RecipientsListEditor";
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
-import MailingActionConfig, {
-  MAILING_ACTION_OPTIONS,
-} from "./MailingActionConfig";
+import MailingActionConfig from "./MailingActionConfig";
+import { MAILING_ACTION_OPTIONS, isMailingAction } from "./mailingActions";
 import StatusFilterTriggerConfig from "./StatusFilterTriggerConfig";
 import { StatusStageSelect } from "./StatusStageSelect";
 import {
@@ -1623,9 +1622,7 @@ export function StepConfigPanel({
               />
             )}
 
-            {MAILING_ACTION_OPTIONS.some(
-              (o) => o.value === node.action_type,
-            ) && (
+            {isMailingAction(node.action_type) && (
               <MailingActionConfig
                 tenantId={tenantId}
                 actionType={node.action_type!}
