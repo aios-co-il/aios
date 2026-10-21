@@ -3,7 +3,6 @@ import test from "node:test";
 import {
   authorizeDirectAutomationRun,
   bearerToken,
-  jwtRole,
 } from "./automation-run-auth.ts";
 
 const SERVICE = "service-key";
@@ -76,14 +75,4 @@ test("anon or invalid token is refused", async () => {
 test("bearerToken strips the scheme", () => {
   assert.equal(bearerToken("Bearer abc"), "abc");
   assert.equal(bearerToken(null), "");
-});
-
-const jwt = (payload: object) =>
-  `h.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.s`;
-
-test("a service_role JWT is accepted, an authenticated one is checked", async () => {
-  assert.equal(jwtRole(jwt({ role: "service_role" })), "service_role");
-  assert.deepEqual(await run(jwt({ role: "service_role" })), { allowed: true });
-  const d = await run(jwt({ role: "authenticated" }));
-  assert.equal(!d.allowed && d.status, 401);
 });

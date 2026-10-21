@@ -1,14 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useMailingActionOptions } from "@/components/automations/useMailingActionOptions";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  MailingEntitySelect,
+  MailingListSelect,
+  MailingTemplateSelect,
+  MailingWhatsAppSelect,
+} from "@/components/automations/MailingActionSelects";
 
 export const MAILING_ACTION_OPTIONS = [
   { value: "add_to_mailing_list", label: "הוספה לרשימת דיוור" },
@@ -54,49 +52,10 @@ export default function MailingActionConfig({
     actionType === "remove_from_mailing_list" ||
     actionType === "sync_mailing_list";
 
-  const { data: lists = [] } = useQuery({
-    queryKey: ["automation-broadcast-lists", tenantId],
-    enabled: !!tenantId && needsList,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("broadcast_lists")
-        .select("id, name, kind, source, member_count")
-        .eq("tenant_id", tenantId)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: templates = [] } = useQuery({
-    queryKey: ["automation-message-templates", tenantId],
-    enabled: !!tenantId && needsTemplate,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("message_templates")
-        .select("id, name, channel")
-        .eq("tenant_id", tenantId)
-        .is("archived_at", null)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: waIntegrations = [] } = useQuery({
-    queryKey: ["automation-wa-integrations", tenantId],
-    enabled: !!tenantId && needsTemplate,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tenant_integrations")
-        .select("id, integration_type, display_name")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .in("integration_type", ["green_api", "manus_wa"]);
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const { lists, templates, waIntegrations } = useMailingActionOptions(
+    tenantId,
+    { needsList, needsTemplate },
+  );
 
   const selectedTemplate = templates.find(
     (t) => t.id === configuration?.template_id,
@@ -114,110 +73,38 @@ export default function MailingActionConfig({
       </div>
 
       {needsTemplate && (
-        <div className="space-y-2">
-          <Label className="block text-right">טמפלייט *</Label>
-          <Select
-            value={configuration?.template_id || ""}
-            onValueChange={(v) => onConfigChange("template_id", v)}
-          >
-            <SelectTrigger className="text-right">
-              <SelectValue placeholder="בחר טמפלייט..." />
-            </SelectTrigger>
-            <SelectContent>
-              {templates.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  אין טמפלייטים – צור בדיוור → טמפלייטים
-                </SelectItem>
-              ) : (
-                templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name} · {t.channel === "email" ? "מייל" : "וואטסאפ"}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
+        <MailingTemplateSelect
+          templates={templates}
+          value={configuration?.template_id || ""}
+          onChange={(v) => onConfigChange("template_id", v)}
+        />
       )}
 
       {needsList && (
-        <div className="space-y-2">
-          <Label className="block text-right">רשימת דיוור *</Label>
-          <Select
-            value={configuration?.list_id || ""}
-            onValueChange={(v) => onConfigChange("list_id", v)}
-          >
-            <SelectTrigger className="text-right">
-              <SelectValue placeholder="בחר רשימה..." />
-            </SelectTrigger>
-            <SelectContent>
-              {visibleLists.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  {listOnlyStatic
-                    ? "אין רשימות קבועות – צור בדיוור → רשימות תפוצה"
-                    : "אין רשימות – צור בדיוור → רשימות תפוצה"}
-                </SelectItem>
-              ) : (
-                visibleLists.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.name}
-                    {l.kind === "dynamic" ? " · דינמית" : ""} ({l.member_count})
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-          {listOnlyStatic && (
-            <p className="text-xs text-muted-foreground">
-              רשימות דינמיות מתעדכנות לבד לפי הסינון ולכן לא מופיעות כאן.
-            </p>
-          )}
-        </div>
+        <MailingListSelect
+          lists={visibleLists}
+          listOnlyStatic={listOnlyStatic}
+          value={configuration?.list_id || ""}
+          onChange={(v) => onConfigChange("list_id", v)}
+        />
       )}
 
       {actionType !== "send_template_to_list" &&
         actionType !== "sync_mailing_list" && (
-          <div className="space-y-2">
-            <Label className="block text-right">על מי הפעולה</Label>
-            <Select
-              value={configuration?.entity || "auto"}
-              onValueChange={(v) => onConfigChange("entity", v)}
-            >
-              <SelectTrigger className="text-right">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">אוטומטי לפי הטריגר</SelectItem>
-                <SelectItem value="lead">הליד</SelectItem>
-                <SelectItem value="client">הלקוח</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <MailingEntitySelect
+            value={configuration?.entity || "auto"}
+            onChange={(v) => onConfigChange("entity", v)}
+          />
         )}
 
       {needsTemplate && selectedTemplate?.channel === "whatsapp" && (
-        <div className="space-y-2">
-          <Label className="block text-right">חיבור WhatsApp לשליחה</Label>
-          <Select
-            value={configuration?.integration_id || "auto"}
-            onValueChange={(v) =>
-              onConfigChange("integration_id", v === "auto" ? null : v)
-            }
-          >
-            <SelectTrigger className="text-right">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">החיבור הפעיל הראשון</SelectItem>
-              {waIntegrations.map((i: any) => (
-                <SelectItem key={i.id} value={i.id}>
-                  {i.display_name ||
-                    (i.integration_type === "manus_wa" ? "Manus" : "Green API")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <MailingWhatsAppSelect
+          integrations={waIntegrations}
+          value={configuration?.integration_id || "auto"}
+          onChange={(v) =>
+            onConfigChange("integration_id", v === "auto" ? null : v)
+          }
+        />
       )}
 
       {actionType === "send_template_to_list" && (

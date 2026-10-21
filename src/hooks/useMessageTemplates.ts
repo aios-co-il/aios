@@ -2,7 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast-template.ts";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  toEmailAttachments,
+  type EmailAttachment,
+} from "../../supabase/functions/_shared/broadcast-template.ts";
 
 export type TemplateChannel = "email" | "whatsapp";
 
@@ -21,6 +25,15 @@ export interface MessageTemplate {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+}
+
+/** Database row → app type: narrows channel and parses attachments. */
+function toMessageTemplate(row: Tables<"message_templates">): MessageTemplate {
+  return {
+    ...row,
+    channel: row.channel === "whatsapp" ? "whatsapp" : "email",
+    attachments: toEmailAttachments(row.attachments),
+  };
 }
 
 export type MessageTemplateInput = Pick<
@@ -55,7 +68,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (channel) q = q.eq("channel", channel);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as unknown as MessageTemplate[];
+      return (data || []).map(toMessageTemplate);
     },
   });
 
@@ -67,7 +80,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (id) {
         const { error } = await supabase
           .from("message_templates")
-          .update(input as any)
+          .update(input)
           .eq("id", id);
         if (error) throw error;
         return id;
@@ -75,7 +88,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       const { data, error } = await supabase
         .from("message_templates")
         .insert({
-          ...(input as any),
+          ...input,
           tenant_id: tenantId!,
           created_by: userId,
         })
@@ -108,7 +121,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         subject: t.subject,
         body_html: t.body_html,
         html_mode: t.html_mode,
-        attachments: t.attachments as any,
+        attachments: t.attachments,
         body_text: t.body_text,
         media_url: t.media_url,
       });
