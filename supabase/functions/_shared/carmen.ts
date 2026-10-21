@@ -225,6 +225,18 @@ const CARMEN_DIRECT_AFTER_NAME_RE = new RegExp(
   "u",
 );
 
+// Greeting right before her name, at the start of the message.
+const CARMEN_GREETING_RE = new RegExp(
+  `^\\s*(?:היי|הי|הייי|שלום|אהלן|הלו|בוקר טוב|צהריים טובים|ערב טוב|לילה טוב|hi|hey|hello)\\s*[,!]?\\s*[כק]א?רמן${HE}`,
+  "iu",
+);
+
+// Second-person words addressed to her (feminine singular).
+const SECOND_PERSON_RE = new RegExp(
+  `${HB}(?:את|אותך|לך|ממך|שלך|איתך|אלייך)${HE}`,
+  "u",
+);
+
 const MEETING_URL_RE =
   /https?:\/\/(?:[\w.-]+\.)?(?:zoom\.us\/\S+|meet\.google\.com\/\S+|teams\.microsoft\.com\/\S+|teams\.live\.com\/\S+)/i;
 
@@ -247,6 +259,9 @@ export function groupMessageInvokesCarmen(message: string): boolean {
   // Clear direct command / request: "כרמן תבדקי…", "כרמן תצטרפי", "כרמן תבקשי…"
   if (CARMEN_DIRECT_AFTER_NAME_RE.test(content)) return true;
 
+  // Greeting aimed at her: "היי כרמן, זאת אנה", "בוקר טוב כרמן".
+  if (CARMEN_GREETING_RE.test(content)) return true;
+
   // Vocative at start of message.
   if (/^\s*[כק]א?רמן(?:\s*[,:!?]|$|\s)/u.test(content)) {
     const after = content.replace(/^\s*[כק]א?רמן\s*[,:!]?\s*/u, "").trim();
@@ -259,6 +274,9 @@ export function groupMessageInvokesCarmen(message: string): boolean {
       return true;
     // Meeting join link right after addressing her.
     if (MEETING_URL_RE.test(after)) return true;
+    // Opens with her name and asks something / speaks to her in 2nd person:
+    // "כרמן על כל שאלה את עונה פעמיים?"
+    if (/[?？]\s*$/u.test(after) || SECOND_PERSON_RE.test(after)) return true;
     // Uncertain remainder after the name → stay silent.
     return false;
   }

@@ -91,3 +91,20 @@ test("Manus group identity reads senderLid and semantically deduplicates retries
   assert.match(webhookSource, /provider:\s*'carmen_group_turn'/);
   assert.match(webhookSource, /dedup:\s*'group_fingerprint'/);
 });
+
+test("greeting before her name addresses Carmen", () => {
+  assert.equal(groupMessageInvokesCarmen("היי כרמן, זאת אנה"), true);
+  assert.equal(groupMessageInvokesCarmen("בוקר טוב כרמן"), true);
+  assert.equal(groupMessageInvokesCarmen("היי, דיברתי עם כרמן אתמול"), false);
+});
+
+test("opening with her name and asking her counts", () => {
+  assert.equal(
+    groupMessageInvokesCarmen(
+      "כרמן על כל שאלה את עונה פעמיים או שזה בגלל ששאלתי פעמיים?",
+    ),
+    true,
+  );
+  assert.equal(groupMessageInvokesCarmen("כרמן זה נראה לך הגיוני"), true);
+  assert.equal(groupMessageInvokesCarmen("כרמן בדוח של אתמול"), false);
+});
