@@ -4,6 +4,7 @@ import {
   type BroadcastList,
   type ListPreview,
 } from "@/hooks/useBroadcastLists";
+import { useMaterializeList } from "@/hooks/useMaterializeList";
 import {
   CrmListFilterBuilder,
   type CrmListFilter,
@@ -29,29 +30,39 @@ export function DynamicListDialog({
   list: BroadcastList;
   onClose: () => void;
 }) {
-  const { updateList, materialize } = useBroadcastLists();
+  const { updateList } = useBroadcastLists();
+  const materialize = useMaterializeList();
   const [filter, setFilter] = useState<CrmListFilter>(
     list.source_config?.source ? list.source_config : EMPTY_CRM_LIST_FILTER,
   );
   const [preview, setPreview] = useState<ListPreview | null>(null);
-  const [busy, setBusy] = useState(false);
+  const busy = updateList.isPending || materialize.isPending;
+  const onError = (e: unknown) => toast.error("שגיאה: " + errorMessage(e));
 
-  const runPreview = async (save: boolean) => {
-    setBusy(true);
-    try {
-      if (save) {
-        await updateList.mutateAsync({ id: list.id, source_config: filter });
-        setPreview(await materialize({ mode: "preview", listId: list.id }));
-        toast.success("הסינון נשמר");
-      } else {
-        setPreview(await materialize({ mode: "preview", filter }));
-      }
-    } catch (e) {
-      toast.error("שגיאה: " + errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const runPreview = () =>
+    materialize.mutate(
+      { mode: "preview", filter },
+      { onSuccess: setPreview, onError },
+    );
+
+  const saveFilter = () =>
+    updateList.mutate(
+      { id: list.id, source_config: filter },
+      {
+        onSuccess: () =>
+          materialize.mutate(
+            { mode: "preview", listId: list.id },
+            {
+              onSuccess: (p) => {
+                setPreview(p);
+                toast.success("הסינון נשמר");
+              },
+              onError,
+            },
+          ),
+        onError,
+      },
+    );
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -74,14 +85,10 @@ export function DynamicListDialog({
           }}
         />
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => runPreview(false)}
-            disabled={busy}
-          >
+          <Button variant="outline" onClick={runPreview} disabled={busy}>
             <Eye className="ml-1 h-4 w-4" /> תצוגה מקדימה
           </Button>
-          <Button onClick={() => runPreview(true)} disabled={busy}>
+          <Button onClick={saveFilter} disabled={busy}>
             {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin" />}
             שמור סינון
           </Button>

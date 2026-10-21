@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast-template.ts";
+import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { requireTenantId } from "@/lib/requireTenantId";
 
 export type BroadcastStatus =
   "draft" | "scheduled" | "sending" | "sent" | "paused" | "failed" | "canceled";
@@ -95,7 +96,7 @@ export function useBroadcasts() {
       const { data, error } = await supabase
         .from("broadcasts")
         .insert({
-          tenant_id: tenantId!,
+          tenant_id: requireTenantId(tenantId),
           created_by: userId,
           name: payload.name ?? "דיוור חדש",
           channel: payload.channel ?? "whatsapp",

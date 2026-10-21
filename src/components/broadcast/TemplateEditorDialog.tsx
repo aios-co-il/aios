@@ -9,7 +9,7 @@ import type { EmailRichEditorHandle } from "@/components/broadcast/EmailRichEdit
 import {
   toEmailAttachments,
   type EmailAttachment,
-} from "../../../supabase/functions/_shared/email-attachments.ts";
+} from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { EmailTemplateFields } from "./EmailTemplateFields";
 import { TemplateEditorFooter } from "./TemplateEditorFooter";
 import { TemplateEditorToolbar } from "./TemplateEditorToolbar";

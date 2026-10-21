@@ -1,9 +1,14 @@
 // add_to_mailing_list / remove_from_mailing_list.
-import { normalizePhone } from "../template-vars.ts";
+import type { DbClient } from "../../supabase-clients.ts";
+import { normalizePhone } from "../template/template-vars.ts";
 import { contactFromTrigger, resolveTargetEntity } from "./target.ts";
-import { type Db, idParam, type MailingActionContext } from "./types.ts";
+import { idParam, type MailingActionContext } from "./types.ts";
 
-export async function loadList(db: Db, tenantId: string, listId: unknown) {
+export async function loadList(
+  db: DbClient,
+  tenantId: string,
+  listId: unknown,
+) {
   const id = idParam(listId);
   if (!id) throw new Error("לא נבחרה רשימת דיוור");
   const { data, error } = await db
@@ -18,7 +23,7 @@ export async function loadList(db: Db, tenantId: string, listId: unknown) {
 }
 
 export async function executeAddToMailingList(
-  db: Db,
+  db: DbClient,
   config: Record<string, unknown>,
   data: Record<string, unknown>,
   tenantId: string,
@@ -62,7 +67,7 @@ export async function executeAddToMailingList(
 }
 
 export async function executeRemoveFromMailingList(
-  db: Db,
+  db: DbClient,
   config: Record<string, unknown>,
   data: Record<string, unknown>,
   tenantId: string,

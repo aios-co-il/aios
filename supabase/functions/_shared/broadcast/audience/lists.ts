@@ -1,5 +1,6 @@
 // Static list source: list members, enriched with their lead/client data.
-import { buildTemplateVars } from "../template-vars.ts";
+import type { DbClient } from "../../supabase-clients.ts";
+import { buildTemplateVars } from "../template/template-vars.ts";
 import { loadLookups } from "./lookups.ts";
 import { fetchAll, fetchByIds, flatObject } from "./query.ts";
 import {
@@ -8,11 +9,11 @@ import {
   LEAD_COLUMNS,
   leadRecipient,
 } from "./records.ts";
-import type { Db, Recipient } from "./types.ts";
+import type { Recipient } from "./types.ts";
 
 /** Static list members, enriched with their lead/client data when linked. */
 export async function resolveStaticList(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   listId: string,
 ): Promise<Recipient[]> {

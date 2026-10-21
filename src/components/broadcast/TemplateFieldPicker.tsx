@@ -1,4 +1,4 @@
-import { STANDARD_TEMPLATE_FIELDS } from "../../../supabase/functions/_shared/broadcast-template.ts";
+import { STANDARD_TEMPLATE_FIELDS } from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

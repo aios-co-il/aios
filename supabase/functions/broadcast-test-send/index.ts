@@ -2,12 +2,12 @@
 // user's own address, so authors can check it before it reaches a list.
 //   { tenantId, subject, bodyHtml, vars? }
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
+import { renderTemplate } from "../_shared/broadcast/template/template-vars.ts";
 import {
-  buildEmailContent,
-  renderTemplate,
   attachmentUrlPrefix,
   emailAttachmentsForResend,
-} from "../_shared/broadcast-template.ts";
+} from "../_shared/broadcast/template/email-attachments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -1,21 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  attachmentUrlPrefix,
   buildTemplateVars,
-  wrapEmailHtml,
-  emailAttachmentsForResend,
   fieldKeyFromHeader,
-  htmlToText,
-  injectBeforeBodyEnd,
-  sanitizeRawEmailHtml,
   normalizePhone,
   renderTemplate,
-  sanitizeEmailHtml,
   templateFieldKeys,
+} from "./template-vars.ts";
+import {
+  htmlToText,
+  injectBeforeBodyEnd,
+  sanitizeEmailHtml,
+  sanitizeRawEmailHtml,
+  wrapEmailHtml,
+} from "./email-html.ts";
+import {
+  attachmentUrlPrefix,
+  emailAttachmentsForResend,
   toEmailAttachments,
-} from "./broadcast-template.ts";
-import { resolveTargetEntity } from "./broadcast-automation.ts";
+} from "./email-attachments.ts";
 
 test("renderTemplate replaces fields, fallbacks and unknowns", () => {
   const vars = buildTemplateVars({ contact_name: "דנה כהן", email: "d@x.co" });
@@ -70,35 +73,6 @@ test("sanitizeEmailHtml strips scripts, handlers and js urls", () => {
   assert.equal(out.includes("onclick"), false);
   assert.equal(out.includes("javascript:"), false);
   assert.equal(htmlToText("<p>a</p><p>b &amp; c</p>"), "a\nb & c");
-});
-
-test("resolveTargetEntity picks the trigger's lead or client", () => {
-  assert.deepEqual(
-    resolveTargetEntity({}, { id: "L1" }, "lead_status_changed"),
-    {
-      type: "lead",
-      id: "L1",
-    },
-  );
-  assert.deepEqual(
-    resolveTargetEntity({}, { id: "C1" }, "client_status_changed"),
-    {
-      type: "client",
-      id: "C1",
-    },
-  );
-  assert.deepEqual(
-    resolveTargetEntity(
-      { entity: "client" },
-      { id: "L1", client_id: "C9" },
-      "lead_status_changed",
-    ),
-    { type: "client", id: "C9" },
-  );
-  assert.equal(
-    resolveTargetEntity({ entity: "client" }, { id: "L1" }, "lead_created"),
-    null,
-  );
 });
 
 test("raw email HTML keeps styles but drops scripts", () => {

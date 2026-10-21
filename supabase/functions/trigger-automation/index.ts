@@ -41,11 +41,11 @@ import {
   resolveTenantOwnerId,
   sendSignatureDocumentEmails,
 } from "../_shared/signature-automation.ts";
+import { executeMailingAction } from "../_shared/broadcast/mailing-actions/execute.ts";
 import {
-  executeMailingAction,
   MAILING_ACTION_TYPES,
   type MailingActionType,
-} from "../_shared/broadcast-automation.ts";
+} from "../_shared/broadcast/mailing-actions/types.ts";
 import {
   impliedStatusKind,
   leadStatusUpdateColumns,

@@ -5,7 +5,7 @@ import {
   useBroadcastLists,
   type NewMemberRow,
 } from "@/hooks/useBroadcastLists";
-import { fieldKeyFromHeader } from "../../../supabase/functions/_shared/broadcast-template.ts";
+import { fieldKeyFromHeader } from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { toast } from "sonner";
 import { FileUp, Loader2 } from "lucide-react";
 
@@ -78,36 +79,36 @@ export function ListFileImport({ listId }: { listId: string }) {
     }
   };
 
-  const runImport = async () => {
+  const runImport = () => {
     if (!headers) return;
     if (!map.includes("phone") && !map.includes("email"))
       return toast.error("צריך למפות עמודת טלפון או אימייל");
     const members: NewMemberRow[] = rows.map((r) => {
-      const m: NewMemberRow = { custom_fields: {} };
+      const custom: Record<string, string> = {};
+      const m: NewMemberRow = { custom_fields: custom };
       map.forEach((t, i) => {
         const v = r[i];
         if (!v) return;
         if (t === "name" || t === "phone" || t === "email") m[t] = v;
         else if (t === "custom") {
           const key = fieldKeyFromHeader(headers[i]);
-          if (key) m.custom_fields![key] = v;
+          if (key) custom[key] = v;
         }
       });
       return m;
     });
-    try {
-      const n = await addMembers.mutateAsync({
-        listId,
-        rows: members,
-        via: "file",
-      });
-      toast.success(`יובאו ${n} אנשי קשר מתוך ${rows.length} שורות`);
-      setHeaders(null);
-      setRows([]);
-      setFileName("");
-    } catch (e: any) {
-      toast.error("הייבוא נכשל: " + (e?.message || ""));
-    }
+    addMembers.mutate(
+      { listId, rows: members, via: "file" },
+      {
+        onSuccess: (n) => {
+          toast.success(`יובאו ${n} אנשי קשר מתוך ${rows.length} שורות`);
+          setHeaders(null);
+          setRows([]);
+          setFileName("");
+        },
+        onError: (e) => toast.error("הייבוא נכשל: " + errorMessage(e)),
+      },
+    );
   };
 
   return (

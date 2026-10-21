@@ -9,11 +9,9 @@
 // caller's tenant.
 import { userClient } from "../_shared/supabase-clients.ts";
 import type { Tables } from "../_shared/database.types.ts";
-import {
-  type AudienceFilter,
-  resolveAudience,
-} from "../_shared/broadcast-audience.ts";
-import { normalizePhone } from "../_shared/broadcast-template.ts";
+import type { AudienceFilter } from "../_shared/broadcast/audience/types.ts";
+import { resolveAudience } from "../_shared/broadcast/audience/resolve.ts";
+import { normalizePhone } from "../_shared/broadcast/template/template-vars.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

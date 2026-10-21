@@ -1,13 +1,14 @@
 // Single-entity CRM filter match (sync_mailing_list automation action).
+import type { DbClient } from "../../supabase-clients.ts";
 import { hasServiceTag } from "./filters.ts";
 import { hasItems, modeMatch, todayIso } from "./query.ts";
-import type { AudienceFilter, Db } from "./types.ts";
+import type { AudienceFilter } from "./types.ts";
 
 const inList = (ids: string[] | undefined, v: string | null) =>
   !hasItems(ids) || (v !== null && ids.includes(v));
 
 async function leadMatches(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   f: AudienceFilter,
   id: string,
@@ -32,7 +33,7 @@ async function leadMatches(
 }
 
 async function clientMatches(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   f: AudienceFilter,
   id: string,
@@ -67,7 +68,7 @@ async function clientMatches(
  * without resolving the whole audience.
  */
 export async function entityMatchesFilter(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   filter: AudienceFilter,
   entityType: "lead" | "client",

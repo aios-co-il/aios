@@ -3,6 +3,8 @@ import {
   useBroadcastLists,
   type BroadcastList,
 } from "@/hooks/useBroadcastLists";
+import { useListSyncAutomation } from "@/hooks/useListSyncAutomation";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { ListFileImport } from "@/components/broadcast/ListFileImport";
 import { NewListDialog } from "@/components/broadcast/lists/NewListDialog";
 import { DynamicListDialog } from "@/components/broadcast/lists/DynamicListDialog";
@@ -44,6 +46,15 @@ import {
 
 export function BroadcastLists() {
   const { lists, deleteList } = useBroadcastLists();
+  const { deleteSyncAutomation } = useListSyncAutomation();
+  const removeList = (l: BroadcastList) => {
+    const syncId: string | undefined = l.source_config?.sync_automation_id;
+    if (!syncId) return deleteList.mutate(l.id);
+    // The list's own sync automation would only fail once the list is gone.
+    deleteSyncAutomation.mutate(syncId, {
+      onSettled: () => deleteList.mutate(l.id),
+    });
+  };
   const [openList, setOpenList] = useState<BroadcastList | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -80,7 +91,7 @@ export function BroadcastLists() {
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm("למחוק את הרשימה?")) deleteList.mutate(l.id);
+                      if (confirm("למחוק את הרשימה?")) removeList(l);
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -142,16 +153,24 @@ function ListDetailDialog({
   const [map, setMap] = useState<Record<string, string>>({});
   const [autoSync, setAutoSync] = useState(false);
   const [loadingHeaders, setLoadingHeaders] = useState(false);
-  const addManual = async () => {
+  const onAddError = (e: unknown) =>
+    toast.error("ההוספה נכשלה: " + errorMessage(e));
+
+  const addManual = () => {
     if (!m.phone && !m.email) {
       toast.error("צריך טלפון או אימייל");
       return;
     }
-    await addMembers.mutateAsync({ listId: list.id, rows: [m], via: "manual" });
-    setM({ name: "", phone: "", email: "" });
+    addMembers.mutate(
+      { listId: list.id, rows: [m], via: "manual" },
+      {
+        onSuccess: () => setM({ name: "", phone: "", email: "" }),
+        onError: onAddError,
+      },
+    );
   };
 
-  const importCsv = async () => {
+  const importCsv = () => {
     const rows = csv
       .split("\n")
       .map((line) => {
@@ -163,13 +182,16 @@ function ListDetailDialog({
       toast.error("לא נמצאו שורות תקינות");
       return;
     }
-    const n = await addMembers.mutateAsync({
-      listId: list.id,
-      rows,
-      via: "csv",
-    });
-    setCsv("");
-    toast.success(`יובאו ${n} אנשי קשר`);
+    addMembers.mutate(
+      { listId: list.id, rows, via: "csv" },
+      {
+        onSuccess: (n) => {
+          setCsv("");
+          toast.success(`יובאו ${n} אנשי קשר`);
+        },
+        onError: onAddError,
+      },
+    );
   };
 
   const loadHeaders = async () => {
@@ -188,21 +210,18 @@ function ListDetailDialog({
     }
   };
 
-  const runSheetImport = async () => {
-    try {
-      const res = await sheetImport.mutateAsync({
-        listId: list.id,
-        sheetId: sheetUrl.trim(),
-        fieldMap: map,
-        autoSync,
-      });
-      toast.success(`סונכרנו ${res.total} אנשי קשר מהגיליון`);
-      setHeaders(null);
-      setSheetUrl("");
-    } catch (e: any) {
-      toast.error("שגיאת ייבוא: " + (e?.message || ""));
-    }
-  };
+  const runSheetImport = () =>
+    sheetImport.mutate(
+      { listId: list.id, sheetId: sheetUrl.trim(), fieldMap: map, autoSync },
+      {
+        onSuccess: (res) => {
+          toast.success(`סונכרנו ${res.total} אנשי קשר מהגיליון`);
+          setHeaders(null);
+          setSheetUrl("");
+        },
+        onError: (e) => toast.error("שגיאת ייבוא: " + errorMessage(e)),
+      },
+    );
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>

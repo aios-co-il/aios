@@ -1,4 +1,5 @@
 // CRM sources: leads and clients matching an audience filter.
+import type { DbClient } from "../../supabase-clients.ts";
 import { applyTagFilter, hasServiceTag, tagFilteredIds } from "./filters.ts";
 import { loadLookups } from "./lookups.ts";
 import {
@@ -14,10 +15,10 @@ import {
   LEAD_COLUMNS,
   leadRecipient,
 } from "./records.ts";
-import type { AudienceFilter, Db, Recipient } from "./types.ts";
+import type { AudienceFilter, Recipient } from "./types.ts";
 
 export async function resolveLeads(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {
@@ -47,7 +48,7 @@ export async function resolveLeads(
 }
 
 export async function resolveClients(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {
