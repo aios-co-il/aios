@@ -1,11 +1,9 @@
-import { useState, type RefObject } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { errorMessage } from "./templateUtils";
+import type { RefObject } from "react";
+import { useUploadTemplateImage } from "./useUploadTemplateImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 /** WhatsApp template: message text and an optional uploaded image. */
@@ -24,27 +22,8 @@ export function WhatsAppTemplateFields({
   mediaUrl: string;
   setMediaUrl: (url: string) => void;
 }) {
-  const [uploading, setUploading] = useState(false);
-
-  const uploadImage = async (file: File) => {
-    setUploading(true);
-    try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${tenantId}/templates/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("broadcast-media")
-        .upload(path, file);
-      if (error) throw error;
-      setMediaUrl(
-        supabase.storage.from("broadcast-media").getPublicUrl(path).data
-          .publicUrl,
-      );
-    } catch (e) {
-      toast.error("העלאת התמונה נכשלה: " + errorMessage(e));
-    } finally {
-      setUploading(false);
-    }
-  };
+  const upload = useUploadTemplateImage(tenantId, setMediaUrl);
+  const uploading = upload.isPending;
 
   return (
     <>
@@ -65,7 +44,7 @@ export function WhatsAppTemplateFields({
             type="file"
             accept="image/*"
             onChange={(e) =>
-              e.target.files?.[0] && uploadImage(e.target.files[0])
+              e.target.files?.[0] && upload.mutate(e.target.files[0])
             }
           />
           {uploading && <Loader2 className="h-4 w-4 animate-spin" />}

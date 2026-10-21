@@ -4,7 +4,7 @@ import {
   type MessageTemplate,
   type TemplateChannel,
 } from "@/hooks/useMessageTemplates";
-import type { EmailAttachment } from "../../../supabase/functions/_shared/email-attachments.ts";
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { errorMessage } from "./templateUtils";
 import { toast } from "sonner";
 
@@ -26,14 +26,14 @@ export function useSaveTemplate(
 ) {
   const { save } = useMessageTemplates();
 
-  const handleSave = async (d: TemplateDraft) => {
+  const handleSave = (d: TemplateDraft) => {
     if (!d.name.trim()) return toast.error("צריך שם לטמפלייט");
     if (channel === "email" && !d.subject.trim())
       return toast.error("צריך נושא למייל");
     if (channel === "whatsapp" && !d.bodyText.trim())
       return toast.error("צריך תוכן להודעה");
-    try {
-      await save.mutateAsync({
+    save.mutate(
+      {
         id: template?.id,
         name: d.name.trim(),
         channel,
@@ -48,12 +48,15 @@ export function useSaveTemplate(
         attachments: channel === "email" ? d.attachments : [],
         body_text: channel === "whatsapp" ? d.bodyText : null,
         media_url: channel === "whatsapp" ? d.mediaUrl || null : null,
-      });
-      toast.success("הטמפלייט נשמר");
-      onClose();
-    } catch (e) {
-      toast.error("שמירה נכשלה: " + errorMessage(e));
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success("הטמפלייט נשמר");
+          onClose();
+        },
+        onError: (e) => toast.error("שמירה נכשלה: " + errorMessage(e)),
+      },
+    );
   };
 
   return { handleSave, saving: save.isPending };

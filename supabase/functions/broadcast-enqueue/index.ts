@@ -2,13 +2,11 @@
 // recipient snapshot. Supports dryRun (count + sample, no writes) for the wizard,
 // and commit mode (insert broadcast_recipients with per-recipient merge vars).
 //
-// Audience filter shape: see _shared/broadcast-audience.ts.
+// Audience filter shape: see _shared/broadcast/audience/resolve.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  type Recipient,
-  filterReachable,
-  resolveAudience,
-} from "../_shared/broadcast-audience.ts";
+import type { Recipient } from "../_shared/broadcast/audience/types.ts";
+import { filterReachable } from "../_shared/broadcast/audience/reachability.ts";
+import { resolveAudience } from "../_shared/broadcast/audience/resolve.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -1,15 +1,10 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  MAX_ATTACHMENT_BYTES,
-  MAX_TOTAL_ATTACHMENT_BYTES,
-  type EmailAttachment,
-} from "../../../supabase/functions/_shared/email-attachments.ts";
-import { errorMessage, formatBytes } from "./templateUtils";
+import type { Dispatch, SetStateAction } from "react";
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
+import { formatBytes } from "./templateUtils";
+import { useUploadAttachments } from "./useUploadAttachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 /** "קבצים מצורפים": upload files to broadcast-media and list them. */
@@ -22,46 +17,10 @@ export function TemplateAttachments({
   attachments: EmailAttachment[];
   setAttachments: Dispatch<SetStateAction<EmailAttachment[]>>;
 }) {
-  const [attaching, setAttaching] = useState(false);
-
-  const addAttachments = async (files: FileList | null) => {
-    if (!files?.length) return;
-    let total = attachments.reduce((sum, a) => sum + (a.size || 0), 0);
-    setAttaching(true);
-    try {
-      const added: EmailAttachment[] = [];
-      for (const file of Array.from(files)) {
-        if (file.size > MAX_ATTACHMENT_BYTES) {
-          toast.error(`${file.name}: קובץ מעל 10MB`);
-          continue;
-        }
-        if (total + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
-          toast.error("סך הקבצים המצורפים מוגבל ל־20MB");
-          break;
-        }
-        const safe = file.name.replace(/[^\w.-]+/g, "_").slice(-80);
-        const path = `${tenantId}/attachments/${crypto.randomUUID()}-${safe}`;
-        const { error } = await supabase.storage
-          .from("broadcast-media")
-          .upload(path, file, { contentType: file.type || undefined });
-        if (error) throw error;
-        total += file.size;
-        added.push({
-          name: file.name,
-          path,
-          url: supabase.storage.from("broadcast-media").getPublicUrl(path).data
-            .publicUrl,
-          size: file.size,
-          content_type: file.type || "application/octet-stream",
-        });
-      }
-      if (added.length) setAttachments((prev) => [...prev, ...added]);
-    } catch (e) {
-      toast.error("העלאת הקובץ נכשלה: " + errorMessage(e));
-    } finally {
-      setAttaching(false);
-    }
-  };
+  const upload = useUploadAttachments(tenantId, (added) =>
+    setAttachments((prev) => [...prev, ...added]),
+  );
+  const attaching = upload.isPending;
 
   return (
     <div className="space-y-1">
@@ -72,9 +31,15 @@ export function TemplateAttachments({
           multiple
           disabled={attaching}
           onChange={(e) => {
-            const files = e.target.files;
-            void addAttachments(files).finally(() => {
-              e.target.value = "";
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (!files.length) return;
+            upload.mutate({
+              files,
+              currentTotal: attachments.reduce(
+                (sum, a) => sum + (a.size || 0),
+                0,
+              ),
             });
           }}
         />

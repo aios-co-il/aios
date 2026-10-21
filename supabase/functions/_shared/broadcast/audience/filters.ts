@@ -1,11 +1,12 @@
 // CRM filter helpers shared by the bulk sources and the single-entity match.
-import type { Json } from "../database.types.ts";
+import type { DbClient } from "../../supabase-clients.ts";
+import type { Json } from "../../database.types.ts";
 import { fetchAll, hasItems } from "./query.ts";
-import type { AudienceFilter, Db } from "./types.ts";
+import type { AudienceFilter } from "./types.ts";
 
 /** Ids of leads / clients carrying one of the filter's tags (null: no tag filter). */
 export async function tagFilteredIds(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   filter: AudienceFilter,
   col: "client_id" | "lead_id",

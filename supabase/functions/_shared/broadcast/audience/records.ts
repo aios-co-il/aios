@@ -1,9 +1,10 @@
 // Lead / client rows → recipients with their merge-field vars.
-import type { Tables } from "../database.types.ts";
-import { buildTemplateVars } from "../template-vars.ts";
+import type { DbClient } from "../../supabase-clients.ts";
+import type { Tables } from "../../database.types.ts";
+import { buildTemplateVars } from "../template/template-vars.ts";
 import { loadLookups, lookup, type Lookups } from "./lookups.ts";
 import { flatObject } from "./query.ts";
-import { CLIENT_STATUS_LABELS, type Db, type Recipient } from "./types.ts";
+import { CLIENT_STATUS_LABELS, type Recipient } from "./types.ts";
 
 export const LEAD_COLUMNS =
   "id, contact_name, company_name, phone, email, status, response_status, sales_person_id, agency_id, form_data" as const;
@@ -86,7 +87,7 @@ export function clientRecipient(
 
 /** Build recipient vars for a single lead / client (automation triggers). */
 export async function recipientForEntity(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   entityType: "lead" | "client",
   entityId: string,

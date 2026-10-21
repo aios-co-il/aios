@@ -3,12 +3,14 @@ import DOMPurify from "dompurify";
 import type { TemplateChannel } from "@/hooks/useMessageTemplates";
 import {
   buildEmailContent,
-  renderTemplate,
   textToEmailHtml,
   wrapEmailHtml,
-  type EmailAttachment,
+} from "../../../supabase/functions/_shared/broadcast/template/email-html.ts";
+import {
+  renderTemplate,
   type TemplateVars,
-} from "../../../supabase/functions/_shared/broadcast-template.ts";
+} from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { Label } from "@/components/ui/label";
 
 /** Live preview of the template rendered with sample or list-member vars. */

@@ -1,7 +1,6 @@
 // Shared types and helpers for the mailing automation actions.
 
-import type { DbClient as Db } from "../supabase-clients.ts";
-export type { Db };
+import type { DbClient } from "../../supabase-clients.ts";
 
 export const MAILING_ACTION_TYPES = [
   "add_to_mailing_list",
@@ -16,10 +15,10 @@ export type MailingActionContext = {
   automationId: string;
   triggerType?: string | null;
   /** Owner fallback for WhatsApp sends when the integration has no user. */
-  resolveOwnerId: (db: Db, tenantId: string) => Promise<string>;
+  resolveOwnerId: (db: DbClient, tenantId: string) => Promise<string>;
   /** Sender address for email sends (broadcast_email_domains). */
   resolveEmailFrom: (
-    db: Db,
+    db: DbClient,
     config: Record<string, unknown>,
     tenantId: string,
   ) => Promise<{ fromEmail: string; fromName: string | null }>;

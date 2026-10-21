@@ -1,8 +1,9 @@
 // Which lead / client / contact an automation trigger is about.
+import type { DbClient } from "../../supabase-clients.ts";
 import { recipientForEntity } from "../audience/records.ts";
 import type { Recipient } from "../audience/types.ts";
-import { buildTemplateVars } from "../template-vars.ts";
-import { type Db, str } from "./types.ts";
+import { buildTemplateVars } from "../template/template-vars.ts";
+import { str } from "./types.ts";
 
 /** Which lead / client the trigger is about. */
 export function resolveTargetEntity(
@@ -33,7 +34,7 @@ export function resolveTargetEntity(
 
 /** The trigger's contact: CRM record when found, else the payload's own fields. */
 export async function contactFromTrigger(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   config: Record<string, unknown>,
   data: Record<string, unknown>,

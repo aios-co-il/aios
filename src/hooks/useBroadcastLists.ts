@@ -2,9 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import type { TablesInsert } from "@/integrations/supabase/types";
-import type { AudienceFilter } from "@/hooks/useBroadcasts";
-import { normalizePhone } from "../../supabase/functions/_shared/broadcast-template.ts";
+import { normalizePhone } from "../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 
 export interface BroadcastList {
   id: string;
@@ -99,94 +97,8 @@ export function useBroadcastLists() {
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] }),
   });
 
-  /**
-   * Editable flow automation that keeps a CRM-filter list in sync:
-   * on every lead status / stage change it runs sync_mailing_list, which adds
-   * the lead when it matches the list's filter and removes it when it no longer
-   * does. The automation id is kept in source_config.sync_automation_id.
-   */
-  const createSyncAutomation = async (list: BroadcastList) => {
-    if (!tenantId) throw new Error("No tenant");
-    const automationRow: TablesInsert<"automations"> = {
-      name: `רשימת דיוור: ${list.name} – סנכרון אוטומטי`,
-      description:
-        "נוצרה אוטומטית עם רשימת הדיוור: מי שעונה לסינון נכנס לרשימה, מי שיוצא ממנו יוצא.",
-      tenant_id: tenantId,
-      trigger_type: "lead_status_changed",
-      action_type: "notification",
-      configuration: {},
-      is_flow: true,
-      active: true,
-    };
-    const { data: automation, error } = await supabase
-      .from("automations")
-      .insert(automationRow)
-      .select("id")
-      .single();
-    if (error) throw error;
-    const triggerId = crypto.randomUUID();
-    const steps: TablesInsert<"automation_flow_steps">[] = [
-      {
-        id: triggerId,
-        automation_id: automation.id,
-        tenant_id: tenantId,
-        step_type: "trigger",
-        action_type: "lead_status_changed",
-        label: "שינוי סטטוס / שלב במשפך",
-        configuration: {
-          filter_statuses: [],
-          filter_status: "any",
-          filter_status_kind: null,
-        },
-        position_x: 400,
-        position_y: 80,
-        sort_order: 0,
-        parent_step_id: null,
-        condition_branch: null,
-      },
-      {
-        id: crypto.randomUUID(),
-        automation_id: automation.id,
-        tenant_id: tenantId,
-        step_type: "action",
-        action_type: "sync_mailing_list",
-        label: `סנכרון לרשימה: ${list.name}`,
-        configuration: { list_id: list.id },
-        position_x: 400,
-        position_y: 230,
-        sort_order: 1,
-        parent_step_id: triggerId,
-        condition_branch: null,
-      },
-    ];
-    const { error: stepsErr } = await supabase
-      .from("automation_flow_steps")
-      .insert(steps);
-    if (stepsErr) {
-      await supabase.from("automations").delete().eq("id", automation.id);
-      throw stepsErr;
-    }
-    const { error: linkErr } = await supabase
-      .from("broadcast_lists")
-      .update({
-        source_config: {
-          ...(list.source_config || {}),
-          sync_automation_id: automation.id,
-        },
-      })
-      .eq("id", list.id);
-    if (linkErr) throw linkErr;
-    qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
-    qc.invalidateQueries({ queryKey: ["automations", tenantId] });
-    return automation.id as string;
-  };
-
   const deleteList = useMutation({
     mutationFn: async (id: string) => {
-      // The list's own sync automation would only fail once the list is gone.
-      const syncId = (lists.data || []).find((l) => l.id === id)?.source_config
-        ?.sync_automation_id;
-      if (syncId) await supabase.from("automations").delete().eq("id", syncId);
       const { error } = await supabase
         .from("broadcast_lists")
         .delete()
@@ -270,28 +182,6 @@ export function useBroadcastLists() {
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
     },
   });
-
-  /** CRM-filter lists: preview a filter (or a saved list), or freeze matches into a static list. */
-  const materialize = async (opts: {
-    mode: "preview" | "freeze";
-    listId?: string;
-    filter?: AudienceFilter;
-  }): Promise<ListPreview> => {
-    const { data, error } = await supabase.functions.invoke(
-      "broadcast-list-materialize",
-      { body: { ...opts, tenantId } },
-    );
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    if (opts.mode === "freeze" || opts.listId) {
-      qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
-      if (opts.listId)
-        qc.invalidateQueries({
-          queryKey: ["broadcast-list-members", tenantId, opts.listId],
-        });
-    }
-    return data as ListPreview;
-  };
 
   const removeMember = useMutation({
     mutationFn: async ({ id, listId }: { id: string; listId: string }) => {
@@ -417,8 +307,6 @@ export function useBroadcastLists() {
     updateList,
     useMembers,
     addMembers,
-    materialize,
-    createSyncAutomation,
     removeMember,
     sheetHeaders,
     sheetImport,

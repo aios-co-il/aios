@@ -1,7 +1,7 @@
 import {
   buildTemplateVars,
   type TemplateVars,
-} from "../../../supabase/functions/_shared/broadcast-template.ts";
+} from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 
 export const SAMPLE_VARS: TemplateVars = buildTemplateVars({
   contact_name: "ישראל ישראלי",
