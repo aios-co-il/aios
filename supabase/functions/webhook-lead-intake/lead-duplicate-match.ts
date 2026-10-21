@@ -34,10 +34,7 @@ export function isSameInboundLead(
 
   const incomingEmail = normalizeLeadEmail(incoming.email);
   const existingEmail = normalizeLeadEmail(existing.email);
-  if (incomingEmail && existingEmail && incomingEmail !== existingEmail) {
-    return false;
-  }
-  return true;
+  return !(incomingEmail && existingEmail && incomingEmail !== existingEmail);
 }
 
 export function pickDuplicateLead<T extends CandidateLead>(

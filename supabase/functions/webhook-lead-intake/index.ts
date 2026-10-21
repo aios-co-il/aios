@@ -18,7 +18,7 @@ import {
   leadPhoneVariants,
   pickDuplicateLead,
   RETURNING_LEAD_TAG,
-} from "../_shared/lead-duplicate-match.ts";
+} from "./lead-duplicate-match.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,51 +66,6 @@ function pickCampaignName(
       return candidate.trim();
   }
   return undefined;
-}
-
-// Find or create a tenant tag and attach it to the lead (idempotent)
-async function applyTagToLead(
-  supabase: ReturnType<typeof createClient>,
-  tenantId: string,
-  leadId: string,
-  rawTagName: string,
-): Promise<void> {
-  const tagName = rawTagName.trim();
-  if (!tagName) return;
-
-  const { data: existingTag } = await supabase
-    .from("chat_tags")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("name", tagName)
-    .maybeSingle();
-
-  let tagId = existingTag?.id;
-  if (!tagId) {
-    const { data: newTag } = await supabase
-      .from("chat_tags")
-      .insert({ tenant_id: tenantId, name: tagName, color: "#3b82f6" })
-      .select("id")
-      .single();
-    tagId = newTag?.id;
-  }
-  if (!tagId) return;
-
-  const { data: existingTagLink } = await supabase
-    .from("chat_contact_tags")
-    .select("id")
-    .eq("lead_id", leadId)
-    .eq("tag_id", tagId)
-    .maybeSingle();
-
-  if (!existingTagLink) {
-    await supabase.from("chat_contact_tags").insert({
-      tenant_id: tenantId,
-      tag_id: tagId,
-      lead_id: leadId,
-      user_id: "00000000-0000-0000-0000-000000000000",
-    });
-  }
 }
 
 Deno.serve(async (req) => {
@@ -493,35 +448,10 @@ Deno.serve(async (req) => {
       : "other";
 
     // ========== DEDUPLICATION LOGIC ==========
-    // Returning lead = same phone and no conflicting email (see lead-duplicate-match.ts).
-    // A shared email alone never merges two people.
-    const incomingContact = { phone: payload.phone, email: payload.email };
-    let existingLead = null;
-
-    const phoneVariants = leadPhoneVariants(payload.phone);
-    if (phoneVariants.length > 0) {
-      const { data: leadsByPhone } = await supabase
-        .from("leads")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .in("phone", phoneVariants)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      existingLead = pickDuplicateLead(leadsByPhone, incomingContact);
-
-      // Stored phones may use other spellings; scan recent leads as a fallback
-      if (!existingLead) {
-        const { data: recentLeads } = await supabase
-          .from("leads")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .not("phone", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(500);
-        existingLead = pickDuplicateLead(recentLeads, incomingContact);
-      }
-    }
+    const existingLead = await getExistingLead(supabase, tenantId, {
+      phone: payload.phone,
+      email: payload.email,
+    });
 
     // If existing lead found - update with new info if available
     if (existingLead) {
@@ -811,3 +741,77 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * Find the lead this inbound contact returns to: same phone and no
+ * conflicting email (see lead-duplicate-match.ts).
+ */
+async function getExistingLead(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string | null,
+  incoming: { phone?: string | null; email?: string | null },
+) {
+  const phoneVariants = leadPhoneVariants(incoming.phone);
+  if (phoneVariants.length === 0) return null;
+
+  const { data: leadsByPhone } = await supabase
+    .from("leads")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .in("phone", phoneVariants)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const match = pickDuplicateLead(leadsByPhone, incoming);
+  if (match) return match;
+
+  // Stored phones may use other spellings; scan recent leads as a fallback
+  const { data: recentLeads } = await supabase
+    .from("leads")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .not("phone", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  return pickDuplicateLead(recentLeads, incoming);
+}
+
+/** Find or create a tenant tag and attach it to the lead (idempotent). */
+async function applyTagToLead(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  leadId: string,
+  rawTagName: string,
+): Promise<void> {
+  const tagName = rawTagName.trim();
+  if (!tagName) return;
+
+  // Look up first: an upsert would reset the color of an existing tag
+  const { data: existingTag } = await supabase
+    .from("chat_tags")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("name", tagName)
+    .maybeSingle();
+
+  let tagId = existingTag?.id;
+  if (!tagId) {
+    const { data: newTag } = await supabase
+      .from("chat_tags")
+      .insert({ tenant_id: tenantId, name: tagName, color: "#3b82f6" })
+      .select("id")
+      .single();
+    tagId = newTag?.id;
+  }
+  if (!tagId) return;
+
+  await supabase.from("chat_contact_tags").upsert(
+    {
+      tenant_id: tenantId,
+      tag_id: tagId,
+      lead_id: leadId,
+      user_id: "00000000-0000-0000-0000-000000000000",
+    },
+    { onConflict: "tag_id,lead_id", ignoreDuplicates: true },
+  );
+}
