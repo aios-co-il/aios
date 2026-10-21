@@ -25,6 +25,7 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 
 ## Read before the relevant task
 
+- **Writing, refactoring, or reviewing code:** follow `REVIEW.md`, the code review conventions every PR is checked against.
 - **Codebase questions, architecture, implementation, or `/graphify`:** read `docs/agents/discovery.md` before exploring; it defines graph lookup, fallback, and update procedures.
 - **Environment setup or deployment configuration:** read `docs/ENVIRONMENTS.md`, the environment source of truth, before changing configuration.
 - **Migrations, edge functions, `staging` label, or `/db-fix`:** read `docs/agents/db-deploys.md` for the label-gated deploy flow.
