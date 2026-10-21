@@ -1,7 +1,8 @@
 /**
- * Inbound lead dedup rule: a lead is a returning lead only when the phone
- * matches AND the email does not contradict it. A shared email alone (often a
- * placeholder like "aaaaa@gmail.com") never merges two people.
+ * Inbound lead dedup rule: a lead is a returning lead only when the phone and
+ * the email both match. Any difference, including an email present on only one
+ * side, means a new lead; a shared email alone (often a placeholder like
+ * "aaaaa@gmail.com") never merges two people.
  */
 
 export const RETURNING_LEAD_TAG = "ליד חוזר";
@@ -23,7 +24,7 @@ export function normalizeLeadEmail(
 
 type CandidateLead = { phone?: string | null; email?: string | null };
 
-/** Same phone, and when both sides have an email it must be the same email. */
+/** Same phone and same email (both empty counts as the same). */
 export function isSameInboundLead(
   existing: CandidateLead,
   incoming: CandidateLead,
@@ -32,9 +33,9 @@ export function isSameInboundLead(
   if (!incomingPhone) return false;
   if (normalizeLeadPhone(existing.phone) !== incomingPhone) return false;
 
-  const incomingEmail = normalizeLeadEmail(incoming.email);
-  const existingEmail = normalizeLeadEmail(existing.email);
-  return !(incomingEmail && existingEmail && incomingEmail !== existingEmail);
+  return (
+    normalizeLeadEmail(existing.email) === normalizeLeadEmail(incoming.email)
+  );
 }
 
 export function pickDuplicateLead<T extends CandidateLead>(
