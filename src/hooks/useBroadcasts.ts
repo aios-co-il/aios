@@ -40,6 +40,7 @@ export interface Broadcast {
   body_text: string | null;
   body_html: string | null;
   html_mode: boolean;
+  attachments: unknown[];
   template_id: string | null;
   origin: "manual" | "automation";
   media_url: string | null;
@@ -102,6 +103,7 @@ export function useBroadcasts() {
           body_text: payload.body_text ?? null,
           body_html: payload.body_html ?? null,
           html_mode: payload.html_mode ?? false,
+          attachments: (payload.attachments ?? []) as any,
           template_id: payload.template_id ?? null,
           media_url: payload.media_url ?? null,
           subject: payload.subject ?? null,

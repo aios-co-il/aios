@@ -191,7 +191,12 @@ export function textToEmailHtml(body: string): string {
 
 /** Wrap rich editor HTML in the same RTL container as plain text emails. */
 export function wrapEmailHtml(innerHtml: string): string {
-  return `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222" dir="rtl">${innerHtml}</div>`;
+  // Editor images keep their size but never overflow narrow (mobile) clients.
+  const body = innerHtml.replace(
+    /<img\b(?![^>]*\sstyle=)/gi,
+    '<img style="max-width:100%;height:auto"',
+  );
+  return `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222" dir="rtl">${body}</div>`;
 }
 
 /** Strip tags for the plain-text alternative of an HTML email. */
@@ -249,4 +254,40 @@ export function buildEmailContent(opts: {
     };
   }
   return { html: textToEmailHtml(text) + footer, text };
+}
+
+/** An attachment stored on a template/broadcast (`attachments` jsonb). */
+export interface EmailAttachment {
+  name: string;
+  path?: string;
+  url: string;
+  size?: number;
+  content_type?: string;
+}
+
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+/** Public URL prefix of the bucket attachments must come from. */
+export function attachmentUrlPrefix(supabaseUrl: string): string {
+  return `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/broadcast-media/`;
+}
+
+/** Stored attachments → Resend `{filename, path}` items. Drops anything
+ * malformed or not served from our broadcast-media bucket, so a crafted row
+ * cannot make Resend fetch an arbitrary URL. */
+export function emailAttachmentsForResend(
+  list: unknown,
+  allowedUrlPrefix: string,
+): { filename: string; path: string }[] {
+  if (!Array.isArray(list)) return [];
+  const out: { filename: string; path: string }[] = [];
+  for (const item of list) {
+    const a = item as Partial<EmailAttachment> | null;
+    const url = typeof a?.url === "string" ? a.url : "";
+    const name = typeof a?.name === "string" ? a.name.trim() : "";
+    if (!url || !name || !url.startsWith(allowedUrlPrefix)) continue;
+    out.push({ filename: name.slice(0, 200), path: url });
+  }
+  return out;
 }

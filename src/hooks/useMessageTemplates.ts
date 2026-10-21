@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast-template.ts";
 
 export type TemplateChannel = "email" | "whatsapp";
 
@@ -13,6 +14,7 @@ export interface MessageTemplate {
   subject: string | null;
   body_html: string | null;
   html_mode: boolean;
+  attachments: EmailAttachment[];
   body_text: string | null;
   media_url: string | null;
   created_by: string | null;
@@ -28,6 +30,7 @@ export type MessageTemplateInput = Pick<
   | "subject"
   | "body_html"
   | "html_mode"
+  | "attachments"
   | "body_text"
   | "media_url"
 >;
@@ -52,7 +55,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (channel) q = q.eq("channel", channel);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as MessageTemplate[];
+      return (data || []) as unknown as MessageTemplate[];
     },
   });
 
@@ -64,14 +67,18 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (id) {
         const { error } = await supabase
           .from("message_templates")
-          .update(input)
+          .update(input as any)
           .eq("id", id);
         if (error) throw error;
         return id;
       }
       const { data, error } = await supabase
         .from("message_templates")
-        .insert({ ...input, tenant_id: tenantId!, created_by: userId })
+        .insert({
+          ...(input as any),
+          tenant_id: tenantId!,
+          created_by: userId,
+        })
         .select("id")
         .single();
       if (error) throw error;
@@ -101,6 +108,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         subject: t.subject,
         body_html: t.body_html,
         html_mode: t.html_mode,
+        attachments: t.attachments as any,
         body_text: t.body_text,
         media_url: t.media_url,
       });

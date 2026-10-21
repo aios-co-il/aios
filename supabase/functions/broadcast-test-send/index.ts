@@ -5,6 +5,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   buildEmailContent,
   renderTemplate,
+  attachmentUrlPrefix,
+  emailAttachmentsForResend,
 } from "../_shared/broadcast-template.ts";
 
 const corsHeaders = {
@@ -36,7 +38,8 @@ Deno.serve(async (req) => {
     const to = auth?.user?.email;
     if (!to) return json({ error: "unauthorized" }, 401);
 
-    const { tenantId, subject, bodyHtml, htmlMode, vars } = await req.json();
+    const { tenantId, subject, bodyHtml, htmlMode, vars, attachments } =
+      await req.json();
     if (!tenantId) return json({ error: "missing_tenant" }, 400);
 
     // RLS: only domains of a tenant the user can see.
@@ -73,6 +76,10 @@ Deno.serve(async (req) => {
         text,
         fromEmail: `${domain.default_local || "noreply"}@${domain.domain}`,
         fromName: domain.from_name || undefined,
+        attachments: emailAttachmentsForResend(
+          attachments,
+          attachmentUrlPrefix(SB_URL),
+        ),
       }),
     });
     const out = await res.json().catch(() => ({}));

@@ -1,6 +1,6 @@
 // send-resend-email — sends a single email via the Resend API.
 // Body: { to, subject, html?, text?, fromEmail?, fromName?, replyTo?,
-//         headers?, tags?, attachments?: [{filename, content (base64), contentType}] }
+//         headers?, tags?, attachments?: [{filename, content (base64) | path (URL), contentType}] }
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -67,12 +67,14 @@ Deno.serve(async (req) => {
       // Resend expects: [{ filename, content (base64 string), content_type, content_id? }]
       // Set content_id to enable inline CID references in HTML (cid:<content_id>)
       payload.attachments = attachments.map((a: any) => {
-        const att: any = {
-          filename: a.filename,
-          content: a.content,
-          content_type:
-            a.contentType || a.content_type || "application/octet-stream",
-        };
+        const att: any = { filename: a.filename };
+        // path = a URL Resend downloads itself (stored broadcast attachments)
+        if (a.path && !a.content) att.path = a.path;
+        else {
+          att.content = a.content;
+          att.content_type =
+            a.contentType || a.content_type || "application/octet-stream";
+        }
         if (a.content_id || a.contentId)
           att.content_id = a.content_id || a.contentId;
         return att;

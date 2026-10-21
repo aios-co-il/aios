@@ -40,6 +40,23 @@ function useNamedRows(table: "agencies" | "sales_people") {
   });
 }
 
+function useChatTags() {
+  const { tenantId } = useCurrentTenant();
+  return useQuery({
+    queryKey: ["broadcast-filter-tags", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chat_tags")
+        .select("id, name")
+        .eq("tenant_id", tenantId!)
+        .order("sort_order");
+      if (error) throw error;
+      return (data || []).map((t) => ({ value: t.id, label: t.name || "—" }));
+    },
+  });
+}
+
 /** Filter for CRM-based mailing lists: leads by stage/status, clients by status, both by agency. */
 export function CrmListFilterBuilder({
   value,
@@ -67,6 +84,7 @@ export function CrmListFilterBuilder({
     }));
   const agencies = useNamedRows("agencies");
   const salesPeople = useNamedRows("sales_people");
+  const tags = useChatTags();
   const campaigners = useAssignableCampaigners({
     enabled: value.source === "clients",
   });
@@ -150,6 +168,16 @@ export function CrmListFilterBuilder({
         selected={value.agencyIds || []}
         onSelectedChange={(agencyIds) => set({ agencyIds })}
         emptyLabel="כל הסוכנויות"
+      />
+
+      <BroadcastAudienceMultiSelect
+        label="תגיות"
+        options={tags.data || []}
+        selected={value.tagIds || []}
+        onSelectedChange={(tagIds) => set({ tagIds })}
+        mode={value.tagMode || "include"}
+        onModeChange={(tagMode) => set({ tagMode })}
+        emptyLabel="כל התגיות"
       />
     </div>
   );

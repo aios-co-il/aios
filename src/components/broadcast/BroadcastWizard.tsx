@@ -1,3 +1,4 @@
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast-template.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,6 +83,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setSubject(t.subject || "");
       setBodyHtml(t.body_html || "");
       setHtmlMode(!!t.html_mode);
+      setAttachments(Array.isArray(t.attachments) ? t.attachments : []);
       setBodyText("");
     } else {
       setBodyText(t.body_text || "");
@@ -126,6 +128,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [bodyHtml, setBodyHtml] = useState("");
   const [htmlMode, setHtmlMode] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
   const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
@@ -167,6 +170,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setBodyHtml("");
       setHtmlMode(false);
       setTemplateId(null);
+      setAttachments([]);
       setTemplateMediaUrl(null);
       setMediaFile(null);
       setAudienceCount(null);
@@ -448,6 +452,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         body_text: bodyText,
         body_html: channel === "email" && bodyHtml ? bodyHtml : null,
         html_mode: channel === "email" && !!bodyHtml && htmlMode,
+        attachments: channel === "email" ? attachments : [],
         template_id: templateId,
         media_url: channel === "email" ? null : templateMediaUrl,
         audience_filter: buildFilter(),
@@ -730,6 +735,12 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                     )}
                   </SelectContent>
                 </Select>
+                {channel === "email" && attachments.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    קבצים מצורפים מהטמפלייט:{" "}
+                    {attachments.map((a) => a.name).join(", ")}
+                  </p>
+                )}
               </div>
             )}
 
@@ -904,6 +915,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                   onValueChange={(v) => {
                     if (v === "none") {
                       setTemplateId(null);
+                      setAttachments([]);
                       setBodyHtml("");
                       setHtmlMode(false);
                       setTemplateMediaUrl(null);
