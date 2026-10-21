@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { EmailRichEditorHandle } from "@/components/broadcast/EmailRichEditor";
-import type { EmailAttachment } from "../../../supabase/functions/_shared/email-attachments.ts";
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { EmailBodyField } from "./EmailBodyField";
 import { TemplateAttachments } from "./TemplateAttachments";
 import { Input } from "@/components/ui/input";

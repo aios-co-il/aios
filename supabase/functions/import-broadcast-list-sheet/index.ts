@@ -5,7 +5,7 @@
 //   otherwise             → import rows using fieldMap { "<header>": "name|phone|email" }
 // Callable by an authenticated user (frontend) or by service role (sync cron).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { fieldKeyFromHeader } from "../_shared/broadcast-template.ts";
+import { fieldKeyFromHeader } from "../_shared/broadcast/template/template-vars.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

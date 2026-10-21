@@ -1,14 +1,15 @@
 // sync_mailing_list: add or remove the trigger's lead/client by the list's
 // CRM filter.
+import type { DbClient } from "../../supabase-clients.ts";
 import { entityMatchesFilter } from "../audience/entity-match.ts";
 import { recipientForEntity } from "../audience/records.ts";
 import { toAudienceFilter } from "../audience/types.ts";
-import { normalizePhone } from "../template-vars.ts";
+import { normalizePhone } from "../template/template-vars.ts";
 import { resolveTargetEntity } from "./target.ts";
-import { type Db, idParam, type MailingActionContext } from "./types.ts";
+import { idParam, type MailingActionContext } from "./types.ts";
 
 export async function executeSyncMailingList(
-  db: Db,
+  db: DbClient,
   config: Record<string, unknown>,
   data: Record<string, unknown>,
   tenantId: string,

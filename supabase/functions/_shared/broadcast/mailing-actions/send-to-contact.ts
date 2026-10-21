@@ -1,15 +1,16 @@
 // send_template_to_contact: queue one recipient on a long-lived broadcast.
+import type { DbClient } from "../../supabase-clients.ts";
 import { isOptedOut } from "../audience/reachability.ts";
-import { normalizePhone } from "../template-vars.ts";
+import { normalizePhone } from "../template/template-vars.ts";
 import { contactFromTrigger } from "./target.ts";
 import {
   broadcastFieldsFromTemplate,
   loadTemplate,
 } from "./template-fields.ts";
-import type { Db, MailingActionContext } from "./types.ts";
+import type { MailingActionContext } from "./types.ts";
 
 export async function executeSendTemplateToContact(
-  db: Db,
+  db: DbClient,
   config: Record<string, unknown>,
   data: Record<string, unknown>,
   tenantId: string,

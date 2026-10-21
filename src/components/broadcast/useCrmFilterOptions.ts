@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { CrmListFilter } from "@/components/broadcast/CrmListFilterBuilder";
@@ -37,8 +37,7 @@ export function useNamedRows(table: "agencies" | "sales_people") {
   const { tenantId } = useCurrentTenant();
   return useQuery({
     queryKey: ["broadcast-filter-options", table, tenantId],
-    enabled: !!tenantId,
-    queryFn: () => fetchNamedRows(table, tenantId!),
+    queryFn: tenantId ? () => fetchNamedRows(table, tenantId) : skipToken,
   });
 }
 
@@ -47,15 +46,19 @@ export function useChatTags() {
   const { tenantId } = useCurrentTenant();
   return useQuery({
     queryKey: ["broadcast-filter-tags", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<FilterOption[]> => {
-      const { data, error } = await supabase
-        .from("chat_tags")
-        .select("id, name")
-        .eq("tenant_id", tenantId!)
-        .order("sort_order");
-      if (error) throw error;
-      return (data || []).map((t) => ({ value: t.id, label: t.name || "—" }));
-    },
+    queryFn: tenantId
+      ? async (): Promise<FilterOption[]> => {
+          const { data, error } = await supabase
+            .from("chat_tags")
+            .select("id, name")
+            .eq("tenant_id", tenantId)
+            .order("sort_order");
+          if (error) throw error;
+          return (data || []).map((t) => ({
+            value: t.id,
+            label: t.name || "—",
+          }));
+        }
+      : skipToken,
   });
 }

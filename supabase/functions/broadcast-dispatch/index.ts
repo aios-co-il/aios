@@ -10,14 +10,16 @@
 //   - image → manus: reuse send-manus-wa-file ; green_api: call Green API sendFileByUrl
 //             directly (the green file function requires a real user, not service role)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
 import {
-  buildEmailContent,
   buildTemplateVars,
   renderTemplate,
   type TemplateVars,
+} from "../_shared/broadcast/template/template-vars.ts";
+import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
-} from "../_shared/broadcast-template.ts";
+} from "../_shared/broadcast/template/email-attachments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

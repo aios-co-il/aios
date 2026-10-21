@@ -8,7 +8,7 @@
 -- source_config.auto_sync = true. When the list also has an automation
 -- (source_config.sync_automation_id), turning that automation off pauses the
 -- sync. Matching mirrors entityMatchesFilter in
--- supabase/functions/_shared/broadcast-audience.ts.
+-- supabase/functions/_shared/broadcast/audience/entity-match.ts.
 
 CREATE OR REPLACE FUNCTION public.broadcast_normalize_phone(p text)
   RETURNS text

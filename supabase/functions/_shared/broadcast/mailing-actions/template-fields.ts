@@ -1,14 +1,15 @@
 // Template loading and the broadcast columns copied from it.
-import type { Tables, TablesInsert } from "../database.types.ts";
-import { toEmailAttachments } from "../email-attachments.ts";
-import { type Db, idParam, type MailingActionContext, str } from "./types.ts";
+import type { DbClient } from "../../supabase-clients.ts";
+import type { Tables, TablesInsert } from "../../database.types.ts";
+import { toEmailAttachments } from "../template/email-attachments.ts";
+import { idParam, type MailingActionContext, str } from "./types.ts";
 
 export type Template = Tables<"message_templates">;
 /** Broadcast columns shared by every automation send; callers add `name`. */
 export type BroadcastFields = Omit<TablesInsert<"broadcasts">, "name">;
 
 export async function loadTemplate(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   templateId: unknown,
 ): Promise<Template> {
@@ -28,7 +29,7 @@ export async function loadTemplate(
 
 /** Broadcast columns for a template + channel sender. */
 export async function broadcastFieldsFromTemplate(
-  db: Db,
+  db: DbClient,
   tenantId: string,
   template: Template,
   config: Record<string, unknown>,

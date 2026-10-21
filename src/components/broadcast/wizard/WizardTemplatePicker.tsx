@@ -1,5 +1,5 @@
 import type { MessageTemplate } from "@/hooks/useMessageTemplates";
-import type { EmailAttachment } from "../../../../supabase/functions/_shared/broadcast-template.ts";
+import type { EmailAttachment } from "../../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { Label } from "@/components/ui/label";
 import {
   Select,

@@ -1,12 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { requireTenantId } from "@/lib/requireTenantId";
 import type { Tables } from "@/integrations/supabase/types";
 import {
   toEmailAttachments,
   type EmailAttachment,
-} from "../../supabase/functions/_shared/broadcast-template.ts";
+} from "../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 
 export type TemplateChannel = "email" | "whatsapp";
 
@@ -57,19 +63,20 @@ export function useMessageTemplates(channel?: TemplateChannel) {
 
   const list = useQuery({
     queryKey: ["message-templates", tenantId, channel ?? "all"],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<MessageTemplate[]> => {
-      let q = supabase
-        .from("message_templates")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .is("archived_at", null)
-        .order("updated_at", { ascending: false });
-      if (channel) q = q.eq("channel", channel);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []).map(toMessageTemplate);
-    },
+    queryFn: tenantId
+      ? async (): Promise<MessageTemplate[]> => {
+          let q = supabase
+            .from("message_templates")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .is("archived_at", null)
+            .order("updated_at", { ascending: false });
+          if (channel) q = q.eq("channel", channel);
+          const { data, error } = await q;
+          if (error) throw error;
+          return (data || []).map(toMessageTemplate);
+        }
+      : skipToken,
   });
 
   const save = useMutation({
@@ -89,7 +96,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         .from("message_templates")
         .insert({
           ...input,
-          tenant_id: tenantId!,
+          tenant_id: requireTenantId(tenantId),
           created_by: userId,
         })
         .select("id")
@@ -114,7 +121,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
   const duplicate = useMutation({
     mutationFn: async (t: MessageTemplate) => {
       const { error } = await supabase.from("message_templates").insert({
-        tenant_id: tenantId!,
+        tenant_id: requireTenantId(tenantId),
         created_by: userId,
         name: `${t.name} (עותק)`,
         channel: t.channel,

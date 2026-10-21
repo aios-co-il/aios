@@ -55,14 +55,12 @@ export default function Broadcast() {
 
   const broadcasts = (list.data || []) as Broadcast[];
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("למחוק את הדיוור?")) return;
-    try {
-      await remove.mutateAsync(id);
-      toast.success("הדיוור נמחק");
-    } catch (e: any) {
-      toast.error("שגיאה במחיקה: " + (e?.message || ""));
-    }
+    remove.mutate(id, {
+      onSuccess: () => toast.success("הדיוור נמחק"),
+      onError: (e) => toast.error("שגיאה במחיקה: " + (e?.message || "")),
+    });
   };
 
   return (

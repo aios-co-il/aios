@@ -1,13 +1,14 @@
 // send_template_to_list: create a broadcast for a list and enqueue it.
+import type { DbClient } from "../../supabase-clients.ts";
 import { loadList } from "./list-membership.ts";
 import {
   broadcastFieldsFromTemplate,
   loadTemplate,
 } from "./template-fields.ts";
-import type { Db, MailingActionContext } from "./types.ts";
+import type { MailingActionContext } from "./types.ts";
 
 export async function executeSendTemplateToList(
-  db: Db,
+  db: DbClient,
   config: Record<string, unknown>,
   _data: Record<string, unknown>,
   tenantId: string,

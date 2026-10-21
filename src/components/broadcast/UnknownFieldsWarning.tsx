@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   STANDARD_TEMPLATE_FIELDS,
   templateFieldKeys,
-} from "../../../supabase/functions/_shared/broadcast-template.ts";
+} from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 
 /** Warns about {{fields}} in `text` that are neither standard nor list columns. */
 export function UnknownFieldsWarning({

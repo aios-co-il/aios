@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useBroadcastLists } from "@/hooks/useBroadcastLists";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
+import { ToggleChip } from "@/components/broadcast/lists/ToggleChip";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -45,16 +47,15 @@ export function ListRulesSection({ listId }: { listId: string }) {
           </Label>
           <div className="flex flex-wrap gap-2">
             {leadStatuses.map((s) => (
-              <button
+              <ToggleChip
                 key={s.status_key}
-                type="button"
-                onClick={() =>
+                active={ruleStatuses.includes(s.status_key)}
+                onToggle={() =>
                   toggle(ruleStatuses, s.status_key, setRuleStatuses)
                 }
-                className={`rounded-full border px-2 py-0.5 text-xs ${ruleStatuses.includes(s.status_key) ? "bg-primary text-primary-foreground" : ""}`}
               >
                 {s.label || s.status_key}
-              </button>
+              </ToggleChip>
             ))}
           </div>
         </div>
@@ -62,28 +63,36 @@ export function ListRulesSection({ listId }: { listId: string }) {
           <Label className="mb-1 block text-xs">מקור (ריק = כל המקורות)</Label>
           <div className="flex flex-wrap gap-2">
             {LEAD_SOURCES.map((s) => (
-              <button
+              <ToggleChip
                 key={s.key}
-                type="button"
-                onClick={() => toggle(ruleSources, s.key, setRuleSources)}
-                className={`rounded-full border px-2 py-0.5 text-xs ${ruleSources.includes(s.key) ? "bg-primary text-primary-foreground" : ""}`}
+                active={ruleSources.includes(s.key)}
+                onToggle={() => toggle(ruleSources, s.key, setRuleSources)}
               >
                 {s.label}
-              </button>
+              </ToggleChip>
             ))}
           </div>
         </div>
         <Button
           size="sm"
-          onClick={async () => {
-            await addRule.mutateAsync({
-              listId,
-              filter: { statusKeys: ruleStatuses, sources: ruleSources },
-            });
-            setRuleStatuses([]);
-            setRuleSources([]);
-            toast.success("כלל נוסף");
-          }}
+          disabled={addRule.isPending}
+          onClick={() =>
+            addRule.mutate(
+              {
+                listId,
+                filter: { statusKeys: ruleStatuses, sources: ruleSources },
+              },
+              {
+                onSuccess: () => {
+                  setRuleStatuses([]);
+                  setRuleSources([]);
+                  toast.success("כלל נוסף");
+                },
+                onError: (e) =>
+                  toast.error("הוספת הכלל נכשלה: " + errorMessage(e)),
+              },
+            )
+          }
         >
           <Plus className="ml-1 h-4 w-4" />
           הוסף כלל

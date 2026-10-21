@@ -3,7 +3,7 @@ import { useBroadcastLists } from "@/hooks/useBroadcastLists";
 import {
   buildTemplateVars,
   type TemplateVars,
-} from "../../../supabase/functions/_shared/broadcast-template.ts";
+} from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 import { SAMPLE_VARS } from "./templateUtils";
 
 /** Preview data for the template editor: the first member of the chosen

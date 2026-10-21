@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useBroadcastLists } from "@/hooks/useBroadcastLists";
+import { useMaterializeList } from "@/hooks/useMaterializeList";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -7,19 +6,17 @@ import { Loader2, RefreshCw } from "lucide-react";
 
 /** Static CRM-filter list: add whoever matches the saved filter right now. */
 export function ListRefreshFromFilter({ listId }: { listId: string }) {
-  const { materialize } = useBroadcastLists();
-  const [refreshing, setRefreshing] = useState(false);
-  const refreshFromFilter = async () => {
-    setRefreshing(true);
-    try {
-      const res = await materialize({ mode: "freeze", listId });
-      toast.success(`נוספו/עודכנו ${res.added ?? 0} אנשי קשר מהסינון`);
-    } catch (e) {
-      toast.error("הרענון נכשל: " + errorMessage(e));
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const materialize = useMaterializeList();
+  const refreshing = materialize.isPending;
+  const refreshFromFilter = () =>
+    materialize.mutate(
+      { mode: "freeze", listId },
+      {
+        onSuccess: (res) =>
+          toast.success(`נוספו/עודכנו ${res.added ?? 0} אנשי קשר מהסינון`),
+        onError: (e) => toast.error("הרענון נכשל: " + errorMessage(e)),
+      },
+    );
 
   return (
     <div className="flex items-center justify-between rounded-md bg-muted p-2 text-xs">

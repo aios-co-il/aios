@@ -1,6 +1,6 @@
 // Shared types for mailing audience resolution.
-import type { Json } from "../database.types.ts";
-import type { TemplateVars } from "../template-vars.ts";
+import type { Json } from "../../database.types.ts";
+import type { TemplateVars } from "../template/template-vars.ts";
 
 export type AudienceFilter = {
   source: "clients" | "leads" | "campaigners" | "list" | "wa_groups";
@@ -40,8 +40,6 @@ export const CLIENT_STATUS_LABELS: Record<string, string> = {
   onboarding: "בקליטה",
   inactive: "לא פעיל",
 };
-
-export type { DbClient as Db } from "../supabase-clients.ts";
 
 /** Read a stored filter (broadcast_lists.source_config); null when it has no source. */
 export function toAudienceFilter(value: Json | null): AudienceFilter | null {
