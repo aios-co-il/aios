@@ -602,7 +602,13 @@ function ListDetailDialog({
                   <span>
                     ליד חדש
                     {r.filter?.statusKeys?.length
-                      ? ` · סטטוס: ${r.filter.statusKeys.join(", ")}`
+                      ? ` · סטטוס: ${r.filter.statusKeys
+                          .map(
+                            (k: string) =>
+                              leadStatuses?.find((s: any) => s.status_key === k)
+                                ?.label || k,
+                          )
+                          .join(", ")}`
                       : ""}
                     {r.filter?.sources?.length
                       ? ` · מקור: ${r.filter.sources.join(", ")}`

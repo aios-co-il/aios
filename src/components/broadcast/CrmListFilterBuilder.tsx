@@ -48,8 +48,23 @@ export function CrmListFilterBuilder({
   value: CrmListFilter;
   onChange: (f: CrmListFilter) => void;
 }) {
-  const { activeStages } = useLeadPipelineStages();
-  const { activeStatuses } = useLeadStatuses();
+  const { stages } = useLeadPipelineStages();
+  const { statuses } = useLeadStatuses();
+  // Each tenant manages its own stages and statuses in the CRM; filters store
+  // the stable key and show the current label. A disabled one that is already
+  // selected stays visible so it can be removed.
+  const stageOptions = (stages || [])
+    .filter((s: any) => s.is_active || value.stageKeys?.includes(s.stage_key))
+    .map((s: any) => ({
+      value: s.stage_key,
+      label: `${s.label || s.stage_key}${s.is_active ? "" : " (לא פעיל)"}`,
+    }));
+  const statusOptions = (statuses || [])
+    .filter((s: any) => s.is_active || value.statusKeys?.includes(s.status_key))
+    .map((s: any) => ({
+      value: s.status_key,
+      label: `${s.label || s.status_key}${s.is_active ? "" : " (לא פעיל)"}`,
+    }));
   const agencies = useNamedRows("agencies");
   const salesPeople = useNamedRows("sales_people");
   const campaigners = useAssignableCampaigners({
@@ -81,10 +96,7 @@ export function CrmListFilterBuilder({
         <>
           <BroadcastAudienceMultiSelect
             label="שלב במשפך"
-            options={(activeStages || []).map((s: any) => ({
-              value: s.stage_key,
-              label: s.label || s.stage_key,
-            }))}
+            options={stageOptions}
             selected={value.stageKeys || []}
             onSelectedChange={(stageKeys) => set({ stageKeys })}
             mode={value.stageMode || "include"}
@@ -93,10 +105,7 @@ export function CrmListFilterBuilder({
           />
           <BroadcastAudienceMultiSelect
             label="סטטוס ליד"
-            options={(activeStatuses || []).map((s: any) => ({
-              value: s.status_key,
-              label: s.label || s.status_key,
-            }))}
+            options={statusOptions}
             selected={value.statusKeys || []}
             onSelectedChange={(statusKeys) => set({ statusKeys })}
             mode={value.statusMode || "include"}
