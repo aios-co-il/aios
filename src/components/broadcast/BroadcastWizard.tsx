@@ -82,9 +82,6 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const { lists } = useBroadcastLists();
   const { list: domainsQ } = useBroadcastDomains();
   const { list: templatesQ } = useMessageTemplates();
-  const channelTemplates = (templatesQ.data || []).filter(
-    (t) => t.channel === channel,
-  );
   const applyTemplate = (t: MessageTemplate | null) => {
     if (!t) {
       setTemplateId(null);
@@ -113,6 +110,10 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("דיוור חדש");
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
+  // Declared after `channel`: reading it earlier throws (temporal dead zone).
+  const channelTemplates = (templatesQ.data || []).filter(
+    (t) => t.channel === channel,
+  );
   const [subject, setSubject] = useState("");
   const [fromMode, setFromMode] = useState<"default" | "custom">("default");
   const [fromName, setFromName] = useState("");
