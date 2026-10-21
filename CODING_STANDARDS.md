@@ -1,6 +1,6 @@
-# Code review conventions
+# Coding standards
 
-Rules every change follows; reviewers and review bots check PRs against them. Each rule came from repeated human review feedback.
+Rules every change follows; reviewers check PRs against them. Each rule came from repeated human review feedback.
 
 ## Placement
 
@@ -15,13 +15,13 @@ Rules every change follows; reviewers and review bots check PRs against them. Ea
 
 ## Size
 
-- **Files stay under 150 lines**; the ESLint `max-lines` warning is the limit, not a suggestion.
+- **Treat ESLint warnings as requests, not suggestions**: fix `max-lines` by splitting the file.
 - **Split a large page into its own folder**: `src/components/<PageName>/` with one file per section, and data hooks (`use…`) and pure helpers in their own files; the page file only composes them.
 
 ## Reuse and types
 
-- **Use the existing shared helper** before writing a new one, e.g. `serviceClient()` and `userHasTenantAccess()` in `supabase/functions/_shared/agent-channel/store.ts`.
-- **No casts to silence the compiler**: narrow with `instanceof` or a type guard, or fix the type (a `type` alias, not an `interface`, for values stored as JSON).
+- **Reuse what `supabase/functions/_shared/` already provides** before writing a new helper.
+- **Narrow types instead of casting**: use `instanceof` or a type guard, or fix the type.
 
 ## Comments
 
@@ -32,6 +32,6 @@ Rules every change follows; reviewers and review bots check PRs against them. Ea
 
 - **Upsert where a unique constraint exists** (`upsert(row, { onConflict, ignoreDuplicates })`) rather than select-then-insert. Keep select-then-insert only when an upsert would overwrite data, and say so in a one-line comment.
 
-## PR description
+## PR
 
-- **Answer the obvious question up front.** When the change deliberately skips the expected approach, the PR description states why.
+Branch name, commit style, title and description: `docs/git-conventions.md` and `/create-pr`. State up front why a change skips the expected approach.
