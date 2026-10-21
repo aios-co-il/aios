@@ -15,6 +15,8 @@ import {
   buildTemplateVars,
   renderTemplate,
   type TemplateVars,
+  attachmentUrlPrefix,
+  emailAttachmentsForResend,
 } from "../_shared/broadcast-template.ts";
 
 const corsHeaders = {
@@ -155,6 +157,10 @@ async function sendOne(
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
+      attachments: emailAttachmentsForResend(
+        b.attachments,
+        attachmentUrlPrefix(SB_URL),
+      ),
     });
     return res.ok
       ? { ok: true, messageId: res.json?.id }

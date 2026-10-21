@@ -10,8 +10,11 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { supabase } from "@/integrations/supabase/client";
 import type { EmailRichEditorHandle } from "@/components/broadcast/EmailRichEditor";
 import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_TOTAL_ATTACHMENT_BYTES,
   STANDARD_TEMPLATE_FIELDS,
   buildEmailContent,
+  type EmailAttachment,
   buildTemplateVars,
   renderTemplate,
   templateFieldKeys,
@@ -76,6 +79,13 @@ const SAMPLE_VARS: TemplateVars = buildTemplateVars({
   lead_status: "חם",
   client_status: "פעיל",
 });
+
+function formatBytes(n?: number) {
+  if (!n) return "";
+  return n >= 1024 * 1024
+    ? `${(n / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.ceil(n / 1024)}KB`;
+}
 
 /** "{{field}}" insert menu: standard fields plus custom columns of a list. */
 export function TemplateFieldPicker({
@@ -245,6 +255,10 @@ function TemplateEditorDialog({
   const [bodyText, setBodyText] = useState(template?.body_text || "");
   const [mediaUrl, setMediaUrl] = useState(template?.media_url || "");
   const [uploading, setUploading] = useState(false);
+  const [attachments, setAttachments] = useState<EmailAttachment[]>(
+    Array.isArray(template?.attachments) ? template!.attachments : [],
+  );
+  const [attaching, setAttaching] = useState(false);
   const [testing, setTesting] = useState(false);
   const [sampleListId, setSampleListId] = useState<string | undefined>();
   const editorRef = useRef<EmailRichEditorHandle>(null);
@@ -337,6 +351,45 @@ function TemplateEditorDialog({
     }
   };
 
+  const addAttachments = async (files: FileList | null) => {
+    if (!files?.length) return;
+    let total = attachments.reduce((sum, a) => sum + (a.size || 0), 0);
+    setAttaching(true);
+    try {
+      const added: EmailAttachment[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(`${file.name}: קובץ מעל 10MB`);
+          continue;
+        }
+        if (total + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+          toast.error("סך הקבצים המצורפים מוגבל ל־20MB");
+          break;
+        }
+        const safe = file.name.replace(/[^\w.-]+/g, "_").slice(-80);
+        const path = `${tenantId}/attachments/${crypto.randomUUID()}-${safe}`;
+        const { error } = await supabase.storage
+          .from("broadcast-media")
+          .upload(path, file, { contentType: file.type || undefined });
+        if (error) throw error;
+        total += file.size;
+        added.push({
+          name: file.name,
+          path,
+          url: supabase.storage.from("broadcast-media").getPublicUrl(path).data
+            .publicUrl,
+          size: file.size,
+          content_type: file.type || "application/octet-stream",
+        });
+      }
+      if (added.length) setAttachments((prev) => [...prev, ...added]);
+    } catch (e: any) {
+      toast.error("העלאת הקובץ נכשלה: " + (e?.message || ""));
+    } finally {
+      setAttaching(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!name.trim()) return toast.error("צריך שם לטמפלייט");
     if (channel === "email" && !subject.trim())
@@ -356,6 +409,7 @@ function TemplateEditorDialog({
               ? bodyHtml
               : DOMPurify.sanitize(bodyHtml),
         html_mode: channel === "email" && htmlMode,
+        attachments: channel === "email" ? attachments : [],
         body_text: channel === "whatsapp" ? bodyText : null,
         media_url: channel === "whatsapp" ? mediaUrl || null : null,
       });
@@ -378,6 +432,7 @@ function TemplateEditorDialog({
             bodyHtml: htmlMode ? bodyHtml : DOMPurify.sanitize(bodyHtml),
             htmlMode,
             vars: previewVars,
+            attachments,
           },
         },
       );
@@ -502,6 +557,62 @@ function TemplateEditorDialog({
                       : "הקלד / לכותרות, רשימות ותמונות. קישור להסרה מהרשימה מתווסף אוטומטית."}
                   </p>
                 </div>
+                <div className="space-y-1">
+                  <Label>קבצים מצורפים</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      multiple
+                      disabled={attaching}
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        void addAttachments(files).finally(() => {
+                          e.target.value = "";
+                        });
+                      }}
+                    />
+                    {attaching && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </div>
+                  {attachments.length > 0 && (
+                    <ul className="space-y-1">
+                      {attachments.map((a, i) => (
+                        <li
+                          key={a.path || a.url}
+                          className="flex items-center justify-between rounded border px-2 py-1 text-sm"
+                        >
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate hover:underline"
+                          >
+                            📎 {a.name}
+                          </a>
+                          <span className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {formatBytes(a.size)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setAttachments((prev) =>
+                                  prev.filter((_, j) => j !== i),
+                                )
+                              }
+                            >
+                              הסר
+                            </Button>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    עד 10MB לקובץ ו־20MB בסך הכל. הקבצים נשלחים עם כל מייל
+                    מהטמפלייט.
+                  </p>
+                </div>
               </>
             ) : (
               <>
@@ -573,6 +684,18 @@ function TemplateEditorDialog({
                   />
                 ) : (
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                )}
+                {attachments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t pt-2">
+                    {attachments.map((a) => (
+                      <span
+                        key={a.path || a.url}
+                        className="rounded border bg-gray-50 px-2 py-0.5 text-xs"
+                      >
+                        📎 {a.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             ) : (
