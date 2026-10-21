@@ -1,25 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildOutboundRequest,
-  isAllowedOutboundUrl,
-  leadPhoneCandidates,
-  mapCallStatus,
-  normalizePhone,
-  parsePbxEvent,
-  phoneLikePattern,
-  phoneMatchKey,
-  resolveCaller,
-  secretsMatch,
-} from "./pbx.ts";
-
-test("normalizePhone handles Israeli formats", () => {
-  assert.equal(normalizePhone("+972-50-123-4567"), "0501234567");
-  assert.equal(normalizePhone("501234567"), "0501234567");
-  assert.equal(normalizePhone("050 123 4567"), "0501234567");
-  assert.equal(normalizePhone(""), null);
-  assert.equal(normalizePhone(null), null);
-});
+import { buildOutboundRequest, resolveCaller } from "./outbound.ts";
+import { isAllowedOutboundUrl } from "./url-guard.ts";
 
 test("resolveCaller prefers the user's mapped extension", () => {
   const settings = {
@@ -114,70 +96,4 @@ test("isAllowedOutboundUrl blocks internal targets", () => {
   assert.equal(isAllowedOutboundUrl("http://[::1]/x"), false);
   assert.equal(isAllowedOutboundUrl("ftp://pbx.example.com"), false);
   assert.equal(isAllowedOutboundUrl("not a url"), false);
-});
-
-test("parsePbxEvent reads common field aliases", () => {
-  const event = parsePbxEvent({
-    from: "972501234567",
-    to: "031111111",
-    ext: "205",
-    direction: "incoming",
-    billsec: "65",
-    recording: "https://pbx.example.com/r.mp3",
-    uniqueid: "abc",
-  });
-  assert.equal(event.caller, "972501234567");
-  assert.equal(event.called, "031111111");
-  assert.equal(event.extension, "205");
-  assert.equal(event.direction, "inbound");
-  assert.equal(event.duration, 65);
-  assert.equal(event.recordingUrl, "https://pbx.example.com/r.mp3");
-  assert.equal(event.callId, "abc");
-});
-
-test("leadPhoneCandidates follows the call direction", () => {
-  const base = parsePbxEvent({ caller: "0501234567", called: "031111111" });
-  assert.deepEqual(leadPhoneCandidates(base), ["501234567", "031111111"]);
-  const outbound = parsePbxEvent({
-    caller: "0501234567",
-    called: "0529876543",
-    direction: "outbound",
-  });
-  assert.deepEqual(leadPhoneCandidates(outbound), ["529876543", "501234567"]);
-  const explicit = parsePbxEvent({
-    caller: "031111111",
-    lead_phone: "+972 52 987 6543",
-  });
-  assert.deepEqual(leadPhoneCandidates(explicit), ["529876543"]);
-});
-
-test("mapCallStatus maps PBX statuses onto call_logs values", () => {
-  assert.equal(mapCallStatus("ANSWERED"), "completed");
-  assert.equal(mapCallStatus("NO ANSWER"), "no-answer");
-  assert.equal(mapCallStatus("busy"), "busy");
-  assert.equal(mapCallStatus("FAILED"), "failed");
-  assert.equal(mapCallStatus("in_progress"), "in-progress");
-  assert.equal(mapCallStatus(null), "completed");
-});
-
-test("secretsMatch compares exactly", () => {
-  assert.equal(secretsMatch("abc123", "abc123"), true);
-  assert.equal(secretsMatch("abc123", "abc124"), false);
-  assert.equal(secretsMatch("abc123", "abc"), false);
-  assert.equal(secretsMatch("", ""), false);
-});
-
-test("phoneLikePattern matches stored phones with separators", () => {
-  const key = phoneMatchKey("0529876543")!;
-  const re = new RegExp("^" + phoneLikePattern(key).replace(/%/g, ".*") + "$");
-  for (const stored of ["052-987-6543", "+972 52 987 6543", "972529876543"])
-    assert.ok(re.test(stored), stored);
-  assert.equal(phoneMatchKey("+972-52-987-6543"), key);
-  assert.notEqual(phoneMatchKey("052-987-6544"), key);
-  const landline = phoneMatchKey("03-555-1234")!;
-  const landRe = new RegExp(
-    "^" + phoneLikePattern(landline).replace(/%/g, ".*") + "$",
-  );
-  assert.ok(landRe.test("+972-3-555-1234"));
-  assert.equal(phoneMatchKey("+972-3-555-1234"), landline);
 });
