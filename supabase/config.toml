@@ -24,6 +24,25 @@ redirect_uri = "http://localhost:54321/auth/v1/callback"
 [auth.sms.twilio]
 enabled = false
 
+# Preview branches only. APP_ENV is not "production", so the outbound guard stays on.
+# Values are encrypted in supabase/.env.preview; the decryption key (supabase/.env.keys) is never committed.
+[edge_runtime.secrets]
+APP_ENV = "preview"
+STAGING_SAFE_MODE = "true"
+CRON_SECRET = "encrypted:BFnlTq38I5TYGEogmleQFhpxL+Ee3yi3NadPt4PMwtkSCM/7VdFZsDRj1SW53Un5hPqXSvEXp8dDYGQCx9fnCEr1VnWmx70z248qMOhdYs9a9NApOnnxk/7UPP518iwLx8BNwUU5WXY+RoeTSqwXKrLjurHarwOb10nkeL5UPY5omvO8k0XfHmP2qWMaDN9aCcUgAMUn7xm1wILkda0F+zo="
+CAMPAIGN_PULSE_CRON_SECRET = "encrypted:BGcyxq2C9JNVeNuO0Foy1tma9goK+eK1AkdjbYaZX1aBvOizH1oLfQpNuNgKn1HuBn1WPncr4ymwRIhYFoJQOgAP9jvbkfVz3zOQ7ECrQXbaWPALKfAC8dM3RBTIJTggZkw+n1HcbIktLYVtpPgvLgzKN6VrNEp6ZJ91n/b68cSmUmGT+po4UK8RE4v74PL41P3b/Yn8vxElIasuFjhHg/I="
+REPORT_WORKER_SECRET = "encrypted:BMoQaBo3r8I5MBMIrQ9i2iSV5dZ4CYyDsXV3OLNQEYlnxkndmwqrMvgXW6e6bQ9pQQc7AAYnLXui4o0prIDl8khVWdE6xA79TzNtDa0gvgYI1fAOBB1HkH1d/rSMyzNXFyd98W+by7Kmp0H2WNmFRpYDY/Vci+9y6mCU6QqrwZN8TPzxAIs79KT4oPC2+F105Vf8HcCbMMNQfhwzqmUgwl4="
+GOAL_BRAIN_CALLBACK_SECRET = "encrypted:BOx5+z9iakPi2zFigrnyWVeKOS7WAPVIxIrSSjCf6OrROEojF/0CBCfPPHuAv91UIXBw+RT0XuV7I07hY/CHj9Gia8R7gS3hs5F6aa93AMf0+WoxJ0E3xx39jUaFHZAqmWFOGPQflirgYRTY4KkL4Evq8TwQ51/T53o5eVN+QG/Cs4BKvpJ52zgDioIrslGBOxnznAYBq0sgtFwf0/lwLiM="
+AGENT_CHANNEL_CALLBACK_SECRET = "encrypted:BJUk3egiU/MJsJHl+xc2SMLMY+asc68FFUS83gUhd3+YZPo/5Gsk6JFpAeqQ+XDIdmlSRiL+xJDd8qjlDefFy5X2KQKeLllZATROLFExckJ+X/4Lbt0n0USmjvPZ2f8GYaUWNyD+xIVgV21IgmQYnpl1IiiVcBmwAdmmfgBBR4wze283G3w8C/1dm/ni5PTx9JWl2HEPNN+sZBOX/Rxcn84="
+WEBHOOK_LEAD_INTAKE_SECRET = "encrypted:BBmyST3U2p6HL6+8hY8hqnfZZYslnbppSsDbYEfZAAQ62ep0kOKqo5edV5Ol1EcVSmAbuuStX7CKQyO5XYlkVqvyFSqPYE4cvzhpr2YX9mlQn9KukL/+c27fN9jCj35+FanTvF//l3y5coz6AZNYwz2u71rBLELhVMRztJ2mihBQJ7DIOrMnn1phW9dFc2edS6WShaaJDISjlOvemQf377Y="
+WEBHOOK_TASK_INTAKE_SECRET = "encrypted:BCBNI4nzLZTfEZDh56URmP4dIm06FmcvpdBpeHTcZSfSz7pit1vRd4df6IRAC3XCbyx7RZEb//Vmatwe1detw8wVzvL9CJ/tGH5bsEL/EknZqooFreFBtULVrBc9WBDqtmo5XUL8P4OhgQc7Cwq1Gey2LdUYdjuVBi0uSjP/0UmanrP23S4h1mOc1IVsWrJp5f7EmAvAXsCw11KU4twbSmg="
+
+# Guard for Phase 3: if "Deploy to production" is ever enabled, the base [edge_runtime.secrets]
+# above must not turn Production into a preview environment.
+[remotes.production]
+project_id = "zvoijyneresvkadpprel"
+
+
 [functions.public-table]
 verify_jwt = false
 
