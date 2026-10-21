@@ -1,15 +1,19 @@
 // broadcast-list-materialize — CRM-filter mailing lists.
 //
-//   { mode: 'preview', tenantId, filter }      → count + sample (no writes)
-//   { mode: 'preview', listId }                → same, using the list's filter
-//   { mode: 'freeze',  listId }                → write current matches into
-//                                                broadcast_list_members (static list)
+//   { mode: 'preview', tenantId, filter }  → count + sample (no writes at all)
+//   { mode: 'preview', listId }            → same, using the list's filter
+//   { mode: 'refresh', listId }            → add the current matches to
+//                                            broadcast_list_members (static or
+//                                            synced list); 'freeze' is an alias
 //
 // Runs with the caller's JWT so RLS scopes every read and write to the
 // caller's tenant.
 import { userClient } from "../_shared/supabase-clients.ts";
 import type { Tables } from "../_shared/database.types.ts";
-import type { AudienceFilter } from "../_shared/broadcast/audience/types.ts";
+import {
+  type AudienceFilter,
+  toAudienceFilter,
+} from "../_shared/broadcast/audience/types.ts";
 import { resolveAudience } from "../_shared/broadcast/audience/resolve.ts";
 import { normalizePhone } from "../_shared/broadcast/template/template-vars.ts";
 
@@ -35,7 +39,8 @@ Deno.serve(async (req) => {
     const db = userClient(authHeader);
 
     const body = await req.json();
-    const mode: string = body.mode === "freeze" ? "freeze" : "preview";
+    const mode =
+      body.mode === "refresh" || body.mode === "freeze" ? "refresh" : "preview";
     let tenantId: string | undefined = body.tenantId;
     let filter: AudienceFilter | undefined = body.filter;
     let list: Pick<
@@ -53,7 +58,7 @@ Deno.serve(async (req) => {
       if (!data) return json({ error: "list_not_found" }, 404);
       list = data;
       tenantId = data.tenant_id;
-      filter = filter ?? (data.source_config as AudienceFilter);
+      filter = filter ?? toAudienceFilter(data.source_config) ?? undefined;
     }
 
     if (!tenantId) return json({ error: "missing_tenant" }, 400);
@@ -68,15 +73,6 @@ Deno.serve(async (req) => {
       .map((r) => ({ name: r.contact_name, phone: r.phone, email: r.email }));
 
     if (mode === "preview") {
-      if (list && list.kind === "dynamic") {
-        await db
-          .from("broadcast_lists")
-          .update({
-            member_count: recipients.length,
-            last_synced_at: new Date().toISOString(),
-          })
-          .eq("id", list.id);
-      }
       return json({
         success: true,
         total: recipients.length,
@@ -87,8 +83,8 @@ Deno.serve(async (req) => {
     }
 
     if (!list) return json({ error: "missing_listId" }, 400);
-    if (list.kind !== "static")
-      return json({ error: "freeze_requires_static_list" }, 400);
+    if (list.kind !== "static" && list.kind !== "synced")
+      return json({ error: "refresh_requires_member_list" }, 400);
 
     const rows = recipients
       .map((r) => ({
@@ -114,7 +110,7 @@ Deno.serve(async (req) => {
       .from("broadcast_lists")
       .update({
         last_synced_at: new Date().toISOString(),
-        last_sync_status: "ok",
+        last_sync_status: "success",
       })
       .eq("id", list.id);
 

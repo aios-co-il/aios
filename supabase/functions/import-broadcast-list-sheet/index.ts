@@ -5,6 +5,7 @@
 //   otherwise             → import rows using fieldMap { "<header>": "name|phone|email" }
 // Callable by an authenticated user (frontend) or by service role (sync cron).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { fieldKeyFromHeader } from "../_shared/broadcast/template/template-vars.ts";
 
 const corsHeaders = {
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
     }
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    const isServiceRole = token === SB_SERVICE;
+    const isServiceRole = isServiceKey(token, SB_SERVICE);
 
     const body = await req.json();
     const {

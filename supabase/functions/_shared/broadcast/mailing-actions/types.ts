@@ -2,14 +2,10 @@
 
 import type { DbClient } from "../../supabase-clients.ts";
 
-export const MAILING_ACTION_TYPES = [
-  "add_to_mailing_list",
-  "remove_from_mailing_list",
-  "send_template_to_contact",
-  "send_template_to_list",
-  "sync_mailing_list",
-] as const;
-export type MailingActionType = (typeof MAILING_ACTION_TYPES)[number];
+export {
+  MAILING_ACTION_TYPES,
+  type MailingActionType,
+} from "./action-types.ts";
 
 export type MailingActionContext = {
   automationId: string;
@@ -22,7 +18,13 @@ export type MailingActionContext = {
     config: Record<string, unknown>,
     tenantId: string,
   ) => Promise<{ fromEmail: string; fromName: string | null }>;
+  /** Queue a draft broadcast for sending (broadcast-enqueue). */
+  enqueue: (broadcastId: string) => Promise<{ total: number }>;
 };
+
+/** A test run (the automation's "test" button) must not send anything. */
+export const isTestRun = (data: Record<string, unknown>): boolean =>
+  data.test === true;
 
 export const str = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim() : null;

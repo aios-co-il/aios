@@ -45,19 +45,25 @@ export function NewListKindOptions({
   value,
   onChange,
   leads,
+  canSync,
 }: {
   value: NewListKind;
   onChange: (k: NewListKind) => void;
   /** Lead lists also get an editable sync automation. */
   leads: boolean;
+  /** Only owners may create synced lists (they own the sync automation). */
+  canSync: boolean;
 }) {
   return (
     <div className="space-y-2 rounded-lg border p-3">
-      <label className="flex items-start gap-2 text-sm">
+      <label
+        className={`flex items-start gap-2 text-sm ${canSync ? "" : "opacity-60"}`}
+      >
         <input
           type="radio"
           checked={value === "synced"}
           onChange={() => onChange("synced")}
+          disabled={!canSync}
           className="mt-1"
         />
         <span>
@@ -65,6 +71,11 @@ export function NewListKindOptions({
           לעמוד בסינון נכנס לרשימה ומי שמפסיק יוצא ממנה, בכל שינוי: שלב, סטטוס,
           סוכנות, איש מכירות, קמפיינר או תגית.
           {leads && " נוצרת גם אוטומציה שאפשר לערוך ולכבות."}
+          {!canSync && (
+            <span className="block text-xs text-muted-foreground">
+              רק בעלי החשבון יכולים ליצור רשימה מסונכרנת.
+            </span>
+          )}
         </span>
       </label>
       <label className="flex items-start gap-2 text-sm">

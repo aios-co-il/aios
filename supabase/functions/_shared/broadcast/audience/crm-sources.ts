@@ -1,90 +1,71 @@
-// CRM sources: leads and clients matching an audience filter.
-import type { DbClient } from "../../supabase-clients.ts";
-import { applyTagFilter, hasServiceTag, tagFilteredIds } from "./filters.ts";
+// CRM sources: leads and clients matching an audience filter. Matching is
+// owned by the database (broadcast_matching_entity_ids); this module loads
+// the matched rows and turns them into recipients.
 import { loadLookups } from "./lookups.ts";
-import {
-  fetchAll,
-  fetchByIds,
-  hasItems,
-  modeMatch,
-  todayIso,
-} from "./query.ts";
+import { fetchAll, fetchByIds } from "./query.ts";
 import {
   CLIENT_COLUMNS,
   clientRecipient,
   LEAD_COLUMNS,
   leadRecipient,
 } from "./records.ts";
-import type { AudienceFilter, Recipient } from "./types.ts";
+import type { AudienceDb, AudienceFilter, Recipient } from "./types.ts";
+
+/** Ids of the tenant's leads / clients matching the filter, oldest first. */
+function matchingIds(
+  db: AudienceDb,
+  tenantId: string,
+  entityType: "lead" | "client",
+  f: AudienceFilter,
+): Promise<string[]> {
+  return fetchAll(() =>
+    db.rpc("broadcast_matching_entity_ids", {
+      p_tenant_id: tenantId,
+      p_entity_type: entityType,
+      p_filter: f,
+    }),
+  );
+}
+
+/** Rows in the order of `ids` (the RPC's created_at, id order). */
+function inIdOrder<T extends { id: string }>(ids: string[], rows: T[]): T[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
+}
 
 export async function resolveLeads(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {
-  let rows = await fetchAll(() => {
-    let q = db
+  const ids = await matchingIds(db, tenantId, "lead", f);
+  const rows = await fetchByIds(ids, (chunk) =>
+    db
       .from("leads")
       .select(LEAD_COLUMNS)
       .eq("tenant_id", tenantId)
-      .is("archived_at", null);
-    if (hasItems(f.salesPersonIds))
-      q = q.in("sales_person_id", f.salesPersonIds);
-    if (hasItems(f.agencyIds)) q = q.in("agency_id", f.agencyIds);
-    return q.order("created_at", { ascending: true });
-  });
-  rows = rows.filter(
-    (l) =>
-      modeMatch(f.stageKeys, f.stageMode, l.status) &&
-      modeMatch(f.statusKeys, f.statusMode, l.response_status),
-  );
-  rows = applyTagFilter(
-    rows,
-    await tagFilteredIds(db, tenantId, f, "lead_id"),
-    f.tagMode,
+      .in("id", chunk),
   );
   const lk = await loadLookups(db, tenantId, []);
-  return rows.map((l) => leadRecipient(l, lk));
+  return inIdOrder(ids, rows).map((l) => leadRecipient(l, lk));
 }
 
 export async function resolveClients(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Recipient[]> {
-  let rows = await fetchAll(() => {
-    let q = db.from("clients").select(CLIENT_COLUMNS).eq("tenant_id", tenantId);
-    if (hasItems(f.agencyIds)) q = q.in("agency_id", f.agencyIds);
-    return q.order("created_at", { ascending: true });
-  });
-  rows = rows.filter((c) => modeMatch(f.statuses, f.statusMode, c.status));
-  const serviceTags = f.serviceTags;
-  if (hasItems(serviceTags))
-    rows = rows.filter((c) => hasServiceTag(c.services, serviceTags));
-  if (hasItems(f.campaignerIds)) {
-    const team = await fetchByIds(f.campaignerIds, (chunk) =>
-      db
-        .from("client_team")
-        .select("client_id, end_date")
-        .in("campaigner_id", chunk),
-    );
-    const today = todayIso();
-    const allowed = new Set(
-      team
-        .filter((t) => !t.end_date || t.end_date >= today)
-        .map((t) => t.client_id),
-    );
-    rows = rows.filter((c) => allowed.has(c.id));
-  }
-  rows = applyTagFilter(
-    rows,
-    await tagFilteredIds(db, tenantId, f, "client_id"),
-    f.tagMode,
+  const ids = await matchingIds(db, tenantId, "client", f);
+  const rows = await fetchByIds(ids, (chunk) =>
+    db
+      .from("clients")
+      .select(CLIENT_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .in("id", chunk),
   );
-  const lk = await loadLookups(
-    db,
-    tenantId,
-    rows.map((c) => c.id),
-  );
-  return rows.map((c) => clientRecipient(c, lk));
+  const lk = await loadLookups(db, tenantId, ids);
+  return inIdOrder(ids, rows).map((c) => clientRecipient(c, lk));
 }

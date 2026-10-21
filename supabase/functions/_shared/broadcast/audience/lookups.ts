@@ -1,6 +1,6 @@
 // Labels and names used to fill merge fields; loaded once per resolution.
-import type { DbClient } from "../../supabase-clients.ts";
 import { fetchByIds, todayIso } from "./query.ts";
+import type { AudienceDb } from "./types.ts";
 
 type Names = Map<string, string | null>;
 
@@ -24,7 +24,7 @@ const toMap = <T>(
 ): Names => new Map((rows || []).map((r) => [key(r), val(r)]));
 
 export async function loadLookups(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   clientIds: string[],
 ): Promise<Lookups> {

@@ -6,10 +6,20 @@ import {
   type TemplateVars,
 } from "./template-vars.ts";
 
+// The two sanitizers below are regex clean-ups, not an HTML parser, and must
+// never be the only guard. They are a second line of defence: the editor
+// sanitizes with DOMPurify and the in-app preview renders in an
+// `<iframe sandbox="">`, so nothing in the HTML runs there. They do NOT catch:
+//   - CSS expressions or `url(javascript:…)` inside style attributes
+//   - SVG / MathML payloads
+//   - entity-encoded or whitespace-split `javascript:` URLs
+//   - unquoted href / src values
+//   - srcset, formaction or xlink:href URLs
+//   - malformed or nested tags that the regexes mis-parse
+
 /**
- * Minimal server-side clean-up of tenant-authored email HTML. The editor
- * already sanitizes with DOMPurify; this is a second line of defence for
- * HTML that reaches the API another way.
+ * Minimal server-side clean-up of tenant-authored email HTML (see above) for
+ * HTML that reaches the API without passing through the editor.
  */
 export function sanitizeEmailHtml(html: string | null | undefined): string {
   if (!html) return "";

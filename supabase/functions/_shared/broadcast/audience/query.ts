@@ -1,4 +1,4 @@
-// PostgREST paging helpers and small filter predicates for audience queries.
+// PostgREST paging helpers (and small value helpers) for audience queries.
 
 const PAGE = 1000;
 const IN_CHUNK = 200;
@@ -37,16 +37,6 @@ export async function fetchByIds<T>(
 
 export const hasItems = (a: unknown): a is string[] =>
   Array.isArray(a) && a.length > 0;
-
-export function modeMatch(
-  values: string[] | undefined,
-  mode: string | undefined,
-  current: string | null | undefined,
-): boolean {
-  if (!hasItems(values)) return true;
-  const hit = values.includes(current ?? "");
-  return mode === "exclude" ? !hit : hit;
-}
 
 export function flatObject(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v)
