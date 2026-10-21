@@ -85,7 +85,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 - Staging auth allows `http://localhost:8080` and `https://*.vercel.app`; email signup autoconfirm is on
 - WhatsApp send paths go through `IntegrationGuard`
 - Staging / Preview / Dev visual banner via `VITE_APP_ENV`
-- `deploy-staging-develop.yml` runs on matching **`develop` pushes**, manual dispatch, and reusable workflow calls from the main-to-develop sync (edge functions only for the last two)
+- Staging (`develop`) is a persistent Supabase branch; the Supabase GitHub integration applies migrations and deploys declared edge functions on merge to `develop`
 
 ## Code, data and deployment synchronization
 
@@ -169,4 +169,4 @@ Workflow files define automation triggers; this document defines the environment
 
 ## Database and edge-function deploys
 
-Label-gated migration and edge-function deploys, drift recovery and GitHub config: `docs/agents/db-deploys.md`.
+Supabase Branching deploys and GitHub config: `docs/agents/db-deploys.md`.

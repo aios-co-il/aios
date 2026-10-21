@@ -27,7 +27,7 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 
 - **Codebase questions, architecture, implementation, or `/graphify`:** read `docs/agents/discovery.md` before exploring; it defines graph lookup, fallback, and update procedures.
 - **Environment setup or deployment configuration:** read `docs/ENVIRONMENTS.md`, the environment source of truth, before changing configuration.
-- **Migrations, edge functions, `staging` label, or `/db-fix`:** read `docs/agents/db-deploys.md` for the label-gated deploy flow.
+- **Migrations or edge functions:** read `docs/agents/db-deploys.md` for the Supabase Branching deploy flow.
 - **Running the app, changing code or permissions, verifying a change, or capturing visuals:** read `docs/agents/development.md` before execution for environment checks, permission guards, and focused verification.
 - **Creating/updating a PR, marking it ready, merging, deploying, or reporting completed branch work:** read `docs/agents/releases.md` for branch freshness and preview reporting.
 - **WhatsApp connections, groups, permissions, sync, or automations; AI providers; Carmen memory, profiles, bridges, or voice; or a Carmen-delegated task:** read the relevant sections of `docs/agents/carmen.md` before acting.
