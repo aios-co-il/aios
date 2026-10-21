@@ -1,6 +1,6 @@
 // Reads an incoming PBX webhook into one event shape.
-import { phoneMatchKey } from "./phone.ts";
-import type { CallDirection, PbxEvent } from "./types.ts";
+import { phoneMatchKey } from "../_shared/telephony/phone.ts";
+import type { CallDirection, PbxEvent } from "../_shared/telephony/types.ts";
 
 const pick = (p: Record<string, unknown>, keys: string[]): string | null => {
   for (const k of keys) {

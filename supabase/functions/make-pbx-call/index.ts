@@ -4,16 +4,30 @@ import {
   serviceClient,
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
-import { json, preflight } from "../_shared/pbx/http.ts";
-import { resolveCaller } from "../_shared/pbx/outbound.ts";
-import { loadPbxIntegration } from "../_shared/pbx/settings.ts";
-import { isAllowedOutboundUrl } from "../_shared/pbx/url-guard.ts";
-import { getAuthedUserId } from "./auth.ts";
+import { requireAuth } from "../_shared/security.ts";
+import { loadPbxIntegration } from "../_shared/telephony/settings.ts";
+import {
+  internalError,
+  json,
+  preflight,
+} from "../_shared/telephony/response.ts";
 import { createCallLog, markCallFailed } from "./call-log.ts";
 import { sendDialRequest } from "./dial.ts";
+import { resolveCaller } from "./outbound.ts";
+import { isAllowedOutboundUrl } from "./url-guard.ts";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return preflight();
+  try {
+    return await handle(req);
+  } catch (error) {
+    return internalError("make-pbx-call", error);
+  }
+});
 
 async function handle(req: Request): Promise<Response> {
-  const userId = await getAuthedUserId(req);
+  const auth = await requireAuth(req);
+  const userId = auth?.kind === "user" ? auth.userId : null;
   if (!userId) return json({ error: "Unauthorized" }, 401);
 
   const { to_number, lead_id, client_id, tenant_id } = await req.json();
@@ -73,13 +87,3 @@ async function handle(req: Request): Promise<Response> {
   }
   return json({ success: true, call_log: callLog, call_id: callId });
 }
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return preflight();
-  try {
-    return await handle(req);
-  } catch (error) {
-    console.error("make-pbx-call error:", error);
-    return json({ error: (error as Error).message }, 500);
-  }
-});

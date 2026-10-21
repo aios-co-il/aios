@@ -5,33 +5,32 @@ import { useToast } from "@/hooks/use-toast";
 import {
   EMPTY_PBX_SETTINGS,
   formFromSaved,
+  toPbxRow,
   upsertExtension,
   type PbxExtension,
   type PbxSettingsData,
   type SetPbxField,
 } from "./types";
 
-export const pbxIntegrationKey = (tenantId: string | null | undefined) => [
-  "generic-pbx-integration",
+export const pbxSettingsKey = (tenantId: string | null | undefined) => [
+  "pbx-settings",
   tenantId,
 ];
 
-/** Loads, edits and saves the tenant's generic PBX integration. */
+/** Loads, edits and saves the tenant's PBX settings (managers only, by RLS). */
 export function usePbxSettings(tenantId: string | null | undefined) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<PbxSettingsData>(EMPTY_PBX_SETTINGS);
   const [isActive, setIsActive] = useState(true);
 
-  const { data: integration, isLoading } = useQuery({
-    queryKey: pbxIntegrationKey(tenantId),
+  const { data: saved, isLoading } = useQuery({
+    queryKey: pbxSettingsKey(tenantId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("tenant_integrations")
-        .select("*")
+        .from("pbx_settings")
+        .select("is_active, config, inbound_secret, outbound_auth_value")
         .eq("tenant_id", tenantId!)
-        .eq("integration_type", "generic_pbx")
-        .is("user_id", null)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -41,9 +40,9 @@ export function usePbxSettings(tenantId: string | null | undefined) {
 
   useEffect(() => {
     if (isLoading) return;
-    setForm(formFromSaved(integration?.settings));
-    setIsActive(integration ? !!integration.is_active : true);
-  }, [integration, isLoading]);
+    setForm(formFromSaved(saved ?? null));
+    setIsActive(saved ? saved.is_active : true);
+  }, [saved, isLoading]);
 
   const set: SetPbxField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -61,25 +60,16 @@ export function usePbxSettings(tenantId: string | null | undefined) {
       if (!tenantId) throw new Error("No tenant");
       if (form.outbound_url && !/^https?:\/\//i.test(form.outbound_url))
         throw new Error("כתובת ה-Webhook היוצא חייבת להתחיל ב-http או https");
-      const settings = {
-        ...form,
-        extensions: form.extensions.filter((e) => e.extension.trim()),
-      };
-      const { error } = integration
-        ? await supabase
-            .from("tenant_integrations")
-            .update({ settings, is_active: isActive })
-            .eq("id", integration.id)
-        : await supabase.from("tenant_integrations").insert({
-            tenant_id: tenantId,
-            integration_type: "generic_pbx",
-            settings,
-            is_active: isActive,
-          });
+      const { error } = await supabase
+        .from("pbx_settings")
+        .upsert(
+          { tenant_id: tenantId, is_active: isActive, ...toPbxRow(form) },
+          { onConflict: "tenant_id" },
+        );
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: pbxIntegrationKey(tenantId) });
+      queryClient.invalidateQueries({ queryKey: pbxSettingsKey(tenantId) });
       toast({ title: "נשמר בהצלחה", description: "הגדרות המרכזיה נשמרו" });
     },
     onError: (err: Error) =>
@@ -91,7 +81,7 @@ export function usePbxSettings(tenantId: string | null | undefined) {
   });
 
   return {
-    integration,
+    saved,
     isLoading,
     form,
     set,

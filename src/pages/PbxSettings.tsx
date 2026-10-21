@@ -38,7 +38,7 @@ export default function PbxSettings() {
             לליד לפי מספר הטלפון
           </p>
         </div>
-        {pbx.integration?.is_active && (
+        {pbx.saved?.is_active && (
           <Badge className="bg-primary/90">✓ מחובר</Badge>
         )}
       </div>
@@ -59,7 +59,7 @@ export default function PbxSettings() {
         tenantId={currentTenantId}
         secret={pbx.form.inbound_secret}
         set={pbx.set}
-        isSaved={!!pbx.integration}
+        isSaved={!!pbx.saved}
       />
 
       <Button

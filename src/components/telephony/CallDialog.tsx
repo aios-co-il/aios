@@ -20,6 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  CALL_FUNCTIONS,
+  toProvider,
+  type Provider,
+} from "@/components/telephony/callProviders";
 
 interface CallDialogProps {
   open: boolean;
@@ -29,14 +34,6 @@ interface CallDialogProps {
   leadId?: string;
   clientId?: string;
 }
-
-type Provider = "paycall" | "maskyoo" | "pbx";
-const PROVIDERS: Provider[] = ["paycall", "maskyoo", "pbx"];
-const CALL_FUNCTIONS: Record<Provider, string> = {
-  paycall: "make-paycall-call",
-  maskyoo: "make-maskyoo-call",
-  pbx: "make-pbx-call",
-};
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   idle: { label: "מוכן לשיחה", color: "text-muted-foreground" },
@@ -66,8 +63,7 @@ export function CallDialog({
   const [callLogId, setCallLogId] = useState<string | null>(null);
   const [provider, setProvider] = useState<Provider>(() => {
     try {
-      const saved = localStorage.getItem("telephony_provider") as Provider;
-      return PROVIDERS.includes(saved) ? saved : "paycall";
+      return toProvider(localStorage.getItem("telephony_provider"));
     } catch {
       return "paycall";
     }
@@ -114,8 +110,8 @@ export function CallDialog({
       // Remembering the provider is only a convenience.
     }
     try {
-      const fnName = CALL_FUNCTIONS[provider];
-      const { data, error } = await supabase.functions.invoke(fnName, {
+      const config = CALL_FUNCTIONS[provider];
+      const { data, error } = await supabase.functions.invoke(config.fn, {
         body: {
           to_number: phoneNumber,
           lead_id: leadId || null,
@@ -133,19 +129,8 @@ export function CallDialog({
         if (!result?.error) throw error;
       }
 
-      if (
-        result?.error === "Paycall not configured" ||
-        result?.error === "Maskyoo not configured" ||
-        result?.error === "PBX not configured"
-      ) {
-        toast.error("מרכזיה לא מוגדרת", {
-          description:
-            provider === "maskyoo"
-              ? "יש להגדיר את אינטגרציית Maskyoo בהגדרות"
-              : provider === "pbx"
-                ? "יש להגדיר את המרכזיה בהגדרות אינטגרציות הלידים"
-                : "יש להגדיר את אינטגרציית Paycall בהגדרות הטלפוניה",
-        });
+      if (result?.error === config.notConfiguredError) {
+        toast.error("מרכזיה לא מוגדרת", { description: config.setupHint });
         setCallStatus("failed");
       } else if (result?.error) {
         toast.error("שגיאה ביזום שיחה", {
@@ -237,7 +222,7 @@ export function CallDialog({
               </Label>
               <Select
                 value={provider}
-                onValueChange={(v) => setProvider(v as Provider)}
+                onValueChange={(v) => setProvider(toProvider(v))}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />

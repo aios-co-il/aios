@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { leadPhoneCandidates, parsePbxEvent } from "./event.ts";
-import { secretsMatch } from "./secret.ts";
 import { mapCallStatus } from "./status.ts";
 
 test("parsePbxEvent reads common field aliases", () => {
@@ -46,11 +45,4 @@ test("mapCallStatus maps PBX statuses onto call_logs values", () => {
   assert.equal(mapCallStatus("FAILED"), "failed");
   assert.equal(mapCallStatus("in_progress"), "in-progress");
   assert.equal(mapCallStatus(null), "completed");
-});
-
-test("secretsMatch compares exactly", () => {
-  assert.equal(secretsMatch("abc123", "abc123"), true);
-  assert.equal(secretsMatch("abc123", "abc124"), false);
-  assert.equal(secretsMatch("abc123", "abc"), false);
-  assert.equal(secretsMatch("", ""), false);
 });

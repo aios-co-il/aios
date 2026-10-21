@@ -1,5 +1,5 @@
 // Builds the outgoing webhook the CRM sends to the PBX to start a call.
-import type { OutboundCall, PbxSettings } from "./types.ts";
+import type { OutboundCall, PbxSettings } from "../_shared/telephony/types.ts";
 
 /** Picks the extension and caller number for the user placing the call. */
 export function resolveCaller(
