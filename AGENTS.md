@@ -20,9 +20,8 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 ## Pull requests
 
 - Target `develop` for feature PRs, including through `create-pr`; draft status is optional.
-- Every new PR gets its own Linear issue in team AIO, linked to the PR; move it to **In Review** when the PR is ready to merge into `develop`.
-- A human merges every PR; hand off with the PR link and stop. Creating a PR, passing checks, or completing a task is not merge approval.
-- Once a PR or its Linear issue is In Review, stop and wait for David's next instruction; the next step starts when he writes, not on a scheduled check-in or poll.
+- Every PR has a Linear issue; put its identifier (`AIO-123`) in the PR title or body and set the issue to **In Review** when the PR is open.
+- A human merges every PR; hand off with the PR link and stop. In interactive sessions the next step starts when David writes, never on a scheduled check-in or poll; Routines follow `docs/agents/autonomic-issues.md`. Creating a PR, passing checks, or completing a task is not merge approval.
 - Leave auto-merge disabled and merge-triggering labels unset.
 
 ## Read before the relevant task
