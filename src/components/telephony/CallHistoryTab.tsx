@@ -13,7 +13,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import CustomAudioPlayer from "@/components/chat/CustomAudioPlayer";
+import { CallRecordingPlayer } from "@/components/telephony/CallRecordingPlayer";
 
 interface CallHistoryTabProps {
   leadId?: string;
@@ -135,9 +135,10 @@ export function CallHistoryTab({ leadId, clientId }: CallHistoryTabProps) {
                 </div>
               )}
 
-              {log.recording_url && (
-                <CustomAudioPlayer src={log.recording_url} className="mt-2" />
-              )}
+              <CallRecordingPlayer
+                url={log.recording_url}
+                path={log.recording_path}
+              />
             </div>
           );
         })}

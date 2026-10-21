@@ -1,25 +1,13 @@
-export type PbxExtension = {
-  user_id: string;
-  extension: string;
-  caller_number?: string;
-};
+import type {
+  PbxConfig,
+  PbxExtension,
+  PbxSecrets,
+} from "../../../supabase/functions/_shared/telephony/types.ts";
 
-export type PbxSettingsData = {
-  name: string;
-  outbound_url: string;
-  outbound_method: "POST" | "GET";
-  outbound_format: "json" | "form";
-  outbound_auth_header: string;
-  outbound_auth_value: string;
-  param_caller: string;
-  param_destination: string;
-  param_extension: string;
-  param_call_id: string;
-  default_caller_number: string;
-  default_extension: string;
-  extensions: PbxExtension[];
-  inbound_secret: string;
-};
+export type { PbxExtension };
+
+/** The settings form: config plus secrets, every field filled. */
+export type PbxSettingsData = PbxConfig & PbxSecrets;
 
 export type SetPbxField = <K extends keyof PbxSettingsData>(
   key: K,
@@ -49,14 +37,35 @@ export function generateSecret() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Saved settings merged over defaults; a new integration gets a fresh secret. */
-export function formFromSaved(saved: unknown): PbxSettingsData {
-  const s = (saved || {}) as Partial<PbxSettingsData>;
+type SavedPbxSettings = {
+  config: unknown;
+  inbound_secret: string;
+  outbound_auth_value: string | null;
+} | null;
+
+/** Saved row merged over defaults; a new integration gets a fresh secret. */
+export function formFromSaved(saved: SavedPbxSettings): PbxSettingsData {
+  // JSON column written only by toPbxRow below.
+  const config = (saved?.config || {}) as Partial<PbxConfig>;
   return {
     ...EMPTY_PBX_SETTINGS,
-    ...s,
-    extensions: Array.isArray(s.extensions) ? s.extensions : [],
-    inbound_secret: s.inbound_secret || generateSecret(),
+    ...config,
+    extensions: Array.isArray(config.extensions) ? config.extensions : [],
+    inbound_secret: saved?.inbound_secret || generateSecret(),
+    outbound_auth_value: saved?.outbound_auth_value || "",
+  };
+}
+
+/** Splits the form into the pbx_settings columns. */
+export function toPbxRow(form: PbxSettingsData) {
+  const { inbound_secret, outbound_auth_value, ...config } = form;
+  return {
+    config: {
+      ...config,
+      extensions: config.extensions.filter((e) => e.extension.trim()),
+    },
+    inbound_secret,
+    outbound_auth_value: outbound_auth_value || null,
   };
 }
 

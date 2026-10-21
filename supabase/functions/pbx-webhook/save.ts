@@ -1,41 +1,28 @@
 // Writes an incoming PBX event to call_logs.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { mapCallStatus } from "../_shared/pbx/status.ts";
-import type { PbxEvent, PbxSettings } from "../_shared/pbx/types.ts";
+import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
 import { WebhookError } from "./errors.ts";
 import type { CallLogRow, Owner } from "./match.ts";
+import { mapCallStatus } from "./status.ts";
 
-export interface SavedCall extends Owner {
-  callLogId: string;
-}
-
-function resolveStatus(
-  event: PbxEvent,
-  recordingUrl: string | null,
-  existing: CallLogRow | null,
-): string {
-  if (event.status) return mapCallStatus(event.status);
-  if (recordingUrl) return "completed";
-  return existing?.status ?? "completed";
-}
+/** A PBX link (url) or a file we stored in call-recordings (path). */
+export type Recording = { url: string | null; path: string | null };
+export type SavedCall = Owner & { callLogId: string };
 
 export async function updateCall(
   sb: SupabaseClient,
   existing: CallLogRow,
   event: PbxEvent,
   owner: Owner,
-  recordingUrl: string | null,
+  recording: Recording,
 ): Promise<SavedCall> {
   const update: Record<string, unknown> = {
-    status: resolveStatus(event, recordingUrl, existing),
+    status: resolveStatus(event, recording, existing),
+    ...recordingColumns(event, recording),
   };
   if (!existing.lead_id && owner.leadId) update.lead_id = owner.leadId;
   if (!existing.client_id && owner.clientId) update.client_id = owner.clientId;
   if (event.duration !== null) update.duration = event.duration;
-  if (recordingUrl) {
-    update.recording_url = recordingUrl;
-    if (event.duration !== null) update.recording_duration = event.duration;
-  }
   const { error } = await sb
     .from("call_logs")
     .update(update)
@@ -43,9 +30,68 @@ export async function updateCall(
   if (error) throw error;
   return {
     callLogId: existing.id,
-    leadId: (update.lead_id as string) ?? existing.lead_id,
-    clientId: (update.client_id as string) ?? existing.client_id,
+    leadId: existing.lead_id ?? owner.leadId,
+    clientId: existing.client_id ?? owner.clientId,
   };
+}
+
+export async function insertCall(
+  sb: SupabaseClient,
+  tenantId: string,
+  settings: PbxSettings,
+  event: PbxEvent,
+  owner: Owner,
+  recording: Recording,
+): Promise<SavedCall> {
+  const callerUserId = await resolveCallerUser(
+    sb,
+    tenantId,
+    settings,
+    event.extension,
+  );
+  const { data, error } = await sb
+    .from("call_logs")
+    .insert({
+      tenant_id: tenantId,
+      lead_id: owner.leadId,
+      client_id: owner.clientId,
+      caller_user_id: callerUserId,
+      from_number: event.caller,
+      to_number: event.called || event.caller || "unknown",
+      status: resolveStatus(event, recording, null),
+      duration: event.duration ?? 0,
+      provider: "pbx",
+      provider_call_id: event.callId,
+      notes: buildNotes(event, settings),
+      ...recordingColumns(event, recording),
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { callLogId: data.id, ...owner };
+}
+
+function hasRecording(recording: Recording): boolean {
+  return !!(recording.url || recording.path);
+}
+
+function recordingColumns(event: PbxEvent, recording: Recording) {
+  if (!hasRecording(recording)) return {};
+  return {
+    recording_url: recording.url,
+    recording_path: recording.path,
+    ...(event.duration !== null && { recording_duration: event.duration }),
+  };
+}
+
+function resolveStatus(
+  event: PbxEvent,
+  recording: Recording,
+  existing: CallLogRow | null,
+): string {
+  if (event.status) return mapCallStatus(event.status);
+  if (hasRecording(recording)) return "completed";
+  return existing?.status ?? "completed";
 }
 
 /** The agent on the extension, else the tenant's first user
@@ -84,41 +130,4 @@ function buildNotes(event: PbxEvent, settings: PbxSettings): string | null {
     settings.name ? `מרכזיה: ${settings.name}` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" | ") : null;
-}
-
-export async function insertCall(
-  sb: SupabaseClient,
-  tenantId: string,
-  settings: PbxSettings,
-  event: PbxEvent,
-  owner: Owner,
-  recordingUrl: string | null,
-): Promise<SavedCall> {
-  const callerUserId = await resolveCallerUser(
-    sb,
-    tenantId,
-    settings,
-    event.extension,
-  );
-  const { data, error } = await sb
-    .from("call_logs")
-    .insert({
-      tenant_id: tenantId,
-      lead_id: owner.leadId,
-      client_id: owner.clientId,
-      caller_user_id: callerUserId,
-      from_number: event.caller,
-      to_number: event.called || event.caller || "unknown",
-      status: resolveStatus(event, recordingUrl, null),
-      duration: event.duration ?? 0,
-      recording_url: recordingUrl,
-      recording_duration: recordingUrl ? event.duration : null,
-      provider: "pbx",
-      provider_call_id: event.callId,
-      notes: buildNotes(event, settings),
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return { callLogId: data.id, ...owner };
 }

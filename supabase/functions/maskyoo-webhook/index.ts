@@ -1,17 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizePhone } from "../_shared/telephony/phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-function normalizePhone(p: string | null | undefined): string | null {
-  if (!p) return null;
-  let c = p.replace(/\D/g, "");
-  if (c.startsWith("972")) c = "0" + c.slice(3);
-  return c;
-}
 
 // Public webhook to receive real-time call events from Maskyoo.
 // Configure URL in Maskyoo as: https://<project>.supabase.co/functions/v1/maskyoo-webhook?tenant_id=<UUID>&secret=<SECRET>

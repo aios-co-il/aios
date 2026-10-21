@@ -1,4 +1,5 @@
-// Phone normalization and matching for Israeli numbers.
+// Phone normalization and matching for Israeli numbers, shared by telephony
+// webhooks (Maskyoo and the generic PBX).
 
 /** Digits-only local Israeli format (0XXXXXXXXX). */
 export function normalizePhone(phone: unknown): string | null {
@@ -11,19 +12,12 @@ export function normalizePhone(phone: unknown): string | null {
   return digits;
 }
 
-/** Last 9 digits, used to match phones stored in any format. */
+/**
+ * Last 9 digits of the normalized number. Must match the SQL
+ * public.phone_match_key, which indexes leads and clients by it.
+ */
 export function phoneMatchKey(phone: unknown): string | null {
   const n = normalizePhone(phone);
   if (!n || n.length < 7) return null;
   return n.slice(-9);
-}
-
-/**
- * ILIKE pattern matching the key's digits in order, with any separators.
- * Leading zeros are dropped so "+972-3-…" still matches a "03…" key; callers
- * confirm candidates with phoneMatchKey.
- */
-export function phoneLikePattern(key: string): string {
-  const digits = key.replace(/\D/g, "").replace(/^0+/, "");
-  return "%" + digits.split("").join("%");
 }

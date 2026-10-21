@@ -1,7 +1,11 @@
+/** Private bucket for call audio uploaded by the PBX webhook. */
+export const CALL_RECORDINGS_BUCKET = "call-recordings";
+
 export type StoredCallRecording = {
   id: string;
   lead_id: string | null;
   recording_url: string | null;
+  recording_path?: string | null;
 };
 
 export type StoredFileRecording = {
@@ -18,6 +22,8 @@ export type LeadRecordingItem = {
   label: string;
   url: string | null;
   filePath: string | null;
+  /** Storage bucket for filePath; defaults to "recordings". */
+  bucket?: string;
 };
 
 function withIndex(base: string, index: number, total: number): string {
@@ -28,7 +34,9 @@ export function buildLeadRecordingItems(
   calls: StoredCallRecording[],
   files: StoredFileRecording[],
 ): LeadRecordingItem[] {
-  const automatic = calls.filter((call) => call.recording_url);
+  const automatic = calls.filter(
+    (call) => call.recording_url || call.recording_path,
+  );
   const stored = files.filter((file) => file.recording_url || file.file_path);
   const manual = stored.filter((file) => file.source === "manual");
   const other = stored.filter((file) => file.source !== "manual");
@@ -38,7 +46,8 @@ export function buildLeadRecordingItems(
       id: `call:${call.id}`,
       label: withIndex("הקלטה אוטומטית", index, automatic.length),
       url: call.recording_url,
-      filePath: null,
+      filePath: call.recording_path ?? null,
+      ...(call.recording_path && { bucket: CALL_RECORDINGS_BUCKET }),
     })),
     ...other.map((file, index) => ({
       id: `file:${file.id}`,

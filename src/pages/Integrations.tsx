@@ -370,17 +370,15 @@ export default function Integrations() {
     enabled: !!currentTenantId,
   });
 
-  // Check generic PBX integration
-  const { data: pbxIntegration } = useQuery({
-    queryKey: ["generic-pbx-integration", currentTenantId],
+  // Check PBX settings (visible to tenant managers only)
+  const { data: pbxSettings } = useQuery({
+    queryKey: ["pbx-settings-status", currentTenantId],
     queryFn: async () => {
       if (!currentTenantId) return null;
       const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
+        .from("pbx_settings")
+        .select("is_active")
         .eq("tenant_id", currentTenantId)
-        .eq("integration_type", "generic_pbx")
-        .is("user_id", null)
         .maybeSingle();
       return data;
     },
@@ -728,7 +726,7 @@ export default function Integrations() {
         "שלוחה לכל נציג",
         "קליטת הקלטות ושיוך לליד לפי טלפון",
       ],
-      isConnected: !!pbxIntegration?.is_active,
+      isConnected: !!pbxSettings?.is_active,
       route: "pbx-settings",
       gradient: "bg-gradient-to-r from-sky-600 to-cyan-700",
     },

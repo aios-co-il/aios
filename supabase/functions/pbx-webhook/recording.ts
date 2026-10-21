@@ -1,8 +1,9 @@
-// Resolves the recording URL: an uploaded audio file is stored first.
+// Validates incoming recording URLs and stores uploaded audio in the private
+// call-recordings bucket, under the tenant's folder (read via signed URLs).
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { WebhookError } from "./errors.ts";
 
-const BUCKET = "recordings";
+export const RECORDINGS_BUCKET = "call-recordings";
 const MAX_RECORDING_BYTES = 50 * 1024 * 1024;
 const AUDIO_EXT: Record<string, string> = {
   "audio/mpeg": "mp3",
@@ -18,6 +19,32 @@ const AUDIO_EXT: Record<string, string> = {
   "audio/gsm": "gsm",
 };
 
+export function validateRecordingUrl(url: string | null): string | null {
+  if (url && !/^https?:\/\//i.test(url))
+    throw new WebhookError("recording_url must be an http(s) URL", 400);
+  return url;
+}
+
+/** Stores the file and returns its storage path. */
+export async function storeRecordingFile(
+  sb: SupabaseClient,
+  tenantId: string,
+  file: File,
+): Promise<string> {
+  if (file.size > MAX_RECORDING_BYTES)
+    throw new WebhookError("Recording file too large (max 50MB)", 413);
+  const ext = audioExtension(file);
+  const path = `${tenantId}/pbx/${crypto.randomUUID()}.${ext}`;
+  const { error } = await sb.storage
+    .from(RECORDINGS_BUCKET)
+    .upload(path, file, { contentType: file.type || `audio/${ext}` });
+  if (error) {
+    console.error("pbx-webhook upload error:", error);
+    throw new WebhookError("Failed to store recording", 500);
+  }
+  return path;
+}
+
 function audioExtension(file: File): string {
   const fromType = AUDIO_EXT[(file.type || "").toLowerCase()];
   const fromName = (file.name.split(".").pop() || "").toLowerCase();
@@ -26,38 +53,4 @@ function audioExtension(file: File): string {
     (/^(mp3|wav|ogg|webm|m4a|aac|gsm)$/.test(fromName) ? fromName : null);
   if (!ext) throw new WebhookError("Recording must be an audio file", 415);
   return ext;
-}
-
-async function storeRecordingFile(
-  sb: SupabaseClient,
-  tenantId: string,
-  file: File,
-): Promise<string> {
-  if (file.size > MAX_RECORDING_BYTES)
-    throw new WebhookError("Recording file too large (max 50MB)", 413);
-  const ext = audioExtension(file);
-  const path = `pbx/${tenantId}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await sb.storage
-    .from(BUCKET)
-    .upload(path, file, { contentType: file.type || `audio/${ext}` });
-  if (error) {
-    console.error("pbx-webhook upload error:", error);
-    throw new WebhookError("Failed to store recording", 500);
-  }
-  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
-
-export async function resolveRecordingUrl(
-  sb: SupabaseClient,
-  tenantId: string,
-  recordingUrl: string | null,
-  file: File | null,
-): Promise<string | null> {
-  const url =
-    file && file.size > 0
-      ? await storeRecordingFile(sb, tenantId, file)
-      : recordingUrl;
-  if (url && !/^https?:\/\//i.test(url))
-    throw new WebhookError("recording_url must be an http(s) URL", 400);
-  return url;
 }

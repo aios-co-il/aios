@@ -1,6 +1,11 @@
 // Keeps the outgoing webhook from reaching internal hosts.
 
-/** Rejects non-http(s) URLs and obvious internal hosts. */
+/**
+ * Rejects non-http(s) URLs and internal hosts by name or IP literal.
+ * A public DNS name that resolves to a private IP still passes: the check
+ * does not resolve DNS. Edge functions run on Supabase's network, not ours,
+ * so that path cannot reach internal services.
+ */
 export function isAllowedOutboundUrl(raw: string): boolean {
   let url: URL;
   try {

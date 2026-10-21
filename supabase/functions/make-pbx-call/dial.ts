@@ -1,6 +1,6 @@
 // Sends the outgoing webhook to the PBX and reports whether it was accepted.
-import { buildOutboundRequest } from "../_shared/pbx/outbound.ts";
-import type { OutboundCall, PbxSettings } from "../_shared/pbx/types.ts";
+import { buildOutboundRequest } from "./outbound.ts";
+import type { OutboundCall, PbxSettings } from "../_shared/telephony/types.ts";
 
 const PBX_TIMEOUT_MS = 15000;
 

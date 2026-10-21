@@ -40,7 +40,6 @@ function ReadOnlyRow({
 export function PbxInboundCard({ tenantId, secret, set, isSaved }: Props) {
   const { toast } = useToast();
   const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pbx-webhook?tenant_id=${tenantId}`;
-  const urlWithSecret = `${baseUrl}&secret=${secret}`;
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "הועתק!", description: "הטקסט הועתק ללוח" });
@@ -62,9 +61,9 @@ export function PbxInboundCard({ tenantId, secret, set, isSaved }: Props) {
         <div className="space-y-2">
           <Label>כתובת ה-Webhook</Label>
           <ReadOnlyRow
-            value={urlWithSecret}
+            value={baseUrl}
             action={
-              <Button variant="outline" onClick={() => copy(urlWithSecret)}>
+              <Button variant="outline" onClick={() => copy(baseUrl)}>
                 <Copy className="h-4 w-4 ml-2" />
                 העתק
               </Button>
@@ -76,19 +75,25 @@ export function PbxInboundCard({ tenantId, secret, set, isSaved }: Props) {
           <ReadOnlyRow
             value={secret}
             action={
-              <Button
-                variant="outline"
-                onClick={() => set("inbound_secret", generateSecret())}
-              >
-                <RefreshCw className="h-4 w-4 ml-2" />
-                החלף
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => copy(secret)}>
+                  <Copy className="h-4 w-4 ml-2" />
+                  העתק
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => set("inbound_secret", generateSecret())}
+                >
+                  <RefreshCw className="h-4 w-4 ml-2" />
+                  החלף
+                </Button>
+              </>
             }
           />
           <p className="text-xs text-muted-foreground">
-            שלח את הסוד בכותרת <Code>x-webhook-secret</Code> או בפרמטר{" "}
-            <Code>secret</Code> ב-URL. אחרי החלפת הסוד יש לשמור ולעדכן את
-            המרכזיה.
+            שלח את הסוד בכותרת <Code>x-webhook-secret</Code>. רק אם המרכזיה לא
+            תומכת בכותרות, אפשר להוסיף <Code>&secret=…</Code> ל-URL (הסוד יופיע
+            אז בלוגים של המרכזיה). אחרי החלפת הסוד יש לשמור ולעדכן את המרכזיה.
           </p>
         </div>
 

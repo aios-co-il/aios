@@ -2919,6 +2919,7 @@ export type Database = {
           provider: string | null;
           provider_call_id: string | null;
           recording_duration: number | null;
+          recording_path: string | null;
           recording_url: string | null;
           status: string;
           tenant_id: string;
@@ -2937,6 +2938,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id: string;
@@ -2955,6 +2957,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id?: string;
@@ -9324,6 +9327,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      pbx_settings: {
+        Row: {
+          config: Json;
+          created_at: string;
+          id: string;
+          inbound_secret: string;
+          is_active: boolean;
+          outbound_auth_value: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret?: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pbx_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       processed_events: {
         Row: {
           event_key: string;
@@ -15178,6 +15222,13 @@ export type Database = {
           table_id: string;
         }[];
       };
+      find_phone_owner: {
+        Args: { p_match_key: string; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          lead_id: string;
+        }[];
+      };
       format_client_mood_status_label: {
         Args: { status: Database["public"]["Enums"]["client_mood_status"] };
         Returns: string;
@@ -15632,6 +15683,7 @@ export type Database = {
         Args: { p_lead_ids: string[] };
         Returns: number;
       };
+      phone_match_key: { Args: { p_phone: string }; Returns: string };
       produce_video: {
         Args: {
           p_aspect?: string;

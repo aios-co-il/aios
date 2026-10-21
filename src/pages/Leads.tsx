@@ -4344,10 +4344,10 @@ function TableWithStickyScroll({
       const [callsResult, filesResult] = await Promise.all([
         supabase
           .from("call_logs")
-          .select("id, lead_id, recording_url")
+          .select("id, lead_id, recording_url, recording_path")
           .eq("tenant_id", tenantId)
           .in("lead_id", visibleLeadIds)
-          .not("recording_url", "is", null)
+          .or("recording_url.not.is.null,recording_path.not.is.null")
           .order("created_at", { ascending: false }),
         supabase
           .from("zoom_recordings")
