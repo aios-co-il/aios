@@ -33,10 +33,18 @@ export async function resolveStaticList(
   const clientIds = idsOf("client");
   const [leads, clients] = await Promise.all([
     fetchByIds(leadIds, (chunk) =>
-      db.from("leads").select(LEAD_COLUMNS).in("id", chunk),
+      db
+        .from("leads")
+        .select(LEAD_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .in("id", chunk),
     ),
     fetchByIds(clientIds, (chunk) =>
-      db.from("clients").select(CLIENT_COLUMNS).in("id", chunk),
+      db
+        .from("clients")
+        .select(CLIENT_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .in("id", chunk),
     ),
   ]);
   const lk = await loadLookups(

@@ -329,20 +329,41 @@ Deno.serve(async (req) => {
       .eq("status", "scheduled")
       .lte("scheduled_at", nowIso);
 
-    // 2) Pull active sending broadcasts. Automation streams stay 'sending'
-    //    while idle, so read a wider window and work at most 5 with pending rows.
-    const { data: sending } = await db
+    // 2) Finish one-off broadcasts that have nothing left to send. Automation
+    //    streams (no audience source) stay 'sending' and wait for recipients.
+    const { data: maybeDone } = await db
       .from("broadcasts")
-      .select("*")
+      .select("id, origin, audience_filter")
       .eq("status", "sending")
       .order("started_at", { ascending: true })
-      .limit(50);
+      .limit(200);
+    for (const b of maybeDone || []) {
+      if (b.origin === "automation" && !b.audience_filter?.source) continue;
+      const { count } = await db
+        .from("broadcast_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("broadcast_id", b.id)
+        .eq("status", "pending");
+      if ((count ?? 0) === 0)
+        await db
+          .from("broadcasts")
+          .update({ status: "sent", completed_at: nowIso })
+          .eq("id", b.id);
+    }
+
+    // 3) Work broadcasts that still have pending recipients. Selecting only
+    //    those keeps idle automation streams from filling the window.
+    const { data: sending, error: candidatesError } = await db.rpc(
+      "broadcast_dispatch_candidates",
+      { p_limit: 5 },
+    );
+    if (candidatesError) throw candidatesError;
 
     const summary: any[] = [];
     let worked = 0;
 
     for (const b of sending || []) {
-      if (Date.now() - startedAt > MAX_RUN_MS || worked >= 5) break;
+      if (Date.now() - startedAt > MAX_RUN_MS) break;
 
       // Daily cap: how many already sent today for this broadcast
       const { count: sentToday } = await db

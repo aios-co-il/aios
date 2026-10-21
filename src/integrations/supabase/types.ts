@@ -15102,6 +15102,50 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      broadcast_dispatch_candidates: {
+        Args: { p_limit: number };
+        Returns: {
+          attachments: Json;
+          audience_filter: Json;
+          automation_id: string | null;
+          automation_step_key: string | null;
+          body_html: string | null;
+          body_text: string | null;
+          channel: string;
+          completed_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          daily_cap: number;
+          from_email: string | null;
+          from_name: string | null;
+          html_mode: boolean;
+          id: string;
+          integration_id: string | null;
+          last_error: string | null;
+          media_url: string | null;
+          name: string;
+          origin: string;
+          provider: string;
+          reply_to: string | null;
+          scheduled_at: string | null;
+          started_at: string | null;
+          stats: Json;
+          status: string;
+          subject: string | null;
+          template_id: string | null;
+          tenant_id: string;
+          throttle_max_seconds: number;
+          throttle_min_seconds: number;
+          timezone: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "broadcasts";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       broadcast_filter_hit: {
         Args: { p_current: string; p_mode: string; p_values: Json };
         Returns: boolean;
@@ -15119,6 +15163,18 @@ export type Database = {
         Returns: undefined;
       };
       broadcast_normalize_phone: { Args: { p: string }; Returns: string };
+      broadcast_reserve_automation_send: {
+        Args: {
+          p_automation_id: string;
+          p_channel: string;
+          p_min_interval_hours: number;
+          p_name: string;
+          p_provider: string;
+          p_step_key: string;
+          p_tenant_id: string;
+        };
+        Returns: { broadcast_id: string; reserved: boolean }[];
+      };
       broadcast_tenant_has_synced_lists: {
         Args: { p_tenant_id: string };
         Returns: boolean;
