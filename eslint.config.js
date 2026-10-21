@@ -35,6 +35,16 @@ export default tseslint.config(
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
       "react-hooks/rules-of-hooks": "warn", // AIO-61
+      // Double casts hide type errors; new ones are blocked by check:pr-standards.
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+          message:
+            "Avoid double-casting through unknown; type the value or parse it.",
+        },
+      ],
     },
   },
   {

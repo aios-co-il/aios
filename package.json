@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "check:pr-standards": "node scripts/check-pr-standards.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "typecheck:update": "node scripts/typecheck.mjs --update",
     "test:typecheck": "node --test --test-isolation=none scripts/typecheck.test.mjs",

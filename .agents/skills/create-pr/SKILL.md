@@ -42,4 +42,4 @@ Only omit this section if the diff has no runtime behavior to exercise (pure doc
 
 ## Before opening
 
-Confirm the branch is pushed, then create the PR with the title from step 1 and a body containing the description (step 2) followed by the Verification section (step 3).
+Run `pnpm check:pr-standards` and fix every finding until it prints OK (rules: `docs/agents/code-standards.md`). Then confirm the branch is pushed and create the PR with the title from step 1 and a body containing the description (step 2) followed by the Verification section (step 3).

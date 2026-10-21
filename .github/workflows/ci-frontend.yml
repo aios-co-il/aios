@@ -188,6 +188,28 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+  # Rules in docs/agents/code-standards.md; checks only what the PR adds.
+  pr-standards:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Test the standards gate
+        run: node --test scripts/check-pr-standards.test.mjs
+
+      - name: Check PR standards
+        run: node scripts/check-pr-standards.mjs --base "${{ github.event.pull_request.base.sha }}"
+
   mirror-changes:
     runs-on: ubuntu-latest
     permissions:
