@@ -17,8 +17,8 @@ const FINAL_LEAD_STATUSES = new Set([
 ]);
 
 /**
- * Find the lead this inbound contact returns to: same phone and no
- * conflicting email (see lead-duplicate-match.ts).
+ * Find the lead this inbound contact returns to: same phone and same email
+ * (see lead-duplicate-match.ts).
  */
 export async function getExistingLead(
   db: LeadDb,

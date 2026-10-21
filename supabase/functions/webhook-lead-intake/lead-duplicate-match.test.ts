@@ -36,22 +36,29 @@ test("same phone but a different email is a new lead", () => {
   );
 });
 
-test("same phone with an email missing on one side still matches", () => {
+test("an email on only one side is a new lead", () => {
+  assert.equal(
+    isSameInboundLead(
+      { phone: "0547970059", email: null },
+      { phone: "+972547970059", email: "a@mail.com" },
+    ),
+    false,
+  );
+  assert.equal(
+    isSameInboundLead(
+      { phone: "0547970059", email: "a@mail.com" },
+      { phone: "0547970059" },
+    ),
+    false,
+  );
+});
+
+test("same phone and no email on either side is a returning lead", () => {
   assert.equal(
     isSameInboundLead(
       { phone: "0547970059", email: null },
       {
         phone: "+972547970059",
-        email: "a@mail.com",
-      },
-    ),
-    true,
-  );
-  assert.equal(
-    isSameInboundLead(
-      { phone: "0547970059", email: "a@mail.com" },
-      {
-        phone: "0547970059",
       },
     ),
     true,
