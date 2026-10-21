@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { templateContent } from "./template-content.ts";
+
+const baseTemplate = {
+  subject: "S",
+  body_text: "T",
+  body_html: "<p>H</p>",
+  html_mode: null,
+  attachments: [{ name: "a.pdf", url: "https://x/a.pdf" }, "bad"],
+  media_url: "https://x/m.png",
+};
+
+test("templateContent keeps the email fields of an email template", () => {
+  assert.deepEqual(templateContent({ ...baseTemplate, channel: "email" }), {
+    channel: "email",
+    subject: "S",
+    bodyText: "T",
+    bodyHtml: "<p>H</p>",
+    htmlMode: false,
+    attachments: [{ name: "a.pdf", url: "https://x/a.pdf" }],
+  });
+});
+
+test("templateContent keeps text and media for WhatsApp", () => {
+  assert.deepEqual(templateContent({ ...baseTemplate, channel: "whatsapp" }), {
+    channel: "whatsapp",
+    bodyText: "T",
+    mediaUrl: "https://x/m.png",
+  });
+});

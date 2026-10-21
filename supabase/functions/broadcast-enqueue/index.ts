@@ -4,6 +4,7 @@
 //
 // Audience filter shape: see _shared/broadcast/audience/resolve.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import type { Recipient } from "../_shared/broadcast/audience/types.ts";
 import { filterReachable } from "../_shared/broadcast/audience/reachability.ts";
 import { resolveAudience } from "../_shared/broadcast/audience/resolve.ts";
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    const isServiceRole = token === SB_SERVICE;
+    const isServiceRole = isServiceKey(token, SB_SERVICE);
 
     // User-scoped client respects RLS so a user can only enqueue their own tenant's data.
     const db = isServiceRole

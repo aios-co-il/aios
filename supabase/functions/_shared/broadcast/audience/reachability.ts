@@ -1,8 +1,7 @@
 // Channel reachability, address dedupe and opt-outs.
-import type { DbClient } from "../../supabase-clients.ts";
 import { normalizePhone } from "../template/template-vars.ts";
 import { fetchAll } from "./query.ts";
-import type { Recipient } from "./types.ts";
+import type { AudienceDb, Recipient } from "./types.ts";
 
 /**
  * Keep recipients reachable on the channel, normalize + dedupe addresses and
@@ -10,7 +9,7 @@ import type { Recipient } from "./types.ts";
  * in vars) so the per-broadcast email unique index applies.
  */
 export async function filterReachable(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   channel: string,
   recipients: Recipient[],
@@ -59,7 +58,7 @@ export async function filterReachable(
 
 /** Is this address opted out on the channel? Used for single sends. */
 export async function isOptedOut(
-  db: DbClient,
+  db: AudienceDb,
   tenantId: string,
   channel: string,
   address: { phone?: string | null; email?: string | null },

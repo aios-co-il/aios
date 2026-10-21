@@ -1,7 +1,7 @@
 // Template loading and the broadcast columns copied from it.
 import type { DbClient } from "../../supabase-clients.ts";
 import type { Tables, TablesInsert } from "../../database.types.ts";
-import { toEmailAttachments } from "../template/email-attachments.ts";
+import { templateContent } from "../template/template-content.ts";
 import { idParam, type MailingActionContext, str } from "./types.ts";
 
 export type Template = Tables<"message_templates">;
@@ -35,23 +35,21 @@ export async function broadcastFieldsFromTemplate(
   config: Record<string, unknown>,
   ctx: MailingActionContext,
 ): Promise<BroadcastFields> {
+  const content = templateContent(template);
   const common: Omit<BroadcastFields, "provider"> = {
     tenant_id: tenantId,
     channel: template.channel,
     template_id: template.id,
     subject: template.subject,
-    body_text: template.body_text,
-    body_html: template.channel === "email" ? template.body_html : null,
-    html_mode: template.channel === "email" && !!template.html_mode,
-    attachments:
-      template.channel === "email"
-        ? toEmailAttachments(template.attachments)
-        : [],
-    media_url: template.channel === "whatsapp" ? template.media_url : null,
+    body_text: content.bodyText,
+    body_html: content.channel === "email" ? content.bodyHtml : null,
+    html_mode: content.channel === "email" && content.htmlMode,
+    attachments: content.channel === "email" ? content.attachments : [],
+    media_url: content.channel === "whatsapp" ? content.mediaUrl : null,
     origin: "automation",
     automation_id: ctx.automationId,
   };
-  if (template.channel === "email") {
+  if (content.channel === "email") {
     const from = await ctx.resolveEmailFrom(db, config, tenantId);
     return {
       ...common,
