@@ -56,6 +56,11 @@ import {
 } from "../_shared/automation-status.ts";
 // clearer error when ManyChat wa_id ghost on deleted contact — 2026-08-09
 
+import {
+  authorizeDirectAutomationRun,
+  bearerToken,
+} from "../_shared/automation-run-auth.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -1467,6 +1472,34 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const requestBody = await req.json();
+
+    // Running one automation by id (tests, manual triggers, reruns) is limited
+    // to the service role and to users who may manage that automation.
+    if (requestBody?.automationId) {
+      const { data: target } = await supabase
+        .from("automations")
+        .select("tenant_id")
+        .eq("id", requestBody.automationId)
+        .maybeSingle();
+      const decision = target
+        ? await authorizeDirectAutomationRun(
+            supabase,
+            bearerToken(req.headers.get("Authorization")),
+            supabaseKey,
+            target.tenant_id,
+          )
+        : ({
+            allowed: false,
+            status: 403,
+            error: "Automation not found",
+          } as const);
+      if (!decision.allowed) {
+        return new Response(JSON.stringify({ error: decision.error }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: decision.status,
+        });
+      }
+    }
 
     // Backward-compat alias: old name → new name
     if (requestBody.trigger_type === "ad_account_billing_issue") {
