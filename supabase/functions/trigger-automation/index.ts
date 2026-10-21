@@ -3583,8 +3583,7 @@ Deno.serve(async (req) => {
                     {
                       automationId: automation.id,
                       triggerType:
-                        (requestBody as any).trigger_type ||
-                        automation.trigger_type,
+                        requestBody.trigger_type || automation.trigger_type,
                       resolveOwnerId: resolveTenantOwnerId,
                       resolveEmailFrom: resolveAutomationEmailFrom,
                     },

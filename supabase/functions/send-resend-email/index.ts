@@ -1,6 +1,26 @@
 // send-resend-email — sends a single email via the Resend API.
 // Body: { to, subject, html?, text?, fromEmail?, fromName?, replyTo?,
 //         headers?, tags?, attachments?: [{filename, content (base64) | path (URL), contentType}] }
+/** Attachment as callers send it (camelCase or snake_case accepted). */
+interface AttachmentInput {
+  filename: string;
+  content?: string;
+  path?: string;
+  contentType?: string;
+  content_type?: string;
+  contentId?: string;
+  content_id?: string;
+}
+
+/** Attachment as the Resend API expects it. */
+interface ResendAttachment {
+  filename: string;
+  content?: string;
+  path?: string;
+  content_type?: string;
+  content_id?: string;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -66,19 +86,21 @@ Deno.serve(async (req) => {
     if (Array.isArray(attachments) && attachments.length > 0) {
       // Resend expects: [{ filename, content (base64 string), content_type, content_id? }]
       // Set content_id to enable inline CID references in HTML (cid:<content_id>)
-      payload.attachments = attachments.map((a: any) => {
-        const att: any = { filename: a.filename };
-        // path = a URL Resend downloads itself (stored broadcast attachments)
-        if (a.path && !a.content) att.path = a.path;
-        else {
-          att.content = a.content;
-          att.content_type =
-            a.contentType || a.content_type || "application/octet-stream";
-        }
-        if (a.content_id || a.contentId)
-          att.content_id = a.content_id || a.contentId;
-        return att;
-      });
+      payload.attachments = attachments.map(
+        (a: AttachmentInput): ResendAttachment => {
+          const att: ResendAttachment = { filename: a.filename };
+          // path = a URL Resend downloads itself (stored broadcast attachments)
+          if (a.path && !a.content) att.path = a.path;
+          else {
+            att.content = a.content;
+            att.content_type =
+              a.contentType || a.content_type || "application/octet-stream";
+          }
+          if (a.content_id || a.contentId)
+            att.content_id = a.content_id || a.contentId;
+          return att;
+        },
+      );
     }
 
     const res = await fetch("https://api.resend.com/emails", {

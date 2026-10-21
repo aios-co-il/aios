@@ -13,6 +13,7 @@ import {
   renderTemplate,
   sanitizeEmailHtml,
   templateFieldKeys,
+  toEmailAttachments,
 } from "./broadcast-template.ts";
 import { resolveTargetEntity } from "./broadcast-automation.ts";
 
@@ -147,5 +148,39 @@ test("editor images get a responsive width", () => {
   assert.match(
     wrapEmailHtml('<img style="width:10px" src="b.png">'),
     /<img style="width:10px" src="b.png">/,
+  );
+});
+
+test("toEmailAttachments drops malformed items and keeps optional fields", () => {
+  assert.deepEqual(toEmailAttachments(null), []);
+  assert.deepEqual(toEmailAttachments({ name: "a", url: "u" }), []);
+  assert.deepEqual(
+    toEmailAttachments([
+      "x",
+      null,
+      ["a", "u"],
+      { url: "https://x/a.pdf" },
+      { name: "no-url.pdf" },
+      { name: 1, url: "https://x/b.pdf" },
+      { name: "min.pdf", url: "https://x/min.pdf", size: "big", path: 3 },
+      {
+        name: "full.pdf",
+        url: "https://x/full.pdf",
+        path: "t/full.pdf",
+        size: 1234,
+        content_type: "application/pdf",
+        extra: true,
+      },
+    ]),
+    [
+      { name: "min.pdf", url: "https://x/min.pdf" },
+      {
+        name: "full.pdf",
+        url: "https://x/full.pdf",
+        path: "t/full.pdf",
+        size: 1234,
+        content_type: "application/pdf",
+      },
+    ],
   );
 });

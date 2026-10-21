@@ -61,7 +61,7 @@ test("guard lets an allowed email through and blocks the rest", async () => {
       calls.push(String(input));
       return new Response("{}", { status: 200 });
     },
-  } as unknown as typeof globalThis;
+  };
   installStagingOutboundGuard(
     "https://staging.supabase.co",
     runtime,

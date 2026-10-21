@@ -1,4 +1,7 @@
-import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast-template.ts";
+import {
+  toEmailAttachments,
+  type EmailAttachment,
+} from "../../../supabase/functions/_shared/broadcast-template.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,8 +28,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import DOMPurify from "dompurify";
-import { useMessageTemplates } from "@/hooks/useMessageTemplates";
+import {
+  useMessageTemplates,
+  type MessageTemplate,
+} from "@/hooks/useMessageTemplates";
+import { WizardContentPreview } from "@/components/broadcast/wizard/WizardContentPreview";
+import {
+  WizardTemplateAttachments,
+  WizardTemplatePicker,
+} from "@/components/broadcast/wizard/WizardTemplatePicker";
 import { TemplateFieldPicker } from "@/components/broadcast/BroadcastTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -75,15 +85,21 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const channelTemplates = (templatesQ.data || []).filter(
     (t) => t.channel === channel,
   );
-  const applyTemplate = (id: string) => {
-    const t = channelTemplates.find((x) => x.id === id);
-    if (!t) return;
+  const applyTemplate = (t: MessageTemplate | null) => {
+    if (!t) {
+      setTemplateId(null);
+      setAttachments([]);
+      setBodyHtml("");
+      setHtmlMode(false);
+      setTemplateMediaUrl(null);
+      return;
+    }
     setTemplateId(t.id);
     if (t.channel === "email") {
       setSubject(t.subject || "");
       setBodyHtml(t.body_html || "");
       setHtmlMode(!!t.html_mode);
-      setAttachments(Array.isArray(t.attachments) ? t.attachments : []);
+      setAttachments(toEmailAttachments(t.attachments));
       setBodyText("");
     } else {
       setBodyText(t.body_text || "");
@@ -735,11 +751,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                     )}
                   </SelectContent>
                 </Select>
-                {channel === "email" && attachments.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    קבצים מצורפים מהטמפלייט:{" "}
-                    {attachments.map((a) => a.name).join(", ")}
-                  </p>
+                {channel === "email" && (
+                  <WizardTemplateAttachments attachments={attachments} />
                 )}
               </div>
             )}
@@ -907,35 +920,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         {/* Step 3 — content */}
         {step === 3 && (
           <div className="space-y-3">
-            {channelTemplates.length > 0 && (
-              <div className="space-y-1">
-                <Label>טמפלייט (אופציונלי)</Label>
-                <Select
-                  value={templateId ?? "none"}
-                  onValueChange={(v) => {
-                    if (v === "none") {
-                      setTemplateId(null);
-                      setAttachments([]);
-                      setBodyHtml("");
-                      setHtmlMode(false);
-                      setTemplateMediaUrl(null);
-                    } else applyTemplate(v);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-[100]">
-                    <SelectItem value="none">ללא – כתיבה חופשית</SelectItem>
-                    {channelTemplates.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <WizardTemplatePicker
+              templates={channelTemplates}
+              templateId={templateId}
+              onSelect={applyTemplate}
+            />
             {channel === "email" && (
               <>
                 <div>
@@ -1029,28 +1018,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             )}
             <Label>תוכן ההודעה</Label>
             {bodyHtml ? (
-              <div className="space-y-2">
-                {htmlMode ? (
-                  <iframe
-                    title="תצוגה מקדימה"
-                    sandbox=""
-                    srcDoc={bodyHtml}
-                    className="h-72 w-full rounded-md border bg-white"
-                  />
-                ) : (
-                  <div
-                    className="max-h-72 overflow-y-auto rounded-md border bg-white p-3 text-black"
-                    dir="rtl"
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(bodyHtml),
-                    }}
-                  />
-                )}
-                <p className="text-xs text-muted-foreground">
-                  התוכן מגיע מהטמפלייט; שדות דינמיים יוחלפו לכל נמען. לעריכה –
-                  טמפלייטים.
-                </p>
-              </div>
+              <WizardContentPreview bodyHtml={bodyHtml} htmlMode={htmlMode} />
             ) : (
               <>
                 {source !== "wa_groups" && (

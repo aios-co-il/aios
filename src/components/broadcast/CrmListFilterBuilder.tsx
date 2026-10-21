@@ -1,11 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { useLeadPipelineStages } from "@/hooks/useLeadPipelineStages";
 import { useAssignableCampaigners } from "@/hooks/useAssignableCampaigners";
 import type { AudienceFilter } from "@/hooks/useBroadcasts";
 import { BroadcastAudienceMultiSelect } from "@/components/broadcast/BroadcastAudienceMultiSelect";
+import {
+  useChatTags,
+  useNamedRows,
+} from "@/components/broadcast/useCrmFilterOptions";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
@@ -18,44 +19,6 @@ const CLIENT_STATUSES = [
 ];
 
 export type CrmListFilter = AudienceFilter & { source: "leads" | "clients" };
-
-function useNamedRows(table: "agencies" | "sales_people") {
-  const { tenantId } = useCurrentTenant();
-  return useQuery({
-    queryKey: ["broadcast-filter-options", table, tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const col = table === "agencies" ? "name" : "full_name";
-      const { data, error } = await supabase
-        .from(table)
-        .select(`id, ${col}`)
-        .eq("tenant_id", tenantId!)
-        .order(col);
-      if (error) throw error;
-      return (data || []).map((r: any) => ({
-        value: r.id as string,
-        label: (r[col] as string) || "—",
-      }));
-    },
-  });
-}
-
-function useChatTags() {
-  const { tenantId } = useCurrentTenant();
-  return useQuery({
-    queryKey: ["broadcast-filter-tags", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("chat_tags")
-        .select("id, name")
-        .eq("tenant_id", tenantId!)
-        .order("sort_order");
-      if (error) throw error;
-      return (data || []).map((t) => ({ value: t.id, label: t.name || "—" }));
-    },
-  });
-}
 
 /** Filter for CRM-based mailing lists: leads by stage/status, clients by status, both by agency. */
 export function CrmListFilterBuilder({
