@@ -50,7 +50,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 - Table `carmen_command_center_access`, one row per (tenant, Carmen agent, user). **No row = unrestricted** (today's behaviour).
 - `enabled = false` blocks Carmen for that user. `brain_access` maps a brain route slug to `"full"` or `"bugfix"`; a missing slug means no access to that brain, and `brain_access = NULL` means every brain at full access.
-- Enforced server-side for the logged-in user: `agent-channel-send` filters routes and refuses others (403 `brain_not_allowed`), and adds a bug-fix-only preamble on `"bugfix"` grants. `run-ai-agent` refuses Carmen's `internal` brain on every surface (`_shared/carmen-brain-guard.ts`). Parliament is its own grant; its seats only answer a read-only round.
+- Enforced server-side for the logged-in user: `agent-channel-send` filters routes and refuses others (403 `brain_not_allowed`), and adds a bug-fix-only preamble on `"bugfix"` grants. `run-ai-agent` refuses Carmen's `internal` brain on every surface (`_shared/carmen-brain-guard.ts`). Parliament is its own grant (its seats only answer a read-only round), checked in both `agent-channel-send` and `run-agent-parliament`; cancelling a round stays open.
 - `dev_escalation_tier` on the same row sets the tier for dev tasks Carmen sends on that user's behalf; NULL falls back to the identity default.
 - **Not covered:** WhatsApp and voice. `carmen_whatsapp_identities.dev_escalation_tier` still governs WhatsApp users, and service-role runs skip the guard, so a member disabled in הרשאות keeps Carmen on WhatsApp.
 - "View as" is client-only: the UI previews the viewed user's access, but the server still answers for the signed-in user.

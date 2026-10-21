@@ -178,6 +178,21 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Driving a running parliament needs the parliament grant (cancel stays open
+  // so anyone can stop a round).
+  const PARLIAMENT_ACTIONS = [
+    "parliament_continue",
+    "parliament_synthesize",
+    "parliament_clarify",
+  ];
+  const parliamentLevel = brainLevel(accessRow, "parliament");
+  if (PARLIAMENT_ACTIONS.includes(action) && !parliamentLevel) {
+    return json(403, {
+      error: "אין לך הרשאה לשולחן. בקש/י גישה ממנהל המערכת.",
+      code: "brain_not_allowed",
+    });
+  }
+
   if (action === "cancel_parliament") {
     const conversationId = String(body.conversation_id || "");
     if (!conversationId)
@@ -213,7 +228,13 @@ Deno.serve(async (req) => {
     }
     return json(
       200,
-      await clarifyParliamentSeat(conversationId, provider, question),
+      await clarifyParliamentSeat(
+        conversationId,
+        provider,
+        parliamentLevel === "bugfix"
+          ? BUGFIX_ONLY_PREAMBLE + question
+          : question,
+      ),
     );
   }
 
