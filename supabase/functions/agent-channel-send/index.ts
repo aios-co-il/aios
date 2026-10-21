@@ -94,20 +94,25 @@ Deno.serve(async (req) => {
 
   const action = String(body.action || "send");
   const carmen = await resolveCarmenAgent(sb, tenantId);
-  const agentId = String(body.agent_id || carmen?.id || "");
+  const agentId = carmen?.id ?? "";
   if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
+  // Brain routes and permissions belong to the tenant's Carmen; another agent
+  // id would sidestep the user's permission row.
+  if (body.agent_id && String(body.agent_id) !== agentId)
+    return json(400, { error: "agent_id must be this tenant's Carmen agent" });
   await ensureDefaultRoutes(sb, tenantId, agentId);
 
   // Per-user brain permissions (Carmen settings → הרשאות).
   const { brainLevel, BUGFIX_ONLY_PREAMBLE } =
     await import("../_shared/carmen-brain-access.ts");
-  const { data: accessRow } = await sb
-    .from("carmen_command_center_access")
-    .select("enabled, brain_access")
-    .eq("tenant_id", tenantId)
-    .eq("agent_id", agentId)
-    .eq("user_id", auth.userId)
-    .maybeSingle();
+  const { loadCarmenAccessRow } =
+    await import("../_shared/carmen-brain-guard.ts");
+  const accessRow = await loadCarmenAccessRow(
+    sb,
+    tenantId,
+    agentId,
+    auth.userId,
+  );
   if (action === "list_routes") {
     const { allowedRoutes } = await import("../_shared/carmen-brain-access.ts");
     const routes = allowedRoutes(

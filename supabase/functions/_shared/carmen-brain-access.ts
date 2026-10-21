@@ -19,9 +19,9 @@ export function parseLevel(v: unknown): BrainLevel | null {
 }
 
 /**
- * The user's level on one brain. No row means the user was never restricted,
- * so they keep full access (today's behaviour). A row without the slug means
- * no access to that brain.
+ * The user's level on one brain. No row, or a row whose brain_access is null,
+ * means the user's brains were never restricted, so they keep full access.
+ * A brain_access object without the slug means no access to that brain.
  */
 export function brainLevel(
   row: BrainAccessRow | undefined,
@@ -30,14 +30,16 @@ export function brainLevel(
   if (!row) return "full";
   if (row.enabled === false) return null;
   if (!slug) return null;
-  return parseLevel((row.brain_access ?? {})[slug]);
+  if (row.brain_access == null) return "full";
+  return parseLevel(row.brain_access[slug]);
 }
 
 /** May this user open Carmen at all? */
 export function carmenEnabledFor(row: BrainAccessRow | undefined): boolean {
   if (!row) return true;
   if (row.enabled === false) return false;
-  return Object.values(row.brain_access ?? {}).some((v) => parseLevel(v));
+  if (row.brain_access == null) return true;
+  return Object.values(row.brain_access).some((v) => parseLevel(v));
 }
 
 export function allowedRoutes<T extends { slug: string }>(

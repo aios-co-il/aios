@@ -1,10 +1,4 @@
-import {
-  Brain,
-  ChevronDown,
-  ExternalLink,
-  Landmark,
-  Loader2,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { BrainRoute, BrainRouteType } from "@/lib/agentChannelRouting";
 import {
   FALLBACK_BRAIN_ROUTES,
@@ -19,6 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RouteIcon } from "./BrainRouteIcon";
+import { BrainRouteNote } from "./BrainRouteNote";
+import { statusLabel } from "./brainRouteStatus";
 
 interface BrainRouteSelectorProps {
   routes: BrainRoute[];
@@ -30,26 +27,6 @@ interface BrainRouteSelectorProps {
   className?: string;
   /** One-line trigger without the note underneath; the note moves to the tooltip. */
   compact?: boolean;
-}
-
-function RouteIcon({ type }: { type: BrainRouteType }) {
-  if (type === "parliament")
-    return (
-      <Landmark className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
-    );
-  if (type === "direct_channel")
-    return (
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
-    );
-  return <Brain className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />;
-}
-
-function statusLabel(status?: string | null): string | null {
-  if (status === "waiting_external") return "ממתין לערוץ";
-  if (status === "debating") return "פרלמנט פעיל";
-  if (status === "streaming") return "זורם";
-  if (status === "error") return "שגיאה";
-  return null;
 }
 
 export function BrainRouteSelector({
@@ -69,7 +46,6 @@ export function BrainRouteSelector({
     (acc[r.route_type] ||= []).push(r);
     return acc;
   }, {});
-  const waiting = status === "waiting_external" || status === "debating";
   const groups = Object.keys(grouped) as BrainRouteType[];
 
   return (
@@ -129,32 +105,13 @@ export function BrainRouteSelector({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {!compact &&
-        (waiting || externalUrl || billingNoteForRoute(current?.provider)) && (
-          <p className="px-1 text-[10px] leading-snug text-[var(--cc-text-dim)]">
-            {billingNoteForRoute(current?.provider)}
-            {(waiting || externalUrl) && billingNoteForRoute(current?.provider)
-              ? " · "
-              : null}
-            {statusLabel(status)}
-            {waiting && (
-              <Loader2 className="mr-1 inline h-2.5 w-2.5 animate-spin" />
-            )}
-            {externalUrl && (
-              <>
-                {" · "}
-                <a
-                  href={externalUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[var(--cc-accent)] hover:underline"
-                >
-                  סשן
-                </a>
-              </>
-            )}
-          </p>
-        )}
+      {!compact && (
+        <BrainRouteNote
+          provider={current?.provider}
+          status={status}
+          externalUrl={externalUrl}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,4 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -8,85 +6,21 @@ import {
   type AgentListItem,
 } from "@/components/agents/AgentSidebar";
 import { AgentEditor } from "@/components/agents/AgentEditor";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { AgentHubMobileHeader } from "@/components/agents/AgentHubMobileHeader";
+import { ConnectedAgentsDialog } from "@/components/agents/ConnectedAgentsDialog";
+import { CreateAgentDialog } from "@/components/agents/CreateAgentDialog";
+import { useAgentHubAgents } from "@/components/agents/useAgentHubAgents";
 import { Button } from "@/components/ui/button";
-import { Menu, Plug } from "lucide-react";
-import { ConnectedAgentProfiles } from "@/components/agents/ConnectedAgentProfiles";
-import { toast } from "sonner";
+import { Plug } from "lucide-react";
 
 export default function AgentHub() {
   const { tenantId } = useCurrentTenant();
-  const qc = useQueryClient();
   const isMobile = useIsMobile();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { agents, selectedId, setSelectedId, selectedAgent } =
+    useAgentHubAgents(tenantId);
   const [createOpen, setCreateOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [connectedOpen, setConnectedOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newTalent, setNewTalent] = useState("");
-
-  const { data: agents = [] } = useQuery({
-    queryKey: ["ai-agents", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .order("created_at");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  useEffect(() => {
-    if (!selectedId && agents.length > 0) {
-      const carmen = agents.find(
-        (a) =>
-          (a.name || "").toLowerCase().includes("carmen") ||
-          a.name?.includes("כרמן"),
-      );
-      setSelectedId(carmen?.id || agents[0].id);
-    }
-  }, [agents, selectedId]);
-
-  const selectedAgent = agents.find((a) => a.id === selectedId);
-
-  const create = useMutation({
-    mutationFn: async () => {
-      if (!tenantId) throw new Error("missing tenant");
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .insert({
-          tenant_id: tenantId,
-          name: newName,
-          talent: newTalent,
-          engine: "gemini-3-flash",
-          active: true,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
-      setSelectedId(data.id);
-      setNewName("");
-      setNewTalent("");
-      setCreateOpen(false);
-      toast.success("סוכן נוצר");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
 
   const list: AgentListItem[] = agents.map((a) => ({
     id: a.id,
@@ -111,29 +45,15 @@ export default function AgentHub() {
       dir="rtl"
     >
       {isMobile ? (
-        <>
-          <div className="flex items-center justify-between gap-2 p-2 border-b bg-card shrink-0">
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Menu className="h-4 w-4" />
-                  סוכנים
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="p-0 w-72 max-w-[85vw]">
-                <AgentSidebar
-                  agents={list}
-                  selectedId={selectedId}
-                  onSelect={handleSelect}
-                  onCreate={handleCreate}
-                />
-              </SheetContent>
-            </Sheet>
-            <div className="text-sm font-medium truncate">
-              {selectedAgent?.name || "בחר סוכן"}
-            </div>
-          </div>
-        </>
+        <AgentHubMobileHeader
+          agents={list}
+          selectedId={selectedId}
+          selectedName={selectedAgent?.name}
+          sheetOpen={sheetOpen}
+          onSheetOpenChange={setSheetOpen}
+          onSelect={handleSelect}
+          onCreate={handleCreate}
+        />
       ) : (
         <AgentSidebar
           agents={list}
@@ -164,52 +84,17 @@ export default function AgentHub() {
         )}
       </div>
 
-      <Dialog open={connectedOpen} onOpenChange={setConnectedOpen}>
-        <DialogContent
-          className="max-w-3xl max-h-[90vh] overflow-y-auto"
-          dir="rtl"
-        >
-          <DialogHeader>
-            <DialogTitle className="text-right">
-              פרופילי סוכנים מחוברים
-            </DialogTitle>
-          </DialogHeader>
-          <ConnectedAgentProfiles />
-        </DialogContent>
-      </Dialog>
+      <ConnectedAgentsDialog
+        open={connectedOpen}
+        onOpenChange={setConnectedOpen}
+      />
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>סוכן חדש</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>שם</Label>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="לדוגמה: סוכן מכירות"
-              />
-            </div>
-            <div>
-              <Label>טלנט / מומחיות</Label>
-              <Input
-                value={newTalent}
-                onChange={(e) => setNewTalent(e.target.value)}
-                placeholder="מה הסוכן עושה?"
-              />
-            </div>
-            <Button
-              onClick={() => create.mutate()}
-              disabled={!newName || create.isPending}
-              className="w-full"
-            >
-              {create.isPending ? "יוצר..." : "צור סוכן"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CreateAgentDialog
+        tenantId={tenantId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={setSelectedId}
+      />
     </div>
   );
 }

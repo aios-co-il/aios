@@ -16,6 +16,13 @@ test("users without a permissions row keep full access", () => {
   assert.equal(carmenEnabledFor(null), true);
 });
 
+test("a row without brain settings keeps every brain", () => {
+  const legacy = { enabled: true, brain_access: null };
+  assert.equal(brainLevel(legacy, "cursor"), "full");
+  assert.equal(carmenEnabledFor(legacy), true);
+  assert.equal(brainLevel({ ...legacy, enabled: false }, "cursor"), null);
+});
+
 test("a row limits the user to the brains it lists", () => {
   assert.equal(brainLevel(ana, "internal"), "full");
   assert.equal(brainLevel(ana, "cursor"), "bugfix");

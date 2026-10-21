@@ -1,128 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useViewAs } from "@/contexts/ViewAsContext";
-import { allowedRoutes } from "../../../supabase/functions/_shared/carmen-brain-access";
+import { useCallback, useState } from "react";
 import {
-  FALLBACK_BRAIN_ROUTES,
   channelHealthBanner,
-  initialSelectedRoute,
   isInputLocked,
-  pickDefaultRoute,
   sendPathForRoute,
   storageKeyForRoute,
   type BrainRoute,
-  type ChannelHealth,
   type ConversationChannelStatus,
 } from "@/lib/agentChannelRouting";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import {
+  postChannel,
+  type ChannelSendArgs,
+  type ChannelSendResult,
+} from "./brainChannelApi";
+import { useBrainRoutes } from "./useBrainRoutes";
+import { useParliamentActions } from "./useParliamentActions";
 
-export type ChannelSendResult = {
-  ok: boolean;
-  kind: string;
-  conversation_id: string;
-  session_id?: string;
-  run_id?: string;
-  status: ConversationChannelStatus;
-  stream: boolean;
-  accepted_message: string;
-  external_url?: string | null;
-  duplicate?: boolean;
-  error?: string;
-  inline_reply?: string;
-};
-
-const FN = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-channel-send`;
-
-async function authHeader(): Promise<Record<string, string>> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) throw new Error("לא מחוברת");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${session.access_token}`,
-  };
-}
+export type { ChannelSendResult } from "./brainChannelApi";
 
 export function useBrainChannel(tenantId: string | null) {
-  const [routes, setRoutes] = useState<BrainRoute[]>(FALLBACK_BRAIN_ROUTES);
-  const [selected, setSelected] = useState<BrainRoute>(() =>
-    initialSelectedRoute(),
-  );
+  const {
+    routes,
+    selected,
+    setSelected,
+    selectedRef,
+    noBrainAccess,
+    channelHealth,
+  } = useBrainRoutes(tenantId);
   const [status, setStatus] = useState<ConversationChannelStatus>("idle");
-  const [noBrainAccess, setNoBrainAccess] = useState(false);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
-  const [channelHealth, setChannelHealth] = useState<ChannelHealth | null>(
-    null,
-  );
-  const { viewAsUserId } = useViewAs();
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
-
-  useEffect(() => {
-    if (!tenantId) return;
-    (async () => {
-      try {
-        const headers = await authHeader();
-        const res = await fetch(FN, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ action: "list_routes", tenant_id: tenantId }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const json = await res.json();
-        // A restricted user gets exactly the brains they may use, even none.
-        let list =
-          Array.isArray(json.routes) && (json.routes.length || json.restricted)
-            ? (json.routes as BrainRoute[])
-            : FALLBACK_BRAIN_ROUTES;
-        let restricted = !!json.restricted;
-        // "View as": the server answers for the signed-in admin, so apply the
-        // viewed user's permissions here to preview what they would see.
-        if (viewAsUserId) {
-          const { data: viewedRow } = await (supabase as any)
-            .from("carmen_command_center_access")
-            .select("enabled, brain_access")
-            .eq("tenant_id", tenantId)
-            .eq("user_id", viewAsUserId)
-            .limit(1)
-            .maybeSingle();
-          if (viewedRow) {
-            list = allowedRoutes(list, viewedRow);
-            restricted = true;
-          }
-        }
-        setRoutes(list);
-        setNoBrainAccess(restricted && list.length === 0);
-        if (list.length)
-          setSelected(
-            (prev) =>
-              list.find((r) => r.slug === prev.slug) || pickDefaultRoute(list),
-          );
-      } catch {
-        setSelected((prev) =>
-          pickDefaultRoute(FALLBACK_BRAIN_ROUTES, prev.slug),
-        );
-      }
-      try {
-        const headers = await authHeader();
-        const res = await fetch(FN, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            action: "channel_health",
-            tenant_id: tenantId,
-          }),
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json && typeof json.ok === "boolean")
-          setChannelHealth(json as ChannelHealth);
-      } catch {
-        /* health is advisory */
-      }
-    })();
-  }, [tenantId, viewAsUserId]);
 
   const selectRoute = useCallback(
     async (route: BrainRoute, conversationId?: string | null) => {
@@ -133,61 +38,36 @@ export function useBrainChannel(tenantId: string | null) {
         localStorage.setItem(storageKeyForRoute(tenantId), route.slug);
       if (!tenantId) return;
       try {
-        const headers = await authHeader();
-        await fetch(FN, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            action: "select_route",
-            tenant_id: tenantId,
-            brain_route_id: route.id,
-            brain_slug: route.slug,
-            conversation_id: conversationId || undefined,
-          }),
+        await postChannel({
+          action: "select_route",
+          tenant_id: tenantId,
+          brain_route_id: route.id,
+          brain_slug: route.slug,
+          conversation_id: conversationId || undefined,
         });
       } catch {
         /* selection is local-first */
       }
     },
-    [tenantId],
+    [tenantId, selectedRef, setSelected],
   );
 
   const send = useCallback(
-    async (args: {
-      content: string;
-      conversationId: string | null;
-      inputMode: string;
-      history: Array<{ role: string; content: string }>;
-      idempotencyKey: string;
-      route?: BrainRoute;
-      contextMetadata?: SystemFixContextMetadata | null;
-      attachments?: Array<{
-        name: string;
-        url: string;
-        type: "image" | "file";
-        size?: number;
-        path?: string;
-      }>;
-    }): Promise<ChannelSendResult> => {
+    async (args: ChannelSendArgs): Promise<ChannelSendResult> => {
       if (!tenantId) throw new Error("missing tenant");
       const route = args.route || selectedRef.current;
-      const headers = await authHeader();
-      const res = await fetch(FN, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          action: "send",
-          tenant_id: tenantId,
-          content: args.content,
-          conversation_id: args.conversationId,
-          brain_route_id: route.id,
-          brain_slug: route.slug,
-          input_mode: args.inputMode,
-          conversation_history: args.history,
-          idempotency_key: args.idempotencyKey,
-          context_metadata: args.contextMetadata ?? undefined,
-          attachments: args.attachments?.length ? args.attachments : undefined,
-        }),
+      const res = await postChannel({
+        action: "send",
+        tenant_id: tenantId,
+        content: args.content,
+        conversation_id: args.conversationId,
+        brain_route_id: route.id,
+        brain_slug: route.slug,
+        input_mode: args.inputMode,
+        conversation_history: args.history,
+        idempotency_key: args.idempotencyKey,
+        context_metadata: args.contextMetadata ?? undefined,
+        attachments: args.attachments?.length ? args.attachments : undefined,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -211,24 +91,19 @@ export function useBrainChannel(tenantId: string | null) {
       setExternalUrl(result.external_url || null);
       return result;
     },
-    [tenantId],
+    [tenantId, selectedRef],
   );
 
   const persistAssistant = useCallback(
     async (conversationId: string, content: string, idempotencyKey: string) => {
       if (!tenantId || !conversationId || !content) return;
       try {
-        const headers = await authHeader();
-        await fetch(FN, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            action: "persist_assistant",
-            tenant_id: tenantId,
-            conversation_id: conversationId,
-            content,
-            idempotency_key: idempotencyKey,
-          }),
+        await postChannel({
+          action: "persist_assistant",
+          tenant_id: tenantId,
+          conversation_id: conversationId,
+          content,
+          idempotency_key: idempotencyKey,
         });
         setStatus("idle");
       } catch {
@@ -238,49 +113,9 @@ export function useBrainChannel(tenantId: string | null) {
     [tenantId],
   );
 
-  const cancelParliament = useCallback(
-    async (conversationId: string | null) => {
-      if (!tenantId || !conversationId) return;
-      const headers = await authHeader();
-      await fetch(FN, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          action: "cancel_parliament",
-          tenant_id: tenantId,
-          conversation_id: conversationId,
-        }),
-      });
-      setStatus("idle");
-    },
-    [tenantId],
-  );
-
-  const parliamentAction = useCallback(
-    async (
-      action:
-        "parliament_continue" | "parliament_synthesize" | "parliament_clarify",
-      conversationId: string | null,
-      extra?: Record<string, string>,
-    ) => {
-      if (!tenantId || !conversationId) return;
-      const headers = await authHeader();
-      const res = await fetch(FN, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          action,
-          tenant_id: tenantId,
-          conversation_id: conversationId,
-          ...(extra || {}),
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "פעולת פרלמנט נכשלה");
-      if (json.status) setStatus(json.status);
-      return json;
-    },
-    [tenantId],
+  const { cancelParliament, parliamentAction } = useParliamentActions(
+    tenantId,
+    setStatus,
   );
 
   return {

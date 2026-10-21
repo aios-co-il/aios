@@ -3557,7 +3557,7 @@ export type Database = {
       carmen_command_center_access: {
         Row: {
           agent_id: string;
-          brain_access: Json;
+          brain_access: Json | null;
           campaigner_id: string | null;
           created_at: string;
           dev_escalation_tier: string | null;
@@ -3570,7 +3570,7 @@ export type Database = {
         };
         Insert: {
           agent_id: string;
-          brain_access?: Json;
+          brain_access?: Json | null;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;
@@ -3583,7 +3583,7 @@ export type Database = {
         };
         Update: {
           agent_id?: string;
-          brain_access?: Json;
+          brain_access?: Json | null;
           campaigner_id?: string | null;
           created_at?: string;
           dev_escalation_tier?: string | null;

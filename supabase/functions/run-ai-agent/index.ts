@@ -14615,6 +14615,30 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
+    // Carmen's active skin (chosen in the session's skin selector and stored
+    // on her agent row) shapes her persona and instructions for this run.
+    const activeSkin = (agent as any)?.metadata?.active_skin;
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      typeof activeSkin === "string" &&
+      activeSkin &&
+      !(Array.isArray(task_skills) && task_skills.includes(activeSkin)) &&
+      !(((agent as any)?.disabled_skins || []) as string[]).includes(activeSkin)
+    ) {
+      try {
+        const skinBlock = await buildSkillsBlockBySlug(
+          [activeSkin],
+          (agent as any)?.tenant_id || tenant_id || null,
+        );
+        if (skinBlock) {
+          systemPrompt += skinBlock;
+          console.log(`[AGENT] Active Carmen skin: ${activeSkin}`);
+        }
+      } catch (e) {
+        console.error("[AGENT] active-skin resolution failed (non-fatal):", e);
+      }
+    }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -16154,24 +16178,19 @@ Deno.serve(async (req) => {
             : "internal_chat";
 
   // Per-user Carmen permissions: a user restricted away from Carmen's main
-  // brain cannot reach it by calling this function directly.
-  if (
-    auth.kind === "user" &&
-    surface === "internal_chat" &&
-    typeof bodyJson.tenant_id === "string" &&
-    bodyJson.tenant_id
-  ) {
-    const { brainLevel } = await import("../_shared/carmen-brain-access.ts");
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    let q = sb
-      .from("carmen_command_center_access")
-      .select("enabled, brain_access")
-      .eq("tenant_id", bodyJson.tenant_id)
-      .eq("user_id", auth.userId);
-    if (typeof bodyJson.agent_id === "string" && bodyJson.agent_id)
-      q = q.eq("agent_id", bodyJson.agent_id);
-    const { data: accessRow } = await q.limit(1).maybeSingle();
-    if (!brainLevel(accessRow, "internal")) {
+  // brain cannot reach it by calling this function directly, on any surface.
+  if (auth.kind === "user" && auth.userId) {
+    const { internalBrainAllowed } =
+      await import("../_shared/carmen-brain-guard.ts");
+    const allowed = await internalBrainAllowed(
+      createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+      {
+        userId: auth.userId,
+        tenantId: bodyJson.tenant_id,
+        agentId: bodyJson.agent_id,
+      },
+    );
+    if (!allowed) {
       return new Response(
         JSON.stringify({
           error: "אין לך הרשאה למוח הראשי של כרמן. בקש/י גישה ממנהל המערכת.",

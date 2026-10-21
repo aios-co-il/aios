@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useConversationActions } from "./useConversationActions";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -1438,47 +1439,10 @@ export const CarmenChatBar = forwardRef<
     },
   });
 
-  const renameConversation = useCallback(
-    async (conv: TopicChat, title: string) => {
-      const { error } = await (supabase as any)
-        .from("ai_conversations")
-        .update({ title })
-        .eq("id", conv.id);
-      if (error) {
-        toast({
-          title: "שינוי השם נכשל",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      queryClient.invalidateQueries({
-        queryKey: ["cc-conversations", tenantId],
-      });
-    },
-    [queryClient, tenantId, toast],
-  );
-
-  const deleteConversation = useCallback(
-    async (conv: TopicChat) => {
-      const { error } = await (supabase as any)
-        .from("ai_conversations")
-        .delete()
-        .eq("id", conv.id);
-      if (error) {
-        toast({
-          title: "המחיקה נכשלה",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      if (conv.id === conversationIdRef.current) startNewConversation();
-      queryClient.invalidateQueries({
-        queryKey: ["cc-conversations", tenantId],
-      });
-    },
-    [queryClient, tenantId, toast, startNewConversation],
+  const { renameConversation, deleteConversation } = useConversationActions(
+    tenantId,
+    conversationIdRef,
+    startNewConversation,
   );
 
   const routeScopedConversations = conversationsForRoute(
