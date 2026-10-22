@@ -20,6 +20,10 @@ import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
 } from "../_shared/broadcast/template/email-attachments.ts";
+import {
+  unsubscribeUrl,
+  whatsappUnsubscribeFooter,
+} from "../_shared/broadcast/blacklist.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,12 +134,17 @@ async function sendOne(
   r: any,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
-  const body = renderTemplate(b.body_text || "", vars);
+  const unsubUrl = unsubscribeUrl(SB_URL, r.id);
+  // Mailings to a contact end with the unsubscribe link (not to groups).
+  const body =
+    renderTemplate(b.body_text || "", vars) +
+    (b.channel !== "email" && r.entity_type !== "wa_group"
+      ? whatsappUnsubscribeFooter(unsubUrl)
+      : "");
 
   // ── Email (Resend) ──
   if (b.channel === "email") {
     if (!r.email) return { ok: false, error: "missing_email" };
-    const unsubUrl = `${SB_URL}/functions/v1/broadcast-unsubscribe?r=${r.id}`;
     const { html, text } = buildEmailContent({
       bodyHtml: b.body_html,
       bodyText: b.body_text,
