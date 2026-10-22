@@ -1,7 +1,7 @@
 name: Deploy Supabase Edge Function
 
-# Manual only. Automatic production deploys on push to main run from deploy-prod.yml
-# so they can wait for database migrations.
+# Manual only. Production migrations and declared functions deploy through the Supabase
+# GitHub integration; use this for functions not declared in supabase/config.toml.
 permissions:
   contents: write
   pull-requests: read
