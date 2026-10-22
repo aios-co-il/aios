@@ -358,7 +358,7 @@ export default function Terms() {
             {/* Footer Links */}
             <div className="flex items-center justify-between pt-6 border-t">
               <Link
-                to="/landing"
+                to="/"
                 className="text-primary hover:underline flex items-center gap-1"
               >
                 <ArrowRight className="h-4 w-4" />
