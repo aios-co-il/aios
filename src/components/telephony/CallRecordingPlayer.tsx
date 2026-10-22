@@ -22,8 +22,9 @@ export function CallRecordingPlayer({ url, path }: Props) {
       return data.signedUrl;
     },
     enabled: !url && !!path,
-    // Refresh before the signed URL expires.
+    // Re-sign before the URL expires, so a tab left open keeps playing.
     staleTime: (SIGNED_URL_TTL_SECONDS - 300) * 1000,
+    refetchInterval: (SIGNED_URL_TTL_SECONDS - 300) * 1000,
   });
   const src = url || signedUrl;
   return src ? <CustomAudioPlayer src={src} className="mt-2" /> : null;

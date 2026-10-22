@@ -58,22 +58,21 @@ async function handle(req: Request): Promise<Response> {
       ? { leadId: existing.lead_id, clientId: existing.client_id }
       : await findOwnerByPhone(sb, tenantId, event);
 
-  const alreadyHasRecording =
-    (event.recordingUrl || file) &&
-    (existing?.recording_url ||
-      existing?.recording_path ||
-      (await findDuplicateRecording(sb, tenantId, event, !!file)));
-  if (alreadyHasRecording)
-    return json({
-      ok: true,
-      duplicate: true,
-      matched: !!(owner.leadId || owner.clientId),
-    });
+  // A retried recording is not stored again, but the event's status and
+  // duration still update the call it belongs to.
+  const duplicate =
+    !!(event.recordingUrl || file) &&
+    (existing?.recording_url || existing?.recording_path
+      ? existing
+      : await findDuplicateRecording(sb, tenantId, event, !!file));
+  existing ??= duplicate || null;
 
-  const recording = {
-    url: event.recordingUrl,
-    path: file ? await storeRecordingFile(sb, tenantId, file) : null,
-  };
+  const recording = duplicate
+    ? { url: null, path: null }
+    : {
+        url: event.recordingUrl,
+        path: file ? await storeRecordingFile(sb, tenantId, file) : null,
+      };
   const bringsRecording = !!(recording.url || recording.path);
   existing ??= await findOpenCall(sb, tenantId, owner, event, bringsRecording);
 
@@ -82,6 +81,7 @@ async function handle(req: Request): Promise<Response> {
     : await insertCall(sb, tenantId, settings, event, owner, recording);
   return json({
     ok: true,
+    ...(duplicate && { duplicate: true }),
     call_log_id: saved.callLogId,
     lead_id: saved.leadId,
     client_id: saved.clientId,
