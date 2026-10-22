@@ -55,6 +55,7 @@ export function mergeCarmenScopeConfig(
   automationCfg = {},
   policy = null,
   groupChatIds = [],
+  { isGroup } = {},
 ) {
   const cfg = automationCfg || {};
   const policyPhones = policy ? parsePolicyPhones(policy.private_phones) : [];
@@ -80,21 +81,32 @@ export function mergeCarmenScopeConfig(
   let requireDirectAddress = policy?.require_direct_address !== false;
 
   if (policy) {
+    const policyHasGroups =
+      Array.isArray(policy.allowed_group_ids) &&
+      policy.allowed_group_ids.length > 0;
     if (policyPhoneStrings.length > 0) {
       allowedPhones = policyPhoneStrings;
-      if (scopeMode === "all") scopeMode = "specific_phone";
     }
-    if (
-      Array.isArray(policy.allowed_group_ids) &&
-      policy.allowed_group_ids.length > 0
-    ) {
+    if (policyHasGroups) {
+      // Policy groups win even when none resolve to a Manus chat: deny, never
+      // fall back to the automation's group list.
       allowedGroups = [...groupChatIds];
-      scopeMode =
-        scopeMode === "specific_phone"
-          ? "specific_group"
-          : scopeMode === "all"
-            ? "specific_group"
-            : scopeMode;
+    }
+    if (isGroup === true) {
+      // Private phones govern 1:1 chats only; they must not block groups.
+      if (policyHasGroups) scopeMode = "specific_group";
+    } else if (isGroup === false) {
+      if (policyPhoneStrings.length > 0) scopeMode = "specific_phone";
+      else if (policyHasGroups) scopeMode = "specific_group";
+    } else {
+      // Surface unknown (legacy callers): previous behaviour.
+      if (policyPhoneStrings.length > 0 && scopeMode === "all")
+        scopeMode = "specific_phone";
+      if (
+        policyHasGroups &&
+        (scopeMode === "specific_phone" || scopeMode === "all")
+      )
+        scopeMode = "specific_group";
     }
     openMemberGroups = policy.open_member_groups === true;
   }

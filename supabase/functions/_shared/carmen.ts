@@ -224,6 +224,37 @@ const CARMEN_DIRECT_AFTER_NAME_RE = new RegExp(
   "u",
 );
 
+// Greeting right before her name, at the start of the message.
+const CARMEN_GREETING_PREFIX_RE = new RegExp(
+  `^\\s*(?:היי|הי|הייי|שלום|אהלן|הלו|בוקר טוב|צהריים טובים|ערב טוב|לילה טוב|hi|hey|hello)\\s*[,!]?\\s*(?=[כק]א?רמן${HE})`,
+  "iu",
+);
+
+// Second-person words addressed to her. Not "את": it is also the object marker.
+const SECOND_PERSON_RE = new RegExp(
+  `${HB}(?:אותך|לך|ממך|שלך|איתך|אלייך)${HE}`,
+  "u",
+);
+
+// Short words ending in ה that are not third-person past verbs.
+const NOT_A_VERB = new Set([
+  "מה",
+  "זה",
+  "למה",
+  "כמה",
+  "איזה",
+  "הנה",
+  "שאלה",
+  "בקשה",
+]);
+
+// "בדקה …", "לא ענתה …": a third-person past verb opening the remainder.
+function opensWithThirdPersonVerb(after: string): boolean {
+  const words = after.split(/[\s,.:;!?]+/u).filter(Boolean);
+  const word = words[0] === "לא" ? words[1] || "" : words[0] || "";
+  return /^[א-ת]{3,}ה$/u.test(word) && !NOT_A_VERB.has(word);
+}
+
 const MEETING_URL_RE =
   /https?:\/\/(?:[\w.-]+\.)?(?:zoom\.us\/\S+|meet\.google\.com\/\S+|teams\.microsoft\.com\/\S+|teams\.live\.com\/\S+)/i;
 
@@ -246,10 +277,16 @@ export function groupMessageInvokesCarmen(message: string): boolean {
   // Clear direct command / request: "כרמן תבדקי…", "כרמן תצטרפי", "כרמן תבקשי…"
   if (CARMEN_DIRECT_AFTER_NAME_RE.test(content)) return true;
 
+  // Greeting aimed at her ("היי כרמן, …"): judge the rest like a vocative.
+  const greeted = CARMEN_GREETING_PREFIX_RE.test(content);
+  const vocative = greeted
+    ? content.replace(CARMEN_GREETING_PREFIX_RE, "")
+    : content;
+
   // Vocative at start of message.
-  if (/^\s*[כק]א?רמן(?:\s*[,:!?]|$|\s)/u.test(content)) {
-    const after = content.replace(/^\s*[כק]א?רמן\s*[,:!]?\s*/u, "").trim();
-    if (!after) return true; // bare "כרמן"
+  if (/^\s*[כק]א?רמן(?:\s*[,:!?]|$|\s)/u.test(vocative)) {
+    const after = vocative.replace(/^\s*[כק]א?רמן\s*[,:!]?\s*/u, "").trim();
+    if (!after) return true; // bare "כרמן" / "היי כרמן"
     if (/^[?!]/.test(after)) return true;
     // Question directed at her: "כרמן מה מצב…?"
     if (
@@ -258,6 +295,13 @@ export function groupMessageInvokesCarmen(message: string): boolean {
       return true;
     // Meeting join link right after addressing her.
     if (MEETING_URL_RE.test(after)) return true;
+    // Reporting about her ("כרמן בדקה את הדוח?") never wakes her.
+    if (opensWithThirdPersonVerb(after)) return false;
+    // Short introduction after a greeting: "היי כרמן, זאת אנה".
+    if (greeted && after.split(/\s+/u).length <= 3) return true;
+    // Opens with her name and asks something / speaks to her in 2nd person:
+    // "כרמן על כל שאלה את עונה פעמיים?"
+    if (/[?？]\s*$/u.test(after) || SECOND_PERSON_RE.test(after)) return true;
     // Uncertain remainder after the name → stay silent.
     return false;
   }
@@ -1757,6 +1801,7 @@ export async function handleCarmenMessage(
     cfg,
     accessContext.policy,
     accessContext.groupChatIds,
+    { isGroup },
   );
 
   // GROUP SAFETY GATE: a blocked group must stay completely silent regardless
@@ -2265,33 +2310,9 @@ export async function handleCarmenMessage(
   }
 
   // Scope enforcement — merged policy (Agent → הרשאות שיחה) overrides automation when set
-  const scopeMode =
-    mergedScope.hasPolicy && mergedScope.allowedPhones.length > 0
-      ? "specific_phone"
-      : mergedScope.hasPolicy && mergedScope.allowedGroups.length > 0
-        ? "specific_group"
-        : carmenAutomation.configuration?.carmen_scope_mode || "all";
-  const allowedPhones =
-    mergedScope.allowedPhones.length > 0
-      ? mergedScope.allowedPhones
-      : carmenAutomation.configuration?.carmen_allowed_phones || [];
-  const allowedGroups: string[] =
-    mergedScope.allowedGroups.length > 0
-      ? mergedScope.allowedGroups
-      : (() => {
-          const cfgForGroups = carmenAutomation.configuration || {};
-          if (
-            Array.isArray(cfgForGroups.carmen_allowed_group_ids) &&
-            cfgForGroups.carmen_allowed_group_ids.length > 0
-          ) {
-            return cfgForGroups.carmen_allowed_group_ids;
-          }
-          if (cfgForGroups.carmen_allowed_group_id)
-            return [cfgForGroups.carmen_allowed_group_id];
-          if (Array.isArray(cfgForGroups.carmen_allowed_groups))
-            return cfgForGroups.carmen_allowed_groups;
-          return [];
-        })();
+  const scopeMode = mergedScope.scopeMode;
+  const allowedPhones: string[] = mergedScope.allowedPhones;
+  const allowedGroups: string[] = mergedScope.allowedGroups;
   if (scopeMode === "specific_phone" && !isGroup) {
     // `sourcePhoneNumber` is the CONNECTED account — i.e. always the operator
     // themselves. On the operator's own OUTBOUND messages (isManualOutgoing) it
