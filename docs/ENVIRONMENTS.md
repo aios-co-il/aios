@@ -134,7 +134,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Release PR **`develop` → `main`**, merged by a human (the Supabase GitHub integration applies migrations and deploys declared functions to Production; undeclared functions go through the manual `deploy-edge-function.yml`).
+5. Release PR **`develop` → `main`**, merged by a human (the Supabase GitHub integration applies migrations and deploys declared functions to Production).
 6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
@@ -165,7 +165,7 @@ Lazy snapshot renderers keep full report/export code out of the client-card entr
 
 Workflow files define automation triggers; this document defines the environment model and operational constraints. Confirm external service state separately before claiming a deployment or data sync is healthy.
 
-- Check `.github/workflows/check-develop-has-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
+- Check `.github/workflows/check-develop-has-main.yml`, and `sync-staging-data.yml` for current triggers and path filters.
 
 ## Database and edge-function deploys
 

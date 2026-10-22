@@ -21,4 +21,4 @@
 
 - Frontend hosting is Vercel; the canonical domain is `https://aios.co.il`. Lovable is no longer the hosting provider.
 - Backend services use Supabase. Keep project refs and credentials outside git, and keep Staging connected to Staging.
-- Inspect `deploy-edge-function.yml` for current deployment triggers; after an authorized edge-function merge, confirm its run succeeds.
+- After an authorized edge-function merge, confirm the function is declared in `supabase/config.toml` and that the Supabase integration deployed it.
