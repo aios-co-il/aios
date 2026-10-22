@@ -11,6 +11,21 @@ create table if not exists public.meta_data_deletion_requests (
   created_at timestamptz not null default now()
 );
 
+-- Status values are mirrored in src/lib/dataDeletionStatus.ts (page labels).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'meta_data_deletion_requests_status_check'
+      and conrelid = 'public.meta_data_deletion_requests'::regclass
+  ) then
+    alter table public.meta_data_deletion_requests
+      add constraint meta_data_deletion_requests_status_check
+      check (status in ('received', 'in_progress', 'completed', 'rejected'));
+  end if;
+end
+$$;
+
 alter table public.meta_data_deletion_requests enable row level security;
 
 comment on table public.meta_data_deletion_requests is
