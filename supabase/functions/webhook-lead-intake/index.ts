@@ -85,7 +85,16 @@ Deno.serve(async (req) => {
       req.headers.get("x-webhook-secret") ??
       new URL(req.url).searchParams.get("secret");
     if (providedSecret !== expectedSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      console.warn(
+        `[webhook-lead-intake] rejected: ${providedSecret ? "wrong" : "missing"} secret`,
+      );
+      const body = {
+        error: "Unauthorized",
+        hint: providedSecret
+          ? "The webhook secret does not match. Check the x-webhook-secret header."
+          : "Missing webhook secret. Send it in the x-webhook-secret header (or ?secret=).",
+      };
+      return new Response(JSON.stringify(body), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
