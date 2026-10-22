@@ -811,3 +811,11 @@ Claude Code health-check skill written to `ai_skills` (scope=tenant, created_by_
 - **What Carmen can now do:** When dashboard Woo revenue ≠ WooCommerce admin for the same week, explain the usual causes: (1) AIOS counts by **date_paid → date_completed → date_created** on Asia/Jerusalem calendar days; (2) only statuses completed/processing/on-hold; (3) stale sync when `woo_sync_enabled=false` or incremental sync missed orders — trigger manual sync from WordPress settings; (4) cross-tenant DMM↔MC sites need `wordpress_sites_shared_tenants`.
 - **How:** Code in `wooOrderRevenue.ts` + `calendarTimeZone.ts`; sync backfill last 21d in `sync-woocommerce-data` v1.4.0. For 4/4 ארבע על ארבע ops: `fix_4_4_woocommerce_revenue_sync.sql`.
 - **Origin:** Carmen → Cursor DEV TASK — Ana reported 4/4 last-week ₪3,380 vs Woo ₪6,252.
+
+## 2026-10-18 — Session window brain/skin selectors and skin avatars
+
+- No `ai_skills` row written (target tenant unknown); this entry is the repo record.
+- Per-skin avatars live on Carmen's `ai_agents.metadata.visual_identity.skins[slug].avatarPath`. Hook: `useCarmenSkins`.
+- The active skin is per chat session only (`src/lib/carmenSessionSkin.ts`, in memory). It is sent as `active_skin` with each request: `run-ai-agent` pins that skill into Carmen's prompt for the run, and `agent-channel-send` puts it at the top of the task for external brains (Cursor, Claude, parliament). Helpers: `_shared/carmen/active-skin.ts`. It is never stored on the shared agent row, so one user's choice doesn't change Carmen for others.
+- Images upload to `entity-attachments/<tenant>/agent-avatars/...` (tenant-folder RLS).
+- New chats get a topic name: the opening message is the provisional title, then `_shared/carmen/chat-topic.ts` asks a small model for a 2-5 word topic and replaces the title only if the user hasn't renamed it.

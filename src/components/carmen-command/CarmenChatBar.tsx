@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
@@ -35,6 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useConversationActions } from "./useConversationActions";
+import { getSessionSkin } from "@/lib/carmenSessionSkin";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -124,6 +127,10 @@ interface CarmenChatBarProps {
   mode?: "default" | "sidecar";
   contextMetadata?: SystemFixContextMetadata | null;
   sidecarPlaceholder?: string;
+  /** Extra controls shown inside the composer, above the input row. */
+  composerAccessory?: ReactNode;
+  /** Open on a new conversation instead of restoring the last one; past chats stay in history. */
+  startFresh?: boolean;
 }
 
 const CARMEN_VOICES = [
@@ -162,6 +169,8 @@ export const CarmenChatBar = forwardRef<
     mode = "default",
     contextMetadata = null,
     sidecarPlaceholder,
+    composerAccessory,
+    startFresh = false,
   },
   ref,
 ) {
@@ -452,6 +461,7 @@ export const CarmenChatBar = forwardRef<
             conversation_history: history,
             system_prompt_addon: promptAddon || undefined,
             context_metadata: ctxMeta ?? undefined,
+            active_skin: getSessionSkin(tenantId) ?? undefined,
           }),
         },
       );
@@ -844,6 +854,7 @@ export const CarmenChatBar = forwardRef<
                 .filter((m) => m.role === "user" || m.role === "assistant")
                 .map((m) => ({ role: m.role, content: m.content ?? "" }))
                 .slice(-24),
+              active_skin: getSessionSkin(tenantId) ?? undefined,
             }),
             signal: controller.signal,
           },
@@ -1357,11 +1368,15 @@ export const CarmenChatBar = forwardRef<
     }
   }, [learnFromConversation, tenantId, brain]);
 
+  const restoredRef = useRef(startFresh);
+  const seatSlugRef = useRef(brain.selected.slug);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
       learnFromConversation();
       rememberConv(conv.id);
       const nextRoute = routeForRestoredChat(brain.routes, conv);
+      // This chat picks its own seat; the seat-switch effect must not reset it.
+      seatSlugRef.current = nextRoute.slug;
       brain.selectRoute(nextRoute, conv.id);
       brain.setStatus(
         (topicIsLive(conv.status)
@@ -1427,8 +1442,12 @@ export const CarmenChatBar = forwardRef<
     },
   });
 
-  const restoredRef = useRef(false);
-  const seatSlugRef = useRef(brain.selected.slug);
+  const { renameConversation, deleteConversation } = useConversationActions(
+    tenantId,
+    conversationIdRef,
+    startNewConversation,
+  );
+
   const routeScopedConversations = conversationsForRoute(
     pastConversations ?? [],
     brain.selected,
@@ -1476,7 +1495,9 @@ export const CarmenChatBar = forwardRef<
     const saved = localStorage.getItem(
       lastConversationStorageKeyForSeat(tenantId, nextSlug),
     );
-    const hit = scoped.find((c) => c.id === saved) || scoped[0];
+    const hit = startFresh
+      ? undefined
+      : scoped.find((c) => c.id === saved) || scoped[0];
     if (hit) {
       if (hit.id !== conversationIdRef.current) loadConversation(hit);
       return;
@@ -1497,6 +1518,7 @@ export const CarmenChatBar = forwardRef<
     loadConversation,
     brain,
     onConversationIdChange,
+    startFresh,
   ]);
 
   /* ---------- Mute (keep the conversation, stop listening) ---------- */
@@ -1634,6 +1656,8 @@ export const CarmenChatBar = forwardRef<
               loadConversation(conv);
             }}
             onNew={startNewConversation}
+            onRename={renameConversation}
+            onDelete={deleteConversation}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -1702,6 +1726,11 @@ export const CarmenChatBar = forwardRef<
         <p className="cc-channel-health" role="status">
           {brain.healthBanner}
         </p>
+      )}
+      {composerAccessory && (
+        <div className="cc-composer-accessory flex shrink-0 items-center gap-2 border-t border-[var(--cc-line)] px-2 pt-2">
+          {composerAccessory}
+        </div>
       )}
       {(attachments.length > 0 || uploadingAttachments) && (
         <div className="cc-attach-preview flex shrink-0 flex-wrap gap-2 border-t border-[var(--cc-line)] px-3 py-2">

@@ -1,4 +1,19 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  allowedRoutes,
+  applyBrainLimit,
+  BRAIN,
+  brainLevel,
+} from "../_shared/carmen/brain-access.ts";
+import {
+  brainDenied,
+  channelActionDenied,
+  loadCarmenAccessRow,
+} from "../_shared/carmen/brain-guard.ts";
+import {
+  activeSkinBlock,
+  parseActiveSkin,
+} from "../_shared/carmen/active-skin.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
@@ -94,13 +109,33 @@ Deno.serve(async (req) => {
 
   const action = String(body.action || "send");
   const carmen = await resolveCarmenAgent(sb, tenantId);
-  const agentId = String(body.agent_id || carmen?.id || "");
+  const agentId = carmen?.id ?? "";
   if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
+  // Brain routes and permissions belong to the tenant's Carmen; another agent
+  // id would sidestep the user's permission row.
+  if (body.agent_id && String(body.agent_id) !== agentId)
+    return json(400, { error: "agent_id must be this tenant's Carmen agent" });
   await ensureDefaultRoutes(sb, tenantId, agentId);
 
+  // Per-user brain permissions (Carmen settings → הרשאות).
+  const accessRow = await loadCarmenAccessRow(
+    sb,
+    tenantId,
+    agentId,
+    auth.userId,
+  );
   if (action === "list_routes") {
-    const routes = await ensureDefaultRoutes(sb, tenantId, agentId);
-    return json(200, { ok: true, routes, agent_id: agentId });
+    const routes = allowedRoutes(
+      await ensureDefaultRoutes(sb, tenantId, agentId),
+      accessRow,
+    );
+    return json(200, {
+      ok: true,
+      routes,
+      agent_id: agentId,
+      // true when this user has a permissions row: the list is exact, even if empty.
+      restricted: !!accessRow,
+    });
   }
 
   if (action === "channel_health") {
@@ -152,6 +187,9 @@ Deno.serve(async (req) => {
     });
   }
 
+  const denied = channelActionDenied(action, accessRow);
+  if (denied) return denied;
+
   if (action === "cancel_parliament") {
     const conversationId = String(body.conversation_id || "");
     if (!conversationId)
@@ -187,7 +225,11 @@ Deno.serve(async (req) => {
     }
     return json(
       200,
-      await clarifyParliamentSeat(conversationId, provider, question),
+      await clarifyParliamentSeat(
+        conversationId,
+        provider,
+        applyBrainLimit(brainLevel(accessRow, BRAIN.parliament), question),
+      ),
     );
   }
 
@@ -227,6 +269,12 @@ Deno.serve(async (req) => {
     slug: body.brain_slug ? String(body.brain_slug) : null,
   });
   if (!route) return json(400, { error: "brain route not found" });
+
+  // Each route is its own grant. Parliament included: its seats (Cursor,
+  // Claude, …) only answer a read-only round, so a "parliament" grant does not
+  // need the seat brains' own grants.
+  const level = brainLevel(accessRow, route.slug);
+  if (!level) return brainDenied("brain");
 
   if (action === "select_route") {
     if (body.conversation_id) {
@@ -320,6 +368,16 @@ Deno.serve(async (req) => {
     }
   }
 
+  // The session's skin reaches external brains as instructions in the task;
+  // Carmen's own brain gets it from run-ai-agent instead.
+  const skin =
+    route.route_type === "internal"
+      ? ""
+      : await activeSkinBlock({
+          slug: parseActiveSkin(body.active_skin),
+          tenantId,
+        });
+
   try {
     const result: SendResult = await dispatchSend({
       tenantId,
@@ -327,7 +385,11 @@ Deno.serve(async (req) => {
       agentId,
       conversationId: conv.id,
       route,
-      content,
+      // A "bug fixes only" grant writes the limit into the task.
+      content: applyBrainLimit(
+        level,
+        skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
+      ),
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,
