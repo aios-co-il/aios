@@ -37,10 +37,39 @@ AGENT_CHANNEL_CALLBACK_SECRET = "encrypted:BJUk3egiU/MJsJHl+xc2SMLMY+asc68FFUS83
 WEBHOOK_LEAD_INTAKE_SECRET = "encrypted:BBmyST3U2p6HL6+8hY8hqnfZZYslnbppSsDbYEfZAAQ62ep0kOKqo5edV5Ol1EcVSmAbuuStX7CKQyO5XYlkVqvyFSqPYE4cvzhpr2YX9mlQn9KukL/+c27fN9jCj35+FanTvF//l3y5coz6AZNYwz2u71rBLELhVMRztJ2mihBQJ7DIOrMnn1phW9dFc2edS6WShaaJDISjlOvemQf377Y="
 WEBHOOK_TASK_INTAKE_SECRET = "encrypted:BCBNI4nzLZTfEZDh56URmP4dIm06FmcvpdBpeHTcZSfSz7pit1vRd4df6IRAC3XCbyx7RZEb//Vmatwe1detw8wVzvL9CJ/tGH5bsEL/EknZqooFreFBtULVrBc9WBDqtmo5XUL8P4OhgQc7Cwq1Gey2LdUYdjuVBi0uSjP/0UmanrP23S4h1mOc1IVsWrJp5f7EmAvAXsCw11KU4twbSmg="
 
-# Guard for Phase 3: if "Deploy to production" is ever enabled, the base [edge_runtime.secrets]
-# above must not turn Production into a preview environment.
+# Production overrides. Every branch, including `develop`, uses the base config above;
+# Production keeps its live values (they were read from the live project on 2026-10-22).
 [remotes.production]
 project_id = "zvoijyneresvkadpprel"
+
+[remotes.production.auth]
+site_url = "https://aios.co.il"
+additional_redirect_urls = [
+  "https://aios.co.il",
+  "https://www.aios.co.il",
+  "https://*-aios-crm.vercel.app/**",
+  "https://after-lead-aios-crm.vercel.app/",
+  "https://after-lead-aios-crm.vercel.app/**",
+  "https://after-*-lead-aios-crm.vercel.app",
+  "https://after-*-lead-aios-crm.vercel.app/**",
+]
+
+[remotes.production.auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[remotes.production.auth.email]
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[remotes.production.auth.external.google]
+enabled = true
+client_id = "152366216077-3ih8o0lpeit12nu99k5tjtfig0l0obdg.apps.googleusercontent.com"
+skip_nonce_check = false
+
+[remotes.production.edge_runtime.secrets]
+APP_ENV = "production"
 
 
 # Persistent branch: its config is only applied when a [remotes] block names its project ID.
