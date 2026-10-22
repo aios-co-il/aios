@@ -2185,32 +2185,6 @@ Deno.serve(async (req) => {
 
     payloadData = await enrichLeadPayloadData(supabase, payloadData || {});
 
-    // Record the run only when something matched, and close it when done.
-    let executionRowId: string | null = null;
-    if ((automations || []).length > 0) {
-      const { data: execRecord, error: execInsertError } = await supabase
-        .from("automation_executions")
-        .insert({
-          execution_id: executionId,
-          tenant_id: requestBody.tenant_id || tenantId || null,
-          automation_id: requestBody.automationId || null,
-          trigger_type: requestBody.trigger_type || null,
-          entity_id: entityKey !== "no-entity" ? entityKey : null,
-          depth: executionDepth,
-          status: "running",
-          started_at: new Date(executionStartTime).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (execInsertError) {
-        console.error(
-          "[trigger-automation] execution record insert failed (continuing):",
-          execInsertError,
-        );
-      }
-      executionRowId = execRecord?.id ?? null;
-    }
-
     // Execute each matching automation
     const results = await Promise.allSettled(
       (automations || []).map(async (automation) => {
@@ -3873,16 +3847,27 @@ Deno.serve(async (req) => {
       }),
     );
 
-    if (executionRowId) {
-      const summary = summarizeExecution(results);
-      const { error: execUpdateError } = await supabase
+    // Record the run only if at least one automation actually ran (conditions
+    // met, not skipped), with its final status.
+    const summary = summarizeExecution(results);
+    if (summary.actions_count > 0) {
+      const { error: execInsertError } = await supabase
         .from("automation_executions")
-        .update({ ...summary, finished_at: new Date().toISOString() })
-        .eq("id", executionRowId);
-      if (execUpdateError) {
+        .insert({
+          execution_id: executionId,
+          tenant_id: requestBody.tenant_id || tenantId || null,
+          automation_id: requestBody.automationId || null,
+          trigger_type: requestBody.trigger_type || null,
+          entity_id: entityKey !== "no-entity" ? entityKey : null,
+          depth: executionDepth,
+          started_at: new Date(executionStartTime).toISOString(),
+          finished_at: new Date().toISOString(),
+          ...summary,
+        });
+      if (execInsertError) {
         console.error(
-          "[trigger-automation] execution record update failed:",
-          execUpdateError,
+          "[trigger-automation] execution record insert failed:",
+          execInsertError,
         );
       }
     }

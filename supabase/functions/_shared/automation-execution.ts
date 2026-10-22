@@ -25,13 +25,16 @@ function errorText(value: unknown): string {
 
 /**
  * Summarizes the per-automation results of one trigger call.
- * A run is "failed" when any automation threw or reported `success: false`;
- * skipped automations (`skipped: true`, or conditions not met) are not failures.
+ * `actions_count` counts only automations that actually ran: skipped ones
+ * (`skipped: true`, or conditions not met → `undefined`) are not counted.
+ * A run is "failed" when any automation threw or reported `success: false`.
  */
 export function summarizeExecution(results: SettledResult[]): ExecutionSummary {
   const errors: string[] = [];
+  let ran = 0;
   for (const result of results) {
     if (result.status === "rejected") {
+      ran++;
       errors.push(errorText(result.reason));
       continue;
     }
@@ -39,7 +42,9 @@ export function summarizeExecution(results: SettledResult[]): ExecutionSummary {
       | { success?: boolean; skipped?: boolean; error?: unknown }
       | null
       | undefined;
-    if (value && value.success === false && !value.skipped) {
+    if (!value || value.skipped) continue;
+    ran++;
+    if (value.success === false) {
       errors.push(
         value.error ? errorText(value.error) : "automation reported failure",
       );
@@ -47,7 +52,7 @@ export function summarizeExecution(results: SettledResult[]): ExecutionSummary {
   }
   return {
     status: errors.length > 0 ? "failed" : "completed",
-    actions_count: results.length,
+    actions_count: ran,
     error: errors.length > 0 ? errors.join("; ").slice(0, 2000) : null,
   };
 }

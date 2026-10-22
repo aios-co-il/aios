@@ -315,6 +315,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Set once this invocation owns the idMessage claim; released if processing
+  // fails so Green API's retry is not mistaken for a duplicate.
+  let releaseMessageClaim: (() => Promise<void>) | null = null;
+
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -889,12 +893,13 @@ Deno.serve(async (req) => {
     // before the claim existed.
     const incomingIdMessage = webhookData.idMessage;
     if (incomingIdMessage && tenantId) {
+      const claimKey = `${connectionUserId ?? "none"}:${incomingIdMessage}`;
       const { error: claimErr } = await supabaseClient
         .from("processed_webhook_messages")
         .insert({
           provider: "green_api",
           tenant_id: tenantId,
-          external_message_id: `${connectionUserId ?? "none"}:${incomingIdMessage}`,
+          external_message_id: claimKey,
         });
       if (isDuplicateClaimError(claimErr)) {
         console.log("[green-api] duplicate webhook dropped", {
@@ -906,6 +911,16 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
+      if (!claimErr) {
+        releaseMessageClaim = async () => {
+          await supabaseClient
+            .from("processed_webhook_messages")
+            .delete()
+            .eq("provider", "green_api")
+            .eq("tenant_id", tenantId)
+            .eq("external_message_id", claimKey);
+        };
       }
       if (claimErr) {
         // Transient DB issue: keep processing rather than lose the message.
@@ -1981,6 +1996,14 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("❌ Error in green-api-webhook:", error);
+    if (releaseMessageClaim) {
+      await releaseMessageClaim().catch((releaseError) =>
+        console.error(
+          "[green-api] failed to release dedup claim:",
+          releaseError,
+        ),
+      );
+    }
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return new Response(

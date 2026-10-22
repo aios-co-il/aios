@@ -69,3 +69,25 @@ test("only unique_violation counts as a duplicate claim", () => {
   assert.equal(isDuplicateClaimError(null), false);
   assert.equal(isDuplicateClaimError(undefined), false);
 });
+
+test("skipped and conditions-not-met automations are not counted as run", () => {
+  const summary = summarizeExecution([
+    { status: "fulfilled", value: undefined },
+    { status: "fulfilled", value: { skipped: true, reason: "mismatch" } },
+  ]);
+  assert.deepEqual(summary, {
+    status: "completed",
+    actions_count: 0,
+    error: null,
+  });
+});
+
+test("actions_count counts only automations that ran", () => {
+  const summary = summarizeExecution([
+    { status: "fulfilled", value: undefined },
+    { status: "fulfilled", value: { success: true } },
+    { status: "rejected", reason: new Error("boom") },
+  ]);
+  assert.equal(summary.actions_count, 2);
+  assert.equal(summary.status, "failed");
+});
