@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -89,6 +89,41 @@ function parseFacebookParamsFromNotes(notes?: string | null) {
   }
 
   return params;
+}
+
+// Shapes a lead read from Facebook like a CRM lead row, so the list and the
+// test run treat both the same; its answers go in notes as fb_ lines.
+function facebookLeadToTestLead(fb: {
+  leadgen_id: string;
+  form_id: string;
+  created_time: string;
+  field_data: Record<string, string>;
+}) {
+  const f = fb.field_data || {};
+  const name =
+    f.full_name ||
+    `${f.first_name || ""} ${f.last_name || ""}`.trim() ||
+    f.name ||
+    "";
+  return {
+    id: `fb:${fb.leadgen_id}`,
+    fromFacebook: true,
+    facebook_form_id: fb.form_id,
+    facebook_leadgen_id: fb.leadgen_id,
+    company_name: f.company_name || name || "ליד מפייסבוק",
+    contact_name: name,
+    phone: f.phone_number || f.phone || "",
+    email: f.email || "",
+    source: "facebook",
+    created_at: fb.created_time,
+    notes: [
+      `Facebook Lead ID: ${fb.leadgen_id}`,
+      `Form ID: ${fb.form_id}`,
+      ...Object.entries(f)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `fb_${k}: ${v}`),
+    ].join("\n"),
+  };
 }
 
 function getDateFilter(range: DateRange, customFrom?: Date, customTo?: Date) {
@@ -201,6 +236,12 @@ export function TestFlowWithLeadDialog({
   const facebookFormName = triggerConfig?.facebook_form_name || null;
   const facebookIntegrationId = triggerConfig?.facebook_integration_id || null;
   const [isSyncingFb, setIsSyncingFb] = useState(false);
+  // Leads read straight from Facebook (not from the CRM); null until pulled.
+  const [fbLeads, setFbLeads] = useState<any[] | null>(null);
+  // A pull covers one date range; changing the range drops it.
+  useEffect(() => {
+    setFbLeads(null);
+  }, [dateFilter.from, dateFilter.to]);
 
   const handleSyncFacebookNow = async () => {
     if (!tenantId || !facebookFormId || !facebookIntegrationId) {
@@ -222,18 +263,22 @@ export function TestFlowWithLeadDialog({
             form_id: facebookFormId,
             since_date: dateFilter.from,
             days: dateRange === "last_week" ? 7 : undefined,
+            preview: true,
           },
         },
       );
       if (error) throw error;
-      const synced = (data as any)?.synced ?? 0;
-      const skipped = (data as any)?.skipped ?? 0;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const pulled = ((data as any)?.leads || []).map(facebookLeadToTestLead);
+      const to = dateFilter.to ? new Date(dateFilter.to).getTime() : Infinity;
+      const inRange = pulled.filter(
+        (l: any) => new Date(l.created_at).getTime() < to,
+      );
+      setFbLeads(inRange);
+      setSelectedLeadIds(new Set());
       toast({
-        title: "סנכרון הושלם",
-        description: `${synced} לידים חדשים, ${skipped} כפולים`,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["leads-for-flow-test", tenantId],
+        title: "לידים נמשכו מפייסבוק",
+        description: `${inRange.length} לידים בטווח הנבחר`,
       });
     } catch (e: any) {
       console.error(e);
@@ -286,8 +331,10 @@ export function TestFlowWithLeadDialog({
     enabled: open && !!tenantId,
   });
 
+  const listLeads: any[] = fbLeads ?? leads;
+
   // Filtered leads by search
-  const filteredLeads = leads.filter((l: any) => {
+  const filteredLeads = listLeads.filter((l: any) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -530,13 +577,18 @@ export function TestFlowWithLeadDialog({
       }> = [];
 
       for (const leadId of selectedLeadIds) {
-        const lead = leads.find((l: any) => l.id === leadId);
+        const lead = listLeads.find((l: any) => l.id === leadId);
         if (!lead) continue;
 
         try {
           const testData: any = {
             test: true,
-            lead_id: leadId,
+            ...(lead.fromFacebook
+              ? {
+                  facebook_form_id: lead.facebook_form_id,
+                  facebook_leadgen_id: lead.facebook_leadgen_id,
+                }
+              : { lead_id: leadId }),
             contact_name: lead.contact_name || lead.company_name,
             company_name: lead.company_name,
             phone: lead.phone,
@@ -614,6 +666,7 @@ export function TestFlowWithLeadDialog({
   });
 
   const handleClose = () => {
+    setFbLeads(null);
     setSelectedLeadIds(new Set());
     setTestResults([]);
     setLastMessageData(null);
@@ -985,7 +1038,7 @@ export function TestFlowWithLeadDialog({
                 {selectedLeadIds.size === 1 &&
                   (() => {
                     const selectedId = Array.from(selectedLeadIds)[0];
-                    const selectedLead = leads.find(
+                    const selectedLead = listLeads.find(
                       (l: any) => l.id === selectedId,
                     );
                     if (!selectedLead) return null;

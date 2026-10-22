@@ -5,7 +5,7 @@
  * Regression history: the develop merge in PR #621 (commit 21925442) resolved
  * run-ai-agent's dev-escalation-auth import by dropping the `import {` line, leaving
  * the member list dangling. Nothing in CI parsed edge functions, so main stayed green
- * while `deploy-edge-function.yml` failed on "Expression expected" — Carmen's brain
+ * while the production deploy failed on "Expression expected" — Carmen's brain
  * and every function sorted after run-ai-agent stopped deploying to production.
  */
 import { readdirSync, readFileSync } from "node:fs";

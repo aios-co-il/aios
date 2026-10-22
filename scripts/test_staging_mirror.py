@@ -19,13 +19,14 @@ credentials_spec.loader.exec_module(credentials)
 class MirrorTests(unittest.TestCase):
     def test_summary_counts_rows_committed_before_a_table_failed(self):
         import os, tempfile
-        run = mirror.RunLog()
+        run = mirror.Run()
         run.progress.update({'clients': 7, 'leads': 3})
+        run.results.append({'table': 'clients', 'source_rows': 9, 'changed_rows': 7, 'removed_rows': 0, 'rejected_rows': 0})
+        run.failures.append({'table': 'leads', 'error': 'boom'})
         with tempfile.NamedTemporaryFile('r+') as out:
             os.environ['GITHUB_STEP_SUMMARY'] = out.name
             try:
-                run.write_summary([{'table': 'clients', 'source_rows': 9, 'changed_rows': 7, 'removed_rows': 0, 'rejected_rows': 0}],
-                                  [{'table': 'leads', 'error': 'boom'}], [])
+                run.write_summary()
             finally:
                 del os.environ['GITHUB_STEP_SUMMARY']
             text = out.read()
@@ -168,7 +169,7 @@ class MirrorTests(unittest.TestCase):
         manifest = json.loads(Path(__file__).with_name('staging-data-manifest.json').read_text())
         self.assertIn('crm_records', manifest['replace_on_sync'])
         self.assertTrue(set(manifest['replace_on_sync']) <= set(manifest['tables']))
-        source = Path(__file__).with_name('sync-staging-data.py').read_text()
+        source = (Path(__file__).with_name('staging_mirror') / 'cli.py').read_text()
         self.assertIn("manifest.get('replace_on_sync', [])", source)
 
     def test_source_cannot_be_target(self):

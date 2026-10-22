@@ -32,18 +32,6 @@ The frontend client also reads `VITE_SUPABASE_PUBLISHABLE_KEY`. Set that Preview
 - Optional extra row: Branch `develop` for the persistent Staging deploy.
 - Do not enable Production for these Staging rows.
 
-## Apply via API (optional)
-
-With secrets injected in the environment (never in git):
-
-```
-node scripts/set-vercel-preview-staging-env.mjs
-```
-
-Required env: `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `SUPABASE_STAGING_URL`, `SUPABASE_STAGING_ANON_KEY`, `SUPABASE_STAGING_SERVICE_ROLE_KEY`. Optional: `VERCEL_ORG_ID` / `VERCEL_TEAM_ID`, `SUPABASE_STAGING_PROJECT_ID`, `PREVIEW_GIT_BRANCH` (default `develop`).
-
-The script only **creates or updates Preview + branch** rows. It never patches a row whose targets include Production, and it never deletes variables.
-
 ## Public-repo rule
 
 Do not publish: project refs, internal hostnames, account/team names, integration tokens, or any secret. Use the placeholders above.

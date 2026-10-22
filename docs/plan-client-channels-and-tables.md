@@ -98,7 +98,7 @@ service code (ב-clients.services)  →  {
 ## שלב 3 — בדיקות והשקה
 
 - מיגרציות עמודות דרך `apply_migration`.
-- פריסת ה-edge function (אם נבחר) דרך `deploy-edge-function.yml`.
+- פריסת ה-edge function (אם נבחר) דרך אינטגרציית Supabase (להצהיר על הפונקציה ב-`supabase/config.toml`).
 - בדיקה ידנית: לקוח עם seo+ppc_google → רואים רק את השדות הרלוונטיים → כפתור יוצר 2 טבלאות
   - דשבורד → סנכרון מציג נתונים.
 
