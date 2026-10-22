@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { dataDeletionStatusLabel } from "@/lib/dataDeletionStatus";
+
+const PRIVACY_EMAIL = "privacy@afterlead.com";
 
 interface DeletionStatus {
   confirmation_code: string;
@@ -9,15 +12,11 @@ interface DeletionStatus {
   created_at: string;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  received: "הבקשה התקבלה וממתינה לטיפול",
-  in_progress: "הבקשה בטיפול",
-  completed: "המחיקה הושלמה",
-};
+type LookupError = "not_found" | "unavailable";
 
 function DeletionStatusBox({ code }: { code: string }) {
   const [status, setStatus] = useState<DeletionStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LookupError | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,18 +26,16 @@ function DeletionStatusBox({ code }: { code: string }) {
       `${baseUrl}/functions/v1/meta-data-deletion?code=${encodeURIComponent(code)}`,
     )
       .then(async (res) => {
-        const body = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
-        return body as DeletionStatus;
+        if (res.status === 404) return "not_found" as const;
+        if (!res.ok) return "unavailable" as const;
+        return (await res.json()) as DeletionStatus;
       })
-      .then((data) => {
-        if (!cancelled) setStatus(data);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((): LookupError => "unavailable")
+      .then((result) => {
+        if (cancelled) return;
+        if (typeof result === "string") setError(result);
+        else setStatus(result);
+        setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -54,17 +51,25 @@ function DeletionStatusBox({ code }: { code: string }) {
         קוד אישור: <code dir="ltr">{code}</code>
       </p>
       {loading && <p>טוען...</p>}
-      {!loading && error && (
+      {!loading && error === "not_found" && (
         <p className="text-destructive">
-          לא נמצאה בקשה עם קוד זה ({error}). אם קיבלת את הקוד מ-Facebook, פנה
-          אלינו ל-privacy@aios.co.il.
+          לא נמצאה בקשה עם קוד זה. אם קיבלת את הקוד מ-Facebook, פנה אלינו ל-
+          {PRIVACY_EMAIL}.
+        </p>
+      )}
+      {!loading && error === "unavailable" && (
+        <p className="text-destructive">
+          לא הצלחנו לבדוק את הסטטוס כרגע, נסה שוב מאוחר יותר.
+          <br />
+          <span dir="ltr">
+            We could not check the status right now, please try again later.
+          </span>
         </p>
       )}
       {!loading && status && (
         <>
           <p>
-            סטטוס:{" "}
-            <strong>{STATUS_LABELS[status.status] ?? status.status}</strong>
+            סטטוס: <strong>{dataDeletionStatusLabel(status.status)}</strong>
           </p>
           <p className="text-sm text-muted-foreground">
             התקבלה ב-{new Date(status.created_at).toLocaleString("he-IL")}
@@ -86,7 +91,7 @@ export default function DataDeletion() {
           <CardHeader>
             <CardTitle className="text-3xl">מחיקת מידע</CardTitle>
             <p className="text-muted-foreground mt-2">
-              דף זה מסביר כיצד לבקש מחיקה של המידע ש-AIOS שומרת עבורך
+              דף זה מסביר כיצד לבקש מחיקה של המידע ש-AfterLead שומרת עבורך
               מאינטגרציות Meta (Facebook, Instagram) ו-Google, ומה קורה לאחר
               הבקשה.
             </p>
@@ -111,25 +116,29 @@ export default function DataDeletion() {
                 <li>
                   <strong>בקשה באימייל:</strong> שלח הודעה לכתובת{" "}
                   <a
-                    href="mailto:privacy@aios.co.il"
+                    href={`mailto:${PRIVACY_EMAIL}`}
                     className="text-primary hover:underline"
                   >
-                    privacy@aios.co.il
+                    {PRIVACY_EMAIL}
                   </a>{" "}
-                  עם כתובת האימייל של חשבון AIOS שלך וציון האינטגרציה שברצונך
-                  למחוק. נאשר את קבלת הבקשה ונשלים את המחיקה בהקדם.
+                  עם כתובת האימייל של חשבון AfterLead שלך וציון האינטגרציה
+                  שברצונך למחוק. נאשר את קבלת הבקשה ונטפל בה ידנית.
                 </li>
                 <li>
-                  <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת AIOS מתוך
-                  הגדרות ← אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו
-                  אוטומטית בקשת מחיקה. תקבל קוד אישור וקישור לדף זה למעקב אחר
-                  הסטטוס.
+                  <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת AfterLead
+                  מתוך הגדרות ← אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו
+                  בקשת מחיקה. הבקשה נרשמת אצלנו, ותקבל קוד אישור וקישור לדף זה
+                  למעקב אחר הסטטוס.
                 </li>
               </ul>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold mb-3">2. מה נמחק</h2>
+              <p className="mb-2">
+                המחיקה אינה אוטומטית: כל בקשה נרשמת ומטופלת ידנית על ידי הצוות
+                שלנו. בעת הטיפול בבקשה נמחקים:
+              </p>
               <ul className="list-disc pr-6 space-y-2">
                 <li>
                   <strong>אסימוני גישה:</strong> אסימוני OAuth של Meta ו-Google
@@ -155,12 +164,12 @@ export default function DataDeletion() {
               <h2 className="text-2xl font-semibold mb-3">3. לוחות זמנים</h2>
               <ul className="list-disc pr-6 space-y-2">
                 <li>
-                  <strong>מחיקה מהמערכת:</strong> הנתונים נמחקים מהמסד הפעיל תוך
-                  30 יום מקבלת הבקשה
+                  <strong>טיפול בבקשה:</strong> הבקשה מטופלת ידנית והנתונים
+                  נמחקים מהמסד הפעיל תוך 30 יום מקבלתה
                 </li>
                 <li>
                   <strong>נתוני גיבוי:</strong> נשמרים עד 30 יום לאחר מחיקה
-                  מהמערכת
+                  מהמסד הפעיל
                 </li>
                 <li>
                   <strong>לוגים טכניים:</strong> נשמרים עד 12 חודשים לצורכי
@@ -173,12 +182,15 @@ export default function DataDeletion() {
               <h2 className="text-2xl font-semibold mb-3">4. יצירת קשר</h2>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
+                  <strong>AfterLead</strong>
+                </p>
+                <p>
                   אימייל:{" "}
                   <a
-                    href="mailto:privacy@aios.co.il"
+                    href={`mailto:${PRIVACY_EMAIL}`}
                     className="text-primary hover:underline"
                   >
-                    privacy@aios.co.il
+                    {PRIVACY_EMAIL}
                   </a>
                 </p>
                 <p>
@@ -195,7 +207,7 @@ export default function DataDeletion() {
                 Data Deletion Instructions (English)
               </h2>
               <p className="mb-2">
-                To delete the data AIOS holds from your Meta (Facebook,
+                To delete the data AfterLead holds from your Meta (Facebook,
                 Instagram) or Google integrations:
               </p>
               <ul className="list-disc pl-6 space-y-2">
@@ -206,24 +218,26 @@ export default function DataDeletion() {
                 <li>
                   Email{" "}
                   <a
-                    href="mailto:privacy@aios.co.il"
+                    href={`mailto:${PRIVACY_EMAIL}`}
                     className="text-primary hover:underline"
                   >
-                    privacy@aios.co.il
+                    {PRIVACY_EMAIL}
                   </a>{" "}
-                  from your AIOS account email, naming the integration to
+                  from your AfterLead account email, naming the integration to
                   delete.
                 </li>
                 <li>
-                  Removing AIOS from your Facebook apps settings automatically
-                  sends us a deletion request; you will receive a confirmation
-                  code and a link to this page to check its status.
+                  Removing AfterLead from your Facebook apps settings sends us a
+                  deletion request; you will receive a confirmation code and a
+                  link to this page to check its status.
                 </li>
               </ul>
               <p className="mt-3">
-                We delete access tokens, integration settings and data imported
-                from the connected account within 30 days; backups are retained
-                for up to 30 days after deletion.
+                Deletion is not automatic: every request is logged and processed
+                manually by our team within 30 days. When processed, we delete
+                the access tokens, integration settings and data imported from
+                the connected account; backups are retained for up to 30 days
+                after deletion.
               </p>
             </section>
 
@@ -234,7 +248,7 @@ export default function DataDeletion() {
             {/* Footer Links */}
             <div className="flex items-center justify-between pt-6 border-t">
               <Link
-                to="/landing"
+                to="/"
                 className="text-primary hover:underline flex items-center gap-1"
               >
                 <ArrowRight className="h-4 w-4" />
