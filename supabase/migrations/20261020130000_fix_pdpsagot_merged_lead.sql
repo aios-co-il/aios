@@ -25,9 +25,9 @@ BEGIN
         source = COALESCE(first_source, source)
     WHERE id = v_merged_lead_id;
 
-    -- Drop only the tag link the merge added (13:38-13:39) and any the source
-    -- restore above adds in this transaction (created_at = now()); tags users
-    -- added since the merge stay.
+    -- Return the tags to their pre-merge set: drop the link the merge added
+    -- (13:38-13:39) and any origin tag the source restore above re-creates in
+    -- this transaction (created_at = now()). Tags users added since stay.
     DELETE FROM public.chat_contact_tags
     WHERE lead_id = v_merged_lead_id
       AND (created_at BETWEEN '2026-10-19 13:38:00+00' AND '2026-10-19 13:39:00+00'
