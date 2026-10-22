@@ -495,3 +495,383 @@ verify_jwt = false
 # Public signing uses document-bound tokens validated inside the function.
 [functions.get-signature-document]
 verify_jwt = false
+
+# Declared so Supabase Branching deploys them; verify_jwt matches the previous default. Review for deletion (follow-up).
+
+[functions.add-manychat-tag]
+verify_jwt = true
+
+[functions.agent-heartbeat]
+verify_jwt = true
+
+[functions.agent-profile-avatar]
+verify_jwt = true
+
+[functions.ahrefs-webhook]
+verify_jwt = true
+
+[functions.ai-detection-scan]
+verify_jwt = true
+
+[functions.ai-generate-social-image]
+verify_jwt = true
+
+[functions.analytics-identify]
+verify_jwt = true
+
+[functions.analytics-script]
+verify_jwt = true
+
+[functions.analytics-track]
+verify_jwt = true
+
+[functions.autonomous-goal-worker]
+verify_jwt = true
+
+[functions.broadcast-dispatch]
+verify_jwt = true
+
+[functions.broadcast-enqueue]
+verify_jwt = true
+
+[functions.broadcast-list-sync-cron]
+verify_jwt = true
+
+[functions.bulk-sync-leads-to-manychat]
+verify_jwt = true
+
+[functions.campaign-pulse-manual-trigger]
+verify_jwt = true
+
+[functions.campaign-scheduler-cron]
+verify_jwt = true
+
+[functions.carmen-approval-execute]
+verify_jwt = true
+
+[functions.carmen-fb-tools]
+verify_jwt = true
+
+[functions.carmen-google-tools]
+verify_jwt = true
+
+[functions.carmen-learn-from-session]
+verify_jwt = true
+
+[functions.carmen-memory-backfill]
+verify_jwt = true
+
+[functions.carmen-memory-consolidate]
+verify_jwt = true
+
+[functions.carmen-memory-worker]
+verify_jwt = true
+
+[functions.carmen-save-media]
+verify_jwt = true
+
+[functions.check-meeting-reminders]
+verify_jwt = true
+
+[functions.clone-automation-to-tenant]
+verify_jwt = true
+
+[functions.clone-entity-to-tenant]
+verify_jwt = true
+
+[functions.convert-tenant-type]
+verify_jwt = true
+
+[functions.convert-unknown-contact]
+verify_jwt = true
+
+[functions.create-org-for-client]
+verify_jwt = true
+
+[functions.create-task-calendar-event]
+verify_jwt = true
+
+[functions.create-tenant-with-owner]
+verify_jwt = true
+
+[functions.cron-sync-facebook-ecommerce]
+verify_jwt = true
+
+[functions.cron-sync-google-ads]
+verify_jwt = true
+
+[functions.cron-sync-google-analytics]
+verify_jwt = true
+
+[functions.cron-sync-tiktok-content]
+verify_jwt = true
+
+[functions.debug-blueprint]
+verify_jwt = true
+
+[functions.debug-facebook-ecommerce]
+verify_jwt = true
+
+[functions.delete-calendar-event]
+verify_jwt = true
+
+[functions.delete-tenant]
+verify_jwt = true
+
+[functions.dispatch-agent-tasks]
+verify_jwt = true
+
+[functions.duplicate-client]
+verify_jwt = true
+
+[functions.extract-invoice-data]
+verify_jwt = true
+
+[functions.facebook-subscribe-page]
+verify_jwt = true
+
+[functions.fb-campaign-analyze]
+verify_jwt = true
+
+[functions.fb-campaign-control]
+verify_jwt = true
+
+[functions.fb-campaign-monitor]
+verify_jwt = true
+
+[functions.fetch-ahrefs-snapshot]
+verify_jwt = true
+
+[functions.fetch-elementor-submissions]
+verify_jwt = true
+
+[functions.fetch-gsc-data]
+verify_jwt = true
+
+[functions.fetch-zoom-recordings]
+verify_jwt = true
+
+[functions.generate-ai-prompts]
+verify_jwt = true
+
+[functions.generate-channel-avatar]
+verify_jwt = true
+
+[functions.generate-publishing-articles]
+verify_jwt = true
+
+[functions.get-calendar-events]
+verify_jwt = true
+
+[functions.get-chat-history]
+verify_jwt = true
+
+[functions.get-facebook-ad-accounts]
+verify_jwt = true
+
+[functions.get-facebook-forms]
+verify_jwt = true
+
+[functions.get-manychat-tags]
+verify_jwt = true
+
+[functions.github-agent]
+verify_jwt = true
+
+[functions.goal-brain-callback]
+verify_jwt = true
+
+[functions.grant-super-admin]
+verify_jwt = true
+
+[functions.import-broadcast-list-sheet]
+verify_jwt = true
+
+[functions.import-clients-from-sheets]
+verify_jwt = true
+
+[functions.list-ahrefs-projects]
+verify_jwt = true
+
+[functions.list-ai-models]
+verify_jwt = true
+
+[functions.list-user-tenants]
+verify_jwt = true
+
+[functions.manage-manus-wa]
+verify_jwt = true
+
+[functions.manage-user-roles]
+verify_jwt = true
+
+[functions.manus-api]
+verify_jwt = true
+
+[functions.manus-notify]
+verify_jwt = true
+
+[functions.manus-webhook]
+verify_jwt = true
+
+[functions.marketing-copy-plan]
+verify_jwt = true
+
+[functions.marketing-creative-plan]
+verify_jwt = true
+
+[functions.marketing-run-pipeline]
+verify_jwt = true
+
+[functions.marketing-run-stage]
+verify_jwt = true
+
+[functions.normalize-lead-phones]
+verify_jwt = true
+
+[functions.notify-team-message]
+verify_jwt = true
+
+[functions.oneoff-psg-import]
+verify_jwt = true
+
+[functions.process-invoice-emails]
+verify_jwt = true
+
+[functions.process-new-recording]
+verify_jwt = true
+
+[functions.process-user-invitation]
+verify_jwt = true
+
+[functions.refresh-recording-playback]
+verify_jwt = true
+
+[functions.replay-agent-run]
+verify_jwt = true
+
+[functions.report-error]
+verify_jwt = true
+
+[functions.reset-user-password]
+verify_jwt = true
+
+[functions.resolve-meta-page-from-ad-account]
+verify_jwt = true
+
+[functions.resolve-seo-gsc-integration]
+verify_jwt = true
+
+[functions.resume-agent-run]
+verify_jwt = true
+
+[functions.resync-all-leads-to-manychat]
+verify_jwt = true
+
+[functions.run-agent-eval]
+verify_jwt = true
+
+[functions.run-agent-supervisor]
+verify_jwt = true
+
+[functions.send-chat-message]
+verify_jwt = true
+
+[functions.send-manus-wa-file]
+verify_jwt = true
+
+[functions.send-manus-wa-message]
+verify_jwt = true
+
+[functions.send-meeting-notification]
+verify_jwt = true
+
+[functions.send-resend-email]
+verify_jwt = true
+
+[functions.send-temporary-password]
+verify_jwt = true
+
+[functions.serpapi-auth]
+verify_jwt = true
+
+[functions.serpapi-search]
+verify_jwt = true
+
+[functions.social-comments]
+verify_jwt = true
+
+[functions.social-gantt-generate]
+verify_jwt = true
+
+[functions.social-media-publish]
+verify_jwt = true
+
+[functions.social-pages-sync]
+verify_jwt = true
+
+[functions.social-publish]
+verify_jwt = true
+
+[functions.stop-sync-job]
+verify_jwt = true
+
+[functions.summarize-recording]
+verify_jwt = true
+
+[functions.sync-facebook-insights]
+verify_jwt = true
+
+[functions.sync-meta-ads-data]
+verify_jwt = true
+
+[functions.sync-tiktok-content]
+verify_jwt = true
+
+[functions.telegram-poll]
+verify_jwt = true
+
+[functions.telegram-send]
+verify_jwt = true
+
+[functions.telegram-verify-bot]
+verify_jwt = true
+
+[functions.test-campaign-monitor]
+verify_jwt = true
+
+[functions.tiktok-connect]
+verify_jwt = true
+
+[functions.tiktok-disconnect]
+verify_jwt = true
+
+[functions.toggle-facebook-campaign]
+verify_jwt = true
+
+[functions.transcribe-recording]
+verify_jwt = true
+
+[functions.unified-api-proxy]
+verify_jwt = true
+
+[functions.unified-calendar-proxy]
+verify_jwt = true
+
+[functions.unified-connections]
+verify_jwt = true
+
+[functions.update-calendar-event]
+verify_jwt = true
+
+[functions.update-user-agencies]
+verify_jwt = true
+
+[functions.update-user-role]
+verify_jwt = true
+
+[functions.verify-leads-manychat]
+verify_jwt = true
+
+[functions.webhook-meta-leads]
+verify_jwt = true
