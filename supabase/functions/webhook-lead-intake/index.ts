@@ -413,6 +413,10 @@ Deno.serve(async (req) => {
       ads: "paid_ads",
       google_ads: "paid_ads",
       facebook_ads: "paid_ads",
+      fb: "paid_ads",
+      fb_ads: "paid_ads",
+      meta: "paid_ads",
+      meta_ads: "paid_ads",
       ממומן: "paid_ads",
 
       // cold call
