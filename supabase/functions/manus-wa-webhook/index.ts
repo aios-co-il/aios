@@ -1,3 +1,4 @@
+import { manusPayloadSchema } from "./payload-schema.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
@@ -437,7 +438,9 @@ Deno.serve(async (req) => {
     );
 
     const url = new URL(req.url);
-    const rawPayload = await req.json();
+    const parsedPayload = manusPayloadSchema.safeParse(await req.json());
+    if (!parsedPayload.success) return ok({ error: "Invalid payload" }, 400);
+    const rawPayload = parsedPayload.data;
 
     // Diagnostic: log top-level shape so we can see exactly what Manus sends
     try {
@@ -460,7 +463,7 @@ Deno.serve(async (req) => {
       }
       return null;
     }
-    const outer = rawPayload as Record<string, any>;
+    const outer = rawPayload;
     const inner =
       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
     const key = pickObj(inner.key, outer.key) || {};
