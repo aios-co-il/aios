@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useCarmenSkins } from "@/hooks/useCarmenSkins";
 import { validateAvatarFile } from "@/lib/profileAvatars";
 
-// Skin avatar lookup and upload/removal, backed by the Carmen skins store.
+/** Skin avatar lookup and upload/removal, backed by the Carmen skins store. */
 export function useSkinAvatars() {
   const carmenSkins = useCarmenSkins();
   const avatarFor = (slug?: string) =>

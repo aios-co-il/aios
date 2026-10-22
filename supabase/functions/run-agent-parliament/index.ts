@@ -1,9 +1,13 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  applyBrainLimit,
+  BRAIN,
   brainLevel,
-  BUGFIX_ONLY_PREAMBLE,
-} from "../_shared/carmen-brain-access.ts";
-import { loadCarmenAccessRow } from "../_shared/carmen-brain-guard.ts";
+} from "../_shared/carmen/brain-access.ts";
+import {
+  brainDenied,
+  loadCarmenAccessRow,
+} from "../_shared/carmen/brain-guard.ts";
 import { requireAuth } from "../_shared/security.ts";
 import {
   cancelParliament,
@@ -64,16 +68,10 @@ Deno.serve(async (req) => {
   if (!carmen) return json(400, { error: "No Carmen agent" });
   const level = brainLevel(
     await loadCarmenAccessRow(sb, tenantId, carmen.id, auth.userId),
-    "parliament",
+    BRAIN.parliament,
   );
-  if (!level) {
-    return json(403, {
-      error: "אין לך הרשאה לשולחן. בקש/י גישה ממנהל המערכת.",
-      code: "brain_not_allowed",
-    });
-  }
-  const limit = (text: string) =>
-    level === "bugfix" ? BUGFIX_ONLY_PREAMBLE + text : text;
+  if (!level) return brainDenied("parliament");
+  const limit = (text: string) => applyBrainLimit(level, text);
 
   if (action === "continue") {
     if (!conversationId)

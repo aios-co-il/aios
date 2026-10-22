@@ -587,7 +587,7 @@ export function CarmenPanel({
       case "phones":
         return <CarmenConversationAccessTab agent={agent} />;
       case "permissions":
-        return <CarmenPermissionsTab agent={agent} />;
+        return <CarmenPermissionsTab />;
       case "agents":
         if (parts[2])
           return (

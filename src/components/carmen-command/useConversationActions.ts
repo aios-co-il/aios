@@ -19,11 +19,13 @@ export function useConversationActions(
 
   const rename = useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("ai_conversations")
         .update({ title })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error(NOT_CHANGED);
     },
     onSuccess: refresh,
     onError: fail("שינוי השם נכשל"),
@@ -31,11 +33,13 @@ export function useConversationActions(
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("ai_conversations")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error(NOT_CHANGED);
     },
     onSuccess: (_, id) => {
       if (id === conversationIdRef.current) startNewConversation();
@@ -56,3 +60,10 @@ export function useConversationActions(
 
   return { renameConversation, deleteConversation };
 }
+
+/**
+ * RLS scopes ai_conversations writes to the user's own tenant: a chat from
+ * another workspace matches no rows, which must not read as success.
+ */
+const NOT_CHANGED =
+  "השיחה לא נמצאה בארגון הנוכחי. עברו לארגון של השיחה ונסו שוב.";

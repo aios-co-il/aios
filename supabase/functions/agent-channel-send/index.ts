@@ -1,10 +1,19 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   allowedRoutes,
+  applyBrainLimit,
+  BRAIN,
   brainLevel,
-  BUGFIX_ONLY_PREAMBLE,
-} from "../_shared/carmen-brain-access.ts";
-import { loadCarmenAccessRow } from "../_shared/carmen-brain-guard.ts";
+} from "../_shared/carmen/brain-access.ts";
+import {
+  brainDenied,
+  channelActionDenied,
+  loadCarmenAccessRow,
+} from "../_shared/carmen/brain-guard.ts";
+import {
+  activeSkinBlock,
+  parseActiveSkin,
+} from "../_shared/carmen/active-skin.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
@@ -178,20 +187,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Driving a running parliament needs the parliament grant (cancel stays open
-  // so anyone can stop a round).
-  const PARLIAMENT_ACTIONS = [
-    "parliament_continue",
-    "parliament_synthesize",
-    "parliament_clarify",
-  ];
-  const parliamentLevel = brainLevel(accessRow, "parliament");
-  if (PARLIAMENT_ACTIONS.includes(action) && !parliamentLevel) {
-    return json(403, {
-      error: "אין לך הרשאה לשולחן. בקש/י גישה ממנהל המערכת.",
-      code: "brain_not_allowed",
-    });
-  }
+  const denied = channelActionDenied(action, accessRow);
+  if (denied) return denied;
 
   if (action === "cancel_parliament") {
     const conversationId = String(body.conversation_id || "");
@@ -231,9 +228,7 @@ Deno.serve(async (req) => {
       await clarifyParliamentSeat(
         conversationId,
         provider,
-        parliamentLevel === "bugfix"
-          ? BUGFIX_ONLY_PREAMBLE + question
-          : question,
+        applyBrainLimit(brainLevel(accessRow, BRAIN.parliament), question),
       ),
     );
   }
@@ -279,12 +274,7 @@ Deno.serve(async (req) => {
   // Claude, …) only answer a read-only round, so a "parliament" grant does not
   // need the seat brains' own grants.
   const level = brainLevel(accessRow, route.slug);
-  if (!level) {
-    return json(403, {
-      error: "אין לך הרשאה למוח הזה. בקש/י גישה ממנהל המערכת.",
-      code: "brain_not_allowed",
-    });
-  }
+  if (!level) return brainDenied("brain");
 
   if (action === "select_route") {
     if (body.conversation_id) {
@@ -378,6 +368,16 @@ Deno.serve(async (req) => {
     }
   }
 
+  // The session's skin reaches external brains as instructions in the task;
+  // Carmen's own brain gets it from run-ai-agent instead.
+  const skin =
+    route.route_type === "internal"
+      ? ""
+      : await activeSkinBlock({
+          slug: parseActiveSkin(body.active_skin),
+          tenantId,
+        });
+
   try {
     const result: SendResult = await dispatchSend({
       tenantId,
@@ -386,7 +386,10 @@ Deno.serve(async (req) => {
       conversationId: conv.id,
       route,
       // A "bug fixes only" grant writes the limit into the task.
-      content: level === "bugfix" ? BUGFIX_ONLY_PREAMBLE + content : content,
+      content: applyBrainLimit(
+        level,
+        skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
+      ),
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,

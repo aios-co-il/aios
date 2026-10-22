@@ -23,8 +23,9 @@ export function useUserTenants(userId: string | null | undefined) {
   });
 
   const handleTenantChange = async (tenantId: string) => {
+    if (!userId) return;
     try {
-      await (supabase as any).from("user_active_tenant").upsert(
+      await supabase.from("user_active_tenant").upsert(
         {
           user_id: userId,
           tenant_id: tenantId,

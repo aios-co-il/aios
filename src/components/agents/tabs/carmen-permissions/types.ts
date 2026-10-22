@@ -2,7 +2,7 @@ import {
   BUGFIX_CAPABLE_PROVIDERS,
   parseLevel,
   type BrainLevel,
-} from "../../../../../supabase/functions/_shared/carmen-brain-access";
+} from "@/lib/carmenBrainAccess";
 
 export type Route = {
   id: string;

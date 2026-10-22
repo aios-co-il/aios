@@ -1,6 +1,8 @@
-// One row of ai_skills as a "skin" (role-persona). Global skins are read-only
-// for non-super-admins; a tenant can clone a global skin to an editable override
-// on the same slug (the registry resolves tenant overrides over global).
+/**
+ * One row of ai_skills as a "skin" (role-persona). Global skins are read-only
+ * for non-super-admins; a tenant can clone a global skin to an editable override
+ * on the same slug (the registry resolves tenant overrides over global).
+ */
 export interface Skin {
   id: string;
   slug: string;

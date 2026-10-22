@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  allowedRoutes,
-  brainLevel,
-  carmenEnabledFor,
-} from "./carmen-brain-access.ts";
+import { allowedRoutes, brainLevel, carmenEnabledFor } from "./brain-access.ts";
 
 const ana = {
   enabled: true,

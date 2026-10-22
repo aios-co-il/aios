@@ -1,21 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  CARMEN_NAME_FILTER,
   carmenEnabledFor,
+  toAccessRow,
   type BrainAccessRow,
-} from "../../../supabase/functions/_shared/carmen-brain-access";
+} from "@/lib/carmenBrainAccess";
 
-// Owners who may use the ORG OpenAI key. Everyone else gets access by adding
-// a personal API key (user_api_keys) in their profile — bring-your-own-key.
-// Mirrored server-side in the carmen voice edge functions.
+/**
+ * Owners who may use the ORG OpenAI key. Everyone else gets access by adding
+ * a personal API key (user_api_keys) in their profile — bring-your-own-key.
+ * Mirrored server-side in the carmen voice edge functions.
+ */
 export const COMMAND_CENTER_ALLOWLIST = ["david.castelnuovo@gmail.com"];
 
 /** The tenant's Carmen, resolved like the edge functions' resolveCarmenAgent. */
-async function carmenAgentId(tenantId: string): Promise<string | null> {
+export async function fetchCarmenAgentId(
+  tenantId: string,
+): Promise<string | null> {
   const { data } = await supabase
     .from("ai_agents")
     .select("id")
     .eq("tenant_id", tenantId)
-    .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+    .or(CARMEN_NAME_FILTER)
     .eq("active", true)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -28,7 +34,7 @@ export async function fetchCarmenAccessRow(
   tenantId: string,
   userId: string,
 ): Promise<BrainAccessRow> {
-  const agentId = await carmenAgentId(tenantId);
+  const agentId = await fetchCarmenAgentId(tenantId);
   if (!agentId) return null;
   const { data } = await supabase
     .from("carmen_command_center_access")
@@ -37,13 +43,13 @@ export async function fetchCarmenAccessRow(
     .eq("agent_id", agentId)
     .eq("user_id", userId)
     .maybeSingle();
-  return (data as BrainAccessRow) ?? null;
+  return toAccessRow(data);
 }
 
 /**
- * May this user open Carmen? With "view as", answers for the viewed user:
- * their personal API key is private (RLS), so only the permissions row and
- * the owner allowlist count there.
+ * May this user open Carmen? With "view as", answers for the viewed user: the
+ * permissions row decides, then the owner allowlist, then whether they have a
+ * personal API key (asked through a manager-only RPC; the key stays private).
  */
 export async function resolveCommandCenterAccess(
   tenantId: string | null,
@@ -59,9 +65,15 @@ export async function resolveCommandCenterAccess(
         .maybeSingle(),
     ]);
     if (row) return carmenEnabledFor(row);
-    return COMMAND_CENTER_ALLOWLIST.includes(
-      String(prof?.email ?? "").toLowerCase(),
+    if (
+      COMMAND_CENTER_ALLOWLIST.includes(String(prof?.email ?? "").toLowerCase())
+    )
+      return true;
+    const { data: hasKey } = await supabase.rpc(
+      "carmen_member_has_personal_key",
+      { p_user_id: viewAsUserId },
     );
+    return hasKey === true;
   }
   const { data } = await supabase.auth.getUser();
   const email = data.user?.email?.toLowerCase() ?? "";

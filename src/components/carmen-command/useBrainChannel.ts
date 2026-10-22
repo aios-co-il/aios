@@ -12,6 +12,7 @@ import {
   type ChannelSendArgs,
   type ChannelSendResult,
 } from "./brainChannelApi";
+import { getSessionSkin } from "@/lib/carmenSessionSkin";
 import { useBrainRoutes } from "./useBrainRoutes";
 import { useParliamentActions } from "./useParliamentActions";
 
@@ -24,6 +25,7 @@ export function useBrainChannel(tenantId: string | null) {
     setSelected,
     selectedRef,
     noBrainAccess,
+    routesReady,
     channelHealth,
   } = useBrainRoutes(tenantId);
   const [status, setStatus] = useState<ConversationChannelStatus>("idle");
@@ -68,6 +70,7 @@ export function useBrainChannel(tenantId: string | null) {
         idempotency_key: args.idempotencyKey,
         context_metadata: args.contextMetadata ?? undefined,
         attachments: args.attachments?.length ? args.attachments : undefined,
+        active_skin: getSessionSkin(tenantId) ?? undefined,
       });
       const json = res.json;
       if (!res.ok) {
@@ -123,6 +126,7 @@ export function useBrainChannel(tenantId: string | null) {
     selected,
     selectRoute,
     noBrainAccess,
+    routesReady,
     status,
     setStatus,
     externalUrl,

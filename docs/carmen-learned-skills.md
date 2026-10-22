@@ -816,5 +816,6 @@ Claude Code health-check skill written to `ai_skills` (scope=tenant, created_by_
 
 - No `ai_skills` row written (target tenant unknown); this entry is the repo record.
 - Per-skin avatars live on Carmen's `ai_agents.metadata.visual_identity.skins[slug].avatarPath`. Hook: `useCarmenSkins`.
-- The active skin is per chat session only (`src/lib/carmenSessionSkin.ts`, in memory). It is sent as `active_skin` with each `run-ai-agent` request, which pins that skill into Carmen's prompt for that run. It is never stored on the shared agent row, so one user's choice doesn't change Carmen for others.
+- The active skin is per chat session only (`src/lib/carmenSessionSkin.ts`, in memory). It is sent as `active_skin` with each request: `run-ai-agent` pins that skill into Carmen's prompt for the run, and `agent-channel-send` puts it at the top of the task for external brains (Cursor, Claude, parliament). Helpers: `_shared/carmen/active-skin.ts`. It is never stored on the shared agent row, so one user's choice doesn't change Carmen for others.
 - Images upload to `entity-attachments/<tenant>/agent-avatars/...` (tenant-folder RLS).
+- New chats get a topic name: the opening message is the provisional title, then `_shared/carmen/chat-topic.ts` asks a small model for a 2-5 word topic and replaces the title only if the user hasn't renamed it.

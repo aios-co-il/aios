@@ -1,7 +1,7 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCarmenAccessRow } from "./carmenAccessApi";
-import { allowedRoutes } from "../../../supabase/functions/_shared/carmen-brain-access";
+import { allowedRoutes } from "@/lib/carmenBrainAccess";
 import {
   FALLBACK_BRAIN_ROUTES,
   type BrainRoute,
@@ -25,12 +25,24 @@ export type ChannelSendResult = {
   inline_reply?: string;
 };
 
+/** A channel call's outcome: HTTP status plus the function's JSON body. */
 export type ChannelResponse = {
   ok: boolean;
   status: number;
-  // The edge function's JSON body (or {} when it had none).
-  json: any;
+  json: ChannelJson;
 };
+
+/** The fields callers read from agent-channel-send replies. */
+export type ChannelJson = {
+  error?: string;
+  status?: ConversationChannelStatus;
+  routes?: unknown;
+  restricted?: boolean;
+  [key: string]: unknown;
+};
+
+const asJson = (v: unknown): ChannelJson =>
+  v && typeof v === "object" ? (v as ChannelJson) : {};
 
 /** POSTs one action to the `agent-channel-send` edge function. */
 export async function postChannel(
@@ -40,14 +52,14 @@ export async function postChannel(
     "agent-channel-send",
     { body },
   );
-  if (!error) return { ok: true, status: 200, json: data ?? {} };
+  if (!error) return { ok: true, status: 200, json: asJson(data) };
   // Non-2xx: keep the status and error body the callers branch on.
   if (error instanceof FunctionsHttpError) {
     const res = error.context as Response;
     return {
       ok: false,
       status: res.status,
-      json: await res.json().catch(() => ({})),
+      json: asJson(await res.json().catch(() => null)),
     };
   }
   throw error;
@@ -58,25 +70,36 @@ export async function fetchBrainRoutes(
   tenantId: string,
   viewAsUserId: string | null | undefined,
 ): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+  // "View as": the server would answer for the signed-in admin, so preview
+  // from the tenant's full route list and the viewed user's own row.
+  if (viewAsUserId) return previewBrainRoutes(tenantId, viewAsUserId);
   const res = await postChannel({ action: "list_routes", tenant_id: tenantId });
   if (!res.ok) throw new Error(String(res.status));
-  const json = res.json;
+  const routes = Array.isArray(res.json.routes)
+    ? (res.json.routes as BrainRoute[])
+    : [];
+  const restricted = res.json.restricted === true;
   // A restricted user gets exactly the brains they may use, even none.
-  let list =
-    Array.isArray(json.routes) && (json.routes.length || json.restricted)
-      ? (json.routes as BrainRoute[])
-      : FALLBACK_BRAIN_ROUTES;
-  let restricted = !!json.restricted;
-  // "View as": the server answers for the signed-in admin, so apply the
-  // viewed user's permissions here to preview what they would see.
-  if (viewAsUserId) {
-    const viewedRow = await fetchCarmenAccessRow(tenantId, viewAsUserId);
-    if (viewedRow) {
-      list = allowedRoutes(list, viewedRow);
-      restricted = true;
-    }
-  }
-  return { list, restricted };
+  if (!routes.length && !restricted)
+    return { list: FALLBACK_BRAIN_ROUTES, restricted };
+  return { list: routes, restricted };
+}
+
+/** The brains a viewed user would get, without asking the edge function. */
+async function previewBrainRoutes(
+  tenantId: string,
+  userId: string,
+): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+  const [{ data }, row] = await Promise.all([
+    supabase
+      .from("agent_brain_routes")
+      .select("id,slug,label,route_type,provider,config,active")
+      .eq("tenant_id", tenantId)
+      .eq("active", true),
+    fetchCarmenAccessRow(tenantId, userId),
+  ]);
+  const all = data?.length ? (data as BrainRoute[]) : FALLBACK_BRAIN_ROUTES;
+  return { list: allowedRoutes(all, row), restricted: !!row };
 }
 
 /** Advisory channel health; null when unavailable. Throws on network/auth. */
@@ -87,10 +110,8 @@ export async function fetchChannelHealth(
     action: "channel_health",
     tenant_id: tenantId,
   });
-  if (!res.ok) return null;
-  const json = res.json;
-  if (json && typeof json.ok === "boolean") return json as ChannelHealth;
-  return null;
+  if (!res.ok || typeof res.json.ok !== "boolean") return null;
+  return res.json as unknown as ChannelHealth;
 }
 
 export type ChannelSendArgs = {

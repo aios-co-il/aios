@@ -1,10 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { SKIN_FIELDS, type Skin, type SkinDraft } from "./types";
 
-// Loads the global catalog plus this tenant's overrides, and saves a draft
-// (update by id, or insert as a new tenant skin).
+/**
+ * Loads the global catalog plus this tenant's overrides, and saves a draft
+ * (update by id, or insert as a new tenant skin).
+ */
 export function useSkins(
   tenantId: string | null | undefined,
   onSaved: () => void,
@@ -15,7 +18,7 @@ export function useSkins(
     queryKey: ["skins-manager", tenantId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_skills" as any)
+        .from("ai_skills")
         .select(SKIN_FIELDS)
         .or(
           tenantId
@@ -25,21 +28,25 @@ export function useSkins(
         .order("scope", { ascending: true })
         .order("name", { ascending: true });
       if (error) throw error;
-      return (data as any as Skin[]) || [];
+      return (data ?? []) as Skin[];
     },
     enabled: !!tenantId,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (s: SkinDraft) => {
-      const payload: any = {
+      // description and steps are NOT NULL columns.
+      const payload: TablesUpdate<"ai_skills"> & {
+        description: string;
+        steps: string;
+      } = {
         name: s.name,
-        description: s.description ?? null,
+        description: s.description ?? "",
         goal: s.goal ?? null,
         constraints: s.constraints ?? null,
         system_prompt: s.system_prompt ?? null,
         output_template: s.output_template ?? null,
-        steps: s.steps ?? null,
+        steps: s.steps ?? "",
         allowed_tools: s.allowed_tools ?? [],
         triggers: s.triggers ?? [],
         handoff_slugs: s.handoff_slugs ?? [],
@@ -48,13 +55,14 @@ export function useSkins(
       };
       if (s.id) {
         const { error } = await supabase
-          .from("ai_skills" as any)
+          .from("ai_skills")
           .update(payload)
           .eq("id", s.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("ai_skills" as any).insert({
+        const { error } = await supabase.from("ai_skills").insert({
           ...payload,
+          name: s.name ?? "",
           slug: s.slug,
           scope: "tenant",
           tenant_id: tenantId,
@@ -67,7 +75,7 @@ export function useSkins(
       onSaved();
       queryClient.invalidateQueries({ queryKey: ["skins-manager", tenantId] });
     },
-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+    onError: (e: Error) => toast.error("שמירה נכשלה: " + e.message),
   });
 
   return { skins, isLoading, saveMutation };

@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toList, type SkinDraft } from "./types";
 
-// Tools, triggers, handoffs and the active toggle of the skin editor.
+/** Tools, triggers, handoffs and the active toggle of the skin editor. */
 export function SkinRoutingFields({
   editing,
   setEditing,

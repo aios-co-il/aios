@@ -51,6 +51,8 @@ export function useBrainRoutes(tenantId: string | null) {
     setSelected,
     selectedRef,
     noBrainAccess: !!data?.restricted && list.length === 0,
+    // True once the real list (or its failure) is in, not the placeholder.
+    routesReady: routesQuery.isSuccess || routesQuery.isError,
     channelHealth: healthQuery.data ?? null,
   };
 }

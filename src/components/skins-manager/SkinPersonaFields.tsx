@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type { SkinDraft } from "./types";
 
-// Identity and persona text fields of the skin editor (name → output template).
+/** Identity and persona text fields of the skin editor (name → output template). */
 export function SkinPersonaFields({
   editing,
   setEditing,

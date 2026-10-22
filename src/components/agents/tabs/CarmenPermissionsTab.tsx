@@ -9,22 +9,27 @@ import { MemberPermissionsCard } from "./carmen-permissions/MemberPermissionsCar
  * Carmen settings → הרשאות: who may use Carmen, which of her brains, and at
  * what level. A member with no row is unrestricted (today's behaviour).
  */
-export function CarmenPermissionsTab({ agent }: { agent: { id: string } }) {
+export function CarmenPermissionsTab() {
   const { tenantId } = useCurrentTenant();
   const { isOwner, isAgencyOwner, isSuperAdmin, isTeamManager } = useUserRole();
   const canManage = isOwner || isAgencyOwner || isSuperAdmin || isTeamManager;
   const { data: members = [], isLoading: membersLoading } =
     useTeamMembersForMeeting(tenantId);
-  const { routes, byUser, save, loading } = useCarmenPermissions(
-    tenantId,
-    agent.id,
-  );
+  const { routes, byUser, save, loading, hasCarmen } =
+    useCarmenPermissions(tenantId);
 
   if (membersLoading || loading)
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="h-5 w-5 animate-spin" />
       </div>
+    );
+
+  if (!hasCarmen)
+    return (
+      <p className="py-10 text-center text-sm text-muted-foreground" dir="rtl">
+        לא נמצאה כרמן פעילה בארגון, ולכן אין למה להגדיר הרשאות.
+      </p>
     );
 
   return (

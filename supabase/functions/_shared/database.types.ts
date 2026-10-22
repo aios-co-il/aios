@@ -14809,6 +14809,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      carmen_member_has_personal_key: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
       carmen_memory_decay_episodes: {
         Args: { p_lambda?: number };
         Returns: number;
