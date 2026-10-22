@@ -45,7 +45,7 @@ project_id = "zvoijyneresvkadpprel"
 
 [remotes.production.auth]
 site_url = "https://aios.co.il"
-additional_redirect_urls = ["https://aios.co.il", "https://www.aios.co.il"]
+additional_redirect_urls = ["https://aios.co.il", "https://*.aios.co.il"]
 
 [remotes.production.auth.mfa.totp]
 enroll_enabled = true
