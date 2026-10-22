@@ -90,11 +90,10 @@ The following setup is documented for these environments; Vercel variables, Supa
 ## Code, data and deployment synchronization
 
 - Code: feature → reviewed Preview → `develop` → verify → approved `main` release. Main hotfixes automatically merge back into develop. Conflicts fail visibly; no force-push or “ours/theirs” overwrite is used.
-- Edge deployment uses the last **successfully deployed** environment tag as its base. Shared module/config changes redeploy complete bundles. Both environments pin the same Supabase CLI. A superseded SHA cannot deploy over the current environment head.
 - Vercel builds each environment from source with its own variables. Never promote a Preview build containing Staging URLs to Production.
-- Data: `scripts/staging-data-manifest.json` lists the mirrored business tables, including clients, report definitions/records, SEO, WooCommerce, analytics and permissions. The `sync-staging-data.yml` workflow runs nightly (02:00 UTC) and on `workflow_dispatch`; Staging deploys do not run it. A failed run stays red, names the failing phase or table with the database error message, and ends with a step summary of tables and row counts. GitHub scheduling is best-effort, not real-time replication.
-- Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; scheduled runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
-- A newer Staging revision supersedes an older deployment/mirror run. Each completed import transaction keeps its row checkpoint; the new run closes the gate, verifies containment, and resumes. Production deployments remain serialized without cancellation. Report definitions/records and their dependency chain load before unrelated history tables.
+- Data: `scripts/staging-data-manifest.json` lists the mirrored business tables, including clients, report definitions/records, SEO, WooCommerce, analytics and permissions. The `sync-staging-data.yml` workflow runs only on `workflow_dispatch` (the nightly schedule was removed with the move to Supabase Branching); Staging deploys do not run it. A failed run stays red, names the failing phase or table with the database error message, and ends with a step summary of tables and row counts.
+- Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
+- A newer Staging revision supersedes an older deployment/mirror run. Each completed import transaction keeps its row checkpoint; the new run closes the gate, verifies containment, and resumes. Report definitions/records and their dependency chain load before unrelated history tables.
 - Staging-only test rows are retained. Existing Staging schema, RLS policies, function bodies, operational queues, credentials and environment/agent connections are not replaced by a data refresh. New user IDs are provisioned for data/RLS relations without cloning passwords or sessions; existing Staging logins remain unchanged. A new identity that matches an old Staging invitation fails reconciliation rather than activating the invitation's permissions. New integration parent rows are inactive placeholders until configured in Staging.
 - Structural differences fail preflight instead of replaying Production's migration history over Staging. The additive reconciliation SQL adds the observed missing report columns only.
 - Import joins use equality on validated non-null keys so PostgreSQL can use primary-key lookups; typed batch rows are expanded once with `jsonb_populate_recordset`.
@@ -134,7 +133,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Release PR **`develop` → `main`**, merged by a human (Production deploy via `deploy-prod.yml`).
+5. Release PR **`develop` → `main`**, merged by a human (the Supabase GitHub integration applies migrations and deploys declared functions to Production).
 6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
@@ -165,7 +164,7 @@ Lazy snapshot renderers keep full report/export code out of the client-card entr
 
 Workflow files define automation triggers; this document defines the environment model and operational constraints. Confirm external service state separately before claiming a deployment or data sync is healthy.
 
-- Check `.github/workflows/check-develop-has-main.yml`, `deploy-staging-develop.yml`, `deploy-edge-function.yml`, and `sync-staging-data.yml` for current triggers and path filters.
+- Check `.github/workflows/check-develop-has-main.yml` and `sync-staging-data.yml` for current triggers and path filters.
 
 ## Database and edge-function deploys
 

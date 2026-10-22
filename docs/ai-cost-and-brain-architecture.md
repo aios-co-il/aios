@@ -115,5 +115,5 @@ When enabled, Codex Direct returns **inline** reply (no callback wait). Parliame
 
 ## Deploy notes
 
-- Edge functions deploy via `deploy-edge-function.yml` after merge to `main` (David approval).
+- Edge functions deploy via the Supabase integration after merge to `main` (declare them in `supabase/config.toml`) (David approval).
 - Preview branch talks to **Staging** — copy `OPENAI_ADMIN_KEY` to Staging secrets before billing widget shows live data.
