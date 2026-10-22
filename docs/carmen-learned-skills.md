@@ -819,3 +819,9 @@ Claude Code health-check skill written to `ai_skills` (scope=tenant, created_by_
 - The active skin is per chat session only (`src/lib/carmenSessionSkin.ts`, in memory). It is sent as `active_skin` with each request: `run-ai-agent` pins that skill into Carmen's prompt for the run, and `agent-channel-send` puts it at the top of the task for external brains (Cursor, Claude, parliament). Helpers: `_shared/carmen/active-skin.ts`. It is never stored on the shared agent row, so one user's choice doesn't change Carmen for others.
 - Images upload to `entity-attachments/<tenant>/agent-avatars/...` (tenant-folder RLS).
 - New chats get a topic name: the opening message is the provisional title, then `_shared/carmen/chat-topic.ts` asks a small model for a 2-5 word topic and replaces the title only if the user hasn't renamed it.
+
+## 2026-10-22 — Connected-agent profiles
+
+- Each connected agent (Cursor, Claude, Codex, Grok) can have a profile: display name, persona, standing instructions and a picture. Edited in AI Agents → "סוכנים מחוברים"; stored on its brain route as `agent_brain_routes.config.profile`.
+- `agent-channel-send` puts the profile (name, persona, instructions) at the top of every task sent to that agent, above the session skin (`_shared/carmen/task-preface.ts`). The picture is display-only.
+- Images upload to `entity-attachments/<tenant>/agent-avatars/routes/<route id>/` (tenant-folder RLS).

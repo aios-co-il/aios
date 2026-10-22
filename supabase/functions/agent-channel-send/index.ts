@@ -1,4 +1,5 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import { withTaskPreface } from "../_shared/carmen/task-preface.ts";
 import {
   allowedRoutes,
   applyBrainLimit,
@@ -385,11 +386,9 @@ Deno.serve(async (req) => {
       agentId,
       conversationId: conv.id,
       route,
-      // A "bug fixes only" grant writes the limit into the task.
-      content: applyBrainLimit(
-        level,
-        skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
-      ),
+      // A "bug fixes only" grant writes the limit into the task, above the
+      // agent's own profile and the session skin.
+      content: applyBrainLimit(level, withTaskPreface(route, skin, content)),
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,
