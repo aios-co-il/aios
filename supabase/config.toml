@@ -11,48 +11,41 @@ sql_paths = [
 
 [auth]
 site_url = "http://localhost:8080"
-additional_redirect_urls = ["http://localhost:*/**", "http://127.0.0.1:*/**"]
+additional_redirect_urls = ["http://localhost:*/**", "http://127.0.0.1:*/**", "https://*.vercel.app/**"]
 
 [auth.external.google]
 enabled = true
 client_id = "env(GOOGLE_CLIENT_ID)"
 secret = "env(GOOGLE_CLIENT_SECRET)"
-skip_nonce_check = true # Required for local sign-in with Google auth
+skip_nonce_check = true                                  # Required for local sign-in with Google auth
 redirect_uri = "http://localhost:54321/auth/v1/callback"
 
 # Production has Twilio SMS enabled and branches would inherit it. Keep it off so a branch never sends real SMS.
 [auth.sms.twilio]
 enabled = false
 
-# Preview branches only. APP_ENV is not "production", so the outbound guard stays on.
-# Values are encrypted in supabase/.env.preview; the decryption key (supabase/.env.keys) is never committed.
+# Values come from supabase/.env.preview on branches (APP_ENV=preview keeps the outbound guard on)
+# and from supabase/.env.production on Production.
+# Secrets are encrypted in those files; the private keys (supabase/.env.keys) are never committed.
 [edge_runtime.secrets]
-APP_ENV = "preview"
-STAGING_SAFE_MODE = "true"
-CRON_SECRET = "encrypted:BFnlTq38I5TYGEogmleQFhpxL+Ee3yi3NadPt4PMwtkSCM/7VdFZsDRj1SW53Un5hPqXSvEXp8dDYGQCx9fnCEr1VnWmx70z248qMOhdYs9a9NApOnnxk/7UPP518iwLx8BNwUU5WXY+RoeTSqwXKrLjurHarwOb10nkeL5UPY5omvO8k0XfHmP2qWMaDN9aCcUgAMUn7xm1wILkda0F+zo="
-CAMPAIGN_PULSE_CRON_SECRET = "encrypted:BGcyxq2C9JNVeNuO0Foy1tma9goK+eK1AkdjbYaZX1aBvOizH1oLfQpNuNgKn1HuBn1WPncr4ymwRIhYFoJQOgAP9jvbkfVz3zOQ7ECrQXbaWPALKfAC8dM3RBTIJTggZkw+n1HcbIktLYVtpPgvLgzKN6VrNEp6ZJ91n/b68cSmUmGT+po4UK8RE4v74PL41P3b/Yn8vxElIasuFjhHg/I="
-REPORT_WORKER_SECRET = "encrypted:BMoQaBo3r8I5MBMIrQ9i2iSV5dZ4CYyDsXV3OLNQEYlnxkndmwqrMvgXW6e6bQ9pQQc7AAYnLXui4o0prIDl8khVWdE6xA79TzNtDa0gvgYI1fAOBB1HkH1d/rSMyzNXFyd98W+by7Kmp0H2WNmFRpYDY/Vci+9y6mCU6QqrwZN8TPzxAIs79KT4oPC2+F105Vf8HcCbMMNQfhwzqmUgwl4="
-GOAL_BRAIN_CALLBACK_SECRET = "encrypted:BOx5+z9iakPi2zFigrnyWVeKOS7WAPVIxIrSSjCf6OrROEojF/0CBCfPPHuAv91UIXBw+RT0XuV7I07hY/CHj9Gia8R7gS3hs5F6aa93AMf0+WoxJ0E3xx39jUaFHZAqmWFOGPQflirgYRTY4KkL4Evq8TwQ51/T53o5eVN+QG/Cs4BKvpJ52zgDioIrslGBOxnznAYBq0sgtFwf0/lwLiM="
-AGENT_CHANNEL_CALLBACK_SECRET = "encrypted:BJUk3egiU/MJsJHl+xc2SMLMY+asc68FFUS83gUhd3+YZPo/5Gsk6JFpAeqQ+XDIdmlSRiL+xJDd8qjlDefFy5X2KQKeLllZATROLFExckJ+X/4Lbt0n0USmjvPZ2f8GYaUWNyD+xIVgV21IgmQYnpl1IiiVcBmwAdmmfgBBR4wze283G3w8C/1dm/ni5PTx9JWl2HEPNN+sZBOX/Rxcn84="
-WEBHOOK_LEAD_INTAKE_SECRET = "encrypted:BBmyST3U2p6HL6+8hY8hqnfZZYslnbppSsDbYEfZAAQ62ep0kOKqo5edV5Ol1EcVSmAbuuStX7CKQyO5XYlkVqvyFSqPYE4cvzhpr2YX9mlQn9KukL/+c27fN9jCj35+FanTvF//l3y5coz6AZNYwz2u71rBLELhVMRztJ2mihBQJ7DIOrMnn1phW9dFc2edS6WShaaJDISjlOvemQf377Y="
-WEBHOOK_TASK_INTAKE_SECRET = "encrypted:BCBNI4nzLZTfEZDh56URmP4dIm06FmcvpdBpeHTcZSfSz7pit1vRd4df6IRAC3XCbyx7RZEb//Vmatwe1detw8wVzvL9CJ/tGH5bsEL/EknZqooFreFBtULVrBc9WBDqtmo5XUL8P4OhgQc7Cwq1Gey2LdUYdjuVBi0uSjP/0UmanrP23S4h1mOc1IVsWrJp5f7EmAvAXsCw11KU4twbSmg="
+APP_ENV = "env(APP_ENV)"
+STAGING_SAFE_MODE = "env(STAGING_SAFE_MODE)"
+CRON_SECRET = "env(CRON_SECRET)"
+CAMPAIGN_PULSE_CRON_SECRET = "env(CAMPAIGN_PULSE_CRON_SECRET)"
+REPORT_WORKER_SECRET = "env(REPORT_WORKER_SECRET)"
+GOAL_BRAIN_CALLBACK_SECRET = "env(GOAL_BRAIN_CALLBACK_SECRET)"
+AGENT_CHANNEL_CALLBACK_SECRET = "env(AGENT_CHANNEL_CALLBACK_SECRET)"
+WEBHOOK_LEAD_INTAKE_SECRET = "env(WEBHOOK_LEAD_INTAKE_SECRET)"
+WEBHOOK_TASK_INTAKE_SECRET = "env(WEBHOOK_TASK_INTAKE_SECRET)"
 
 # Production overrides. Every branch, including `develop`, uses the base config above;
-# Production keeps its live values (they were read from the live project on 2026-10-22).
+# Production keeps its live Auth values (read from the live project on 2026-10-22); its secrets come from .env.production.
 [remotes.production]
 project_id = "zvoijyneresvkadpprel"
 
 [remotes.production.auth]
 site_url = "https://aios.co.il"
-additional_redirect_urls = [
-  "https://aios.co.il",
-  "https://www.aios.co.il",
-  "https://*-aios-crm.vercel.app/**",
-  "https://after-lead-aios-crm.vercel.app/",
-  "https://after-lead-aios-crm.vercel.app/**",
-  "https://after-*-lead-aios-crm.vercel.app",
-  "https://after-*-lead-aios-crm.vercel.app/**",
-]
+additional_redirect_urls = ["https://aios.co.il", "https://www.aios.co.il"]
 
 [remotes.production.auth.mfa.totp]
 enroll_enabled = true
@@ -64,17 +57,16 @@ max_frequency = "1m0s"
 otp_length = 8
 
 [remotes.production.auth.external.google]
-enabled = true
-client_id = "152366216077-3ih8o0lpeit12nu99k5tjtfig0l0obdg.apps.googleusercontent.com"
 skip_nonce_check = false
-
-[remotes.production.edge_runtime.secrets]
-APP_ENV = "production"
+redirect_uri = "https://zvoijyneresvkadpprel.supabase.co/auth/v1/callback"
 
 
 # Persistent branch: its config is only applied when a [remotes] block names its project ID.
 [remotes.develop]
 project_id = "efwzhyfpkocghdhhhaza"
+
+[remotes.develop.auth]
+site_url = "https://after-lead-git-develop-aios-crm.vercel.app"
 
 [remotes.develop.auth.sms.twilio]
 enabled = false
@@ -393,8 +385,6 @@ verify_jwt = true
 
 [functions.sync-maskyoo-cdr]
 verify_jwt = true
-
-
 
 [functions.get-maskyoo-recording]
 verify_jwt = true
