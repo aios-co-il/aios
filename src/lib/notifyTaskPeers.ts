@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 /** Fire-and-forget Carmen WhatsApp for task peers (collaborators / updates). */
 async function invokeTaskPeerNotification(body: {
   trigger_type: "task_collaborator_added" | "task_update_added";
+  /** The caller's current tenant; trigger-automation checks membership. */
+  tenant_id: string;
   data: Record<string, unknown>;
 }): Promise<void> {
   const { error } = await supabase.functions.invoke("trigger-automation", {
@@ -18,13 +20,15 @@ async function invokeTaskPeerNotification(body: {
 }
 
 export async function notifyTaskCollaboratorAdded(input: {
+  tenantId: string | null | undefined;
   taskId: string;
   campaignerId: string;
   addedByUserId?: string | null;
 }): Promise<void> {
-  if (!input.taskId || !input.campaignerId) return;
+  if (!input.tenantId || !input.taskId || !input.campaignerId) return;
   await invokeTaskPeerNotification({
     trigger_type: "task_collaborator_added",
+    tenant_id: input.tenantId,
     data: {
       task_id: input.taskId,
       notify_campaigner_id: input.campaignerId,
@@ -34,14 +38,16 @@ export async function notifyTaskCollaboratorAdded(input: {
 }
 
 export async function notifyTaskUpdateAdded(input: {
+  tenantId: string | null | undefined;
   taskId: string;
   userId: string;
   updateContent: string;
   updaterName?: string | null;
 }): Promise<void> {
-  if (!input.taskId || !input.userId) return;
+  if (!input.tenantId || !input.taskId || !input.userId) return;
   await invokeTaskPeerNotification({
     trigger_type: "task_update_added",
+    tenant_id: input.tenantId,
     data: {
       task_id: input.taskId,
       user_id: input.userId,

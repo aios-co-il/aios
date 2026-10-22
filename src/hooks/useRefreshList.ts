@@ -6,7 +6,7 @@ import type { AudienceFilter } from "@/hooks/useBroadcasts";
 import { requireTenantId } from "@/lib/requireTenantId";
 
 export interface RefreshListOptions {
-  /** `preview` writes nothing; `refresh` replaces the list's members with the current matches. */
+  /** `preview` writes nothing, except a dynamic list's stored count; `refresh` adds the current matches to the list's members. */
   mode: "preview" | "refresh";
   listId?: string;
   filter?: AudienceFilter;
@@ -26,7 +26,7 @@ export async function refreshList(
   return data as ListPreview;
 }
 
-/** Mutation around refreshList; refetches the list (and its members) after a refresh. */
+/** Mutation around refreshList; refetches the list (and its members) after it changes. */
 export function useRefreshList() {
   const { tenantId } = useCurrentTenant();
   const qc = useQueryClient();
@@ -34,7 +34,8 @@ export function useRefreshList() {
     mutationFn: (opts: RefreshListOptions) =>
       refreshList(requireTenantId(tenantId), opts),
     onSuccess: (_data, opts) => {
-      if (opts.mode !== "refresh") return;
+      // A saved list's preview can update a dynamic list's count.
+      if (opts.mode !== "refresh" && !opts.listId) return;
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
       if (opts.listId)
         qc.invalidateQueries({
