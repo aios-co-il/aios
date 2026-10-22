@@ -7,6 +7,7 @@ import {
   type CarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { isDuplicateClaimError } from "../_shared/automation-execution.ts";
 import {
   handleCarmenMessage,
   fetchKnownEntityNames,
@@ -881,9 +882,36 @@ Deno.serve(async (req) => {
     }
 
     // 🔁 IDEMPOTENCY: Green API can deliver the same message event more than once.
-    // The message insert dedups the row, but Carmen was still invoked twice →
-    // duplicate replies. If we already stored this idMessage, stop here.
+    // Atomically claim the idMessage first (unique key on
+    // processed_webhook_messages): a concurrent redelivery loses the race and
+    // stops here, so Carmen and automations run once per message. The
+    // chat_messages lookup below stays as a fallback for messages stored
+    // before the claim existed.
     const incomingIdMessage = webhookData.idMessage;
+    if (incomingIdMessage && tenantId) {
+      const { error: claimErr } = await supabaseClient
+        .from("processed_webhook_messages")
+        .insert({
+          provider: "green_api",
+          tenant_id: tenantId,
+          external_message_id: `${connectionUserId ?? "none"}:${incomingIdMessage}`,
+        });
+      if (isDuplicateClaimError(claimErr)) {
+        console.log("[green-api] duplicate webhook dropped", {
+          idMessage: incomingIdMessage,
+        });
+        return new Response(
+          JSON.stringify({ received: true, duplicate: true }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (claimErr) {
+        // Transient DB issue: keep processing rather than lose the message.
+        console.error("[green-api] dedup claim failed (continuing):", claimErr);
+      }
+    }
     if (incomingIdMessage) {
       const { data: dupMsg } = await supabaseClient
         .from("chat_messages")

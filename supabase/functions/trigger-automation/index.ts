@@ -1,5 +1,6 @@
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+import { summarizeExecution } from "../_shared/automation-execution.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import {
@@ -1604,48 +1605,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Guard: cooldown - prevent same trigger+entity from firing again within 30 seconds
-    if (
-      requestBody.trigger_type === "whatsapp_message_received" &&
-      entityKey !== "no-entity"
-    ) {
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      const { data: recentExec } = await supabase
-        .from("automation_executions")
-        .select("id")
-        .eq("tenant_id", requestBody.tenant_id)
-        .eq("trigger_type", "whatsapp_message_received")
-        .eq("entity_id", entityKey)
-        .gte("started_at", thirtySecondsAgo)
-        .eq("status", "running")
-        .limit(1)
-        .maybeSingle();
-
-      if (recentExec) {
-        return new Response(
-          JSON.stringify({ error: "Cooldown active", entity: entityKey }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 429,
-          },
-        );
-      }
-    }
-
-    const { data: execRecord } = await supabase
-      .from("automation_executions")
-      .insert({
-        execution_id: executionId,
-        tenant_id: requestBody.tenant_id || null,
-        automation_id: requestBody.automationId || null,
-        trigger_type: requestBody.trigger_type || null,
-        entity_id: entityKey !== "no-entity" ? entityKey : null,
-        depth: executionDepth,
-        status: "running",
-        started_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+    // No time-based cooldown here: it used to drop every group message that
+    // arrived within 30s of the previous one. Redelivered webhooks are now
+    // deduplicated at the source by provider message id (green-api-webhook),
+    // and the execution row is written only once automations have matched.
 
     // ===== END SAFETY GUARDS =====
 
@@ -2221,6 +2184,32 @@ Deno.serve(async (req) => {
     }
 
     payloadData = await enrichLeadPayloadData(supabase, payloadData || {});
+
+    // Record the run only when something matched, and close it when done.
+    let executionRowId: string | null = null;
+    if ((automations || []).length > 0) {
+      const { data: execRecord, error: execInsertError } = await supabase
+        .from("automation_executions")
+        .insert({
+          execution_id: executionId,
+          tenant_id: requestBody.tenant_id || tenantId || null,
+          automation_id: requestBody.automationId || null,
+          trigger_type: requestBody.trigger_type || null,
+          entity_id: entityKey !== "no-entity" ? entityKey : null,
+          depth: executionDepth,
+          status: "running",
+          started_at: new Date(executionStartTime).toISOString(),
+        })
+        .select("id")
+        .single();
+      if (execInsertError) {
+        console.error(
+          "[trigger-automation] execution record insert failed (continuing):",
+          execInsertError,
+        );
+      }
+      executionRowId = execRecord?.id ?? null;
+    }
 
     // Execute each matching automation
     const results = await Promise.allSettled(
@@ -3883,6 +3872,20 @@ Deno.serve(async (req) => {
         }
       }),
     );
+
+    if (executionRowId) {
+      const summary = summarizeExecution(results);
+      const { error: execUpdateError } = await supabase
+        .from("automation_executions")
+        .update({ ...summary, finished_at: new Date().toISOString() })
+        .eq("id", executionRowId);
+      if (execUpdateError) {
+        console.error(
+          "[trigger-automation] execution record update failed:",
+          execUpdateError,
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({
