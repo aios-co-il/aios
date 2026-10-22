@@ -492,8 +492,6 @@ verify_jwt = false
 [functions.get-signature-document]
 verify_jwt = false
 
-# Declared so Supabase Branching deploys them; verify_jwt matches the previous default. Review for deletion (follow-up).
-
 [functions.add-manychat-tag]
 verify_jwt = true
 
