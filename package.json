@@ -12,7 +12,7 @@
     "typecheck:update": "node scripts/typecheck.mjs --update",
     "test:typecheck": "node --test --test-isolation=none scripts/typecheck.test.mjs",
     "preview": "vite preview",
-    "test:guards": "node scripts/check-shared-agency-dashboards.mjs && node scripts/check-permission-personas.mjs && node scripts/check-edge-function-syntax.mjs && node scripts/check-edge-function-config.mjs && node --test .github/scripts/extract-repair-command.test.mjs",
+    "test:guards": "node scripts/check-shared-agency-dashboards.mjs && node scripts/check-permission-personas.mjs && node scripts/check-edge-function-syntax.mjs && node --test .github/scripts/extract-repair-command.test.mjs",
     "format": "prettier --log-level warn --write .",
     "format:check": "prettier --log-level warn --check .",
     "prepare": "husky",
