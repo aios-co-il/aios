@@ -25,6 +25,19 @@ interface ResendAttachment {
   content_id?: string;
 }
 
+/** Email as the Resend API expects it. */
+interface ResendEmailPayload {
+  from: string;
+  to: string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  reply_to?: string;
+  headers?: Record<string, string>;
+  tags?: { name: string; value: string }[];
+  attachments?: ResendAttachment[];
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -81,7 +94,11 @@ Deno.serve(async (req) => {
     }
 
     const from = `${fromName || DEFAULT_FROM_NAME} <${fromEmail || DEFAULT_FROM_EMAIL}>`;
-    const payload: any = { from, to: Array.isArray(to) ? to : [to], subject };
+    const payload: ResendEmailPayload = {
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+    };
     if (html) payload.html = html;
     if (text) payload.text = text;
     if (replyTo) payload.reply_to = replyTo;
@@ -137,9 +154,10 @@ Deno.serve(async (req) => {
       status: 200,
       headers: corsHeaders,
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[send-resend-email]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+    const message = e instanceof Error ? e.message : String(e);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: corsHeaders,
     });

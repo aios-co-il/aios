@@ -1,7 +1,9 @@
 // broadcast-list-materialize — CRM-filter mailing lists.
 //
 //   { mode: 'preview', tenantId, filter }  → count + sample (no writes at all)
-//   { mode: 'preview', listId }            → same, using the list's filter
+//   { mode: 'preview', listId }            → same, using the list's filter;
+//                                            a dynamic list also stores the
+//                                            count as its member_count
 //   { mode: 'refresh', listId }            → add the current matches to
 //                                            broadcast_list_members (static or
 //                                            synced list); 'freeze' is an alias
@@ -73,6 +75,15 @@ Deno.serve(async (req) => {
       .map((r) => ({ name: r.contact_name, phone: r.phone, email: r.email }));
 
     if (mode === "preview") {
+      // Dynamic lists have no member rows, so the card and the wizard
+      // show this last previewed count.
+      if (list?.kind === "dynamic") {
+        const { error } = await db
+          .from("broadcast_lists")
+          .update({ member_count: recipients.length })
+          .eq("id", list.id);
+        if (error) throw error;
+      }
       return json({
         success: true,
         total: recipients.length,
