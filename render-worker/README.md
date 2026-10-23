@@ -35,7 +35,9 @@ No dependencies beyond Node 22 and ffmpeg.
 
 ## Staging queue
 
-Until a Droplet is running, `.github/workflows/render-worker.yml` drains the **Staging** queue every 10 minutes and on `workflow_dispatch`. It resolves the Staging service role from `SUPABASE_STAGING_PROJECT_ID` and `BASE_ACCESS_TOKEN`, sets `DRAIN=1`, and exits when a claim finds nothing queued. `VIDEO_PROVIDER` defaults to `mock`. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider. Production is not a target of this workflow.
+One container polls every configured project. `SUPABASE_URL` is the existing target. Add `SUPABASE_URL_PRODUCTION`, `SUPABASE_URL_STAGING` and `SUPABASE_URL_DEVELOP` (each with its matching `SUPABASE_SERVICE_ROLE_KEY_*`) and restart the container. A repeated URL is polled once. Feature previews that use the Staging project are covered by the staging pair.
+
+`.github/workflows/render-worker.yml` still drains **Staging only** every 10 minutes. It does not call Production. `VIDEO_PROVIDER` defaults to `mock` there. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider.
 
 ## Run on the Droplet
 
