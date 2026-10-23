@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planSafeFailover } from "./free-first-failover.ts";
-import type { RoutingDecision } from "./free-first-router.ts";
+import type { RoutingDecision } from "./free-first-types.ts";
 
 const decision: RoutingDecision={
   status:"ready",reason:"free_first",modelId:"groq",
