@@ -1,5 +1,5 @@
 // Status values of meta_data_deletion_requests.status. Must match the CHECK
-// constraint in supabase/migrations/20261022130000_meta_data_deletion_requests.sql.
+// constraint in supabase/migrations/20261023100000_meta_data_deletion_requests.sql.
 export const DATA_DELETION_STATUS_LABELS = {
   received: "הבקשה התקבלה וממתינה לטיפול",
   in_progress: "הבקשה בטיפול",

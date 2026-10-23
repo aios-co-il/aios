@@ -141,8 +141,23 @@ describe("handleMetaDataDeletion: Meta callback (POST)", () => {
       fb_user_id: "1234567890",
       confirmation_code: body.confirmation_code,
       status: "received",
-      payload: PAYLOAD,
+      issued_at: new Date(PAYLOAD.issued_at * 1000).toISOString(),
     });
+  });
+
+  test("stores a null issued_at when the payload has none or it is invalid", async () => {
+    const store = fakeStore();
+    const { issued_at: _omit, ...withoutIssuedAt } = PAYLOAD;
+    await handleMetaDataDeletion(
+      postForm(await sign(withoutIssuedAt)),
+      deps({ store }),
+    );
+    await handleMetaDataDeletion(
+      postForm(await sign({ ...PAYLOAD, issued_at: "soon" })),
+      deps({ store }),
+    );
+    assert.equal(store.inserted[0]?.issued_at, null);
+    assert.equal(store.inserted[1]?.issued_at, null);
   });
 
   test("accepts a JSON body too", async () => {

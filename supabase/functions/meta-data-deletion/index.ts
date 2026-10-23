@@ -16,6 +16,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0
 import { createServiceClient } from "../_shared/supabase-admin.ts";
 import {
   type DeletionRequestStore,
+  type MetaDataDeletionDeps,
   handleMetaDataDeletion,
 } from "../_shared/meta-data-deletion.ts";
 
@@ -47,11 +48,11 @@ function supabaseStore(supabase: SupabaseClient): DeletionRequestStore {
   };
 }
 
-Deno.serve((req) =>
-  handleMetaDataDeletion(req, {
-    store: supabaseStore(createServiceClient()),
-    appSecret:
-      Deno.env.get("FACEBOOK_APP_SECRET") ?? Deno.env.get("META_APP_SECRET"),
-    statusPage: STATUS_PAGE,
-  }),
-);
+const deps: MetaDataDeletionDeps = {
+  store: supabaseStore(createServiceClient()),
+  appSecret:
+    Deno.env.get("FACEBOOK_APP_SECRET") ?? Deno.env.get("META_APP_SECRET"),
+  statusPage: STATUS_PAGE,
+};
+
+Deno.serve((req) => handleMetaDataDeletion(req, deps));

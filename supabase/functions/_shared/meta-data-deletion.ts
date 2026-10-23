@@ -14,7 +14,15 @@ export interface NewDeletionRequest {
   fb_user_id: string | null;
   confirmation_code: string;
   status: "received";
-  payload: Record<string, unknown>;
+  /** Meta's `issued_at` (seconds since epoch) as an ISO timestamp, if present. */
+  issued_at: string | null;
+}
+
+/** Converts Meta's `issued_at` (unix seconds) to ISO; null when absent or invalid. */
+export function issuedAtToIso(value: unknown): string | null {
+  const seconds = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return new Date(seconds * 1000).toISOString();
 }
 
 /** Persistence for meta_data_deletion_requests; methods throw on DB errors. */
@@ -105,7 +113,7 @@ export async function handleMetaDeleteRequest(
     fb_user_id: payload.user_id != null ? String(payload.user_id) : null,
     confirmation_code: confirmationCode,
     status: "received",
-    payload,
+    issued_at: issuedAtToIso(payload.issued_at),
   });
 
   return json({
