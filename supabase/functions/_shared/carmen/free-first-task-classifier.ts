@@ -4,7 +4,7 @@
  * client-data sensitivity, permissions and action approvals separately.
  * No LLM invocation, tools or network calls.
  */
-import type { TaskDescriptor, TaskKind } from "./free-first-router.ts";
+import type { TaskDescriptor, TaskKind } from "./free-first-types.ts";
 
 export type TaskContext = {
   hasAttachments?: boolean;
