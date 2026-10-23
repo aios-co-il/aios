@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { routeCarmenTask, type ModelCandidate, type RouterSettings } from "./free-first-router.ts";
+import { routeCarmenTask } from "./free-first-router.ts";
+import type { ModelCandidate, RouterSettings } from "./free-first-types.ts";
 
 const settings: RouterSettings = { mode: "free_first", allowAutomaticPremium: false, remainingPremiumBudgetUsd: 5 };
 const models: ModelCandidate[] = [
