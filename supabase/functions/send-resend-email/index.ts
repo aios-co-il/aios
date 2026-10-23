@@ -1,6 +1,43 @@
 // send-resend-email — sends a single email via the Resend API.
 // Body: { to, subject, html?, text?, fromEmail?, fromName?, replyTo?,
-//         headers?, tags?, attachments?: [{filename, content (base64), contentType}] }
+//         headers?, tags?, attachments?: [{filename, content (base64) | path (URL), contentType}] }
+// A `path` attachment must be a public URL in our broadcast-media bucket;
+// others are dropped so a caller cannot make Resend fetch an arbitrary URL.
+import { attachmentUrlPrefix } from "../_shared/broadcast/template/email-attachments.ts";
+
+/** Attachment as callers send it (camelCase or snake_case accepted). */
+interface AttachmentInput {
+  filename: string;
+  content?: string;
+  path?: string;
+  contentType?: string;
+  content_type?: string;
+  contentId?: string;
+  content_id?: string;
+}
+
+/** Attachment as the Resend API expects it. */
+interface ResendAttachment {
+  filename: string;
+  content?: string;
+  path?: string;
+  content_type?: string;
+  content_id?: string;
+}
+
+/** Email as the Resend API expects it. */
+interface ResendEmailPayload {
+  from: string;
+  to: string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  reply_to?: string;
+  headers?: Record<string, string>;
+  tags?: { name: string; value: string }[];
+  attachments?: ResendAttachment[];
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -57,26 +94,44 @@ Deno.serve(async (req) => {
     }
 
     const from = `${fromName || DEFAULT_FROM_NAME} <${fromEmail || DEFAULT_FROM_EMAIL}>`;
-    const payload: any = { from, to: Array.isArray(to) ? to : [to], subject };
+    const payload: ResendEmailPayload = {
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+    };
     if (html) payload.html = html;
     if (text) payload.text = text;
     if (replyTo) payload.reply_to = replyTo;
     if (headers && typeof headers === "object") payload.headers = headers;
     if (Array.isArray(tags)) payload.tags = tags;
-    if (Array.isArray(attachments) && attachments.length > 0) {
+    const allowedPrefix = attachmentUrlPrefix(
+      Deno.env.get("SUPABASE_URL") ?? "",
+    );
+    const allowedAttachments = (
+      Array.isArray(attachments) ? attachments : []
+    ).filter((a: AttachmentInput) => {
+      if (!a.path || a.content || a.path.startsWith(allowedPrefix)) return true;
+      console.warn(`send-resend-email: dropped attachment path ${a.path}`);
+      return false;
+    });
+    if (allowedAttachments.length > 0) {
       // Resend expects: [{ filename, content (base64 string), content_type, content_id? }]
       // Set content_id to enable inline CID references in HTML (cid:<content_id>)
-      payload.attachments = attachments.map((a: any) => {
-        const att: any = {
-          filename: a.filename,
-          content: a.content,
-          content_type:
-            a.contentType || a.content_type || "application/octet-stream",
-        };
-        if (a.content_id || a.contentId)
-          att.content_id = a.content_id || a.contentId;
-        return att;
-      });
+      payload.attachments = allowedAttachments.map(
+        (a: AttachmentInput): ResendAttachment => {
+          const att: ResendAttachment = { filename: a.filename };
+          // path = a URL Resend downloads itself (stored broadcast attachments)
+          if (a.path && !a.content) att.path = a.path;
+          else {
+            att.content = a.content;
+            att.content_type =
+              a.contentType || a.content_type || "application/octet-stream";
+          }
+          if (a.content_id || a.contentId)
+            att.content_id = a.content_id || a.contentId;
+          return att;
+        },
+      );
     }
 
     const res = await fetch("https://api.resend.com/emails", {
@@ -99,9 +154,10 @@ Deno.serve(async (req) => {
       status: 200,
       headers: corsHeaders,
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[send-resend-email]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+    const message = e instanceof Error ? e.message : String(e);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: corsHeaders,
     });

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Phone, PhoneOff, Loader2 } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -19,6 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  CALL_FUNCTIONS,
+  toProvider,
+  type Provider,
+} from "@/components/telephony/callProviders";
 
 interface CallDialogProps {
   open: boolean;
@@ -55,11 +61,13 @@ export function CallDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [callLogId, setCallLogId] = useState<string | null>(null);
-  const [provider, setProvider] = useState<"paycall" | "maskyoo">(
-    () =>
-      (localStorage.getItem("telephony_provider") as "paycall" | "maskyoo") ||
-      "paycall",
-  );
+  const [provider, setProvider] = useState<Provider>(() => {
+    try {
+      return toProvider(localStorage.getItem("telephony_provider"));
+    } catch {
+      return "paycall";
+    }
+  });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -96,11 +104,14 @@ export function CallDialog({
   const handleCall = async () => {
     if (!tenantId) return;
     setIsLoading(true);
-    localStorage.setItem("telephony_provider", provider);
     try {
-      const fnName =
-        provider === "maskyoo" ? "make-maskyoo-call" : "make-paycall-call";
-      const { data, error } = await supabase.functions.invoke(fnName, {
+      localStorage.setItem("telephony_provider", provider);
+    } catch {
+      // Remembering the provider is only a convenience.
+    }
+    try {
+      const config = CALL_FUNCTIONS[provider];
+      const { data, error } = await supabase.functions.invoke(config.fn, {
         body: {
           to_number: phoneNumber,
           lead_id: leadId || null,
@@ -109,21 +120,25 @@ export function CallDialog({
         },
       });
 
-      if (error) throw error;
+      // Non-2xx responses arrive as FunctionsHttpError; its context is the
+      // Response, whose body carries the function's error code and message.
+      let result = data;
+      if (error) {
+        if (!(error instanceof FunctionsHttpError)) throw error;
+        result = await error.context.json().catch(() => null);
+        if (!result?.error) throw error;
+      }
 
-      if (
-        data?.error === "Paycall not configured" ||
-        data?.error === "Maskyoo not configured"
-      ) {
-        toast.error("מרכזיה לא מוגדרת", {
-          description:
-            provider === "maskyoo"
-              ? "יש להגדיר את אינטגרציית Maskyoo בהגדרות"
-              : "יש להגדיר את אינטגרציית Paycall בהגדרות הטלפוניה",
+      if (result?.error === config.notConfiguredError) {
+        toast.error("מרכזיה לא מוגדרת", { description: config.setupHint });
+        setCallStatus("failed");
+      } else if (result?.error) {
+        toast.error("שגיאה ביזום שיחה", {
+          description: result.message || result.error,
         });
         setCallStatus("failed");
       } else {
-        setCallLogId(data?.call_log?.id || null);
+        setCallLogId(result?.call_log?.id || null);
         setCallStatus("initiated");
         // Simulate progression for now (will be replaced by realtime)
         setTimeout(() => setCallStatus("ringing"), 1500);
@@ -207,7 +222,7 @@ export function CallDialog({
               </Label>
               <Select
                 value={provider}
-                onValueChange={(v) => setProvider(v as "paycall" | "maskyoo")}
+                onValueChange={(v) => setProvider(toProvider(v))}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -215,6 +230,7 @@ export function CallDialog({
                 <SelectContent>
                   <SelectItem value="paycall">Paycall</SelectItem>
                   <SelectItem value="maskyoo">Maskyoo (מסקיו)</SelectItem>
+                  <SelectItem value="pbx">מרכזיה (Webhook)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

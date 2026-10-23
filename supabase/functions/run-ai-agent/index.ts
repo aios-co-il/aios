@@ -12,6 +12,12 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
+import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
+import {
+  activeSkinBlock,
+  parseActiveSkin,
+} from "../_shared/carmen/active-skin.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
 import {
   classifyDirectTool,
@@ -13762,6 +13768,11 @@ async function handleRunAgent(
         if (createdConversation?.id) {
           serverConversationId = createdConversation.id;
           serverConversationHistory = clientHistory;
+          nameChatTopicLater(supabase, {
+            conversationId: createdConversation.id,
+            firstMessage: String(command_text),
+            provisional: String(command_text).slice(0, 60),
+          });
         }
       }
       if (serverConversationId && emit)
@@ -14614,6 +14625,15 @@ async function handleRunAgent(
       } catch (e) {
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
+    }
+    // The skin picked in this chat session shapes Carmen for this run only.
+    if (isCarmen && !pinSkillsOnly) {
+      systemPrompt += await activeSkinBlock({
+        slug: parseActiveSkin(bodyJson.active_skin),
+        tenantId: agent.tenant_id || tenant_id || null,
+        disabledSkins: agent.disabled_skins,
+        pinned: task_skills,
+      });
     }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
@@ -16152,6 +16172,14 @@ Deno.serve(async (req) => {
           : bodyJson.surface === "grok_bot"
             ? "grok_bot"
             : "internal_chat";
+
+  // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
+  const denied = await internalBrainDenied(
+    createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+    auth,
+    { tenantId: bodyJson.tenant_id, agentId: bodyJson.agent_id },
+  );
+  if (denied) return denied;
 
   if (!wantStream) {
     return await handleRunAgent(bodyJson, surface, undefined);

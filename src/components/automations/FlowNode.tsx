@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getNodeIconConfig, NodeIconDisplay } from "./nodeIcons";
+import { MAILING_ACTION_LABELS } from "./mailingActions";
 
 export interface FlowNodeData {
   id: string;
@@ -149,6 +150,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   send_telegram: "שלח הודעת Telegram",
   create_task: "צור משימה",
   send_signature: "שלח הסכם (חתימה דיגיטלית)",
+  ...MAILING_ACTION_LABELS,
   add_lead_update: "הוסף עדכון לליד",
   add_client_update: "הוסף עדכון ללקוח",
   create_manychat_subscriber: "צור subscriber",

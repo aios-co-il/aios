@@ -1,195 +1,34 @@
-import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { LogOut, Building2 } from "lucide-react";
 import { GlobalApprovalsBell } from "@/components/agents/GlobalApprovalsBell";
 import { HeaderModuleShortcuts } from "./HeaderModuleShortcuts";
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import { RoutedModulePermissionGate } from "@/components/ModulePermissionGate";
-import { useToast } from "@/hooks/use-toast";
-import { useAgency } from "@/contexts/AgencyContext";
-import { useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { ViewAsProvider } from "@/contexts/ViewAsContext";
 import { ViewAsBanner } from "@/components/ViewAsBanner";
-import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { CommandCenterSidecarShell } from "@/components/carmen-command/CommandCenterSidecarShell";
-import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { CarmenRouteProgress } from "@/components/shared/CarmenRouteProgress";
 import { useCarmenContentFade } from "@/hooks/useCarmenContentFade";
+import { AgencySelector } from "./AgencySelector";
+import { CarmenSessionButton } from "./CarmenSessionButton";
+import { UserMenu } from "./UserMenu";
+import { useUserTenants } from "./useUserTenants";
+import { useProcessPendingInvitation } from "./useProcessPendingInvitation";
 
 function RouteContentLoader() {
   return <CarmenLoadingScreen />;
 }
 
 export function AppLayout() {
-  const identity = useCarmenIdentity();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { selectedAgency, setSelectedAgency, agencies } = useAgency();
   const { userId } = useCurrentUser();
   const { currentTenantId, setCurrentTenantId, currentTenant } = useTenant();
-  const commandCenterAccess = useCommandCenterAccess();
   const contentFadeRef = useCarmenContentFade<HTMLDivElement>();
-  const sidecar = useCommandCenterSidecar();
-
-  // Fetch available tenants for the user
-  const { data: userTenants } = useQuery({
-    queryKey: ["user-tenants", userId],
-    queryFn: async () => {
-      if (!userId) return [];
-      const { data, error } = await supabase
-        .from("tenant_users")
-        .select("tenant_id, tenants(id, name, slug)")
-        .eq("user_id", userId);
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!userId,
-  });
-
-  const handleTenantChange = async (tenantId: string) => {
-    try {
-      await (supabase as any).from("user_active_tenant").upsert(
-        {
-          user_id: userId,
-          tenant_id: tenantId,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id",
-        },
-      );
-
-      const { data: tenantData } = await supabase
-        .from("tenants")
-        .select("slug")
-        .eq("id", tenantId)
-        .single();
-
-      const newSlug = tenantData?.slug;
-
-      if (newSlug) {
-        const pathParts = window.location.pathname.split("/");
-        const currentModule =
-          pathParts.length > 3 ? pathParts.slice(3).join("/") : "dashboard";
-
-        toast({
-          title: "עובר לארגון...",
-          description: "המערכת עוברת לארגון החדש",
-        });
-
-        window.location.replace(`/t/${newSlug}/${currentModule}`);
-      } else {
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error("Error switching tenant:", error);
-      toast({
-        title: "שגיאה",
-        description: "לא הצלחנו לעבור לארגון החדש",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const { data: userProfile } = useQuery({
-    queryKey: ["user-profile", userId],
-    queryFn: async () => {
-      if (!userId) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("status")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!userId,
-    staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-  });
-
-  useEffect(() => {
-    const processInvitation = async () => {
-      if (!userId || !userProfile || userProfile.status !== "pending") {
-        return;
-      }
-
-      try {
-        const { data: session } = await supabase.auth.getSession();
-        if (!session?.session) return;
-
-        const { data, error } = await supabase.functions.invoke(
-          "process-user-invitation",
-          {
-            headers: {
-              Authorization: `Bearer ${session.session.access_token}`,
-            },
-          },
-        );
-
-        if (error) {
-          console.error("Error processing invitation:", error);
-        } else if (data?.success) {
-          window.location.reload();
-        }
-      } catch (error) {
-        console.error("Error calling process-user-invitation:", error);
-      }
-    };
-
-    processInvitation();
-  }, [userId, userProfile]);
-
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) throw error;
-    } catch (err) {
-      try {
-        await supabase.auth.signOut({ scope: "local" });
-      } catch (_) {
-        // Continue to token cleanup and navigation even if local sign-out fails.
-      }
-      try {
-        Object.keys(localStorage).forEach((k) => {
-          if (/^sb-.*-auth-token$/.test(k)) localStorage.removeItem(k);
-        });
-      } catch (_) {
-        // Storage may be unavailable; the finally block still completes logout.
-      }
-    } finally {
-      navigate("/auth", { replace: true });
-      toast({
-        title: "התנתקת בהצלחה",
-        description: "להתראות!",
-      });
-    }
-  };
+  const { userTenants, handleTenantChange } = useUserTenants(userId);
+  useProcessPendingInvitation(userId);
 
   return (
     <ViewAsProvider>
@@ -210,79 +49,11 @@ export function AppLayout() {
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
                 <HeaderModuleShortcuts />
-                {agencies && agencies.length > 0 && (
-                  <div className="hidden md:flex items-center gap-1 sm:gap-2 min-w-0 max-w-[42vw] sm:max-w-none">
-                    <span className="text-sm text-muted-foreground hidden lg:inline shrink-0">
-                      סוכנות:
-                    </span>
-                    <Select
-                      value={selectedAgency}
-                      onValueChange={setSelectedAgency}
-                    >
-                      <SelectTrigger className="h-9 w-[min(42vw,10rem)] sm:w-[160px] md:w-[220px] bg-background border-2 px-2">
-                        <Building2 className="h-4 w-4 shrink-0" />
-                        <SelectValue placeholder="סוכנות" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-[100]">
-                        {agencies.length > 1 && (
-                          <SelectItem value="all">כל הסוכנויות</SelectItem>
-                        )}
-                        {agencies.map((agency) => (
-                          <SelectItem key={agency.id} value={agency.id}>
-                            {agency.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                <AgencySelector />
                 <GlobalApprovalsBell />
                 {/* Carmen work session entry point (allowlisted users only). */}
-                {commandCenterAccess.allowed && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const slug = currentTenant?.slug;
-                        if (slug) sidecar.toggle();
-                      }}
-                      className="relative group"
-                      title={`פגישת עבודה עם ${identity.name}`}
-                      aria-label={`פתח פגישת עבודה עם ${identity.name}`}
-                      aria-expanded={sidecar.open}
-                    >
-                      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
-                      <CarmenPortrait
-                        image={identity.image}
-                        name={identity.name}
-                        custom={identity.custom}
-                      />
-                    </button>
-                  </>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full"
-                    >
-                      <img
-                        src="/brand/carmen/symbol-soft.webp"
-                        alt="Logo"
-                        className="h-8 w-8 object-contain"
-                      />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="bg-background z-[100]"
-                  >
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      התנתק
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <CarmenSessionButton />
+                <UserMenu />
               </div>
             </header>
             <main className="flex min-h-0 flex-1 flex-col overflow-hidden">

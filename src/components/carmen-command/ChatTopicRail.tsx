@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import type { BrainRoute } from "@/lib/agentChannelRouting";
-import { topicAgentLabel, topicAgentSprite } from "@/lib/agentSeats";
-import { topicIsLive, topicTitle, type TopicChat } from "@/lib/chatTopics";
+import type { TopicChat } from "@/lib/chatTopics";
+import { ChatTopicItem } from "./ChatTopicItem";
+import { ChatTopicMenu } from "./ChatTopicMenu";
+import { ChatTopicRenameInput } from "./ChatTopicRenameInput";
+import { DeleteChatDialog } from "./DeleteChatDialog";
 
 interface ChatTopicRailProps {
   items: TopicChat[];
@@ -9,6 +13,10 @@ interface ChatTopicRailProps {
   activeId: string | null;
   onSelect: (chat: TopicChat) => void;
   onNew: () => void;
+  /** When set, each chat gets a ⋮ menu with rename. */
+  onRename?: (chat: TopicChat, title: string) => Promise<void> | void;
+  /** When set, each chat gets a ⋮ menu with delete (after a confirm). */
+  onDelete?: (chat: TopicChat) => Promise<void> | void;
   className?: string;
 }
 
@@ -18,8 +26,21 @@ export function ChatTopicRail({
   activeId,
   onSelect,
   onNew,
+  onRename,
+  onDelete,
   className = "",
 }: ChatTopicRailProps) {
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [toDelete, setToDelete] = useState<TopicChat | null>(null);
+  const hasMenu = !!(onRename || onDelete);
+
+  const commitRename = async (conv: TopicChat) => {
+    const title = draft.replace(/\s+/g, " ").trim();
+    setRenamingId(null);
+    if (title && title !== (conv.title ?? "")) await onRename?.(conv, title);
+  };
+
   return (
     <aside className={`cc-chat-rail ${className}`.trim()}>
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2 px-1">
@@ -40,43 +61,47 @@ export function ChatTopicRail({
           </p>
         )}
         {items.map((conv) => {
-          const live = topicIsLive(conv.status);
-          const agentLabel = topicAgentLabel(conv, routes);
+          const renaming = renamingId === conv.id;
           return (
-            <button
-              key={conv.id}
-              type="button"
-              onClick={() => onSelect(conv)}
-              title={agentLabel}
-              className={`cc-chat-topic ${activeId === conv.id ? "is-active" : ""} ${live ? "is-live" : ""}`}
-            >
-              <span className="cc-chat-topic-agent-wrap">
-                <img
-                  src={topicAgentSprite(conv, routes)}
-                  alt=""
-                  aria-hidden
-                  className="cc-chat-topic-agent"
+            <div key={conv.id} className="group relative">
+              {renaming ? (
+                <ChatTopicRenameInput
+                  value={draft}
+                  onChange={setDraft}
+                  onCommit={() => commitRename(conv)}
+                  onCancel={() => setRenamingId(null)}
                 />
-                {live && <span className="cc-chat-topic-dot is-live" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-right text-[13px]">
-                  {topicTitle(conv.title)}
-                </span>
-                <span className="mt-0.5 flex items-center justify-end gap-2 text-[10px] text-[var(--cc-text-dim)]">
-                  <span className="truncate">{agentLabel}</span>
-                  <span className="cc-num shrink-0">
-                    {new Date(conv.updated_at).toLocaleDateString("he-IL", {
-                      day: "numeric",
-                      month: "numeric",
-                    })}
-                  </span>
-                </span>
-              </span>
-            </button>
+              ) : (
+                <ChatTopicItem
+                  conv={conv}
+                  routes={routes}
+                  active={activeId === conv.id}
+                  hasMenu={hasMenu}
+                  onSelect={onSelect}
+                />
+              )}
+              {hasMenu && !renaming && (
+                <ChatTopicMenu
+                  onRename={
+                    onRename &&
+                    (() => {
+                      setDraft(conv.title ?? "");
+                      setRenamingId(conv.id);
+                    })
+                  }
+                  onDelete={onDelete && (() => setToDelete(conv))}
+                />
+              )}
+            </div>
           );
         })}
       </div>
+
+      <DeleteChatDialog
+        chat={toDelete}
+        onCancel={() => setToDelete(null)}
+        onConfirm={(conv) => void onDelete?.(conv)}
+      />
     </aside>
   );
 }

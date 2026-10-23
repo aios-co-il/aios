@@ -395,6 +395,12 @@ verify_jwt = true
 [functions.maskyoo-webhook]
 verify_jwt = false
 
+[functions.make-pbx-call]
+verify_jwt = true
+
+[functions.pbx-webhook]
+verify_jwt = false
+
 [functions.cron-sync-woocommerce]
 verify_jwt = false
 
@@ -545,6 +551,12 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.broadcast-dispatch]
+verify_jwt = true
+
+[functions.broadcast-list-materialize]
+verify_jwt = true
+
+[functions.broadcast-test-send]
 verify_jwt = true
 
 [functions.broadcast-enqueue]

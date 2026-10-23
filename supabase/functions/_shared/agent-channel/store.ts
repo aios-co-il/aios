@@ -2,6 +2,8 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { CARMEN_NAME_FILTER } from "../carmen/brain-access.ts";
+import { nameChatTopicLater } from "../carmen/chat-topic.ts";
 import type {
   BrainRouteRow,
   CallbackPayload,
@@ -55,7 +57,7 @@ export async function resolveCarmenAgent(
     .from("ai_agents")
     .select("id, name")
     .eq("tenant_id", tenantId)
-    .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+    .or(CARMEN_NAME_FILTER)
     .eq("active", true)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -204,6 +206,11 @@ export async function ensureConversation(
     throw new Error(
       `Failed to create conversation: ${error?.message || "unknown"}`,
     );
+  nameChatTopicLater(sb, {
+    conversationId: data.id,
+    firstMessage: args.title,
+    provisional: args.title.slice(0, 60),
+  });
   return { id: data.id, status: "idle" };
 }
 

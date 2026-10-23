@@ -1606,3 +1606,11 @@ html:has(.cc-root) body {
 .cc-sidecar .cc-talkbar-row {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
+
+/* Dropdown menus reuse .cc-root for its colours, but must size to their items
+   instead of the full screen height that .cc-root sets for the page. */
+.cc-root.cc-menu {
+  height: auto;
+  max-height: min(24rem, 70dvh);
+  overflow-y: auto;
+}

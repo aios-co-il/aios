@@ -1,4 +1,13 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  applyBrainLimit,
+  BRAIN,
+  brainLevel,
+} from "../_shared/carmen/brain-access.ts";
+import {
+  brainDenied,
+  loadCarmenAccessRow,
+} from "../_shared/carmen/brain-guard.ts";
 import { requireAuth } from "../_shared/security.ts";
 import {
   cancelParliament,
@@ -52,6 +61,18 @@ Deno.serve(async (req) => {
     await cancelParliament(conversationId);
     return json(200, { ok: true, status: "idle" });
   }
+
+  // Per-user Carmen permissions: every other action needs the parliament
+  // grant, the same check agent-channel-send applies.
+  const carmen = await resolveCarmenAgent(sb, tenantId);
+  if (!carmen) return json(400, { error: "No Carmen agent" });
+  const level = brainLevel(
+    await loadCarmenAccessRow(sb, tenantId, carmen.id, auth.userId),
+    BRAIN.parliament,
+  );
+  if (!level) return brainDenied("parliament");
+  const limit = (text: string) => applyBrainLimit(level, text);
+
   if (action === "continue") {
     if (!conversationId)
       return json(400, { error: "conversation_id is required" });
@@ -71,14 +92,12 @@ Deno.serve(async (req) => {
       return json(400, { error: "clarify only supports cursor or grok" });
     return json(
       200,
-      await clarifyParliamentSeat(conversationId, provider, question),
+      await clarifyParliamentSeat(conversationId, provider, limit(question)),
     );
   }
 
   const content = String(body.content || body.goal || "").trim();
   if (!content) return json(400, { error: "content is required" });
-  const carmen = await resolveCarmenAgent(sb, tenantId);
-  if (!carmen) return json(400, { error: "No Carmen agent" });
   const route = await loadRoute(sb, tenantId, {
     slug: "parliament",
     routeId: body.brain_route_id,
@@ -98,7 +117,7 @@ Deno.serve(async (req) => {
     agentId: carmen.id,
     conversationId: conv.id,
     route,
-    content,
+    content: limit(content),
     inputMode: "typed",
     idempotencyKey: String(body.idempotency_key || crypto.randomUUID()),
     history: Array.isArray(body.conversation_history)

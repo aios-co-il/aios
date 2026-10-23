@@ -57,6 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { MAILING_ACTION_LABELS } from "@/components/automations/mailingActions";
 
 const TRIGGER_LABELS: Record<string, string> = {
   carmen_whatsapp_session: "שיחת כרמן ב-WhatsApp",
@@ -88,6 +89,7 @@ const ACTION_LABELS: Record<string, string> = {
   add_client_update: "הוסף עדכון ללקוח",
   create_task: "צור משימה",
   send_signature: "שלח הסכם (חתימה דיגיטלית)",
+  ...MAILING_ACTION_LABELS,
 };
 
 export default function Automations() {

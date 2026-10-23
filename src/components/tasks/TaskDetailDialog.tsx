@@ -540,6 +540,7 @@ export function TaskDetailDialog({
       if (error) throw error;
       if (campaignerId !== userCampaignerId) {
         void notifyTaskCollaboratorAdded({
+          tenantId,
           taskId: task!.id,
           campaignerId,
           addedByUserId: user?.id,
@@ -688,6 +689,7 @@ export function TaskDetailDialog({
       });
       if (error) throw error;
       void notifyTaskUpdateAdded({
+        tenantId,
         taskId: task!.id,
         userId: user.id,
         updateContent: newUpdate,

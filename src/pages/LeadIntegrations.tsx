@@ -7,7 +7,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Webhook } from "lucide-react";
+import { Copy, ExternalLink, PhoneCall, Webhook } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,6 +19,8 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 export default function LeadIntegrations() {
   const { toast } = useToast();
   const { tenant } = useCurrentTenant();
+  const navigate = useNavigate();
+  const { buildPath } = useTenantPath();
   const tenantSlug = tenant?.slug || "your-tenant-slug";
   const projectUrl = import.meta.env.VITE_SUPABASE_URL || "";
   const webhookBaseUrl = `${projectUrl}/functions/v1/webhook-lead-intake`;
@@ -100,6 +104,24 @@ export default function LeadIntegrations() {
           </p>
         </AlertDescription>
       </Alert>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <PhoneCall className="h-5 w-5" />
+              חיבור מרכזיה
+            </CardTitle>
+            <CardDescription className="mt-1">
+              חיוג מה-CRM דרך Webhook יוצא (מספר מתקשר, יעד ושלוחה) וקליטת
+              הקלטות שיחה ששויכות לליד לפי הטלפון
+            </CardDescription>
+          </div>
+          <Button onClick={() => navigate(buildPath("pbx-settings"))}>
+            הגדרת מרכזיה
+          </Button>
+        </CardHeader>
+      </Card>
 
       <Tabs defaultValue="builder" className="w-full">
         <TabsList className="grid w-full grid-cols-5">

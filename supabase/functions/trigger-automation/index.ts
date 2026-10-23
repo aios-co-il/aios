@@ -41,6 +41,11 @@ import {
   resolveTenantOwnerId,
   sendSignatureDocumentEmails,
 } from "../_shared/signature-automation.ts";
+import { executeMailingAction } from "../_shared/broadcast/mailing-actions/execute.ts";
+import {
+  MAILING_ACTION_TYPES,
+  type MailingActionType,
+} from "../_shared/broadcast/mailing-actions/types.ts";
 import {
   impliedStatusKind,
   leadStatusUpdateColumns,
@@ -50,6 +55,13 @@ import {
   statusUpdateTable,
 } from "../_shared/automation-status.ts";
 // clearer error when ManyChat wa_id ghost on deleted contact — 2026-08-09
+
+import {
+  authorizeDirectAutomationRun,
+  authorizeTenantCaller,
+  bearerToken,
+} from "../_shared/automation-run-auth.ts";
+import { userClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1463,6 +1475,34 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json();
 
+    // Running one automation by id (tests, manual triggers, reruns) is limited
+    // to the service role and to users who may manage that automation.
+    if (requestBody?.automationId) {
+      const { data: target } = await supabase
+        .from("automations")
+        .select("tenant_id")
+        .eq("id", requestBody.automationId)
+        .maybeSingle();
+      const decision = target
+        ? await authorizeDirectAutomationRun(
+            supabase,
+            bearerToken(req.headers.get("Authorization")),
+            supabaseKey,
+            target.tenant_id,
+          )
+        : ({
+            allowed: false,
+            status: 403,
+            error: "Automation not found",
+          } as const);
+      if (!decision.allowed) {
+        return new Response(JSON.stringify({ error: decision.error }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: decision.status,
+        });
+      }
+    }
+
     // Backward-compat alias: old name → new name
     if (requestBody.trigger_type === "ad_account_billing_issue") {
       requestBody.trigger_type = "ad_account_blocked";
@@ -1490,6 +1530,24 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(clientFollowUp), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: clientFollowUp.sent ? 200 : 202,
+        });
+      }
+    }
+
+    // The generic path trusts the body's tenant_id (cooldown, execution log,
+    // automation lookup), so a non-service caller must belong to it.
+    if (!requestBody.automationId) {
+      const decision = await authorizeTenantCaller(
+        supabase,
+        userClient,
+        req.headers.get("Authorization"),
+        supabaseKey,
+        requestBody.tenant_id,
+      );
+      if (!decision.allowed) {
+        return new Response(JSON.stringify({ error: decision.error }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: decision.status,
         });
       }
     }
@@ -3531,6 +3589,27 @@ Deno.serve(async (req) => {
                     tenantId,
                   );
                   previousStepOutput = stepResponse;
+                } else if (
+                  (MAILING_ACTION_TYPES as readonly string[]).includes(
+                    effectiveActionType,
+                  )
+                ) {
+                  stepResponse = await executeMailingAction(
+                    effectiveActionType as MailingActionType,
+                    supabase,
+                    stepConfig,
+                    stepData,
+                    tenantId,
+                    {
+                      automationId: automation.id,
+                      triggerType:
+                        requestBody.trigger_type || automation.trigger_type,
+                      resolveOwnerId: resolveTenantOwnerId,
+                      resolveEmailFrom: resolveAutomationEmailFrom,
+                      enqueue: enqueueBroadcastAsService,
+                    },
+                  );
+                  previousStepOutput = stepResponse;
                 }
                 // Store output for downstream nodes
                 nodeOutputs[step.id] = {
@@ -3987,6 +4066,28 @@ async function resolveEmailRecipients(
     }
   }
   return Array.from(new Set(out));
+}
+
+/** Queue a draft broadcast through broadcast-enqueue as the service role. */
+async function enqueueBroadcastAsService(
+  broadcastId: string,
+): Promise<{ total: number }> {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const res = await fetch(`${url}/functions/v1/broadcast-enqueue`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ broadcastId }),
+  });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`broadcast-enqueue failed: ${result?.error || res.status}`);
+  }
+  return { total: Number(result?.total || 0) };
 }
 
 async function resolveAutomationEmailFrom(

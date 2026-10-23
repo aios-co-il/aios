@@ -1,7 +1,10 @@
+import type { EmailAttachment } from "../../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
+import { templateContent } from "../../../supabase/functions/_shared/broadcast/template/template-content.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { uploadBroadcastMedia } from "@/lib/uploadBroadcastMedia";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { useLeadPipelineStages } from "@/hooks/useLeadPipelineStages";
 import {
@@ -24,6 +27,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useMessageTemplates,
+  type MessageTemplate,
+} from "@/hooks/useMessageTemplates";
+import { WizardContentPreview } from "@/components/broadcast/wizard/WizardContentPreview";
+import {
+  WizardTemplateAttachments,
+  WizardTemplatePicker,
+} from "@/components/broadcast/wizard/WizardTemplatePicker";
+import { TemplateFieldPicker } from "@/components/broadcast/BroadcastTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -67,12 +80,48 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const { create, update, previewAudience, launch } = useBroadcasts();
   const { lists } = useBroadcastLists();
   const { list: domainsQ } = useBroadcastDomains();
+  const { list: templatesQ } = useMessageTemplates();
+  const applyTemplate = (t: MessageTemplate | null) => {
+    if (!t) {
+      setTemplateId(null);
+      setAttachments([]);
+      setBodyHtml("");
+      setHtmlMode(false);
+      setTemplateMediaUrl(null);
+      return;
+    }
+    setTemplateId(t.id);
+    const content = templateContent(t);
+    if (content.channel === "email") {
+      setSubject(content.subject || "");
+      setBodyHtml(content.bodyHtml || "");
+      setHtmlMode(content.htmlMode);
+      setAttachments(content.attachments);
+      setBodyText("");
+    } else {
+      setBodyText(content.bodyText || "");
+      setBodyHtml("");
+      setTemplateMediaUrl(content.mediaUrl);
+    }
+  };
+  /** Switching channel drops the other channel's template and content. */
+  const pickChannel = (c: "whatsapp" | "email") => {
+    if (c === channel) return;
+    applyTemplate(null);
+    setSubject("");
+    setBodyText("");
+    setChannel(c);
+  };
   const domains = domainsQ.data || [];
   const defaultDomain = domains.find((d) => d.is_default) || domains[0];
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("דיוור חדש");
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
+  // Declared after `channel`: reading it earlier throws (temporal dead zone).
+  const channelTemplates = (templatesQ.data || []).filter(
+    (t) => t.channel === channel,
+  );
   const [subject, setSubject] = useState("");
   const [fromMode, setFromMode] = useState<"default" | "custom">("default");
   const [fromName, setFromName] = useState("");
@@ -101,6 +150,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [htmlMode, setHtmlMode] = useState(false);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
+  const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -138,6 +192,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setSelectedGroupIds([]);
       setGroupSearch("");
       setBodyText("");
+      setBodyHtml("");
+      setHtmlMode(false);
+      setTemplateId(null);
+      setAttachments([]);
+      setTemplateMediaUrl(null);
       setMediaFile(null);
       setAudienceCount(null);
       setSendMode("now");
@@ -374,7 +433,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       return (audienceCount ?? 0) > 0;
     }
     if (step === 3) {
-      if (bodyText.trim().length === 0) return false;
+      if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0)
+        return false;
       if (channel === "email") {
         if (subject.trim().length === 0) return false;
         if (
@@ -415,6 +475,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             : null,
         reply_to: channel === "email" && replyTo.trim() ? replyTo.trim() : null,
         body_text: bodyText,
+        body_html: channel === "email" && bodyHtml ? bodyHtml : null,
+        html_mode: channel === "email" && !!bodyHtml && htmlMode,
+        attachments: channel === "email" ? attachments : [],
+        template_id: templateId,
+        media_url: channel === "email" ? null : templateMediaUrl,
         audience_filter: buildFilter(),
       });
 
@@ -422,13 +487,13 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       let mediaUrl: string | null = null;
       if (mediaFile) {
         const ext = mediaFile.name.split(".").pop() || "jpg";
-        const path = `${tenantId}/${draft.id}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("broadcast-media")
-          .upload(path, mediaFile, { upsert: true });
-        if (upErr) throw upErr;
-        mediaUrl = supabase.storage.from("broadcast-media").getPublicUrl(path)
-          .data.publicUrl;
+        const uploaded = await uploadBroadcastMedia(
+          tenantId,
+          "broadcasts",
+          mediaFile,
+          { name: `${draft.id}.${ext}`, upsert: true },
+        );
+        mediaUrl = uploaded.url;
         await update.mutateAsync({ id: draft.id, media_url: mediaUrl });
       }
 
@@ -499,7 +564,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             <Label className="mt-2 block">ערוץ</Label>
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => setChannel("whatsapp")}
+                onClick={() => pickChannel("whatsapp")}
                 className={`rounded-lg border-2 p-3 text-center text-sm font-medium ${channel === "whatsapp" ? "border-primary" : "border-muted"}`}
               >
                 <MessageSquare className="mx-auto mb-1 h-5 w-5" /> WhatsApp
@@ -512,7 +577,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 WhatsApp רשמי (בקרוב)
               </button>
               <button
-                onClick={() => setChannel("email")}
+                onClick={() => pickChannel("email")}
                 className={`rounded-lg border-2 p-3 text-center text-sm font-medium ${channel === "email" ? "border-primary" : "border-muted"}`}
               >
                 <Mail className="mx-auto mb-1 h-5 w-5" /> אימייל
@@ -695,6 +760,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                     )}
                   </SelectContent>
                 </Select>
+                {channel === "email" && (
+                  <WizardTemplateAttachments attachments={attachments} />
+                )}
               </div>
             )}
 
@@ -861,6 +929,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         {/* Step 3 — content */}
         {step === 3 && (
           <div className="space-y-3">
+            <WizardTemplatePicker
+              templates={channelTemplates}
+              templateId={templateId}
+              onSelect={applyTemplate}
+            />
             {channel === "email" && (
               <>
                 <div>
@@ -953,30 +1026,27 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
               </>
             )}
             <Label>תוכן ההודעה</Label>
-            {source !== "wa_groups" && (
-              <div className="flex flex-wrap gap-2 text-xs">
-                {["{{contact_name}}", "{{phone}}"].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    className="rounded border px-2 py-0.5"
-                    onClick={() => setBodyText((b) => b + " " + v)}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
+            {bodyHtml ? (
+              <WizardContentPreview bodyHtml={bodyHtml} htmlMode={htmlMode} />
+            ) : (
+              <>
+                {source !== "wa_groups" && (
+                  <TemplateFieldPicker
+                    onPick={(v) => setBodyText((b) => (b ? `${b} ${v}` : v))}
+                  />
+                )}
+                <Textarea
+                  rows={6}
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  placeholder={
+                    source === "wa_groups"
+                      ? "שלום לכולם, ..."
+                      : "שלום {{contact_name}}, ..."
+                  }
+                />
+              </>
             )}
-            <Textarea
-              rows={6}
-              value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
-              placeholder={
-                source === "wa_groups"
-                  ? "שלום לכולם, ..."
-                  : "שלום {{contact_name}}, ..."
-              }
-            />
             {channel !== "email" && (
               <div>
                 <Label className="mb-1 flex items-center gap-1">
