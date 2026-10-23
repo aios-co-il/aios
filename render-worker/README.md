@@ -33,6 +33,10 @@ Every provider implements `estimate / submit / poll` (`src/providers/`), so chan
 
 No dependencies beyond Node 22 and ffmpeg.
 
+## Staging queue
+
+Until a Droplet is running, `.github/workflows/render-worker.yml` drains the **Staging** queue every 10 minutes and on `workflow_dispatch`. It resolves the Staging service role from `SUPABASE_STAGING_PROJECT_ID` and `BASE_ACCESS_TOKEN`, sets `DRAIN=1`, and exits when a claim finds nothing queued. `VIDEO_PROVIDER` defaults to `mock`. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider. Production is not a target of this workflow.
+
 ## Run on the Droplet
 
 ```bash

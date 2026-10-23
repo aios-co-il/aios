@@ -6,6 +6,7 @@ import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
+import { runSlots } from "./loop.mjs";
 
 const HANDLERS = {
   reference_analysis: {
@@ -44,6 +45,7 @@ const HANDLERS = {
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
+const DRAIN = process.env.DRAIN === "1";
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
 
@@ -174,23 +176,18 @@ let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => (stopping = true));
 
-/** One slot: claim, process, repeat; sleeps only when the queue is empty. */
-async function slot() {
-  while (!stopping) {
-    let worked = false;
-    try {
-      worked = await processOne();
-    } catch (error) {
-      console.error(
-        "[worker] poll error",
-        error instanceof Error ? error.message : error,
-      );
-    }
-    if (!worked) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
-}
-
 console.log(
-  `[worker] ${WORKER_ID} polling ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots`,
+  `[worker] ${WORKER_ID} ${DRAIN ? "draining" : "polling"} ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots`,
 );
-await Promise.all(Array.from({ length: CONCURRENCY }, slot));
+await runSlots({
+  processOne,
+  concurrency: CONCURRENCY,
+  drain: DRAIN,
+  shouldStop: () => stopping,
+  sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
+  onError: (error) =>
+    console.error(
+      "[worker] poll error",
+      error instanceof Error ? error.message : error,
+    ),
+});
