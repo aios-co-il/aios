@@ -6,15 +6,20 @@ import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
+import { runSlots } from "./loop.mjs";
+import { loadTargets } from "./targets.mjs";
 
 const HANDLERS = {
   reference_analysis: {
     run: async (ctx) =>
-      analyzeReference({ ...ctx, keys: await resolveKeys(ctx.run.tenant_id) }),
+      analyzeReference({
+        ...ctx,
+        keys: await resolveKeys(ctx.db, ctx.run.tenant_id),
+      }),
   },
   clip: {
     run: async (ctx) => {
-      const keys = await resolveMediaKeys(ctx.run.tenant_id);
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
         ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
       return generateClip({
@@ -28,14 +33,16 @@ const HANDLERS = {
     run: async (ctx) =>
       generateVoice({
         ...ctx,
-        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
+        apiKey: (await resolveMediaKeys(ctx.db, ctx.run.tenant_id))
+          .elevenLabsKey,
       }),
   },
   music: {
     run: async (ctx) =>
       generateMusic({
         ...ctx,
-        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
+        apiKey: (await resolveMediaKeys(ctx.db, ctx.run.tenant_id))
+          .elevenLabsKey,
       }),
   },
   render: {
@@ -44,16 +51,21 @@ const HANDLERS = {
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
+const DRAIN = process.env.DRAIN === "1";
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
 
-const db = createSupabaseRest({
-  url: process.env.SUPABASE_URL,
-  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-});
+const targets = loadTargets().map((target) => ({
+  ...target,
+  workerId: `${WORKER_ID}-${target.name}`,
+  db: createSupabaseRest({
+    url: target.url,
+    serviceRoleKey: target.serviceRoleKey,
+  }),
+}));
 
 /** Env keys first, then the tenant's LLM integration (the same place the Edge Functions read). */
-async function resolveKeys(tenantId) {
+async function resolveKeys(db, tenantId) {
   let openaiKey = process.env.OPENAI_API_KEY || null;
   if (!openaiKey) {
     const rows = await db.select(
@@ -66,7 +78,7 @@ async function resolveKeys(tenantId) {
     throw new Error(
       "No OpenAI key: set OPENAI_API_KEY or the tenant LLM integration",
     );
-  const media = await resolveMediaKeys(tenantId);
+  const media = await resolveMediaKeys(db, tenantId);
   return { openaiKey, elevenLabsKey: media.elevenLabsKey };
 }
 
@@ -74,7 +86,7 @@ async function resolveKeys(tenantId) {
  * Keys for scene and sound engines. The tenant's own key wins, so each tenant pays for its
  * own generations; the env key is only a fallback for the agency's own workspace.
  */
-async function resolveMediaKeys(tenantId) {
+async function resolveMediaKeys(db, tenantId) {
   const rows = await db.select(
     "tenant_integrations",
     `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
@@ -98,7 +110,7 @@ const PRODUCTION_KINDS = new Set(["clip", "voice", "music", "render"]);
  * One-click production: after each clip, voice, music or render job the project's
  * production moves on (queues the assembly once nothing is in flight, then finishes).
  */
-async function advanceProduction(run) {
+async function advanceProduction(db, run) {
   if (!PRODUCTION_KINDS.has(run.kind) || !run.item_id) return;
   try {
     const state = await db.rpc("advance_video_production", {
@@ -114,26 +126,26 @@ async function advanceProduction(run) {
   }
 }
 
-async function finish(run, patch) {
+async function finish(db, run, patch) {
   await db.update("marketing_runs", `id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
     ...patch,
   });
 }
 
-async function processOne() {
+async function processOne(db, workerId) {
   const claimed = await db.rpc("claim_video_run", {
     p_kinds: Object.keys(HANDLERS),
-    p_worker: WORKER_ID,
+    p_worker: workerId,
   });
   const run = Array.isArray(claimed) ? claimed[0] : null;
   if (!run) return false;
   console.log(
-    `[worker] claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
+    `[worker] ${workerId} claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
   );
   try {
     const result = await HANDLERS[run.kind].run({ db, run });
-    await finish(run, {
+    await finish(db, run, {
       status: "completed",
       error: null,
       output: { ...(run.output ?? {}), ...result.output },
@@ -143,8 +155,8 @@ async function processOne() {
       credits: result.credits ?? null,
       provider: result.provider ?? "render-worker",
     });
-    console.log(`[worker] completed ${run.id}`);
-    await advanceProduction(run);
+    console.log(`[worker] ${workerId} completed ${run.id}`);
+    await advanceProduction(db, run);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const retry =
@@ -154,7 +166,7 @@ async function processOne() {
     console.error(
       `[worker] ${run.id} failed (${retry ? "will retry" : "final"}): ${message}`,
     );
-    await finish(run, {
+    await finish(db, run, {
       status: retry ? "queued" : "failed",
       error: message.slice(0, 2000),
     });
@@ -165,7 +177,7 @@ async function processOne() {
           console.error(`[worker] ${run.id} failure hook`, hookError),
         );
     // After the scene is marked failed, so the film is assembled without it.
-    if (!retry) await advanceProduction(run);
+    if (!retry) await advanceProduction(db, run);
   }
   return true;
 }
@@ -174,23 +186,22 @@ let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => (stopping = true));
 
-/** One slot: claim, process, repeat; sleeps only when the queue is empty. */
-async function slot() {
-  while (!stopping) {
-    let worked = false;
-    try {
-      worked = await processOne();
-    } catch (error) {
-      console.error(
-        "[worker] poll error",
-        error instanceof Error ? error.message : error,
-      );
-    }
-    if (!worked) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
-}
-
 console.log(
-  `[worker] ${WORKER_ID} polling ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots`,
+  `[worker] ${WORKER_ID} ${DRAIN ? "draining" : "polling"} ${targets.map((target) => target.name).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots each`,
 );
-await Promise.all(Array.from({ length: CONCURRENCY }, slot));
+await Promise.all(
+  targets.map((target) =>
+    runSlots({
+      processOne: () => processOne(target.db, target.workerId),
+      concurrency: CONCURRENCY,
+      drain: DRAIN,
+      shouldStop: () => stopping,
+      sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
+      onError: (error) =>
+        console.error(
+          `[worker] ${target.workerId} poll error`,
+          error instanceof Error ? error.message : error,
+        ),
+    }),
+  ),
+);

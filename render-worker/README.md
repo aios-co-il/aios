@@ -33,11 +33,17 @@ Every provider implements `estimate / submit / poll` (`src/providers/`), so chan
 
 No dependencies beyond Node 22 and ffmpeg.
 
+## Staging queue
+
+One container polls every configured project. `SUPABASE_URL` is the existing target. Add `SUPABASE_URL_PRODUCTION`, `SUPABASE_URL_STAGING` and `SUPABASE_URL_DEVELOP` (each with its matching `SUPABASE_SERVICE_ROLE_KEY_*`) and restart the container. A repeated URL is polled once. Feature previews that use the Staging project are covered by the staging pair.
+
+`.github/workflows/render-worker.yml` still drains **Staging only** every 10 minutes. It does not call Production. `VIDEO_PROVIDER` defaults to `mock` there. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider.
+
 ## Run on the Droplet
 
 ```bash
 git clone … && cd aios/render-worker
-cp .env.example .env   # fill in the Staging project URL and service-role key
+cp .env.example .env   # production, staging and develop URL plus service-role pairs
 docker build -t aios-render-worker .
 docker run -d --name aios-render-worker --restart unless-stopped --env-file .env aios-render-worker
 docker logs -f aios-render-worker

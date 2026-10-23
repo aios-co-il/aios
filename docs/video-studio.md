@@ -51,7 +51,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
   4. writes `output.proposal.frames`: one frame per reference shot, with the same durations and camera language, original content for the client's brief, and no copied characters, brands, text or studio names.
 - "הצעת סטוריבורד" shows the keyframes next to the proposed scenes. "החלף את הסטוריבורד בהצעה" replaces the storyboard, including `motion_prompt`, which `save_video_storyboard` now stores.
 - Migration `20261016140200_video_studio_run_claim.sql` is applied on Staging.
-- **The worker is not deployed yet:** runs stay queued until it runs on the Droplet against Staging.
+- **One worker, three projects:** the Droplet process polls `SUPABASE_URL` plus any of `SUPABASE_URL_PRODUCTION`, `SUPABASE_URL_STAGING` and `SUPABASE_URL_DEVELOP`. Restart the container after those keys are set. The GitHub drain remains Staging-only and does not claim Production runs.
 
 ## Phase 4 animation
 
