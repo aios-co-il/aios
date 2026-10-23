@@ -30,4 +30,5 @@ jobs:
             supabase/functions/_shared/carmen/free-first-router.test.ts \
             supabase/functions/_shared/carmen/free-first-task-classifier.test.ts \
             supabase/functions/_shared/carmen/free-first-failover.test.ts \
-            supabase/functions/_shared/carmen/free-first-cost.test.ts
+            supabase/functions/_shared/carmen/free-first-cost.test.ts \
+            supabase/functions/_shared/carmen/free-first-budget-reservation.test.ts
