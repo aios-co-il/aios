@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BroadcastLists } from "@/components/broadcast/BroadcastLists";
 import { BroadcastDomainSettings } from "@/components/broadcast/BroadcastDomainSettings";
 import { BroadcastTemplates } from "@/components/broadcast/BroadcastTemplates";
+import { BroadcastBlacklist } from "@/components/broadcast/BroadcastBlacklist";
 import {
   Send,
   Plus,
@@ -30,6 +31,7 @@ import {
   Globe,
   FileText,
   Zap,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -83,6 +85,10 @@ export default function Broadcast() {
           <TabsTrigger value="templates">
             <FileText className="ml-1 h-4 w-4" />
             טמפלייטים
+          </TabsTrigger>
+          <TabsTrigger value="blacklist">
+            <Ban className="ml-1 h-4 w-4" />
+            רשימה שחורה
           </TabsTrigger>
           <TabsTrigger value="settings">
             <Globe className="ml-1 h-4 w-4" />
@@ -203,6 +209,10 @@ export default function Broadcast() {
 
         <TabsContent value="templates">
           <BroadcastTemplates />
+        </TabsContent>
+
+        <TabsContent value="blacklist">
+          <BroadcastBlacklist />
         </TabsContent>
 
         <TabsContent value="settings">
