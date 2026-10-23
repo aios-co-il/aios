@@ -43,7 +43,7 @@ One container polls every configured project. `SUPABASE_URL` is the existing tar
 
 ```bash
 git clone … && cd aios/render-worker
-cp .env.example .env   # fill in the Staging project URL and service-role key
+cp .env.example .env   # production, staging and develop URL plus service-role pairs
 docker build -t aios-render-worker .
 docker run -d --name aios-render-worker --restart unless-stopped --env-file .env aios-render-worker
 docker logs -f aios-render-worker
