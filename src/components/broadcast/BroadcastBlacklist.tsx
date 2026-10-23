@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ban, Loader2, Plus, Trash2 } from "lucide-react";
+import { Ban, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import {
   useBroadcastBlacklist,
   type BlacklistEntry,
 } from "@/hooks/useBroadcastBlacklist";
+import { useUserRole } from "@/hooks/useUserRole";
+import { UnblockButton } from "./UnblockButton";
 
 const SOURCE_LABELS: Record<string, string> = {
   unsubscribe_link: "קישור הסרה",
@@ -28,6 +30,9 @@ const errorMessage = (e: unknown) =>
 /** Mailing blacklist: who is blocked from mailings, add and unblock. */
 export function BroadcastBlacklist() {
   const { list, add, remove } = useBroadcastBlacklist();
+  // Unblocking sends mailings again to someone who may have opted out:
+  // owners only.
+  const { isOwner } = useUserRole();
   const [address, setAddress] = useState("");
 
   const submit = () => {
@@ -94,15 +99,13 @@ export function BroadcastBlacklist() {
                   {SOURCE_LABELS[r.source ?? ""] ?? r.source ?? ""} ·{" "}
                   {new Date(r.created_at).toLocaleDateString("he-IL")}
                 </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  title="הסר חסימה"
-                  disabled={remove.isPending}
-                  onClick={() => unblock(r)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {isOwner && (
+                  <UnblockButton
+                    entry={r}
+                    disabled={remove.isPending}
+                    onConfirm={() => unblock(r)}
+                  />
+                )}
               </div>
             ))}
           </CardContent>

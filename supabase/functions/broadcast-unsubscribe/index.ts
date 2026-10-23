@@ -10,8 +10,11 @@
 //
 // Public (verify_jwt = false in config.toml).
 import { serviceClient } from "../_shared/supabase-clients.ts";
-import { addToBlacklist } from "../_shared/broadcast/blacklist.ts";
-import type { Json } from "../_shared/database.types.ts";
+import {
+  addToBlacklist,
+  unsubscribeAddresses,
+  type UnsubscribeRecipient,
+} from "../_shared/broadcast/blacklist.ts";
 
 const STYLE = `body{font-family:system-ui,Arial,sans-serif;background:#f6f7f9;color:#222;display:flex;
 min-height:100vh;align-items:center;justify-content:center;margin:0}
@@ -35,44 +38,25 @@ const html = (body: string, status = 200) =>
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-type RecipientRow = {
-  id: string;
-  tenant_id: string;
-  entity_type: string;
-  entity_id: string | null;
-  phone: string | null;
-  email: string | null;
-  vars: Json | null;
-};
-
-/** The recipient plus the CRM record's current phone and email. */
+/** The recipient's addresses plus the CRM record's current ones. */
 async function addressesOf(
   db: ReturnType<typeof serviceClient>,
-  r: RecipientRow,
+  r: UnsubscribeRecipient & {
+    tenant_id: string;
+    entity_id: string | null;
+  },
 ) {
-  // Email recipients are stored without a phone; the snapshot keeps it in vars.
-  const vars =
-    r.vars && typeof r.vars === "object" && !Array.isArray(r.vars)
-      ? r.vars
-      : {};
-  const varPhone = typeof vars.phone === "string" ? vars.phone : null;
-  const varEmail = typeof vars.email === "string" ? vars.email : null;
-  const phones = r.entity_type === "wa_group" ? [] : [r.phone, varPhone];
-  const emails = [r.email, varEmail];
+  let crm: { phone: string | null; email: string | null } | null = null;
   if (r.entity_id && (r.entity_type === "lead" || r.entity_type === "client")) {
-    const table = r.entity_type === "lead" ? "leads" : "clients";
     const { data } = await db
-      .from(table)
+      .from(r.entity_type === "lead" ? "leads" : "clients")
       .select("phone, email")
       .eq("id", r.entity_id)
       .eq("tenant_id", r.tenant_id)
       .maybeSingle();
-    if (data) {
-      phones.push(data.phone);
-      emails.push(data.email);
-    }
+    crm = data;
   }
-  return { phones, emails };
+  return unsubscribeAddresses(r, crm);
 }
 
 Deno.serve(async (req) => {

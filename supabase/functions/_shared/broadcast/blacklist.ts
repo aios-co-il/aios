@@ -28,6 +28,34 @@ export type BlockAddresses = {
   emails: (string | null | undefined)[];
 };
 
+/** The parts of a broadcast recipient the unsubscribe link reads. */
+export type UnsubscribeRecipient = {
+  entity_type: string;
+  phone: string | null;
+  email: string | null;
+  vars: unknown;
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * Addresses to block when a recipient unsubscribes: the recipient's own
+ * phone and email, the snapshot in vars (email recipients are stored without
+ * a phone) and the CRM record's current phone and email. A WhatsApp group's
+ * "phone" is its chat id, so it is never blocked.
+ */
+export function unsubscribeAddresses(
+  r: UnsubscribeRecipient,
+  crm: { phone: string | null; email: string | null } | null,
+): BlockAddresses {
+  const vars = isRecord(r.vars) ? r.vars : {};
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  const phones =
+    r.entity_type === "wa_group" ? [] : [r.phone, str(vars.phone), crm?.phone];
+  return { phones, emails: [r.email, str(vars.email), crm?.email] };
+}
+
 /** Normalized, de-duplicated phones and emails to block. */
 export function blacklistRows(
   tenantId: string,
