@@ -67,7 +67,7 @@ const DESCRIPTIONS: Record<string, string> = {
   products: "ניהול מוצרים ושירותים",
   social_media: "ניהול פוסטים ולוח שנה לרשתות חברתיות",
   campaign_alerts: "התראות וניטור קמפיינים",
-  broadcast: "שליחת דיוור המוני ללקוחות, לידים וצוות בערוצי WhatsApp",
+  broadcast: "רשימות דיוור, טמפלייטים ושליחה המונית ב-WhatsApp ובמייל",
   dynamic_tables: "יצירת דשבורדים וטבלאות מותאמות אישית",
   site_analytics: "מעקב אנליטיקס ונתוני אתר",
   rank_tracking: "מעקב דירוגי מילות מפתח בגוגל",

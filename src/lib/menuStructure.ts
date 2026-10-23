@@ -528,6 +528,13 @@ export const INTEGRATION_SETTINGS: Array<MenuModule & { parentKey: string }> = [
     icon: MessageSquare,
   },
   {
+    key: "pbx-settings",
+    parentKey: "lead-integrations",
+    label: "מרכזיה",
+    route: "/pbx-settings",
+    icon: MessageSquare,
+  },
+  {
     key: "wordpress-settings",
     parentKey: "lead-integrations",
     label: "WordPress",

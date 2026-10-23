@@ -1,54 +1,52 @@
-.carmen-session {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
+/*
+ * Carmen work session: a docked column on the right edge of the workspace
+ * (like a browser side panel). The page content shrinks to make room instead
+ * of being covered.
+ */
+.carmen-session-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
-.carmen-session-aura {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgb(40 118 255 / 7%),
-    transparent 50%,
-    rgb(40 118 255 / 9%)
-  );
-  box-shadow:
-    inset 0 0 85px rgb(45 131 255 / 22%),
-    inset 0 0 0 2px rgb(100 174 255 / 40%);
+.carmen-session-layout > .carmen-session-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.carmen-session {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  width: clamp(320px, 30vw, 440px);
+  min-height: 0;
+  border-inline-end: 1px solid rgb(136 193 255 / 26%);
+  background: #0a1526;
 }
 .carmen-session .carmen-session-panel {
-  position: absolute;
-  inset: 0;
+  flex: 1;
+  min-height: 0;
   height: 100%;
-  background: none;
-  overflow: visible;
-  pointer-events: none;
 }
-.carmen-session-panel .cc-sidecar-header {
-  position: absolute;
-  top: 88px;
-  left: 24px;
-  width: 236px;
-  height: 48px;
-  border: 1px solid rgb(136 193 255 / 26%);
-  border-bottom: 0;
-  border-radius: 16px 16px 0 0;
-  background: #101f35;
-  pointer-events: auto;
-}
+/* Carmen's picture: a floating video-call card the user can drag anywhere. */
 .carmen-session-video {
-  position: absolute;
-  top: 136px;
-  left: 24px;
+  position: fixed;
+  z-index: 70;
   width: 236px;
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid rgb(136 193 255 / 26%);
-  border-radius: 0 0 16px 16px;
+  border-radius: 16px;
   background: radial-gradient(ellipse at 55% 40%, #254c69, #0a1526 80%);
   box-shadow: 0 20px 60px #02091855;
-  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.carmen-session-video:active {
+  cursor: grabbing;
 }
 .carmen-session-character {
   position: absolute;
@@ -56,8 +54,13 @@
   max-width: none;
   left: -20%;
   top: 0;
+  pointer-events: none;
   transform-origin: 50% 65%;
   animation: carmen-breathe 6s ease-in-out infinite;
+}
+.carmen-session-character.is-custom {
+  width: 100%;
+  left: 0;
 }
 .carmen-session-caption {
   position: absolute;
@@ -86,27 +89,21 @@
   animation: carmen-speaking 1s ease-in-out infinite;
 }
 .carmen-session-panel .carmen-session-chat {
-  position: absolute;
-  bottom: max(18px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(740px, calc(100vw - 48px));
-  height: min(280px, 35dvh);
   padding: 0;
-  border-radius: 18px;
-  pointer-events: auto;
-  box-shadow: 0 16px 64px #02091855;
 }
 .carmen-session-chat .cc-talkbar {
-  border-radius: 18px;
   background: rgb(10 21 38 / 96%);
-  backdrop-filter: blur(20px);
 }
 .carmen-session-chat .cc-chat-scroll > p {
   padding-block: 12px;
 }
 .carmen-session-chat .cc-talkbar-row {
-  padding-inline: 12px;
+  padding-inline: 8px;
+  padding-bottom: 8px;
+}
+.carmen-session-chat .cc-composer-accessory button {
+  min-width: 0;
+  height: 36px;
 }
 @keyframes carmen-breathe {
   0%,
@@ -122,39 +119,17 @@
     box-shadow: 0 0 0 5px #a7f5de22;
   }
 }
-@media (max-width: 640px) {
-  .carmen-session-panel .cc-sidecar-header {
-    left: 12px;
-    top: 76px;
-    width: 154px;
-    height: 44px;
+/* Phones: no room for a side column, so the session takes the screen. */
+@media (max-width: 767px) {
+  .carmen-session {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    width: auto;
+    border: 0;
   }
   .carmen-session-video {
-    left: 12px;
-    top: 120px;
-    width: 154px;
-  }
-  .carmen-session-panel .carmen-session-chat {
-    width: calc(100vw - 24px);
-    bottom: max(12px, env(safe-area-inset-bottom));
-    height: min(250px, 34dvh);
-  }
-}
-@media (max-height: 600px) and (min-width: 641px) {
-  .carmen-session-panel .cc-sidecar-header {
-    top: 72px;
-    width: 160px;
-  }
-  .carmen-session-video {
-    top: 120px;
-    width: 160px;
-  }
-  .carmen-session-panel .carmen-session-chat {
-    left: auto;
-    right: 18px;
-    transform: none;
-    width: calc(100vw - 220px);
-    height: 220px;
+    width: 140px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -162,8 +137,4 @@
   .carmen-session-dot {
     animation: none !important;
   }
-}
-.carmen-session-character.is-custom {
-  width: 100%;
-  left: 0;
 }

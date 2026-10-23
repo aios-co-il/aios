@@ -3,15 +3,24 @@ import {
   useBroadcastLists,
   type BroadcastList,
 } from "@/hooks/useBroadcastLists";
-import { useLeadStatuses } from "@/hooks/useLeadStatuses";
+import { useListSyncAutomation } from "@/hooks/useListSyncAutomation";
+import { useUserRole } from "@/hooks/useUserRole";
+import { listKind } from "@/lib/broadcastListKind";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import { ListFileImport } from "@/components/broadcast/ListFileImport";
+import { NewListDialog } from "@/components/broadcast/lists/NewListDialog";
+import { DynamicListDialog } from "@/components/broadcast/lists/DynamicListDialog";
+import { ListAutomationLink } from "@/components/broadcast/lists/ListAutomationLink";
+import { ListRefreshFromFilter } from "@/components/broadcast/lists/ListRefreshFromFilter";
+import { ListMembersTable } from "@/components/broadcast/lists/ListMembersTable";
+import { ListRulesSection } from "@/components/broadcast/lists/ListRulesSection";
+import { ListBadges } from "@/components/broadcast/lists/ListBadges";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +28,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -43,55 +44,30 @@ import {
   Upload,
   Zap,
   Loader2,
-  RefreshCw,
 } from "lucide-react";
 
-const LEAD_SOURCES = [
-  { key: "website", label: "אתר" },
-  { key: "facebook", label: "פייסבוק" },
-  { key: "referral", label: "הפניה" },
-  { key: "paid_ads", label: "מודעות" },
-  { key: "whatsapp", label: "וואטסאפ" },
-  { key: "other", label: "אחר" },
-];
-
 export function BroadcastLists() {
-  const { lists, createList, deleteList } = useBroadcastLists();
-  const [openList, setOpenList] = useState<BroadcastList | null>(null);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    const name = newName.trim() || "רשימה חדשה";
-    const l = await createList.mutateAsync({ name });
-    setNewName("");
-    setCreating(false);
-    setOpenList(l);
+  const { lists, deleteList } = useBroadcastLists();
+  const { deleteSyncAutomation } = useListSyncAutomation();
+  const { isOwner } = useUserRole();
+  const removeList = (l: BroadcastList) => {
+    const syncId: string | undefined = l.source_config?.sync_automation_id;
+    // Only owners may delete automations (RLS); the list delete alone is fine.
+    if (!syncId || !isOwner) return deleteList.mutate(l.id);
+    // The list's own sync automation would only fail once the list is gone.
+    deleteSyncAutomation.mutate(syncId, {
+      onSettled: () => deleteList.mutate(l.id),
+    });
   };
+  const [openList, setOpenList] = useState<BroadcastList | null>(null);
+  const [creating, setCreating] = useState(false);
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
-        {creating ? (
-          <>
-            <Input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="שם הרשימה"
-              className="max-w-xs"
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-            <Button onClick={handleCreate}>צור</Button>
-            <Button variant="ghost" onClick={() => setCreating(false)}>
-              ביטול
-            </Button>
-          </>
-        ) : (
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="ml-1 h-4 w-4" /> רשימה חדשה
-          </Button>
-        )}
+        <Button onClick={() => setCreating(true)}>
+          <Plus className="ml-1 h-4 w-4" /> רשימה חדשה
+        </Button>
       </div>
 
       {lists.isLoading ? (
@@ -119,7 +95,7 @@ export function BroadcastLists() {
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm("למחוק את הרשימה?")) deleteList.mutate(l.id);
+                      if (confirm("למחוק את הרשימה?")) removeList(l);
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -128,28 +104,33 @@ export function BroadcastLists() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Users className="h-4 w-4" /> {l.member_count} נמענים
                 </div>
-                <div className="flex gap-1">
-                  {l.kind === "dynamic" && (
-                    <Badge variant="secondary" className="text-xs">
-                      <RefreshCw className="ml-1 h-3 w-3" />
-                      מסונכרן
-                    </Badge>
-                  )}
-                  {l.source === "google_sheet" && (
-                    <Badge variant="outline" className="text-xs">
-                      Google Sheet
-                    </Badge>
-                  )}
-                </div>
+                <ListBadges list={l} />
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {openList && (
-        <ListDetailDialog list={openList} onClose={() => setOpenList(null)} />
+      {creating && (
+        <NewListDialog
+          onClose={() => setCreating(false)}
+          onCreated={(l) => {
+            setCreating(false);
+            setOpenList(l);
+          }}
+        />
       )}
+
+      {openList &&
+        (openList.source === "crm_filter" &&
+        listKind(openList) === "dynamic" ? (
+          <DynamicListDialog
+            list={openList}
+            onClose={() => setOpenList(null)}
+          />
+        ) : (
+          <ListDetailDialog list={openList} onClose={() => setOpenList(null)} />
+        ))}
     </div>
   );
 }
@@ -161,19 +142,11 @@ function ListDetailDialog({
   list: BroadcastList;
   onClose: () => void;
 }) {
-  const {
-    useMembers,
-    addMembers,
-    removeMember,
-    sheetHeaders,
-    sheetImport,
-    useRules,
-    addRule,
-    deleteRule,
-  } = useBroadcastLists();
-  const { statuses: leadStatuses } = useLeadStatuses();
+  const { useMembers, addMembers, removeMember, sheetHeaders, sheetImport } =
+    useBroadcastLists();
   const members = useMembers(list.id);
-  const rules = useRules(list.id);
+  const syncAutomationId: string | undefined =
+    list.source_config?.sync_automation_id;
 
   // manual add
   const [m, setM] = useState({ name: "", phone: "", email: "" });
@@ -185,23 +158,24 @@ function ListDetailDialog({
   const [map, setMap] = useState<Record<string, string>>({});
   const [autoSync, setAutoSync] = useState(false);
   const [loadingHeaders, setLoadingHeaders] = useState(false);
-  // rule
-  const [ruleStatuses, setRuleStatuses] = useState<string[]>([]);
-  const [ruleSources, setRuleSources] = useState<string[]>([]);
+  const onAddError = (e: unknown) =>
+    toast.error("ההוספה נכשלה: " + errorMessage(e));
 
-  const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
-    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-
-  const addManual = async () => {
+  const addManual = () => {
     if (!m.phone && !m.email) {
       toast.error("צריך טלפון או אימייל");
       return;
     }
-    await addMembers.mutateAsync({ listId: list.id, rows: [m], via: "manual" });
-    setM({ name: "", phone: "", email: "" });
+    addMembers.mutate(
+      { listId: list.id, rows: [m], via: "manual" },
+      {
+        onSuccess: () => setM({ name: "", phone: "", email: "" }),
+        onError: onAddError,
+      },
+    );
   };
 
-  const importCsv = async () => {
+  const importCsv = () => {
     const rows = csv
       .split("\n")
       .map((line) => {
@@ -213,13 +187,16 @@ function ListDetailDialog({
       toast.error("לא נמצאו שורות תקינות");
       return;
     }
-    const n = await addMembers.mutateAsync({
-      listId: list.id,
-      rows,
-      via: "csv",
-    });
-    setCsv("");
-    toast.success(`יובאו ${n} אנשי קשר`);
+    addMembers.mutate(
+      { listId: list.id, rows, via: "csv" },
+      {
+        onSuccess: (n) => {
+          setCsv("");
+          toast.success(`יובאו ${n} אנשי קשר`);
+        },
+        onError: onAddError,
+      },
+    );
   };
 
   const loadHeaders = async () => {
@@ -238,21 +215,18 @@ function ListDetailDialog({
     }
   };
 
-  const runSheetImport = async () => {
-    try {
-      const res = await sheetImport.mutateAsync({
-        listId: list.id,
-        sheetId: sheetUrl.trim(),
-        fieldMap: map,
-        autoSync,
-      });
-      toast.success(`סונכרנו ${res.total} אנשי קשר מהגיליון`);
-      setHeaders(null);
-      setSheetUrl("");
-    } catch (e: any) {
-      toast.error("שגיאת ייבוא: " + (e?.message || ""));
-    }
-  };
+  const runSheetImport = () =>
+    sheetImport.mutate(
+      { listId: list.id, sheetId: sheetUrl.trim(), fieldMap: map, autoSync },
+      {
+        onSuccess: (res) => {
+          toast.success(`סונכרנו ${res.total} אנשי קשר מהגיליון`);
+          setHeaders(null);
+          setSheetUrl("");
+        },
+        onError: (e) => toast.error("שגיאת ייבוא: " + errorMessage(e)),
+      },
+    );
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -281,6 +255,12 @@ function ListDetailDialog({
 
           {/* MEMBERS */}
           <TabsContent value="members" className="space-y-3">
+            {syncAutomationId && (
+              <ListAutomationLink automationId={syncAutomationId} />
+            )}
+            {list.source === "crm_filter" && (
+              <ListRefreshFromFilter listId={list.id} />
+            )}
             <div className="flex flex-wrap gap-2">
               <Input
                 placeholder="שם"
@@ -304,56 +284,15 @@ function ListDetailDialog({
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <div className="max-h-72 overflow-y-auto rounded border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">שם</TableHead>
-                    <TableHead className="text-right">טלפון</TableHead>
-                    <TableHead className="text-right">אימייל</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(members.data || []).map((mem) => (
-                    <TableRow key={mem.id}>
-                      <TableCell>{mem.name || "—"}</TableCell>
-                      <TableCell dir="ltr" className="text-right">
-                        {mem.phone || "—"}
-                      </TableCell>
-                      <TableCell dir="ltr" className="text-right">
-                        {mem.email || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            removeMember.mutate({ id: mem.id, listId: list.id })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {(members.data || []).length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        className="text-center text-muted-foreground py-6"
-                      >
-                        אין חברים ברשימה
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <ListMembersTable
+              members={members.data || []}
+              onRemove={(id) => removeMember.mutate({ id, listId: list.id })}
+            />
           </TabsContent>
 
           {/* IMPORT */}
           <TabsContent value="import" className="space-y-5">
+            <ListFileImport listId={list.id} />
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
                 <Upload className="h-4 w-4" />
@@ -450,94 +389,7 @@ function ListDetailDialog({
 
           {/* RULES */}
           <TabsContent value="rules" className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              הוסף אוטומטית לרשימה כל ליד חדש שעונה לתנאים:
-            </p>
-            <div className="rounded-lg border p-3 space-y-3">
-              <div>
-                <Label className="mb-1 block text-xs">
-                  סטטוס ליד (ריק = כל הסטטוסים)
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {(leadStatuses || []).map((s: any) => (
-                    <button
-                      key={s.status_key}
-                      type="button"
-                      onClick={() =>
-                        toggle(ruleStatuses, s.status_key, setRuleStatuses)
-                      }
-                      className={`rounded-full border px-2 py-0.5 text-xs ${ruleStatuses.includes(s.status_key) ? "bg-primary text-primary-foreground" : ""}`}
-                    >
-                      {s.label || s.status_key}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs">
-                  מקור (ריק = כל המקורות)
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {LEAD_SOURCES.map((s) => (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => toggle(ruleSources, s.key, setRuleSources)}
-                      className={`rounded-full border px-2 py-0.5 text-xs ${ruleSources.includes(s.key) ? "bg-primary text-primary-foreground" : ""}`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  await addRule.mutateAsync({
-                    listId: list.id,
-                    filter: { statusKeys: ruleStatuses, sources: ruleSources },
-                  });
-                  setRuleStatuses([]);
-                  setRuleSources([]);
-                  toast.success("כלל נוסף");
-                }}
-              >
-                <Plus className="ml-1 h-4 w-4" />
-                הוסף כלל
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {(rules.data || []).map((r) => (
-                <div
-                  key={r.id}
-                  className="flex items-center justify-between rounded border p-2 text-sm"
-                >
-                  <span>
-                    ליד חדש
-                    {r.filter?.statusKeys?.length
-                      ? ` · סטטוס: ${r.filter.statusKeys.join(", ")}`
-                      : ""}
-                    {r.filter?.sources?.length
-                      ? ` · מקור: ${r.filter.sources.join(", ")}`
-                      : " · כל הלידים"}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      deleteRule.mutate({ id: r.id, listId: list.id })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-              {(rules.data || []).length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  אין כללים פעילים.
-                </p>
-              )}
-            </div>
+            <ListRulesSection listId={list.id} />
           </TabsContent>
         </Tabs>
       </DialogContent>

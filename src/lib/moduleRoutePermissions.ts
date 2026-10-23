@@ -69,6 +69,7 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, ModulePermission> = {
   "manus-settings": "lead_integrations",
   "telephony-settings": "lead_integrations",
   "maskyoo-settings": "lead_integrations",
+  "pbx-settings": "lead_integrations",
   "wordpress-settings": "integrations",
   "unified-settings": "lead_integrations",
 };

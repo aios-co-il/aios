@@ -2,18 +2,26 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { ListKind } from "@/lib/broadcastListKind";
+import { requireTenantId } from "@/lib/requireTenantId";
+import { normalizePhone } from "../../supabase/functions/_shared/broadcast/template/template-vars.ts";
 
 export interface BroadcastList {
   id: string;
   tenant_id: string;
   name: string;
   description: string | null;
-  kind: "static" | "dynamic";
+  /** Read through listKind(). */
+  kind: ListKind;
   source: "manual" | "csv" | "google_sheet" | "crm_filter";
+  /** crm_filter lists: the AudienceFilter (source leads | clients). */
   source_config: any;
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
   last_sync_status: string | null;
+  /** Synced lists: the last database sync failure (cleared on success). */
+  last_sync_error: string | null;
+  last_sync_error_at: string | null;
   member_count: number;
   created_at: string;
 }
@@ -27,6 +35,23 @@ export interface ListMember {
   phone: string | null;
   email: string | null;
   added_via: string;
+  custom_fields?: Record<string, string> | null;
+}
+
+export interface NewMemberRow {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  custom_fields?: Record<string, string>;
+}
+
+export interface ListPreview {
+  success: boolean;
+  total: number;
+  withPhone: number;
+  withEmail: number;
+  added?: number;
+  sample: { name: string | null; phone: string | null; email: string | null }[];
 }
 
 export interface ListRule {
@@ -56,28 +81,18 @@ export function useBroadcastLists() {
     },
   });
 
-  const recomputeCount = async (listId: string) => {
-    const { count } = await supabase
-      .from("broadcast_list_members")
-      .select("id", { count: "exact", head: true })
-      .eq("list_id", listId);
-    await supabase
-      .from("broadcast_lists")
-      .update({ member_count: count ?? 0 })
-      .eq("id", listId);
-  };
-
   const createList = useMutation({
     mutationFn: async (payload: Partial<BroadcastList>) => {
       const { data, error } = await supabase
         .from("broadcast_lists")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: requireTenantId(tenantId),
           created_by: userId,
           name: payload.name ?? "רשימה חדשה",
           description: payload.description ?? null,
           kind: payload.kind ?? "static",
           source: payload.source ?? "manual",
+          source_config: payload.source_config ?? {},
         })
         .select()
         .single();
@@ -131,7 +146,7 @@ export function useBroadcastLists() {
       },
     });
 
-  /** Insert rows (manual or parsed CSV). rows: {name?, phone?, email?}[] */
+  /** Upsert rows (manual, pasted CSV or uploaded file). member_count is kept by a DB trigger. */
   const addMembers = useMutation({
     mutationFn: async ({
       listId,
@@ -139,40 +154,32 @@ export function useBroadcastLists() {
       via,
     }: {
       listId: string;
-      rows: any[];
+      rows: NewMemberRow[];
       via: string;
     }) => {
-      const norm = (p?: string) => {
-        if (!p) return null;
-        let d = String(p).replace(/[^0-9]/g, "");
-        if (!d) return null;
-        if (d.startsWith("00")) d = d.slice(2);
-        if (d.startsWith("972")) return d;
-        if (d.startsWith("0")) return "972" + d.slice(1);
-        return d.length >= 9 ? "972" + d : d;
-      };
       const payload = rows
         .map((r) => ({
-          list_id: listId,
-          tenant_id: tenantId,
           entity_type: "manual",
           name: r.name?.trim() || null,
-          phone: norm(r.phone),
+          phone: normalizePhone(r.phone),
           email: r.email?.trim()?.toLowerCase() || null,
-          added_via: via,
+          custom_fields: r.custom_fields || {},
         }))
         .filter((r) => r.phone || r.email);
+      let added = 0;
       for (let i = 0; i < payload.length; i += 500) {
-        const { error } = await supabase
-          .from("broadcast_list_members")
-          .upsert(payload.slice(i, i + 500), {
-            onConflict: "list_id,phone",
-            ignoreDuplicates: true,
-          });
-        if (error && !String(error.message).includes("duplicate")) throw error;
+        const { data, error } = await supabase.rpc(
+          "broadcast_list_add_members",
+          {
+            p_list_id: listId,
+            p_rows: payload.slice(i, i + 500),
+            p_added_via: via,
+          },
+        );
+        if (error) throw error;
+        added += Number(data || 0);
       }
-      await recomputeCount(listId);
-      return payload.length;
+      return added;
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({
@@ -189,7 +196,6 @@ export function useBroadcastLists() {
         .delete()
         .eq("id", id);
       if (error) throw error;
-      await recomputeCount(listId);
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({

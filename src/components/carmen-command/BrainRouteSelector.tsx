@@ -1,10 +1,4 @@
-import {
-  Brain,
-  ChevronDown,
-  ExternalLink,
-  Landmark,
-  Loader2,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { BrainRoute, BrainRouteType } from "@/lib/agentChannelRouting";
 import {
   FALLBACK_BRAIN_ROUTES,
@@ -19,6 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RouteIcon } from "./BrainRouteIcon";
+import { BrainRouteNote } from "./BrainRouteNote";
+import { statusLabel } from "./brainRouteStatus";
 
 interface BrainRouteSelectorProps {
   routes: BrainRoute[];
@@ -28,26 +25,8 @@ interface BrainRouteSelectorProps {
   status?: string | null;
   externalUrl?: string | null;
   className?: string;
-}
-
-function RouteIcon({ type }: { type: BrainRouteType }) {
-  if (type === "parliament")
-    return (
-      <Landmark className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
-    );
-  if (type === "direct_channel")
-    return (
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
-    );
-  return <Brain className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />;
-}
-
-function statusLabel(status?: string | null): string | null {
-  if (status === "waiting_external") return "ממתין לערוץ";
-  if (status === "debating") return "פרלמנט פעיל";
-  if (status === "streaming") return "זורם";
-  if (status === "error") return "שגיאה";
-  return null;
+  /** One-line trigger without the note underneath; the note moves to the tooltip. */
+  compact?: boolean;
 }
 
 export function BrainRouteSelector({
@@ -58,6 +37,7 @@ export function BrainRouteSelector({
   status,
   externalUrl,
   className = "",
+  compact = false,
 }: BrainRouteSelectorProps) {
   const list = routes.length ? routes : FALLBACK_BRAIN_ROUTES;
   const current =
@@ -66,20 +46,29 @@ export function BrainRouteSelector({
     (acc[r.route_type] ||= []).push(r);
     return acc;
   }, {});
-  const waiting = status === "waiting_external" || status === "debating";
   const groups = Object.keys(grouped) as BrainRouteType[];
 
   return (
     <div
-      className={`flex min-w-0 max-w-[16rem] flex-col gap-0.5 ${className}`}
+      className={`flex min-w-0 ${compact ? "" : "max-w-[16rem]"} flex-col gap-0.5 ${className}`}
       dir="rtl"
     >
-      <DropdownMenu>
+      <DropdownMenu dir="rtl">
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
             type="button"
-            title="בורר מוח — משנה את נתיב השליחה"
-            className="flex h-11 w-full min-w-[11rem] items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50"
+            title={
+              compact
+                ? [
+                    "בורר מוח — משנה את נתיב השליחה",
+                    billingNoteForRoute(current?.provider),
+                    statusLabel(status),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "בורר מוח — משנה את נתיב השליחה"
+            }
+            className={`flex ${compact ? "h-9 min-w-0" : "h-11 min-w-[11rem]"} w-full items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50`}
           >
             <RouteIcon type={current?.route_type || "internal"} />
             <span className="min-w-0 flex-1 truncate text-right">
@@ -90,7 +79,9 @@ export function BrainRouteSelector({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="cc-root z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
+          side={compact ? "top" : "bottom"}
+          collisionPadding={8}
+          className="cc-root cc-menu z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
         >
           {groups.map((type, i) => (
             <div key={type}>
@@ -114,30 +105,12 @@ export function BrainRouteSelector({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {(waiting || externalUrl || billingNoteForRoute(current?.provider)) && (
-        <p className="px-1 text-[10px] leading-snug text-[var(--cc-text-dim)]">
-          {billingNoteForRoute(current?.provider)}
-          {(waiting || externalUrl) && billingNoteForRoute(current?.provider)
-            ? " · "
-            : null}
-          {statusLabel(status)}
-          {waiting && (
-            <Loader2 className="mr-1 inline h-2.5 w-2.5 animate-spin" />
-          )}
-          {externalUrl && (
-            <>
-              {" · "}
-              <a
-                href={externalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[var(--cc-accent)] hover:underline"
-              >
-                סשן
-              </a>
-            </>
-          )}
-        </p>
+      {!compact && (
+        <BrainRouteNote
+          provider={current?.provider}
+          status={status}
+          externalUrl={externalUrl}
+        />
       )}
     </div>
   );

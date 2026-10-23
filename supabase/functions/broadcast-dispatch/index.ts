@@ -10,6 +10,16 @@
 //   - image → manus: reuse send-manus-wa-file ; green_api: call Green API sendFileByUrl
 //             directly (the green file function requires a real user, not service role)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
+import {
+  buildTemplateVars,
+  renderTemplate,
+  type TemplateVars,
+} from "../_shared/broadcast/template/template-vars.ts";
+import {
+  attachmentUrlPrefix,
+  emailAttachmentsForResend,
+} from "../_shared/broadcast/template/email-attachments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,25 +42,15 @@ function jitter(minS: number, maxS: number, seed: number): number {
   return Math.round((lo + frac * (hi - lo)) * 1000);
 }
 
-function applyVars(template: string, r: any): string {
-  if (!template) return "";
-  return template
-    .replace(/\{\{\s*contact_name\s*\}\}/g, r.contact_name || "")
-    .replace(/\{\{\s*name\s*\}\}/g, r.contact_name || "")
-    .replace(/\{\{\s*phone\s*\}\}/g, r.phone || "");
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-// Plain message body → simple, safe HTML (escape + newlines to <br>).
-function textToHtml(body: string): string {
-  return `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222" dir="rtl">${escapeHtml(body).replace(/\n/g, "<br/>")}</div>`;
+// Merge fields come from the recipient's vars snapshot; older rows (before
+// vars existed) fall back to name / phone / email columns.
+function recipientVars(r: any): TemplateVars {
+  const base = buildTemplateVars({
+    contact_name: r.contact_name,
+    email: r.email,
+    phone: r.entity_type === "wa_group" ? null : r.phone,
+  });
+  return { ...base, ...(r.vars && typeof r.vars === "object" ? r.vars : {}) };
 }
 
 async function invokeEdgeFn(name: string, payload: any) {
@@ -129,22 +129,28 @@ async function sendOne(
   b: any,
   r: any,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const body = applyVars(b.body_text || "", r);
+  const vars = recipientVars(r);
+  const body = renderTemplate(b.body_text || "", vars);
 
   // ── Email (Resend) ──
   if (b.channel === "email") {
     if (!r.email) return { ok: false, error: "missing_email" };
     const unsubUrl = `${SB_URL}/functions/v1/broadcast-unsubscribe?r=${r.id}`;
-    const html =
-      `${textToHtml(body)}` +
-      `<hr style="margin-top:24px;border:none;border-top:1px solid #eee"/>` +
-      `<p style="font-family:system-ui,Arial,sans-serif;font-size:12px;color:#999" dir="rtl">` +
-      `אם אינך מעוניין/ת לקבל דיוורים, ניתן <a href="${unsubUrl}">להסיר את עצמך מהרשימה</a>.</p>`;
+    const { html, text } = buildEmailContent({
+      bodyHtml: b.body_html,
+      bodyText: b.body_text,
+      htmlMode: b.html_mode,
+      vars,
+      footerHtml:
+        `<hr style="margin-top:24px;border:none;border-top:1px solid #eee"/>` +
+        `<p style="font-family:system-ui,Arial,sans-serif;font-size:12px;color:#999" dir="rtl">` +
+        `אם אינך מעוניין/ת לקבל דיוורים, ניתן <a href="${unsubUrl}">להסיר את עצמך מהרשימה</a>.</p>`,
+    });
     const res = await invokeEdgeFn("send-resend-email", {
       to: r.email,
-      subject: b.subject || b.name,
+      subject: renderTemplate(b.subject || b.name, vars),
       html,
-      text: body,
+      text,
       fromEmail: b.from_email || undefined,
       fromName: b.from_name || undefined,
       replyTo: b.reply_to || undefined,
@@ -153,6 +159,10 @@ async function sendOne(
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
+      attachments: emailAttachmentsForResend(
+        b.attachments,
+        attachmentUrlPrefix(SB_URL),
+      ),
     });
     return res.ok
       ? { ok: true, messageId: res.json?.id }
@@ -319,15 +329,38 @@ Deno.serve(async (req) => {
       .eq("status", "scheduled")
       .lte("scheduled_at", nowIso);
 
-    // 2) Pull active sending broadcasts (cap a few per invocation)
-    const { data: sending } = await db
+    // 2) Finish one-off broadcasts that have nothing left to send. Automation
+    //    streams (no audience source) stay 'sending' and wait for recipients.
+    const { data: maybeDone } = await db
       .from("broadcasts")
-      .select("*")
+      .select("id, origin, audience_filter")
       .eq("status", "sending")
       .order("started_at", { ascending: true })
-      .limit(5);
+      .limit(200);
+    for (const b of maybeDone || []) {
+      if (b.origin === "automation" && !b.audience_filter?.source) continue;
+      const { count } = await db
+        .from("broadcast_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("broadcast_id", b.id)
+        .eq("status", "pending");
+      if ((count ?? 0) === 0)
+        await db
+          .from("broadcasts")
+          .update({ status: "sent", completed_at: nowIso })
+          .eq("id", b.id);
+    }
+
+    // 3) Work broadcasts that still have pending recipients. Selecting only
+    //    those keeps idle automation streams from filling the window.
+    const { data: sending, error: candidatesError } = await db.rpc(
+      "broadcast_dispatch_candidates",
+      { p_limit: 5 },
+    );
+    if (candidatesError) throw candidatesError;
 
     const summary: any[] = [];
+    let worked = 0;
 
     for (const b of sending || []) {
       if (Date.now() - startedAt > MAX_RUN_MS) break;
@@ -348,6 +381,8 @@ Deno.serve(async (req) => {
         .eq("status", "pending");
 
       if ((pendingCount ?? 0) === 0) {
+        // Automation streams never complete; they wait for the next recipient.
+        if (b.origin === "automation" && !b.audience_filter?.source) continue;
         await db
           .from("broadcasts")
           .update({ status: "sent", completed_at: nowIso })
@@ -359,6 +394,7 @@ Deno.serve(async (req) => {
         summary.push({ id: b.id, capped: true });
         continue;
       }
+      worked++;
 
       let sentThisRun = 0;
       let idx = 0;
@@ -434,14 +470,22 @@ Deno.serve(async (req) => {
         .eq("broadcast_id", b.id)
         .eq("status", "pending");
 
+      // Merge: delivered / opened / clicked are owned by resend-webhook.
+      const { data: fresh } = await db
+        .from("broadcasts")
+        .select("stats")
+        .eq("id", b.id)
+        .maybeSingle();
       const update: any = {
         stats: {
+          ...(fresh?.stats || {}),
           total: totalCnt ?? 0,
           sent: sentCnt ?? 0,
           failed: failCnt ?? 0,
         },
       };
-      if ((stillPending ?? 0) === 0) {
+      const isStream = b.origin === "automation" && !b.audience_filter?.source;
+      if ((stillPending ?? 0) === 0 && !isStream) {
         update.status = "sent";
         update.completed_at = new Date().toISOString();
       }

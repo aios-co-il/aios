@@ -1,0 +1,133 @@
+// Writes an incoming PBX event to call_logs.
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
+import { WebhookError } from "./errors.ts";
+import type { CallLogRow, Owner } from "./match.ts";
+import { mapCallStatus } from "./status.ts";
+
+/** A PBX link (url) or a file we stored in call-recordings (path). */
+export type Recording = { url: string | null; path: string | null };
+export type SavedCall = Owner & { callLogId: string };
+
+export async function updateCall(
+  sb: SupabaseClient,
+  existing: CallLogRow,
+  event: PbxEvent,
+  owner: Owner,
+  recording: Recording,
+): Promise<SavedCall> {
+  const update: Record<string, unknown> = {
+    status: resolveStatus(event, recording, existing),
+    ...recordingColumns(event, recording),
+  };
+  if (!existing.lead_id && owner.leadId) update.lead_id = owner.leadId;
+  if (!existing.client_id && owner.clientId) update.client_id = owner.clientId;
+  if (event.duration !== null) update.duration = event.duration;
+  const { error } = await sb
+    .from("call_logs")
+    .update(update)
+    .eq("id", existing.id);
+  if (error) throw error;
+  return {
+    callLogId: existing.id,
+    leadId: existing.lead_id ?? owner.leadId,
+    clientId: existing.client_id ?? owner.clientId,
+  };
+}
+
+export async function insertCall(
+  sb: SupabaseClient,
+  tenantId: string,
+  settings: PbxSettings,
+  event: PbxEvent,
+  owner: Owner,
+  recording: Recording,
+): Promise<SavedCall> {
+  const callerUserId = await resolveCallerUser(
+    sb,
+    tenantId,
+    settings,
+    event.extension,
+  );
+  const { data, error } = await sb
+    .from("call_logs")
+    .insert({
+      tenant_id: tenantId,
+      lead_id: owner.leadId,
+      client_id: owner.clientId,
+      caller_user_id: callerUserId,
+      from_number: event.caller,
+      to_number: event.called || event.caller || "unknown",
+      status: resolveStatus(event, recording, null),
+      duration: event.duration ?? 0,
+      provider: "pbx",
+      provider_call_id: event.callId,
+      notes: buildNotes(event, settings),
+      ...recordingColumns(event, recording),
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { callLogId: data.id, ...owner };
+}
+
+function hasRecording(recording: Recording): boolean {
+  return !!(recording.url || recording.path);
+}
+
+function recordingColumns(event: PbxEvent, recording: Recording) {
+  if (!hasRecording(recording)) return {};
+  return {
+    recording_url: recording.url,
+    recording_path: recording.path,
+    ...(event.duration !== null && { recording_duration: event.duration }),
+  };
+}
+
+function resolveStatus(
+  event: PbxEvent,
+  recording: Recording,
+  existing: CallLogRow | null,
+): string {
+  if (event.status) return mapCallStatus(event.status);
+  if (hasRecording(recording)) return "completed";
+  return existing?.status ?? "completed";
+}
+
+/** The agent on the extension, else the tenant's first user
+ *  (call_logs.caller_user_id is required). */
+async function resolveCallerUser(
+  sb: SupabaseClient,
+  tenantId: string,
+  settings: PbxSettings,
+  extension: string | null,
+): Promise<string> {
+  const mapped = extension
+    ? (settings.extensions || []).find((e) => e.extension === extension)
+    : undefined;
+  if (mapped?.user_id) return mapped.user_id;
+  const { data } = await sb
+    .from("tenant_users")
+    .select("user_id")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.user_id) throw new WebhookError("No tenant user found", 422);
+  return data.user_id;
+}
+
+function buildNotes(event: PbxEvent, settings: PbxSettings): string | null {
+  const direction =
+    event.direction === "inbound"
+      ? "שיחה נכנסת"
+      : event.direction === "outbound"
+        ? "שיחה יוצאת"
+        : null;
+  const parts = [
+    direction,
+    event.extension ? `שלוחה ${event.extension}` : null,
+    settings.name ? `מרכזיה: ${settings.name}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" | ") : null;
+}

@@ -3,6 +3,8 @@
 // Resume: { run_id, tenant_id }  (called by resume-agent-run after approval)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
+import { requireAuth } from "../_shared/security.ts";
+import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -363,6 +365,16 @@ Deno.serve(async (req) => {
       if (!body.agent_id || !body.goal || !body.tenant_id) {
         return jsonResponse({ error: "missing agent_id/goal/tenant_id" }, 400);
       }
+      // Per-user Carmen permissions for a signed-in caller starting a run.
+      const denied = await internalBrainDenied(
+        supabase,
+        await requireAuth(req),
+        {
+          tenantId: body.tenant_id,
+          agentId: body.agent_id,
+        },
+      );
+      if (denied) return denied;
       const { data, error } = await supabase
         .from("agent_runs")
         .insert({

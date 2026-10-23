@@ -412,6 +412,7 @@ export default function EditTaskDialog({
       if (error) throw error;
       if (userId) {
         void notifyTaskUpdateAdded({
+          tenantId: ctTenantId,
           taskId: task.id,
           userId,
           updateContent: content,
