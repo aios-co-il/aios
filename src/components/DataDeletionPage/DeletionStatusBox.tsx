@@ -1,5 +1,5 @@
-import { PRIVACY_EMAIL } from "./constants";
 import { dataDeletionStatusLabel } from "./dataDeletionStatus";
+import { PrivacyEmailLink } from "./PrivacyEmailLink";
 import { useDeletionStatus, type DeletionLookup } from "./useDeletionStatus";
 
 function LookupResult({ result }: { result: DeletionLookup }) {
@@ -7,7 +7,7 @@ function LookupResult({ result }: { result: DeletionLookup }) {
     return (
       <p className="text-destructive">
         לא נמצאה בקשה עם קוד זה. אם קיבלת את הקוד מ-Facebook, פנה אלינו ל-
-        {PRIVACY_EMAIL}.
+        <PrivacyEmailLink />.
       </p>
     );
   }
@@ -38,7 +38,11 @@ export function DeletionStatusBox({ code }: { code: string }) {
   const { data, isPending } = useDeletionStatus(code);
 
   return (
-    <div className="bg-muted/50 p-4 rounded-lg border">
+    <div
+      className="bg-muted/50 p-4 rounded-lg border"
+      role="status"
+      aria-live="polite"
+    >
       <p className="mb-2">
         <strong>סטטוס בקשת מחיקה</strong>
       </p>

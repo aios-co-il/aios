@@ -14,5 +14,10 @@ export const DATA_DELETION_STATUSES = Object.keys(
 ) as DataDeletionStatus[];
 
 export function dataDeletionStatusLabel(status: string): string {
-  return DATA_DELETION_STATUS_LABELS[status as DataDeletionStatus] ?? status;
+  return Object.prototype.hasOwnProperty.call(
+    DATA_DELETION_STATUS_LABELS,
+    status,
+  )
+    ? DATA_DELETION_STATUS_LABELS[status as DataDeletionStatus]
+    : status;
 }

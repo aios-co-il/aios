@@ -16,7 +16,7 @@ const STATUS_PAGE = "https://example.test/data-deletion";
 const FUNCTION_URL = "https://example.test/functions/v1/meta-data-deletion";
 
 const STORED: DeletionRequestStatus = {
-  confirmation_code: "abc123",
+  confirmation_code: "0123456789abcdef",
   status: "received",
   created_at: "2026-10-22T10:00:00.000Z",
 };
@@ -77,13 +77,19 @@ function postJson(body: unknown) {
 
 describe("handleMetaDataDeletion: status lookup (GET)", () => {
   test("returns the stored row for a known code", async () => {
-    const res = await handleMetaDataDeletion(get("?code=abc123"), deps());
+    const res = await handleMetaDataDeletion(
+      get("?code=0123456789abcdef"),
+      deps(),
+    );
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), STORED);
   });
 
   test("trims the code before looking it up", async () => {
-    const res = await handleMetaDataDeletion(get("?code=%20abc123%20"), deps());
+    const res = await handleMetaDataDeletion(
+      get("?code=%200123456789abcdef%20"),
+      deps(),
+    );
     assert.equal(res.status, 200);
   });
 
@@ -94,9 +100,30 @@ describe("handleMetaDataDeletion: status lookup (GET)", () => {
   });
 
   test("returns 404 for an unknown code", async () => {
-    const res = await handleMetaDataDeletion(get("?code=nope"), deps());
+    const res = await handleMetaDataDeletion(
+      get("?code=fedcba9876543210"),
+      deps(),
+    );
     assert.equal(res.status, 404);
     assert.deepEqual(await res.json(), { error: "Unknown confirmation code" });
+  });
+
+  test("returns 404 for a malformed code without querying the store", async () => {
+    let queried = false;
+    const store = fakeStore({
+      async findByCode() {
+        queried = true;
+        return null;
+      },
+    });
+    for (const code of ["nope", "0123456789ABCDEF", "x".repeat(5000)]) {
+      const res = await handleMetaDataDeletion(
+        get(`?code=${code}`),
+        deps({ store }),
+      );
+      assert.equal(res.status, 404);
+    }
+    assert.equal(queried, false);
   });
 
   test("returns a fixed 500 when the store fails", async () => {
@@ -106,7 +133,7 @@ describe("handleMetaDataDeletion: status lookup (GET)", () => {
       },
     });
     const res = await handleMetaDataDeletion(
-      get("?code=abc123"),
+      get("?code=0123456789abcdef"),
       deps({ store }),
     );
     assert.equal(res.status, 500);
@@ -152,12 +179,28 @@ describe("handleMetaDataDeletion: Meta callback (POST)", () => {
       postForm(await sign(withoutIssuedAt)),
       deps({ store }),
     );
+    for (const issued_at of ["soon", 1e15, -5, true]) {
+      await handleMetaDataDeletion(
+        postForm(await sign({ ...PAYLOAD, issued_at })),
+        deps({ store }),
+      );
+    }
+    assert.equal(store.inserted.length, 5);
+    for (const row of store.inserted) assert.equal(row.issued_at, null);
+  });
+
+  test("accepts a numeric user_id and ignores a non-scalar one", async () => {
+    const store = fakeStore();
     await handleMetaDataDeletion(
-      postForm(await sign({ ...PAYLOAD, issued_at: "soon" })),
+      postForm(await sign({ ...PAYLOAD, user_id: 1234567890 })),
       deps({ store }),
     );
-    assert.equal(store.inserted[0]?.issued_at, null);
-    assert.equal(store.inserted[1]?.issued_at, null);
+    await handleMetaDataDeletion(
+      postForm(await sign({ ...PAYLOAD, user_id: { id: "x" } })),
+      deps({ store }),
+    );
+    assert.equal(store.inserted[0]?.fb_user_id, "1234567890");
+    assert.equal(store.inserted[1]?.fb_user_id, null);
   });
 
   test("accepts a JSON body too", async () => {

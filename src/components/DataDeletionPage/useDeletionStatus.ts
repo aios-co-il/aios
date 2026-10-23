@@ -37,5 +37,6 @@ export function useDeletionStatus(code: string) {
       return { kind: "found", status: data };
     },
     retry: false,
+    refetchOnWindowFocus: false,
   });
 }

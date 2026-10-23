@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSearchParams } from "react-router-dom";
 import { DeletionStatusBox } from "@/components/DataDeletionPage/DeletionStatusBox";
 import {
@@ -15,11 +15,13 @@ export default function DataDeletion() {
   const code = searchParams.get("code")?.trim() || null;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
+    <main className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="container max-w-4xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl">מחיקת מידע</CardTitle>
+            <h1 className="text-3xl font-semibold leading-none tracking-tight">
+              מחיקת מידע
+            </h1>
             <p className="text-muted-foreground mt-2">
               דף זה מסביר כיצד לבקש מחיקה של המידע ש-AfterLead שומרת עבורך
               מאינטגרציות Meta (Facebook, Instagram) ו-Google, ומה קורה לאחר
@@ -41,6 +43,6 @@ export default function DataDeletion() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }

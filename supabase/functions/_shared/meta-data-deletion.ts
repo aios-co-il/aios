@@ -18,11 +18,24 @@ export interface NewDeletionRequest {
   issued_at: string | null;
 }
 
-/** Converts Meta's `issued_at` (unix seconds) to ISO; null when absent or invalid. */
+export const CONFIRMATION_CODE_PATTERN = /^[0-9a-f]{16}$/;
+
+// Unix seconds between 2000-01-01 and 2100-01-01.
+const MIN_ISSUED_AT = 946684800;
+const MAX_ISSUED_AT = 4102444800;
+
+/** Converts Meta's `issued_at` (unix seconds) to ISO; null when absent or out of range. */
 export function issuedAtToIso(value: unknown): string | null {
-  const seconds = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  return new Date(seconds * 1000).toISOString();
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (value < MIN_ISSUED_AT || value > MAX_ISSUED_AT) return null;
+  return new Date(value * 1000).toISOString();
+}
+
+/** Meta sends `user_id` as a string or number; anything else is not an id. */
+export function fbUserIdFrom(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
 }
 
 /** Persistence for meta_data_deletion_requests; methods throw on DB errors. */
@@ -82,6 +95,9 @@ export async function handleStatusLookup(
 ): Promise<Response> {
   const code = new URL(req.url).searchParams.get("code")?.trim();
   if (!code) return json({ error: "code is required" }, 400);
+  if (!CONFIRMATION_CODE_PATTERN.test(code)) {
+    return json({ error: "Unknown confirmation code" }, 404);
+  }
 
   const row = await store.findByCode(code);
   if (!row) return json({ error: "Unknown confirmation code" }, 404);
@@ -110,7 +126,7 @@ export async function handleMetaDeleteRequest(
 
   const confirmationCode = newConfirmationCode();
   await deps.store.insert({
-    fb_user_id: payload.user_id != null ? String(payload.user_id) : null,
+    fb_user_id: fbUserIdFrom(payload.user_id),
     confirmation_code: confirmationCode,
     status: "received",
     issued_at: issuedAtToIso(payload.issued_at),
