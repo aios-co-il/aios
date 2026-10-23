@@ -74,7 +74,7 @@ export function classifyCarmenTask(
     deterministicAvailable: kind === "deterministic" && !!context.hasAvailableDeterministicExecutor,
     needsToolCalling: !!best?.tools || action,
     needsVision: !!context.needsVision || !!context.hasAttachments,
-    containsClientData: !!context.containsClientData,
+    containsClientData: context.containsClientData !== false,
     requiresActionApproval: !!context.requiresActionApproval || action,
   };
 }
