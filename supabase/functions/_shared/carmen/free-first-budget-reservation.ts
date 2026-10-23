@@ -39,7 +39,7 @@ export async function withReservedBudget<T>(
     }
     await store.settle({
       reservationId: reserved.lease.reservationId,
-      actualCostUsd: Math.min(outcome.actualCostUsd, reserved.lease.reservedUsd),
+      actualCostUsd: outcome.actualCostUsd,
     });
     return { ok: true, value: outcome.result };
   } catch (error) {
