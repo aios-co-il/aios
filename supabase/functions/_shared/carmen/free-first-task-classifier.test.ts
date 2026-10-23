@@ -32,3 +32,9 @@ test("privacy tag derives only from trusted context", () => {
 test("attachments require vision, not text-only fallback", () => {
   assert.equal(classifyCarmenTask("מה יש בתמונה?",{hasAttachments:true}).needsVision,true);
 });
+
+
+test("unspecified data sensitivity fails closed", () => {
+  assert.equal(classifyCarmenTask("היי").containsClientData, true);
+  assert.equal(classifyCarmenTask("היי", { containsClientData: false }).containsClientData, false);
+});
