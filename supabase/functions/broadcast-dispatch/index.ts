@@ -20,6 +20,7 @@ import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
 } from "../_shared/broadcast/template/email-attachments.ts";
+import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
 import {
   unsubscribeUrl,
   whatsappUnsubscribeFooter,
@@ -417,6 +418,24 @@ Deno.serve(async (req) => {
           .limit(1);
         const r = (batch || [])[0];
         if (!r) break;
+
+        // Re-check the blacklist at send time: an address blocked after the
+        // broadcast was queued must not get it.
+        if (
+          r.entity_type !== "wa_group" &&
+          (await isOptedOut(
+            db,
+            b.tenant_id,
+            b.channel === "email" ? "email" : "whatsapp",
+            { phone: r.phone, email: r.email },
+          ))
+        ) {
+          await db
+            .from("broadcast_recipients")
+            .update({ status: "opted_out" })
+            .eq("id", r.id);
+          continue;
+        }
 
         const result = await sendOne(db, b, r);
         if (result.ok) {

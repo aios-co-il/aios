@@ -11,6 +11,7 @@
 // Public (verify_jwt = false in config.toml).
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { addToBlacklist } from "../_shared/broadcast/blacklist.ts";
+import type { Json } from "../_shared/database.types.ts";
 
 const STYLE = `body{font-family:system-ui,Arial,sans-serif;background:#f6f7f9;color:#222;display:flex;
 min-height:100vh;align-items:center;justify-content:center;margin:0}
@@ -41,6 +42,7 @@ type RecipientRow = {
   entity_id: string | null;
   phone: string | null;
   email: string | null;
+  vars: Json | null;
 };
 
 /** The recipient plus the CRM record's current phone and email. */
@@ -48,8 +50,15 @@ async function addressesOf(
   db: ReturnType<typeof serviceClient>,
   r: RecipientRow,
 ) {
-  const phones = [r.entity_type === "wa_group" ? null : r.phone];
-  const emails = [r.email];
+  // Email recipients are stored without a phone; the snapshot keeps it in vars.
+  const vars =
+    r.vars && typeof r.vars === "object" && !Array.isArray(r.vars)
+      ? r.vars
+      : {};
+  const varPhone = typeof vars.phone === "string" ? vars.phone : null;
+  const varEmail = typeof vars.email === "string" ? vars.email : null;
+  const phones = r.entity_type === "wa_group" ? [] : [r.phone, varPhone];
+  const emails = [r.email, varEmail];
   if (r.entity_id && (r.entity_type === "lead" || r.entity_type === "client")) {
     const table = r.entity_type === "lead" ? "leads" : "clients";
     const { data } = await db
@@ -87,7 +96,7 @@ Deno.serve(async (req) => {
     const db = serviceClient();
     const { data: r } = await db
       .from("broadcast_recipients")
-      .select("id, tenant_id, entity_type, entity_id, phone, email")
+      .select("id, tenant_id, entity_type, entity_id, phone, email, vars")
       .eq("id", recipientId)
       .maybeSingle();
     if (!r) return html(page("הקישור פג או לא נמצא", ""), 404);
