@@ -3,7 +3,7 @@
  * An LLM API request can be retried BEFORE tool execution; replaying a
  * completed tool action (send/update/purchase) is never allowed by this layer.
  */
-import type { RoutingDecision } from "./free-first-router.ts";
+import type { RoutingDecision } from "./free-first-types.ts";
 
 export type FailureKind =
   | "rate_limit"
