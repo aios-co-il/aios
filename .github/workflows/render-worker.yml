@@ -1,0 +1,58 @@
+name: Render worker (Staging)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+concurrency:
+  group: render-worker-staging
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Resolve Staging service key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${PROJECT_REF}" ]; then
+            echo "SUPABASE_STAGING_PROJECT_ID is empty" >&2
+            exit 1
+          fi
+          KEYS="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys")"
+          SERVICE_KEY="$(jq -r '.[] | select(.name == "service_role") | .api_key' <<<"$KEYS")"
+          if [ -z "$SERVICE_KEY" ] || [ "$SERVICE_KEY" = "null" ]; then
+            echo "Could not resolve the Staging service_role key" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
+
+      - name: Drain queued video runs
+        working-directory: render-worker
+        env:
+          DRAIN: "1"
+          VIDEO_PROVIDER: mock
+          CONCURRENCY: "2"
+          POLL_MS: "2000"
+          WORKER_ID: gha-staging
+        run: node src/index.mjs
