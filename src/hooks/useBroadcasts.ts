@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { requireTenantId } from "@/lib/requireTenantId";
 
 export type BroadcastStatus =
   "draft" | "scheduled" | "sending" | "sent" | "paused" | "failed" | "canceled";
@@ -17,6 +19,8 @@ export interface AudienceFilter {
   stageKeys?: string[]; // leads: pipeline stage (leads.status)
   stageMode?: AudienceFilterMode;
   salesPersonIds?: string[]; // leads
+  agencyIds?: string[]; // clients/leads: agency_id
+  campaignerIds?: string[]; // clients: client_team
   tagIds?: string[]; // clients/leads
   tagMode?: AudienceFilterMode;
   roles?: string[]; // campaigners
@@ -36,6 +40,11 @@ export interface Broadcast {
   provider: "green_api" | "manus_wa" | "resend";
   integration_id: string | null;
   body_text: string | null;
+  body_html: string | null;
+  html_mode: boolean;
+  attachments: EmailAttachment[];
+  template_id: string | null;
+  origin: "manual" | "automation";
   media_url: string | null;
   subject: string | null;
   from_email: string | null;
@@ -87,13 +96,17 @@ export function useBroadcasts() {
       const { data, error } = await supabase
         .from("broadcasts")
         .insert({
-          tenant_id: tenantId,
+          tenant_id: requireTenantId(tenantId),
           created_by: userId,
           name: payload.name ?? "דיוור חדש",
           channel: payload.channel ?? "whatsapp",
           provider: payload.provider ?? "green_api",
           integration_id: payload.integration_id ?? null,
           body_text: payload.body_text ?? null,
+          body_html: payload.body_html ?? null,
+          html_mode: payload.html_mode ?? false,
+          attachments: payload.attachments ?? [],
+          template_id: payload.template_id ?? null,
           media_url: payload.media_url ?? null,
           subject: payload.subject ?? null,
           from_email: payload.from_email ?? null,

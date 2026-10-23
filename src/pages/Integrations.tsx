@@ -370,6 +370,21 @@ export default function Integrations() {
     enabled: !!currentTenantId,
   });
 
+  // Check PBX settings (visible to tenant managers only)
+  const { data: pbxSettings } = useQuery({
+    queryKey: ["pbx-settings-status", currentTenantId],
+    queryFn: async () => {
+      if (!currentTenantId) return null;
+      const { data } = await supabase
+        .from("pbx_settings")
+        .select("is_active")
+        .eq("tenant_id", currentTenantId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentTenantId,
+  });
+
   // Check Telegram bot state
   const { data: telegramBotState } = useQuery({
     queryKey: ["telegram-bot-state", currentTenantId],
@@ -700,6 +715,20 @@ export default function Integrations() {
       isConnected: !!maskyooIntegration,
       route: "maskyoo-settings",
       gradient: "bg-gradient-to-r from-emerald-600 to-teal-700",
+    },
+    {
+      icon: <Phone className="h-6 w-6" />,
+      title: "מרכזיה (Webhook)",
+      description:
+        "חיבור כל מרכזיה דרך Webhook — חיוג מה-CRM וקליטת הקלטות לליד",
+      features: [
+        "Webhook יוצא: מספר מתקשר, יעד ושלוחה",
+        "שלוחה לכל נציג",
+        "קליטת הקלטות ושיוך לליד לפי טלפון",
+      ],
+      isConnected: !!pbxSettings?.is_active,
+      route: "pbx-settings",
+      gradient: "bg-gradient-to-r from-sky-600 to-cyan-700",
     },
     {
       icon: <Send className="h-6 w-6" />,

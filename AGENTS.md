@@ -20,7 +20,8 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 ## Pull requests
 
 - Target `develop` for feature PRs, including through `create-pr`; draft status is optional.
-- A human merges every PR; hand off with the PR link and stop. Creating a PR, passing checks, or completing a task is not merge approval.
+- Every PR has a Linear issue; put its identifier (`AIO-123`) in the PR title or body and set the issue to **In Review** when the PR is open.
+- A human merges every PR; hand off with the PR link and stop. In interactive sessions the next step starts when David writes, never on a scheduled check-in or poll; Routines follow `docs/agents/autonomic-issues.md`. Creating a PR, passing checks, or completing a task is not merge approval.
 - Leave auto-merge disabled and merge-triggering labels unset.
 
 ## Read before the relevant task

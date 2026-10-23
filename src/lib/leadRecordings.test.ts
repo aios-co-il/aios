@@ -72,3 +72,19 @@ test("groups recordings by lead", () => {
   assert.equal(grouped.a[0].label, "הקלטה אוטומטית");
   assert.equal(grouped.b[0].label, "הקלטה ידנית");
 });
+
+test("plays PBX uploads from the private call-recordings bucket", () => {
+  const [item] = buildLeadRecordingItems(
+    [
+      {
+        id: "c1",
+        lead_id: "lead",
+        recording_url: null,
+        recording_path: "tenant/pbx/1.mp3",
+      },
+    ],
+    [],
+  );
+  assert.equal(item.filePath, "tenant/pbx/1.mp3");
+  assert.equal(item.bucket, "call-recordings");
+});

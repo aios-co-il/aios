@@ -49,6 +49,7 @@ import {
   FileText,
   LucideIcon,
 } from "lucide-react";
+import { MAILING_ACTION_TYPES, MAILING_ACTIONS } from "./mailingActions";
 
 // ─── Brand SVG components ────────────────────────────────────────────────────
 
@@ -351,6 +352,20 @@ export interface NodeIconConfig {
     | "action_system"
     | "flow_logic";
 }
+
+// Mailing actions share one purple style; icons come from the registry.
+const MAILING_NODE_ICONS: Record<string, NodeIconConfig> = Object.fromEntries(
+  MAILING_ACTION_TYPES.map((t): [string, NodeIconConfig] => [
+    t,
+    {
+      icon: MAILING_ACTIONS[t].icon,
+      color: "#7c3aed",
+      bgColor: "rgba(124,58,237,0.12)",
+      borderColor: "rgba(124,58,237,0.35)",
+      category: "action_crm",
+    },
+  ]),
+);
 
 // ─── Master icon registry ─────────────────────────────────────────────────────
 
@@ -767,6 +782,7 @@ export const NODE_ICON_MAP: Record<string, NodeIconConfig> = {
     borderColor: "rgba(13,148,136,0.35)",
     category: "action_crm",
   },
+  ...MAILING_NODE_ICONS,
   add_lead_update: {
     icon: MessageSquarePlus,
     color: "#16a34a",

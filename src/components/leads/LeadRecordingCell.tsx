@@ -68,7 +68,7 @@ export function LeadRecordingCell({
     }
     if (!item.filePath) return;
     const { data, error } = await supabase.storage
-      .from("recordings")
+      .from(item.bucket ?? "recordings")
       .createSignedUrl(item.filePath, 3600);
     if (error || !data?.signedUrl) {
       toast({

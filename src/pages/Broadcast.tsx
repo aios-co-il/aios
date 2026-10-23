@@ -19,6 +19,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BroadcastLists } from "@/components/broadcast/BroadcastLists";
 import { BroadcastDomainSettings } from "@/components/broadcast/BroadcastDomainSettings";
+import { BroadcastTemplates } from "@/components/broadcast/BroadcastTemplates";
 import {
   Send,
   Plus,
@@ -27,6 +28,8 @@ import {
   Loader2,
   Users,
   Globe,
+  FileText,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,14 +55,12 @@ export default function Broadcast() {
 
   const broadcasts = (list.data || []) as Broadcast[];
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("למחוק את הדיוור?")) return;
-    try {
-      await remove.mutateAsync(id);
-      toast.success("הדיוור נמחק");
-    } catch (e: any) {
-      toast.error("שגיאה במחיקה: " + (e?.message || ""));
-    }
+    remove.mutate(id, {
+      onSuccess: () => toast.success("הדיוור נמחק"),
+      onError: (e) => toast.error("שגיאה במחיקה: " + (e?.message || "")),
+    });
   };
 
   return (
@@ -78,6 +79,10 @@ export default function Broadcast() {
           <TabsTrigger value="lists">
             <Users className="ml-1 h-4 w-4" />
             רשימות תפוצה
+          </TabsTrigger>
+          <TabsTrigger value="templates">
+            <FileText className="ml-1 h-4 w-4" />
+            טמפלייטים
           </TabsTrigger>
           <TabsTrigger value="settings">
             <Globe className="ml-1 h-4 w-4" />
@@ -128,6 +133,12 @@ export default function Broadcast() {
                       return (
                         <TableRow key={b.id}>
                           <TableCell className="font-medium">
+                            {b.origin === "automation" && (
+                              <Zap
+                                className="ml-1 inline h-3 w-3 text-amber-500"
+                                aria-label="אוטומציה"
+                              />
+                            )}
                             {b.name}
                           </TableCell>
                           <TableCell>
@@ -188,6 +199,10 @@ export default function Broadcast() {
 
         <TabsContent value="lists">
           <BroadcastLists />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <BroadcastTemplates />
         </TabsContent>
 
         <TabsContent value="settings">

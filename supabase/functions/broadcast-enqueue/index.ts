@@ -1,22 +1,13 @@
 // broadcast-enqueue — resolves a broadcast's audience_filter into a concrete
 // recipient snapshot. Supports dryRun (count + sample, no writes) for the wizard,
-// and commit mode (insert broadcast_recipients + mark broadcast ready to send).
+// and commit mode (insert broadcast_recipients with per-recipient merge vars).
 //
-// Audience filter shape (audience_filter JSONB on broadcasts):
-//   { source: 'clients'|'leads'|'campaigners'|'list'|'wa_groups',
-//     statuses?: string[],        // clients: client_status enum
-//     serviceTags?: string[],     // clients: services[] overlap
-//     statusKeys?: string[],      // leads: response_status
-//     stageKeys?: string[],       // leads: pipeline stage (leads.status)
-//     statusMode?: 'include'|'exclude',
-//     stageMode?: 'include'|'exclude',
-//     tagMode?: 'include'|'exclude',
-//     salesPersonIds?: string[],  // leads: sales_person_id
-//     tagIds?: string[],          // clients/leads: chat_contact_tags
-//     roles?: string[],           // campaigners: role[] overlap
-//     activeOnly?: boolean,       // campaigners (default true)
-//     groupIds?: string[] }       // wa_groups: whatsapp_groups UUIDs
+// Audience filter shape: see _shared/broadcast/audience/resolve.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isServiceKey } from "../_shared/timing-safe-equal.ts";
+import type { Recipient } from "../_shared/broadcast/audience/types.ts";
+import { filterReachable } from "../_shared/broadcast/audience/reachability.ts";
+import { resolveAudience } from "../_shared/broadcast/audience/resolve.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,27 +20,17 @@ const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-function normalizePhone(
-  input: string | null | undefined,
-  cc = "972",
-): string | null {
-  if (!input) return null;
-  let d = String(input).replace(/[^0-9]/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(cc)) return d;
-  if (d.startsWith("0")) return cc + d.slice(1);
-  return cc + d;
-}
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
-type Recipient = {
-  entity_type: "client" | "lead" | "campaigner" | "manual" | "wa_group";
-  entity_id: string | null;
-  phone: string | null; // null for wa_group recipients
-  email: string | null;
-  contact_name: string | null;
-  group_chat_id?: string | null; // only for wa_group
-};
+const BAD_REQUEST = new Set([
+  "missing_filter_source",
+  "missing_listId",
+  "missing_groupIds",
+  "unknown_source",
+  "list_not_found",
+  "nested_list",
+]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -58,7 +39,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    const isServiceRole = token === SB_SERVICE;
+    const isServiceRole = isServiceKey(token, SB_SERVICE);
 
     // User-scoped client respects RLS so a user can only enqueue their own tenant's data.
     const db = isServiceRole
@@ -76,8 +57,7 @@ Deno.serve(async (req) => {
       tenantId: inlineTenant,
     } = await req.json();
 
-    // Resolve the filter + channel + tenant either from the stored broadcast or inline (dry run preview)
-    let filter: any = inlineFilter;
+    let filter = inlineFilter;
     let channel: string = inlineChannel || "whatsapp";
     let tenantId: string | undefined = inlineTenant;
 
@@ -87,439 +67,80 @@ Deno.serve(async (req) => {
         .select("id, tenant_id, channel, audience_filter, status")
         .eq("id", broadcastId)
         .single();
-      if (error || !b) {
-        return new Response(JSON.stringify({ error: "broadcast_not_found" }), {
-          status: 404,
-          headers: corsHeaders,
-        });
-      }
+      if (error || !b) return json({ error: "broadcast_not_found" }, 404);
       filter = b.audience_filter || {};
       channel = b.channel;
       tenantId = b.tenant_id;
     }
 
-    if (!filter || !filter.source) {
-      return new Response(JSON.stringify({ error: "missing_filter_source" }), {
-        status: 400,
-        headers: corsHeaders,
-      });
+    if (!filter || !filter.source)
+      return json({ error: "missing_filter_source" }, 400);
+    if (!tenantId) return json({ error: "missing_tenant" }, 400);
+
+    let recipients: Recipient[];
+    try {
+      recipients = await resolveAudience(db, tenantId, filter);
+    } catch (e) {
+      const msg = String((e as Error)?.message || e);
+      if (BAD_REQUEST.has(msg)) return json({ error: msg }, 400);
+      throw e;
     }
-    if (!tenantId) {
-      return new Response(JSON.stringify({ error: "missing_tenant" }), {
-        status: 400,
-        headers: corsHeaders,
-      });
-    }
-
-    const source: string = filter.source;
-    let recipients: Recipient[] = [];
-
-    // ── Source: WhatsApp groups ──
-    if (source === "wa_groups") {
-      const groupIds: string[] = Array.isArray(filter.groupIds)
-        ? filter.groupIds
-        : [];
-      if (groupIds.length === 0) {
-        return new Response(JSON.stringify({ error: "missing_groupIds" }), {
-          status: 400,
-          headers: corsHeaders,
-        });
-      }
-      const { data: groups, error } = await db
-        .from("whatsapp_groups")
-        .select("id, group_name, group_chat_id")
-        .eq("tenant_id", tenantId)
-        .in("id", groupIds);
-      if (error) throw error;
-      const groupRecipients: Recipient[] = (groups || []).map((g: any) => ({
-        entity_type: "wa_group" as const,
-        entity_id: g.id,
-        phone: null,
-        email: null,
-        contact_name: g.group_name || null,
-        group_chat_id: g.group_chat_id || null,
-      }));
-      return finalizeGroups(groupRecipients, db, tenantId, dryRun, broadcastId);
-    }
-
-    // ── Source: saved mailing list (short-circuits CRM resolution) ──
-    if (source === "list") {
-      if (!filter.listId) {
-        return new Response(JSON.stringify({ error: "missing_listId" }), {
-          status: 400,
-          headers: corsHeaders,
-        });
-      }
-      const { data: members, error } = await db
-        .from("broadcast_list_members")
-        .select("entity_type, entity_id, name, phone, email")
-        .eq("tenant_id", tenantId)
-        .eq("list_id", filter.listId);
-      if (error) throw error;
-      recipients = (members || []).map((m: any) => ({
-        entity_type: (m.entity_type || "manual") as Recipient["entity_type"],
-        entity_id: m.entity_id || null,
-        phone: m.phone || null,
-        email: m.email || null,
-        contact_name: m.name || null,
-      }));
-      return finalizeReach(
-        recipients,
-        channel,
-        db,
-        tenantId,
-        dryRun,
-        broadcastId,
-      );
-    }
-
-    // ── Tag prefilter (chat_contact_tags maps tags → client_id / lead_id) ──
-    const tagMode: string =
-      filter.tagMode === "exclude" ? "exclude" : "include";
-    let tagEntityIds: Set<string> | null = null;
-    if (
-      Array.isArray(filter.tagIds) &&
-      filter.tagIds.length > 0 &&
-      (source === "clients" || source === "leads")
-    ) {
-      const col = source === "clients" ? "client_id" : "lead_id";
-      const { data: tagged } = await db
-        .from("chat_contact_tags")
-        .select(col)
-        .eq("tenant_id", tenantId)
-        .in("tag_id", filter.tagIds)
-        .not(col, "is", null);
-      tagEntityIds = new Set(
-        (tagged || []).map((r: any) => r[col]).filter(Boolean),
-      );
-      if (tagMode === "include" && tagEntityIds.size === 0) {
-        return finalize([], { dryRun, broadcastId, db, tenantId, channel });
-      }
-    }
-
-    const applyStatusFilter = (
-      rows: any[],
-      values: string[] | undefined,
-      mode: string | undefined,
-      field: string,
-    ) => {
-      if (!Array.isArray(values) || values.length === 0) return rows;
-      const m = mode === "exclude" ? "exclude" : "include";
-      return rows.filter((row: any) => {
-        const current = row[field] ?? null;
-        const matches = values.includes(current);
-        return m === "include" ? matches : !matches;
-      });
-    };
-
-    if (source === "clients") {
-      const q = db
-        .from("clients")
-        .select("id, contact_name, name, phone, email, status, services")
-        .eq("tenant_id", tenantId);
-      const { data, error } = await q;
-      if (error) throw error;
-      let rows = data || [];
-      rows = applyStatusFilter(
-        rows,
-        filter.statuses,
-        filter.statusMode,
-        "status",
-      );
-      if (Array.isArray(filter.serviceTags) && filter.serviceTags.length > 0) {
-        rows = rows.filter((c: any) => {
-          const services: string[] = Array.isArray(c.services)
-            ? c.services
-            : [];
-          return services.some((s) => filter.serviceTags.includes(s));
-        });
-      }
-      recipients = rows
-        .filter((c: any) => {
-          if (!tagEntityIds) return true;
-          const hasTag = tagEntityIds.has(c.id);
-          return tagMode === "include" ? hasTag : !hasTag;
-        })
-        .map((c: any) => ({
-          entity_type: "client" as const,
-          entity_id: c.id,
-          phone: c.phone || null,
-          email: c.email || null,
-          contact_name: c.contact_name || c.name || null,
-        }));
-    } else if (source === "leads") {
-      let q = db
-        .from("leads")
-        .select(
-          "id, contact_name, company_name, phone, email, status, response_status, sales_person_id",
-        )
-        .eq("tenant_id", tenantId)
-        .is("archived_at", null);
-      if (
-        Array.isArray(filter.salesPersonIds) &&
-        filter.salesPersonIds.length > 0
-      )
-        q = q.in("sales_person_id", filter.salesPersonIds);
-      const { data, error } = await q;
-      if (error) throw error;
-      let rows = data || [];
-      rows = applyStatusFilter(
-        rows,
-        filter.stageKeys,
-        filter.stageMode,
-        "status",
-      );
-      rows = applyStatusFilter(
-        rows,
-        filter.statusKeys,
-        filter.statusMode,
-        "response_status",
-      );
-      recipients = rows
-        .filter((l: any) => {
-          if (!tagEntityIds) return true;
-          const hasTag = tagEntityIds.has(l.id);
-          return tagMode === "include" ? hasTag : !hasTag;
-        })
-        .map((l: any) => ({
-          entity_type: "lead" as const,
-          entity_id: l.id,
-          phone: l.phone || null,
-          email: l.email || null,
-          contact_name: l.contact_name || l.company_name || null,
-        }));
-    } else if (source === "campaigners") {
-      let q = db
-        .from("campaigners")
-        .select("id, full_name, phone, email, role, active")
-        .eq("tenant_id", tenantId);
-      if (filter.activeOnly !== false) q = q.eq("active", true);
-      const { data, error } = await q;
-      if (error) throw error;
-      recipients = (data || [])
-        .filter((c: any) => {
-          if (Array.isArray(filter.roles) && filter.roles.length > 0) {
-            const roles: string[] = Array.isArray(c.role) ? c.role : [];
-            return roles.some((r) => filter.roles.includes(r));
-          }
-          return true;
-        })
-        .map((c: any) => ({
-          entity_type: "campaigner" as const,
-          entity_id: c.id,
-          phone: c.phone || null,
-          email: c.email || null,
-          contact_name: c.full_name || null,
-        }));
-    } else {
-      return new Response(JSON.stringify({ error: "unknown_source" }), {
-        status: 400,
-        headers: corsHeaders,
-      });
-    }
-
-    // (wa_groups handled above; never reaches here for that source)
-
-    // ── Manual include / exclude specific contacts by entity id ──
-    if (Array.isArray(filter.includeIds) && filter.includeIds.length > 0) {
-      const inc = new Set(filter.includeIds);
-      recipients = recipients.filter(
-        (r) => r.entity_id && inc.has(r.entity_id),
-      );
-    }
-    if (Array.isArray(filter.excludeIds) && filter.excludeIds.length > 0) {
-      const exc = new Set(filter.excludeIds);
-      recipients = recipients.filter(
-        (r) => !r.entity_id || !exc.has(r.entity_id),
-      );
-    }
-
-    return finalizeReach(
-      recipients,
-      channel,
+    const finalRecipients = await filterReachable(
       db,
       tenantId,
-      dryRun,
-      broadcastId,
+      channel,
+      recipients,
     );
-  } catch (e: any) {
-    console.error("[broadcast-enqueue]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
-  }
-});
 
-// Shared tail: channel reachability + normalize/dedup + opt-out removal + finalize.
-async function finalizeReach(
-  recipients: Recipient[],
-  channel: string,
-  db: any,
-  tenantId: string,
-  dryRun: boolean | undefined,
-  broadcastId: string | undefined,
-) {
-  const reachable = recipients.filter((r) =>
-    channel === "email" ? !!r.email : !!r.phone,
-  );
+    const total = finalRecipients.length;
+    const sample = finalRecipients.slice(0, 10).map((r) =>
+      r.entity_type === "wa_group"
+        ? { name: r.contact_name, group_chat_id: r.group_chat_id }
+        : {
+            name: r.contact_name,
+            phone: r.phone,
+            email: r.email,
+            vars: r.vars,
+          },
+    );
 
-  const seen = new Set<string>();
-  const deduped: Recipient[] = [];
-  for (const r of reachable) {
-    const key =
-      channel === "email"
-        ? (r.email || "").toLowerCase()
-        : normalizePhone(r.phone);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    deduped.push({
-      ...r,
-      phone: channel === "email" ? r.phone : (key as string),
-    });
-  }
+    if (dryRun || !broadcastId) return json({ success: true, total, sample });
 
-  const { data: optOuts } = await db
-    .from("broadcast_opt_outs")
-    .select("phone, email, channel")
-    .eq("tenant_id", tenantId)
-    .in("channel", [channel, "all"]);
-  const optPhones = new Set(
-    (optOuts || []).map((o: any) => o.phone).filter(Boolean),
-  );
-  const optEmails = new Set(
-    (optOuts || [])
-      .map((o: any) => (o.email || "").toLowerCase())
-      .filter(Boolean),
-  );
-  const finalRecipients = deduped.filter((r) =>
-    channel === "email"
-      ? !optEmails.has((r.email || "").toLowerCase())
-      : !optPhones.has(r.phone || ""),
-  );
+    // Commit: clear any previous snapshot for re-enqueue, then insert fresh.
+    await db
+      .from("broadcast_recipients")
+      .delete()
+      .eq("broadcast_id", broadcastId);
 
-  return finalize(finalRecipients, {
-    dryRun,
-    broadcastId,
-    db,
-    tenantId,
-    channel,
-  });
-}
-
-async function finalize(
-  recipients: Recipient[],
-  ctx: {
-    dryRun?: boolean;
-    broadcastId?: string;
-    db: any;
-    tenantId: string;
-    channel: string;
-  },
-) {
-  const total = recipients.length;
-  const sample = recipients
-    .slice(0, 10)
-    .map((r) => ({ name: r.contact_name, phone: r.phone, email: r.email }));
-
-  if (ctx.dryRun || !ctx.broadcastId) {
-    return new Response(JSON.stringify({ success: true, total, sample }), {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  // Commit: clear any previous snapshot for re-enqueue, then insert fresh.
-  await ctx.db
-    .from("broadcast_recipients")
-    .delete()
-    .eq("broadcast_id", ctx.broadcastId);
-
-  if (total > 0) {
-    const rows = recipients.map((r) => ({
-      broadcast_id: ctx.broadcastId,
-      tenant_id: ctx.tenantId,
-      entity_type: r.entity_type,
-      entity_id: r.entity_id,
-      phone: r.phone,
-      email: r.email,
-      contact_name: r.contact_name,
-      status: "pending",
-    }));
-    // Chunk inserts to stay within payload limits
-    for (let i = 0; i < rows.length; i += 500) {
-      const chunk = rows.slice(i, i + 500);
-      const { error } = await ctx.db.from("broadcast_recipients").insert(chunk);
-      if (error && !String(error.message).includes("duplicate")) throw error;
-    }
-  }
-
-  await ctx.db
-    .from("broadcasts")
-    .update({
-      stats: { total, sent: 0, delivered: 0, failed: 0, opted_out: 0 },
-    })
-    .eq("id", ctx.broadcastId);
-
-  return new Response(JSON.stringify({ success: true, total, sample }), {
-    status: 200,
-    headers: corsHeaders,
-  });
-}
-
-/**
- * Finalize WA group recipients — stored with entity_type='wa_group' and
- * group_chat_id in the entity_id column (no phone/email normalization needed).
- */
-async function finalizeGroups(
-  groups: Recipient[],
-  db: any,
-  tenantId: string,
-  dryRun: boolean | undefined,
-  broadcastId: string | undefined,
-) {
-  const total = groups.length;
-  const sample = groups
-    .slice(0, 10)
-    .map((g) => ({ name: g.contact_name, group_chat_id: g.group_chat_id }));
-
-  if (dryRun || !broadcastId) {
-    return new Response(JSON.stringify({ success: true, total, sample }), {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  // Commit: clear previous snapshot, insert group rows
-  await db
-    .from("broadcast_recipients")
-    .delete()
-    .eq("broadcast_id", broadcastId);
-
-  if (total > 0) {
-    const rows = groups.map((g) => ({
+    const rows = finalRecipients.map((r) => ({
       broadcast_id: broadcastId,
       tenant_id: tenantId,
-      entity_type: "wa_group",
-      entity_id: g.entity_id, // whatsapp_groups.id (UUID)
-      phone: g.group_chat_id, // reuse phone col to store chat_id for dispatch
-      email: null,
-      contact_name: g.contact_name,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      // WA groups keep their chat id in phone for dispatch.
+      phone: r.entity_type === "wa_group" ? r.group_chat_id : r.phone,
+      email: r.email,
+      contact_name: r.contact_name,
+      vars: r.vars,
       status: "pending",
     }));
-    const { error } = await db.from("broadcast_recipients").insert(rows);
-    if (error && !String(error.message).includes("duplicate")) throw error;
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await db
+        .from("broadcast_recipients")
+        .insert(rows.slice(i, i + 500));
+      if (error && !String(error.message).includes("duplicate")) throw error;
+    }
+
+    await db
+      .from("broadcasts")
+      .update({
+        stats: { total, sent: 0, delivered: 0, failed: 0, opted_out: 0 },
+      })
+      .eq("id", broadcastId);
+
+    return json({ success: true, total, sample });
+  } catch (e) {
+    console.error("[broadcast-enqueue]", e);
+    return json({ error: String((e as Error)?.message || e) }, 500);
   }
-
-  await db
-    .from("broadcasts")
-    .update({
-      stats: { total, sent: 0, delivered: 0, failed: 0, opted_out: 0 },
-    })
-    .eq("id", broadcastId);
-
-  return new Response(JSON.stringify({ success: true, total, sample }), {
-    status: 200,
-    headers: corsHeaders,
-  });
-}
+});

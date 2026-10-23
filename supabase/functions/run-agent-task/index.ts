@@ -167,6 +167,7 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const MAX_EXECUTION_TIME_MS = 240_000; // 240s, leave 60s buffer before 300s wall clock
 
 import { requireAuth } from "../_shared/security.ts";
+import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
 import {
   sendCarmenReplyViaActionStep,
   findCarmenSessionAutomation,
@@ -205,6 +206,14 @@ Deno.serve(async (req) => {
     if (taskError || !task) {
       throw new Error(`Task not found: ${task_id}`);
     }
+
+    // A user starting a task needs Carmen's main brain; this function calls
+    // run-ai-agent as the service, so the check happens here.
+    const denied = await internalBrainDenied(supabase, auth, {
+      tenantId: task.tenant_id,
+      agentId: task.agent_id,
+    });
+    if (denied) return denied;
 
     if (task.status === "completed" || task.status === "failed") {
       return new Response(

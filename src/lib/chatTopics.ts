@@ -7,11 +7,22 @@ export type TopicChat = {
   brain_route_id?: string | null;
 };
 
+const TOPIC_MAX = 48;
+
+/**
+ * A short topic name for a chat: the first sentence of its title (which is
+ * the opening message), cut at a word boundary.
+ */
 export function topicTitle(title?: string | null): string {
-  const t = String(title || "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return t || "שיחה חדשה";
+  const first = String(title || "")
+    .split(/\n|[.?!](?=\s|$)/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .find(Boolean);
+  if (!first) return "שיחה חדשה";
+  if (first.length <= TOPIC_MAX) return first;
+  const cut = first.slice(0, TOPIC_MAX);
+  const space = cut.lastIndexOf(" ");
+  return `${space > TOPIC_MAX / 2 ? cut.slice(0, space) : cut}…`;
 }
 
 export function topicIsLive(status?: string | null): boolean {
