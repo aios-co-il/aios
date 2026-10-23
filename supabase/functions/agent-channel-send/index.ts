@@ -16,6 +16,7 @@ import {
 } from "../_shared/carmen/active-skin.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
+import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
 import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
 import {
   cancelParliament,
@@ -145,8 +146,6 @@ Deno.serve(async (req) => {
       await import("../_shared/agent-channel/sticky-agent.ts");
     const { probeWorkspaceAgent } =
       await import("../_shared/agent-channel/workspace-agent.ts");
-    const { loadBrainEnv } =
-      await import("../_shared/agent-channel/brain-env.ts");
     // Tenant keys from Carmen settings → מוחות win over env secrets.
     const env = await loadBrainEnv(sb, tenantId);
     const cursor = await probeCursorApiKey(cursorApiKey(env));

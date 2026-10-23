@@ -1,14 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  baseUrlProblem,
-  buildModelMessages,
-  chatCompletionsUrl,
-  isValidBrainSlug,
-  overlayBrainEnv,
-  sanitizeProfile,
-  slugFromName,
-} from "./brain-connections.ts";
+import { overlayBrainEnv } from "./env.ts";
+import { buildModelMessages } from "./messages.ts";
+import { sanitizeProfile } from "./profile.ts";
+import { isValidBrainSlug, slugFromName } from "./slug.ts";
+import { baseUrlProblem, chatCompletionsUrl } from "./url.ts";
 
 test("slugs come from names, avoid built-ins and taken slugs", () => {
   assert.equal(slugFromName("GPT Copywriter"), "gpt-copywriter");

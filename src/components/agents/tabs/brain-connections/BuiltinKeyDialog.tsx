@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,50 +9,56 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { BuiltinBrainState } from "./useBrainConnections";
+import type { BuiltinBrainState } from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+import type { useBrainConnections } from "./useBrainConnections";
 
-/** Key (and id) for a built-in brain; it overrides the env secret. */
+/**
+ * Key (and id) for a built-in brain; it overrides the env secret for this
+ * tenant. Mounted only while open, so it starts from the saved id.
+ */
 export function BuiltinKeyDialog({
   builtin,
-  onOpenChange,
-  onSave,
-  onReset,
-  pending,
+  write,
+  onClose,
 }: {
-  builtin: BuiltinBrainState | null;
-  onOpenChange: (open: boolean) => void;
-  onSave: (payload: {
-    builtin_slug: string;
-    api_key?: string;
-    external_id?: string;
-  }) => Promise<unknown>;
-  onReset: (slug: string) => Promise<unknown>;
-  pending: boolean;
+  builtin: BuiltinBrainState;
+  write: ReturnType<typeof useBrainConnections>["write"];
+  onClose: () => void;
 }) {
   const [apiKey, setApiKey] = useState("");
-  const [externalId, setExternalId] = useState("");
-
-  useEffect(() => {
-    setApiKey("");
-    setExternalId(builtin?.external_id ?? "");
-  }, [builtin]);
-
-  if (!builtin) return null;
+  const [externalId, setExternalId] = useState(builtin.external_id ?? "");
   const hasOverride = !!builtin.key_last4 || !!builtin.external_id;
   const idChanged = (builtin.external_id ?? "") !== externalId.trim();
-  const canSave = apiKey.trim().length >= 8 || (builtin.id_label && idChanged);
+  const canSave =
+    apiKey.trim().length >= 8 || (!!builtin.id_label && idChanged);
 
-  async function save() {
-    await onSave({
-      builtin_slug: builtin!.slug,
-      ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
-      ...(builtin!.id_label ? { external_id: externalId.trim() } : {}),
-    });
-    onOpenChange(false);
-  }
+  const save = () =>
+    write.mutate(
+      {
+        action: "set_builtin",
+        payload: {
+          builtin_slug: builtin.slug,
+          ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+          ...(builtin.id_label && idChanged
+            ? { external_id: externalId.trim() }
+            : {}),
+        },
+        success: "המפתח נשמר",
+      },
+      { onSuccess: onClose },
+    );
+  const reset = () =>
+    write.mutate(
+      {
+        action: "reset_builtin",
+        payload: { builtin_slug: builtin.slug },
+        success: "חזר לסוד הסביבה",
+      },
+      { onSuccess: onClose },
+    );
 
   return (
-    <Dialog open={!!builtin} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent dir="rtl">
         <DialogHeader>
           <DialogTitle>מפתח ל-{builtin.label}</DialogTitle>
@@ -89,21 +95,18 @@ export function BuiltinKeyDialog({
             {hasOverride && (
               <Button
                 variant="outline"
-                disabled={pending}
-                onClick={async () => {
-                  await onReset(builtin.slug);
-                  onOpenChange(false);
-                }}
+                disabled={write.isPending}
+                onClick={reset}
               >
                 חזרה לסוד הסביבה
               </Button>
             )}
             <Button
               className="flex-1"
-              disabled={!canSave || pending}
+              disabled={!canSave || write.isPending}
               onClick={save}
             >
-              {pending ? "שומר…" : "שמירה"}
+              {write.isPending ? "שומר…" : "שמירה"}
             </Button>
           </div>
         </div>

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.carmen_brain_connections (
 COMMENT ON TABLE public.carmen_brain_connections IS
   'Brains connected from Carmen settings. Keys are in Vault (secret_id); written only by the carmen-brain-connections edge function.';
 
+-- Keeps updated_at current on every change.
 DROP TRIGGER IF EXISTS trg_carmen_brain_connections_updated_at
   ON public.carmen_brain_connections;
 CREATE TRIGGER trg_carmen_brain_connections_updated_at
@@ -49,6 +50,8 @@ CREATE TRIGGER trg_carmen_brain_connections_updated_at
 
 ALTER TABLE public.carmen_brain_connections ENABLE ROW LEVEL SECURITY;
 
+-- Members of the tenant (or super admins) can read its connections; secret_id
+-- stays hidden by the column grant below.
 DROP POLICY IF EXISTS "Tenant members can view brain connections"
   ON public.carmen_brain_connections;
 CREATE POLICY "Tenant members can view brain connections"
@@ -71,6 +74,7 @@ GRANT ALL ON TABLE public.carmen_brain_connections TO service_role;
 -- No client code inserts or updates them.
 DROP POLICY IF EXISTS "Tenant members can insert brain routes"
   ON public.agent_brain_routes;
+
 DROP POLICY IF EXISTS "Tenant members can update brain routes"
   ON public.agent_brain_routes;
 
@@ -171,12 +175,14 @@ BEGIN
 END;
 $$;
 
+-- Deleting a connection deletes its Vault key.
 DROP TRIGGER IF EXISTS trg_carmen_brain_connections_drop_secret
   ON public.carmen_brain_connections;
 CREATE TRIGGER trg_carmen_brain_connections_drop_secret
   AFTER DELETE ON public.carmen_brain_connections
   FOR EACH ROW EXECUTE FUNCTION public.carmen_brain_connections_drop_secret();
 
+-- Only the service role (edge functions) may touch keys.
 REVOKE ALL ON FUNCTION public.carmen_brain_secret_set(uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_brain_secret_get(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_brain_secret_delete(uuid) FROM PUBLIC, anon, authenticated;

@@ -1,98 +1,103 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { BrainRoute } from "@/lib/agentChannelRouting";
-import type { BrainProfile } from "@/lib/carmenBrainConnections";
+import type { BrainConnectionsState } from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
 
-export type BrainConnection = {
-  id: string;
-  slug: string;
-  name: string;
-  kind: "chat_model" | "builtin";
-  provider_preset: string | null;
-  base_url: string | null;
-  model: string | null;
-  profile: BrainProfile;
-  settings: Record<string, unknown>;
-  key_last4: string | null;
+export type BrainWriteAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "set_builtin"
+  | "reset_builtin"
+  | "set_active";
+
+type Write = {
+  action: BrainWriteAction;
+  payload: Record<string, unknown>;
+  success?: string;
 };
 
-export type BuiltinBrainState = {
-  slug: string;
-  label: string;
-  id_label: string | null;
-  external_id: string | null;
-  key_last4: string | null;
-  env_configured: boolean;
-  uses_ui_key: boolean;
-};
-
-export type BrainConnectionsState = {
-  connections: BrainConnection[];
-  routes: (BrainRoute & { connection_id: string | null; active: boolean })[];
-  builtins: BuiltinBrainState[];
-};
-
-/** One action on the carmen-brain-connections edge function. */
-export async function callBrainConnections<T = BrainConnectionsState>(
-  tenantId: string,
-  action: string,
-  payload: Record<string, unknown> = {},
-): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(
-    "carmen-brain-connections",
-    { body: { tenant_id: tenantId, action, ...payload } },
-  );
-  if (error) {
-    let message = error.message;
-    if (error instanceof FunctionsHttpError) {
-      const body = await (error.context as Response).json().catch(() => null);
-      if (body?.error) message = String(body.error);
-    }
-    throw new Error(message);
-  }
-  return data as T;
-}
-
+/** Carmen's brains for the settings screen, plus one mutation for every write. */
 export function useBrainConnections(tenantId: string | null) {
   const qc = useQueryClient();
   const key = ["brain-connections", tenantId];
 
   const query = useQuery({
     queryKey: key,
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? () =>
+          invokeBrainConnections<BrainConnectionsState>(tenantId, {
+            action: "list",
+          })
+      : skipToken,
     retry: false,
-    queryFn: () => callBrainConnections(tenantId!, "list"),
   });
 
-  const mutate = useMutation({
-    mutationFn: (args: {
-      action: string;
-      payload?: Record<string, unknown>;
-      success?: string;
-    }) => callBrainConnections(tenantId!, args.action, args.payload),
-    onSuccess: (data, args) => {
+  const write = useMutation({
+    mutationFn: ({ action, payload }: Write) =>
+      invokeBrainConnections<BrainConnectionsState>(tenantId ?? "", {
+        action,
+        ...payload,
+      }),
+    onSuccess: (data, { success }) => {
       qc.setQueryData(key, data);
-      // The brain picker and permissions grid read the same routes.
+      // The brain picker and the permissions grid read the same routes.
       qc.invalidateQueries({ queryKey: ["brain-routes", tenantId] });
-      qc.invalidateQueries({ queryKey: ["brain-channel-health", tenantId] });
       qc.invalidateQueries({ queryKey: ["carmen-perm-routes", tenantId] });
-      if (args.success) toast.success(args.success);
+      if (success) toast.success(success);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  return { ...query, run: mutate.mutateAsync, pending: mutate.isPending };
+  return { ...query, write };
 }
 
-export async function testBrainConnection(
+export type TestResult = { ok: boolean; reply?: string; error?: string };
+
+/** "בדיקת חיבור": a saved connection by id, or the form's unsaved values. */
+export function useTestBrainConnection(tenantId: string | null) {
+  return useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      invokeBrainConnections<TestResult>(tenantId ?? "", {
+        action: "test",
+        ...payload,
+      }),
+    onSuccess: (res) =>
+      res.ok
+        ? toast.success(`החיבור עובד · ${res.reply ?? ""}`)
+        : toast.error(res.error || "הבדיקה נכשלה"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Calls the carmen-brain-connections edge function; throws its error text. */
+async function invokeBrainConnections<T>(
   tenantId: string,
-  payload: Record<string, unknown>,
-): Promise<{ ok: boolean; reply?: string; error?: string }> {
-  try {
-    return await callBrainConnections(tenantId, "test", payload);
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
+  body: Record<string, unknown>,
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke<T>(
+    "carmen-brain-connections",
+    { body: { tenant_id: tenantId, ...body } },
+  );
+  if (error) throw new Error(await errorText(error));
+  if (data === null) throw new Error("Empty response");
+  return data;
+}
+
+async function errorText(error: Error): Promise<string> {
+  if (
+    error instanceof FunctionsHttpError &&
+    error.context instanceof Response
+  ) {
+    const body: unknown = await error.context.json().catch(() => null);
+    if (body && typeof body === "object" && "error" in body)
+      return String(body.error);
   }
+  return error.message;
 }

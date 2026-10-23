@@ -1,150 +1,114 @@
 /**
  * Chat-model brains connected from Carmen settings (route_type "model").
- * One synchronous OpenAI-compatible chat completion per message; the reply is
- * stored in the conversation and returned inline.
+ * One synchronous chat completion per message; the reply is stored in the
+ * conversation and returned inline.
  */
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import {
-  type BrainProfile,
-  buildModelMessages,
-  type ChatMessage,
-  chatCompletionsUrl,
-  sanitizeProfile,
-} from "../carmen/brain-connections.ts";
-import { connectionSecret } from "./brain-env.ts";
+import { buildModelMessages } from "../carmen/brain-connections/messages.ts";
+import { connectionSecret } from "../carmen/brain-connections/overrides.ts";
+import { sanitizeProfile } from "../carmen/brain-connections/profile.ts";
+import { type DbClient, serviceClient } from "../supabase-clients.ts";
+import { callChatModel } from "./chat-model-api.ts";
 import { acceptedMessageFor, capabilitiesForProvider } from "./logic.ts";
-import { insertMessage, logChannelAction, serviceClient } from "./store.ts";
+import { insertMessage, logChannelAction } from "./store.ts";
 import type { SendContext, SendResult } from "./types.ts";
 
-const TIMEOUT_MS = 90_000;
-
-export type ModelConnection = {
-  id: string;
-  tenant_id: string;
-  slug: string;
-  name: string;
-  base_url: string | null;
-  model: string | null;
-  profile: BrainProfile | null;
-  provider_preset: string | null;
-};
-
-export async function loadModelConnection(
-  sb: SupabaseClient,
-  tenantId: string,
-  connectionId: string | null,
-): Promise<ModelConnection | null> {
-  if (!connectionId) return null;
-  const { data } = await sb
-    .from("carmen_brain_connections")
-    .select(
-      "id, tenant_id, slug, name, base_url, model, profile, provider_preset",
-    )
-    .eq("id", connectionId)
-    .eq("tenant_id", tenantId)
-    .eq("kind", "chat_model")
-    .maybeSingle();
-  return (data as ModelConnection | null) ?? null;
-}
-
-/** One chat completion. Throws with the provider's error text on failure. */
-export async function callChatModel(args: {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  messages: ChatMessage[];
-  profile: BrainProfile;
-}): Promise<string> {
-  const body: Record<string, unknown> = {
-    model: args.model,
-    messages: args.messages,
-  };
-  if (args.profile.temperature !== undefined)
-    body.temperature = args.profile.temperature;
-  if (args.profile.max_tokens !== undefined)
-    body.max_tokens = args.profile.max_tokens;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const resp = await fetch(chatCompletionsUrl(args.baseUrl), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${args.apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://aios.co.il",
-        "X-Title": "AIOS Carmen",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    const raw = await resp.text();
-    if (!resp.ok) {
-      let detail = raw.slice(0, 300);
-      try {
-        const parsed = JSON.parse(raw);
-        detail =
-          parsed?.error?.message ||
-          parsed?.[0]?.error?.message ||
-          parsed?.message ||
-          detail;
-      } catch {
-        /* keep raw */
-      }
-      throw new Error(`Model API ${resp.status}: ${detail}`);
-    }
-    const data = JSON.parse(raw);
-    const content = data?.choices?.[0]?.message?.content;
-    const text = Array.isArray(content)
-      ? content.map((p: { text?: string }) => p?.text ?? "").join("")
-      : String(content ?? "");
-    if (!text.trim()) throw new Error("Model API returned an empty reply");
-    return text.trim();
-  } catch (e) {
-    if ((e as Error)?.name === "AbortError")
-      throw new Error("Model API timed out");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+/** Asks the route's model and stores its reply in the conversation. */
 export async function launchModelBrain(ctx: SendContext): Promise<SendResult> {
   const sb = serviceClient();
-  const conn = await loadModelConnection(
-    sb,
-    ctx.tenantId,
-    ctx.route.connection_id,
-  );
-  if (!conn || !conn.base_url || !conn.model)
-    throw new Error(
-      `${ctx.route.label}: החיבור לא מוגדר עד הסוף (כתובת או מודל חסרים).`,
-    );
+  const conn = await loadModelConnection(sb, ctx);
   const apiKey = await connectionSecret(sb, conn.id);
   if (!apiKey)
     throw new Error(`${conn.name}: אין מפתח API. הוסיפו מפתח בהגדרות המוחות.`);
 
   const profile = sanitizeProfile(conn.profile);
-  const messages = buildModelMessages({
+  const outcome = await askModel({
+    baseUrl: conn.base_url,
+    apiKey,
+    model: conn.model,
     profile,
-    history: ctx.history,
-    content: ctx.content,
-  });
-
-  let answer = "";
-  let error: string | null = null;
-  try {
-    answer = await callChatModel({
-      baseUrl: conn.base_url,
-      apiKey,
-      model: conn.model,
-      messages,
+    messages: buildModelMessages({
       profile,
-    });
-  } catch (e) {
-    error = String((e as Error)?.message ?? e);
-  }
+      history: ctx.history,
+      content: ctx.content,
+    }),
+  });
+  await logModelSend(sb, ctx, conn, outcome.error);
+  if (outcome.error) throw new Error(`${conn.name}: ${outcome.error}`);
 
+  await insertMessage(sb, {
+    tenant_id: ctx.tenantId,
+    conversation_id: ctx.conversationId,
+    role: "assistant",
+    speaker: conn.slug,
+    channel: conn.slug,
+    content: outcome.answer,
+    metadata: {
+      origin: "model",
+      delivery_mode: "text",
+      connection_id: conn.id,
+      model: conn.model,
+    },
+  });
+  return {
+    ok: true,
+    kind: "model",
+    speaker: conn.slug,
+    conversation_id: ctx.conversationId,
+    status: "idle",
+    stream: false,
+    accepted_message: acceptedMessageFor("model"),
+    external_url: null,
+    capabilities: capabilitiesForProvider("model"),
+    inline_reply: outcome.answer,
+  };
+}
+
+type ModelConnection = {
+  id: string;
+  slug: string;
+  name: string;
+  base_url: string;
+  model: string;
+  profile: unknown;
+};
+
+/** The route's chat-model connection in this tenant, fully configured. */
+async function loadModelConnection(
+  sb: DbClient,
+  ctx: SendContext,
+): Promise<ModelConnection> {
+  const notReady = `${ctx.route.label}: החיבור לא מוגדר עד הסוף (כתובת או מודל חסרים).`;
+  if (!ctx.route.connection_id) throw new Error(notReady);
+  const { data, error } = await sb
+    .from("carmen_brain_connections")
+    .select("id, slug, name, base_url, model, profile")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("id", ctx.route.connection_id)
+    .eq("kind", "chat_model")
+    .maybeSingle();
+  if (error) throw new Error(`Brain connection read failed: ${error.message}`);
+  if (!data?.base_url || !data.model) throw new Error(notReady);
+  return { ...data, base_url: data.base_url, model: data.model };
+}
+
+/** The model's answer, or the error text to log and show. */
+async function askModel(
+  args: Parameters<typeof callChatModel>[0],
+): Promise<{ answer: string; error: null } | { answer: ""; error: string }> {
+  try {
+    return { answer: await callChatModel(args), error: null };
+  } catch (e) {
+    return { answer: "", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** One agent_action_log row per model send, success or failure. */
+async function logModelSend(
+  sb: DbClient,
+  ctx: SendContext,
+  conn: ModelConnection,
+  error: string | null,
+) {
   await logChannelAction(sb, {
     tenantId: ctx.tenantId,
     agentId: ctx.agentId,
@@ -159,33 +123,4 @@ export async function launchModelBrain(ctx: SendContext): Promise<SendResult> {
     status: error ? "error" : "success",
     error,
   });
-  if (error) throw new Error(`${conn.name}: ${error}`);
-
-  await insertMessage(sb, {
-    tenant_id: ctx.tenantId,
-    conversation_id: ctx.conversationId,
-    role: "assistant",
-    speaker: conn.slug,
-    channel: conn.slug,
-    content: answer,
-    metadata: {
-      origin: "model",
-      delivery_mode: "text",
-      connection_id: conn.id,
-      model: conn.model,
-    },
-  });
-
-  return {
-    ok: true,
-    kind: "model",
-    speaker: conn.slug,
-    conversation_id: ctx.conversationId,
-    status: "idle",
-    stream: false,
-    accepted_message: acceptedMessageFor("model"),
-    external_url: null,
-    capabilities: capabilitiesForProvider("model"),
-    inline_reply: answer,
-  };
 }

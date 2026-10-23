@@ -3,14 +3,15 @@
  * A built-in brain's UI key replaces its env secret for that tenant's sends;
  * without one, the project env secret is used as before.
  */
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { overlayBrainEnv } from "../carmen/brain-connections/env.ts";
 import {
-  BUILTIN_BRAIN_KEYS,
-  overlayBrainEnv,
-} from "../carmen/brain-connections.ts";
+  type SecretClient,
+  tenantBrainOverrides,
+} from "../carmen/brain-connections/overrides.ts";
+import { serviceClient } from "../supabase-clients.ts";
 import type { SendContext } from "./types.ts";
-import { serviceClient } from "./store.ts";
 
+/** Project env secrets, or {} where the runtime forbids reading them. */
 export function projectEnv(): Record<string, string | undefined> {
   try {
     return Deno.env.toObject();
@@ -19,52 +20,9 @@ export function projectEnv(): Record<string, string | undefined> {
   }
 }
 
-export async function connectionSecret(
-  sb: SupabaseClient,
-  connectionId: string,
-): Promise<string> {
-  const { data, error } = await sb.rpc("carmen_brain_secret_get", {
-    p_connection_id: connectionId,
-  });
-  if (error) {
-    console.error("[brain-env] secret read failed", error.message);
-    return "";
-  }
-  return typeof data === "string" ? data : "";
-}
-
-/** Env names → values the tenant set from the UI for built-in brains. */
-export async function tenantBrainOverrides(
-  sb: SupabaseClient,
-  tenantId: string,
-): Promise<Record<string, string>> {
-  const { data, error } = await sb
-    .from("carmen_brain_connections")
-    .select("id, slug, settings, secret_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "builtin");
-  if (error || !data?.length) return {};
-  const out: Record<string, string> = {};
-  for (const row of data as Array<{
-    id: string;
-    slug: string;
-    settings: Record<string, unknown> | null;
-    secret_id: string | null;
-  }>) {
-    const spec = BUILTIN_BRAIN_KEYS.find((b) => b.slug === row.slug);
-    if (!spec) continue;
-    if (row.secret_id) {
-      const secret = await connectionSecret(sb, row.id);
-      if (secret) out[spec.secretEnv] = secret;
-    }
-    const externalId = String(row.settings?.external_id ?? "").trim();
-    if (spec.idEnv && externalId) out[spec.idEnv] = externalId;
-  }
-  return out;
-}
-
+/** Project env with this tenant's UI keys laid over it. */
 export async function loadBrainEnv(
-  sb: SupabaseClient,
+  sb: SecretClient,
   tenantId: string,
 ): Promise<Record<string, string | undefined>> {
   return overlayBrainEnv(
@@ -73,7 +31,7 @@ export async function loadBrainEnv(
   );
 }
 
-/** The env a launcher should read for this send. */
+/** The env a launcher should read for this send, loaded once per send. */
 export async function sendEnv(
   ctx: SendContext,
 ): Promise<Record<string, string | undefined>> {

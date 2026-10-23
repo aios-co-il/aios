@@ -1,9 +1,6 @@
-export type BrainRouteType =
-  | "internal"
-  | "direct_channel"
-  | "parliament"
-  /** A chat model connected in Carmen settings → מוחות. */
-  | "model";
+import type { BrainRouteType } from "../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+
+export type { BrainRouteType };
 export type BrainProvider =
   | "internal"
   | "cursor"

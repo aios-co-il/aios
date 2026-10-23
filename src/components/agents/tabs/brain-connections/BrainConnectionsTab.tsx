@@ -1,82 +1,44 @@
 import { useState } from "react";
-import {
-  KeyRound,
-  Loader2,
-  Pencil,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  Zap,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { Loader2, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { groupLabel, type BrainRoute } from "@/lib/agentChannelRouting";
-import { maskKey } from "@/lib/carmenBrainConnections";
-import {
-  RouteIcon,
-  routeColor,
-} from "@/components/carmen-command/BrainRouteIcon";
+import { groupLabel } from "@/lib/agentChannelRouting";
+import type {
+  BrainConnection,
+  BrainRouteSummary,
+  BrainRouteType,
+  BuiltinBrainState,
+} from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+import { BrainRouteCard } from "./BrainRouteCard";
 import { BuiltinKeyDialog } from "./BuiltinKeyDialog";
 import { ModelBrainDialog } from "./ModelBrainDialog";
 import {
-  testBrainConnection,
   useBrainConnections,
-  type BrainConnection,
-  type BrainConnectionsState,
-  type BuiltinBrainState,
+  useTestBrainConnection,
 } from "./useBrainConnections";
 
-type Route = BrainConnectionsState["routes"][number];
-
-function KeyBadge({
-  route,
-  connection,
-  builtin,
-}: {
-  route: Route;
-  connection?: BrainConnection;
-  builtin?: BuiltinBrainState;
-}) {
-  if (route.route_type === "model") {
-    return connection?.key_last4 ? (
-      <Badge variant="secondary" dir="ltr">
-        {maskKey(connection.key_last4)}
-      </Badge>
-    ) : (
-      <Badge variant="destructive">חסר מפתח</Badge>
-    );
-  }
-  if (!builtin) return null;
-  if (builtin.key_last4)
-    return (
-      <Badge variant="secondary" dir="ltr">
-        {maskKey(builtin.key_last4)}
-      </Badge>
-    );
-  if (builtin.env_configured)
-    return <Badge variant="outline">מסוד סביבה</Badge>;
-  return <Badge variant="destructive">לא מוגדר</Badge>;
-}
+const GROUP_ORDER: BrainRouteType[] = [
+  "model",
+  "internal",
+  "direct_channel",
+  "parliament",
+];
 
 /**
- * Carmen settings → מוחות וחיבורים: every brain in one list. Managers connect
+ * Carmen settings → מוחות וחיבורים: every brain in one list. Owners connect
  * chat models, set keys for built-in brains, and choose what the picker shows.
  */
 export function BrainConnectionsTab() {
   const { tenantId } = useCurrentTenant();
-  const { data, isLoading, error, run, pending } = useBrainConnections(
+  const { data, isLoading, error, write } = useBrainConnections(
     tenantId ?? null,
   );
-  const [editing, setEditing] = useState<BrainConnection | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [builtinOpen, setBuiltinOpen] = useState<BuiltinBrainState | null>(
-    null,
-  );
-  const [testingId, setTestingId] = useState<string | null>(null);
+  const test = useTestBrainConnection(tenantId ?? null);
+  const [modelDialog, setModelDialog] = useState<{
+    conn: BrainConnection | null;
+  } | null>(null);
+  const [keyDialog, setKeyDialog] = useState<BuiltinBrainState | null>(null);
 
   if (!tenantId) return null;
   if (isLoading)
@@ -85,53 +47,50 @@ export function BrainConnectionsTab() {
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
-  if (error)
+  if (error || !data)
     return (
       <Card className="p-4 text-sm text-muted-foreground">
         <ShieldCheck className="mb-2 h-5 w-5" />
-        {(error as Error).message.includes("owners")
+        {error?.message.includes("owners")
           ? "רק בעלי החשבון יכולים לנהל את המוחות של כרמן."
-          : `טעינת המוחות נכשלה: ${(error as Error).message}`}
+          : `טעינת המוחות נכשלה: ${error?.message ?? ""}`}
       </Card>
     );
 
-  const connections = data?.connections ?? [];
-  const routes = data?.routes ?? [];
-  const builtins = data?.builtins ?? [];
-  const byConnection = new Map(connections.map((c) => [c.id, c]));
-  const bySlug = new Map(builtins.map((b) => [b.slug, b]));
-  const groups = routes.reduce<Record<string, Route[]>>((acc, r) => {
-    (acc[r.route_type] ||= []).push(r);
-    return acc;
-  }, {});
-  const order: BrainRoute["route_type"][] = [
-    "model",
-    "internal",
-    "direct_channel",
-    "parliament",
-  ];
-
-  const submit = (action: string, payload: Record<string, unknown>) =>
-    run({
-      action,
-      payload,
-      success:
-        action === "create"
-          ? "המוח חובר ונוסף לבורר"
-          : action === "set_key"
-            ? "המפתח נשמר"
-            : "נשמר",
-    });
-
-  async function test(conn: BrainConnection) {
-    setTestingId(conn.id);
-    const res = await testBrainConnection(tenantId!, {
-      connection_id: conn.id,
-    });
-    setTestingId(null);
-    if (res.ok) toast.success(`${conn.name} עובד · ${res.reply ?? ""}`);
-    else toast.error(`${conn.name}: ${res.error || "הבדיקה נכשלה"}`);
-  }
+  const connections = new Map(data.connections.map((c) => [c.id, c]));
+  const builtins = new Map(data.builtins.map((b) => [b.slug, b]));
+  const byType = (type: BrainRouteType) =>
+    data.routes.filter((r) => r.route_type === type);
+  const card = (r: BrainRouteSummary) => {
+    const conn = r.connection_id ? connections.get(r.connection_id) : undefined;
+    return (
+      <BrainRouteCard
+        key={r.id}
+        route={r}
+        connection={conn}
+        builtin={builtins.get(r.slug)}
+        busy={write.isPending}
+        testing={test.isPending && test.variables?.connection_id === conn?.id}
+        onActive={(active) =>
+          write.mutate({
+            action: "set_active",
+            payload: { route_id: r.id, active },
+          })
+        }
+        onTest={() => conn && test.mutate({ connection_id: conn.id })}
+        onEdit={() => conn && setModelDialog({ conn })}
+        onDelete={() => {
+          if (conn && confirm(`למחוק את ${conn.name}? המפתח יימחק מה-Vault.`))
+            write.mutate({
+              action: "delete",
+              payload: { connection_id: conn.id },
+              success: "נמחק",
+            });
+        }}
+        onKey={() => setKeyDialog(builtins.get(r.slug) ?? null)}
+      />
+    );
+  };
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -143,132 +102,34 @@ export function BrainConnectionsTab() {
             נשמרים מוצפנים ולא מוצגים שוב.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        >
+        <Button size="sm" onClick={() => setModelDialog({ conn: null })}>
           <Plus className="me-1 h-4 w-4" />
           חיבור מוח
         </Button>
       </div>
-
-      {order
-        .filter((type) => groups[type]?.length)
-        .map((type) => (
-          <div key={type} className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">
-              {groupLabel(type)}
-            </div>
-            {groups[type].map((r) => {
-              const conn = r.connection_id
-                ? byConnection.get(r.connection_id)
-                : undefined;
-              const builtin = bySlug.get(r.slug);
-              const description = conn?.profile?.description;
-              return (
-                <Card key={r.id} className="p-3">
-                  <div className="flex items-center gap-3">
-                    <RouteIcon type={r.route_type} color={routeColor(r)} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{r.label}</div>
-                      <div
-                        className="truncate text-xs text-muted-foreground"
-                        dir={conn ? "ltr" : undefined}
-                      >
-                        {conn
-                          ? `${conn.model} · ${conn.base_url}`
-                          : description || r.slug}
-                      </div>
-                    </div>
-                    <KeyBadge route={r} connection={conn} builtin={builtin} />
-                    {conn && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="בדיקת חיבור"
-                          disabled={testingId === conn.id}
-                          onClick={() => test(conn)}
-                        >
-                          {testingId === conn.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Zap className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="עריכה"
-                          onClick={() => {
-                            setEditing(conn);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="מחיקה"
-                          disabled={pending}
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `למחוק את ${conn.name}? המפתח יימחק מה-Vault.`,
-                              )
-                            )
-                              submit("delete", { connection_id: conn.id });
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </>
-                    )}
-                    {builtin && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="מפתח"
-                        onClick={() => setBuiltinOpen(builtin)}
-                      >
-                        <KeyRound className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Switch
-                      checked={r.active}
-                      disabled={pending}
-                      aria-label="הצגה בבורר"
-                      title={r.active ? "מופיע בבורר" : "מוסתר מהבורר"}
-                      onCheckedChange={(active) =>
-                        submit("set_visible", { route_id: r.id, active })
-                      }
-                    />
-                  </div>
-                </Card>
-              );
-            })}
+      {GROUP_ORDER.filter((t) => byType(t).length).map((type) => (
+        <div key={type} className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            {groupLabel(type)}
           </div>
-        ))}
-
-      <ModelBrainDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        tenantId={tenantId}
-        connection={editing}
-        onSubmit={submit}
-        pending={pending}
-      />
-      <BuiltinKeyDialog
-        builtin={builtinOpen}
-        onOpenChange={(open) => !open && setBuiltinOpen(null)}
-        onSave={(payload) => submit("set_key", payload)}
-        onReset={(slug) => submit("remove_key", { builtin_slug: slug })}
-        pending={pending}
-      />
+          {byType(type).map(card)}
+        </div>
+      ))}
+      {modelDialog && (
+        <ModelBrainDialog
+          tenantId={tenantId}
+          connection={modelDialog.conn}
+          write={write}
+          onClose={() => setModelDialog(null)}
+        />
+      )}
+      {keyDialog && (
+        <BuiltinKeyDialog
+          builtin={keyDialog}
+          write={write}
+          onClose={() => setKeyDialog(null)}
+        />
+      )}
     </div>
   );
 }
