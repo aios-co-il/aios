@@ -12,6 +12,8 @@ import type {
   ModelCandidate,
   RouterSettings,
   RoutingDecision,
+  RoutingStatus,
+  BrainTier,
 } from "./free-first-types.ts";
 
 /**
