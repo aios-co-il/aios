@@ -676,8 +676,8 @@ export const CarmenChatBar = forwardRef<
             {
               role: "assistant",
               content: routed.inline_reply,
-              speaker: routed.kind,
-              channel: routed.kind,
+              speaker: routed.speaker ?? routed.kind,
+              channel: routed.speaker ?? routed.kind,
               ...tagChatTurn("typed"),
             },
           ]);
