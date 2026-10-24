@@ -100,14 +100,6 @@ export function tenantRoutes() {
   return (
     <>
       <Route
-        path="/t/:tenantSlug/workshop"
-        element={
-          <ProtectedRoute>
-            <CarmenWorkshop />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/t/:tenantSlug/marketing"
         element={
           <ProtectedRoute>
@@ -155,6 +147,7 @@ export function tenantRoutes() {
       <Route path="/t/:tenantSlug" element={<TenantAppShell />}>
         <Route index element={<Home />} />
         <Route path="home" element={<Home />} />
+        <Route path="workshop" element={<CarmenWorkshop />} />
         <Route path="dashboard" element={<DashboardRouter />} />
         <Route path="agencies" element={<Agencies />} />
         <Route path="clients" element={<Clients />} />

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCarmenSkins } from "@/hooks/useCarmenSkins";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
+import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { WorkshopCanvas } from "@/components/workshop/WorkshopCanvas";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
 import { WorkshopSkinBar } from "@/components/workshop/WorkshopSkinBar";
@@ -22,6 +23,7 @@ export default function CarmenWorkshop() {
   const tenantId = tenant?.id;
   const skins = useCarmenSkins();
   const { setOpen } = useCommandCenterSidecar();
+  const access = useCommandCenterAccess();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [blank, setBlank] = useState(false);
   const activeRole = roleForSlug(skins.activeSlug)?.id ?? "copy";
@@ -55,7 +57,7 @@ export default function CarmenWorkshop() {
   return (
     <div
       data-workshop
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-[28rem] flex-1 flex-col overflow-hidden"
       dir="rtl"
     >
       <header className="flex shrink-0 flex-col gap-2 border-b px-3 py-2 md:flex-row md:items-center md:gap-3 md:px-4 md:py-3">
@@ -79,6 +81,11 @@ export default function CarmenWorkshop() {
           }}
         />
       </header>
+      {!access.loading && !access.allowed ? (
+        <p className="shrink-0 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          כרמן לא פתוחה לחשבון הזה. אפשר לבקש גישה בהגדרות של כרמן, תחת הרשאות.
+        </p>
+      ) : null}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <WorkshopProjects
           projects={projects.data ?? []}
