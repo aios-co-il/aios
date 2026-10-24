@@ -136,7 +136,7 @@ begin
   end if;
   v_stage := coalesce(p_stage_id, v_item.current_stage_id);
   if v_stage is null then
-    raise exception 'queue_video_sound: work item % has no stage' using errcode = '22023';
+    raise exception 'queue_video_sound: work item % has no stage', p_item_id using errcode = '22023';
   end if;
 
   if p_kind = 'music' then
