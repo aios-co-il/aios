@@ -1352,6 +1352,65 @@ test("with a background runner the picture request returns at once and the pages
   assert.equal(ready.length, 2);
 });
 
+test("approving without repeating the prompt reuses the remembered one", async () => {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "מסעדה",
+      client_id: null,
+      payload: {
+        workshop_look: { bible: "warm bistro look" },
+        workshop_last_prompt: "a plated pasta dish, warm light",
+      },
+    },
+  });
+  const prompts: string[] = [];
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    {
+      generateImage: async (prompt: string) => {
+        prompts.push(prompt);
+        return { image_url: "https://x/a.png" };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal("error" in result, false);
+  assert.match(prompts[0], /plated pasta dish/);
+});
+
+test("with no prompt anywhere the title and style bible stand in", async () => {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "מסעדה",
+      client_id: null,
+      payload: { workshop_look: { bible: "warm bistro look" } },
+    },
+  });
+  const prompts: string[] = [];
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    {
+      generateImage: async (prompt: string) => {
+        prompts.push(prompt);
+        return { image_url: "https://x/a.png" };
+      },
+    },
+  );
+  assert.match(prompts[0], /מסעדה/);
+  assert.match(prompts[0], /warm bistro look/);
+});
+
 test("a second request while pictures are still being made does not pay twice", async () => {
   let generated = 0;
   const db = fakeDb({

@@ -1295,9 +1295,7 @@ export async function executeWorkshopTool(
 
   if (name === "workshop_make_creative") {
     const itemId = String(args.item_id ?? "").trim();
-    const prompt = String(args.prompt ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
-    if (!prompt) return { error: "prompt נדרש" };
     if (!deps.generateImage) return { error: "יצירת תמונות לא זמינה כאן" };
     const loaded = await loadProject(
       supabase,
@@ -1307,6 +1305,20 @@ export async function executeWorkshopTool(
     );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
+    const prompt = (
+      String(args.prompt ?? "").trim() ||
+      (typeof project.payload.workshop_last_prompt === "string"
+        ? project.payload.workshop_last_prompt.trim()
+        : "") ||
+      [project.title, lookOf(project.payload).bible]
+        .filter(Boolean)
+        .join(". ")
+        .trim()
+    ).slice(0, 2000);
+    if (!prompt)
+      return {
+        error: "prompt נדרש: תיאור הוויזואל באנגלית (נושא, סגנון, תאורה)",
+      };
     if (
       project.payload.project_type === "video" &&
       args.formats === undefined
@@ -1324,9 +1336,15 @@ export async function executeWorkshopTool(
     });
     if ("gate" in brief) return brief.gate;
     await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
-    if (brief.payload !== project.payload) {
-      await savePayload(supabase, tenantId, itemId, brief.payload);
-      project.payload = brief.payload;
+    if (
+      brief.payload !== project.payload ||
+      project.payload.workshop_last_prompt !== prompt
+    ) {
+      await savePayload(supabase, tenantId, itemId, {
+        ...brief.payload,
+        workshop_last_prompt: prompt,
+      });
+      project.payload = { ...brief.payload, workshop_last_prompt: prompt };
     }
     const look = lookOf(project.payload);
     const projectFormats = imageFormatsFrom(
