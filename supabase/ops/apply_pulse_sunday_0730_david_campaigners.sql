@@ -75,7 +75,7 @@ BEGIN
 
   PERFORM cron.schedule(
     'campaign-pulse-sunday-0730',
-    '30 4 * * 0',
+    '30 4,5 * * 0',
     format(
       $cron$
       SELECT net.http_post(
