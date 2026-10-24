@@ -492,10 +492,7 @@ async function openPlaceholders(
   try {
     await supabase
       .from("workshop_artifacts")
-      .update({
-        status: "failed",
-        meta: { placeholder: true, text: "ההפקה הקודמת הופסקה" },
-      })
+      .delete()
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId)
       .eq("status", "pending")
@@ -1460,7 +1457,7 @@ export async function executeWorkshopTool(
         success: true,
         started: true,
         pages: formats.length,
-        message: `התחלתי ליצור ${formats.length} תמונות. הן מופיעות בלוח בעוד דקה בערך, ושם גם יופיע הסבר אם משהו נכשל. אמרי את זה למשתמש במשפט אחד ואל תקראי שוב לכלי.`,
+        message: `התחלתי ליצור ${formats.length} תמונות. הן מופיעות בלוח בעוד דקה בערך. אם משהו נכשל תופיע למשתמש הודעת שגיאה והעמוד לא נשאר בלוח. אמרי את זה למשתמש במשפט אחד ואל תקראי שוב לכלי.`,
         workshop: { event: "artifacts", item_id: itemId },
       };
     }

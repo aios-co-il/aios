@@ -1,12 +1,35 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
 import {
+  splitFailures,
   storagePathsIn,
   withSignedUrls,
   type WorkshopArtifact,
 } from "./workshopFeed";
+
+const cleared = new Set<string>();
+
+async function clearFailures(
+  tenantId: string,
+  rows: WorkshopArtifact[],
+): Promise<WorkshopArtifact[]> {
+  const { kept, failedIds } = splitFailures(rows);
+  const fresh = failedIds.filter((id) => !cleared.has(id));
+  if (fresh.length === 0) return kept;
+  fresh.forEach((id) => cleared.add(id));
+  splitFailures(rows.filter((row) => fresh.includes(row.id)))
+    .messages.slice(0, 3)
+    .forEach((message) => toast.error(message, { duration: 12_000 }));
+  await supabase
+    .from("workshop_artifacts" as never)
+    .delete()
+    .eq("tenant_id", tenantId)
+    .in("id", fresh);
+  return kept;
+}
 
 const COLUMNS =
   "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
@@ -51,7 +74,10 @@ export function useWorkshopArtifacts(
         .eq("item_id", projectId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      const rows = (data ?? []) as unknown as WorkshopArtifact[];
+      const rows = await clearFailures(
+        tenantId!,
+        (data ?? []) as unknown as WorkshopArtifact[],
+      );
       const paths = storagePathsIn(rows);
       if (paths.length === 0) return rows;
       const signed = await signCreativeVideoPaths(paths).catch(() => ({}));

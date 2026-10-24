@@ -7,6 +7,7 @@ import {
   pageTypeFor,
   projectFormat,
   shouldFollow,
+  splitFailures,
   storagePathsIn,
   withSignedUrls,
   type WorkshopArtifact,
@@ -103,4 +104,28 @@ test("a project's format comes from its brief, with a default", () => {
   const brief = page({ kind: "brief", meta: { plan: { format: "9:16" } } });
   assert.equal(projectFormat([brief]), "9:16");
   assert.equal(projectFormat([]), "4:5");
+});
+
+test("failed pages leave the board and only recent errors are spoken", () => {
+  const now = Date.parse("2026-10-24T10:10:00Z");
+  const result = splitFailures(
+    [
+      page({ id: "ok", status: "ready" }),
+      page({ id: "new", status: "failed", meta: { text: "OpenAI: 400" } }),
+      page({ id: "dup", status: "failed", meta: { text: "OpenAI: 400" } }),
+      page({
+        id: "old",
+        status: "failed",
+        created_at: "2026-10-23T10:00:00Z",
+        meta: { text: "ישן" },
+      }),
+    ],
+    now,
+  );
+  assert.deepEqual(
+    result.kept.map((row) => row.id),
+    ["ok"],
+  );
+  assert.deepEqual(result.failedIds, ["new", "dup", "old"]);
+  assert.deepEqual(result.messages, ["OpenAI: 400"]);
 });

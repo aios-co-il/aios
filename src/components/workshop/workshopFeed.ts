@@ -56,6 +56,31 @@ export function artifactText(artifact: WorkshopArtifact): string {
   return "";
 }
 
+const RECENT_FAILURE_MS = 30 * 60_000;
+
+/**
+ * Failed pages are not kept on the board: they are shown once as an error and removed. Only
+ * recent ones are worth saying aloud, an old leftover is cleared quietly.
+ */
+export function splitFailures(
+  rows: WorkshopArtifact[],
+  now = Date.now(),
+): { kept: WorkshopArtifact[]; failedIds: string[]; messages: string[] } {
+  const failed = rows.filter((row) => row.status === "failed");
+  const messages = [
+    ...new Set(
+      failed
+        .filter((row) => now - Date.parse(row.created_at) <= RECENT_FAILURE_MS)
+        .map((row) => artifactText(row) || "היצירה נכשלה"),
+    ),
+  ];
+  return {
+    kept: rows.filter((row) => row.status !== "failed"),
+    failedIds: failed.map((row) => row.id),
+    messages,
+  };
+}
+
 /** The pages to show: all of them, or one folder's. The feed keeps arrival order. */
 export function pagesIn(
   artifacts: WorkshopArtifact[],
