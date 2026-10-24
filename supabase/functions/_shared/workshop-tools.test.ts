@@ -137,7 +137,11 @@ const project = {
     id: "item-1",
     title: "חג שמח",
     client_id: null,
-    payload: { format: "1:1", workshop: { formats: ["9:16", "4:5"] } },
+    payload: {
+      format: "1:1",
+      workshop: { formats: ["9:16", "4:5"] },
+      workshop_look: { bible: "warm editorial look" },
+    },
   },
 };
 
@@ -203,7 +207,11 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
     title: "כרמן ליד מחשב",
     client_id: "client-1",
     current_stage_id: "stage-1",
-    payload: { format: "9:16", project_type: "video" },
+    payload: {
+      format: "9:16",
+      project_type: "video",
+      workshop_look: { bible: "warm editorial look" },
+    },
     ...over,
   },
 });
@@ -655,7 +663,12 @@ test("when the first picture fails nothing else is generated without its anchor"
 test("redo clears the old pictures and the anchor, then renders every scene again", async () => {
   const db = fakeDb({
     ...videoProject({
-      payload: { workshop_look: { anchor_url: "https://x/old.png" } },
+      payload: {
+        workshop_look: {
+          bible: "warm editorial look",
+          anchor_url: "https://x/old.png",
+        },
+      },
     }),
     "marketing_video_scenes:select": [
       scene("s-1", { still_asset_id: "a" }),
@@ -685,4 +698,193 @@ test("redo clears the old pictures and the anchor, then renders every scene agai
     (c) => c.table === "marketing_video_scenes" && c.op === "update",
   );
   assert.deepEqual(cleared?.value, { still_asset_id: null });
+});
+
+const bareProject = () =>
+  videoProject({ payload: { format: "9:16", project_type: "video" } });
+
+test("without a defined style Carmen gets questions instead of pictures, storyboard included", async () => {
+  let generated = 0;
+  const deps = {
+    generateImage: async () => {
+      generated += 1;
+      return { image_url: "https://x/1.png" };
+    },
+  };
+  for (const [name, extra] of [
+    ["workshop_make_stills", {}],
+    ["workshop_storyboard", { scenes: [{ visual_prompt: "a woman" }] }],
+  ] as const) {
+    const db = fakeDb({
+      ...bareProject(),
+      "marketing_video_scenes:select": [scene("s-1")],
+    });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      name,
+      { item_id: "item-1", confirmed: true, ...extra },
+      async () => {},
+      null,
+      deps,
+    )) as Record<string, any>;
+    assert.equal(result.needs_input, true, name);
+    assert.deepEqual(result.missing, ["style"]);
+    assert.equal(result.questions.length, 4);
+    assert.equal(
+      db.calls.some((c) => c.op === "update" || c.op === "rpc"),
+      false,
+    );
+  }
+  assert.equal(generated, 0);
+});
+
+test("a proposed style counts only once the user approved it, then it is remembered", async () => {
+  const proposal = { item_id: "item-1", style_bible: "flat vector, teal" };
+  const unapproved = (await executeWorkshopTool(
+    fakeDb({
+      ...bareProject(),
+      "marketing_video_scenes:select": [scene("s-1")],
+    }),
+    "tenant-1",
+    "workshop_make_stills",
+    proposal,
+    async () => {},
+    null,
+    { generateImage: async () => ({ image_url: "https://x/1.png" }) },
+  )) as Record<string, any>;
+  assert.equal(unapproved.needs_input, true);
+  assert.match(unapproved.message, /לא אישר/);
+
+  const db = fakeDb({
+    ...bareProject(),
+    "marketing_video_scenes:select": [scene("s-1")],
+  });
+  const approved = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { ...proposal, style_approved: true },
+    async () => {},
+    null,
+    { generateImage: async () => ({ image_url: "https://x/1.png" }) },
+  )) as Record<string, any>;
+  assert.equal(approved.needs_approval, true);
+  const saved = db.calls.filter(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  );
+  assert.equal(
+    (saved[0].value as any).payload.workshop_look.bible,
+    "flat vector, teal",
+  );
+});
+
+test("with several image engines connected the user is asked, the choice is saved and forwarded", async () => {
+  const connected = ["google", "elevenlabs", "higgsfield"] as const;
+  const seenEngines: (string | undefined)[] = [];
+  const deps = {
+    imageEngines: async () => [...connected],
+    generateImage: async (
+      _p: string,
+      _f: string,
+      _r?: string[],
+      engine?: string,
+    ) => {
+      seenEngines.push(engine);
+      return { image_url: "https://x/1.png" };
+    },
+  };
+  const script = {
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1")],
+    "rpc:attach_video_scene_asset": { id: "asset-1" },
+  };
+  const asked = (await executeWorkshopTool(
+    fakeDb(script),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    deps,
+  )) as Record<string, any>;
+  assert.equal(asked.needs_input, true);
+  assert.deepEqual(asked.missing, ["engine"]);
+  assert.deepEqual(
+    asked.engines.map((e: any) => e.id),
+    ["google", "elevenlabs", "higgsfield"],
+  );
+  assert.equal(asked.questions, undefined);
+
+  const unknown = (await executeWorkshopTool(
+    fakeDb(script),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", engine: "openai" },
+    async () => {},
+    null,
+    deps,
+  )) as Record<string, any>;
+  assert.match(unknown.error, /openai לא מחובר/);
+
+  const db = fakeDb(script);
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", engine: "higgsfield", confirmed: true },
+    async () => {},
+    null,
+    deps,
+  );
+  assert.deepEqual(seenEngines, ["higgsfield"]);
+  const look = db.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map((c) => (c.value as any).payload.workshop_look)
+    .pop();
+  assert.equal(look.engine, "higgsfield");
+
+  const remembered = fakeDb({
+    ...videoProject({
+      payload: {
+        format: "9:16",
+        workshop_look: { bible: "x", engine: "google" },
+      },
+    }),
+    "marketing_video_scenes:select": [scene("s-1")],
+  });
+  const again = (await executeWorkshopTool(
+    remembered,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    deps,
+  )) as Record<string, any>;
+  assert.equal(again.needs_approval, true);
+});
+
+test("a single connected engine is used without asking", async () => {
+  const seen: (string | undefined)[] = [];
+  await executeWorkshopTool(
+    fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1")],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    }),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    {
+      imageEngines: async () => ["elevenlabs"],
+      generateImage: async (_p, _f, _r, engine) => {
+        seen.push(engine);
+        return { image_url: "https://x/1.png" };
+      },
+    },
+  );
+  assert.deepEqual(seen, ["elevenlabs"]);
 });

@@ -10,7 +10,7 @@ const json = (body: unknown, status = 200) =>
 test("a missing key everywhere says what to connect", async () => {
   await assert.rejects(
     generateStill({}, "x", "1:1"),
-    /אחד מ-OpenAI, Google או ElevenLabs/,
+    /אחד מ-OpenAI, Google, ElevenLabs או Higgsfield/,
   );
 });
 
@@ -180,4 +180,67 @@ test("references that cannot be read are reported, not skipped", async () => {
     "https://x/gone.png",
     "https://x/page.html",
   ]);
+});
+
+test("a chosen engine is used alone, with no fallback, and must be connected", async () => {
+  await assert.rejects(
+    generateStill({ openai: "k" }, "x", "1:1", { engine: "google" }),
+    /Google \(Gemini\) לא מחובר/,
+  );
+  const calls: string[] = [];
+  await assert.rejects(
+    generateStill({ openai: "k", google: "g" }, "x", "1:1", {
+      engine: "openai",
+      fetchImpl: (async (url: string) => {
+        calls.push(url);
+        return json({ error: "no" }, 400);
+      }) as typeof fetch,
+      gemini: async () => {
+        calls.push("gemini");
+        return { bytes: png };
+      },
+    }),
+    /OpenAI/,
+  );
+  assert.deepEqual(calls, ["https://api.openai.com/v1/images/generations"]);
+});
+
+test("Higgsfield uses Soul 2 text-to-image, or image-to-image with a reference link", async () => {
+  const seen: { url: string; body?: Record<string, any> }[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      seen.push({ url, body: JSON.parse(String(init.body)) });
+      return json({ request_id: "r1" });
+    }
+    if (url.endsWith("/status"))
+      return json({
+        status: "completed",
+        images: [{ url: "https://c/out.png" }],
+      });
+    return new Response(png, { headers: { "content-type": "image/png" } });
+  }) as typeof fetch;
+  const plain = await generateStill(
+    { higgsfield: "id:secret" },
+    "a cat",
+    "4:5",
+    {
+      sleep: async () => {},
+      fetchImpl,
+    },
+  );
+  assert.equal(plain.provider, "higgsfield");
+  assert.match(seen[0].url, /soul\/v2\/standard$/);
+  assert.equal(seen[0].body!.aspect_ratio, "3:4");
+  await generateStill(
+    { higgsfield: "id:secret" },
+    "a cat",
+    "1:1",
+    { sleep: async () => {}, fetchImpl },
+    [
+      { bytes: png, mime: "image/png", url: "https://x/ref.png" },
+      { bytes: png, mime: "image/png", url: "https://x/anchor.png" },
+    ],
+  );
+  assert.match(seen[1].url, /soul\/v2\/image-to-image$/);
+  assert.equal(seen[1].body!.image_url, "https://x/anchor.png");
 });

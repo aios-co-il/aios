@@ -12,7 +12,7 @@ import { PROVIDER_LABEL, type Provider } from "./capabilities.ts";
 
 export type ImageProvider = Extract<
   Provider,
-  "openai" | "google" | "elevenlabs"
+  "openai" | "google" | "elevenlabs" | "higgsfield"
 >;
 export type ImageKeys = Partial<Record<ImageProvider, string>>;
 
@@ -20,6 +20,7 @@ export const IMAGE_PROVIDER_ORDER: ImageProvider[] = [
   "openai",
   "google",
   "elevenlabs",
+  "higgsfield",
 ];
 
 /** Gemini-based models hold a character and style across references better than gpt-image-1 edits. */
@@ -27,11 +28,14 @@ export const REFERENCE_PROVIDER_ORDER: ImageProvider[] = [
   "google",
   "elevenlabs",
   "openai",
+  "higgsfield",
 ];
 
 export interface ImageReference {
   bytes: Uint8Array;
   mime: string;
+  /** Where it came from; Higgsfield takes a public link instead of bytes. */
+  url?: string;
 }
 
 const REFERENCE_MIMES = ["image/jpeg", "image/png", "image/webp"];
@@ -69,7 +73,7 @@ export async function loadReferences(
           response.headers.get("content-type")?.split(";")[0].trim() ??
           "";
         if (!REFERENCE_MIMES.includes(mime)) throw new Error("type");
-        references[index] = { bytes, mime };
+        references[index] = { bytes, mime, url };
       } catch {
         failed.push(url);
       }
@@ -79,6 +83,8 @@ export async function loadReferences(
 }
 
 export interface ImageDeps {
+  /** Use only this provider, with no fallback: the user chose it. */
+  engine?: ImageProvider;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   pollMs?: number;
@@ -258,6 +264,76 @@ async function viaElevenLabs(
   throw new Error("הזמן אזל");
 }
 
+const HIGGSFIELD_ASPECTS: Record<string, string> = {
+  "1:1": "1:1",
+  "16:9": "16:9",
+  "9:16": "9:16",
+  "4:3": "4:3",
+  "3:4": "3:4",
+  "4:5": "3:4",
+};
+
+/** Soul 2: text-to-image, or image-to-image when there is a public reference link. */
+async function viaHiggsfield(
+  key: string,
+  prompt: string,
+  aspect: GeminiAspectRatio,
+  deps: ImageDeps,
+  fetchImpl: typeof fetch,
+  references: ImageReference[],
+): Promise<MadeImage> {
+  const base = "https://api.higgsfield.ai";
+  const headers = {
+    Authorization: `Key ${key}`,
+    "Content-Type": "application/json",
+  };
+  const reference = [...references].reverse().find((entry) => entry.url);
+  const submit = await fetchImpl(
+    `${base}/higgsfield-ai/soul/v2/${reference ? "image-to-image" : "standard"}`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        prompt,
+        aspect_ratio: HIGGSFIELD_ASPECTS[aspect] ?? "1:1",
+        resolution: "720p",
+        batch_size: 1,
+        ...(reference ? { image_url: reference.url } : {}),
+      }),
+    },
+  );
+  const started = await submit.json().catch(() => ({}));
+  if (!submit.ok || !started?.request_id)
+    throw new Error(`${submit.status} ${clip(JSON.stringify(started))}`);
+  const sleep =
+    deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const polls = deps.maxPolls ?? 40;
+  for (let attempt = 0; attempt < polls; attempt++) {
+    await sleep(deps.pollMs ?? 2000);
+    const poll = await fetchImpl(
+      `${base}/requests/${encodeURIComponent(started.request_id)}/status`,
+      { headers },
+    );
+    const state = await poll.json().catch(() => ({}));
+    if (!poll.ok)
+      throw new Error(`${poll.status} ${clip(JSON.stringify(state))}`);
+    if (["failed", "nsfw", "canceled"].includes(state.status))
+      throw new Error(clip(String(state.error ?? state.status)));
+    if (state.status === "completed") {
+      const url = state.images?.[0]?.url;
+      if (!url) throw new Error("לא הוחזר קישור לתמונה");
+      const file = await fetchImpl(url);
+      if (!file.ok) throw new Error(`הורדה ${file.status}`);
+      return {
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        mime: file.headers.get("content-type")?.split(";")[0] || "image/png",
+        provider: "higgsfield",
+      };
+    }
+  }
+  throw new Error("הזמן אזל");
+}
+
 export async function generateStill(
   keys: ImageKeys,
   prompt: string,
@@ -269,10 +345,16 @@ export async function generateStill(
   const fetchImpl = deps.fetchImpl ?? fetch;
   const order =
     references.length > 0 ? REFERENCE_PROVIDER_ORDER : IMAGE_PROVIDER_ORDER;
-  const available = order.filter((provider) => keys[provider]);
+  if (deps.engine && !keys[deps.engine])
+    throw new Error(
+      `${PROVIDER_LABEL[deps.engine]} לא מחובר. בחרו מנוע אחר או חברו את המפתח בהגדרות מודלי AI.`,
+    );
+  const available = deps.engine
+    ? [deps.engine]
+    : order.filter((provider) => keys[provider]);
   if (available.length === 0)
     throw new Error(
-      "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google או ElevenLabs בהגדרות מודלי AI.",
+      "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
     );
   const failures: string[] = [];
   for (const provider of available) {
@@ -282,6 +364,15 @@ export async function generateStill(
         return await viaOpenAi(key, prompt, aspect, fetchImpl, references);
       if (provider === "google")
         return await viaGoogle(key, prompt, aspect, deps, references);
+      if (provider === "higgsfield")
+        return await viaHiggsfield(
+          key,
+          prompt,
+          aspect,
+          deps,
+          fetchImpl,
+          references,
+        );
       return await viaElevenLabs(
         key,
         prompt,

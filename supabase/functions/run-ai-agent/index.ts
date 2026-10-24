@@ -2630,6 +2630,12 @@ const ALL_TOOLS = [
           description:
             "קישורי https של תמונות רפרנס (סגנון, דמות, מוצר) שהתמונה צריכה להתאים להן",
         },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע תמונות מסוים. כשמחוברים כמה, שאלי את המשתמש באיזה ליצור. בלי זה נבחר אוטומטית.",
+        },
       },
       required: ["prompt"],
     },
@@ -5680,10 +5686,32 @@ async function executeTool(
         assertCallerCanAccessClient(supabase, clientId, callerScope),
       actorUserId,
       {
-        generateImage: async (prompt, format, references) => {
+        imageEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return imageProvidersFor(
+            connectedProviders(
+              (data?.settings || {}) as Record<string, unknown>,
+              { openai: Deno.env.get("OPENAI_API_KEY") ?? undefined },
+            ),
+          );
+        },
+        generateImage: async (prompt, format, references, engine) => {
           const made = await executeTool(
             "generate_ad_image",
-            { prompt, aspect_ratio: format, reference_urls: references },
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
             supabase,
             tenantId,
             userId,
@@ -8627,11 +8655,16 @@ async function executeTool(
           undefined,
         google: (stored.google_api_key || "").trim() || undefined,
         elevenlabs: (stored.elevenlabs_api_key || "").trim() || undefined,
+        higgsfield:
+          (stored.higgsfield_api_key_id || "").trim() &&
+          (stored.higgsfield_api_key_secret || "").trim()
+            ? `${stored.higgsfield_api_key_id.trim()}:${stored.higgsfield_api_key_secret.trim()}`
+            : undefined,
       };
       if (imageProvidersFor(connected).length === 0) {
         return {
           error:
-            "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google או ElevenLabs בהגדרות מודלי AI.",
+            "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
           suggestion: "פנה למנהל המערכת להגדרת המפתח.",
         };
       }
@@ -8659,7 +8692,13 @@ async function executeTool(
             ? String(args.prompt)
             : `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
           args.aspect_ratio,
-          {},
+          {
+            engine: ["google", "elevenlabs", "higgsfield", "openai"].includes(
+              args.engine,
+            )
+              ? args.engine
+              : undefined,
+          },
           loadedReferences.references,
         );
       } catch (error) {

@@ -36,7 +36,7 @@ export function connectedProviders(
 
 /** Image providers in the order Carmen tries them. */
 export const imageProvidersFor = (connected: Record<Provider, boolean>) =>
-  (["openai", "google", "elevenlabs"] as const).filter(
+  (["openai", "google", "elevenlabs", "higgsfield"] as const).filter(
     (provider) => connected[provider],
   );
 
@@ -53,7 +53,7 @@ export function capabilityReport(
   const missing: string[] = [];
   if (images.length === 0)
     missing.push(
-      "אין מפתח ליצירת תמונות: צריך אחד מ-OpenAI, Google או ElevenLabs",
+      "אין מפתח ליצירת תמונות: צריך אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",
     );
   if (!connected.elevenlabs)
     missing.push("בלי ElevenLabs אין קריינות, מוזיקה והנפשה במנוע ElevenLabs");

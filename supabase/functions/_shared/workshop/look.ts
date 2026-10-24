@@ -26,6 +26,7 @@ export interface ProjectLook {
   references: string[];
   bible: string;
   anchorUrl: string | null;
+  engine: string | null;
 }
 
 export function lookOf(payload: Record<string, unknown>): ProjectLook {
@@ -40,6 +41,8 @@ export function lookOf(payload: Record<string, unknown>): ProjectLook {
     references,
     bible: typeof stored.bible === "string" ? stored.bible : "",
     anchorUrl: isHttps(stored.anchor_url) ? stored.anchor_url : null,
+    engine:
+      typeof stored.engine === "string" && stored.engine ? stored.engine : null,
   };
 }
 
@@ -49,7 +52,11 @@ export function lookOf(payload: Record<string, unknown>): ProjectLook {
  */
 export function withLook(
   payload: Record<string, unknown>,
-  input: { reference_urls?: unknown; style_bible?: unknown },
+  input: {
+    reference_urls?: unknown;
+    style_bible?: unknown;
+    engine?: unknown;
+  },
   extra: { anchorUrl?: string | null } = {},
 ): { payload: Record<string, unknown>; changed: boolean } {
   const stored = asRecord(payload[KEY]);
@@ -61,7 +68,12 @@ export function withLook(
   const anchorChanged =
     extra.anchorUrl !== undefined &&
     (extra.anchorUrl ?? null) !== (stored.anchor_url ?? null);
-  if (incoming.length === 0 && !bible && !anchorChanged)
+  const engine =
+    typeof input.engine === "string" && input.engine.trim()
+      ? input.engine.trim()
+      : null;
+  const engineChanged = engine !== null && engine !== (stored.engine ?? null);
+  if (incoming.length === 0 && !bible && !anchorChanged && !engineChanged)
     return { payload, changed: false };
   const references = [
     ...new Set([...incoming, ...urlsFrom(stored.references)]),
@@ -70,6 +82,7 @@ export function withLook(
     ...stored,
     references,
     ...(bible ? { bible } : {}),
+    ...(engine ? { engine } : {}),
   };
   if (extra.anchorUrl !== undefined) {
     if (extra.anchorUrl) next.anchor_url = extra.anchorUrl;

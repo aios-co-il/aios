@@ -11,6 +11,8 @@
 
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { capabilityReport } from "./workshop/capabilities.ts";
+import { briefingGate } from "./workshop/briefing.ts";
+import type { ImageProvider } from "./workshop/image-providers.ts";
 import { lookOf, stillPrompt, withLook } from "./workshop/look.ts";
 import {
   estimateImages,
@@ -118,11 +120,22 @@ export const WORKSHOP_TOOLS = [
           items: { type: "string", enum: ["9:16", "4:5", "1:1", "16:9"] },
           description: "ברירת מחדל: הפורמטים של הפרויקט",
         },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+        },
         reference_urls: {
           type: "array",
           items: { type: "string" },
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_approved: {
+          type: "boolean",
+          description:
+            "true רק אחרי שהמשתמש אישר את הסגנון (style_bible) בהודעה שלו. בלי זה הכלי יחזיר שאלות במקום לייצר.",
         },
         style_bible: {
           type: "string",
@@ -195,11 +208,22 @@ export const WORKSHOP_TOOLS = [
       properties: {
         item_id: { type: "string" },
         replace: { type: "boolean" },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+        },
         reference_urls: {
           type: "array",
           items: { type: "string" },
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_approved: {
+          type: "boolean",
+          description:
+            "true רק אחרי שהמשתמש אישר את הסגנון (style_bible) בהודעה שלו. בלי זה הכלי יחזיר שאלות במקום לייצר.",
         },
         style_bible: {
           type: "string",
@@ -252,11 +276,22 @@ export const WORKSHOP_TOOLS = [
           description:
             "true כשהמשתמש רוצה ליצור מחדש את כל תמונות הסצנות (למשל כשלא תאמו את הרפרנס או לא היו אחידות). עולה כסף, דורש אישור.",
         },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+        },
         reference_urls: {
           type: "array",
           items: { type: "string" },
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_approved: {
+          type: "boolean",
+          description:
+            "true רק אחרי שהמשתמש אישר את הסגנון (style_bible) בהודעה שלו. בלי זה הכלי יחזיר שאלות במקום לייצר.",
         },
         style_bible: {
           type: "string",
@@ -407,7 +442,10 @@ export interface WorkshopDeps {
     prompt: string,
     format: Format,
     references?: string[],
+    engine?: ImageProvider,
   ) => Promise<{ image_url?: string; error?: string }>;
+  /** Image engines the tenant has keys for; more than one means the user chooses. */
+  imageEngines?: () => Promise<ImageProvider[]>;
   defaultEngine?: () => Promise<SceneEngine>;
   envOpenAiKey?: string;
 }
@@ -424,6 +462,49 @@ async function savePayload(
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * The briefing before any picture work: the user's style and (when several are connected) engine.
+ * Returns a gate with the questions to ask, or the payload with the look folded in.
+ */
+async function briefProject(
+  deps: WorkshopDeps,
+  payload: Record<string, unknown>,
+  args: Record<string, unknown>,
+  options: { kind: "video" | "static"; needsEngine: boolean },
+): Promise<
+  | { gate: Record<string, unknown> }
+  | { payload: Record<string, unknown>; engine: ImageProvider | null }
+> {
+  const stored = lookOf(payload);
+  const connected = deps.imageEngines ? await deps.imageEngines() : null;
+  const asked = typeof args.engine === "string" ? args.engine : null;
+  if (asked && connected && !connected.includes(asked as ImageProvider))
+    return {
+      gate: {
+        error: `המנוע ${asked} לא מחובר. המחוברים: ${connected.join(", ") || "אין"}.`,
+      },
+    };
+  const chosen = (asked ??
+    (stored.engine && connected?.includes(stored.engine as ImageProvider)
+      ? stored.engine
+      : null)) as ImageProvider | null;
+  const folded = withLook(payload, { ...args, engine: asked });
+  const look = lookOf(folded.payload);
+  const gate = briefingGate({
+    look,
+    styleApproved: args.style_approved === true || stored.bible.length > 0,
+    connected,
+    engine: chosen,
+    kind: options.kind,
+    needsEngine: options.needsEngine,
+  });
+  if (gate) return { gate: gate as unknown as Record<string, unknown> };
+  return {
+    payload: folded.payload,
+    engine: chosen ?? (connected?.length === 1 ? connected[0] : null),
+  };
 }
 
 async function loadProject(
@@ -670,10 +751,14 @@ export async function executeWorkshopTool(
     );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
-    const folded = withLook(project.payload, args);
-    if (folded.changed) {
-      await savePayload(supabase, tenantId, itemId, folded.payload);
-      project.payload = folded.payload;
+    const brief = await briefProject(deps, project.payload, args, {
+      kind: "static",
+      needsEngine: true,
+    });
+    if ("gate" in brief) return brief.gate;
+    if (brief.payload !== project.payload) {
+      await savePayload(supabase, tenantId, itemId, brief.payload);
+      project.payload = brief.payload;
     }
     const look = lookOf(project.payload);
     const projectFormats = imageFormatsFrom(
@@ -704,6 +789,7 @@ export async function executeWorkshopTool(
             }),
             format,
             look.references,
+            brief.engine ?? undefined,
           );
           return { format, ...made };
         } catch (error) {
@@ -829,6 +915,12 @@ export async function executeWorkshopTool(
     );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
+    const brief = await briefProject(deps, project.payload, args, {
+      kind: "video",
+      needsEngine: false,
+    });
+    if ("gate" in brief) return brief.gate;
+    project.payload = brief.payload;
     const input = (Array.isArray(args.scenes) ? args.scenes : [])
       .map((scene) => asRecord(scene))
       .filter((scene) => String(scene.visual_prompt ?? "").trim())
@@ -866,7 +958,7 @@ export async function executeWorkshopTool(
         );
       if (removed.error) return { error: removed.error.message };
     }
-    const folded = withLook(project.payload, args, { anchorUrl: null });
+    const folded = withLook(project.payload, {}, { anchorUrl: null });
     await savePayload(supabase, tenantId, itemId, {
       ...folded.payload,
       project_type: "video",
@@ -924,6 +1016,15 @@ export async function executeWorkshopTool(
       : scenes.filter((scene) => !scene.still_asset_id);
     if (pending.length === 0)
       return { success: true, created: 0, remaining: 0 };
+    const brief = await briefProject(deps, project.payload, args, {
+      kind: "video",
+      needsEngine: true,
+    });
+    if ("gate" in brief) return brief.gate;
+    if (brief.payload !== project.payload) {
+      await savePayload(supabase, tenantId, itemId, brief.payload);
+      project.payload = brief.payload;
+    }
     const batch = pending.slice(0, STILLS_PER_CALL);
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
     const estimate = estimateImages([format], batch.length);
@@ -935,7 +1036,7 @@ export async function executeWorkshopTool(
         estimated_usd: estimate.usd,
         message: `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
       };
-    let payload = withLook(project.payload, args).payload;
+    let payload = brief.payload;
     if (redo) {
       payload = withLook(payload, {}, { anchorUrl: null }).payload;
       const cleared = await supabase
@@ -966,6 +1067,7 @@ export async function executeWorkshopTool(
           }),
           format,
           references,
+          brief.engine ?? undefined,
         );
         if (!made.image_url)
           return {
