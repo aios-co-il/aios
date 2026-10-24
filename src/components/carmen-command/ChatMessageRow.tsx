@@ -1,3 +1,4 @@
+import { workshopToolLabel } from "@/lib/workshopBridge";
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
@@ -91,7 +92,7 @@ export function ChatMessageRow({
     return (
       <p className="flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--cc-text-dim)]">
         <Wrench className="h-3 w-3 shrink-0" />
-        {tool}
+        {workshopToolLabel(tool)}
       </p>
     );
   }

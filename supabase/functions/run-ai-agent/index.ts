@@ -43,6 +43,12 @@ import {
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
+  WORKSHOP_TOOLS,
+  executeWorkshopTool,
+  isWorkshopTool,
+} from "../_shared/workshop-tools.ts";
+import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -2501,6 +2507,7 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
+  ...WORKSHOP_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -5646,6 +5653,39 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
+  if (isWorkshopTool(name)) {
+    return executeWorkshopTool(
+      supabase,
+      tenantId,
+      name,
+      args,
+      (clientId) =>
+        assertCallerCanAccessClient(supabase, clientId, callerScope),
+      actorUserId,
+      {
+        generateImage: async (prompt, format) => {
+          const made = await executeTool(
+            "generate_ad_image",
+            { prompt, aspect_ratio: format },
+            supabase,
+            tenantId,
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          );
+          return made?.image_url
+            ? { image_url: made.image_url as string }
+            : { error: String(made?.error ?? "לא התקבלה תמונה") };
+        },
+      },
+    );
+  }
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
       supabase,
@@ -8557,7 +8597,12 @@ async function executeTool(
             model: "gpt-image-1",
             prompt: `${imagePrompt}. Professional, high quality, suitable for a social media advertisement.`,
             n: 1,
-            size: "1024x1024",
+            size:
+              args.aspect_ratio === "16:9"
+                ? "1536x1024"
+                : args.aspect_ratio === "9:16" || args.aspect_ratio === "4:5"
+                  ? "1024x1536"
+                  : "1024x1024",
             output_format: "png",
           }),
         },
@@ -15747,6 +15792,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               : undefined;
           if (uiAction && typeof uiAction === "object")
             emit({ type: "ui_action", tool: toolName, action: uiAction });
+          // Workshop tools tell the board what appeared and which skin is doing the work.
+          const workshopEvent =
+            result && typeof result === "object"
+              ? (result as any).workshop
+              : undefined;
+          if (workshopEvent && typeof workshopEvent === "object")
+            emit({ type: "workshop", tool: toolName, ...workshopEvent });
+          const skinSlug = skinForTool(toolName);
+          if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
         }
 
         if (

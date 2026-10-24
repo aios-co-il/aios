@@ -1,0 +1,52 @@
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { WorkshopArtifact } from "./workshopFeed";
+
+const COLUMNS =
+  "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
+
+/** The pages of one project, kept live: a page Carmen adds arrives without a refresh. */
+export function useWorkshopArtifacts(
+  tenantId: string | undefined,
+  projectId: string | null,
+) {
+  const queryClient = useQueryClient();
+  const queryKey = ["workshop-artifacts", tenantId, projectId];
+
+  useEffect(() => {
+    if (!tenantId || !projectId) return;
+    const channel = supabase
+      .channel(`workshop-artifacts-${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workshop_artifacts",
+          filter: `item_id=eq.${projectId}`,
+        },
+        () => queryClient.invalidateQueries({ queryKey }),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, projectId, queryClient]);
+
+  return useQuery({
+    queryKey,
+    enabled: !!tenantId && !!projectId,
+    queryFn: async (): Promise<WorkshopArtifact[]> => {
+      const { data, error } = await supabase
+        .from("workshop_artifacts" as never)
+        .select(COLUMNS)
+        .eq("tenant_id", tenantId!)
+        .eq("item_id", projectId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as unknown as WorkshopArtifact[];
+    },
+  });
+}

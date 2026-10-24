@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { Button } from "@/components/ui/button";
-import { WorkshopCanvas } from "@/components/workshop/WorkshopCanvas";
+import { WorkshopFeed } from "@/components/workshop/WorkshopFeed";
+import { useWorkshopArtifacts } from "@/components/workshop/useWorkshopArtifacts";
+import {
+  setWorkshopContext,
+  subscribeWorkshopEvents,
+} from "@/lib/workshopBridge";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
-import "@/components/workshop/workshop.css";
 
 type ProjectRow = {
   id: string;
@@ -24,10 +28,26 @@ export default function CarmenWorkshop() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [blank, setBlank] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [artifactId, setArtifactId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (access.allowed) setOpen(true);
   }, [access.allowed, setOpen]);
+
+  useEffect(
+    () =>
+      subscribeWorkshopEvents((event) => {
+        void queryClient.invalidateQueries({
+          queryKey: ["carmen-workshop-projects", tenantId],
+        });
+        if (event.event === "project") {
+          setBlank(false);
+          setProjectId(event.item_id);
+        }
+      }),
+    [queryClient, tenantId],
+  );
 
   const projects = useQuery({
     queryKey: ["carmen-workshop-projects", tenantId],
@@ -50,6 +70,22 @@ export default function CarmenWorkshop() {
     : (projects.data?.find((item) => item.id === projectId) ??
       projects.data?.[0] ??
       null);
+
+  const artifacts = useWorkshopArtifacts(tenantId, selected?.id ?? null);
+
+  useEffect(() => {
+    setArtifactId(null);
+  }, [selected?.id]);
+
+  useEffect(() => {
+    setWorkshopContext({
+      projectId: selected?.id ?? null,
+      title: selected?.title ?? null,
+      selectedArtifactId: artifactId,
+    });
+  }, [selected?.id, selected?.title, artifactId]);
+
+  useEffect(() => () => setWorkshopContext(null), []);
 
   return (
     <div
@@ -106,15 +142,14 @@ export default function CarmenWorkshop() {
             }}
           />
         ) : null}
-        <main className="relative min-h-0 min-w-0 flex-1">
-          <div className="absolute inset-0">
-            <WorkshopCanvas
-              title={selected?.title ?? null}
-              payload={selected?.payload ?? null}
-              blank={blank || !selected}
-              quiet={projects.isLoading && !blank}
-            />
-          </div>
+        <main className="min-h-0 min-w-0 flex-1">
+          <WorkshopFeed
+            artifacts={artifacts.data ?? []}
+            loading={artifacts.isLoading || (projects.isLoading && !blank)}
+            hasProject={!!selected}
+            selectedId={artifactId}
+            onSelect={setArtifactId}
+          />
         </main>
       </div>
     </div>

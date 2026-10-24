@@ -37,7 +37,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
-import { getSessionSkin } from "@/lib/carmenSessionSkin";
+import { getSessionSkin, setSessionSkin } from "@/lib/carmenSessionSkin";
+import {
+  emitWorkshopEvent,
+  getWorkshopContext,
+  workshopEventFrom,
+  workshopRequestParts,
+} from "@/lib/workshopBridge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -443,7 +449,11 @@ export const CarmenChatBar = forwardRef<
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("לא מחוברת");
-      const promptAddon = ctxMeta ? systemFixPromptAddon(ctxMeta) : undefined;
+      const workshop = workshopRequestParts(getWorkshopContext());
+      const promptAddon =
+        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+          .filter(Boolean)
+          .join("\n\n") || undefined;
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -459,9 +469,10 @@ export const CarmenChatBar = forwardRef<
             stream: true,
             conversation_id: boundConvId || conversationIdRef.current,
             conversation_history: history,
-            system_prompt_addon: promptAddon || undefined,
+            system_prompt_addon: promptAddon,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            task_skills: workshop?.taskSkills,
           }),
         },
       );
@@ -528,6 +539,15 @@ export const CarmenChatBar = forwardRef<
                 ]);
                 scrollDown();
               }
+            } else if (parsed.type === "workshop") {
+              const event = workshopEventFrom(parsed);
+              if (event) emitWorkshopEvent(event);
+            } else if (
+              parsed.type === "skin" &&
+              typeof parsed.slug === "string" &&
+              workshop
+            ) {
+              setSessionSkin(tenantId, parsed.slug);
             } else if (parsed.type === "conversation_id" && parsed.id) {
               boundId = parsed.id;
               if (
