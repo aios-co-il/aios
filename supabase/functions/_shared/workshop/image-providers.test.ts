@@ -91,3 +91,93 @@ test("unknown ratios fall back to square", () => {
   assert.equal(aspectFor("2:7"), "1:1");
   assert.equal(aspectFor("4:5"), "4:5");
 });
+
+test("references go to Gemini-based providers first and reach the request", async () => {
+  const ref = { bytes: Uint8Array.from([137, 80, 78, 71]), mime: "image/png" };
+  let sent: { images: Uint8Array[]; mimeTypes?: string[] } | null = null;
+  const made = await generateStill(
+    { openai: "k", google: "g" },
+    "a cat",
+    "1:1",
+    {
+      gemini: async (input) => {
+        sent = input;
+        return { bytes: png };
+      },
+    },
+    [ref],
+  );
+  assert.equal(made.provider, "google");
+  assert.equal(sent!.images.length, 1);
+  assert.deepEqual(sent!.mimeTypes, ["image/png"]);
+});
+
+test("OpenAI with references uses the edits endpoint with the pictures attached", async () => {
+  const ref = { bytes: Uint8Array.from([255, 216, 1]), mime: "image/jpeg" };
+  let url = "";
+  let form: FormData | null = null;
+  const made = await generateStill(
+    { openai: "k" },
+    "a cat",
+    "9:16",
+    {
+      fetchImpl: (async (u: string, init: RequestInit) => {
+        url = u;
+        form = init.body as FormData;
+        return json({ data: [{ b64_json: b64 }] });
+      }) as typeof fetch,
+    },
+    [ref],
+  );
+  assert.equal(made.provider, "openai");
+  assert.match(url, /images\/edits$/);
+  assert.equal(form!.getAll("image[]").length, 1);
+  assert.equal(form!.get("size"), "1024x1536");
+});
+
+test("ElevenLabs gets the references as inline images", async () => {
+  const ref = { bytes: Uint8Array.from([137, 80, 78, 71]), mime: "image/png" };
+  let body: Record<string, any> = {};
+  await generateStill(
+    { elevenlabs: "e" },
+    "a cat",
+    "4:5",
+    {
+      sleep: async () => {},
+      fetchImpl: (async (url: string, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          body = JSON.parse(String(init.body));
+          return json({ id: "g1" });
+        }
+        if (url.endsWith("/g1"))
+          return json({ status: "completed", content_url: "https://c/x.png" });
+        return new Response(png, { headers: { "content-type": "image/png" } });
+      }) as typeof fetch,
+    },
+    [ref],
+  );
+  assert.equal(body.images[0].type, "inline_base64");
+  assert.equal(body.images[0].mime_type, "image/png");
+  assert.equal(body.images[0].content_base64, b64);
+});
+
+test("references that cannot be read are reported, not skipped", async () => {
+  const { loadReferences } = await import("./image-providers.ts");
+  const result = await loadReferences(
+    ["https://x/ok.png", "https://x/gone.png", "https://x/page.html"],
+    (async (url: string) =>
+      url.endsWith("ok.png")
+        ? new Response(png, { headers: { "content-type": "image/png" } })
+        : url.endsWith("gone.png")
+          ? new Response("", { status: 404 })
+          : new Response("<html>", {
+              headers: { "content-type": "text/html" },
+            })) as unknown as typeof fetch,
+  );
+  assert.equal(result.references.length, 1);
+  assert.equal(result.references[0].mime, "image/png");
+  assert.deepEqual(result.failed.sort(), [
+    "https://x/gone.png",
+    "https://x/page.html",
+  ]);
+});

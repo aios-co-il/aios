@@ -22,6 +22,62 @@ export const IMAGE_PROVIDER_ORDER: ImageProvider[] = [
   "elevenlabs",
 ];
 
+/** Gemini-based models hold a character and style across references better than gpt-image-1 edits. */
+export const REFERENCE_PROVIDER_ORDER: ImageProvider[] = [
+  "google",
+  "elevenlabs",
+  "openai",
+];
+
+export interface ImageReference {
+  bytes: Uint8Array;
+  mime: string;
+}
+
+const REFERENCE_MIMES = ["image/jpeg", "image/png", "image/webp"];
+const REFERENCE_MAX_BYTES = 12 * 1024 * 1024;
+
+const sniffMime = (bytes: Uint8Array) =>
+  bytes[0] === 0x89 && bytes[1] === 0x50
+    ? "image/png"
+    : bytes[0] === 0xff && bytes[1] === 0xd8
+      ? "image/jpeg"
+      : bytes[0] === 0x52 && bytes[8] === 0x57
+        ? "image/webp"
+        : null;
+
+/**
+ * Downloads reference images. Pictures that cannot be read are reported, never skipped silently:
+ * a result that ignores the reference is the failure this exists to prevent.
+ */
+export async function loadReferences(
+  urls: string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ references: ImageReference[]; failed: string[] }> {
+  const references: ImageReference[] = [];
+  const failed: string[] = [];
+  await Promise.all(
+    urls.map(async (url, index) => {
+      try {
+        const response = await fetchImpl(url);
+        if (!response.ok) throw new Error(String(response.status));
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.length === 0 || bytes.length > REFERENCE_MAX_BYTES)
+          throw new Error("size");
+        const mime =
+          sniffMime(bytes) ??
+          response.headers.get("content-type")?.split(";")[0].trim() ??
+          "";
+        if (!REFERENCE_MIMES.includes(mime)) throw new Error("type");
+        references[index] = { bytes, mime };
+      } catch {
+        failed.push(url);
+      }
+    }),
+  );
+  return { references: references.filter(Boolean), failed };
+}
+
 export interface ImageDeps {
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -31,6 +87,7 @@ export interface ImageDeps {
     apiKey: string;
     prompt: string;
     images: Uint8Array[];
+    mimeTypes?: string[];
     aspectRatio: GeminiAspectRatio;
   }) => Promise<{ bytes: Uint8Array }>;
 }
@@ -62,6 +119,13 @@ const openAiSize = (aspect: GeminiAspectRatio) =>
       ? "1024x1536"
       : "1024x1024";
 
+const toBase64 = (bytes: Uint8Array) => {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+};
+
 const fromBase64 = (value: string) =>
   Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 
@@ -72,10 +136,28 @@ async function viaOpenAi(
   prompt: string,
   aspect: GeminiAspectRatio,
   fetchImpl: typeof fetch,
+  references: ImageReference[],
 ): Promise<MadeImage> {
-  const response = await fetchImpl(
-    "https://api.openai.com/v1/images/generations",
-    {
+  let response: Response;
+  if (references.length > 0) {
+    const form = new FormData();
+    form.append("model", "gpt-image-1");
+    form.append("prompt", prompt);
+    form.append("size", openAiSize(aspect));
+    references.forEach((reference, index) =>
+      form.append(
+        "image[]",
+        new Blob([reference.bytes as BlobPart], { type: reference.mime }),
+        `reference-${index + 1}.${reference.mime.split("/")[1] === "jpeg" ? "jpg" : reference.mime.split("/")[1]}`,
+      ),
+    );
+    response = await fetchImpl("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+    });
+  } else {
+    response = await fetchImpl("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
@@ -88,8 +170,8 @@ async function viaOpenAi(
         size: openAiSize(aspect),
         output_format: "png",
       }),
-    },
-  );
+    });
+  }
   if (!response.ok)
     throw new Error(`${response.status} ${clip(await response.text())}`);
   const data = await response.json();
@@ -103,11 +185,13 @@ async function viaGoogle(
   prompt: string,
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
+  references: ImageReference[],
 ): Promise<MadeImage> {
   const made = await (deps.gemini ?? generateGeminiImage)({
     apiKey: key,
     prompt,
-    images: [],
+    images: references.map((reference) => reference.bytes),
+    mimeTypes: references.map((reference) => reference.mime),
     aspectRatio: aspect,
   });
   return { bytes: made.bytes, mime: "image/png", provider: "google" };
@@ -119,6 +203,7 @@ async function viaElevenLabs(
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
   fetchImpl: typeof fetch,
+  references: ImageReference[],
 ): Promise<MadeImage> {
   const headers = { "xi-api-key": key, "Content-Type": "application/json" };
   const base = "https://api.elevenlabs.io/v1/flows/image";
@@ -130,6 +215,15 @@ async function viaElevenLabs(
       prompt,
       aspect_ratio: aspect,
       resolution: "1K",
+      ...(references.length > 0
+        ? {
+            images: references.map((reference) => ({
+              type: "inline_base64",
+              content_base64: toBase64(reference.bytes),
+              mime_type: reference.mime,
+            })),
+          }
+        : {}),
     }),
   });
   const started = await submit.json().catch(() => ({}));
@@ -169,10 +263,13 @@ export async function generateStill(
   prompt: string,
   aspectRatio: unknown,
   deps: ImageDeps = {},
+  references: ImageReference[] = [],
 ): Promise<MadeImage> {
   const aspect = aspectFor(aspectRatio);
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const available = IMAGE_PROVIDER_ORDER.filter((provider) => keys[provider]);
+  const order =
+    references.length > 0 ? REFERENCE_PROVIDER_ORDER : IMAGE_PROVIDER_ORDER;
+  const available = order.filter((provider) => keys[provider]);
   if (available.length === 0)
     throw new Error(
       "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google או ElevenLabs בהגדרות מודלי AI.",
@@ -182,10 +279,17 @@ export async function generateStill(
     const key = keys[provider]!;
     try {
       if (provider === "openai")
-        return await viaOpenAi(key, prompt, aspect, fetchImpl);
+        return await viaOpenAi(key, prompt, aspect, fetchImpl, references);
       if (provider === "google")
-        return await viaGoogle(key, prompt, aspect, deps);
-      return await viaElevenLabs(key, prompt, aspect, deps, fetchImpl);
+        return await viaGoogle(key, prompt, aspect, deps, references);
+      return await viaElevenLabs(
+        key,
+        prompt,
+        aspect,
+        deps,
+        fetchImpl,
+        references,
+      );
     } catch (error) {
       failures.push(
         `${PROVIDER_LABEL[provider]}: ${error instanceof Error ? error.message : String(error)}`,

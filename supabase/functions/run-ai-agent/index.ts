@@ -55,6 +55,7 @@ import {
 } from "../_shared/workshop/capabilities.ts";
 import {
   generateStill,
+  loadReferences,
   type ImageKeys,
 } from "../_shared/workshop/image-providers.ts";
 import { CONNECTIONS_STANDING } from "../_shared/workshop/connections-standing.ts";
@@ -2622,6 +2623,12 @@ const ALL_TOOLS = [
           type: "string",
           enum: ["1:1", "16:9", "9:16", "4:5"],
           description: "יחס גובה-רוחב",
+        },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס (סגנון, דמות, מוצר) שהתמונה צריכה להתאים להן",
         },
       },
       required: ["prompt"],
@@ -5673,10 +5680,10 @@ async function executeTool(
         assertCallerCanAccessClient(supabase, clientId, callerScope),
       actorUserId,
       {
-        generateImage: async (prompt, format) => {
+        generateImage: async (prompt, format, references) => {
           const made = await executeTool(
             "generate_ad_image",
-            { prompt, aspect_ratio: format },
+            { prompt, aspect_ratio: format, reference_urls: references },
             supabase,
             tenantId,
             userId,
@@ -8628,12 +8635,32 @@ async function executeTool(
           suggestion: "פנה למנהל המערכת להגדרת המפתח.",
         };
       }
+      const referenceUrls = (
+        Array.isArray(args.reference_urls) ? args.reference_urls : []
+      )
+        .filter((url: unknown): url is string => typeof url === "string")
+        .slice(0, 5);
+      const loadedReferences = await loadReferences(referenceUrls);
+      if (
+        referenceUrls.length > 0 &&
+        loadedReferences.references.length === 0
+      ) {
+        return {
+          success: false,
+          error:
+            "לא הצלחתי לקרוא את תמונות הרפרנס (הקישור פג או לא נגיש). בקשי מהמשתמש לצרף אותן שוב.",
+        };
+      }
       let made;
       try {
         made = await generateStill(
           keys,
-          `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
+          loadedReferences.references.length > 0
+            ? String(args.prompt)
+            : `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
           args.aspect_ratio,
+          {},
+          loadedReferences.references,
         );
       } catch (error) {
         return {
@@ -8660,6 +8687,7 @@ async function executeTool(
         success: true,
         image_url: urlData.publicUrl,
         provider: made.provider,
+        references_used: loadedReferences.references.length,
         message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
       };
     }

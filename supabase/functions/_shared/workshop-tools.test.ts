@@ -579,3 +579,110 @@ test("the connections check reports what is connected and never the key values",
   assert.equal(bare.connected.openai, true);
   assert.equal(bare.can.images, true);
 });
+
+test("stills follow the user's references and every later scene follows the first one", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1"), scene("s-2"), scene("s-3")],
+    "rpc:attach_video_scene_asset": { id: "asset-1" },
+  });
+  const seen: { prompt: string; references?: string[] }[] = [];
+  const done = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    {
+      item_id: "item-1",
+      confirmed: true,
+      reference_urls: ["https://x/ref-1.png", "not a url"],
+      style_bible: "Carmen: mid-30s, dark bob, teal blazer. Flat vector style.",
+    },
+    async () => {},
+    null,
+    {
+      generateImage: async (
+        prompt: string,
+        _format: string,
+        refs?: string[],
+      ) => {
+        seen.push({ prompt, references: refs });
+        return { image_url: `https://x/still-${seen.length}.png` };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(done.created, 3);
+  assert.equal(done.used_references, 1);
+  assert.deepEqual(seen[0].references, ["https://x/ref-1.png"]);
+  assert.deepEqual(seen[1].references, [
+    "https://x/ref-1.png",
+    "https://x/still-1.png",
+  ]);
+  assert.deepEqual(seen[2].references, seen[1].references);
+  assert.match(seen[0].prompt, /dark bob, teal blazer/);
+  assert.match(seen[1].prompt, /approved first frame/);
+  assert.doesNotMatch(seen[0].prompt, /approved first frame/);
+  const saved = db.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map((c) => (c.value as Record<string, any>).payload.workshop_look);
+  assert.equal(saved[saved.length - 1].anchor_url, "https://x/still-1.png");
+  assert.deepEqual(saved[0].references, ["https://x/ref-1.png"]);
+});
+
+test("when the first picture fails nothing else is generated without its anchor", async () => {
+  let calls = 0;
+  const done = (await executeWorkshopTool(
+    fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1"), scene("s-2")],
+    }),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    {
+      generateImage: async () => {
+        calls += 1;
+        return { error: "quota" };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(calls, 1);
+  assert.equal(done.created, 0);
+  assert.match(done.message, /quota/);
+});
+
+test("redo clears the old pictures and the anchor, then renders every scene again", async () => {
+  const db = fakeDb({
+    ...videoProject({
+      payload: { workshop_look: { anchor_url: "https://x/old.png" } },
+    }),
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a" }),
+      scene("s-2", { still_asset_id: "b" }),
+    ],
+    "rpc:attach_video_scene_asset": { id: "asset-1" },
+  });
+  const seen: (string[] | undefined)[] = [];
+  const done = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true, redo: true },
+    async () => {},
+    null,
+    {
+      generateImage: async (_p: string, _f: string, refs?: string[]) => {
+        seen.push(refs);
+        return { image_url: `https://x/new-${seen.length}.png` };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(done.created, 2);
+  assert.deepEqual(seen[0], []);
+  assert.deepEqual(seen[1], ["https://x/new-1.png"]);
+  const cleared = db.calls.find(
+    (c) => c.table === "marketing_video_scenes" && c.op === "update",
+  );
+  assert.deepEqual(cleared?.value, { still_asset_id: null });
+});

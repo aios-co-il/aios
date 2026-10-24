@@ -11,6 +11,7 @@
 
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { capabilityReport } from "./workshop/capabilities.ts";
+import { lookOf, stillPrompt, withLook } from "./workshop/look.ts";
 import {
   estimateImages,
   imageFormatsFrom,
@@ -117,6 +118,17 @@ export const WORKSHOP_TOOLS = [
           items: { type: "string", enum: ["9:16", "4:5", "1:1", "16:9"] },
           description: "ברירת מחדל: הפורמטים של הפרויקט",
         },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_bible: {
+          type: "string",
+          description:
+            "באנגלית, 3 עד 6 משפטים שמחזיקים את אותו מראה בכל הפרויקט: הדמות (גיל, פנים, שיער, מבנה, לבוש), המקום, פלטת צבעים, תאורה וסגנון רינדור. נשמר לפרויקט ומצורף לכל תמונה.",
+        },
         confirmed: {
           type: "boolean",
           description:
@@ -183,6 +195,17 @@ export const WORKSHOP_TOOLS = [
       properties: {
         item_id: { type: "string" },
         replace: { type: "boolean" },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_bible: {
+          type: "string",
+          description:
+            "באנגלית, 3 עד 6 משפטים שמחזיקים את אותו מראה בכל הפרויקט: הדמות (גיל, פנים, שיער, מבנה, לבוש), המקום, פלטת צבעים, תאורה וסגנון רינדור. נשמר לפרויקט ומצורף לכל תמונה.",
+        },
         scenes: {
           type: "array",
           items: {
@@ -218,12 +241,28 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_stills",
     description:
-      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true.",
+      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true.",
     parameters: {
       type: "object",
       properties: {
         item_id: { type: "string" },
         confirmed: { type: "boolean" },
+        redo: {
+          type: "boolean",
+          description:
+            "true כשהמשתמש רוצה ליצור מחדש את כל תמונות הסצנות (למשל כשלא תאמו את הרפרנס או לא היו אחידות). עולה כסף, דורש אישור.",
+        },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        style_bible: {
+          type: "string",
+          description:
+            "באנגלית, 3 עד 6 משפטים שמחזיקים את אותו מראה בכל הפרויקט: הדמות (גיל, פנים, שיער, מבנה, לבוש), המקום, פלטת צבעים, תאורה וסגנון רינדור. נשמר לפרויקט ומצורף לכל תמונה.",
+        },
       },
       required: ["item_id"],
     },
@@ -367,9 +406,24 @@ export interface WorkshopDeps {
   generateImage?: (
     prompt: string,
     format: Format,
+    references?: string[],
   ) => Promise<{ image_url?: string; error?: string }>;
   defaultEngine?: () => Promise<SceneEngine>;
   envOpenAiKey?: string;
+}
+
+async function savePayload(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  payload: Record<string, unknown>,
+) {
+  const { error } = await supabase
+    .from("marketing_work_items")
+    .update({ payload })
+    .eq("id", itemId)
+    .eq("tenant_id", tenantId);
+  if (error) throw new Error(error.message);
 }
 
 async function loadProject(
@@ -616,6 +670,12 @@ export async function executeWorkshopTool(
     );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
+    const folded = withLook(project.payload, args);
+    if (folded.changed) {
+      await savePayload(supabase, tenantId, itemId, folded.payload);
+      project.payload = folded.payload;
+    }
+    const look = lookOf(project.payload);
     const projectFormats = imageFormatsFrom(
       asRecord(project.payload.workshop).formats,
       imageFormatsFrom([project.payload.format], ["1:1"]),
@@ -634,7 +694,17 @@ export async function executeWorkshopTool(
     const results = await Promise.all(
       formats.map(async (format) => {
         try {
-          const made = await deps.generateImage!(prompt, format);
+          const made = await deps.generateImage!(
+            stillPrompt({
+              visual: prompt,
+              look,
+              userReferences: look.references.length,
+              hasAnchor: false,
+              suffix: "",
+            }),
+            format,
+            look.references,
+          );
           return { format, ...made };
         } catch (error) {
           return {
@@ -796,11 +866,11 @@ export async function executeWorkshopTool(
         );
       if (removed.error) return { error: removed.error.message };
     }
-    await supabase
-      .from("marketing_work_items")
-      .update({ payload: { ...project.payload, project_type: "video" } })
-      .eq("id", itemId)
-      .eq("tenant_id", tenantId);
+    const folded = withLook(project.payload, args, { anchorUrl: null });
+    await savePayload(supabase, tenantId, itemId, {
+      ...folded.payload,
+      project_type: "video",
+    });
     const total = rows.reduce((sum, scene) => sum + scene.duration_s, 0);
     const artifact = await recordArtifact(supabase, {
       tenantId,
@@ -848,7 +918,10 @@ export async function executeWorkshopTool(
     const scenes = await loadScenes(supabase, tenantId, itemId);
     if (scenes.length === 0)
       return { error: "אין סטוריבורד. קודם workshop_storyboard." };
-    const pending = scenes.filter((scene) => !scene.still_asset_id);
+    const redo = args.redo === true;
+    const pending = redo
+      ? scenes
+      : scenes.filter((scene) => !scene.still_asset_id);
     if (pending.length === 0)
       return { success: true, created: 0, remaining: 0 };
     const batch = pending.slice(0, STILLS_PER_CALL);
@@ -862,56 +935,93 @@ export async function executeWorkshopTool(
         estimated_usd: estimate.usd,
         message: `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
       };
+    let payload = withLook(project.payload, args).payload;
+    if (redo) {
+      payload = withLook(payload, {}, { anchorUrl: null }).payload;
+      const cleared = await supabase
+        .from("marketing_video_scenes")
+        .update({ still_asset_id: null })
+        .eq("tenant_id", tenantId)
+        .eq("item_id", itemId);
+      if (cleared.error) return { error: cleared.error.message };
+    }
+    if (payload !== project.payload)
+      await savePayload(supabase, tenantId, itemId, payload);
+    const look = lookOf(payload);
+    let anchorUrl = look.anchorUrl;
+
+    const renderStill = async (scene: Record<string, any>) => {
+      try {
+        const references = anchorUrl
+          ? [...look.references, anchorUrl]
+          : look.references;
+        const made = await deps.generateImage!(
+          stillPrompt({
+            visual: scene.visual_prompt,
+            look,
+            userReferences: look.references.length,
+            hasAnchor: Boolean(anchorUrl),
+            suffix:
+              "Cinematic still frame for a video storyboard. No text on the image.",
+          }),
+          format,
+          references,
+        );
+        if (!made.image_url)
+          return {
+            scene: scene.id,
+            ok: false,
+            error: made.error ?? "לא התקבלה תמונה",
+          };
+        const attached = await supabase.rpc("attach_video_scene_asset", {
+          p_scene_id: scene.id,
+          p_kind: "still",
+          p_url: made.image_url,
+          p_meta: { prompt: scene.visual_prompt, source: "workshop" },
+        });
+        if (attached.error)
+          return { scene: scene.id, ok: false, error: attached.error.message };
+        await ensureStillPage(
+          supabase,
+          tenantId,
+          itemId,
+          scene,
+          attached.data,
+          made.image_url,
+        );
+        return { scene: scene.id, ok: true, url: made.image_url };
+      } catch (error) {
+        return {
+          scene: scene.id,
+          ok: false,
+          error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+        };
+      }
+    };
+
     const results: { scene: string; ok: boolean; error?: string }[] = [];
     const startedAt = Date.now();
-    for (let i = 0; i < batch.length; i += STILL_CONCURRENCY) {
+    let todo = [...batch];
+    if (!anchorUrl) {
+      const first = todo.shift()!;
+      const done = await renderStill(first);
+      results.push({ scene: done.scene, ok: done.ok, error: done.error });
+      if (!done.ok) todo = [];
+      else {
+        anchorUrl = (done as { url: string }).url;
+        await savePayload(
+          supabase,
+          tenantId,
+          itemId,
+          withLook(payload, {}, { anchorUrl }).payload,
+        );
+      }
+    }
+    for (let i = 0; i < todo.length; i += STILL_CONCURRENCY) {
       if (i > 0 && Date.now() - startedAt > STILLS_BUDGET_MS) break;
-      const chunk = batch.slice(i, i + STILL_CONCURRENCY);
+      const chunk = todo.slice(i, i + STILL_CONCURRENCY);
       results.push(
-        ...(await Promise.all(
-          chunk.map(async (scene) => {
-            try {
-              const made = await deps.generateImage!(
-                `${scene.visual_prompt}. Cinematic still frame for a video storyboard. Keep the same character, wardrobe and visual style in every scene. No text on the image.`,
-                format,
-              );
-              if (!made.image_url)
-                return {
-                  scene: scene.id,
-                  ok: false,
-                  error: made.error ?? "לא התקבלה תמונה",
-                };
-              const attached = await supabase.rpc("attach_video_scene_asset", {
-                p_scene_id: scene.id,
-                p_kind: "still",
-                p_url: made.image_url,
-                p_meta: { prompt: scene.visual_prompt, source: "workshop" },
-              });
-              if (attached.error)
-                return {
-                  scene: scene.id,
-                  ok: false,
-                  error: attached.error.message,
-                };
-              await ensureStillPage(
-                supabase,
-                tenantId,
-                itemId,
-                scene,
-                attached.data,
-                made.image_url,
-              );
-              return { scene: scene.id, ok: true };
-            } catch (error) {
-              return {
-                scene: scene.id,
-                ok: false,
-                error:
-                  error instanceof Error ? error.message : "יצירת התמונה נכשלה",
-              };
-            }
-          }),
-        )),
+        ...(await Promise.all(chunk.map((scene) => renderStill(scene)))),
       );
     }
     const created = results.filter((result) => result.ok).length;
@@ -922,12 +1032,18 @@ export async function executeWorkshopTool(
       created,
       failed,
       remaining,
+      used_references: look.references.length,
+      anchored: Boolean(anchorUrl),
       message:
         created === 0
           ? `לא נוצרה אף תמונה. ${failed[0]?.error ?? ""}`.trim()
           : `${created} תמונות נוצרו והן כבר מופיעות בלוח, אין צורך לשלוח או לצרף אותן. ${
+              look.references.length > 0
+                ? `נוצרו לפי ${look.references.length} רפרנסים ותמונת עוגן אחת לאחידות. `
+                : "אין לפרויקט רפרנס: אם המשתמש צירף או הזכיר תמונה, העבירי אותה ב-reference_urls והציעי ליצור מחדש עם redo=true. "
+            }${
               remaining > 0
-                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true להמשך (האישור כבר ניתן).`
+                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true להמשך, בלי redo (האישור כבר ניתן).`
                 : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
             }`,
       workshop: { event: "artifacts", item_id: itemId },
