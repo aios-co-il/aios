@@ -136,6 +136,7 @@ export async function launchCloudDirect(
         wrapDirectPrompt({
           origin: provider,
           userText: ctx.content,
+          preface: ctx.preface,
           history: ctx.history,
           attachments: ctx.attachments,
         }),
@@ -312,6 +313,7 @@ export async function launchClaude(
       wrapDirectPrompt({
         origin: "claude",
         userText: ctx.content,
+        preface: ctx.preface,
         history: ctx.history,
         attachments: ctx.attachments,
       })) +
@@ -453,6 +455,7 @@ export async function launchWorkspaceAgent(
   if (provider === "codex" && !extraPrompt) {
     input = buildCodexWorkspaceAgentInput({
       userText: ctx.content,
+      preface: ctx.preface,
       conversationId: ctx.conversationId,
       sessionId: session.id,
       tenantId: ctx.tenantId,
@@ -470,6 +473,7 @@ export async function launchWorkspaceAgent(
         wrapDirectPrompt({
           origin: provider,
           userText: ctx.content,
+          preface: ctx.preface,
           history: ctx.history,
           attachments: ctx.attachments,
         })) +

@@ -41,6 +41,7 @@ export async function launchCodexViaOpenAiApi(
     wrapDirectPrompt({
       origin: "codex",
       userText: ctx.content,
+      preface: ctx.preface,
       history: ctx.history,
     }) +
     "\n\n[CODEX_API] Reply in Hebrew unless asked otherwise. Be concise. Do not call external MCP tools.";
