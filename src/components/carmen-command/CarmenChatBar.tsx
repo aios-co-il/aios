@@ -44,7 +44,7 @@ import {
   workshopEventFrom,
   workshopRequestParts,
 } from "@/lib/workshopBridge";
-import { hidePartialQuickReplies } from "@/lib/quickReplies";
+import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -1639,6 +1639,7 @@ export const CarmenChatBar = forwardRef<
   );
 
   const visibleMessages = filterMessagesForRoute(messages, brain.selected);
+  const lastAnswerIndex = answerableIndex(visibleMessages);
   const streamSeatKey = seatKeyFromRoute(brain.selected);
   const streamSprite =
     AGENT_SPRITES[streamSeatKey === "shared" ? "carmen" : streamSeatKey];
@@ -1724,9 +1725,7 @@ export const CarmenChatBar = forwardRef<
                 channel={m.channel}
                 tool={m.tool}
                 onQuickReply={
-                  i === visibleMessages.length - 1 &&
-                  m.role === "assistant" &&
-                  !thisChatBusy
+                  i === lastAnswerIndex && !thisChatBusy
                     ? (answer) => void sendText(answer)
                     : undefined
                 }

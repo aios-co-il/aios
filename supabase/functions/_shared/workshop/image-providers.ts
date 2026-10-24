@@ -39,6 +39,7 @@ export interface ImageReference {
 }
 
 const REFERENCE_MIMES = ["image/jpeg", "image/png", "image/webp"];
+const HTTP_TIMEOUT_MS = 100_000;
 const REFERENCE_MAX_BYTES = 12 * 1024 * 1024;
 
 export const sniffMime = (bytes: Uint8Array) =>
@@ -342,7 +343,13 @@ export async function generateStill(
   references: ImageReference[] = [],
 ): Promise<MadeImage> {
   const aspect = aspectFor(aspectRatio);
-  const fetchImpl = deps.fetchImpl ?? fetch;
+  const baseFetch = deps.fetchImpl ?? fetch;
+  // A provider that never answers must fail with a reason, not hang the whole request.
+  const fetchImpl: typeof fetch = (input, init) =>
+    baseFetch(input, {
+      ...init,
+      signal: init?.signal ?? AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
   const order =
     references.length > 0 ? REFERENCE_PROVIDER_ORDER : IMAGE_PROVIDER_ORDER;
   if (deps.engine && !keys[deps.engine])
@@ -383,7 +390,14 @@ export async function generateStill(
       );
     } catch (error) {
       failures.push(
-        `${PROVIDER_LABEL[provider]}: ${error instanceof Error ? error.message : String(error)}`,
+        `${PROVIDER_LABEL[provider]}: ${
+          error instanceof Error &&
+          (error.name === "TimeoutError" || error.name === "AbortError")
+            ? "לא ענה בזמן"
+            : error instanceof Error
+              ? error.message
+              : String(error)
+        }`,
       );
     }
   }

@@ -58,6 +58,7 @@ function fakeDb(script: Record<string, unknown> = {}) {
         select: () => builder,
         eq: () => builder,
         in: () => builder,
+        gte: () => builder,
         order: () => builder,
         limit: () => builder,
         single: () => Promise.resolve(answer()),
@@ -1306,4 +1307,119 @@ test("project state carries the client and the assets Carmen can use", async () 
   });
   assert.equal(state.assets[0].title, "לוגו");
   assert.equal("storage_path" in state.assets[0], false);
+});
+
+test("with a background runner the picture request returns at once and the pages settle later", async () => {
+  const db = fakeDb(project);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const background: Promise<unknown>[] = [];
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", prompt: "table", confirmed: true },
+    async () => {},
+    null,
+    {
+      background: (work) => background.push(work),
+      generateImage: async () => {
+        await gate;
+        return { image_url: "https://x/a.png" };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(result.started, true);
+  assert.equal(result.pages, 2);
+  assert.equal(
+    db.calls.some(
+      (c) =>
+        c.table === "workshop_artifacts" &&
+        c.op === "update" &&
+        (c.value as Record<string, unknown>).status === "ready",
+    ),
+    false,
+    "nothing is settled before the pictures exist",
+  );
+  release();
+  await Promise.all(background);
+  const ready = db.calls.filter(
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "update" &&
+      (c.value as Record<string, unknown>).status === "ready",
+  );
+  assert.equal(ready.length, 2);
+});
+
+test("a second request while pictures are still being made does not pay twice", async () => {
+  let generated = 0;
+  const db = fakeDb({
+    ...project,
+    "workshop_artifacts:select": [{ id: "pending-1" }],
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", prompt: "table", confirmed: true },
+    async () => {},
+    null,
+    {
+      generateImage: async () => {
+        generated += 1;
+        return { image_url: "https://x/a.png" };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(result.already_running, true);
+  assert.equal(generated, 0);
+});
+
+test("a film project with scenes still missing pictures is sent to the scene tool", async () => {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "סרט",
+      client_id: null,
+      payload: { project_type: "video", workshop_look: { bible: "look" } },
+    },
+    "marketing_video_scenes:select": [
+      { id: "s1", position: 1, still_asset_id: null },
+    ],
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", prompt: "scene", confirmed: true },
+    async () => {},
+    null,
+    { generateImage: async () => ({ image_url: "https://x/a.png" }) },
+  )) as Record<string, any>;
+  assert.match(result.error, /workshop_make_stills/);
+});
+
+test("project state tells Carmen why a page failed", async () => {
+  const db = fakeDb({
+    ...project,
+    "workshop_artifacts:select": [
+      {
+        id: "a",
+        kind: "image",
+        status: "failed",
+        meta: { text: "ElevenLabs לא ענה בזמן" },
+      },
+      { id: "b", kind: "image", status: "ready", meta: { prompt: "x" } },
+    ],
+  });
+  const state = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_get_state",
+    { item_id: "item-1" },
+  )) as Record<string, any>;
+  assert.equal(state.artifacts[0].error, "ElevenLabs לא ענה בזמן");
+  assert.equal("meta" in state.artifacts[0], false);
+  assert.equal("error" in state.artifacts[1], false);
 });

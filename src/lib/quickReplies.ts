@@ -51,3 +51,16 @@ export function quickReplyAnswer(
     .map((group) => `${group.label}: ${picked[group.label]}`)
     .join("\n");
 }
+
+/**
+ * Which message may still be answered by tapping: the latest assistant reply, as long as the user
+ * has not written anything since. Tool rows after it do not close the question.
+ */
+export function answerableIndex(messages: { role: string }[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const role = messages[index].role;
+    if (role === "user") return -1;
+    if (role === "assistant") return index;
+  }
+  return -1;
+}

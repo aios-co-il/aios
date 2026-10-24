@@ -453,6 +453,8 @@ const briefPayload = (plan: StartProjectPlan, brief: string) => ({
 
 const STILLS_PER_CALL = 10;
 const STILL_CONCURRENCY = 5;
+/** A pending picture page younger than this means its generation is still running. */
+const RUNNING_WINDOW_MS = 4 * 60_000;
 /** The edge function has a hard time limit: no new batch of pictures starts after this. */
 const STILLS_BUDGET_MS = 50_000;
 
@@ -598,6 +600,8 @@ export interface WorkshopDeps {
   imageEngines?: () => Promise<ImageProvider[]>;
   defaultEngine?: () => Promise<SceneEngine>;
   envOpenAiKey?: string;
+  /** Keeps work running after the chat reply is sent (the edge runtime's waitUntil). */
+  background?: (work: Promise<unknown>) => void;
   /** Reads a public web page or file; the edge function supplies the address-pinned version. */
   fetchPublic?: (
     url: string,
@@ -1211,7 +1215,7 @@ export async function executeWorkshopTool(
     const [artifacts, running, item, assets] = await Promise.all([
       supabase
         .from("workshop_artifacts")
-        .select("id, kind, title, folder, status")
+        .select("id, kind, title, folder, status, meta")
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId)
         .order("created_at"),
@@ -1248,7 +1252,15 @@ export async function executeWorkshopTool(
     const itemPayload = asRecord(item.data?.payload);
     return {
       ...studio,
-      artifacts: artifacts.data ?? [],
+      artifacts: (Array.isArray(artifacts.data) ? artifacts.data : []).map(
+        (page: Record<string, any>) => {
+          const { meta, ...rest } = page;
+          const reason = asRecord(meta).text;
+          return page.status === "failed" && typeof reason === "string"
+            ? { ...rest, error: reason }
+            : rest;
+        },
+      ),
       running: runs.filter(
         (run) => run.status === "queued" || run.status === "running",
       ),
@@ -1278,6 +1290,17 @@ export async function executeWorkshopTool(
     );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
+    if (
+      project.payload.project_type === "video" &&
+      args.formats === undefined
+    ) {
+      const scenes = await loadScenes(supabase, tenantId, itemId);
+      if (scenes.some((scene) => !scene.still_asset_id))
+        return {
+          error:
+            "זה פרויקט סרט עם סצנות שעוד אין להן תמונה. תמונות לסצנות נוצרות עם workshop_make_stills (confirmed=false קודם), לא עם workshop_make_creative. אם המשתמש ביקש במפורש תמונת מודעה נפרדת, קראי שוב עם formats.",
+        };
+    }
     const brief = await briefProject(deps, project.payload, args, {
       kind: "static",
       needsEngine: true,
@@ -1304,6 +1327,25 @@ export async function executeWorkshopTool(
         message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. אשר/י והתחל.`,
       };
     }
+    const running = await supabase
+      .from("workshop_artifacts")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("status", "pending")
+      .eq("kind", "image")
+      .eq("meta->>placeholder", "true")
+      .gte(
+        "created_at",
+        new Date(Date.now() - RUNNING_WINDOW_MS).toISOString(),
+      );
+    if (Array.isArray(running.data) && running.data.length > 0)
+      return {
+        success: true,
+        already_running: true,
+        message:
+          "התמונות כבר בהכנה והן מופיעות בלוח לבד. אל תקראי שוב. לעדכון קראי ל-workshop_get_state.",
+      };
     const holders = await openPlaceholders(
       supabase,
       tenantId,
@@ -1315,67 +1357,79 @@ export async function executeWorkshopTool(
       })),
     );
     const artifacts: Record<string, any>[] = [];
-    const results = await Promise.all(
-      formats.map(async (format, index) => {
-        try {
-          const made = await deps.generateImage!(
-            stillPrompt({
-              visual: prompt,
-              look,
-              userReferences: look.references.length,
-              hasAnchor: false,
-              suffix: "",
-            }),
-            format,
-            look.references,
-            brief.engine ?? undefined,
-          );
-          if (!made.image_url) {
+    const generate = () =>
+      Promise.all(
+        formats.map(async (format, index) => {
+          try {
+            const made = await deps.generateImage!(
+              stillPrompt({
+                visual: prompt,
+                look,
+                userReferences: look.references.length,
+                hasAnchor: false,
+                suffix: "",
+              }),
+              format,
+              look.references,
+              brief.engine ?? undefined,
+            );
+            if (!made.image_url) {
+              await settlePlaceholder(
+                supabase,
+                tenantId,
+                holders[index],
+                failedPatch(made.error ?? "לא התקבלה תמונה"),
+              );
+              return { format, ...made };
+            }
+            const meta = { prompt, format };
+            const settled = await settlePlaceholder(
+              supabase,
+              tenantId,
+              holders[index],
+              {
+                status: "ready",
+                url: made.image_url,
+                thumb_url: made.image_url,
+                meta,
+              },
+            );
+            artifacts.push(
+              settled ??
+                (await recordArtifact(supabase, {
+                  tenantId,
+                  itemId,
+                  kind: "image",
+                  title: `${project.title || "תמונה"} · ${format}`,
+                  url: made.image_url,
+                  meta,
+                })),
+            );
+            return { format, ...made };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "יצירת התמונה נכשלה";
             await settlePlaceholder(
               supabase,
               tenantId,
               holders[index],
-              failedPatch(made.error ?? "לא התקבלה תמונה"),
+              failedPatch(message),
             );
-            return { format, ...made };
+            return { format, error: message };
           }
-          const meta = { prompt, format };
-          const settled = await settlePlaceholder(
-            supabase,
-            tenantId,
-            holders[index],
-            {
-              status: "ready",
-              url: made.image_url,
-              thumb_url: made.image_url,
-              meta,
-            },
-          );
-          artifacts.push(
-            settled ??
-              (await recordArtifact(supabase, {
-                tenantId,
-                itemId,
-                kind: "image",
-                title: `${project.title || "תמונה"} · ${format}`,
-                url: made.image_url,
-                meta,
-              })),
-          );
-          return { format, ...made };
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "יצירת התמונה נכשלה";
-          await settlePlaceholder(
-            supabase,
-            tenantId,
-            holders[index],
-            failedPatch(message),
-          );
-          return { format, error: message };
-        }
-      }),
-    );
+        }),
+      );
+    if (deps.background && holders.every(Boolean)) {
+      deps.background(generate().catch(() => []));
+      return {
+        success: true,
+        started: true,
+        pages: formats.length,
+        message: `התחלתי ליצור ${formats.length} תמונות. הן מופיעות בלוח בעוד דקה בערך, ושם גם יופיע הסבר אם משהו נכשל. אמרי את זה למשתמש במשפט אחד ואל תקראי שוב לכלי.`,
+        workshop: { event: "artifacts", item_id: itemId },
+      };
+    }
+    const results = await generate();
     const failed = results.filter((result) => !result.image_url);
     return {
       success: artifacts.length > 0,

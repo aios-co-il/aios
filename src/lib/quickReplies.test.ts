@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  answerableIndex,
   hidePartialQuickReplies,
   parseQuickReplies,
   quickReplyAnswer,
@@ -48,4 +49,18 @@ test("one group answers with the option, several answer with their labels", () =
     "סגנון: א\nמנוע: Google",
   );
   assert.equal(quickReplyAnswer(two, { מנוע: "Google" }), "מנוע: Google");
+});
+
+test("only the latest assistant reply is answerable, and a user message closes it", () => {
+  assert.equal(answerableIndex([{ role: "user" }, { role: "assistant" }]), 1);
+  assert.equal(
+    answerableIndex([
+      { role: "assistant" },
+      { role: "tool_call" },
+      { role: "tool_call" },
+    ]),
+    0,
+  );
+  assert.equal(answerableIndex([{ role: "assistant" }, { role: "user" }]), -1);
+  assert.equal(answerableIndex([]), -1);
 });
