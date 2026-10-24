@@ -61,6 +61,12 @@ import {
   topicIsLive,
   type TopicChat,
 } from "@/lib/chatTopics";
+import {
+  liveTopicStatus,
+  markResumeChatClosed,
+  readResumeChat,
+  writeResumeChat,
+} from "@/lib/carmenResumeChat";
 import type {
   ConversationChannelStatus,
   HudStage,
@@ -444,6 +450,8 @@ export const CarmenChatBar = forwardRef<
       } = await supabase.auth.getSession();
       if (!session) throw new Error("לא מחוברת");
       const promptAddon = ctxMeta ? systemFixPromptAddon(ctxMeta) : undefined;
+      // The server saves the answer under this key too, even if the panel closes.
+      const replyKey = crypto.randomUUID();
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -462,6 +470,7 @@ export const CarmenChatBar = forwardRef<
             system_prompt_addon: promptAddon || undefined,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            reply_key: replyKey,
           }),
         },
       );
@@ -551,20 +560,26 @@ export const CarmenChatBar = forwardRef<
         answer || (gotDone ? "" : "⚠️ החיבור נותק באמצע — נסי שוב.");
       if (finalText) {
         if (streamAppliesToActive(boundId, conversationIdRef.current)) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: finalText,
-              speaker: "carmen",
-              channel: "internal",
-              ...tagChatTurn("typed"),
-            },
-          ]);
+          // The server's saved copy may have arrived first over realtime.
+          setMessages((prev) =>
+            prev.some((m) => m.role === "assistant" && m.content === finalText)
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: finalText,
+                    speaker: "carmen",
+                    channel: "internal",
+                    ...tagChatTurn("typed"),
+                  },
+                ],
+          );
           setStreamingText("");
         }
         if (boundId) {
-          brain.persistAssistant(boundId, finalText, crypto.randomUUID());
+          // A cut-off stream is not saved: the server saves the full answer.
+          if (gotDone) brain.persistAssistant(boundId, finalText, replyKey);
           delete streamBufRef.current[boundId];
         }
       } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
@@ -1315,13 +1330,17 @@ export const CarmenChatBar = forwardRef<
         },
         (payload: { new: any }) => {
           if (payload.new?.status) brain.setStatus(payload.new.status);
+          // The topic list holds the status the composer trusts.
+          queryClient.invalidateQueries({
+            queryKey: ["cc-conversations", tenantId],
+          });
         },
       )
       .subscribe();
     return () => {
       (supabase as any).removeChannel(channel);
     };
-  }, [conversationId, brain]);
+  }, [conversationId, brain, queryClient, tenantId]);
 
   /** Send a finished conversation to Carmen's memory (importance-graded extraction). */
   const learnFromConversation = useCallback(async () => {
@@ -1368,7 +1387,10 @@ export const CarmenChatBar = forwardRef<
     }
   }, [learnFromConversation, tenantId, brain]);
 
-  const restoredRef = useRef(startFresh);
+  // The session panel opens fresh, except on the chat it was closed on in
+  // this tab: Carmen kept working on it meanwhile (lib/carmenResumeChat).
+  const resumeRef = useRef(startFresh ? readResumeChat(tenantId) : null);
+  const restoredRef = useRef(startFresh && !resumeRef.current);
   const seatSlugRef = useRef(brain.selected.slug);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
@@ -1378,10 +1400,9 @@ export const CarmenChatBar = forwardRef<
       // This chat picks its own seat; the seat-switch effect must not reset it.
       seatSlugRef.current = nextRoute.slug;
       brain.selectRoute(nextRoute, conv.id);
+      const status = liveTopicStatus(conv.status, conv.updated_at);
       brain.setStatus(
-        (topicIsLive(conv.status)
-          ? conv.status
-          : "idle") as ConversationChannelStatus,
+        (topicIsLive(status) ? status : "idle") as ConversationChannelStatus,
       );
       setStreamingText(streamBufRef.current[conv.id] || "");
       setIsStreaming(liveStreamIdsRef.current.includes(conv.id));
@@ -1457,14 +1478,17 @@ export const CarmenChatBar = forwardRef<
   useEffect(() => {
     if (!tenantId || restoredRef.current || conversationIdRef.current) return;
     const seat = brain.selected.slug || "cursor";
+    const resumeId = resumeRef.current?.conversationId;
     const last =
       localStorage.getItem(lastConversationStorageKeyForSeat(tenantId, seat)) ||
       localStorage.getItem(lastConversationStorageKey(tenantId));
-    const hit = conversationsForRoute(
-      pastConversations ?? [],
-      brain.selected,
-      brain.routes,
-    ).find((c) => c.id === last);
+    const hit = resumeId
+      ? pastConversations?.find((c) => c.id === resumeId)
+      : conversationsForRoute(
+          pastConversations ?? [],
+          brain.selected,
+          brain.routes,
+        ).find((c) => c.id === last);
     if (hit) {
       restoredRef.current = true;
       loadConversation(hit);
@@ -1591,6 +1615,18 @@ export const CarmenChatBar = forwardRef<
   // Release the mic and stop audio when the page unmounts
   useEffect(() => () => endConversation(), [endConversation]);
 
+  // Session panel: remember its chat, and when it closed, for the reopen.
+  useEffect(() => {
+    if (startFresh && tenantId && restoredRef.current)
+      writeResumeChat(tenantId, conversationId);
+  }, [startFresh, tenantId, conversationId]);
+  useEffect(
+    () => () => {
+      if (startFresh) markResumeChatClosed();
+    },
+    [startFresh],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -1615,7 +1651,7 @@ export const CarmenChatBar = forwardRef<
     conversationId,
     liveStreamIds,
     status:
-      activeTopic?.status ??
+      liveTopicStatus(activeTopic?.status, activeTopic?.updated_at) ??
       (conversationId && liveStreamIds.includes(conversationId)
         ? "streaming"
         : brain.status),

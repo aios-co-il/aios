@@ -15,6 +15,11 @@ import { resolveModelId } from "../_shared/models.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
+  createReplyRecorder,
+  parseReplyKey,
+  saveCarmenReply,
+} from "../_shared/carmen/background-reply.ts";
+import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
@@ -16187,41 +16192,70 @@ Deno.serve(async (req) => {
 
   // Streaming mode: AIOS-compatible SSE.
   // Events emitted: {type:'tool_call',tool,args}, {type:'token',content}, {type:'done',...}
+  // The turn keeps running after the client disconnects (closed chat panel,
+  // reloaded tab), and the server saves the answer (_shared/carmen/background-reply).
   const enc = new TextEncoder();
+  const recorder = createReplyRecorder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (obj: any) => {
+        recorder.observe(obj);
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
-          /* ignore */
+          /* client gone: keep working, the reply is saved below */
         }
       };
-      try {
-        const resp = await handleRunAgent(bodyJson, surface, emit);
+      const turn = (async () => {
         let final: any = {};
         try {
-          final = await resp.json();
-        } catch {
-          /* ignore */
+          const resp = await handleRunAgent(bodyJson, surface, emit);
+          try {
+            final = await resp.json();
+          } catch {
+            /* ignore */
+          }
+          emit({
+            type: "done",
+            success: final.success !== false,
+            output: final.output,
+            tools_used: final.tools_used,
+            error: final.error,
+          });
+        } catch (e: any) {
+          emit({ type: "error", error: e?.message || String(e) });
+          emit({
+            type: "done",
+            success: false,
+            error: e?.message || String(e),
+          });
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            /* ignore */
+          }
         }
-        emit({
-          type: "done",
-          success: final.success !== false,
-          output: final.output,
-          tools_used: final.tools_used,
-          error: final.error,
-        });
-      } catch (e: any) {
-        emit({ type: "error", error: e?.message || String(e) });
-        emit({ type: "done", success: false, error: e?.message || String(e) });
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          /* ignore */
+        // Only the chat that sent a reply_key gets its answer saved here; the
+        // other streaming callers keep saving their own replies.
+        const replyKey = parseReplyKey(bodyJson.reply_key);
+        if (
+          surface === "internal_chat" &&
+          replyKey &&
+          recorder.conversationId
+        ) {
+          await saveCarmenReply(
+            createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+            {
+              conversationId: recorder.conversationId,
+              content: recorder.reply(final.output),
+              replyKey,
+            },
+          ).catch((e) => console.error("[carmen] reply save failed:", e));
         }
-      }
+      })();
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(turn);
+      await turn;
     },
   });
 
