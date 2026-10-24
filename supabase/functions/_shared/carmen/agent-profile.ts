@@ -11,6 +11,13 @@ export type AgentProfile = {
   avatarPath?: string;
 };
 
+/** Field limits, matching the profile form. */
+export const PROFILE_LIMITS = {
+  displayName: 80,
+  persona: 500,
+  instructions: 4000,
+} as const;
+
 /** Reads config.profile from a brain route's config, ignoring bad fields. */
 export function readAgentProfile(config: unknown): AgentProfile {
   const raw =
@@ -19,12 +26,12 @@ export function readAgentProfile(config: unknown): AgentProfile {
       : null;
   if (!raw || typeof raw !== "object") return {};
   const p = raw as Record<string, unknown>;
-  const text = (v: unknown) =>
-    typeof v === "string" && v.trim() ? v.trim() : undefined;
+  const text = (v: unknown, max = 1000) =>
+    typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
   return {
-    displayName: text(p.displayName),
-    persona: text(p.persona),
-    instructions: text(p.instructions),
+    displayName: text(p.displayName, PROFILE_LIMITS.displayName),
+    persona: text(p.persona, PROFILE_LIMITS.persona),
+    instructions: text(p.instructions, PROFILE_LIMITS.instructions),
     avatarPath: text(p.avatarPath),
   };
 }
@@ -40,5 +47,5 @@ export function agentProfileBlock(profile: AgentProfile): string {
     profile.instructions && `Standing instructions:\n${profile.instructions}`,
   ].filter(Boolean);
   if (!lines.length) return "";
-  return `[Agent profile set in AIOS]\n${lines.join("\n")}`.slice(0, 4000);
+  return `[Agent profile set in AIOS]\n${lines.join("\n")}`;
 }

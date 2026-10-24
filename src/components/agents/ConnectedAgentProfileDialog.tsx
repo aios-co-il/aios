@@ -1,5 +1,6 @@
 import { ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PROFILE_LIMITS } from "@/lib/carmenAgentProfile";
 import { validateAvatarFile } from "@/lib/profileAvatars";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,7 @@ export function ConnectedAgentProfileDialog({
             <Label>שם תצוגה</Label>
             <Input
               value={draft.displayName ?? ""}
+              maxLength={PROFILE_LIMITS.displayName}
               placeholder={editing?.label}
               onChange={(e) =>
                 setDraft({ ...draft, displayName: e.target.value })
@@ -75,7 +77,7 @@ export function ConnectedAgentProfileDialog({
             <Label>פרסונה (מי הוא/היא)</Label>
             <Textarea
               value={draft.persona ?? ""}
-              maxLength={500}
+              maxLength={PROFILE_LIMITS.persona}
               className="min-h-[60px]"
               onChange={(e) => setDraft({ ...draft, persona: e.target.value })}
             />
@@ -84,7 +86,7 @@ export function ConnectedAgentProfileDialog({
             <Label>הוראות לסוכן</Label>
             <Textarea
               value={draft.instructions ?? ""}
-              maxLength={4000}
+              maxLength={PROFILE_LIMITS.instructions}
               className="min-h-[120px]"
               onChange={(e) =>
                 setDraft({ ...draft, instructions: e.target.value })

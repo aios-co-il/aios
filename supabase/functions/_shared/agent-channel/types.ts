@@ -91,6 +91,8 @@ export type SendContext = {
   conversationId: string;
   route: BrainRouteRow;
   content: string;
+  /** Goes first, above the adapter's wrapper: a connected agent's profile. */
+  preface?: string;
   attachments?: ChannelAttachment[];
   inputMode: InputMode;
   idempotencyKey: string;

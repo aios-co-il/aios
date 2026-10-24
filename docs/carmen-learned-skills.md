@@ -823,5 +823,5 @@ Claude Code health-check skill written to `ai_skills` (scope=tenant, created_by_
 ## 2026-10-22 — Connected-agent profiles
 
 - Each connected agent (Cursor, Claude, Codex, Grok) can have a profile: display name, persona, standing instructions and a picture. Edited in AI Agents → "סוכנים מחוברים"; stored on its brain route as `agent_brain_routes.config.profile`.
-- `agent-channel-send` puts the profile (name, persona, instructions) at the top of every task sent to that agent, above the session skin (`_shared/carmen/task-preface.ts`). The picture is display-only.
+- `agent-channel-send` sends the profile (name, persona, instructions) as the task's `preface`, which each adapter puts first, above its own wrapper and the recent thread (`_shared/carmen/task-preface.ts`). The session skin stays above the message. The picture is display-only.
 - Images upload to `entity-attachments/<tenant>/agent-avatars/routes/<route id>/` (tenant-folder RLS).

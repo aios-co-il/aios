@@ -7,10 +7,16 @@ import {
   type RouteRow,
 } from "./connectedAgentProfile";
 
+/** Avatar links are signed for an hour; re-sign well before they expire. */
+const AVATAR_REFRESH_MS = 30 * 60_000;
+
 export function useConnectedAgentRoutes(tenantId: string | null | undefined) {
   return useQuery({
     queryKey: [CONNECTED_AGENT_PROFILES_KEY, tenantId],
     enabled: !!tenantId,
+    staleTime: AVATAR_REFRESH_MS,
+    refetchOnMount: true,
+    refetchInterval: AVATAR_REFRESH_MS,
     queryFn: async (): Promise<RouteRow[]> => {
       const { data, error } = await supabase
         .from("agent_brain_routes")

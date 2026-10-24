@@ -28,3 +28,17 @@ test("builds task instructions only from text fields", () => {
   assert.match(block, /You are "Dev Lead"\./);
   assert.match(block, /Standing instructions:\nAlways open a PR to develop\./);
 });
+
+test("a profile at the form's limits reaches the agent whole", () => {
+  const instructions = "i".repeat(4000);
+  const block = agentProfileBlock(
+    readAgentProfile({
+      profile: {
+        displayName: "n".repeat(80),
+        persona: "p".repeat(500),
+        instructions,
+      },
+    }),
+  );
+  assert.ok(block.endsWith(instructions));
+});

@@ -26,6 +26,7 @@ export function supabaseProjectRef(): string {
 /** Official Workspace Agent API input for Codex Direct (async trigger + MCP reply). */
 export function buildCodexWorkspaceAgentInput(args: {
   userText: string;
+  preface?: string;
   conversationId: string;
   sessionId: string;
   tenantId: string;
@@ -42,6 +43,7 @@ export function buildCodexWorkspaceAgentInput(args: {
       ? `parliament_round: ${args.parliamentRound}\n`
       : "";
   return (
+    prefaceBlock(args.preface) +
     `[AIOS Command Center · Codex Direct]\n\n` +
     `You are AIOS Codex Direct. Complete the user's task in the Workspace and return the complete result to AIOS.\n\n` +
     `Answer it yourself. Do not forward it to Cursor, Carmen, or another agent.\n\n` +
@@ -140,9 +142,16 @@ export function buildCallbackInstructions(args: {
   );
 }
 
+/** A preface (a connected agent's profile) placed above everything else. */
+function prefaceBlock(preface: string | undefined): string {
+  const p = preface?.trim();
+  return p ? `${p}\n\n---\n\n` : "";
+}
+
 export function wrapDirectPrompt(args: {
   origin: ChannelProvider;
   userText: string;
+  preface?: string;
   history: Array<{ role: string; content: string }>;
   attachments?: ChannelAttachment[];
 }): string {
@@ -163,6 +172,7 @@ export function wrapDirectPrompt(args: {
               ? "ChatGPT Work Agent"
               : args.origin;
   return (
+    prefaceBlock(args.preface) +
     `[AIOS Command Center · ${who}]\n` +
     `You are the selected brain for this Carmen conversation. Answer David directly.\n` +
     `Reply in the user's language. Be concrete.\n\n` +
