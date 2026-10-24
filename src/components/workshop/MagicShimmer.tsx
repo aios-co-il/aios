@@ -99,12 +99,12 @@ export function MagicShimmer({
         width: `min(100%, ${(ratio * 72).toFixed(2)}vh)`,
       }}
       className={cn(
-        "relative mx-auto max-w-md overflow-hidden rounded-xl bg-[#0b0618]",
+        "relative mx-auto max-w-md overflow-hidden rounded-xl bg-[#061225]",
         className,
       )}
     >
       <canvas ref={canvas} className="absolute inset-0 h-full w-full" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(11,6,24,0.55),transparent_65%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,18,37,0.55),transparent_65%)]" />
       {label ? (
         <p className="absolute inset-x-0 bottom-4 text-center text-sm font-medium text-white/90 drop-shadow">
           {label}

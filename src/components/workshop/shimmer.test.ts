@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { aspectRatioOf, shimmerCell } from "./shimmer.ts";
+import {
+  aspectRatioOf,
+  HUE_DEEP_BLUE,
+  HUE_MINT,
+  shimmerCell,
+} from "./shimmer.ts";
 
 test("every cell stays inside the colour and opacity range", () => {
   for (let t = 0; t < 20; t += 0.7)
     for (let row = 0; row < 12; row++)
       for (let col = 0; col < 9; col++) {
         const cell = shimmerCell(col, row, 9, 12, t);
-        assert.ok(cell.hue >= 0 && cell.hue < 360);
+        assert.ok(cell.hue >= HUE_MINT && cell.hue <= HUE_DEEP_BLUE);
         assert.ok(cell.lightness >= 26 && cell.lightness <= 70);
         assert.ok(cell.alpha >= 0.22 && cell.alpha <= 1);
       }
