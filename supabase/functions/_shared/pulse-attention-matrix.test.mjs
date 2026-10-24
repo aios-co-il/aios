@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+/** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
+const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
 import {
   buildPulseAttentionRows,
   evaluateEfficiencyIssue,
@@ -50,7 +53,7 @@ test("leads-only google table reclassifies mis-tagged ecommerce rows to CPL", ()
         efficiency_7d: 0.04,
         baseline_efficiency_7d: 0.05,
         trend_7d_pct: 12,
-        last_change_at: "2026-09-18T10:00:00Z",
+        last_change_at: RECENT_CHANGE,
       },
     ],
     tables: [
@@ -183,4 +186,50 @@ test("buildPulseAttentionRows includes only rows with issues", () => {
   assert.ok(
     rows.some((row) => row.issues.efficiency || row.issues.lastCommunication),
   );
+});
+
+test("a Google sales campaign detected from its conversion goal keeps ROAS in a leads report", () => {
+  const rows = buildPulseAttentionRows({
+    campaignRows: [
+      {
+        client_id: "client-3",
+        table_id: "ga-leads",
+        platform: "google",
+        goal: "ecommerce",
+        classification_source: "platform_goal",
+        campaign_name: "PMax",
+        spend_7d: 1000,
+        outcomes_7d: 2,
+        revenue_7d: 500,
+        efficiency_7d: 0.5,
+        baseline_efficiency_7d: 3,
+        trend_7d_pct: -80,
+        last_change_at: RECENT_CHANGE,
+      },
+    ],
+    tables: [
+      {
+        id: "ga-leads",
+        client_id: "client-3",
+        integration_type: "google_ads",
+        integration_settings: { target_roas: 3 },
+      },
+    ],
+    clients: [
+      {
+        clientId: "client-3",
+        clientName: "חנות",
+        campaignerName: "דוד",
+        moodStatus: "happy",
+        lastClientCallAt: RECENT_CHANGE,
+        daysSinceLastCommunication: 1,
+        recentCommunicationStatus: null,
+        hasRecentComplaintUpdate: false,
+      },
+    ],
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].primaryGoal, "ecommerce");
+  assert.equal(rows[0].target.kind, "roas");
+  assert.equal(rows[0].currentEfficiency, 0.5);
 });
