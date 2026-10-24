@@ -61,7 +61,7 @@ const resolveLabeledRefs = ({
   directorRefUrls: string[];
   logoUrl?: string;
 }): StaticRef[] => {
-  const labeled =
+  const labeled: StaticRef[] =
     refs.length > 0
       ? [...refs]
       : [
