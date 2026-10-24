@@ -52,6 +52,11 @@ vi.mock("@tanstack/react-query", () => ({
                     name: role.name,
                     description: null,
                   })),
+                  {
+                    slug: "tenant-editor",
+                    name: "עורכת וידאו",
+                    description: null,
+                  },
                   { slug: "qa", name: "QA", description: null },
                   { slug: "legal", name: "משפטי", description: null },
                 ]
@@ -69,9 +74,14 @@ beforeEach(() => {
 });
 const card = {
   ref: { current: null },
-  style: {},
-  handlers: {},
-} as unknown as ComponentProps<typeof CarmenSessionVideoCard>["videoCard"];
+  style: { left: 0, top: 0 },
+  handlers: {
+    onPointerDown: vi.fn(),
+    onPointerMove: vi.fn(),
+    onPointerUp: vi.fn(),
+    onPointerCancel: vi.fn(),
+  },
+} satisfies ComponentProps<typeof CarmenSessionVideoCard>["videoCard"];
 function Session() {
   return (
     <>
@@ -133,4 +143,13 @@ test("category grouping retains specialists while honoring disabled and pinned s
   expect(activeRoleSlugs("web_builder", ["web_builder"])).toEqual([]);
   expect(activeRoleSlugs("legal")).toEqual(["legal"]);
   expect(activeRoleSlugs("qa")).toEqual(["qa"]);
+});
+
+test("a tenant-named internal skin uses the same portrait in the active identity", () => {
+  setSessionSkin("tenant-a", "tenant-editor");
+  const { container } = render(<Session />);
+  expect(container.querySelector(".carmen-session-character")).toHaveAttribute(
+    "src",
+    getSkinPortrait("video_editor"),
+  );
 });

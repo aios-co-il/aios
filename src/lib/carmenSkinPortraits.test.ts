@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { test } from "node:test";
+import { test } from "vitest";
 import { getSkinPortrait, isBuiltInSkinPortrait } from "./carmenSkinPortraits";
 
 test("the ten specialist personas resolve to shipped portraits", () => {
