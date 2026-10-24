@@ -43,7 +43,7 @@ const RULES: Rule[] = [
     /(?:\b(?:copywriting|ad copy|caption|write a post|script)\b)/i,
   ] },
   { kind: "customer_reply", complexity: "simple", patterns: [
-    /(?:תענה|עני|השיבי|תגובה ללקוח|הודעה ללקוח|תנסח הודעה|נסחי הודעה)/,
+    /(?:\\bתענה\\b|\\bעני\\b|\\bהשיבי\\b|תגובה ללקוח|הודעה ללקוח|תנסח הודעה|נסחי הודעה)/,
     /(?:\b(?:reply to|respond to|customer reply|draft a reply)\b)/i,
   ] },
 ];
