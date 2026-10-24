@@ -19,6 +19,11 @@ const IDEAS = [
   "קמפיין לפתיחת סניף חדש",
 ];
 
+const WAIT_NOTE_MIN = 5;
+
+const waitedMinutes = (artifact: WorkshopArtifact) =>
+  (Date.now() - Date.parse(artifact.created_at)) / 60_000;
+
 function PageBody({
   artifact,
   format,
@@ -31,7 +36,11 @@ function PageBody({
     return (
       <MagicShimmer
         format={artifact.kind === "film" ? "9:16" : format}
-        label="כרמן עובדת על זה"
+        label={
+          artifact.kind === "film" && waitedMinutes(artifact) >= WAIT_NOTE_MIN
+            ? "ההפקה ממתינה כבר זמן רב. אם זה לא זז, שרת ההפקה כנראה לא מחובר לסביבה הזו"
+            : "כרמן עובדת על זה"
+        }
         className="rounded-none"
       />
     );

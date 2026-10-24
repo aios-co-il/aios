@@ -990,3 +990,38 @@ test("a scene picture that fails turns its pending page into an error card", asy
   );
   assert.ok(failedUpdate);
 });
+
+test("producing while a production already runs does not add a second pending film", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a", clip_asset_id: "c" }),
+    ],
+    "rpc:produce_video": { status: "running", clips: 0, voices: 0, music: 0 },
+    "workshop_artifacts:select": {
+      id: "film-1",
+      kind: "film",
+      status: "pending",
+    },
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    { defaultEngine: async () => "elevenlabs" as const },
+  )) as Record<string, any>;
+  assert.equal(result.already_running, true);
+  assert.equal(result.artifact.id, "film-1");
+  assert.equal(
+    db.calls.some(
+      (c) =>
+        c.table === "workshop_artifacts" &&
+        c.op === "insert" &&
+        !Array.isArray(c.value),
+    ),
+    false,
+  );
+});

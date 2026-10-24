@@ -12,6 +12,7 @@
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
+import { productionReport } from "./workshop/production.ts";
 import type { ImageProvider } from "./workshop/image-providers.ts";
 import { lookOf, stillPrompt, withLook } from "./workshop/look.ts";
 import {
@@ -802,10 +803,11 @@ export async function executeWorkshopTool(
         .order("created_at"),
       supabase
         .from("marketing_runs")
-        .select("kind, status")
+        .select("kind, status, error, created_at")
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId)
-        .in("status", ["queued", "running"]),
+        .order("created_at", { ascending: false })
+        .limit(40),
       supabase
         .from("marketing_work_items")
         .select("payload")
@@ -813,11 +815,24 @@ export async function executeWorkshopTool(
         .eq("tenant_id", tenantId)
         .maybeSingle(),
     ]);
+    const runs = (Array.isArray(running.data) ? running.data : []) as {
+      kind: string;
+      status: string;
+      error?: string | null;
+      created_at?: string | null;
+    }[];
+    const itemPayload = asRecord(item.data?.payload);
     return {
       ...studio,
       artifacts: artifacts.data ?? [],
-      running: running.data ?? [],
-      plan: asRecord(asRecord(item.data?.payload).workshop),
+      running: runs.filter(
+        (run) => run.status === "queued" || run.status === "running",
+      ),
+      production: productionReport(
+        runs,
+        asRecord(asRecord(itemPayload.video).production),
+      ),
+      plan: asRecord(itemPayload.workshop),
     };
   }
 
@@ -1412,6 +1427,33 @@ export async function executeWorkshopTool(
     });
     if (produced.error) return { error: produced.error.message };
     const state = asRecord(produced.data);
+    const alreadyRunning =
+      state.status === "running" &&
+      Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&
+      Number(state.music ?? 0) === 0;
+    const open = alreadyRunning
+      ? await supabase
+          .from("workshop_artifacts")
+          .select(PAGE_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .eq("item_id", itemId)
+          .eq("kind", "film")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : null;
+    if (alreadyRunning && open?.data)
+      return {
+        success: true,
+        status: "running",
+        already_running: true,
+        engine: ENGINE_LABEL[engine],
+        client_id: clientId,
+        message:
+          "הפקה כבר רצה לפרויקט הזה ולא הותחלה שנייה. לבדוק את המצב: workshop_get_state (production), ולא להפיק שוב.",
+        artifact: open.data,
+      };
     const artifact = await recordArtifact(supabase, {
       tenantId,
       itemId,
@@ -1426,7 +1468,7 @@ export async function executeWorkshopTool(
       engine: ENGINE_LABEL[engine],
       client_id: clientId,
       message:
-        "ההפקה התחילה. הסרט יופיע בלוח כשיהיה מוכן, בדרך כלל תוך דקה או שתיים.",
+        "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
       artifact,
       workshop: {
         event: "artifacts",
