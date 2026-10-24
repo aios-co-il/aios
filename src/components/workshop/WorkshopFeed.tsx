@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowDown, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getWorkshopWork, subscribeWorkshopWork } from "@/lib/workshopBridge";
+import { MagicShimmer } from "./MagicShimmer";
 import {
   artifactText,
   foldersOf,
   pagesIn,
   pageTypeFor,
+  projectFormat,
+  shimmerFormats,
   shouldFollow,
   type WorkshopArtifact,
 } from "./workshopFeed";
@@ -17,14 +21,21 @@ const IDEAS = [
   "קמפיין לפתיחת סניף חדש",
 ];
 
-function PageBody({ artifact }: { artifact: WorkshopArtifact }) {
+function PageBody({
+  artifact,
+  format,
+}: {
+  artifact: WorkshopArtifact;
+  format: string;
+}) {
   const type = pageTypeFor(artifact);
   if (artifact.status === "pending")
     return (
-      <div className="flex h-56 items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        כרמן עובדת על זה
-      </div>
+      <MagicShimmer
+        format={artifact.kind === "film" ? "9:16" : format}
+        label="כרמן עובדת על זה"
+        className="rounded-none"
+      />
     );
   if (artifact.status === "failed")
     return (
@@ -102,12 +113,16 @@ export function WorkshopFeed({
   const seen = useRef(0);
   const pages = pagesIn(artifacts, folder);
   const folders = foldersOf(artifacts);
+  const work = useSyncExternalStore(subscribeWorkshopWork, getWorkshopWork);
+  const project = projectFormat(artifacts);
+  const making = hasProject && folder === null && work ? work : null;
+  const shown = pages.length + (making ? making.formats.length : 0);
 
   useEffect(() => {
-    if (shouldFollow(seen.current, pages.length, following))
+    if (shouldFollow(seen.current, shown, following))
       bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    seen.current = pages.length;
-  }, [pages.length, following]);
+    seen.current = shown;
+  }, [shown, following]);
 
   useEffect(() => {
     setFolder(null);
@@ -156,7 +171,7 @@ export function WorkshopFeed({
         onScroll={onScroll}
         className="min-h-0 flex-1 overflow-y-auto px-3 py-6 md:px-8"
       >
-        {pages.length === 0 ? (
+        {shown === 0 ? (
           <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 text-center">
             {loading && hasProject ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -196,7 +211,7 @@ export function WorkshopFeed({
                     : "hover:shadow-md",
                 )}
               >
-                <PageBody artifact={artifact} />
+                <PageBody artifact={artifact} format={project} />
                 {artifact.title && pageTypeFor(artifact) !== "brief" ? (
                   <footer className="border-t px-4 py-2 text-xs text-muted-foreground">
                     {artifact.title}
@@ -204,6 +219,20 @@ export function WorkshopFeed({
                 ) : null}
               </article>
             ))}
+            {making
+              ? shimmerFormats(making.formats, project).map((format, index) => (
+                  <article
+                    key={`making-${index}`}
+                    className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+                  >
+                    <MagicShimmer
+                      format={format}
+                      label={making.label}
+                      className="rounded-none"
+                    />
+                  </article>
+                ))
+              : null}
             <div ref={bottom} />
           </div>
         )}

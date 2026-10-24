@@ -102,3 +102,15 @@ export const withSignedUrls = (
       ? (signed[a.thumb_url] ?? null)
       : a.thumb_url,
   }));
+
+/** The project's own main format, read from the brief page Carmen wrote when she opened it. */
+export function projectFormat(artifacts: WorkshopArtifact[]): string {
+  const brief = artifacts.find((a) => a.kind === "brief");
+  const plan = brief?.meta?.plan as Record<string, unknown> | undefined;
+  const format = plan?.format;
+  return typeof format === "string" ? format : "4:5";
+}
+
+/** The format of each shimmer for work in progress; "auto" is the project's own format. */
+export const shimmerFormats = (formats: string[], project: string) =>
+  formats.map((format) => (format === "auto" ? project : format));
