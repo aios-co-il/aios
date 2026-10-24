@@ -13,10 +13,13 @@ import {
   subscribeWorkshopEvents,
 } from "@/lib/workshopBridge";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
+import { ClientSelector } from "@/components/marketing/ClientSelector";
+import { toast } from "sonner";
 
 type ProjectRow = {
   id: string;
   title: string | null;
+  client_id: string | null;
   payload: Record<string, unknown> | null;
 };
 
@@ -55,7 +58,7 @@ export default function CarmenWorkshop() {
     queryFn: async (): Promise<ProjectRow[]> => {
       const { data, error } = await supabase
         .from("marketing_work_items")
-        .select("id,title,status,updated_at,payload")
+        .select("id,title,status,updated_at,client_id,payload")
         .eq("tenant_id", tenantId!)
         .neq("status", "archived")
         .order("updated_at", { ascending: false })
@@ -70,6 +73,25 @@ export default function CarmenWorkshop() {
     : (projects.data?.find((item) => item.id === projectId) ??
       projects.data?.[0] ??
       null);
+
+  const assignClient = async (clientId: string | null) => {
+    if (!selected) return;
+    const { error } = await supabase.rpc(
+      "workshop_assign_client" as never,
+      {
+        p_item_id: selected.id,
+        p_client_id: clientId,
+      } as never,
+    );
+    if (error) {
+      toast.error("לא הצלחנו לשייך את הפרויקט ללקוח");
+      return;
+    }
+    toast.success(clientId ? "הפרויקט שויך ללקוח" : "השיוך ללקוח הוסר");
+    await queryClient.invalidateQueries({
+      queryKey: ["carmen-workshop-projects", tenantId],
+    });
+  };
 
   const artifacts = useWorkshopArtifacts(tenantId, selected?.id ?? null);
 
@@ -119,6 +141,17 @@ export default function CarmenWorkshop() {
               : "פרויקט חדש"}
           </p>
         </div>
+        {selected && !blank ? (
+          <div className="ms-auto shrink-0">
+            <ClientSelector
+              tenantId={tenantId}
+              value={selected.client_id}
+              onChange={(id) => void assignClient(id)}
+              allowGeneral
+              generalLabel="ללא לקוח"
+            />
+          </div>
+        ) : null}
       </header>
       {!access.loading && !access.allowed ? (
         <p className="shrink-0 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">

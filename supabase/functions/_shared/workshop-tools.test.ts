@@ -367,16 +367,31 @@ test("producing needs stills, a client, then one approval with the engine the te
   )) as Record<string, any>;
   assert.equal(missing.missing_stills, 1);
 
+  const noClientDb = fakeDb({
+    ...videoProject({ client_id: null, current_stage_id: null }),
+    "marketing_video_scenes:select": allStilled,
+    "rpc:workshop_creative_stage": [
+      { pipeline_id: "pipe-general", stage_id: "stage-general" },
+    ],
+  });
   const noClient = (await executeWorkshopTool(
-    fakeDb({
-      ...videoProject({ client_id: null, current_stage_id: null }),
-      "marketing_video_scenes:select": allStilled,
-    }),
+    noClientDb,
     "tenant-1",
     "workshop_produce_video",
     { item_id: "item-1" },
   )) as Record<string, any>;
-  assert.equal(noClient.needs_client, true);
+  assert.equal(noClient.needs_approval, true);
+  assert.equal(noClient.needs_client, undefined);
+  const stageCall = noClientDb.calls.find(
+    (c) => c.table === "rpc:workshop_creative_stage",
+  );
+  assert.equal((stageCall?.value as Record<string, unknown>).p_client_id, null);
+  assert.equal(
+    noClientDb.calls.some(
+      (c) => c.table === "marketing_work_items" && c.op === "update",
+    ),
+    false,
+  );
 
   const script = {
     ...videoProject(),
@@ -438,4 +453,57 @@ test("with no paid keys the film is produced on the free preview engine", async 
   )) as Record<string, any>;
   assert.equal(asked.engine, "mock");
   assert.match(asked.message, /בלי עלות/);
+});
+
+test("a project can be assigned to a client later, or released back to no client", async () => {
+  const project = {
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "פרויקט",
+      client_id: null,
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+  };
+  const db = fakeDb(project);
+  const done = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_assign_client",
+    { item_id: "item-1", client_id: "client-3" },
+  )) as Record<string, any>;
+  assert.equal(done.success, true);
+  const call = db.calls.find((c) => c.table === "rpc:workshop_assign_client");
+  assert.deepEqual(call?.value, {
+    p_item_id: "item-1",
+    p_client_id: "client-3",
+  });
+
+  const released = fakeDb(project);
+  await executeWorkshopTool(released, "tenant-1", "workshop_assign_client", {
+    item_id: "item-1",
+  });
+  const releaseCall = released.calls.find(
+    (c) => c.table === "rpc:workshop_assign_client",
+  );
+  assert.equal(
+    (releaseCall?.value as Record<string, unknown>).p_client_id,
+    null,
+  );
+
+  const refused = fakeDb(project);
+  const denied = (await executeWorkshopTool(
+    refused,
+    "tenant-1",
+    "workshop_assign_client",
+    { item_id: "item-1", client_id: "client-9" },
+    async () => {
+      throw new Error("אין הרשאה ללקוח הזה");
+    },
+  )) as Record<string, unknown>;
+  assert.equal(denied.error, "אין הרשאה ללקוח הזה");
+  assert.equal(
+    refused.calls.some((c) => c.table === "rpc:workshop_assign_client"),
+    false,
+  );
 });

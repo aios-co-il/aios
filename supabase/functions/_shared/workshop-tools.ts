@@ -65,6 +65,22 @@ export const WORKSHOP_TOOLS = [
     },
   },
   {
+    name: "workshop_assign_client",
+    description:
+      "משייכת פרויקט קיים ללקוח (או מסירה את השיוך כשלא שולחים client_id). פרויקט יכול להתקיים בלי לקוח, והשיוך אפשרי בכל שלב. לא עולה כסף. אפשר לחפש את מזהה הלקוח עם search_entities.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string", description: "מזהה הפרויקט" },
+        client_id: {
+          type: "string",
+          description: "מזהה הלקוח; בלי זה השיוך מוסר",
+        },
+      },
+      required: ["item_id"],
+    },
+  },
+  {
     name: "workshop_get_state",
     description:
       "מצב הפרויקט הפתוח בסדנה: מה כבר נוצר (עמודים בלוח), מה חסר, מה רץ עכשיו. קראי לזה בתחילת שיחה על פרויקט קיים.",
@@ -208,7 +224,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_produce_video",
     description:
-      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. אם חסר לקוח, הכלי יחזיר needs_client: שאלי לאיזה לקוח (אפשר לחפש עם search_entities) וקראי שוב עם client_id.",
+      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.",
     parameters: {
       type: "object",
       properties: {
@@ -237,64 +253,22 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
-const DEFAULT_STAGES = [
-  ["strategy", "בריף"],
-  ["copy", "כתיבת תוכן"],
-  ["creative", "קריאייטיב"],
-  ["target_paid", "קמפיין ממומן"],
-  ["measurement", "מדידה"],
-] as const;
-
-/** The client's creative stage in its campaigns pipeline, created with the default stages when missing. */
+/** The creative stage runs are filed under: the client's, or the tenant's "no client" pipeline. */
 async function creativeStageFor(
   supabase: Db,
   tenantId: string,
-  clientId: string,
+  clientId: string | null,
 ): Promise<{ pipelineId: string; stageId: string }> {
-  let { data: pipeline } = await supabase
-    .from("marketing_pipelines")
-    .select("id")
-    .eq("client_id", clientId)
-    .eq("tenant_id", tenantId)
-    .eq("track", "campaigns")
-    .maybeSingle();
-  if (!pipeline) {
-    const created = await supabase
-      .from("marketing_pipelines")
-      .insert({ client_id: clientId, tenant_id: tenantId, track: "campaigns" })
-      .select("id")
-      .single();
-    if (created.error) throw new Error(created.error.message);
-    pipeline = created.data;
-  }
-  const existing = await supabase
-    .from("marketing_pipeline_stages")
-    .select("id, stage_type")
-    .eq("pipeline_id", pipeline.id);
-  let stages = (existing.data ?? []) as { id: string; stage_type: string }[];
-  if (stages.length === 0) {
-    const inserted = await supabase
-      .from("marketing_pipeline_stages")
-      .insert(
-        DEFAULT_STAGES.map(([stage_type, name], sort_order) => ({
-          stage_type,
-          name,
-          sort_order,
-          position_x: (DEFAULT_STAGES.length - sort_order) * 280 - 280,
-          position_y: 200,
-          pipeline_id: pipeline.id,
-          tenant_id: tenantId,
-          approval_mode: "manual",
-          configuration: {},
-        })),
-      )
-      .select("id, stage_type");
-    if (inserted.error) throw new Error(inserted.error.message);
-    stages = inserted.data as { id: string; stage_type: string }[];
-  }
-  const stage = stages.find((entry) => entry.stage_type === "creative");
-  if (!stage) throw new Error("שלב הקריאייטיב לא נמצא בפייפליין");
-  return { pipelineId: pipeline.id, stageId: stage.id };
+  const { data, error } = await supabase.rpc("workshop_creative_stage", {
+    p_tenant_id: tenantId,
+    p_client_id: clientId,
+  });
+  if (error) throw new Error(error.message);
+  const row = (Array.isArray(data) ? data[0] : data) as
+    { pipeline_id?: string; stage_id?: string } | null | undefined;
+  if (!row?.pipeline_id || !row?.stage_id)
+    throw new Error("שלב הקריאייטיב לא נמצא בפייפליין");
+  return { pipelineId: row.pipeline_id, stageId: row.stage_id };
 }
 
 export async function recordArtifact(supabase: Db, input: ArtifactInput) {
@@ -482,6 +456,42 @@ export async function executeWorkshopTool(
       client_known: !!clientId,
       artifact,
       workshop: { event: "project", item_id: itemId, artifact_id: artifact.id },
+    };
+  }
+
+  if (name === "workshop_assign_client") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
+    if ("error" in loaded) return loaded;
+    const wanted = String(args.client_id ?? "").trim() || null;
+    if (wanted) {
+      try {
+        await assertClientAccess(wanted);
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
+        };
+      }
+    }
+    const assigned = await supabase.rpc("workshop_assign_client", {
+      p_item_id: itemId,
+      p_client_id: wanted,
+    });
+    if (assigned.error) return { error: assigned.error.message };
+    return {
+      success: true,
+      item_id: itemId,
+      client_id: wanted,
+      message: wanted
+        ? "הפרויקט שויך ללקוח."
+        : "השיוך ללקוח הוסר. הפרויקט נשאר בלי לקוח.",
+      workshop: { event: "artifacts", item_id: itemId },
     };
   }
 
@@ -856,26 +866,23 @@ export async function executeWorkshopTool(
     let stageId = project.stage_id;
     let clientId = project.client_id;
     if (!stageId) {
-      const wanted = String(args.client_id ?? "").trim();
-      if (!wanted)
-        return {
-          needs_client: true,
-          message:
-            "כדי להפיק סרט צריך לשייך אותו ללקוח. שאלי את המשתמש לאיזה לקוח (אפשר לחפש עם search_entities) וקראי שוב עם client_id.",
-        };
+      const wanted = String(args.client_id ?? "").trim() || clientId || null;
       try {
-        await assertClientAccess(wanted);
+        if (wanted && wanted !== project.client_id)
+          await assertClientAccess(wanted);
         const stage = await creativeStageFor(supabase, tenantId, wanted);
-        const linked = await supabase
-          .from("marketing_work_items")
-          .update({
-            client_id: wanted,
-            pipeline_id: stage.pipelineId,
-            current_stage_id: stage.stageId,
-          })
-          .eq("id", itemId)
-          .eq("tenant_id", tenantId);
-        if (linked.error) return { error: linked.error.message };
+        if (wanted) {
+          const linked = await supabase
+            .from("marketing_work_items")
+            .update({
+              client_id: wanted,
+              pipeline_id: stage.pipelineId,
+              current_stage_id: stage.stageId,
+            })
+            .eq("id", itemId)
+            .eq("tenant_id", tenantId);
+          if (linked.error) return { error: linked.error.message };
+        }
         stageId = stage.stageId;
         clientId = wanted;
       } catch (error) {

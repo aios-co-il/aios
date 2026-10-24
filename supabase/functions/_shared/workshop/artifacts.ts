@@ -112,7 +112,11 @@ export function skinForTool(tool: string): string | null {
     )
   )
     return "video_director";
-  if (/^workshop_(start_project|make_creative|revise|attach)$/.test(tool))
+  if (
+    /^workshop_(start_project|make_creative|revise|attach|assign_client)$/.test(
+      tool,
+    )
+  )
     return "creative_studio";
   return null;
 }
