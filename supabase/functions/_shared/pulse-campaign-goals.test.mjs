@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
+  googleReportCampaignGoals,
   integrationTypeToGoal,
   isEcommerceReportTable,
   pulseCampaignOutcome,
@@ -1086,4 +1087,53 @@ test("one google account can hold an ecommerce PMax and a lead Search campaign",
   assert.equal(byId.pmax.outcomes_7d, 7);
   assert.equal(byId.search.goal, "leads");
   assert.equal(byId.search.outcomes_7d, 14);
+});
+
+test("rows synced before the goal was stamped do not outvote the stamped rows", () => {
+  const records = lastWeek.map((date, i) =>
+    googleRow("g", date, {
+      campaign_id: "pmax",
+      campaign_name: "PMax",
+      cost: i < 5 ? 500 : 20,
+      conversions: 1,
+      ...(i >= 5 ? { conversion_goal: "ecommerce" } : {}),
+    }),
+  );
+  const rows = buildPulseCampaignRows({
+    records,
+    tables: [googleTable("g", { campaign_type: "leads" })],
+    nowYmd: "2026-10-24",
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].goal, "ecommerce");
+});
+
+test("reports get each Google campaign's own goal", () => {
+  const records = lastWeek.flatMap((date) => [
+    googleRow("g", date, {
+      campaign_id: "pmax-shop",
+      campaign_name: "PMax חנות",
+      conversion_goal: "ecommerce",
+      cost: 100,
+    }),
+    googleRow("g", date, {
+      campaign_id: "pmax-leads",
+      campaign_name: "PMax כללי",
+      conversion_goal: "leads",
+      cost: 100,
+      conversions_value: 5,
+    }),
+    googleRow("g", date, {
+      campaign_id: "search",
+      campaign_name: "Search",
+      cost: 50,
+    }),
+  ]);
+  const goals = googleReportCampaignGoals({
+    records,
+    tables: [googleTable("g", { campaign_type: "ecommerce" }, "איקומרס")],
+  });
+  assert.equal(goals.get("pmax-shop"), "ecommerce");
+  assert.equal(goals.get("pmax-leads"), "leads");
+  assert.equal(goals.get("search"), "ecommerce");
 });

@@ -968,6 +968,78 @@ function datesBetween(start, end) {
   return dates;
 }
 
+const GOAL_SOURCE_RANK = {
+  platform_goal: 2,
+  explicit_mapping: 1,
+  table_report_type: 0,
+  unclassified: -1,
+};
+
+/**
+ * One goal per campaign from its classified daily rows. The strongest signal wins
+ * (what the platform says, then a mapping, then the report's type), then the goal
+ * backed by the most spend; 'unknown' only when nothing else is known. Rows synced
+ * before a campaign's goal was stamped therefore never outvote the stamped rows.
+ * @param {{ key: string, goal: string, source?: string, spend?: number }[]} votes
+ * @returns {Map<string, string>}
+ */
+export function resolveCampaignGoals(votes = []) {
+  const byKey = new Map();
+  for (const vote of votes) {
+    const goals = byKey.get(vote.key) || {};
+    const entry = goals[vote.goal] || { rank: -1, spend: 0 };
+    entry.rank = Math.max(entry.rank, GOAL_SOURCE_RANK[vote.source] ?? 0);
+    entry.spend += (Number(vote.spend) || 0) + 1e-6;
+    goals[vote.goal] = entry;
+    byKey.set(vote.key, goals);
+  }
+  const result = new Map();
+  for (const [key, goals] of byKey) {
+    const [best] = Object.entries(goals).sort(
+      ([goalA, a], [goalB, b]) =>
+        (goalA === "unknown") - (goalB === "unknown") ||
+        b.rank - a.rank ||
+        b.spend - a.spend,
+    );
+    result.set(key, best[0]);
+  }
+  return result;
+}
+
+/**
+ * Goal per Google Ads campaign for reports, using the same rules as the pulse check
+ * so the report shows each campaign by the goal the pulse measures it on.
+ * Keyed by campaign id (name when the id is missing).
+ * @returns {Map<string, "ecommerce" | "leads" | "engagement">}
+ */
+export function googleReportCampaignGoals({ records = [], tables = [] } = {}) {
+  const tableMap = new Map(tables.map((table) => [table.id, table]));
+  const votes = [];
+  for (const record of records) {
+    const data = record.data || {};
+    const table = tableMap.get(record.table_id);
+    if (!table || table.integration_type !== "google_ads") continue;
+    const key = googleReportCampaignKey(data);
+    if (!key) continue;
+    const classification = classifyPulseCampaignGoal(data, {
+      integration_type: table.integration_type,
+      integration_settings: table.integration_settings || {},
+      category: table.category,
+    });
+    votes.push({
+      key,
+      goal: classification.goal,
+      source: classification.source,
+      spend: Number(data.spend ?? data.cost) || 0,
+    });
+  }
+  return resolveCampaignGoals(votes);
+}
+
+export function googleReportCampaignKey(data = {}) {
+  return String(data.campaign_id || data.campaign_name || "");
+}
+
 export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
   const windows = pulseTrendWindows(nowYmd);
   const tableMap = new Map(tables.map((table) => [table.id, table]));
@@ -1000,13 +1072,12 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       platform,
       identity,
       goal: classification.goal,
+      source: classification.source,
     });
   }
 
   // One goal per campaign: daily rows can classify differently (e.g. a Google PMax day
   // with conversions vs. a clicks-only day), which split one campaign across categories.
-  // The goal backed by the most spend wins; 'unknown' only when nothing else is known.
-  const goalSpend = new Map();
   const campaignOf = (item) =>
     canonicalCampaignMergeKey(
       item.table.client_id,
@@ -1014,21 +1085,14 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       "*",
       item.identity,
     );
-  for (const item of usable) {
-    const votes = goalSpend.get(campaignOf(item)) || {};
-    votes[item.goal] =
-      (votes[item.goal] || 0) +
-      (Number(item.record.data.spend ?? item.record.data.cost) || 0) +
-      1e-6;
-    goalSpend.set(campaignOf(item), votes);
-  }
-  const campaignGoal = new Map();
-  for (const [key, votes] of goalSpend) {
-    const ranked = Object.entries(votes).sort(
-      (a, b) => (a[0] === "unknown") - (b[0] === "unknown") || b[1] - a[1],
-    );
-    campaignGoal.set(key, ranked[0][0]);
-  }
+  const campaignGoal = resolveCampaignGoals(
+    usable.map((item) => ({
+      key: campaignOf(item),
+      goal: item.goal,
+      source: item.source,
+      spend: Number(item.record.data.spend ?? item.record.data.cost) || 0,
+    })),
+  );
 
   for (const item of usable) {
     const { record, table, platform, identity } = item;

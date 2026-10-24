@@ -3,6 +3,10 @@ import { toPng } from "html-to-image";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  googleReportCampaignGoals,
+  googleReportCampaignKey,
+} from "@/lib/pulseCampaignGoals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -4115,8 +4119,20 @@ export default function DynamicTableView({
               )}
               <Card className="mb-4 overflow-hidden">
                 {(() => {
-                  const isEcommerce =
+                  const tableIsEcommerce =
                     table?.integration_settings?.campaign_type === "ecommerce";
+                  // Each campaign by its own goal (same rules as the pulse check):
+                  // one account can run ecommerce and lead campaigns side by side.
+                  const campaignGoals = googleReportCampaignGoals({
+                    records: filteredRecords.map((record) => ({
+                      table_id: table.id,
+                      data: record.data,
+                    })),
+                    tables: [table],
+                  });
+                  const goalOf = (data: Record<string, unknown> | null) =>
+                    campaignGoals.get(googleReportCampaignKey(data)) ??
+                    (tableIsEcommerce ? "ecommerce" : "leads");
                   const entityColumnLabel =
                     adsEntityLevel === "ad"
                       ? "מודעה"
@@ -4137,6 +4153,7 @@ export default function DynamicTableView({
                       if (!acc[groupKey]) {
                         acc[groupKey] = {
                           name: campaignName,
+                          goal: goalOf(record.data),
                           impressions: 0,
                           clicks: 0,
                           conversions: 0,
@@ -4174,6 +4191,7 @@ export default function DynamicTableView({
                       string,
                       {
                         name: string;
+                        goal: "ecommerce" | "leads";
                         impressions: number;
                         clicks: number;
                         conversions: number;
@@ -4215,6 +4233,33 @@ export default function DynamicTableView({
                       roas_count: 0,
                     },
                   );
+
+                  const groupList = Object.values(campaignGroups);
+                  const hasEcommerceGroups = groupList.some(
+                    (group) => group.goal === "ecommerce",
+                  );
+                  const hasLeadGroups = groupList.some(
+                    (group) => group.goal === "leads",
+                  );
+                  // Mixed: one table, each row filled by its own goal.
+                  const mixedGoals = hasEcommerceGroups && hasLeadGroups;
+                  const isEcommerce = groupList.length
+                    ? hasEcommerceGroups && !hasLeadGroups
+                    : tableIsEcommerce;
+                  const goalTotals = (goal: "ecommerce" | "leads") =>
+                    groupList
+                      .filter((group) => group.goal === goal)
+                      .reduce(
+                        (acc, group) => ({
+                          cost: acc.cost + group.cost,
+                          conversions: acc.conversions + group.conversions,
+                          conversions_value:
+                            acc.conversions_value + group.conversions_value,
+                        }),
+                        { cost: 0, conversions: 0, conversions_value: 0 },
+                      );
+                  const ecommerceTotals = goalTotals("ecommerce");
+                  const leadTotals = goalTotals("leads");
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders
@@ -4329,6 +4374,11 @@ export default function DynamicTableView({
                             <th className="p-2 text-right font-medium">
                               {entityColumnLabel}
                             </th>
+                            {mixedGoals && (
+                              <th className="p-2 text-center font-medium">
+                                יעד
+                              </th>
+                            )}
                             <th className="p-2 text-center font-medium">
                               חשיפות
                             </th>
@@ -4338,14 +4388,14 @@ export default function DynamicTableView({
                             <th className="p-2 text-center font-medium">
                               {useGoogleWooOverlay
                                 ? "המרות (GA)"
-                                : isEcommerce
+                                : isEcommerce || mixedGoals
                                   ? "המרות"
                                   : "לידים"}
                             </th>
                             <th className="p-2 text-center font-medium">
                               עלות
                             </th>
-                            {isEcommerce ? (
+                            {(isEcommerce || mixedGoals) && (
                               <>
                                 <th className="p-2 text-center font-medium">
                                   {useGoogleWooOverlay
@@ -4356,7 +4406,8 @@ export default function DynamicTableView({
                                   ROAS
                                 </th>
                               </>
-                            ) : (
+                            )}
+                            {!isEcommerce && (
                               <th className="p-2 text-center font-medium">
                                 עלות לליד
                               </th>
@@ -4385,6 +4436,13 @@ export default function DynamicTableView({
                                 <td className="p-2 text-right font-medium">
                                   {data.name}
                                 </td>
+                                {mixedGoals && (
+                                  <td className="p-2 text-center">
+                                    {data.goal === "ecommerce"
+                                      ? "מכירות"
+                                      : "לידים"}
+                                  </td>
+                                )}
                                 <td className="p-2 text-center">
                                   {data.impressions.toLocaleString("he-IL")}
                                 </td>
@@ -4400,30 +4458,41 @@ export default function DynamicTableView({
                                     maximumFractionDigits: 0,
                                   })}
                                 </td>
-                                {isEcommerce ? (
-                                  <>
-                                    <td className="p-2 text-center text-purple-600 font-medium">
+                                {(isEcommerce || mixedGoals) &&
+                                  (data.goal === "ecommerce" ? (
+                                    <>
+                                      <td className="p-2 text-center text-purple-600 font-medium">
+                                        {gaCurrency}
+                                        {data.conversions_value.toLocaleString(
+                                          "he-IL",
+                                          { maximumFractionDigits: 0 },
+                                        )}
+                                      </td>
+                                      <td className="p-2 text-center text-blue-600 font-medium">
+                                        {roas.toLocaleString("he-IL", {
+                                          maximumFractionDigits: 2,
+                                        })}
+                                        x
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="p-2 text-center">-</td>
+                                      <td className="p-2 text-center">-</td>
+                                    </>
+                                  ))}
+                                {!isEcommerce &&
+                                  (data.goal === "leads" ? (
+                                    <td className="p-2 text-center text-blue-600 font-medium">
                                       {gaCurrency}
-                                      {data.conversions_value.toLocaleString(
+                                      {costPerConversion.toLocaleString(
                                         "he-IL",
-                                        { maximumFractionDigits: 0 },
+                                        { maximumFractionDigits: 1 },
                                       )}
                                     </td>
-                                    <td className="p-2 text-center text-blue-600 font-medium">
-                                      {roas.toLocaleString("he-IL", {
-                                        maximumFractionDigits: 2,
-                                      })}
-                                      x
-                                    </td>
-                                  </>
-                                ) : (
-                                  <td className="p-2 text-center text-blue-600 font-medium">
-                                    {gaCurrency}
-                                    {costPerConversion.toLocaleString("he-IL", {
-                                      maximumFractionDigits: 1,
-                                    })}
-                                  </td>
-                                )}
+                                  ) : (
+                                    <td className="p-2 text-center">-</td>
+                                  ))}
                               </tr>
                             );
                           })}
@@ -4441,6 +4510,7 @@ export default function DynamicTableView({
                             return (
                               <tr>
                                 <td className="p-2 text-right">סה״כ</td>
+                                {mixedGoals && <td className="p-2" />}
                                 <td className="p-2 text-center">
                                   {totals.impressions.toLocaleString("he-IL")}
                                 </td>
@@ -4456,26 +4526,37 @@ export default function DynamicTableView({
                                     maximumFractionDigits: 0,
                                   })}
                                 </td>
-                                {isEcommerce ? (
+                                {(isEcommerce || mixedGoals) && (
                                   <>
                                     <td className="p-2 text-center text-purple-600">
                                       {gaCurrency}
                                       {Math.round(
-                                        displayRevenue,
+                                        mixedGoals && !useGoogleWooOverlay
+                                          ? ecommerceTotals.conversions_value
+                                          : displayRevenue,
                                       ).toLocaleString("he-IL")}
                                     </td>
                                     <td className="p-2 text-center text-blue-600">
-                                      {totalRoas.toLocaleString("he-IL", {
+                                      {(mixedGoals
+                                        ? ecommerceTotals.cost > 0
+                                          ? (useGoogleWooOverlay
+                                              ? displayRevenue
+                                              : ecommerceTotals.conversions_value) /
+                                            ecommerceTotals.cost
+                                          : 0
+                                        : totalRoas
+                                      ).toLocaleString("he-IL", {
                                         maximumFractionDigits: 2,
                                       })}
                                       x
                                     </td>
                                   </>
-                                ) : (
+                                )}
+                                {!isEcommerce && (
                                   <td className="p-2 text-center text-blue-600">
                                     {gaCurrency}
-                                    {(totals.conversions > 0
-                                      ? totals.cost / totals.conversions
+                                    {(leadTotals.conversions > 0
+                                      ? leadTotals.cost / leadTotals.conversions
                                       : 0
                                     ).toLocaleString("he-IL", {
                                       maximumFractionDigits: 1,
