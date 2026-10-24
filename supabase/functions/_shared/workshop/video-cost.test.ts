@@ -31,7 +31,12 @@ const frames = scenes.map((scene, index) => ({
 })) as never;
 
 test("clip prices match the app for every engine", () => {
-  for (const engine of ["mock", "kling", "elevenlabs", "higgsfield"] as SceneEngine[]) {
+  for (const engine of [
+    "mock",
+    "kling",
+    "elevenlabs",
+    "higgsfield",
+  ] as SceneEngine[]) {
     const mine = clipEstimate(engine, scenes);
     const app = appScenes(engine, frames);
     assert.equal(mine.usd, app.usd, engine);
@@ -46,17 +51,26 @@ test("voice and music prices match the app", () => {
 });
 
 test("a production adds clips, the spoken scenes and the music bed", () => {
-  const full = productionEstimate("elevenlabs", scenes, { withVoice: true, withMusic: true });
+  const full = productionEstimate("elevenlabs", scenes, {
+    withVoice: true,
+    withMusic: true,
+  });
   assert.equal(full.clips.usd, 3);
   assert.ok(full.totalUsd > full.clips.usd);
-  const silent = productionEstimate("mock", scenes, { withVoice: false, withMusic: false });
+  const silent = productionEstimate("mock", scenes, {
+    withVoice: false,
+    withMusic: false,
+  });
   assert.equal(silent.totalUsd, 0);
 });
 
 test("the engine follows the keys the tenant has", () => {
   assert.equal(engineFromKeys({ elevenlabs_api_key: "xi-1" }), "elevenlabs");
   assert.equal(
-    engineFromKeys({ higgsfield_api_key_id: "a", higgsfield_api_key_secret: "b" }),
+    engineFromKeys({
+      higgsfield_api_key_id: "a",
+      higgsfield_api_key_secret: "b",
+    }),
     "higgsfield",
   );
   assert.equal(engineFromKeys({ higgsfield_api_key_id: "a" }), "mock");

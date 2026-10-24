@@ -17,10 +17,18 @@ const VIDEO_WORDS =
 const CAMPAIGN_WORDS = /קמפיין|קמפיינים|\bcampaign\b/i;
 
 const FORMAT_WORDS: { format: Format; words: RegExp }[] = [
-  { format: "9:16", words: /9\s*:\s*16|סטורי|סטוריז|ריל|רילס|טיקטוק|אנכי|\bstory\b|\bstories\b|\breels?\b|\btiktok\b|\bvertical\b/i },
+  {
+    format: "9:16",
+    words:
+      /9\s*:\s*16|סטורי|סטוריז|ריל|רילס|טיקטוק|אנכי|\bstory\b|\bstories\b|\breels?\b|\btiktok\b|\bvertical\b/i,
+  },
   { format: "4:5", words: /4\s*:\s*5|פיד|\bfeed\b/i },
   { format: "1:1", words: /1\s*:\s*1|ריבוע|\bsquare\b/i },
-  { format: "16:9", words: /16\s*:\s*9|יוטיוב|\byoutube\b|לנדסקייפ|\blandscape\b|(?<![א-ת])רחב(?![א-ת])|אופקי|באנר לאתר/i },
+  {
+    format: "16:9",
+    words:
+      /16\s*:\s*9|יוטיוב|\byoutube\b|לנדסקייפ|\blandscape\b|(?<![א-ת])רחב(?![א-ת])|אופקי|באנר לאתר/i,
+  },
 ];
 
 export function inferKind(text: string): ProjectKind {
@@ -59,7 +67,10 @@ export function planScenes(totalSeconds: number) {
     Math.max(Math.round(totalSeconds / beat), 1),
     MAX_SCENES,
   );
-  return { scenes, sceneSeconds: Math.round((totalSeconds / scenes) * 10) / 10 };
+  return {
+    scenes,
+    sceneSeconds: Math.round((totalSeconds / scenes) * 10) / 10,
+  };
 }
 
 export type ContentType = "posts" | "ads" | "script";
@@ -115,7 +126,10 @@ export function planProject(input: StartProjectInput): StartProjectPlan {
   const totalSeconds =
     projectType === "video"
       ? Number.isFinite(input.duration_s)
-        ? Math.min(Math.max(Math.round(Number(input.duration_s)), 3), MAX_FILM_SECONDS)
+        ? Math.min(
+            Math.max(Math.round(Number(input.duration_s)), 3),
+            MAX_FILM_SECONDS,
+          )
         : inferFilmSeconds(brief)
       : 0;
   const film =
@@ -152,11 +166,17 @@ export const IMAGE_USD: Record<Format, number> = {
 
 export function estimateImages(formats: Format[], perFormat = 1) {
   const images = formats.length * perFormat;
-  const usd = formats.reduce((sum, format) => sum + IMAGE_USD[format] * perFormat, 0);
+  const usd = formats.reduce(
+    (sum, format) => sum + IMAGE_USD[format] * perFormat,
+    0,
+  );
   return { images, usd: Math.round(usd * 100) / 100 };
 }
 
-export const imageFormatsFrom = (value: unknown, fallback: Format[]): Format[] => {
+export const imageFormatsFrom = (
+  value: unknown,
+  fallback: Format[],
+): Format[] => {
   const list = Array.isArray(value) ? value.filter(isFormat) : [];
   return list.length > 0 ? [...new Set(list)] : fallback;
 };

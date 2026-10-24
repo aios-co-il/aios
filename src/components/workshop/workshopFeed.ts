@@ -85,12 +85,11 @@ const isStoragePath = (url: string | null): url is string =>
   !!url && !/^(https?:|data:|blob:)/i.test(url);
 
 /** Files in the private creative-video bucket are stored as paths and need a signed link to show. */
-export const storagePathsIn = (artifacts: WorkshopArtifact[]) =>
-  [
-    ...new Set(
-      artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
-    ),
-  ];
+export const storagePathsIn = (artifacts: WorkshopArtifact[]) => [
+  ...new Set(
+    artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
+  ),
+];
 
 export const withSignedUrls = (
   artifacts: WorkshopArtifact[],

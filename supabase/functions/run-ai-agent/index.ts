@@ -5694,7 +5694,9 @@ async function executeTool(
             .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          return engineFromKeys((data?.settings || {}) as Record<string, unknown>);
+          return engineFromKeys(
+            (data?.settings || {}) as Record<string, unknown>,
+          );
         },
       },
     );

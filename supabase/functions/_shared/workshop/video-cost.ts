@@ -100,7 +100,9 @@ export function productionEstimate(
     options.withVoice && spoken.length > 0
       ? voiceEstimate(spoken)
       : { usd: 0, credits: 0 };
-  const music = options.withMusic ? musicEstimate(scenes) : { usd: 0, credits: 0 };
+  const music = options.withMusic
+    ? musicEstimate(scenes)
+    : { usd: 0, credits: 0 };
   return {
     clips: { usd: clips.usd, credits: clips.credits },
     voice,
@@ -113,7 +115,8 @@ export function productionEstimate(
 /** The engine the tenant can actually use: its own ElevenLabs or Higgsfield keys, else the free preview. */
 export function engineFromKeys(settings: Record<string, unknown>): SceneEngine {
   const has = (key: string) =>
-    typeof settings[key] === "string" && (settings[key] as string).trim() !== "";
+    typeof settings[key] === "string" &&
+    (settings[key] as string).trim() !== "";
   if (has("elevenlabs_api_key")) return "elevenlabs";
   if (has("higgsfield_api_key_id") && has("higgsfield_api_key_secret"))
     return "higgsfield";

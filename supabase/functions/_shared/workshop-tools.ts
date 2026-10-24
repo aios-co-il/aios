@@ -166,14 +166,23 @@ export const WORKSHOP_TOOLS = [
             type: "object",
             properties: {
               title: { type: "string" },
-              shot: { type: "string", description: "למשל Medium shot, Close-up, Wide shot" },
+              shot: {
+                type: "string",
+                description: "למשל Medium shot, Close-up, Wide shot",
+              },
               visual_prompt: {
                 type: "string",
                 description: "תיאור הפריים באנגלית, בלי טקסט על התמונה",
               },
-              motion_prompt: { type: "string", description: "איך הפריים זז, באנגלית" },
+              motion_prompt: {
+                type: "string",
+                description: "איך הפריים זז, באנגלית",
+              },
               overlay_text: { type: "string" },
-              voiceover_text: { type: "string", description: "מה נאמר בסצנה, בעברית" },
+              voiceover_text: {
+                type: "string",
+                description: "מה נאמר בסצנה, בעברית",
+              },
               duration_s: { type: "number" },
             },
             required: ["visual_prompt"],
@@ -209,7 +218,8 @@ export const WORKSHOP_TOOLS = [
         engine: {
           type: "string",
           enum: ["mock", "kling", "elevenlabs", "higgsfield"],
-          description: "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון",
+          description:
+            "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון",
         },
         voice_id: { type: "string" },
         music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
@@ -428,7 +438,8 @@ export async function executeWorkshopTool(
         ));
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : "פתיחת הפייפליין נכשלה",
+          error:
+            error instanceof Error ? error.message : "פתיחת הפייפליין נכשלה",
         };
       }
     }
@@ -519,7 +530,12 @@ export async function executeWorkshopTool(
     if (!itemId) return { error: "item_id נדרש" };
     if (!prompt) return { error: "prompt נדרש" };
     if (!deps.generateImage) return { error: "יצירת תמונות לא זמינה כאן" };
-    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
     const projectFormats = imageFormatsFrom(
@@ -545,7 +561,8 @@ export async function executeWorkshopTool(
         } catch (error) {
           return {
             format,
-            error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+            error:
+              error instanceof Error ? error.message : "יצירת התמונה נכשלה",
           };
         }
       }),
@@ -584,7 +601,12 @@ export async function executeWorkshopTool(
   if (name === "workshop_save_concepts" || name === "workshop_save_copy") {
     const itemId = String(args.item_id ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
-    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
     if ("error" in loaded) return loaded;
     const isConcepts = name === "workshop_save_concepts";
     const list = (isConcepts ? args.concepts : args.variations) as unknown;
@@ -651,14 +673,20 @@ export async function executeWorkshopTool(
   if (name === "workshop_storyboard") {
     const itemId = String(args.item_id ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
-    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
     const input = (Array.isArray(args.scenes) ? args.scenes : [])
       .map((scene) => asRecord(scene))
       .filter((scene) => String(scene.visual_prompt ?? "").trim())
       .slice(0, 20);
-    if (input.length === 0) return { error: "scenes ריק: כל סצנה צריכה visual_prompt" };
+    if (input.length === 0)
+      return { error: "scenes ריק: כל סצנה צריכה visual_prompt" };
     const old = await loadScenes(supabase, tenantId, itemId);
     if (old.length > 0 && args.replace !== true)
       return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
@@ -671,10 +699,7 @@ export async function executeWorkshopTool(
       motion_prompt: String(scene.motion_prompt ?? "").trim(),
       overlay_text: String(scene.overlay_text ?? "").trim(),
       voiceover_text: String(scene.voiceover_text ?? "").trim(),
-      duration_s: Math.min(
-        Math.max(Number(scene.duration_s) || 3, 0.5),
-        120,
-      ),
+      duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
     }));
     const saved = await supabase.rpc("save_video_storyboard", {
       p_item_id: itemId,
@@ -722,7 +747,11 @@ export async function executeWorkshopTool(
       scenes: rows.length,
       total_s: total,
       artifact,
-      workshop: { event: "artifacts", item_id: itemId, artifact_id: artifact.id },
+      workshop: {
+        event: "artifacts",
+        item_id: itemId,
+        artifact_id: artifact.id,
+      },
     };
   }
 
@@ -730,14 +759,20 @@ export async function executeWorkshopTool(
     const itemId = String(args.item_id ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
     if (!deps.generateImage) return { error: "יצירת תמונות לא זמינה כאן" };
-    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
     const scenes = await loadScenes(supabase, tenantId, itemId);
     if (scenes.length === 0)
       return { error: "אין סטוריבורד. קודם workshop_storyboard." };
     const pending = scenes.filter((scene) => !scene.still_asset_id);
-    if (pending.length === 0) return { success: true, created: 0, remaining: 0 };
+    if (pending.length === 0)
+      return { success: true, created: 0, remaining: 0 };
     const batch = pending.slice(0, STILLS_PER_CALL);
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
     const estimate = estimateImages([format], batch.length);
@@ -761,7 +796,11 @@ export async function executeWorkshopTool(
                 format,
               );
               if (!made.image_url)
-                return { scene: scene.id, ok: false, error: made.error ?? "לא התקבלה תמונה" };
+                return {
+                  scene: scene.id,
+                  ok: false,
+                  error: made.error ?? "לא התקבלה תמונה",
+                };
               const attached = await supabase.rpc("attach_video_scene_asset", {
                 p_scene_id: scene.id,
                 p_kind: "still",
@@ -775,7 +814,8 @@ export async function executeWorkshopTool(
               return {
                 scene: scene.id,
                 ok: false,
-                error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+                error:
+                  error instanceof Error ? error.message : "יצירת התמונה נכשלה",
               };
             }
           }),
@@ -795,7 +835,12 @@ export async function executeWorkshopTool(
   if (name === "workshop_produce_video") {
     const itemId = String(args.item_id ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
-    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
     if ("error" in loaded) return loaded;
     const { project } = loaded;
     const scenes = await loadScenes(supabase, tenantId, itemId);
@@ -930,7 +975,11 @@ export async function executeWorkshopTool(
       message:
         "ההפקה התחילה. הסרט יופיע בלוח כשיהיה מוכן, בדרך כלל תוך דקה או שתיים.",
       artifact,
-      workshop: { event: "artifacts", item_id: itemId, artifact_id: artifact.id },
+      workshop: {
+        event: "artifacts",
+        item_id: itemId,
+        artifact_id: artifact.id,
+      },
     };
   }
 

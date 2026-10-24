@@ -47,8 +47,14 @@ test("the feed keeps arrival order and a folder shows only its own pages", () =>
     page({ id: "early", created_at: "2026-10-24T10:01:00Z" }),
     page({ id: "mid", created_at: "2026-10-24T10:03:00Z" }),
   ];
-  assert.deepEqual(pagesIn(items, null).map((p) => p.id), ["early", "mid", "late"]);
-  assert.deepEqual(pagesIn(items, "images").map((p) => p.id), ["early", "mid"]);
+  assert.deepEqual(
+    pagesIn(items, null).map((p) => p.id),
+    ["early", "mid", "late"],
+  );
+  assert.deepEqual(
+    pagesIn(items, "images").map((p) => p.id),
+    ["early", "mid"],
+  );
   assert.deepEqual(
     foldersOf(items).map((f) => [f.folder, f.count]),
     [
@@ -74,10 +80,19 @@ test("private bucket paths are signed and web links are left alone", () => {
   const items = [
     page({ id: "a", url: "https://x/a.png", thumb_url: "https://x/a.png" }),
     page({ id: "b", url: "tenant/item/clip.mp4", thumb_url: null }),
-    page({ id: "c", url: "tenant/item/clip.mp4", thumb_url: "tenant/item/t.jpg" }),
+    page({
+      id: "c",
+      url: "tenant/item/clip.mp4",
+      thumb_url: "tenant/item/t.jpg",
+    }),
   ];
-  assert.deepEqual(storagePathsIn(items), ["tenant/item/clip.mp4", "tenant/item/t.jpg"]);
-  const out = withSignedUrls(items, { "tenant/item/clip.mp4": "https://signed/clip" });
+  assert.deepEqual(storagePathsIn(items), [
+    "tenant/item/clip.mp4",
+    "tenant/item/t.jpg",
+  ]);
+  const out = withSignedUrls(items, {
+    "tenant/item/clip.mp4": "https://signed/clip",
+  });
   assert.equal(out[0].url, "https://x/a.png");
   assert.equal(out[1].url, "https://signed/clip");
   assert.equal(out[2].thumb_url, null);

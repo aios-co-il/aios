@@ -215,7 +215,10 @@ export function WorkshopFeed({
           className="absolute bottom-4 start-4 h-8 gap-1.5 rounded-full shadow-lg"
           onClick={() => {
             setFollowing(true);
-            bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            bottom.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "end",
+            });
           }}
         >
           <ArrowDown className="h-3.5 w-3.5" />

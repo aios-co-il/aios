@@ -35,11 +35,19 @@ test("an open project goes to Carmen with its id, a new board tells her to start
 
 test("only well-formed workshop stream events reach the board", () => {
   assert.deepEqual(
-    workshopEventFrom({ type: "workshop", event: "project", item_id: "i", artifact_id: "a" }),
+    workshopEventFrom({
+      type: "workshop",
+      event: "project",
+      item_id: "i",
+      artifact_id: "a",
+    }),
     { event: "project", item_id: "i", artifact_id: "a" },
   );
   assert.equal(workshopEventFrom({ type: "token", content: "x" }), null);
-  assert.equal(workshopEventFrom({ type: "workshop", event: "other", item_id: "i" }), null);
+  assert.equal(
+    workshopEventFrom({ type: "workshop", event: "other", item_id: "i" }),
+    null,
+  );
   assert.equal(workshopEventFrom({ type: "workshop", event: "project" }), null);
   assert.equal(workshopEventFrom(null), null);
 });

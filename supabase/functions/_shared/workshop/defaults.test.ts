@@ -21,7 +21,10 @@ test("a video word wins, a campaign word makes a campaign, otherwise it is a sta
 });
 
 test("formats come from the channel the request names", () => {
-  assert.deepEqual(inferFormats("מודעה לסטורי ולפיד", "static"), ["9:16", "4:5"]);
+  assert.deepEqual(inferFormats("מודעה לסטורי ולפיד", "static"), [
+    "9:16",
+    "4:5",
+  ]);
   assert.deepEqual(inferFormats("מודעה", "static"), ["1:1"]);
   assert.deepEqual(inferFormats("סרטון ליוטיוב", "video"), ["16:9"]);
   assert.deepEqual(inferFormats("סרטון", "video"), ["9:16"]);
@@ -45,7 +48,9 @@ test("scenes are about three seconds and long films use longer beats", () => {
 });
 
 test("one sentence plans the whole video project", () => {
-  const plan = planProject({ brief: "סרטון קצר של כרמן יושבת ליד מחשב ועובדת" });
+  const plan = planProject({
+    brief: "סרטון קצר של כרמן יושבת ליד מחשב ועובדת",
+  });
   assert.equal(plan.projectType, "video");
   assert.equal(plan.format, "9:16");
   assert.equal(plan.visualStyle, "adaptive");

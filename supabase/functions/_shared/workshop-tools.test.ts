@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executeWorkshopTool, isWorkshopTool, WORKSHOP_TOOLS } from "./workshop-tools.ts";
+import {
+  executeWorkshopTool,
+  isWorkshopTool,
+  WORKSHOP_TOOLS,
+} from "./workshop-tools.ts";
 
 type Call = { table: string; op: string; value?: unknown };
 
@@ -14,7 +18,9 @@ function fakeDb(script: Record<string, unknown> = {}) {
       const key = `rpc:${name}`;
       return Promise.resolve({
         data: key in script ? script[key] : null,
-        error: script[`${key}:error`] ? { message: String(script[`${key}:error`]) } : null,
+        error: script[`${key}:error`]
+          ? { message: String(script[`${key}:error`]) }
+          : null,
       });
     },
     from(table: string) {
@@ -22,7 +28,12 @@ function fakeDb(script: Record<string, unknown> = {}) {
       let value: unknown;
       const answer = () => {
         const key = `${table}:${op}`;
-        const data = key in script ? script[key] : op === "insert" ? { id: `${table}-1` } : null;
+        const data =
+          key in script
+            ? script[key]
+            : op === "insert"
+              ? { id: `${table}-1` }
+              : null;
         return { data, error: null };
       };
       const builder: Record<string, unknown> = {
@@ -150,7 +161,10 @@ test("creating images first asks for approval with the cost and spends nothing",
   assert.deepEqual(result.formats, ["9:16", "4:5"]);
   assert.equal(result.estimated_usd, 0.5);
   assert.equal(generated, 0);
-  assert.equal(db.calls.some((c) => c.table === "workshop_artifacts"), false);
+  assert.equal(
+    db.calls.some((c) => c.table === "workshop_artifacts"),
+    false,
+  );
 });
 
 test("after approval each format becomes a page and a failure is reported, not hidden", async () => {
@@ -171,7 +185,9 @@ test("after approval each format becomes a page and a failure is reported, not h
   )) as Record<string, any>;
   assert.equal(result.success, true);
   assert.equal(result.created, 1);
-  assert.deepEqual(result.failed, [{ format: "4:5", error: "billing hard limit" }]);
+  assert.deepEqual(result.failed, [
+    { format: "4:5", error: "billing hard limit" },
+  ]);
   const written = db.calls.filter((c) => c.table === "workshop_artifacts");
   assert.equal(written.length, 1);
   const row = written[0].value as Record<string, any>;
@@ -218,7 +234,8 @@ test("concepts become one page each and need nothing from the user", async () =>
     },
   )) as Record<string, any>;
   assert.equal(result.saved, 1);
-  const row = db.calls.find((c) => c.table === "workshop_artifacts")?.value as Record<string, any>;
+  const row = db.calls.find((c) => c.table === "workshop_artifacts")
+    ?.value as Record<string, any>;
   assert.equal(row.kind, "concept");
   assert.equal(row.folder, "copy");
   assert.match(row.meta.text, /ויזואל: אור בוקר/);
@@ -226,40 +243,70 @@ test("concepts become one page each and need nothing from the user", async () =>
 
 test("a storyboard is saved through the studio's RPC and refuses to overwrite without replace", async () => {
   const sceneInput = [
-    { title: "פתיחה", visual_prompt: "wide office", voiceover_text: "בוקר טוב" },
+    {
+      title: "פתיחה",
+      visual_prompt: "wide office",
+      voiceover_text: "בוקר טוב",
+    },
     { visual_prompt: "close up on hands", duration_s: 4 },
   ];
   const guarded = fakeDb({
     ...videoProject(),
     "marketing_video_scenes:select": [scene("old-1")],
   });
-  const refused = (await executeWorkshopTool(guarded, "tenant-1", "workshop_storyboard", {
-    item_id: "item-1",
-    scenes: sceneInput,
-  })) as Record<string, unknown>;
+  const refused = (await executeWorkshopTool(
+    guarded,
+    "tenant-1",
+    "workshop_storyboard",
+    {
+      item_id: "item-1",
+      scenes: sceneInput,
+    },
+  )) as Record<string, unknown>;
   assert.match(String(refused.error), /replace=true/);
-  assert.equal(guarded.calls.some((c) => c.table === "rpc:save_video_storyboard"), false);
+  assert.equal(
+    guarded.calls.some((c) => c.table === "rpc:save_video_storyboard"),
+    false,
+  );
 
-  const db = fakeDb({ ...videoProject(), "marketing_video_scenes:select": [scene("old-1")] });
-  const result = (await executeWorkshopTool(db, "tenant-1", "workshop_storyboard", {
-    item_id: "item-1",
-    replace: true,
-    scenes: sceneInput,
-  })) as Record<string, any>;
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("old-1")],
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_storyboard",
+    {
+      item_id: "item-1",
+      replace: true,
+      scenes: sceneInput,
+    },
+  )) as Record<string, any>;
   assert.equal(result.scenes, 2);
   assert.equal(result.total_s, 7);
-  const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")?.value as Record<string, any>;
+  const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")
+    ?.value as Record<string, any>;
   assert.equal(rpc.p_item_id, "item-1");
   assert.equal(rpc.p_scenes.length, 2);
   assert.match(rpc.p_scenes[0].id, /^[0-9a-f-]{36}$/);
   assert.equal(rpc.p_scenes[1].title, "סצנה 2");
-  assert.equal(db.calls.some((c) => c.op === "delete" && c.table === "marketing_video_scenes"), true);
+  assert.equal(
+    db.calls.some(
+      (c) => c.op === "delete" && c.table === "marketing_video_scenes",
+    ),
+    true,
+  );
 });
 
 test("stills ask first, then each scene gets its picture attached", async () => {
   const script = {
     ...videoProject(),
-    "marketing_video_scenes:select": [scene("s-1"), scene("s-2", { still_asset_id: "has" }), scene("s-3")],
+    "marketing_video_scenes:select": [
+      scene("s-1"),
+      scene("s-2", { still_asset_id: "has" }),
+      scene("s-3"),
+    ],
   };
   let generated = 0;
   const deps = {
@@ -269,7 +316,13 @@ test("stills ask first, then each scene gets its picture attached", async () => 
     },
   };
   const asked = (await executeWorkshopTool(
-    fakeDb(script), "tenant-1", "workshop_make_stills", { item_id: "item-1" }, async () => {}, null, deps,
+    fakeDb(script),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    deps,
   )) as Record<string, any>;
   assert.equal(asked.needs_approval, true);
   assert.equal(asked.scenes, 2);
@@ -277,21 +330,40 @@ test("stills ask first, then each scene gets its picture attached", async () => 
 
   const db = fakeDb(script);
   const done = (await executeWorkshopTool(
-    db, "tenant-1", "workshop_make_stills", { item_id: "item-1", confirmed: true }, async () => {}, null, deps,
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    deps,
   )) as Record<string, any>;
   assert.equal(done.created, 2);
   assert.equal(done.remaining, 0);
-  const attached = db.calls.filter((c) => c.table === "rpc:attach_video_scene_asset");
-  assert.deepEqual(attached.map((c) => (c.value as any).p_scene_id), ["s-1", "s-3"]);
+  const attached = db.calls.filter(
+    (c) => c.table === "rpc:attach_video_scene_asset",
+  );
+  assert.deepEqual(
+    attached.map((c) => (c.value as any).p_scene_id),
+    ["s-1", "s-3"],
+  );
   assert.equal((attached[0].value as any).p_kind, "still");
 });
 
 test("producing needs stills, a client, then one approval with the engine the tenant can use", async () => {
-  const allStilled = [scene("s-1", { still_asset_id: "a" }), scene("s-2", { still_asset_id: "b", voiceover_text: "" })];
+  const allStilled = [
+    scene("s-1", { still_asset_id: "a" }),
+    scene("s-2", { still_asset_id: "b", voiceover_text: "" }),
+  ];
 
   const missing = (await executeWorkshopTool(
-    fakeDb({ ...videoProject(), "marketing_video_scenes:select": [scene("s-1")] }),
-    "tenant-1", "workshop_produce_video", { item_id: "item-1" },
+    fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1")],
+    }),
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
   )) as Record<string, any>;
   assert.equal(missing.missing_stills, 1);
 
@@ -300,31 +372,53 @@ test("producing needs stills, a client, then one approval with the engine the te
       ...videoProject({ client_id: null, current_stage_id: null }),
       "marketing_video_scenes:select": allStilled,
     }),
-    "tenant-1", "workshop_produce_video", { item_id: "item-1" },
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
   )) as Record<string, any>;
   assert.equal(noClient.needs_client, true);
 
-  const script = { ...videoProject(), "marketing_video_scenes:select": allStilled };
+  const script = {
+    ...videoProject(),
+    "marketing_video_scenes:select": allStilled,
+  };
   const deps = { defaultEngine: async () => "elevenlabs" as const };
   const asked = (await executeWorkshopTool(
-    fakeDb(script), "tenant-1", "workshop_produce_video", { item_id: "item-1" }, async () => {}, null, deps,
+    fakeDb(script),
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    deps,
   )) as Record<string, any>;
   assert.equal(asked.needs_approval, true);
   assert.equal(asked.engine, "elevenlabs");
   assert.equal(asked.with_voice, true);
   assert.ok(asked.estimated_usd > 0);
 
-  const db = fakeDb({ ...script, "rpc:produce_video": { status: "running", clips: 2 } });
+  const db = fakeDb({
+    ...script,
+    "rpc:produce_video": { status: "running", clips: 2 },
+  });
   const started = (await executeWorkshopTool(
-    db, "tenant-1", "workshop_produce_video", { item_id: "item-1", confirmed: true }, async () => {}, null, deps,
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    deps,
   )) as Record<string, any>;
   assert.equal(started.success, true);
-  const rpc = db.calls.find((c) => c.table === "rpc:produce_video")?.value as Record<string, any>;
+  const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
+    ?.value as Record<string, any>;
   assert.equal(rpc.p_provider, "elevenlabs");
   assert.equal(rpc.p_aspect, "9:16");
   assert.equal(rpc.p_stage_id, "stage-1");
   assert.equal(rpc.p_with_voice, true);
-  const film = db.calls.find((c) => c.table === "workshop_artifacts")?.value as Record<string, any>;
+  const film = db.calls.find((c) => c.table === "workshop_artifacts")
+    ?.value as Record<string, any>;
   assert.equal(film.kind, "film");
   assert.equal(film.status, "pending");
 });
@@ -335,7 +429,11 @@ test("with no paid keys the film is produced on the free preview engine", async 
       ...videoProject(),
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
     }),
-    "tenant-1", "workshop_produce_video", { item_id: "item-1" }, async () => {}, null,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
+    async () => {},
+    null,
     { defaultEngine: async () => "mock" as const },
   )) as Record<string, any>;
   assert.equal(asked.engine, "mock");
