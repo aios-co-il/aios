@@ -1,3 +1,4 @@
+import { isBuiltInSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import "./carmen-portrait.css";
 
@@ -14,7 +15,7 @@ export function CarmenPortrait({
 }) {
   return (
     <span
-      className={`carmen-portrait ${custom ? "is-custom" : ""} ${className}`}
+      className={`carmen-portrait ${custom && !isBuiltInSkinPortrait(image) ? "is-custom" : ""} ${className}`}
       role="img"
       aria-label={name}
     >
