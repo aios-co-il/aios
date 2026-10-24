@@ -1,3 +1,4 @@
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useCarmenSkins } from "@/hooks/useCarmenSkins";
@@ -53,10 +54,11 @@ export function CarmenSkinSwitcher({
           <SelectItem key={s.slug} value={s.slug} textValue={s.name}>
             <span className="flex items-center gap-2">
               {s.avatarUrl && (
-                <img
-                  src={s.avatarUrl}
-                  alt=""
-                  className="h-5 w-5 rounded-full object-cover"
+                <CarmenPortrait
+                  image={s.avatarUrl}
+                  name={s.name}
+                  custom
+                  className="!h-7 !w-7 shrink-0"
                 />
               )}
               <span>{s.name}</span>

@@ -1,3 +1,4 @@
+import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,10 +70,9 @@ export function useCarmenSkins() {
           slug: r.slug,
           name: r.name,
           description: r.description ?? null,
-          avatarUrl: await signProfileImage(
-            tenantId!,
-            avatars[r.slug]?.avatarPath,
-          ),
+          avatarUrl:
+            (await signProfileImage(tenantId!, avatars[r.slug]?.avatarPath)) ||
+            getSkinPortrait(r.slug, r.name),
         })),
       );
     },
