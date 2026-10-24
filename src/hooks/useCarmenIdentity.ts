@@ -1,3 +1,4 @@
+import { useCarmenSkins } from "./useCarmenSkins";
 import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +59,9 @@ export function useCarmenIdentity() {
   });
   // The session's skin (this browser only) picks which avatar to show.
   const activeSkin = useSessionSkin(tenantId);
+  const { skins } = useCarmenSkins();
+  const activeName = skins.find((skin) => skin.slug === activeSkin)?.name;
+  const defaultPortrait = getSkinPortrait(activeSkin, activeName);
   const skinPath = activeSkin
     ? query.data?.skinAvatars[activeSkin]?.avatarPath
     : undefined;
@@ -70,12 +74,12 @@ export function useCarmenIdentity() {
   // A skin's own avatar wins over Carmen's base avatar while that skin is active.
   const image =
     (skinPath ? skinAvatar.data : undefined) ||
-    getSkinPortrait(activeSkin) ||
+    defaultPortrait ||
     query.data?.avatarUrl;
   return {
     name: query.data?.displayName || "כרמן",
     image: image || CARMEN_CHARACTER,
-    custom: !!image && image !== getSkinPortrait(activeSkin),
+    custom: !!image && image !== defaultPortrait,
     activeSkin,
   };
 }
