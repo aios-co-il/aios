@@ -10,7 +10,7 @@
  */
 
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
-import { capabilityReport } from "./workshop/capabilities.ts";
+import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
 import { productionReport } from "./workshop/production.ts";
 import {
@@ -26,7 +26,10 @@ import {
   siteReport,
   withStylesheets,
 } from "./workshop/site-report.ts";
-import type { ImageProvider } from "./workshop/image-providers.ts";
+import {
+  normalizeEngine,
+  type ImageProvider,
+} from "./workshop/image-providers.ts";
 import { lookOf, stillPrompt, withLook } from "./workshop/look.ts";
 import {
   estimateImages,
@@ -661,11 +664,19 @@ async function briefProject(
 > {
   const stored = lookOf(payload);
   const connected = deps.imageEngines ? await deps.imageEngines() : null;
-  const asked = typeof args.engine === "string" ? args.engine : null;
-  if (asked && connected && !connected.includes(asked as ImageProvider))
+  const rawEngine =
+    typeof args.engine === "string" && args.engine.trim() ? args.engine : null;
+  const asked = rawEngine ? normalizeEngine(rawEngine) : null;
+  if (rawEngine && !asked)
     return {
       gate: {
-        error: `המנוע ${asked} לא מחובר. המחוברים: ${connected.join(", ") || "אין"}.`,
+        error: `לא מכירה את המנוע "${rawEngine}". האפשרויות: google, elevenlabs, higgsfield, openai.`,
+      },
+    };
+  if (asked && connected && !connected.includes(asked))
+    return {
+      gate: {
+        error: `אין מפתח ל-${PROVIDER_LABEL[asked]} בהגדרות מודלי AI. המחוברים: ${connected.join(", ") || "אין"}.`,
       },
     };
   const chosen = (asked ??

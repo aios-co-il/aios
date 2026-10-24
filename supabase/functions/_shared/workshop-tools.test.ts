@@ -841,7 +841,7 @@ test("with several image engines connected the user is asked, the choice is save
     null,
     deps,
   )) as Record<string, any>;
-  assert.match(unknown.error, /openai לא מחובר/);
+  assert.match(unknown.error, /אין מפתח ל-OpenAI/);
 
   const db = fakeDb(script);
   await executeWorkshopTool(

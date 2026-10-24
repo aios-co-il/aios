@@ -138,6 +138,39 @@ const fromBase64 = (value: string) =>
 
 const clip = (value: string) => value.replace(/\s+/g, " ").slice(0, 220);
 
+/** Names a user or model may use for an engine, mapped to the engine's id. */
+export function normalizeEngine(value: unknown): ImageProvider | null {
+  if (typeof value !== "string") return null;
+  const name = value.toLowerCase().replace(/[\s_.-]+/g, "");
+  if (!name) return null;
+  if (/eleven|11labs|לאבז|לאבס|אילו/.test(name)) return "elevenlabs";
+  if (/google|gemini|nano|banana|גוגל|ג'מיני|גמיני/.test(name)) return "google";
+  if (/higgs|היג|היגס/.test(name)) return "higgsfield";
+  if (/openai|gpt|אופןאיי|אופנאיי/.test(name)) return "openai";
+  return null;
+}
+
+/** What a failed ElevenLabs call means for the user, in plain Hebrew. */
+export function elevenLabsReason(status: number, body: string): string {
+  const text = body.toLowerCase();
+  if (status === 402 || text.includes("paid_plan_required"))
+    return "ממשק התמונות של ElevenLabs דורש תוכנית Pro ומעלה בחשבון ElevenLabs (המפתח מחובר, אבל התוכנית לא מספיקה)";
+  if (text.includes("invalid_api_key"))
+    return "מפתח ה-ElevenLabs לא תקין. צריך להדביק אותו מחדש בהגדרות מודלי AI";
+  if (status === 401 || status === 403 || text.includes("missing_permissions"))
+    return "מפתח ה-ElevenLabs מחובר, אבל חסרה לו הרשאה Image & Video (או Flows). אפשר להוסיף אותה ב-elevenlabs.io/app/api/api-keys";
+  if (status === 429)
+    return "ElevenLabs מגביל קצב כרגע או שהקרדיטים נגמרו. אפשר לנסות שוב עוד רגע";
+  return `${status} ${clip(body)}`;
+}
+
+const ELEVENLABS_FAILURES: Record<string, string> = {
+  moderated: "ElevenLabs חסם את התוכן בסינון שלו. צריך לנסח את התיאור אחרת",
+  charging_failed: "אין מספיק קרדיטים בחשבון ElevenLabs",
+  timeout: "ElevenLabs לא סיים בזמן",
+  invalid_parameters: "ElevenLabs דחה את הפרמטרים של הבקשה",
+};
+
 async function viaOpenAi(
   key: string,
   prompt: string,
@@ -235,7 +268,7 @@ async function viaElevenLabs(
   });
   const started = await submit.json().catch(() => ({}));
   if (!submit.ok || !started?.id)
-    throw new Error(`${submit.status} ${clip(JSON.stringify(started))}`);
+    throw new Error(elevenLabsReason(submit.status, JSON.stringify(started)));
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const polls = deps.maxPolls ?? 40;
@@ -246,10 +279,11 @@ async function viaElevenLabs(
     });
     const state = await poll.json().catch(() => ({}));
     if (!poll.ok)
-      throw new Error(`${poll.status} ${clip(JSON.stringify(state))}`);
+      throw new Error(elevenLabsReason(poll.status, JSON.stringify(state)));
     if (state.status === "failed")
       throw new Error(
-        clip(String(state.error_message ?? state.failure_reason ?? "נכשל")),
+        ELEVENLABS_FAILURES[String(state.failure_reason)] ??
+          clip(String(state.error_message ?? state.failure_reason ?? "נכשל")),
       );
     if (state.status === "completed") {
       if (!state.content_url) throw new Error("לא הוחזר קישור לתמונה");
@@ -402,6 +436,8 @@ export async function generateStill(
     }
   }
   throw new Error(
-    `יצירת התמונה נכשלה בכל הספקים המחוברים. ${failures.join(" | ")}`,
+    failures.length === 1
+      ? failures[0]
+      : `יצירת התמונה נכשלה בכל הספקים המחוברים. ${failures.join(" | ")}`,
   );
 }

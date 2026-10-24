@@ -244,3 +244,35 @@ test("Higgsfield uses Soul 2 text-to-image, or image-to-image with a reference l
   assert.match(seen[1].url, /soul\/v2\/image-to-image$/);
   assert.equal(seen[1].body!.image_url, "https://x/anchor.png");
 });
+
+test("engine names from the user or the model resolve to an engine id", async () => {
+  const { normalizeEngine } = await import("./image-providers.ts");
+  assert.equal(normalizeEngine("elevenlabs"), "elevenlabs");
+  assert.equal(normalizeEngine("ElevenLabs"), "elevenlabs");
+  assert.equal(normalizeEngine("eleven_labs"), "elevenlabs");
+  assert.equal(normalizeEngine("אילוון לאבז"), "elevenlabs");
+  assert.equal(normalizeEngine("Nano Banana Pro"), "google");
+  assert.equal(normalizeEngine("גוגל"), "google");
+  assert.equal(normalizeEngine("higgsfield"), "higgsfield");
+  assert.equal(normalizeEngine("GPT image"), "openai");
+  assert.equal(normalizeEngine("midjourney"), null);
+  assert.equal(normalizeEngine(""), null);
+  assert.equal(normalizeEngine(undefined), null);
+});
+
+test("an ElevenLabs refusal says what is wrong with the account, not that it is disconnected", async () => {
+  const { elevenLabsReason } = await import("./image-providers.ts");
+  assert.match(
+    elevenLabsReason(402, '{"detail":{"status":"paid_plan_required"}}'),
+    /תוכנית Pro/,
+  );
+  assert.match(
+    elevenLabsReason(401, '{"detail":{"status":"missing_permissions"}}'),
+    /הרשאה Image & Video/,
+  );
+  assert.match(
+    elevenLabsReason(401, '{"detail":{"status":"invalid_api_key"}}'),
+    /לא תקין/,
+  );
+  assert.match(elevenLabsReason(500, "boom"), /^500 boom/);
+});
