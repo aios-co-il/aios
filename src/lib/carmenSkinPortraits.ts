@@ -1,3 +1,4 @@
+import { getCarmenRole } from "../../supabase/functions/_shared/carmen/skin-roles";
 const ROOT = "/brand/carmen/skins/";
 
 /** Only the main personas receive a built-in portrait; other skills keep their existing fallback. */
@@ -17,6 +18,10 @@ const PORTRAITS: Record<string, string> = {
   finance: "finance",
 };
 const ROLE_NAMES: Record<string, string> = {
+  קמפיינרית: "campaigner",
+  "SEO / GEO": "seo-geo",
+  "SEO/GEO": "seo-geo",
+  "אנליסטית דוחות": "analyst",
   קופירייטרית: "copywriter",
   במאית: "director",
   "במאית וידאו": "director",
@@ -31,7 +36,10 @@ const ROLE_NAMES: Record<string, string> = {
 };
 
 export function getSkinPortrait(slug?: string | null, name?: string | null) {
-  const role = (slug && PORTRAITS[slug]) || (name && ROLE_NAMES[name.trim()]);
+  const role =
+    getCarmenRole(slug)?.portrait ||
+    (slug && PORTRAITS[slug]) ||
+    (name && ROLE_NAMES[name.trim()]);
   return role ? `${ROOT}${role}.webp` : undefined;
 }
 

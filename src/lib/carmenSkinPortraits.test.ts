@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { test } from "node:test";
 import { getSkinPortrait, isBuiltInSkinPortrait } from "./carmenSkinPortraits";
 
-test("the seven primary personas resolve to shipped portraits", () => {
+test("the ten specialist personas resolve to shipped portraits", () => {
   const slugs = [
     "copywriter",
     "video_director",
@@ -12,9 +12,12 @@ test("the seven primary personas resolve to shipped portraits", () => {
     "web_builder",
     "automator",
     "cfo",
+    "campaigner",
+    "seo",
+    "analyst",
   ];
   const urls = slugs.map((slug) => getSkinPortrait(slug)!);
-  assert.equal(new Set(urls).size, 7);
+  assert.equal(new Set(urls).size, 10);
   for (const url of urls) {
     assert.ok(isBuiltInSkinPortrait(url));
     assert.ok(existsSync(`public${url}`), `Missing portrait: ${url}`);
@@ -22,14 +25,7 @@ test("the seven primary personas resolve to shipped portraits", () => {
 });
 
 test("marketing manager and unrelated skills keep their original fallback", () => {
-  for (const slug of [
-    null,
-    undefined,
-    "marketing_manager",
-    "seo",
-    "qa",
-    "unknown",
-  ])
+  for (const slug of [null, undefined, "marketing_manager", "legal", "unknown"])
     assert.equal(getSkinPortrait(slug), undefined);
   assert.equal(
     getSkinPortrait("tenant-editor", "עורכת וידאו"),
