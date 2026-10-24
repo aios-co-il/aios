@@ -46,11 +46,7 @@ export function CommandCenterSidecarShell({
           aria-label="פגישת עבודה עם כרמן"
           dir="rtl"
         >
-          <CommandCenterSidecar
-            onClose={() => setOpen(false)}
-            session
-            keepSkin={onWorkshop}
-          />
+          <CommandCenterSidecar onClose={() => setOpen(false)} session />
         </aside>
       )}
       <div className="carmen-session-content">{children}</div>

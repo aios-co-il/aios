@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { useCarmenSkins } from "@/hooks/useCarmenSkins";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
+import { Button } from "@/components/ui/button";
 import { WorkshopCanvas } from "@/components/workshop/WorkshopCanvas";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
-import { WorkshopSkinBar } from "@/components/workshop/WorkshopSkinBar";
-import { roleForSlug } from "@/components/workshop/workshopRoles";
 import "@/components/workshop/workshop.css";
 
 type ProjectRow = {
@@ -21,16 +19,15 @@ type ProjectRow = {
 export default function CarmenWorkshop() {
   const { tenant } = useCurrentTenant();
   const tenantId = tenant?.id;
-  const skins = useCarmenSkins();
   const { setOpen } = useCommandCenterSidecar();
   const access = useCommandCenterAccess();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [blank, setBlank] = useState(false);
-  const activeRole = roleForSlug(skins.activeSlug)?.id ?? "copy";
+  const [projectsOpen, setProjectsOpen] = useState(false);
 
   useEffect(() => {
-    setOpen(true);
-  }, [setOpen]);
+    if (access.allowed) setOpen(true);
+  }, [access.allowed, setOpen]);
 
   const projects = useQuery({
     queryKey: ["carmen-workshop-projects", tenantId],
@@ -60,26 +57,32 @@ export default function CarmenWorkshop() {
       className="flex min-h-[28rem] flex-1 flex-col overflow-hidden"
       dir="rtl"
     >
-      <header className="flex shrink-0 flex-col gap-2 border-b px-3 py-2 md:flex-row md:items-center md:gap-3 md:px-4 md:py-3">
+      <header className="flex shrink-0 items-center gap-3 border-b px-3 py-2 md:px-4 md:py-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 gap-1.5"
+          aria-expanded={projectsOpen}
+          onClick={() => setProjectsOpen((value) => !value)}
+        >
+          {projectsOpen ? (
+            <PanelRightClose className="h-4 w-4" />
+          ) : (
+            <PanelRightOpen className="h-4 w-4" />
+          )}
+          פרויקטים
+        </Button>
         <div className="min-w-0">
           <h1 className="truncate text-base font-semibold md:text-lg">
             הסדנה של כרמן
           </h1>
           <p className="truncate text-xs text-muted-foreground">
-            מחליפים סקין, כרמן עושה את העבודה
+            {selected && !blank
+              ? selected.title?.trim() || "ללא שם"
+              : "פרויקט חדש"}
           </p>
         </div>
-        <WorkshopSkinBar
-          skins={skins.skins}
-          activeRole={activeRole}
-          onChoose={(slug) => {
-            skins.setActiveSkin(slug).catch((error: unknown) => {
-              toast.error(
-                error instanceof Error ? error.message : "החלפת הסקין נכשלה",
-              );
-            });
-          }}
-        />
       </header>
       {!access.loading && !access.allowed ? (
         <p className="shrink-0 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
@@ -87,20 +90,22 @@ export default function CarmenWorkshop() {
         </p>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <WorkshopProjects
-          projects={projects.data ?? []}
-          selectedId={selected?.id ?? null}
-          loading={projects.isLoading}
-          error={projects.isError}
-          onCreate={() => {
-            setBlank(true);
-            setProjectId(null);
-          }}
-          onSelect={(id) => {
-            setBlank(false);
-            setProjectId(id);
-          }}
-        />
+        {projectsOpen ? (
+          <WorkshopProjects
+            projects={projects.data ?? []}
+            selectedId={selected?.id ?? null}
+            loading={projects.isLoading}
+            error={projects.isError}
+            onCreate={() => {
+              setBlank(true);
+              setProjectId(null);
+            }}
+            onSelect={(id) => {
+              setBlank(false);
+              setProjectId(id);
+            }}
+          />
+        ) : null}
         <main className="relative min-h-0 min-w-0 flex-1">
           <div className="absolute inset-0">
             <WorkshopCanvas
