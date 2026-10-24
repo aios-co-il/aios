@@ -44,6 +44,7 @@ import {
   workshopEventFrom,
   workshopRequestParts,
 } from "@/lib/workshopBridge";
+import { hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -1722,6 +1723,13 @@ export const CarmenChatBar = forwardRef<
                 speaker={m.speaker}
                 channel={m.channel}
                 tool={m.tool}
+                onQuickReply={
+                  i === visibleMessages.length - 1 &&
+                  m.role === "assistant" &&
+                  !thisChatBusy
+                    ? (answer) => void sendText(answer)
+                    : undefined
+                }
               />
             ))}
             {streamingText && (
@@ -1741,7 +1749,7 @@ export const CarmenChatBar = forwardRef<
                 )}
                 <div className="cc-msg-bubble">
                   <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
-                    {streamingText}
+                    {hidePartialQuickReplies(streamingText)}
                   </div>
                 </div>
               </div>

@@ -8,6 +8,8 @@ import { File as FileIcon, Image as ImageIcon, Wrench } from "lucide-react";
 import { spriteForMessage } from "@/lib/agentSeats";
 import type { CommandCenterAttachment } from "@/lib/commandCenterAttachments";
 import type { Ref } from "react";
+import { parseQuickReplies } from "@/lib/quickReplies";
+import { QuickReplies } from "./QuickReplies";
 
 interface ChatMessageRowProps {
   role: "user" | "assistant" | "tool_call";
@@ -16,6 +18,8 @@ interface ChatMessageRowProps {
   speaker?: string | null;
   channel?: string | null;
   tool?: string;
+  /** Sends a tapped answer; set only on the latest reply while Carmen is waiting. */
+  onQuickReply?: (text: string) => void;
   /** Ref to the row element, used to scroll a reply into view from its start. */
   rowRef?: Ref<HTMLDivElement>;
 }
@@ -85,6 +89,7 @@ export function ChatMessageRow({
   speaker,
   channel,
   tool,
+  onQuickReply,
   rowRef,
 }: ChatMessageRowProps) {
   const identity = useCarmenIdentity();
@@ -100,6 +105,9 @@ export function ChatMessageRow({
   const isUser = role === "user";
   const sprite = spriteForMessage({ role, speaker, channel });
   const hasAttachments = !!attachments?.length;
+  const quick = isUser
+    ? { text: content ?? "", groups: [] }
+    : parseQuickReplies(content ?? "");
 
   return (
     <div
@@ -127,9 +135,12 @@ export function ChatMessageRow({
               remarkPlugins={[remarkGfm]}
               components={MARKDOWN_COMPONENTS}
             >
-              {content ?? ""}
+              {quick.text}
             </ReactMarkdown>
           </div>
+        )}
+        {quick.groups.length > 0 && (
+          <QuickReplies groups={quick.groups} onAnswer={onQuickReply} />
         )}
         {hasAttachments && <AttachmentStrip attachments={attachments!} />}
         {hasAttachments && !content && (
