@@ -115,7 +115,11 @@ export function WorkshopFeed({
   const folders = foldersOf(artifacts);
   const work = useSyncExternalStore(subscribeWorkshopWork, getWorkshopWork);
   const project = projectFormat(artifacts);
-  const making = hasProject && folder === null && work ? work : null;
+  const hasPending = artifacts.some(
+    (artifact) => artifact.status === "pending",
+  );
+  const making =
+    hasProject && folder === null && work && !hasPending ? work : null;
   const shown = pages.length + (making ? making.formats.length : 0);
 
   useEffect(() => {

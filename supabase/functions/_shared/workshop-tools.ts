@@ -403,6 +403,80 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   return (Array.isArray(data) ? data : []) as Record<string, any>[];
 }
 
+const PAGE_COLUMNS = "id, kind, title, folder, status, url, thumb_url";
+
+/**
+ * While pictures are being made the board shows a pending page per picture. It comes from the
+ * database, so it appears whether or not the chat stream reaches the screen, and each pending
+ * page is turned into the finished one (an update, which the live board always receives).
+ * Cosmetic: any failure here must never stop the work itself.
+ */
+async function openPlaceholders(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  rows: { kind: "image" | "scene_still"; title: string; meta?: object }[],
+): Promise<(string | undefined)[]> {
+  const none = rows.map(() => undefined);
+  try {
+    await supabase
+      .from("workshop_artifacts")
+      .update({
+        status: "failed",
+        meta: { placeholder: true, text: "ההפקה הקודמת הופסקה" },
+      })
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("status", "pending")
+      .eq("meta->>placeholder", "true");
+    const { data, error } = await supabase
+      .from("workshop_artifacts")
+      .insert(
+        rows.map((row) =>
+          artifactRow({
+            tenantId,
+            itemId,
+            kind: row.kind,
+            title: row.title,
+            status: "pending",
+            meta: { ...row.meta, placeholder: true },
+          }),
+        ),
+      )
+      .select("id");
+    if (error || !Array.isArray(data)) return none;
+    return rows.map((_, index) => data[index]?.id);
+  } catch {
+    return none;
+  }
+}
+
+async function settlePlaceholder(
+  supabase: Db,
+  tenantId: string,
+  id: string | undefined,
+  patch: Record<string, unknown>,
+) {
+  if (!id) return null;
+  try {
+    const { data } = await supabase
+      .from("workshop_artifacts")
+      .update(patch)
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select(PAGE_COLUMNS)
+      .maybeSingle();
+    return (data ?? null) as Record<string, any> | null;
+  } catch {
+    return null;
+  }
+}
+
+const failedPatch = (error: string) => ({
+  status: "failed",
+  meta: { text: error.slice(0, 300) },
+});
+
 /**
  * A scene picture always gets its page on the board. The database trigger usually does it; this
  * covers projects it skips and keeps the board right if the trigger ever fails.
@@ -414,6 +488,7 @@ async function ensureStillPage(
   scene: Record<string, any>,
   asset: unknown,
   url: string,
+  placeholderId?: string,
 ) {
   const assetId = asRecord(Array.isArray(asset) ? asset[0] : asset).id;
   if (typeof assetId !== "string") return;
@@ -424,6 +499,15 @@ async function ensureStillPage(
     .eq("ref_id", assetId)
     .maybeSingle();
   if (existing) return;
+  const settled = await settlePlaceholder(supabase, tenantId, placeholderId, {
+    status: "ready",
+    url,
+    thumb_url: url,
+    ref_table: "marketing_assets",
+    ref_id: assetId,
+    meta: { asset_id: assetId },
+  });
+  if (settled) return;
   await recordArtifact(supabase, {
     tenantId,
     itemId,
@@ -776,8 +860,19 @@ export async function executeWorkshopTool(
         message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. אשר/י והתחל.`,
       };
     }
+    const holders = await openPlaceholders(
+      supabase,
+      tenantId,
+      itemId,
+      formats.map((format) => ({
+        kind: "image" as const,
+        title: `${project.title || "תמונה"} · ${format}`,
+        meta: { format },
+      })),
+    );
+    const artifacts: Record<string, any>[] = [];
     const results = await Promise.all(
-      formats.map(async (format) => {
+      formats.map(async (format, index) => {
         try {
           const made = await deps.generateImage!(
             stillPrompt({
@@ -791,30 +886,52 @@ export async function executeWorkshopTool(
             look.references,
             brief.engine ?? undefined,
           );
+          if (!made.image_url) {
+            await settlePlaceholder(
+              supabase,
+              tenantId,
+              holders[index],
+              failedPatch(made.error ?? "לא התקבלה תמונה"),
+            );
+            return { format, ...made };
+          }
+          const meta = { prompt, format };
+          const settled = await settlePlaceholder(
+            supabase,
+            tenantId,
+            holders[index],
+            {
+              status: "ready",
+              url: made.image_url,
+              thumb_url: made.image_url,
+              meta,
+            },
+          );
+          artifacts.push(
+            settled ??
+              (await recordArtifact(supabase, {
+                tenantId,
+                itemId,
+                kind: "image",
+                title: `${project.title || "תמונה"} · ${format}`,
+                url: made.image_url,
+                meta,
+              })),
+          );
           return { format, ...made };
         } catch (error) {
-          return {
-            format,
-            error:
-              error instanceof Error ? error.message : "יצירת התמונה נכשלה",
-          };
+          const message =
+            error instanceof Error ? error.message : "יצירת התמונה נכשלה";
+          await settlePlaceholder(
+            supabase,
+            tenantId,
+            holders[index],
+            failedPatch(message),
+          );
+          return { format, error: message };
         }
       }),
     );
-    const artifacts = [];
-    for (const result of results) {
-      if (!result.image_url) continue;
-      artifacts.push(
-        await recordArtifact(supabase, {
-          tenantId,
-          itemId,
-          kind: "image",
-          title: `${project.title || "תמונה"} · ${result.format}`,
-          url: result.image_url,
-          meta: { prompt, format: result.format },
-        }),
-      );
-    }
     const failed = results.filter((result) => !result.image_url);
     return {
       success: artifacts.length > 0,
@@ -1051,7 +1168,19 @@ export async function executeWorkshopTool(
     const look = lookOf(payload);
     let anchorUrl = look.anchorUrl;
 
-    const renderStill = async (scene: Record<string, any>) => {
+    const renderStill = async (
+      scene: Record<string, any>,
+      holder: string | undefined,
+    ): Promise<{
+      scene: string;
+      ok: boolean;
+      error?: string;
+      url?: string;
+    }> => {
+      const fail = async (error: string) => {
+        await settlePlaceholder(supabase, tenantId, holder, failedPatch(error));
+        return { scene: scene.id, ok: false, error };
+      };
       try {
         const references = anchorUrl
           ? [...look.references, anchorUrl]
@@ -1069,20 +1198,14 @@ export async function executeWorkshopTool(
           references,
           brief.engine ?? undefined,
         );
-        if (!made.image_url)
-          return {
-            scene: scene.id,
-            ok: false,
-            error: made.error ?? "לא התקבלה תמונה",
-          };
+        if (!made.image_url) return await fail(made.error ?? "לא התקבלה תמונה");
         const attached = await supabase.rpc("attach_video_scene_asset", {
           p_scene_id: scene.id,
           p_kind: "still",
           p_url: made.image_url,
           p_meta: { prompt: scene.visual_prompt, source: "workshop" },
         });
-        if (attached.error)
-          return { scene: scene.id, ok: false, error: attached.error.message };
+        if (attached.error) return await fail(attached.error.message);
         await ensureStillPage(
           supabase,
           tenantId,
@@ -1090,15 +1213,30 @@ export async function executeWorkshopTool(
           scene,
           attached.data,
           made.image_url,
+          holder,
         );
         return { scene: scene.id, ok: true, url: made.image_url };
       } catch (error) {
-        return {
-          scene: scene.id,
-          ok: false,
-          error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
-        };
+        return await fail(
+          error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+        );
       }
+    };
+
+    const renderGroup = async (group: Record<string, any>[]) => {
+      const holders = await openPlaceholders(
+        supabase,
+        tenantId,
+        itemId,
+        group.map((scene) => ({
+          kind: "scene_still" as const,
+          title: `סצנה ${scene.position}${scene.title ? ` · ${scene.title}` : ""}`,
+          meta: { scene_id: scene.id },
+        })),
+      );
+      return await Promise.all(
+        group.map((scene, index) => renderStill(scene, holders[index])),
+      );
     };
 
     const results: { scene: string; ok: boolean; error?: string }[] = [];
@@ -1106,11 +1244,11 @@ export async function executeWorkshopTool(
     let todo = [...batch];
     if (!anchorUrl) {
       const first = todo.shift()!;
-      const done = await renderStill(first);
+      const [done] = await renderGroup([first]);
       results.push({ scene: done.scene, ok: done.ok, error: done.error });
       if (!done.ok) todo = [];
       else {
-        anchorUrl = (done as { url: string }).url;
+        anchorUrl = done.url ?? null;
         await savePayload(
           supabase,
           tenantId,
@@ -1122,9 +1260,7 @@ export async function executeWorkshopTool(
     for (let i = 0; i < todo.length; i += STILL_CONCURRENCY) {
       if (i > 0 && Date.now() - startedAt > STILLS_BUDGET_MS) break;
       const chunk = todo.slice(i, i + STILL_CONCURRENCY);
-      results.push(
-        ...(await Promise.all(chunk.map((scene) => renderStill(scene)))),
-      );
+      results.push(...(await renderGroup(chunk)));
     }
     const created = results.filter((result) => result.ok).length;
     const failed = results.filter((result) => !result.ok);

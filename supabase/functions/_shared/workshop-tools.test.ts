@@ -32,7 +32,9 @@ function fakeDb(script: Record<string, unknown> = {}) {
           key in script
             ? script[key]
             : op === "insert"
-              ? { id: `${table}-1` }
+              ? Array.isArray(value)
+                ? value.map((_, index) => ({ id: `${table}-${index + 1}` }))
+                : { id: `${table}-1` }
               : null;
         return { data, error: null };
       };
@@ -193,7 +195,12 @@ test("after approval each format becomes a page and a failure is reported, not h
   assert.deepEqual(result.failed, [
     { format: "4:5", error: "billing hard limit" },
   ]);
-  const written = db.calls.filter((c) => c.table === "workshop_artifacts");
+  const written = db.calls.filter(
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "insert" &&
+      !Array.isArray(c.value),
+  );
   assert.equal(written.length, 1);
   const row = written[0].value as Record<string, any>;
   assert.equal(row.kind, "image");
@@ -363,7 +370,10 @@ test("stills ask first, then each scene gets its picture attached", async () => 
   assert.match(done.message, /מופיעות בלוח/);
   assert.match(done.message, /הפקת הסרט/);
   const pages = db.calls.filter(
-    (c) => c.table === "workshop_artifacts" && c.op === "insert",
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "insert" &&
+      !Array.isArray(c.value),
   );
   assert.equal(pages.length, 2);
   assert.equal((pages[0].value as any).kind, "scene_still");
@@ -387,7 +397,12 @@ test("a scene picture already mirrored by the database trigger is not added twic
     { generateImage: async () => ({ image_url: "https://x/1.png" }) },
   );
   assert.equal(
-    db.calls.some((c) => c.table === "workshop_artifacts" && c.op === "insert"),
+    db.calls.some(
+      (c) =>
+        c.table === "workshop_artifacts" &&
+        c.op === "insert" &&
+        !Array.isArray(c.value),
+    ),
     false,
   );
 });
@@ -887,4 +902,91 @@ test("a single connected engine is used without asking", async () => {
     },
   );
   assert.deepEqual(seen, ["elevenlabs"]);
+});
+
+test("pictures in the making show as pending pages that become the finished ones", async () => {
+  const db = fakeDb({
+    ...project,
+    "workshop_artifacts:update": {
+      id: "workshop_artifacts-1",
+      kind: "image",
+      status: "ready",
+    },
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    { item_id: "item-1", prompt: "festive table", confirmed: true },
+    async () => {},
+    null,
+    {
+      generateImage: async (_p: string, format: string) =>
+        format === "9:16"
+          ? { image_url: "https://x/story.png" }
+          : { error: "billing hard limit" },
+    },
+  )) as Record<string, any>;
+  const opened = db.calls.find(
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "insert" &&
+      Array.isArray(c.value),
+  );
+  const rows = opened?.value as Record<string, any>[];
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((row) => row.status === "pending"));
+  assert.ok(rows.every((row) => row.meta.placeholder === true));
+  const updates = db.calls
+    .filter((c) => c.table === "workshop_artifacts" && c.op === "update")
+    .map((c) => c.value as Record<string, any>);
+  assert.ok(updates.some((u) => u.status === "ready" && u.url));
+  assert.ok(
+    updates.some(
+      (u) => u.status === "failed" && u.meta.text === "billing hard limit",
+    ),
+  );
+  assert.equal(result.created, 1);
+  assert.equal(
+    db.calls.some(
+      (c) =>
+        c.table === "workshop_artifacts" &&
+        c.op === "insert" &&
+        !Array.isArray(c.value),
+    ),
+    false,
+  );
+});
+
+test("a scene picture that fails turns its pending page into an error card", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1")],
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    { generateImage: async () => ({ error: "quota" }) },
+  );
+  const pending = db.calls.find(
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "insert" &&
+      Array.isArray(c.value),
+  );
+  const row = (pending?.value as Record<string, any>[])[0];
+  assert.equal(row.kind, "scene_still");
+  assert.equal(row.meta.scene_id, "s-1");
+  const failedUpdate = db.calls.find(
+    (c) =>
+      c.table === "workshop_artifacts" &&
+      c.op === "update" &&
+      (c.value as any).status === "failed" &&
+      (c.value as any).meta.text === "quota",
+  );
+  assert.ok(failedUpdate);
 });
