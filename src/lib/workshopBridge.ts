@@ -91,6 +91,7 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_make_stills: "יוצרת תמונות לסצנות",
   workshop_produce_video: "מפיקה את הסרט",
   workshop_assign_client: "משייכת ללקוח",
+  workshop_check_connections: "בודקת אילו מפתחות מחוברים",
 };
 
 /** The line shown in the chat while a workshop tool runs; other tools keep their own name. */

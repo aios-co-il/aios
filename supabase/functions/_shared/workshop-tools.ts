@@ -10,6 +10,7 @@
  */
 
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
+import { capabilityReport } from "./workshop/capabilities.ts";
 import {
   estimateImages,
   imageFormatsFrom,
@@ -79,6 +80,12 @@ export const WORKSHOP_TOOLS = [
       },
       required: ["item_id"],
     },
+  },
+  {
+    name: "workshop_check_connections",
+    description:
+      "בודקת אילו מפתחות מחוברים לדייר (OpenAI, Google, Anthropic, ElevenLabs, Higgsfield) ומה אפשר ליצור איתם: תמונות, סרטון, קריינות, מוזיקה. קראי לזה לפני שאת אומרת שאי אפשר ליצור משהו בגלל מפתח, ואחרי שגיאת מפתח. לא מחזירה את ערכי המפתחות. לא עולה כסף.",
+    parameters: { type: "object", properties: {} },
   },
   {
     name: "workshop_get_state",
@@ -327,6 +334,7 @@ export interface WorkshopDeps {
     format: Format,
   ) => Promise<{ image_url?: string; error?: string }>;
   defaultEngine?: () => Promise<SceneEngine>;
+  envOpenAiKey?: string;
 }
 
 async function loadProject(
@@ -456,6 +464,31 @@ export async function executeWorkshopTool(
       client_known: !!clientId,
       artifact,
       workshop: { event: "project", item_id: itemId, artifact_id: artifact.id },
+    };
+  }
+
+  if (name === "workshop_check_connections") {
+    const { data, error } = await supabase
+      .from("tenant_integrations")
+      .select("settings")
+      .eq("tenant_id", tenantId)
+      .eq("integration_type", "llm")
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return { error: error.message };
+    const report = capabilityReport(
+      (data?.settings ?? {}) as Record<string, unknown>,
+      { openai: deps.envOpenAiKey },
+    );
+    return {
+      success: true,
+      ...report,
+      message:
+        report.missing.length === 0
+          ? "הכול מחובר: אפשר ליצור תמונות, סרטון, קריינות ומוזיקה."
+          : `מה שחסר: ${report.missing.join("; ")}.`,
     };
   }
 

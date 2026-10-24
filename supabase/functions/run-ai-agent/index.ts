@@ -50,6 +50,15 @@ import {
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import { engineFromKeys } from "../_shared/workshop/video-cost.ts";
 import {
+  connectedProviders,
+  imageProvidersFor,
+} from "../_shared/workshop/capabilities.ts";
+import {
+  generateStill,
+  type ImageKeys,
+} from "../_shared/workshop/image-providers.ts";
+import { CONNECTIONS_STANDING } from "../_shared/workshop/connections-standing.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -5684,6 +5693,7 @@ async function executeTool(
             ? { image_url: made.image_url as string }
             : { error: String(made?.error ?? "לא התקבלה תמונה") };
         },
+        envOpenAiKey: Deno.env.get("OPENAI_API_KEY") ?? undefined,
         defaultEngine: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -8589,135 +8599,67 @@ async function executeTool(
     }
 
     case "generate_ad_image": {
-      const imagePrompt = args.prompt;
-
-      const openaiKey = await resolveOpenAIKey();
-      if (!openaiKey) {
+      const { data: llmRow } = await supabase
+        .from("tenant_integrations")
+        .select("settings")
+        .eq("tenant_id", tenantId)
+        .eq("integration_type", "llm")
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const connected = connectedProviders(
+        (llmRow?.settings || {}) as Record<string, unknown>,
+        { openai: Deno.env.get("OPENAI_API_KEY") ?? undefined },
+      );
+      const stored = (llmRow?.settings || {}) as Record<string, string>;
+      const keys: ImageKeys = {
+        openai:
+          (stored.openai_api_key || "").trim() ||
+          Deno.env.get("OPENAI_API_KEY") ||
+          undefined,
+        google: (stored.google_api_key || "").trim() || undefined,
+        elevenlabs: (stored.elevenlabs_api_key || "").trim() || undefined,
+      };
+      if (imageProvidersFor(connected).length === 0) {
         return {
           error:
-            "מפתח OpenAI לא מוגדר. יש להגדיר OPENAI_API_KEY בסודות Supabase, או להוסיף מפתח OpenAI בהגדרות האינטגרציות (LLM).",
+            "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google או ElevenLabs בהגדרות מודלי AI.",
           suggestion: "פנה למנהל המערכת להגדרת המפתח.",
         };
       }
-
-      const imageRes = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openaiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt: `${imagePrompt}. Professional, high quality, suitable for a social media advertisement.`,
-            n: 1,
-            size:
-              args.aspect_ratio === "16:9"
-                ? "1536x1024"
-                : args.aspect_ratio === "9:16" || args.aspect_ratio === "4:5"
-                  ? "1024x1536"
-                  : "1024x1024",
-            output_format: "png",
-          }),
-        },
-      );
-
-      if (!imageRes.ok) {
-        const errText = await imageRes.text();
-        throw new Error(`Image generation error: ${errText}`);
-      }
-
-      const imageData = await imageRes.json();
-      const content = imageData.choices?.[0]?.message?.content || "";
-
-      // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-      const b64 = imageData?.data?.[0]?.b64_json || "";
-      const images = b64
-        ? [{ image_url: { url: `data:image/png;base64,${b64}` } }]
-        : [];
-      let imageUrl = "";
-
-      if (images.length > 0 && images[0]?.image_url?.url) {
-        const dataUrl = images[0].image_url.url;
-        // Extract base64 data from data URL
-        const base64Match = dataUrl.match(
-          /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/,
+      let made;
+      try {
+        made = await generateStill(
+          keys,
+          `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
+          args.aspect_ratio,
         );
-        if (base64Match) {
-          const mimeType = `image/${base64Match[1]}`;
-          const base64 = base64Match[2];
-          const ext = base64Match[1] === "jpeg" ? "jpg" : base64Match[1];
-          const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-
-          const binaryData = Uint8Array.from(atob(base64), (c) =>
-            c.charCodeAt(0),
-          );
-
-          // Ensure bucket exists
-          await supabase.storage
-            .createBucket("social-media", { public: true })
-            .catch(() => {});
-
-          const { error: uploadError } = await supabase.storage
-            .from("social-media")
-            .upload(fileName, binaryData, {
-              contentType: mimeType,
-              upsert: true,
-            });
-
-          if (uploadError)
-            throw new Error(`Upload failed: ${uploadError.message}`);
-
-          const { data: urlData } = supabase.storage
-            .from("social-media")
-            .getPublicUrl(fileName);
-          imageUrl = urlData.publicUrl;
-        }
-      }
-
-      // Fallback: check inline_data in parts
-      if (!imageUrl) {
-        const parts = imageData.choices?.[0]?.message?.parts || [];
-        for (const part of parts) {
-          if (part.inline_data) {
-            const base64 = part.inline_data.data;
-            const mimeType = part.inline_data.mime_type || "image/png";
-            const ext = mimeType.includes("jpeg") ? "jpg" : "png";
-            const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-            const binaryData = Uint8Array.from(atob(base64), (c) =>
-              c.charCodeAt(0),
-            );
-            await supabase.storage
-              .createBucket("social-media", { public: true })
-              .catch(() => {});
-            const { error: uploadError } = await supabase.storage
-              .from("social-media")
-              .upload(fileName, binaryData, {
-                contentType: mimeType,
-                upsert: true,
-              });
-            if (uploadError) throw uploadError;
-            const { data: urlData } = supabase.storage
-              .from("social-media")
-              .getPublicUrl(fileName);
-            imageUrl = urlData.publicUrl;
-            break;
-          }
-        }
-      }
-
-      if (!imageUrl) {
+      } catch (error) {
         return {
           success: false,
-          error: "לא הצלחתי ליצור תמונה. נסה שוב עם תיאור אחר.",
-          raw_content: content,
+          error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
         };
       }
-
+      const ext = made.mime.includes("jpeg") ? "jpg" : "png";
+      const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
+      await supabase.storage
+        .createBucket("social-media", { public: true })
+        .catch(() => {});
+      const { error: uploadError } = await supabase.storage
+        .from("social-media")
+        .upload(fileName, made.bytes, {
+          contentType: made.mime,
+          upsert: true,
+        });
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      const { data: urlData } = supabase.storage
+        .from("social-media")
+        .getPublicUrl(fileName);
       return {
         success: true,
-        image_url: imageUrl,
+        image_url: urlData.publicUrl,
+        provider: made.provider,
         message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
       };
     }
@@ -15106,6 +15048,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
+      systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${CONNECTIONS_STANDING}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===

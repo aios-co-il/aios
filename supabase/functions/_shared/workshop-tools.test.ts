@@ -57,6 +57,7 @@ function fakeDb(script: Record<string, unknown> = {}) {
         eq: () => builder,
         in: () => builder,
         order: () => builder,
+        limit: () => builder,
         single: () => Promise.resolve(answer()),
         maybeSingle: () => Promise.resolve(answer()),
         then: (resolve: (v: unknown) => unknown) => resolve(answer()),
@@ -506,4 +507,42 @@ test("a project can be assigned to a client later, or released back to no client
     refused.calls.some((c) => c.table === "rpc:workshop_assign_client"),
     false,
   );
+});
+
+test("the connections check reports what is connected and never the key values", async () => {
+  const db = fakeDb({
+    "tenant_integrations:select": {
+      settings: {
+        elevenlabs_api_key: "secret-eleven",
+        google_api_key: "secret-g",
+      },
+    },
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_check_connections",
+    {},
+  )) as Record<string, any>;
+  assert.equal(result.success, true);
+  assert.equal(result.connected.openai, false);
+  assert.equal(result.connected.elevenlabs, true);
+  assert.deepEqual(result.can.image_providers, [
+    "Google (Gemini)",
+    "ElevenLabs",
+  ]);
+  assert.equal(result.can.video, true);
+  assert.equal(JSON.stringify(result).includes("secret"), false);
+
+  const bare = (await executeWorkshopTool(
+    fakeDb(),
+    "tenant-1",
+    "workshop_check_connections",
+    {},
+    async () => {},
+    null,
+    { envOpenAiKey: "sk-env" },
+  )) as Record<string, any>;
+  assert.equal(bare.connected.openai, true);
+  assert.equal(bare.can.images, true);
 });
