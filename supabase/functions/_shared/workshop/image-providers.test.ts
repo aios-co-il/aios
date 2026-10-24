@@ -30,6 +30,7 @@ test("OpenAI is used first and sized by aspect ratio", async () => {
   assert.equal(made.provider, "openai");
   assert.deepEqual([...made.bytes], [...png]);
   assert.equal(seen[0].size, "1024x1536");
+  assert.equal(seen[0].model, "gpt-image-2.5-sunburst");
 });
 
 test("a failing OpenAI hands over to Google", async () => {

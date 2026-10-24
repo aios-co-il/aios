@@ -16,7 +16,7 @@ export const ENGINE_NOTES: Record<ImageProvider, string> = {
   higgsfield:
     "Higgsfield Soul 2: מראה צילומי ואופנתי חזק, מקבל רפרנס תמונה אחד בלבד",
   openai:
-    "gpt-image-1 של OpenAI: איכות גבוהה ופרשנות טובה לתיאורים, פחות עקבי בדמות בין סצנות",
+    "OpenAI (gpt-image-2.5): איכות גבוהה ופרשנות טובה לתיאורים, פחות עקבי בדמות בין סצנות",
 };
 
 export const engineOptions = (connected: ImageProvider[]) =>

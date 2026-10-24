@@ -23,7 +23,7 @@ export const IMAGE_PROVIDER_ORDER: ImageProvider[] = [
   "higgsfield",
 ];
 
-/** Gemini-based models hold a character and style across references better than gpt-image-1 edits. */
+/** Gemini-based models hold a character and style across references better than OpenAI image edits. */
 export const REFERENCE_PROVIDER_ORDER: ImageProvider[] = [
   "google",
   "elevenlabs",
@@ -171,6 +171,9 @@ const ELEVENLABS_FAILURES: Record<string, string> = {
   invalid_parameters: "ElevenLabs דחה את הפרמטרים של הבקשה",
 };
 
+/** gpt-image-1 was shut down on 2026-10-23; Sunburst is the replacement OpenAI names for edits and generation. */
+export const OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst";
+
 async function viaOpenAi(
   key: string,
   prompt: string,
@@ -181,7 +184,7 @@ async function viaOpenAi(
   let response: Response;
   if (references.length > 0) {
     const form = new FormData();
-    form.append("model", "gpt-image-1");
+    form.append("model", OPENAI_IMAGE_MODEL);
     form.append("prompt", prompt);
     form.append("size", openAiSize(aspect));
     references.forEach((reference, index) =>
@@ -204,7 +207,7 @@ async function viaOpenAi(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-image-1",
+        model: OPENAI_IMAGE_MODEL,
         prompt,
         n: 1,
         size: openAiSize(aspect),

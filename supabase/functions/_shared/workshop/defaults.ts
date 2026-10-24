@@ -156,7 +156,7 @@ export function planProject(input: StartProjectInput): StartProjectPlan {
   };
 }
 
-/** Planning price of one gpt-image-1 picture at default quality, by canvas; shown before any spend. */
+/** Planning price of one OpenAI picture at default quality, by canvas; shown before any spend. */
 export const IMAGE_USD: Record<Format, number> = {
   "1:1": 0.17,
   "4:5": 0.25,
