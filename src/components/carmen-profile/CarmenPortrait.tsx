@@ -15,7 +15,7 @@ export function CarmenPortrait({
 }) {
   return (
     <span
-      className={`carmen-portrait ${custom && !isBuiltInSkinPortrait(image) ? "is-custom" : ""} ${className}`}
+      className={`carmen-portrait ${custom && image !== CARMEN_CHARACTER && !isBuiltInSkinPortrait(image) ? "is-custom" : ""} ${className}`}
       role="img"
       aria-label={name}
     >

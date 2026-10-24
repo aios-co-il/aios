@@ -1,3 +1,4 @@
+import { activeRoleSlugs } from "./skin-roles.ts";
 /**
  * The skin a user picked for this chat session. The client sends its slug
  * with each request; it is never stored on Carmen's shared agent row, so one
@@ -24,10 +25,18 @@ export async function activeSkinBlock(args: {
 }): Promise<string> {
   const { slug } = args;
   if (!slug) return "";
-  if ((args.disabledSkins ?? []).includes(slug)) return "";
-  if (Array.isArray(args.pinned) && args.pinned.includes(slug)) return "";
+  const slugs = activeRoleSlugs(
+    slug,
+    args.disabledSkins ?? [],
+    Array.isArray(args.pinned)
+      ? args.pinned.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [],
+  );
+  if (!slugs.length) return "";
   try {
-    return await buildSkillsBlockBySlug([slug], args.tenantId);
+    return await buildSkillsBlockBySlug(slugs, args.tenantId);
   } catch (e) {
     console.error("[carmen] active-skin resolution failed (non-fatal):", e);
     return "";
