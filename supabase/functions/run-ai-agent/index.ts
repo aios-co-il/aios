@@ -61,7 +61,11 @@ import {
 } from "../_shared/workshop/image-providers.ts";
 import { fetchPublic, publicFetchAsFetch } from "../_shared/public-fetch.ts";
 import { ASSET_BUCKET } from "../_shared/workshop/assets.ts";
-import { fallbackReply } from "../_shared/workshop/reply.ts";
+import {
+  SILENT_TURN_NUDGE,
+  fallbackReply,
+  shouldNudgeSilentTurn,
+} from "../_shared/workshop/reply.ts";
 import { CONNECTIONS_STANDING } from "../_shared/workshop/connections-standing.ts";
 import {
   summarizeAndStoreAgentMemory,
@@ -15636,6 +15640,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     let usageTokensIn = 0;
     let usageTokensOut = 0;
 
+    let silentNudges = 0;
     for (let round = 0; round < maxRounds; round++) {
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
@@ -15728,6 +15733,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
       // No tool calls → done
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
+        if (
+          !String(msg.content || "").trim() &&
+          silentNudges < 1 &&
+          shouldNudgeSilentTurn(toolLog)
+        ) {
+          silentNudges += 1;
+          messages.push({
+            role: "user",
+            content: SILENT_TURN_NUDGE,
+          });
+          continue;
+        }
         finalOutput = msg.content || "";
         console.log(
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,

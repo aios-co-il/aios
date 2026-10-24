@@ -1269,6 +1269,12 @@ export async function executeWorkshopTool(
         asRecord(asRecord(itemPayload.video).production),
       ),
       plan: asRecord(itemPayload.workshop),
+      brief: String(itemPayload.brief_text ?? "").slice(0, 3000),
+      look: {
+        references: lookOf(itemPayload).references.length,
+        style_written: lookOf(itemPayload).bible.length > 0,
+        engine: lookOf(itemPayload).engine,
+      },
       client: clientRow
         ? { id: clientRow.id, name: clientRow.name, website: clientRow.website }
         : null,
