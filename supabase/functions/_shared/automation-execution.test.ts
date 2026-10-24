@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  exceedsRunBudget,
   isClaimLeaseExpired,
   isDuplicateClaimError,
+  isOwnConnectionSender,
   MESSAGE_CLAIM_LEASE_MS,
   summarizeExecution,
-  WHATSAPP_RUN_BUDGET,
 } from "./automation-execution.ts";
 
 test("all automations succeeded → completed", () => {
@@ -119,8 +118,17 @@ test("an unfinished claim is taken over only after the lease", () => {
   );
 });
 
-test("run budget allows normal traffic and stops a burst", () => {
-  assert.equal(exceedsRunBudget(0), false);
-  assert.equal(exceedsRunBudget(WHATSAPP_RUN_BUDGET.maxRuns - 1), false);
-  assert.equal(exceedsRunBudget(WHATSAPP_RUN_BUDGET.maxRuns), true);
+test("sender on one of our own connections is recognised in any format", () => {
+  const own = ["972507677613@c.us", "0546656303", null];
+  assert.equal(isOwnConnectionSender("972507677613@c.us", own), true);
+  assert.equal(isOwnConnectionSender("0507677613", own), true);
+  assert.equal(isOwnConnectionSender("+972 54-665-6303", own), true);
+});
+
+test("other senders and missing numbers are not ours", () => {
+  const own = ["972507677613@c.us"];
+  assert.equal(isOwnConnectionSender("972521234567@c.us", own), false);
+  assert.equal(isOwnConnectionSender(null, own), false);
+  assert.equal(isOwnConnectionSender("123", own), false);
+  assert.equal(isOwnConnectionSender("972507677613@c.us", []), false);
 });

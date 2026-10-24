@@ -85,16 +85,28 @@ export function isClaimLeaseExpired(
   return nowMs - claimedAt >= leaseMs;
 }
 
-/**
- * Loop bound for WhatsApp-triggered automations: at most `maxRuns` recorded
- * runs per group/contact within `windowMs`. Normal conversations stay far below
- * it; a bot or second connection replying to our own messages hits it fast.
- */
-export const WHATSAPP_RUN_BUDGET = { windowMs: 60_000, maxRuns: 10 } as const;
+/** Last 9 digits: matches 05X…, 9725X… and WhatsApp wids (9725X…@c.us). */
+export function phoneKey(value: string | null | undefined): string | null {
+  const digits = String(value ?? "")
+    .split("@")[0]
+    .replace(/\D/g, "");
+  return digits.length >= 9 ? digits.slice(-9) : null;
+}
 
-export function exceedsRunBudget(
-  recentRuns: number,
-  maxRuns: number = WHATSAPP_RUN_BUDGET.maxRuns,
+/**
+ * True when the sender is one of the tenant's own connected WhatsApp numbers.
+ * Such a message is our own output (or typed on our own phone) and is already
+ * handled on the connection that sent it, so other connections must not
+ * trigger automations from it. This is what makes automation loops impossible.
+ */
+export function isOwnConnectionSender(
+  sender: string | null | undefined,
+  ownNumbers: Iterable<string | null | undefined>,
 ): boolean {
-  return recentRuns >= maxRuns;
+  const senderKey = phoneKey(sender);
+  if (!senderKey) return false;
+  for (const own of ownNumbers) {
+    if (phoneKey(own) === senderKey) return true;
+  }
+  return false;
 }

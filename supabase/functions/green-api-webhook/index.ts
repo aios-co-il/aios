@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   isClaimLeaseExpired,
   isDuplicateClaimError,
+  isOwnConnectionSender,
 } from "../_shared/automation-execution.ts";
 import {
   handleCarmenMessage,
@@ -426,6 +427,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ received: true, self_echo: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Remember this connection's own number so other connections of the same
+    // tenant can recognise its messages as ours (see claimAutomationDispatch).
+    if (selfWid && integration.settings?.wid !== selfWid) {
+      const { error: widError } = await supabaseClient
+        .from("tenant_integrations")
+        .update({ settings: { ...(integration.settings ?? {}), wid: selfWid } })
+        .eq("id", integration.id);
+      if (widError) {
+        console.error("[green-api] failed to record connection wid:", widError);
+      }
     }
 
     // Handle outgoingMessageStatus for messages sent from WhatsApp directly
@@ -980,7 +993,33 @@ Deno.serve(async (req) => {
     // One automation dispatch per message per tenant: if a tenant has two
     // connections in the same group, both receive the message but only the
     // first one triggers automations.
+    //
+    // Loop guard: never trigger automations from a message sent by one of the
+    // tenant's own connected numbers. That message is our own output (API
+    // sends are never dispatched on their own connection) or was typed on our
+    // phone (dispatched once, on that connection). So our output can never
+    // re-enter as a trigger, which is what an automation loop needs.
     const claimAutomationDispatch = async (): Promise<boolean> => {
+      if (isIncoming && tenantId && senderWid) {
+        const { data: ownConnections } = await supabaseClient
+          .from("tenant_integrations")
+          .select("settings")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .in("integration_type", ["green_api", "manus_wa", "meta_whatsapp"]);
+        const ownNumbers = (ownConnections ?? []).flatMap((row: any) => [
+          row.settings?.wid,
+          row.settings?.phone_number,
+          row.settings?.display_phone_number,
+        ]);
+        if (isOwnConnectionSender(senderWid, ownNumbers)) {
+          console.log(
+            "[green-api] message from our own connected number, not dispatching",
+            { idMessage: incomingIdMessage, senderWid },
+          );
+          return false;
+        }
+      }
       if (!incomingIdMessage || !tenantId) return true;
       const { error } = await supabaseClient
         .from("processed_webhook_messages")

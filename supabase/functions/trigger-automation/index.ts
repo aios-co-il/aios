@@ -1,10 +1,6 @@
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
-import {
-  exceedsRunBudget,
-  summarizeExecution,
-  WHATSAPP_RUN_BUDGET,
-} from "../_shared/automation-execution.ts";
+import { summarizeExecution } from "../_shared/automation-execution.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import {
@@ -1613,45 +1609,6 @@ Deno.serve(async (req) => {
     // arrived within 30s of the previous one. Redelivered webhooks are now
     // deduplicated at the source by provider message id (green-api-webhook),
     // and the execution row is written only once automations have matched.
-    //
-    // Loop bound instead: webhook runs carry no _execution_chain, so the
-    // depth/loop guards above never fire for them. Cap recorded runs per
-    // group/contact per minute so a bot or a second connection replying to
-    // our own messages cannot loop us indefinitely.
-    if (
-      requestBody.trigger_type === "whatsapp_message_received" &&
-      entityKey !== "no-entity" &&
-      requestBody.tenant_id
-    ) {
-      const windowStart = new Date(
-        Date.now() - WHATSAPP_RUN_BUDGET.windowMs,
-      ).toISOString();
-      const { count: recentRuns } = await supabase
-        .from("automation_executions")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", requestBody.tenant_id)
-        .eq("trigger_type", "whatsapp_message_received")
-        .eq("entity_id", entityKey)
-        .gte("started_at", windowStart);
-      if (exceedsRunBudget(recentRuns ?? 0)) {
-        console.warn("[trigger-automation] run budget exceeded, skipping", {
-          tenant_id: requestBody.tenant_id,
-          entity: entityKey,
-          recentRuns,
-        });
-        return new Response(
-          JSON.stringify({
-            error: "Run budget exceeded",
-            entity: entityKey,
-            recent_runs: recentRuns,
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 429,
-          },
-        );
-      }
-    }
 
     // ===== END SAFETY GUARDS =====
 
