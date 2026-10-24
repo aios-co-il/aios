@@ -15,18 +15,21 @@ export function useCarmenUnreadReply(open: boolean): boolean {
       return;
     }
     const chat = readResumeChat();
-    if (!chat?.closedAt) return;
+    const closedAt = chat?.closedAt;
+    if (!chat || !closedAt) return;
     let alive = true;
-    // An answer may have landed between closing and this check.
-    supabase
-      .from("ai_conversation_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("conversation_id", chat.conversationId)
-      .eq("role", "assistant")
-      .gt("created_at", chat.closedAt)
-      .then(({ count }) => {
-        if (alive && count) setUnread(true);
-      });
+    // Run once the subscription is live, so an answer landing in between
+    // is caught by one or the other.
+    const catchUp = () =>
+      supabase
+        .from("ai_conversation_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", chat.conversationId)
+        .eq("role", "assistant")
+        .gt("created_at", closedAt)
+        .then(({ count }) => {
+          if (alive && count) setUnread(true);
+        });
     const channel = supabase
       .channel(`carmen-unread-${chat.conversationId}`)
       .on(
@@ -41,7 +44,9 @@ export function useCarmenUnreadReply(open: boolean): boolean {
           if (payload.new?.role === "assistant") setUnread(true);
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") catchUp();
+      });
     return () => {
       alive = false;
       supabase.removeChannel(channel);

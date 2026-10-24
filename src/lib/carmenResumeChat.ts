@@ -55,12 +55,21 @@ export function markResumeChatClosed(): void {
 /** A "streaming" turn older than this is treated as over (the server stopped). */
 export const STALE_TURN_MS = 10 * 60_000;
 
+/** A "streaming" turn silent for longer than STALE_TURN_MS. */
+export function isStaleTurn(
+  status: string | null | undefined,
+  updatedAt: string | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (status !== "streaming" || !updatedAt) return false;
+  return now - Date.parse(updatedAt) > STALE_TURN_MS;
+}
+
 /** The topic status to trust: a long-silent "streaming" turn no longer counts. */
 export function liveTopicStatus(
   status: string | null | undefined,
   updatedAt: string | null | undefined,
   now = Date.now(),
 ): string | null | undefined {
-  if (status !== "streaming" || !updatedAt) return status;
-  return now - Date.parse(updatedAt) > STALE_TURN_MS ? "idle" : status;
+  return isStaleTurn(status, updatedAt, now) ? "idle" : status;
 }

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { liveTopicStatus, STALE_TURN_MS } from "./carmenResumeChat.ts";
+import {
+  isStaleTurn,
+  liveTopicStatus,
+  STALE_TURN_MS,
+} from "./carmenResumeChat.ts";
 
 const now = Date.parse("2026-10-24T12:00:00Z");
 const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -22,4 +26,10 @@ test("other statuses pass through", () => {
     "waiting_external",
   );
   assert.equal(liveTopicStatus(undefined, undefined, now), undefined);
+});
+
+test("only a long-silent streaming turn is stale", () => {
+  assert.equal(isStaleTurn("streaming", ago(STALE_TURN_MS + 1), now), true);
+  assert.equal(isStaleTurn("streaming", ago(1000), now), false);
+  assert.equal(isStaleTurn("idle", ago(STALE_TURN_MS * 2), now), false);
 });
