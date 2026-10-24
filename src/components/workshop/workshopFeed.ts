@@ -110,7 +110,3 @@ export function projectFormat(artifacts: WorkshopArtifact[]): string {
   const format = plan?.format;
   return typeof format === "string" ? format : "4:5";
 }
-
-/** The format of each shimmer for work in progress; "auto" is the project's own format. */
-export const shimmerFormats = (formats: string[], project: string) =>
-  formats.map((format) => (format === "auto" ? project : format));

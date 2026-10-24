@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getWorkshopWork, subscribeWorkshopWork } from "@/lib/workshopBridge";
 import { MagicShimmer } from "./MagicShimmer";
 import {
   artifactText,
@@ -10,7 +9,6 @@ import {
   pagesIn,
   pageTypeFor,
   projectFormat,
-  shimmerFormats,
   shouldFollow,
   type WorkshopArtifact,
 } from "./workshopFeed";
@@ -113,14 +111,8 @@ export function WorkshopFeed({
   const seen = useRef(0);
   const pages = pagesIn(artifacts, folder);
   const folders = foldersOf(artifacts);
-  const work = useSyncExternalStore(subscribeWorkshopWork, getWorkshopWork);
   const project = projectFormat(artifacts);
-  const hasPending = artifacts.some(
-    (artifact) => artifact.status === "pending",
-  );
-  const making =
-    hasProject && folder === null && work && !hasPending ? work : null;
-  const shown = pages.length + (making ? making.formats.length : 0);
+  const shown = pages.length;
 
   useEffect(() => {
     if (shouldFollow(seen.current, shown, following))
@@ -223,20 +215,6 @@ export function WorkshopFeed({
                 ) : null}
               </article>
             ))}
-            {making
-              ? shimmerFormats(making.formats, project).map((format, index) => (
-                  <article
-                    key={`making-${index}`}
-                    className="overflow-hidden rounded-2xl border bg-card shadow-sm"
-                  >
-                    <MagicShimmer
-                      format={format}
-                      label={making.label}
-                      className="rounded-none"
-                    />
-                  </article>
-                ))
-              : null}
             <div ref={bottom} />
           </div>
         )}

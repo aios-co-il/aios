@@ -7,7 +7,6 @@ import {
   subscribeWorkshopEvents,
   workshopEventFrom,
   workshopToolLabel,
-  workshopWorkOf,
   workshopRequestParts,
 } from "./workshopBridge.ts";
 
@@ -71,25 +70,4 @@ test("workshop tools get a Hebrew line in the chat, others keep their name", () 
   assert.equal(workshopToolLabel("workshop_make_creative"), "יוצרת תמונות");
   assert.equal(workshopToolLabel("create_lead"), "create_lead");
   assert.equal(workshopToolLabel(undefined), undefined);
-});
-
-test("the board shows a magic surface only for approved paid work", () => {
-  assert.equal(
-    workshopWorkOf("workshop_make_creative", { prompt: "x", confirmed: false }),
-    null,
-  );
-  assert.equal(workshopWorkOf("workshop_save_copy", { confirmed: true }), null);
-  const images = workshopWorkOf("workshop_make_creative", {
-    confirmed: true,
-    formats: ["9:16", "1:1", "bogus"],
-  });
-  assert.deepEqual(images?.formats, ["9:16", "1:1"]);
-  assert.deepEqual(
-    workshopWorkOf("workshop_make_creative", { confirmed: true })?.formats,
-    ["auto"],
-  );
-  assert.equal(
-    workshopWorkOf("workshop_produce_video", { confirmed: true })?.label,
-    "מפיקה את הסרט",
-  );
 });

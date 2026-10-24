@@ -6,7 +6,6 @@ import {
   pagesIn,
   pageTypeFor,
   projectFormat,
-  shimmerFormats,
   shouldFollow,
   storagePathsIn,
   withSignedUrls,
@@ -100,9 +99,8 @@ test("private bucket paths are signed and web links are left alone", () => {
   assert.equal(out[2].thumb_url, null);
 });
 
-test("work in progress takes the project's format unless a size was named", () => {
+test("a project's format comes from its brief, with a default", () => {
   const brief = page({ kind: "brief", meta: { plan: { format: "9:16" } } });
   assert.equal(projectFormat([brief]), "9:16");
   assert.equal(projectFormat([]), "4:5");
-  assert.deepEqual(shimmerFormats(["auto", "1:1"], "9:16"), ["9:16", "1:1"]);
 });

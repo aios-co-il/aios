@@ -41,9 +41,7 @@ import { getSessionSkin, setSessionSkin } from "@/lib/carmenSessionSkin";
 import {
   emitWorkshopEvent,
   getWorkshopContext,
-  setWorkshopWork,
   workshopEventFrom,
-  workshopWorkOf,
   workshopRequestParts,
 } from "@/lib/workshopBridge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -495,94 +493,83 @@ export const CarmenChatBar = forwardRef<
       let firstSegmentSent = false;
       let boundId = boundConvId;
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const payload = line.slice(6);
-            if (payload === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(payload);
-              if (parsed.type === "token") {
-                answer += parsed.content;
-                if (boundId)
-                  streamBufRef.current[boundId] =
-                    (streamBufRef.current[boundId] || "") + parsed.content;
-                if (streamAppliesToActive(boundId, conversationIdRef.current)) {
-                  setStreamingText(
-                    boundId ? streamBufRef.current[boundId] : answer,
-                  );
-                  revealAnswer();
-                }
-                if (
-                  shouldSpeakWithLegacyTts(inputModeRef.current) &&
-                  streamAppliesToActive(boundId, conversationIdRef.current)
-                ) {
-                  speechBuf += parsed.content;
-                  let cut = extractSentence(
-                    speechBuf,
-                    firstSegmentSent ? 90 : 25,
-                  );
-                  while (cut) {
-                    enqueueSpeech(cut[0]);
-                    speechBuf = cut[1];
-                    firstSegmentSent = true;
-                    cut = extractSentence(speechBuf, 90);
-                  }
-                }
-              } else if (parsed.type === "tool_call") {
-                if (workshop)
-                  setWorkshopWork(workshopWorkOf(parsed.tool, parsed.args));
-                if (streamAppliesToActive(boundId, conversationIdRef.current)) {
-                  setMessages((prev) => [
-                    ...prev,
-                    { role: "tool_call", tool: parsed.tool },
-                  ]);
-                  scrollDown();
-                }
-              } else if (parsed.type === "tool_result") {
-                if (workshop) setWorkshopWork(null);
-              } else if (parsed.type === "workshop") {
-                const event = workshopEventFrom(parsed);
-                if (event) emitWorkshopEvent(event);
-              } else if (
-                parsed.type === "skin" &&
-                typeof parsed.slug === "string" &&
-                workshop
-              ) {
-                setSessionSkin(tenantId, parsed.slug);
-              } else if (parsed.type === "conversation_id" && parsed.id) {
-                boundId = parsed.id;
-                if (
-                  streamAppliesToActive(
-                    boundConvId,
-                    conversationIdRef.current,
-                  ) ||
-                  !conversationIdRef.current
-                ) {
-                  rememberConv(parsed.id);
-                }
-              } else if (parsed.type === "error") {
-                streamError =
-                  typeof parsed.error === "string" ? parsed.error : "שגיאה";
-              } else if (parsed.type === "done") {
-                gotDone = true;
-                if (!streamError && parsed.success === false)
-                  streamError =
-                    typeof parsed.error === "string" ? parsed.error : "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6);
+          if (payload === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.type === "token") {
+              answer += parsed.content;
+              if (boundId)
+                streamBufRef.current[boundId] =
+                  (streamBufRef.current[boundId] || "") + parsed.content;
+              if (streamAppliesToActive(boundId, conversationIdRef.current)) {
+                setStreamingText(
+                  boundId ? streamBufRef.current[boundId] : answer,
+                );
+                revealAnswer();
               }
-            } catch {
-              /* partial line */
+              if (
+                shouldSpeakWithLegacyTts(inputModeRef.current) &&
+                streamAppliesToActive(boundId, conversationIdRef.current)
+              ) {
+                speechBuf += parsed.content;
+                let cut = extractSentence(
+                  speechBuf,
+                  firstSegmentSent ? 90 : 25,
+                );
+                while (cut) {
+                  enqueueSpeech(cut[0]);
+                  speechBuf = cut[1];
+                  firstSegmentSent = true;
+                  cut = extractSentence(speechBuf, 90);
+                }
+              }
+            } else if (parsed.type === "tool_call") {
+              if (streamAppliesToActive(boundId, conversationIdRef.current)) {
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "tool_call", tool: parsed.tool },
+                ]);
+                scrollDown();
+              }
+            } else if (parsed.type === "workshop") {
+              const event = workshopEventFrom(parsed);
+              if (event) emitWorkshopEvent(event);
+            } else if (
+              parsed.type === "skin" &&
+              typeof parsed.slug === "string" &&
+              workshop
+            ) {
+              setSessionSkin(tenantId, parsed.slug);
+            } else if (parsed.type === "conversation_id" && parsed.id) {
+              boundId = parsed.id;
+              if (
+                streamAppliesToActive(boundConvId, conversationIdRef.current) ||
+                !conversationIdRef.current
+              ) {
+                rememberConv(parsed.id);
+              }
+            } else if (parsed.type === "error") {
+              streamError =
+                typeof parsed.error === "string" ? parsed.error : "שגיאה";
+            } else if (parsed.type === "done") {
+              gotDone = true;
+              if (!streamError && parsed.success === false)
+                streamError =
+                  typeof parsed.error === "string" ? parsed.error : "";
             }
+          } catch {
+            /* partial line */
           }
         }
-      } finally {
-        setWorkshopWork(null);
       }
 
       if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim())
