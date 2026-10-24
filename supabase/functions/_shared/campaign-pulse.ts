@@ -633,7 +633,8 @@ export function computeGoalMetricsFromRecords(
   const prevSpend = sumRecordFields(previous, ["spend", "cost"]);
 
   if (goal === "ecommerce") {
-    const purchases = sumRecordFields(current, ["purchases"]);
+    // Google Ads rows report purchases as `conversions`.
+    const purchases = sumRecordFields(current, ["purchases", "conversions"]);
     const revenue = sumRecordFields(current, [
       "purchase_value",
       "conversions_value",

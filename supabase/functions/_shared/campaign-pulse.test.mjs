@@ -8,6 +8,7 @@ import {
   buildPulseWhatsAppDigest,
   classifyCampaignPulseStatus,
   clientAdAccountIds,
+  computeGoalMetricsFromRecords,
   countPulseStatuses,
   countStoppedCampaignsByClient,
   effectiveIsEcommerce,
@@ -748,4 +749,33 @@ test("multi-client digest groups by agency and keeps call-log gaps out of the wa
   assert.match(digest, /🔴 Smart air — הוצאה ללא רכישות/);
   assert.match(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);
   assert.match(digest, /• נורית אלדר: מודעה נדחתה ×2/);
+});
+
+test("google ecommerce rows count conversions as purchases", () => {
+  const metrics = computeGoalMetricsFromRecords(
+    [
+      {
+        data: {
+          date: "2026-10-22",
+          cost: 100,
+          conversions: 2,
+          conversions_value: 500,
+        },
+      },
+      {
+        data: {
+          date: "2026-10-23",
+          cost: 100,
+          conversions: 1,
+          conversions_value: 300,
+        },
+      },
+    ],
+    "ecommerce",
+    "2026-10-17",
+    "2026-10-10",
+  );
+  assert.equal(metrics.outcomes, 3);
+  assert.equal(metrics.revenue, 800);
+  assert.equal(metrics.efficiency, 4);
 });

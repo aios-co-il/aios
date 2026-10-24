@@ -391,9 +391,61 @@ function hasExplicitLeadSignals(data = {}, context = {}) {
   return goalFromExplicitLeadSignals(data, context) === "leads";
 }
 
+const PULSE_GOAL_SET = new Set(PULSE_CAMPAIGN_GOALS);
+
+/** A goal set by hand for one campaign in the report settings (`pulse_campaign_goals`). */
+function goalFromCampaignOverride(data = {}, settings = {}) {
+  const overrides = settings.pulse_campaign_goals;
+  if (!overrides || typeof overrides !== "object") return null;
+  const id = String(data.campaign_id || data.campaignId || "");
+  const name = String(data.campaign_name || data.campaignName || "").trim();
+  const goal = String((id && overrides[id]) || (name && overrides[name]) || "")
+    .trim()
+    .toLowerCase();
+  return PULSE_GOAL_SET.has(goal) ? goal : null;
+}
+
+/**
+ * Google Ads campaigns (Performance Max, Search, Shopping) have no objective.
+ * The sync stamps `conversion_goal` from what each campaign converts on; without
+ * it the report's own type decides. Conversion value or a clicks-only day never
+ * does: lead accounts often give leads a value, and quiet days have no conversions.
+ */
+function classifyGoogleCampaignGoal(data = {}, ctx = {}) {
+  const stamped = String(data.conversion_goal || "")
+    .trim()
+    .toLowerCase();
+  if (stamped === "ecommerce" || stamped === "leads")
+    return { goal: stamped, source: "platform_goal" };
+
+  // Legacy Make/webhook rows carry the table type per row and `purchases` only on ecommerce tables.
+  const derived = goalFromDerivedCampaignType(data.campaign_type);
+  if (derived === "ecommerce" || derived === "leads")
+    return { goal: derived, source: "explicit_mapping" };
+  if (data.purchases !== undefined && data.purchases !== null)
+    return { goal: "ecommerce", source: "explicit_mapping" };
+
+  if (String(data.campaign_channel_type || "").toUpperCase() === "SHOPPING")
+    return { goal: "ecommerce", source: "platform_goal" };
+
+  const nameGoal = goalFromCampaignName(data.campaign_name);
+  if (nameGoal) return { goal: nameGoal, source: "explicit_mapping" };
+
+  return {
+    goal: isEcommerceReportTable(ctx) ? "ecommerce" : "leads",
+    source: "table_report_type",
+  };
+}
+
 /** Classify by campaign objective first; fall back to report type only when unknown. */
 export function classifyPulseCampaignGoal(data = {}, context = {}) {
   const ctx = classificationContext(context);
+
+  const override = goalFromCampaignOverride(data, ctx.integration_settings);
+  if (override) return { goal: override, source: "explicit_mapping" };
+
+  if (ctx.integration_type === "google_ads")
+    return classifyGoogleCampaignGoal(data, ctx);
 
   const messagingLeadGoal = goalFromMessagingLeadSignals(data);
   if (messagingLeadGoal)
@@ -499,10 +551,12 @@ function firstPositivePresent(data, fields) {
 
 export function pulseCampaignOutcome(data = {}, goal = "unknown") {
   if (goal === "ecommerce") {
+    // Google Ads rows report purchases as `conversions` (the Google Ads UI column).
     const result = firstPresent(data, [
       "purchases",
       "purchase",
       "transactions",
+      "conversions",
     ]);
     return { ...result, kind: result.field ? "purchases" : null };
   }
@@ -963,7 +1017,9 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
   for (const item of usable) {
     const votes = goalSpend.get(campaignOf(item)) || {};
     votes[item.goal] =
-      (votes[item.goal] || 0) + (Number(item.record.data.spend) || 0) + 1e-6;
+      (votes[item.goal] || 0) +
+      (Number(item.record.data.spend ?? item.record.data.cost) || 0) +
+      1e-6;
     goalSpend.set(campaignOf(item), votes);
   }
   const campaignGoal = new Map();

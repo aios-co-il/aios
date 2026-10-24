@@ -940,3 +940,150 @@ test("one campaign keeps one goal across days instead of splitting into categori
   assert.equal(rows[0].goal, "ecommerce");
   assert.equal(rows[0].spend_7d, 190);
 });
+
+// Real Google Ads sync rows: `cost`, `conversions`, `conversions_value` — no spend,
+// purchases, objective or campaign_type.
+const googleTable = (id, settings = {}, category = "Google Ads") => ({
+  id,
+  client_id: "c1",
+  integration_type: "google_ads",
+  integration_settings: settings,
+  category,
+});
+const googleRow = (table_id, date, data) => ({
+  table_id,
+  data: { date, entity_level: "campaign", ...data },
+});
+const lastWeek = [
+  "2026-10-17",
+  "2026-10-18",
+  "2026-10-19",
+  "2026-10-20",
+  "2026-10-21",
+  "2026-10-22",
+  "2026-10-23",
+];
+
+test("google lead campaign with valued conversions stays leads", () => {
+  const goal = classifyPulseCampaignGoal(
+    {
+      campaign_name: "PMax כללי",
+      cost: 100,
+      conversions: 3,
+      conversions_value: 3,
+    },
+    googleTable("g", { campaign_type: "leads" }),
+  );
+  assert.equal(goal.goal, "leads");
+});
+
+test("google ecommerce campaign counts conversions as purchases", () => {
+  const data = {
+    campaign_name: "PMax",
+    cost: 100,
+    conversions: 2,
+    conversions_value: 600,
+  };
+  const goal = classifyPulseCampaignGoal(
+    data,
+    googleTable("g", { campaign_type: "ecommerce" }, "איקומרס"),
+  );
+  assert.equal(goal.goal, "ecommerce");
+  assert.deepEqual(pulseCampaignOutcome(data, "ecommerce"), {
+    value: 2,
+    field: "conversions",
+    kind: "purchases",
+  });
+});
+
+test("google clicks-only day keeps the report goal instead of engagement", () => {
+  const goal = classifyPulseCampaignGoal(
+    {
+      campaign_name: "PMax",
+      cost: 20,
+      clicks: 30,
+      conversions: 0,
+      conversions_value: 0,
+    },
+    googleTable("g", { campaign_type: "ecommerce" }, "איקומרס"),
+  );
+  assert.equal(goal.goal, "ecommerce");
+});
+
+test("google conversion_goal from the sync beats the report type", () => {
+  const goal = classifyPulseCampaignGoal(
+    {
+      campaign_name: "PMax",
+      conversion_goal: "ecommerce",
+      cost: 50,
+      conversions: 1,
+    },
+    googleTable("g", { campaign_type: "leads" }),
+  );
+  assert.deepEqual(goal, { goal: "ecommerce", source: "platform_goal" });
+});
+
+test("a manual per-campaign goal beats every other signal", () => {
+  const goal = classifyPulseCampaignGoal(
+    { campaign_id: "77", campaign_name: "PMax", conversion_goal: "ecommerce" },
+    googleTable("g", { pulse_campaign_goals: { 77: "leads" } }),
+  );
+  assert.deepEqual(goal, { goal: "leads", source: "explicit_mapping" });
+});
+
+test("google ecommerce PMax with quiet days is one ecommerce campaign with its sales", () => {
+  const records = lastWeek.map((date, i) =>
+    googleRow("e", date, {
+      campaign_id: "1",
+      campaign_name: "PMax",
+      cost: i < 5 ? 20 : 500,
+      clicks: 30,
+      conversions: i < 5 ? 0 : 3,
+      conversions_value: i < 5 ? 0 : 900,
+    }),
+  );
+  const rows = buildPulseCampaignRows({
+    records,
+    tables: [googleTable("e", { campaign_type: "ecommerce" }, "איקומרס")],
+    nowYmd: "2026-10-24",
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].goal, "ecommerce");
+  assert.equal(rows[0].outcome_kind, "purchases");
+  assert.equal(rows[0].outcomes_7d, 6);
+  assert.equal(rows[0].revenue_7d, 1800);
+  assert.equal(rows[0].spend_7d, 1100);
+});
+
+test("one google account can hold an ecommerce PMax and a lead Search campaign", () => {
+  const records = lastWeek.flatMap((date) => [
+    googleRow("g", date, {
+      campaign_id: "pmax",
+      campaign_name: "PMax",
+      campaign_channel_type: "PERFORMANCE_MAX",
+      conversion_goal: "ecommerce",
+      cost: 100,
+      conversions: 1,
+      conversions_value: 400,
+    }),
+    googleRow("g", date, {
+      campaign_id: "search",
+      campaign_name: "Search",
+      campaign_channel_type: "SEARCH",
+      conversion_goal: "leads",
+      cost: 50,
+      conversions: 2,
+      conversions_value: 2,
+    }),
+  ]);
+  const rows = buildPulseCampaignRows({
+    records,
+    tables: [googleTable("g", { campaign_type: "leads" })],
+    nowYmd: "2026-10-24",
+  });
+  const byId = Object.fromEntries(rows.map((row) => [row.campaign_id, row]));
+  assert.equal(byId.pmax.goal, "ecommerce");
+  assert.equal(byId.pmax.outcomes_7d, 7);
+  assert.equal(byId.search.goal, "leads");
+  assert.equal(byId.search.outcomes_7d, 14);
+});
