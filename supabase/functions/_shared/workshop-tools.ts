@@ -312,7 +312,9 @@ const briefPayload = (plan: StartProjectPlan, brief: string) => ({
 });
 
 const STILLS_PER_CALL = 10;
-const STILL_CONCURRENCY = 4;
+const STILL_CONCURRENCY = 5;
+/** The edge function has a hard time limit: no new batch of pictures starts after this. */
+const STILLS_BUDGET_MS = 50_000;
 
 const SCENE_COLUMNS =
   "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id";
@@ -325,6 +327,39 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
     .eq("tenant_id", tenantId)
     .order("position");
   return (Array.isArray(data) ? data : []) as Record<string, any>[];
+}
+
+/**
+ * A scene picture always gets its page on the board. The database trigger usually does it; this
+ * covers projects it skips and keeps the board right if the trigger ever fails.
+ */
+async function ensureStillPage(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  scene: Record<string, any>,
+  asset: unknown,
+  url: string,
+) {
+  const assetId = asRecord(Array.isArray(asset) ? asset[0] : asset).id;
+  if (typeof assetId !== "string") return;
+  const { data: existing } = await supabase
+    .from("workshop_artifacts")
+    .select("id")
+    .eq("ref_table", "marketing_assets")
+    .eq("ref_id", assetId)
+    .maybeSingle();
+  if (existing) return;
+  await recordArtifact(supabase, {
+    tenantId,
+    itemId,
+    kind: "scene_still",
+    title: `סצנה ${scene.position}${scene.title ? ` · ${scene.title}` : ""}`,
+    url,
+    refTable: "marketing_assets",
+    refId: assetId,
+    meta: { asset_id: assetId },
+  });
 }
 
 /** What the edge function injects so this module stays free of Deno and provider code. */
@@ -828,7 +863,9 @@ export async function executeWorkshopTool(
         message: `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
       };
     const results: { scene: string; ok: boolean; error?: string }[] = [];
+    const startedAt = Date.now();
     for (let i = 0; i < batch.length; i += STILL_CONCURRENCY) {
+      if (i > 0 && Date.now() - startedAt > STILLS_BUDGET_MS) break;
       const chunk = batch.slice(i, i + STILL_CONCURRENCY);
       results.push(
         ...(await Promise.all(
@@ -850,9 +887,21 @@ export async function executeWorkshopTool(
                 p_url: made.image_url,
                 p_meta: { prompt: scene.visual_prompt, source: "workshop" },
               });
-              return attached.error
-                ? { scene: scene.id, ok: false, error: attached.error.message }
-                : { scene: scene.id, ok: true };
+              if (attached.error)
+                return {
+                  scene: scene.id,
+                  ok: false,
+                  error: attached.error.message,
+                };
+              await ensureStillPage(
+                supabase,
+                tenantId,
+                itemId,
+                scene,
+                attached.data,
+                made.image_url,
+              );
+              return { scene: scene.id, ok: true };
             } catch (error) {
               return {
                 scene: scene.id,
@@ -866,11 +915,21 @@ export async function executeWorkshopTool(
       );
     }
     const created = results.filter((result) => result.ok).length;
+    const failed = results.filter((result) => !result.ok);
+    const remaining = pending.length - created;
     return {
       success: created > 0,
       created,
-      failed: results.filter((result) => !result.ok),
-      remaining: pending.length - created,
+      failed,
+      remaining,
+      message:
+        created === 0
+          ? `לא נוצרה אף תמונה. ${failed[0]?.error ?? ""}`.trim()
+          : `${created} תמונות נוצרו והן כבר מופיעות בלוח, אין צורך לשלוח או לצרף אותן. ${
+              remaining > 0
+                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true להמשך (האישור כבר ניתן).`
+                : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
+            }`,
       workshop: { event: "artifacts", item_id: itemId },
     };
   }

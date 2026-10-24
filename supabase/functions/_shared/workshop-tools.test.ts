@@ -329,7 +329,10 @@ test("stills ask first, then each scene gets its picture attached", async () => 
   assert.equal(asked.scenes, 2);
   assert.equal(generated, 0);
 
-  const db = fakeDb(script);
+  const db = fakeDb({
+    ...script,
+    "rpc:attach_video_scene_asset": { id: "asset-1" },
+  });
   const done = (await executeWorkshopTool(
     db,
     "tenant-1",
@@ -349,6 +352,36 @@ test("stills ask first, then each scene gets its picture attached", async () => 
     ["s-1", "s-3"],
   );
   assert.equal((attached[0].value as any).p_kind, "still");
+  assert.match(done.message, /מופיעות בלוח/);
+  assert.match(done.message, /הפקת הסרט/);
+  const pages = db.calls.filter(
+    (c) => c.table === "workshop_artifacts" && c.op === "insert",
+  );
+  assert.equal(pages.length, 2);
+  assert.equal((pages[0].value as any).kind, "scene_still");
+  assert.equal((pages[0].value as any).ref_id, "asset-1");
+});
+
+test("a scene picture already mirrored by the database trigger is not added twice", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1")],
+    "rpc:attach_video_scene_asset": { id: "asset-1" },
+    "workshop_artifacts:select": { id: "page-1" },
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    { generateImage: async () => ({ image_url: "https://x/1.png" }) },
+  );
+  assert.equal(
+    db.calls.some((c) => c.table === "workshop_artifacts" && c.op === "insert"),
+    false,
+  );
 });
 
 test("producing needs stills, a client, then one approval with the engine the tenant can use", async () => {
