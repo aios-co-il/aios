@@ -168,6 +168,9 @@ export default function CarmenWorkshop() {
             onCreate={() => {
               setBlank(true);
               setProjectId(null);
+              setProjectsOpen(false);
+              setOpen(true);
+              toast.info("פרויקט חדש: כתבי לכרמן מה ליצור");
             }}
             onSelect={(id) => {
               setBlank(false);

@@ -488,6 +488,7 @@ export const CarmenChatBar = forwardRef<
       let buffer = "";
       let answer = "";
       let gotDone = false;
+      let streamError = "";
       let speechBuf = "";
       let firstSegmentSent = false;
       let boundId = boundConvId;
@@ -556,8 +557,14 @@ export const CarmenChatBar = forwardRef<
               ) {
                 rememberConv(parsed.id);
               }
+            } else if (parsed.type === "error") {
+              streamError =
+                typeof parsed.error === "string" ? parsed.error : "שגיאה";
             } else if (parsed.type === "done") {
               gotDone = true;
+              if (!streamError && parsed.success === false)
+                streamError =
+                  typeof parsed.error === "string" ? parsed.error : "";
             }
           } catch {
             /* partial line */
@@ -568,7 +575,12 @@ export const CarmenChatBar = forwardRef<
       if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim())
         enqueueSpeech(speechBuf);
       const finalText =
-        answer || (gotDone ? "" : "⚠️ החיבור נותק באמצע — נסי שוב.");
+        answer ||
+        (streamError
+          ? `⚠️ כרמן לא הצליחה לענות: ${streamError}`
+          : gotDone
+            ? ""
+            : "⚠️ החיבור נותק באמצע — נסי שוב.");
       if (finalText) {
         if (streamAppliesToActive(boundId, conversationIdRef.current)) {
           setMessages((prev) => [
