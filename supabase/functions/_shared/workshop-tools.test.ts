@@ -1025,3 +1025,285 @@ test("producing while a production already runs does not add a second pending fi
     false,
   );
 });
+
+const encode = (text: string) => new TextEncoder().encode(text);
+
+const SITE_HTML = `<html lang="he"><head><title>קפה הגינה</title>
+<meta name="description" content="בית קפה">
+<style>.a{color:#0f766e} body{font-family:Heebo}</style></head>
+<body><h1>הקפה הכי טוב</h1><img src="/hero.jpg" alt="בית הקפה"></body></html>`;
+
+test("assigning a client pulls the client's brief and site into the assets tab", async () => {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "x",
+      client_id: null,
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+    "clients:select": {
+      id: "client-3",
+      name: "קפה הגינה",
+      website: "garden.example.com",
+      notes: "טון חם",
+    },
+  });
+  const done = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_assign_client",
+    { item_id: "item-1", client_id: "client-3" },
+  )) as Record<string, any>;
+  assert.equal(done.client_assets, 2);
+  const removed = db.calls.find(
+    (c) => c.table === "workshop_assets" && c.op === "delete",
+  );
+  assert.ok(removed, "old client assets are replaced");
+  const rows = db.calls.find(
+    (c) => c.table === "workshop_assets" && c.op === "insert",
+  )?.value as Record<string, any>[];
+  assert.deepEqual(
+    rows.map((r) => [r.asset_type, r.source]),
+    [
+      ["text", "client"],
+      ["site", "client"],
+    ],
+  );
+
+  const released = fakeDb(project);
+  const away = (await executeWorkshopTool(
+    released,
+    "tenant-1",
+    "workshop_assign_client",
+    { item_id: "item-1" },
+  )) as Record<string, any>;
+  assert.equal(away.client_assets, 0);
+  assert.equal(
+    released.calls.some(
+      (c) => c.table === "workshop_assets" && c.op === "insert",
+    ),
+    false,
+  );
+});
+
+test("looking at the client's site saves a report asset and can set the brand", async () => {
+  const fetched: string[] = [];
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "x",
+      client_id: "client-3",
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+    "workshop_assets:select": [
+      {
+        id: "asset-9",
+        asset_type: "site",
+        source: "client",
+        title: "האתר",
+        url: "https://garden.example.com/",
+        meta: {},
+        created_at: "2026-10-24",
+      },
+    ],
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_inspect_site",
+    { item_id: "item-1", apply_brand: true },
+    async () => {},
+    null,
+    {
+      fetchPublic: async (url) => {
+        fetched.push(url);
+        return {
+          ok: true,
+          url,
+          contentType: "text/html",
+          bytes: encode(SITE_HTML),
+        };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(result.success, true);
+  assert.deepEqual(fetched, ["https://garden.example.com/"]);
+  assert.deepEqual(result.colors, ["#0f766e"]);
+  assert.deepEqual(result.fonts, ["Heebo"]);
+  assert.equal(result.brand_applied, true);
+  const update = db.calls.find(
+    (c) => c.table === "workshop_assets" && c.op === "update",
+  )?.value as Record<string, any>;
+  assert.equal(update.meta.report.colors[0], "#0f766e");
+  assert.match(update.text, /צבעי מותג/);
+  const saved = db.calls.filter(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  );
+  const payload = (saved[saved.length - 1].value as Record<string, any>)
+    .payload;
+  assert.deepEqual(payload.brand_book.colors, ["#0f766e"]);
+  assert.equal(payload.brand_book.source, "auto");
+  assert.equal(payload.client_website, "https://garden.example.com/");
+});
+
+test("a site that cannot be read says so, and a missing address is asked for", async () => {
+  const db = fakeDb(project);
+  const refused = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_inspect_site",
+    { item_id: "item-1", url: "http://10.0.0.1/" },
+    async () => {},
+    null,
+    {
+      fetchPublic: async (url) => ({
+        ok: false,
+        url,
+        contentType: "",
+        bytes: new Uint8Array(0),
+        error: "הכתובת לא ציבורית או לא תקינה",
+      }),
+    },
+  )) as Record<string, any>;
+  assert.match(refused.error, /לא הצלחתי לקרוא את האתר/);
+
+  const none = (await executeWorkshopTool(
+    fakeDb(project),
+    "tenant-1",
+    "workshop_inspect_site",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    {
+      fetchPublic: async () => {
+        throw new Error("should not fetch");
+      },
+    },
+  )) as Record<string, any>;
+  assert.match(none.error, /אין כתובת אתר/);
+});
+
+test("Carmen adds a site picture as a stored reference, a link and a brief; a bad picture is reported", async () => {
+  const imported: string[] = [];
+  const db = fakeDb(project);
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_add_assets",
+    {
+      item_id: "item-1",
+      assets: [
+        {
+          kind: "image",
+          url: "https://garden.example.com/hero.jpg",
+          use_as_reference: true,
+        },
+        { kind: "image", url: "https://garden.example.com/broken.jpg" },
+        { kind: "link", url: "https://docs.google.com/d/1", title: "בריף" },
+        { kind: "text", text: "טון חם ופשוט", title: "הנחיות" },
+        { kind: "image", url: "ftp://x/y.png" },
+      ],
+    },
+    async () => {},
+    null,
+    {
+      importImage: async (url) => {
+        imported.push(url);
+        return url.includes("broken")
+          ? { error: "הקובץ אינו תמונה נתמכת" }
+          : {
+              url: "https://files.test/hero.jpg",
+              path: "tenant-1/workshop/hero.jpg",
+            };
+      },
+    },
+  )) as Record<string, any>;
+  assert.equal(result.success, true);
+  assert.deepEqual(
+    result.added.map((a: any) => a.type),
+    ["image", "link", "text"],
+  );
+  assert.equal(result.failed.length, 2);
+  const rows = db.calls
+    .filter((c) => c.table === "workshop_assets" && c.op === "insert")
+    .map((c) => c.value as Record<string, any>);
+  const image = rows.find((r) => r.asset_type === "image");
+  assert.equal(image?.url, "https://files.test/hero.jpg");
+  assert.equal(image?.use_as_reference, true);
+  assert.equal(image?.source, "carmen");
+  assert.deepEqual(imported, [
+    "https://garden.example.com/hero.jpg",
+    "https://garden.example.com/broken.jpg",
+  ]);
+});
+
+test("pictures given to a tool as references also appear in the assets tab", async () => {
+  const db = fakeDb({
+    ...project,
+    "workshop_assets:select": [{ id: "a", url: "https://x/old.png" }],
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_creative",
+    {
+      item_id: "item-1",
+      prompt: "table",
+      reference_urls: ["https://x/old.png", "https://x/new.png"],
+    },
+    async () => {},
+    null,
+    { generateImage: async () => ({ image_url: "https://x/a.png" }) },
+  );
+  const rows = db.calls.find(
+    (c) => c.table === "workshop_assets" && c.op === "insert",
+  )?.value as Record<string, any>[];
+  assert.deepEqual(
+    rows.map((r) => r.url),
+    ["https://x/new.png"],
+  );
+  assert.equal(rows[0].use_as_reference, true);
+});
+
+test("project state carries the client and the assets Carmen can use", async () => {
+  const db = fakeDb({
+    ...project,
+    "marketing_work_items:select": {
+      ...(project["marketing_work_items:select"] as object),
+      client_id: "client-3",
+    },
+    "clients:select": {
+      id: "client-3",
+      name: "קפה הגינה",
+      website: "garden.example.com",
+    },
+    "workshop_assets:select": [
+      {
+        id: "a1",
+        asset_type: "image",
+        source: "client",
+        title: "לוגו",
+        url: "https://files.test/logo.png",
+        storage_path: "private/path",
+        use_as_reference: true,
+        meta: {},
+        created_at: "2026-10-24",
+      },
+    ],
+  });
+  const state = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_get_state",
+    { item_id: "item-1" },
+  )) as Record<string, any>;
+  assert.deepEqual(state.client, {
+    id: "client-3",
+    name: "קפה הגינה",
+    website: "garden.example.com",
+  });
+  assert.equal(state.assets[0].title, "לוגו");
+  assert.equal("storage_path" in state.assets[0], false);
+});

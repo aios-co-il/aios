@@ -41,7 +41,7 @@ export interface ImageReference {
 const REFERENCE_MIMES = ["image/jpeg", "image/png", "image/webp"];
 const REFERENCE_MAX_BYTES = 12 * 1024 * 1024;
 
-const sniffMime = (bytes: Uint8Array) =>
+export const sniffMime = (bytes: Uint8Array) =>
   bytes[0] === 0x89 && bytes[1] === 0x50
     ? "image/png"
     : bytes[0] === 0xff && bytes[1] === 0xd8

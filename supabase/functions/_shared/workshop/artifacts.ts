@@ -113,7 +113,7 @@ export function skinForTool(tool: string): string | null {
   )
     return "video_director";
   if (
-    /^workshop_(start_project|make_creative|revise|attach|assign_client|check_connections)$/.test(
+    /^workshop_(start_project|make_creative|revise|attach|assign_client|check_connections|inspect_site|add_assets)$/.test(
       tool,
     )
   )

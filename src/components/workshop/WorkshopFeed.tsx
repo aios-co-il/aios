@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  ArrowDown,
+  Loader2,
+  Paperclip,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MagicShimmer } from "./MagicShimmer";
+import { AssetsPanel } from "./AssetsPanel";
+import { useWorkshopAssets } from "./useWorkshopAssets";
 import {
   artifactText,
   foldersOf,
@@ -20,6 +28,7 @@ const IDEAS = [
 ];
 
 const WAIT_NOTE_MIN = 5;
+const ASSETS_TAB = "__assets__";
 
 const waitedMinutes = (artifact: WorkshopArtifact) =>
   (Date.now() - Date.parse(artifact.created_at)) / 60_000;
@@ -106,10 +115,16 @@ export function WorkshopFeed({
   hasProject,
   selectedId,
   onSelect,
+  tenantId,
+  projectId,
+  clientName,
 }: {
   artifacts: WorkshopArtifact[];
   loading: boolean;
   hasProject: boolean;
+  tenantId?: string;
+  projectId?: string | null;
+  clientName?: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
@@ -118,7 +133,9 @@ export function WorkshopFeed({
   const scroller = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const seen = useRef(0);
-  const pages = pagesIn(artifacts, folder);
+  const assets = useWorkshopAssets(tenantId, projectId ?? null);
+  const inAssets = folder === ASSETS_TAB && !!projectId;
+  const pages = pagesIn(artifacts, inAssets ? null : folder);
   const folders = foldersOf(artifacts);
   const project = projectFormat(artifacts);
   const shown = pages.length;
@@ -143,7 +160,7 @@ export function WorkshopFeed({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-muted/30">
-      {folders.length > 1 ? (
+      {folders.length > 1 || (hasProject && !!projectId) ? (
         <nav
           aria-label="תיקיות הפרויקט"
           className="flex shrink-0 gap-1.5 overflow-x-auto border-b bg-background/80 px-3 py-2"
@@ -169,6 +186,18 @@ export function WorkshopFeed({
               {entry.label} ({entry.count})
             </Button>
           ))}
+          {projectId ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={inAssets ? "default" : "outline"}
+              className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs"
+              onClick={() => setFolder(ASSETS_TAB)}
+            >
+              <Paperclip className="h-3 w-3" />
+              נכסים ({assets.data?.length ?? 0})
+            </Button>
+          ) : null}
         </nav>
       ) : null}
       <div
@@ -176,7 +205,13 @@ export function WorkshopFeed({
         onScroll={onScroll}
         className="min-h-0 flex-1 overflow-y-auto px-3 py-6 md:px-8"
       >
-        {shown === 0 ? (
+        {inAssets && tenantId && projectId ? (
+          <AssetsPanel
+            tenantId={tenantId}
+            projectId={projectId}
+            clientName={clientName}
+          />
+        ) : shown === 0 ? (
           <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 text-center">
             {loading && hasProject ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -228,7 +263,7 @@ export function WorkshopFeed({
           </div>
         )}
       </div>
-      {!following && pages.length > 0 ? (
+      {!following && pages.length > 0 && !inAssets ? (
         <Button
           type="button"
           size="sm"

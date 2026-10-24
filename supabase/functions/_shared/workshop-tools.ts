@@ -13,6 +13,19 @@ import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
 import { productionReport } from "./workshop/production.ts";
+import {
+  ASSET_BUCKET,
+  assetForCarmen,
+  hostLabel,
+  isHttpUrl,
+  syncClientAssets,
+  type AssetView,
+} from "./workshop/assets.ts";
+import {
+  describeSite,
+  siteReport,
+  withStylesheets,
+} from "./workshop/site-report.ts";
 import type { ImageProvider } from "./workshop/image-providers.ts";
 import { lookOf, stillPrompt, withLook } from "./workshop/look.ts";
 import {
@@ -90,6 +103,58 @@ export const WORKSHOP_TOOLS = [
     description:
       "בודקת אילו מפתחות מחוברים לדייר (OpenAI, Google, Anthropic, ElevenLabs, Higgsfield) ומה אפשר ליצור איתם: תמונות, סרטון, קריינות, מוזיקה. קראי לזה לפני שאת אומרת שאי אפשר ליצור משהו בגלל מפתח, ואחרי שגיאת מפתח. לא מחזירה את ערכי המפתחות. לא עולה כסף.",
     parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "workshop_inspect_site",
+    description:
+      "קוראת אתר קיים (בדרך כלל האתר של הלקוח) ומחזירה איך הוא נראה ונשמע: צבעי מותג, גופנים, כותרות, דוגמאות קופי וסגנון כתיבה, לוגו ותמונות מהאתר. בלי url היא קוראת את האתר של הלקוח או את נכס האתר של הפרויקט. הדוח נשמר בלשונית הנכסים. apply_brand=true שומר את הצבעים, הגופנים והלוגו כספר המותג של הפרויקט. לא עולה כסף. תמונה מהאתר שמגדירה את הסגנון שמרי עם workshop_add_assets.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string", description: "מזהה הפרויקט" },
+        url: {
+          type: "string",
+          description: "כתובת האתר או עמוד בו; אפשר להשמיט כשיש אתר ללקוח",
+        },
+        apply_brand: {
+          type: "boolean",
+          description: "לשמור צבעים, גופנים ולוגו כספר המותג של הפרויקט",
+        },
+      },
+      required: ["item_id"],
+    },
+  },
+  {
+    name: "workshop_add_assets",
+    description:
+      "מוסיפה נכסים ללשונית הנכסים של הפרויקט: תמונות (גם מהאתר של הלקוח, והן נשמרות אצלנו), קישורים ובריפים בטקסט. use_as_reference=true לתמונה שהיצירות צריכות ללכת לפי הסגנון שלה (עד ארבע בפרויקט). לא עולה כסף.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string", description: "מזהה הפרויקט" },
+        assets: {
+          type: "array",
+          maxItems: 8,
+          items: {
+            type: "object",
+            properties: {
+              kind: {
+                type: "string",
+                enum: ["image", "link", "text"],
+                description:
+                  "image: תמונה בקישור; link: קישור; text: בריף בטקסט",
+              },
+              url: { type: "string" },
+              text: { type: "string", description: "תוכן בריף לסוג text" },
+              title: { type: "string" },
+              use_as_reference: { type: "boolean" },
+            },
+            required: ["kind"],
+          },
+        },
+      },
+      required: ["item_id", "assets"],
+    },
   },
   {
     name: "workshop_get_state",
@@ -533,6 +598,22 @@ export interface WorkshopDeps {
   imageEngines?: () => Promise<ImageProvider[]>;
   defaultEngine?: () => Promise<SceneEngine>;
   envOpenAiKey?: string;
+  /** Reads a public web page or file; the edge function supplies the address-pinned version. */
+  fetchPublic?: (
+    url: string,
+    options?: { maxBytes?: number; accept?: string },
+  ) => Promise<{
+    ok: boolean;
+    url: string;
+    contentType: string;
+    bytes: Uint8Array;
+    error?: string;
+  }>;
+  /** Copies a picture from the web into our storage; returns its public link. */
+  importImage?: (
+    url: string,
+    scope: { tenantId: string; itemId: string },
+  ) => Promise<{ url?: string; path?: string; error?: string }>;
 }
 
 async function savePayload(
@@ -541,9 +622,21 @@ async function savePayload(
   itemId: string,
   payload: Record<string, unknown>,
 ) {
+  // asset_references belongs to the assets trigger: keep what the database holds right now, so a
+  // save from an older copy of the project never wipes the pictures the user just marked.
+  const current = await supabase
+    .from("marketing_work_items")
+    .select("payload")
+    .eq("id", itemId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const held = asRecord(current?.data?.payload).asset_references;
+  const next = { ...payload };
+  if (Array.isArray(held)) next.asset_references = held;
+  else delete next.asset_references;
   const { error } = await supabase
     .from("marketing_work_items")
-    .update({ payload })
+    .update({ payload: next })
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
@@ -626,6 +719,56 @@ async function loadProject(
   };
 }
 
+const publicUrlOf = (supabase: Db) => (path: string) =>
+  supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data
+    .publicUrl as string;
+
+const ASSET_COLUMNS =
+  "id, asset_type, source, title, url, storage_path, text, use_as_reference, meta, created_at";
+
+async function loadAssets(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+): Promise<AssetView[]> {
+  const { data } = await supabase
+    .from("workshop_assets")
+    .select(ASSET_COLUMNS)
+    .eq("item_id", itemId)
+    .eq("tenant_id", tenantId)
+    .order("created_at");
+  return Array.isArray(data) ? (data as AssetView[]) : [];
+}
+
+/** Pictures passed to a tool as references also show in the assets tab, so the user sees what Carmen follows. */
+async function mirrorReferences(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  urls: unknown,
+) {
+  const wanted = (Array.isArray(urls) ? urls : [])
+    .filter(isHttpUrl)
+    .slice(0, 4);
+  if (wanted.length === 0) return;
+  const known = new Set(
+    (await loadAssets(supabase, tenantId, itemId)).map((a) => a.url),
+  );
+  const rows = wanted
+    .filter((url) => !known.has(url))
+    .map((url) => ({
+      tenant_id: tenantId,
+      item_id: itemId,
+      asset_type: "image",
+      source: "user",
+      title: "רפרנס",
+      url,
+      use_as_reference: true,
+      meta: { from: "reference_urls" },
+    }));
+  if (rows.length > 0) await supabase.from("workshop_assets").insert(rows);
+}
+
 export async function executeWorkshopTool(
   supabase: Db,
   tenantId: string,
@@ -704,10 +847,20 @@ export async function executeWorkshopTool(
       title: plan.title,
       meta: { summary: plan.summary, brief, plan },
     });
+    let clientAssets = 0;
+    if (clientId) {
+      const synced = await syncClientAssets(
+        supabase,
+        { tenantId, itemId, clientId },
+        publicUrlOf(supabase),
+      );
+      clientAssets = synced.added;
+    }
     return {
       success: true,
       item_id: itemId,
       title: plan.title,
+      client_assets: clientAssets,
       decided: {
         kind: plan.kind,
         format: plan.format,
@@ -772,13 +925,274 @@ export async function executeWorkshopTool(
       p_client_id: wanted,
     });
     if (assigned.error) return { error: assigned.error.message };
+    const synced = await syncClientAssets(
+      supabase,
+      { tenantId, itemId, clientId: wanted },
+      publicUrlOf(supabase),
+    );
     return {
       success: true,
       item_id: itemId,
       client_id: wanted,
+      client_assets: synced.added,
       message: wanted
-        ? "הפרויקט שויך ללקוח."
+        ? synced.added > 0
+          ? `הפרויקט שויך ללקוח, ונכנסו ללשונית הנכסים ${synced.added} נכסים שלו (בריף, אתר, קבצים).`
+          : "הפרויקט שויך ללקוח. אין ללקוח בריף, אתר או קבצים להעביר."
         : "השיוך ללקוח הוסר. הפרויקט נשאר בלי לקוח.",
+      workshop: { event: "artifacts", item_id: itemId },
+    };
+  }
+
+  if (name === "workshop_inspect_site") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    if (!deps.fetchPublic) return { error: "קריאת אתרים לא זמינה כאן" };
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
+    if ("error" in loaded) return loaded;
+    const { project } = loaded;
+    const assets = await loadAssets(supabase, tenantId, itemId);
+    let wanted = String(args.url ?? "").trim();
+    if (!wanted) {
+      wanted =
+        assets.find((a) => a.asset_type === "site" && a.url)?.url ??
+        (typeof project.payload.client_website === "string"
+          ? project.payload.client_website
+          : "");
+    }
+    if (!wanted && project.client_id) {
+      const client = await supabase
+        .from("clients")
+        .select("website")
+        .eq("id", project.client_id)
+        .maybeSingle();
+      wanted = String(client.data?.website ?? "").trim();
+    }
+    if (!wanted)
+      return {
+        error:
+          "אין כתובת אתר. בקשי מהמשתמש את הכתובת, או שייכי את הפרויקט ללקוח שיש לו אתר.",
+      };
+    const target = isHttpUrl(wanted) ? wanted : `https://${wanted}`;
+    const page = await deps.fetchPublic(target, { maxBytes: 1_500_000 });
+    if (!page.ok)
+      return {
+        error: `לא הצלחתי לקרוא את האתר: ${page.error ?? "אין תשובה"}. אפשר לבקש מהמשתמש להעלות לוגו ותמונות ידנית.`,
+      };
+    const html = new TextDecoder().decode(page.bytes);
+    let report = siteReport(html, page.url || target);
+    const styles = await Promise.all(
+      report.stylesheets.slice(0, 2).map(async (sheet) => {
+        const fetched = await deps.fetchPublic!(sheet, {
+          maxBytes: 400_000,
+          accept: "text/css,*/*",
+        });
+        return fetched.ok ? new TextDecoder().decode(fetched.bytes) : "";
+      }),
+    );
+    report = withStylesheets(report, styles.filter(Boolean));
+    const summary = describeSite(report);
+    const existing = assets.find(
+      (a) =>
+        a.asset_type === "site" && (a.url === report.url || a.url === target),
+    );
+    const meta = {
+      ...(existing?.meta ?? {}),
+      inspected_at: new Date().toISOString(),
+      report: {
+        colors: report.colors,
+        fonts: report.fonts,
+        headings: report.headings,
+        copy: report.copy,
+        buttons: report.buttons,
+        logo: report.logo,
+        images: report.images,
+        social: report.social,
+      },
+    };
+    if (existing) {
+      await supabase
+        .from("workshop_assets")
+        .update({ text: summary, meta })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("workshop_assets").insert({
+        tenant_id: tenantId,
+        item_id: itemId,
+        asset_type: "site",
+        source: "carmen",
+        title: `האתר · ${hostLabel(report.url)}`,
+        url: report.url,
+        text: summary,
+        meta,
+      });
+    }
+    let applied = false;
+    const brand = asRecord(project.payload.brand_book);
+    const nextPayload: Record<string, unknown> = { ...project.payload };
+    if (
+      typeof nextPayload.client_website !== "string" ||
+      !nextPayload.client_website
+    )
+      nextPayload.client_website = report.url;
+    if (args.apply_brand === true) {
+      nextPayload.brand_book = {
+        ...brand,
+        colors: report.colors.length > 0 ? report.colors : (brand.colors ?? []),
+        fonts: report.fonts.length > 0 ? report.fonts : brand.fonts,
+        notes: String(brand.notes ?? "") || summary.slice(0, 600),
+        source: "auto",
+      };
+      if (report.logo && !nextPayload.logo_url)
+        nextPayload.logo_url = report.logo;
+      applied = true;
+    }
+    if (
+      applied ||
+      nextPayload.client_website !== project.payload.client_website
+    )
+      await savePayload(supabase, tenantId, itemId, nextPayload);
+    return {
+      success: true,
+      url: report.url,
+      title: report.title,
+      description: report.description,
+      language: report.lang || undefined,
+      colors: report.colors,
+      fonts: report.fonts,
+      headings: report.headings,
+      copy_samples: report.copy,
+      buttons: report.buttons,
+      logo: report.logo,
+      images: report.images.slice(0, 8),
+      brand_applied: applied,
+      message:
+        "קראתי את האתר ושמרתי את הדוח בלשונית הנכסים. הציגי למשתמש במשפט אחד מה מצאת (צבעים, סגנון כתיבה) והציעי להשתמש בזה. תמונה מהאתר שמרי עם workshop_add_assets.",
+      workshop: { event: "artifacts", item_id: itemId },
+    };
+  }
+
+  if (name === "workshop_add_assets") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const requested = (Array.isArray(args.assets) ? args.assets : []).slice(
+      0,
+      8,
+    );
+    if (requested.length === 0) return { error: "assets נדרש" };
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
+    if ("error" in loaded) return loaded;
+    const existing = await loadAssets(supabase, tenantId, itemId);
+    const byUrl = new Map(existing.map((a) => [a.url, a]));
+    const added: { title: string; type: string }[] = [];
+    const failed: { url?: string; reason: string }[] = [];
+    let referenceCount = existing.filter(
+      (a) => a.asset_type === "image" && a.use_as_reference,
+    ).length;
+    for (const entry of requested) {
+      const item = asRecord(entry);
+      const kind = String(item.kind ?? "");
+      const title = String(item.title ?? "")
+        .trim()
+        .slice(0, 120);
+      const url = String(item.url ?? "").trim();
+      let wantsReference = item.use_as_reference === true;
+      if (kind === "text") {
+        const text = String(item.text ?? "")
+          .trim()
+          .slice(0, 8000);
+        if (!text) {
+          failed.push({ reason: "טקסט ריק" });
+          continue;
+        }
+        await supabase.from("workshop_assets").insert({
+          tenant_id: tenantId,
+          item_id: itemId,
+          asset_type: "text",
+          source: "carmen",
+          title: title || "בריף",
+          text,
+        });
+        added.push({ title: title || "בריף", type: "text" });
+        continue;
+      }
+      if (!isHttpUrl(url)) {
+        failed.push({ url, reason: "הקישור לא תקין" });
+        continue;
+      }
+      if (kind === "link") {
+        if (!byUrl.has(url)) {
+          await supabase.from("workshop_assets").insert({
+            tenant_id: tenantId,
+            item_id: itemId,
+            asset_type: "link",
+            source: "carmen",
+            title: title || hostLabel(url),
+            url,
+          });
+          added.push({ title: title || hostLabel(url), type: "link" });
+        }
+        continue;
+      }
+      if (kind !== "image") {
+        failed.push({ url, reason: "סוג לא מוכר" });
+        continue;
+      }
+      if (wantsReference && referenceCount >= 4) {
+        wantsReference = false;
+      }
+      const known = byUrl.get(url);
+      if (known) {
+        if (wantsReference && !known.use_as_reference) {
+          await supabase
+            .from("workshop_assets")
+            .update({ use_as_reference: true })
+            .eq("id", known.id);
+          referenceCount += 1;
+        }
+        continue;
+      }
+      if (!deps.importImage) {
+        failed.push({ url, reason: "ייבוא תמונות לא זמין כאן" });
+        continue;
+      }
+      const imported = await deps.importImage(url, { tenantId, itemId });
+      if (!imported.url) {
+        failed.push({ url, reason: imported.error ?? "התמונה לא נקראה" });
+        continue;
+      }
+      await supabase.from("workshop_assets").insert({
+        tenant_id: tenantId,
+        item_id: itemId,
+        asset_type: "image",
+        source: "carmen",
+        title: title || hostLabel(url),
+        url: imported.url,
+        storage_path: imported.path ?? null,
+        use_as_reference: wantsReference,
+        meta: { imported_from: url },
+      });
+      if (wantsReference) referenceCount += 1;
+      added.push({ title: title || hostLabel(url), type: "image" });
+    }
+    return {
+      success: failed.length < requested.length,
+      added,
+      failed,
+      message:
+        added.length > 0
+          ? `נוספו ${added.length} נכסים ללשונית הנכסים.${failed.length > 0 ? ` ${failed.length} לא נקלטו.` : ""}`
+          : "לא נוסף שום נכס. אמרי למשתמש למה בפשטות.",
       workshop: { event: "artifacts", item_id: itemId },
     };
   }
@@ -794,7 +1208,7 @@ export async function executeWorkshopTool(
       assertClientAccess,
     )) as Record<string, unknown>;
     if (studio.error) return studio;
-    const [artifacts, running, item] = await Promise.all([
+    const [artifacts, running, item, assets] = await Promise.all([
       supabase
         .from("workshop_artifacts")
         .select("id, kind, title, folder, status")
@@ -810,11 +1224,21 @@ export async function executeWorkshopTool(
         .limit(40),
       supabase
         .from("marketing_work_items")
-        .select("payload")
+        .select("payload, client_id")
         .eq("id", itemId)
         .eq("tenant_id", tenantId)
         .maybeSingle(),
+      loadAssets(supabase, tenantId, itemId),
     ]);
+    const clientRow = item.data?.client_id
+      ? (
+          await supabase
+            .from("clients")
+            .select("id, name, website")
+            .eq("id", item.data.client_id)
+            .maybeSingle()
+        ).data
+      : null;
     const runs = (Array.isArray(running.data) ? running.data : []) as {
       kind: string;
       status: string;
@@ -833,6 +1257,10 @@ export async function executeWorkshopTool(
         asRecord(asRecord(itemPayload.video).production),
       ),
       plan: asRecord(itemPayload.workshop),
+      client: clientRow
+        ? { id: clientRow.id, name: clientRow.name, website: clientRow.website }
+        : null,
+      assets: assets.slice(0, 30).map(assetForCarmen),
     };
   }
 
@@ -855,6 +1283,7 @@ export async function executeWorkshopTool(
       needsEngine: true,
     });
     if ("gate" in brief) return brief.gate;
+    await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
     if (brief.payload !== project.payload) {
       await savePayload(supabase, tenantId, itemId, brief.payload);
       project.payload = brief.payload;
@@ -1052,6 +1481,7 @@ export async function executeWorkshopTool(
       needsEngine: false,
     });
     if ("gate" in brief) return brief.gate;
+    await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
     project.payload = brief.payload;
     const input = (Array.isArray(args.scenes) ? args.scenes : [])
       .map((scene) => asRecord(scene))
@@ -1153,6 +1583,7 @@ export async function executeWorkshopTool(
       needsEngine: true,
     });
     if ("gate" in brief) return brief.gate;
+    await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
     if (brief.payload !== project.payload) {
       await savePayload(supabase, tenantId, itemId, brief.payload);
       project.payload = brief.payload;

@@ -92,6 +92,8 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_produce_video: "מפיקה את הסרט",
   workshop_assign_client: "משייכת ללקוח",
   workshop_check_connections: "בודקת אילו מפתחות מחוברים",
+  workshop_inspect_site: "קוראת את האתר",
+  workshop_add_assets: "מוסיפה נכסים לפרויקט",
 };
 
 /** The line shown in the chat while a workshop tool runs; other tools keep their own name. */

@@ -35,6 +35,7 @@ export function lookOf(payload: Record<string, unknown>): ProjectLook {
     ...new Set([
       ...urlsFrom(stored.references),
       ...urlsFrom(payload.style_references),
+      ...urlsFrom(payload.asset_references),
     ]),
   ].slice(0, MAX_USER_REFERENCES);
   return {

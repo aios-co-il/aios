@@ -56,8 +56,11 @@ import {
 import {
   generateStill,
   loadReferences,
+  sniffMime,
   type ImageKeys,
 } from "../_shared/workshop/image-providers.ts";
+import { fetchPublic, publicFetchAsFetch } from "../_shared/public-fetch.ts";
+import { ASSET_BUCKET } from "../_shared/workshop/assets.ts";
 import { CONNECTIONS_STANDING } from "../_shared/workshop/connections-standing.ts";
 import {
   summarizeAndStoreAgentMemory,
@@ -5729,6 +5732,32 @@ async function executeTool(
             : { error: String(made?.error ?? "לא התקבלה תמונה") };
         },
         envOpenAiKey: Deno.env.get("OPENAI_API_KEY") ?? undefined,
+        fetchPublic: (url, options) => fetchPublic(url, options),
+        importImage: async (url, scope) => {
+          const fetched = await fetchPublic(url, {
+            accept: "image/*,*/*",
+            maxBytes: 8_000_000,
+          });
+          if (!fetched.ok) return { error: fetched.error ?? "התמונה לא נגישה" };
+          const mime = sniffMime(fetched.bytes);
+          if (!mime)
+            return { error: "הקובץ אינו תמונה נתמכת (JPG, PNG או WebP)" };
+          const extension =
+            mime === "image/png"
+              ? "png"
+              : mime === "image/webp"
+                ? "webp"
+                : "jpg";
+          const path = `${scope.tenantId}/workshop/${scope.itemId}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${extension}`;
+          const { error: uploadError } = await supabase.storage
+            .from(ASSET_BUCKET)
+            .upload(path, fetched.bytes, { contentType: mime });
+          if (uploadError) return { error: uploadError.message };
+          const { data } = supabase.storage
+            .from(ASSET_BUCKET)
+            .getPublicUrl(path);
+          return { url: data.publicUrl, path };
+        },
         defaultEngine: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -8673,7 +8702,10 @@ async function executeTool(
       )
         .filter((url: unknown): url is string => typeof url === "string")
         .slice(0, 5);
-      const loadedReferences = await loadReferences(referenceUrls);
+      const loadedReferences = await loadReferences(
+        referenceUrls,
+        publicFetchAsFetch,
+      );
       if (
         referenceUrls.length > 0 &&
         loadedReferences.references.length === 0

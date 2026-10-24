@@ -15,6 +15,10 @@ import {
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
 import { ClientSelector } from "@/components/marketing/ClientSelector";
 import { toast } from "sonner";
+import {
+  ASSET_BUCKET,
+  syncClientAssets,
+} from "../../supabase/functions/_shared/workshop/assets.ts";
 
 type ProjectRow = {
   id: string;
@@ -87,11 +91,41 @@ export default function CarmenWorkshop() {
       toast.error("לא הצלחנו לשייך את הפרויקט ללקוח");
       return;
     }
-    toast.success(clientId ? "הפרויקט שויך ללקוח" : "השיוך ללקוח הוסר");
+    const synced = await syncClientAssets(
+      supabase,
+      { tenantId: tenantId!, itemId: selected.id, clientId },
+      (path) =>
+        supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data.publicUrl,
+    );
+    if (synced.error) toast.error("הפרויקט שויך, אך הנכסים של הלקוח לא נטענו");
+    else if (clientId)
+      toast.success(
+        synced.added > 0
+          ? `הפרויקט שויך ללקוח, ו-${synced.added} נכסים שלו נוספו ללשונית הנכסים`
+          : "הפרויקט שויך ללקוח",
+      );
+    else toast.success("השיוך ללקוח הוסר");
+    await queryClient.invalidateQueries({
+      queryKey: ["workshop-assets", tenantId, selected.id],
+    });
     await queryClient.invalidateQueries({
       queryKey: ["carmen-workshop-projects", tenantId],
     });
   };
+
+  const client = useQuery({
+    queryKey: ["carmen-workshop-client", selected?.client_id],
+    enabled: !!selected?.client_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clients")
+        .select("name")
+        .eq("id", selected!.client_id!)
+        .maybeSingle();
+      return (data?.name as string | undefined) ?? null;
+    },
+  });
+  const clientName = selected?.client_id ? (client.data ?? null) : null;
 
   const artifacts = useWorkshopArtifacts(tenantId, selected?.id ?? null);
 
@@ -185,6 +219,9 @@ export default function CarmenWorkshop() {
             hasProject={!!selected}
             selectedId={artifactId}
             onSelect={setArtifactId}
+            tenantId={tenantId}
+            projectId={selected?.id ?? null}
+            clientName={clientName}
           />
         </main>
       </div>
