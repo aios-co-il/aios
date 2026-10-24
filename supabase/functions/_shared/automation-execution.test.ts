@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  exceedsRunBudget,
+  isClaimLeaseExpired,
   isDuplicateClaimError,
+  MESSAGE_CLAIM_LEASE_MS,
   summarizeExecution,
+  WHATSAPP_RUN_BUDGET,
 } from "./automation-execution.ts";
 
 test("all automations succeeded → completed", () => {
@@ -90,4 +94,33 @@ test("actions_count counts only automations that ran", () => {
   ]);
   assert.equal(summary.actions_count, 2);
   assert.equal(summary.status, "failed");
+});
+
+test("completed claims never expire", () => {
+  assert.equal(
+    isClaimLeaseExpired(
+      {
+        processed_at: "2026-10-24T00:00:00Z",
+        completed_at: "2026-10-24T00:00:05Z",
+      },
+      Date.parse("2026-10-24T10:00:00Z"),
+    ),
+    false,
+  );
+});
+
+test("an unfinished claim is taken over only after the lease", () => {
+  const claim = { processed_at: "2026-10-24T10:00:00Z", completed_at: null };
+  const start = Date.parse(claim.processed_at);
+  assert.equal(isClaimLeaseExpired(claim, start + 60_000), false);
+  assert.equal(
+    isClaimLeaseExpired(claim, start + MESSAGE_CLAIM_LEASE_MS),
+    true,
+  );
+});
+
+test("run budget allows normal traffic and stops a burst", () => {
+  assert.equal(exceedsRunBudget(0), false);
+  assert.equal(exceedsRunBudget(WHATSAPP_RUN_BUDGET.maxRuns - 1), false);
+  assert.equal(exceedsRunBudget(WHATSAPP_RUN_BUDGET.maxRuns), true);
 });

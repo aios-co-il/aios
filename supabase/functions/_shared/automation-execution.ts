@@ -65,3 +65,36 @@ export function isDuplicateClaimError(error: unknown): boolean {
     (error as { code?: unknown }).code === "23505"
   );
 }
+
+/**
+ * A message claim is a lease: it is "done" once the message is stored
+ * (`completed_at` set). An unfinished claim older than the lease belongs to an
+ * invocation that died mid-way (timeout, redeploy), so a retry may take it over.
+ */
+export const MESSAGE_CLAIM_LEASE_MS = 5 * 60_000;
+
+export function isClaimLeaseExpired(
+  claim: { processed_at: string | null; completed_at: string | null },
+  nowMs: number,
+  leaseMs: number = MESSAGE_CLAIM_LEASE_MS,
+): boolean {
+  if (claim.completed_at) return false;
+  if (!claim.processed_at) return true;
+  const claimedAt = Date.parse(claim.processed_at);
+  if (Number.isNaN(claimedAt)) return true;
+  return nowMs - claimedAt >= leaseMs;
+}
+
+/**
+ * Loop bound for WhatsApp-triggered automations: at most `maxRuns` recorded
+ * runs per group/contact within `windowMs`. Normal conversations stay far below
+ * it; a bot or second connection replying to our own messages hits it fast.
+ */
+export const WHATSAPP_RUN_BUDGET = { windowMs: 60_000, maxRuns: 10 } as const;
+
+export function exceedsRunBudget(
+  recentRuns: number,
+  maxRuns: number = WHATSAPP_RUN_BUDGET.maxRuns,
+): boolean {
+  return recentRuns >= maxRuns;
+}

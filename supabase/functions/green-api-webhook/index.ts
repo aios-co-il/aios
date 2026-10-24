@@ -7,7 +7,10 @@ import {
   type CarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { isDuplicateClaimError } from "../_shared/automation-execution.ts";
+import {
+  isClaimLeaseExpired,
+  isDuplicateClaimError,
+} from "../_shared/automation-execution.ts";
 import {
   handleCarmenMessage,
   fetchKnownEntityNames,
@@ -318,6 +321,9 @@ Deno.serve(async (req) => {
   // Set once this invocation owns the idMessage claim; released if processing
   // fails so Green API's retry is not mistaken for a duplicate.
   let releaseMessageClaim: (() => Promise<void>) | null = null;
+  // Marks the claim done once the message is stored, so a later retry is a
+  // true duplicate rather than a takeover candidate.
+  let markMessageClaimDone: (() => Promise<void>) | null = null;
 
   try {
     const supabaseClient = createClient(
@@ -901,32 +907,105 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           external_message_id: claimKey,
         });
+      let ownsClaim = !claimErr;
       if (isDuplicateClaimError(claimErr)) {
-        console.log("[green-api] duplicate webhook dropped", {
-          idMessage: incomingIdMessage,
-        });
-        return new Response(
-          JSON.stringify({ received: true, duplicate: true }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+        // Another invocation claimed it. Take over only if that one never
+        // finished and its lease ran out (killed by a timeout or redeploy).
+        const { data: existing } = await supabaseClient
+          .from("processed_webhook_messages")
+          .select("processed_at, completed_at")
+          .eq("provider", "green_api")
+          .eq("tenant_id", tenantId)
+          .eq("external_message_id", claimKey)
+          .maybeSingle();
+        if (existing && isClaimLeaseExpired(existing, Date.now())) {
+          const { data: takenOver } = await supabaseClient
+            .from("processed_webhook_messages")
+            .update({ processed_at: new Date().toISOString() })
+            .eq("provider", "green_api")
+            .eq("tenant_id", tenantId)
+            .eq("external_message_id", claimKey)
+            .eq("processed_at", existing.processed_at)
+            .is("completed_at", null)
+            .select("external_message_id");
+          ownsClaim = (takenOver?.length ?? 0) > 0;
+          if (ownsClaim) {
+            console.warn("[green-api] took over stale message claim", {
+              idMessage: incomingIdMessage,
+            });
+          }
+        }
+        if (!ownsClaim) {
+          console.log("[green-api] duplicate webhook dropped", {
+            idMessage: incomingIdMessage,
+          });
+          return new Response(
+            JSON.stringify({ received: true, duplicate: true }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
       }
-      if (!claimErr) {
+      if (ownsClaim) {
         releaseMessageClaim = async () => {
           await supabaseClient
             .from("processed_webhook_messages")
             .delete()
             .eq("provider", "green_api")
             .eq("tenant_id", tenantId)
-            .eq("external_message_id", claimKey);
+            .eq("external_message_id", claimKey)
+            .is("completed_at", null);
         };
-      }
-      if (claimErr) {
+        markMessageClaimDone = async () => {
+          releaseMessageClaim = null;
+          const { error } = await supabaseClient
+            .from("processed_webhook_messages")
+            .update({ completed_at: new Date().toISOString() })
+            .eq("provider", "green_api")
+            .eq("tenant_id", tenantId)
+            .eq("external_message_id", claimKey);
+          if (error) {
+            console.error(
+              "[green-api] failed to complete message claim:",
+              error,
+            );
+          }
+        };
+      } else if (claimErr) {
         // Transient DB issue: keep processing rather than lose the message.
         console.error("[green-api] dedup claim failed (continuing):", claimErr);
       }
     }
+    // One automation dispatch per message per tenant: if a tenant has two
+    // connections in the same group, both receive the message but only the
+    // first one triggers automations.
+    const claimAutomationDispatch = async (): Promise<boolean> => {
+      if (!incomingIdMessage || !tenantId) return true;
+      const { error } = await supabaseClient
+        .from("processed_webhook_messages")
+        .insert({
+          provider: "green_api_dispatch",
+          tenant_id: tenantId,
+          external_message_id: incomingIdMessage,
+          completed_at: new Date().toISOString(),
+        });
+      if (isDuplicateClaimError(error)) {
+        console.log("[green-api] automation already dispatched for message", {
+          idMessage: incomingIdMessage,
+          connectionUserId,
+        });
+        return false;
+      }
+      if (error) {
+        console.error(
+          "[green-api] dispatch claim failed (dispatching anyway):",
+          error,
+        );
+      }
+      return true;
+    };
+
     if (incomingIdMessage) {
       const { data: dupMsg } = await supabaseClient
         .from("chat_messages")
@@ -1306,6 +1385,7 @@ Deno.serve(async (req) => {
         participantPhone,
         direction: isOutgoing ? "outbound" : "inbound",
       });
+      if (markMessageClaimDone) await markMessageClaimDone();
 
       // Map members only when this group is in Carmen's Manus catalog.
       // Never invoke Carmen from Green when manus_wa is active (below).
@@ -1483,16 +1563,17 @@ Deno.serve(async (req) => {
           };
 
           const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-          fetch(triggerUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify(automationPayload),
-          }).catch((err) =>
-            console.error("❌ Error triggering group automation:", err),
-          );
+          if (await claimAutomationDispatch())
+            fetch(triggerUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify(automationPayload),
+            }).catch((err) =>
+              console.error("❌ Error triggering group automation:", err),
+            );
         } catch (automationError) {
           console.error(
             "❌ Error preparing group automation trigger:",
@@ -1728,6 +1809,7 @@ Deno.serve(async (req) => {
       console.error("❌ Failed to save message:", insertError);
       throw insertError;
     }
+    if (markMessageClaimDone) await markMessageClaimDone();
 
     // Forward to linked team channels (individual chats)
     await forwardToTeamChannels(
@@ -1964,16 +2046,17 @@ Deno.serve(async (req) => {
         };
 
         const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-        fetch(triggerUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify(automationPayload),
-        }).catch((err) =>
-          console.error("❌ Error triggering automation:", err),
-        );
+        if (await claimAutomationDispatch())
+          fetch(triggerUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify(automationPayload),
+          }).catch((err) =>
+            console.error("❌ Error triggering automation:", err),
+          );
       } catch (automationError) {
         console.error(
           "❌ Error preparing automation trigger:",
