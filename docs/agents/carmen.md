@@ -34,6 +34,14 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - **Telegram:** direct Telegram Bot API via the `TELEGRAM_BOT_TOKEN` secret (no connector).
 - ✅ Lovable removal COMPLETE — zero `lovable` references in app code. Required secrets: `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`. TikTok (`tiktok-connect`/`sync-tiktok-content`) is gated on `TIKTOK_ACCESS_TOKEN` and needs a proper direct TikTok integration to re-enable.
 
+## Brain connections (Carmen settings → מוחות, חיבורים ומפתחות AI)
+
+- One screen lists every brain in `agent_brain_routes`; its switch sets `active`, which is what the picker shows. Writes go only through the `carmen-brain-connections` edge function (tenant owners / agency owners / super admins); members cannot write brain routes.
+- **Model brains** (`route_type = 'model'`, `provider = 'model'`): any OpenAI-compatible chat API, stored in `carmen_brain_connections` (`kind = 'chat_model'`) with a profile (system prompt, temperature, max tokens, description, color). `_shared/agent-channel/model-brain.ts` answers synchronously (`inline_reply`). Threads are keyed by the route slug, not the provider.
+- **Built-in keys** (`kind = 'builtin'`): a UI key for cursor / claude / codex / chatgpt / grok overrides the env secret for that tenant's Command Center sends (`brain-env.ts` → `SendContext.env`). Other callers (MCP bridges, creatives, WhatsApp direct) still read env secrets.
+- Keys live in Vault. Only the service role can call `carmen_brain_secret_set/get/delete`; browsers see `key_last4` only. Shared presets, validation and types: `_shared/carmen/brain-connections/` (one file per topic, imported directly by the UI).
+- A member with a `brain_access` row gets a new brain only after a manager grants its slug in הרשאות.
+
 ## Carmen memory architecture
 
 - `carmen_memory_pointers` = a **pointer map** (category/path/title/summary/importance + `summary_embedding`). Content is fetched live on demand — not one big blob.

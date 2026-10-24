@@ -10,15 +10,18 @@ import {
   launchCloudDirect,
   launchWorkspaceAgent,
 } from "./direct.ts";
+import { launchModelBrain } from "./model-brain.ts";
 import { startParliament } from "./parliament.ts";
 
 export async function dispatchSend(ctx: SendContext): Promise<SendResult> {
   const kind: ChannelProvider =
     ctx.route.route_type === "parliament"
       ? "parliament"
-      : ((ctx.route.provider ||
-          ctx.route.slug ||
-          "internal") as ChannelProvider);
+      : ctx.route.route_type === "model"
+        ? "model"
+        : ((ctx.route.provider ||
+            ctx.route.slug ||
+            "internal") as ChannelProvider);
 
   if (kind === "internal") {
     return {
@@ -37,5 +40,6 @@ export async function dispatchSend(ctx: SendContext): Promise<SendResult> {
   if (kind === "claude") return launchClaude(ctx);
   if (kind === "chatgpt") return launchChatgpt(ctx);
   if (kind === "parliament") return startParliament(ctx);
+  if (kind === "model") return launchModelBrain(ctx);
   throw new Error(`Unknown brain route: ${kind}`);
 }

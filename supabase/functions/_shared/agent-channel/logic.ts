@@ -90,12 +90,23 @@ export function capabilitiesForProvider(
         callback_required: true,
         supports_cancel: true,
       };
+    case "model":
+      return {
+        streaming_reply: false,
+        async_reply: false,
+        persistent_thread: true,
+        attachments: false,
+        tool_calls: false,
+        callback_required: false,
+        supports_cancel: false,
+      };
   }
 }
 
 export function statusForKind(kind: ChannelProvider): ConversationStatus {
   if (kind === "internal") return "streaming";
   if (kind === "parliament") return "debating";
+  if (kind === "model") return "idle";
   return "waiting_external";
 }
 
@@ -279,6 +290,8 @@ export function acceptedMessageFor(
         : "נשלח ל-ChatGPT Work Agent. מחכה לתשובה בשיחה הזו.";
     case "parliament":
       return "שואלים את הצוות ⚡ מחכים לתשובות…";
+    case "model":
+      return "המודל ענה.";
   }
 }
 
