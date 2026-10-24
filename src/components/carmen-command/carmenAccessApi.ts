@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { isNonProduction, resolveFrontendAppEnv } from "@/lib/appEnv";
+import { isNonProduction, resolveAppEnv } from "@/lib/appEnv";
 import {
   CARMEN_NAME_FILTER,
   carmenEnabledFor,
@@ -19,9 +19,14 @@ export const COMMAND_CENTER_ALLOWLIST = ["david.castelnuovo@gmail.com"];
  * test her on Staging and previews; a permissions row (הרשאות) still decides
  * for the users who have one. Production keeps the allowlist and personal
  * API key until the permissions screen takes over there too.
+ *
+ * Needs VITE_APP_ENV set to a non-production value: a local `pnpm dev`
+ * without it talks to Production, so it stays closed.
  */
-export function carmenOpenToAll(): boolean {
-  return isNonProduction(resolveFrontendAppEnv());
+export function carmenOpenToAll(
+  appEnv: string | undefined = import.meta.env.VITE_APP_ENV,
+): boolean {
+  return !!appEnv?.trim() && isNonProduction(resolveAppEnv(appEnv));
 }
 
 /** The tenant's Carmen, resolved like the edge functions' resolveCarmenAgent. */
