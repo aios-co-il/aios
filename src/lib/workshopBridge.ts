@@ -85,6 +85,11 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_start_project: "פותחת פרויקט",
   workshop_get_state: "בודקת מה כבר יש בפרויקט",
   workshop_make_creative: "יוצרת תמונות",
+  workshop_save_concepts: "כותבת קונספטים",
+  workshop_save_copy: "כותבת קופי",
+  workshop_storyboard: "כותבת סטוריבורד",
+  workshop_make_stills: "יוצרת תמונות לסצנות",
+  workshop_produce_video: "מפיקה את הסרט",
 };
 
 /** The line shown in the chat while a workshop tool runs; other tools keep their own name. */

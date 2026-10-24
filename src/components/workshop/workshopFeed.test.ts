@@ -6,6 +6,8 @@ import {
   pagesIn,
   pageTypeFor,
   shouldFollow,
+  storagePathsIn,
+  withSignedUrls,
   type WorkshopArtifact,
 } from "./workshopFeed.ts";
 
@@ -66,4 +68,17 @@ test("the board follows new pages only while following", () => {
   assert.equal(shouldFollow(1, 2, true), true);
   assert.equal(shouldFollow(1, 2, false), false);
   assert.equal(shouldFollow(2, 2, true), false);
+});
+
+test("private bucket paths are signed and web links are left alone", () => {
+  const items = [
+    page({ id: "a", url: "https://x/a.png", thumb_url: "https://x/a.png" }),
+    page({ id: "b", url: "tenant/item/clip.mp4", thumb_url: null }),
+    page({ id: "c", url: "tenant/item/clip.mp4", thumb_url: "tenant/item/t.jpg" }),
+  ];
+  assert.deepEqual(storagePathsIn(items), ["tenant/item/clip.mp4", "tenant/item/t.jpg"]);
+  const out = withSignedUrls(items, { "tenant/item/clip.mp4": "https://signed/clip" });
+  assert.equal(out[0].url, "https://x/a.png");
+  assert.equal(out[1].url, "https://signed/clip");
+  assert.equal(out[2].thumb_url, null);
 });

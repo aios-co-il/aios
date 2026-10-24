@@ -48,6 +48,7 @@ import {
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import { engineFromKeys } from "../_shared/workshop/video-cost.ts";
 import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
@@ -5682,6 +5683,18 @@ async function executeTool(
           return made?.image_url
             ? { image_url: made.image_url as string }
             : { error: String(made?.error ?? "לא התקבלה תמונה") };
+        },
+        defaultEngine: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return engineFromKeys((data?.settings || {}) as Record<string, unknown>);
         },
       },
     );

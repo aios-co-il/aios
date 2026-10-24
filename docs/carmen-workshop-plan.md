@@ -199,5 +199,6 @@ RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרצי
 | --- | --- |
 | 0. יסודות | בוצע: `workshop/defaults.ts`, `workshop/artifacts.ts`, `workshop-tools.ts` (`start_project`, `get_state`), טבלת `workshop_artifacts`, הסקין `carmen_workshop`, רישום ב־`run-ai-agent` |
 | 1. לוח וגשר | בוצע: פיד אנכי עם עדכון חי ותיקיות, `workshopBridge` (הקשר, אירועים), הצ׳אט שולח `item_id` והסקין, אירועי `workshop` ו־`skin`, תוויות כלים בעברית |
-| 2. סטטי | חלקי: `workshop_make_creative` (תמונות בגדלים מרובים, אישור עלות אחד). עדיין חסרים קונספטים, קופי ועריכת תמונה |
-| 3–6 | לא התחילו |
+| 2. סטטי | חלקי: `workshop_make_creative` (תמונות בגדלים מרובים, אישור עלות אחד), `workshop_save_concepts`, `workshop_save_copy`. עדיין חסרה עריכת תמונה |
+| 3. וידאו | בוצע: `workshop_storyboard`, `workshop_make_stills`, `workshop_produce_video` (אישור עלות אחד, מנוע לפי מפתחות הדייר, `needs_client`), הטריגר שמעתיק נכסי וידאו ללוח וסוגר סרט שנכשל. עדיין חסרה עריכת סרט קיים מהסדנה |
+| 4–6 | לא התחילו |

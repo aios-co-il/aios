@@ -103,7 +103,7 @@ export function folderTree(
 /** Which Carmen skin is wearing the hat for a tool, so the avatar follows the work. */
 export function skinForTool(tool: string): string | null {
   if (
-    /^workshop_(plan_concepts|write_copy)$/.test(tool)
+    /^workshop_(plan_concepts|write_copy|save_concepts|save_copy)$/.test(tool)
   )
     return "copywriter";
   if (

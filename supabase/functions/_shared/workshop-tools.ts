@@ -17,6 +17,12 @@ import {
   type Format,
   type StartProjectPlan,
 } from "./workshop/defaults.ts";
+import {
+  ENGINE_LABEL,
+  isSceneEngine,
+  productionEstimate,
+  type SceneEngine,
+} from "./workshop/video-cost.ts";
 import { executeCreativeStudioTool } from "./creative-studio-tools.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -95,6 +101,120 @@ export const WORKSHOP_TOOLS = [
         },
       },
       required: ["item_id", "prompt"],
+    },
+  },
+  {
+    name: "workshop_save_concepts",
+    description:
+      "שומרת קונספטים שכתבת לפרויקט, כל אחד כעמוד בלוח. קודם חשבי על 3 עד 5 כיוונים שונים באמת, ואז שמרי. לא עולה כסף.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string" },
+        concepts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              idea: { type: "string", description: "הרעיון במשפטים ספורים" },
+              visual: { type: "string", description: "הכיוון הוויזואלי" },
+            },
+            required: ["title", "idea"],
+          },
+        },
+      },
+      required: ["item_id", "concepts"],
+    },
+  },
+  {
+    name: "workshop_save_copy",
+    description:
+      "שומרת נוסחי קופי שכתבת (כותרת, גוף, קריאה לפעולה), כל נוסח כעמוד בלוח. לא עולה כסף.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string" },
+        variations: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              headline: { type: "string" },
+              body: { type: "string" },
+              cta: { type: "string" },
+            },
+            required: ["headline", "body"],
+          },
+        },
+      },
+      required: ["item_id", "variations"],
+    },
+  },
+  {
+    name: "workshop_storyboard",
+    description:
+      "שומרת סטוריבורד שכתבת לסרטון: סצנות עם תיאור ויזואלי, תנועה, טקסט על המסך וקריינות. כל סצנה כ-3 שניות, אלא אם יש סיבה. אם כבר יש סטוריבורד, replace=true מחליף אותו. לא עולה כסף.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string" },
+        replace: { type: "boolean" },
+        scenes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              shot: { type: "string", description: "למשל Medium shot, Close-up, Wide shot" },
+              visual_prompt: {
+                type: "string",
+                description: "תיאור הפריים באנגלית, בלי טקסט על התמונה",
+              },
+              motion_prompt: { type: "string", description: "איך הפריים זז, באנגלית" },
+              overlay_text: { type: "string" },
+              voiceover_text: { type: "string", description: "מה נאמר בסצנה, בעברית" },
+              duration_s: { type: "number" },
+            },
+            required: ["visual_prompt"],
+          },
+        },
+      },
+      required: ["item_id", "scenes"],
+    },
+  },
+  {
+    name: "workshop_make_stills",
+    description:
+      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string" },
+        confirmed: { type: "boolean" },
+      },
+      required: ["item_id"],
+    },
+  },
+  {
+    name: "workshop_produce_video",
+    description:
+      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. אם חסר לקוח, הכלי יחזיר needs_client: שאלי לאיזה לקוח (אפשר לחפש עם search_entities) וקראי שוב עם client_id.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string" },
+        confirmed: { type: "boolean" },
+        client_id: { type: "string" },
+        engine: {
+          type: "string",
+          enum: ["mock", "kling", "elevenlabs", "higgsfield"],
+          description: "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון",
+        },
+        voice_id: { type: "string" },
+        music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
+      },
+      required: ["item_id"],
     },
   },
 ];
@@ -200,12 +320,29 @@ const briefPayload = (plan: StartProjectPlan, brief: string) => ({
   },
 });
 
+const STILLS_PER_CALL = 10;
+const STILL_CONCURRENCY = 4;
+
+const SCENE_COLUMNS =
+  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id";
+
+async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
+  const { data } = await supabase
+    .from("marketing_video_scenes")
+    .select(SCENE_COLUMNS)
+    .eq("item_id", itemId)
+    .eq("tenant_id", tenantId)
+    .order("position");
+  return (Array.isArray(data) ? data : []) as Record<string, any>[];
+}
+
 /** What the edge function injects so this module stays free of Deno and provider code. */
 export interface WorkshopDeps {
   generateImage?: (
     prompt: string,
     format: Format,
   ) => Promise<{ image_url?: string; error?: string }>;
+  defaultEngine?: () => Promise<SceneEngine>;
 }
 
 async function loadProject(
@@ -216,7 +353,7 @@ async function loadProject(
 ) {
   const loaded = await supabase
     .from("marketing_work_items")
-    .select("id, title, client_id, payload")
+    .select("id, title, client_id, current_stage_id, payload")
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -235,6 +372,8 @@ async function loadProject(
     project: {
       id: loaded.data.id as string,
       title: (loaded.data.title as string | null) ?? "",
+      client_id: (loaded.data.client_id as string | null) ?? null,
+      stage_id: (loaded.data.current_stage_id as string | null) ?? null,
       payload: asRecord(loaded.data.payload),
     },
   };
@@ -439,6 +578,359 @@ export async function executeWorkshopTool(
         item_id: itemId,
         artifact_id: artifacts[artifacts.length - 1]?.id,
       },
+    };
+  }
+
+  if (name === "workshop_save_concepts" || name === "workshop_save_copy") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    if ("error" in loaded) return loaded;
+    const isConcepts = name === "workshop_save_concepts";
+    const list = (isConcepts ? args.concepts : args.variations) as unknown;
+    const entries = (Array.isArray(list) ? list : [])
+      .map((entry) => asRecord(entry))
+      .slice(0, isConcepts ? 8 : 12);
+    const pages = entries
+      .map((entry) =>
+        isConcepts
+          ? {
+              title: String(entry.title ?? "").trim(),
+              text: [
+                String(entry.idea ?? "").trim(),
+                String(entry.visual ?? "").trim()
+                  ? `ויזואל: ${String(entry.visual).trim()}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            }
+          : {
+              title: String(entry.headline ?? "").trim(),
+              text: [entry.headline, entry.body, entry.cta]
+                .map((part) => String(part ?? "").trim())
+                .filter(Boolean)
+                .join("\n\n"),
+            },
+      )
+      .filter((page) => page.title && page.text);
+    if (pages.length === 0)
+      return { error: isConcepts ? "concepts ריק" : "variations ריק" };
+    const artifacts = [];
+    for (const page of pages)
+      artifacts.push(
+        await recordArtifact(supabase, {
+          tenantId,
+          itemId,
+          kind: isConcepts ? "concept" : "copy",
+          title: page.title,
+          meta: { text: page.text },
+        }),
+      );
+    if (!isConcepts && !loaded.project.payload.copy_text) {
+      await supabase
+        .from("marketing_work_items")
+        .update({
+          payload: { ...loaded.project.payload, copy_text: pages[0].text },
+        })
+        .eq("id", itemId)
+        .eq("tenant_id", tenantId);
+    }
+    return {
+      success: true,
+      saved: artifacts.length,
+      artifacts,
+      workshop: {
+        event: "artifacts",
+        item_id: itemId,
+        artifact_id: artifacts[artifacts.length - 1].id,
+      },
+    };
+  }
+
+  if (name === "workshop_storyboard") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    if ("error" in loaded) return loaded;
+    const { project } = loaded;
+    const input = (Array.isArray(args.scenes) ? args.scenes : [])
+      .map((scene) => asRecord(scene))
+      .filter((scene) => String(scene.visual_prompt ?? "").trim())
+      .slice(0, 20);
+    if (input.length === 0) return { error: "scenes ריק: כל סצנה צריכה visual_prompt" };
+    const old = await loadScenes(supabase, tenantId, itemId);
+    if (old.length > 0 && args.replace !== true)
+      return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
+    const rows = input.map((scene, index) => ({
+      id: crypto.randomUUID(),
+      position: index + 1,
+      title: String(scene.title ?? "").trim() || `סצנה ${index + 1}`,
+      shot: String(scene.shot ?? "").trim() || "Medium shot",
+      visual_prompt: String(scene.visual_prompt).trim(),
+      motion_prompt: String(scene.motion_prompt ?? "").trim(),
+      overlay_text: String(scene.overlay_text ?? "").trim(),
+      voiceover_text: String(scene.voiceover_text ?? "").trim(),
+      duration_s: Math.min(
+        Math.max(Number(scene.duration_s) || 3, 0.5),
+        120,
+      ),
+    }));
+    const saved = await supabase.rpc("save_video_storyboard", {
+      p_item_id: itemId,
+      p_scenes: rows,
+    });
+    if (saved.error) return { error: saved.error.message };
+    if (old.length > 0) {
+      const removed = await supabase
+        .from("marketing_video_scenes")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("item_id", itemId)
+        .in(
+          "id",
+          old.map((scene) => scene.id),
+        );
+      if (removed.error) return { error: removed.error.message };
+    }
+    await supabase
+      .from("marketing_work_items")
+      .update({ payload: { ...project.payload, project_type: "video" } })
+      .eq("id", itemId)
+      .eq("tenant_id", tenantId);
+    const total = rows.reduce((sum, scene) => sum + scene.duration_s, 0);
+    const artifact = await recordArtifact(supabase, {
+      tenantId,
+      itemId,
+      kind: "storyboard",
+      title: `סטוריבורד · ${rows.length} סצנות`,
+      meta: {
+        total_s: total,
+        scenes: rows,
+        text: rows
+          .map(
+            (scene) =>
+              `${scene.position}. ${scene.title} (${scene.duration_s} ש׳)\n${scene.visual_prompt}${
+                scene.voiceover_text ? `\nקריינות: ${scene.voiceover_text}` : ""
+              }`,
+          )
+          .join("\n\n"),
+      },
+    });
+    return {
+      success: true,
+      scenes: rows.length,
+      total_s: total,
+      artifact,
+      workshop: { event: "artifacts", item_id: itemId, artifact_id: artifact.id },
+    };
+  }
+
+  if (name === "workshop_make_stills") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    if (!deps.generateImage) return { error: "יצירת תמונות לא זמינה כאן" };
+    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    if ("error" in loaded) return loaded;
+    const { project } = loaded;
+    const scenes = await loadScenes(supabase, tenantId, itemId);
+    if (scenes.length === 0)
+      return { error: "אין סטוריבורד. קודם workshop_storyboard." };
+    const pending = scenes.filter((scene) => !scene.still_asset_id);
+    if (pending.length === 0) return { success: true, created: 0, remaining: 0 };
+    const batch = pending.slice(0, STILLS_PER_CALL);
+    const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
+    const estimate = estimateImages([format], batch.length);
+    if (args.confirmed !== true)
+      return {
+        needs_approval: true,
+        scenes: batch.length,
+        remaining_after: pending.length - batch.length,
+        estimated_usd: estimate.usd,
+        message: `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
+      };
+    const results: { scene: string; ok: boolean; error?: string }[] = [];
+    for (let i = 0; i < batch.length; i += STILL_CONCURRENCY) {
+      const chunk = batch.slice(i, i + STILL_CONCURRENCY);
+      results.push(
+        ...(await Promise.all(
+          chunk.map(async (scene) => {
+            try {
+              const made = await deps.generateImage!(
+                `${scene.visual_prompt}. Cinematic still frame for a video storyboard. Keep the same character, wardrobe and visual style in every scene. No text on the image.`,
+                format,
+              );
+              if (!made.image_url)
+                return { scene: scene.id, ok: false, error: made.error ?? "לא התקבלה תמונה" };
+              const attached = await supabase.rpc("attach_video_scene_asset", {
+                p_scene_id: scene.id,
+                p_kind: "still",
+                p_url: made.image_url,
+                p_meta: { prompt: scene.visual_prompt, source: "workshop" },
+              });
+              return attached.error
+                ? { scene: scene.id, ok: false, error: attached.error.message }
+                : { scene: scene.id, ok: true };
+            } catch (error) {
+              return {
+                scene: scene.id,
+                ok: false,
+                error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+              };
+            }
+          }),
+        )),
+      );
+    }
+    const created = results.filter((result) => result.ok).length;
+    return {
+      success: created > 0,
+      created,
+      failed: results.filter((result) => !result.ok),
+      remaining: pending.length - created,
+      workshop: { event: "artifacts", item_id: itemId },
+    };
+  }
+
+  if (name === "workshop_produce_video") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const loaded = await loadProject(supabase, tenantId, itemId, assertClientAccess);
+    if ("error" in loaded) return loaded;
+    const { project } = loaded;
+    const scenes = await loadScenes(supabase, tenantId, itemId);
+    if (scenes.length === 0)
+      return { error: "אין סטוריבורד. קודם workshop_storyboard." };
+    const noStill = scenes.filter((scene) => !scene.still_asset_id).length;
+    if (noStill > 0)
+      return {
+        error: `לא לכל הסצנות יש תמונה (${noStill} חסרות). קודם workshop_make_stills.`,
+        missing_stills: noStill,
+      };
+
+    let stageId = project.stage_id;
+    let clientId = project.client_id;
+    if (!stageId) {
+      const wanted = String(args.client_id ?? "").trim();
+      if (!wanted)
+        return {
+          needs_client: true,
+          message:
+            "כדי להפיק סרט צריך לשייך אותו ללקוח. שאלי את המשתמש לאיזה לקוח (אפשר לחפש עם search_entities) וקראי שוב עם client_id.",
+        };
+      try {
+        await assertClientAccess(wanted);
+        const stage = await creativeStageFor(supabase, tenantId, wanted);
+        const linked = await supabase
+          .from("marketing_work_items")
+          .update({
+            client_id: wanted,
+            pipeline_id: stage.pipelineId,
+            current_stage_id: stage.stageId,
+          })
+          .eq("id", itemId)
+          .eq("tenant_id", tenantId);
+        if (linked.error) return { error: linked.error.message };
+        stageId = stage.stageId;
+        clientId = wanted;
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : "שיוך הלקוח נכשל",
+        };
+      }
+    }
+
+    const video = asRecord(project.payload.video);
+    const engine: SceneEngine = isSceneEngine(args.engine)
+      ? args.engine
+      : isSceneEngine(video.scene_engine) && video.scene_engine !== "mock"
+        ? video.scene_engine
+        : deps.defaultEngine
+          ? await deps.defaultEngine()
+          : "mock";
+    const costScenes = scenes
+      .filter((scene) => !scene.clip_asset_id)
+      .map((scene) => ({
+        duration_s: Number(scene.duration_s) || 3,
+        voiceover_text: String(scene.voiceover_text ?? ""),
+      }));
+    const withVoice = scenes.some((scene) =>
+      String(scene.voiceover_text ?? "").trim(),
+    );
+    const withMusic = args.music !== false;
+    const estimate = productionEstimate(engine, costScenes, {
+      withVoice,
+      withMusic,
+    });
+    if (args.confirmed !== true)
+      return {
+        needs_approval: true,
+        engine,
+        engine_label: ENGINE_LABEL[engine],
+        scenes: scenes.length,
+        clip_seconds: estimate.clipSeconds,
+        with_voice: withVoice,
+        with_music: withMusic,
+        estimated_usd: estimate.totalUsd,
+        message:
+          engine === "mock"
+            ? "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
+            : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. אשר/י והתחל.`,
+      };
+
+    const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
+    const voiceId =
+      typeof args.voice_id === "string" && args.voice_id.trim()
+        ? args.voice_id.trim()
+        : typeof video.voice_id === "string"
+          ? video.voice_id
+          : null;
+    await supabase
+      .from("marketing_work_items")
+      .update({
+        payload: {
+          ...project.payload,
+          video: { ...video, scene_engine: engine, sound_engine: "elevenlabs" },
+        },
+      })
+      .eq("id", itemId)
+      .eq("tenant_id", tenantId);
+    const produced = await supabase.rpc("produce_video", {
+      p_item_id: itemId,
+      p_aspect: format,
+      p_provider: engine,
+      p_estimate: {
+        clips: estimate.clips,
+        voice: estimate.voice,
+        music: estimate.music,
+      },
+      p_stage_id: stageId,
+      p_with_voice: withVoice,
+      p_with_music: withMusic,
+      p_voice_id: voiceId,
+      p_music_prompt:
+        "Instrumental commercial bed matching the storyboard, no vocals and no lyrics.",
+      p_generate_audio: false,
+    });
+    if (produced.error) return { error: produced.error.message };
+    const state = asRecord(produced.data);
+    const artifact = await recordArtifact(supabase, {
+      tenantId,
+      itemId,
+      kind: "film",
+      title: project.title ? `${project.title} · סרט` : "הסרט",
+      status: "pending",
+      meta: { engine, estimated_usd: estimate.totalUsd },
+    });
+    return {
+      success: true,
+      status: state.status ?? "running",
+      engine: ENGINE_LABEL[engine],
+      client_id: clientId,
+      message:
+        "ההפקה התחילה. הסרט יופיע בלוח כשיהיה מוכן, בדרך כלל תוך דקה או שתיים.",
+      artifact,
+      workshop: { event: "artifacts", item_id: itemId, artifact_id: artifact.id },
     };
   }
 

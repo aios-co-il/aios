@@ -30,6 +30,8 @@ test("the folder tree lists only folders that hold something", () => {
 
 test("the skin that wears the hat follows the tool", () => {
   assert.equal(skinForTool("workshop_write_copy"), "copywriter");
+  assert.equal(skinForTool("workshop_save_concepts"), "copywriter");
+  assert.equal(skinForTool("workshop_save_copy"), "copywriter");
   assert.equal(skinForTool("workshop_produce_video"), "video_director");
   assert.equal(skinForTool("workshop_make_creative"), "creative_studio");
   assert.equal(skinForTool("create_lead"), null);

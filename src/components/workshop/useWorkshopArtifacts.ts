@@ -1,7 +1,12 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WorkshopArtifact } from "./workshopFeed";
+import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
+import {
+  storagePathsIn,
+  withSignedUrls,
+  type WorkshopArtifact,
+} from "./workshopFeed";
 
 const COLUMNS =
   "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
@@ -46,7 +51,11 @@ export function useWorkshopArtifacts(
         .eq("item_id", projectId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as WorkshopArtifact[];
+      const rows = (data ?? []) as unknown as WorkshopArtifact[];
+      const paths = storagePathsIn(rows);
+      if (paths.length === 0) return rows;
+      const signed = await signCreativeVideoPaths(paths).catch(() => ({}));
+      return withSignedUrls(rows, signed);
     },
   });
 }

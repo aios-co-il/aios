@@ -80,3 +80,26 @@ export function shouldFollow(
 ) {
   return following && nextCount > previousCount;
 }
+
+const isStoragePath = (url: string | null): url is string =>
+  !!url && !/^(https?:|data:|blob:)/i.test(url);
+
+/** Files in the private creative-video bucket are stored as paths and need a signed link to show. */
+export const storagePathsIn = (artifacts: WorkshopArtifact[]) =>
+  [
+    ...new Set(
+      artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
+    ),
+  ];
+
+export const withSignedUrls = (
+  artifacts: WorkshopArtifact[],
+  signed: Record<string, string>,
+): WorkshopArtifact[] =>
+  artifacts.map((a) => ({
+    ...a,
+    url: isStoragePath(a.url) ? (signed[a.url] ?? null) : a.url,
+    thumb_url: isStoragePath(a.thumb_url)
+      ? (signed[a.thumb_url] ?? null)
+      : a.thumb_url,
+  }));
