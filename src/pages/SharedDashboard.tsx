@@ -1377,6 +1377,7 @@ export default function SharedDashboard({
           records={weeklyRecords}
           currency={getCurrencySymbol(dashboardCurrency)}
           isLoading={weeklyPending}
+          tables={tables}
           sourceModes={{
             facebook_insights: campaignTypeByPlatform.facebook_insights,
             facebook_ecommerce: campaignTypeByPlatform.facebook_ecommerce,

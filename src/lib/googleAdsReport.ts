@@ -60,20 +60,23 @@ function addTotals(target: GoogleAdsTotals, row: GoogleAdsTotals) {
 }
 
 /**
- * Google Ads campaigns of a report with each campaign's own goal (ecommerce or
- * leads), decided by the same rules as the pulse check. One account can run both,
- * so totals are kept per goal: purchases and ROAS only from ecommerce campaigns,
- * conversions and cost per conversion only from lead campaigns.
+ * Goal of each Google Ads campaign in these records, keyed by campaign id (name
+ * when missing). A record without a table id is classified with the only Google
+ * table, or with the settings it carries (shared dashboards).
  */
-export function summarizeGoogleAdsCampaigns(
+export function googleCampaignGoalsForRecords(
   records: ReportRecord[],
   tables: ReportTable[],
-): GoogleAdsCampaignSummary {
+): Map<string, GoogleReportCampaignGoal> {
   const allTables = [...tables];
+  const googleTables = tables.filter(
+    (table) => table.integration_type === "google_ads",
+  );
   const withTable = records.map((record, index) => {
     let tableId = record.table_id ?? record._tableId;
+    if (!tableId && googleTables.length === 1 && !record._integrationSettings)
+      tableId = googleTables[0].id;
     if (!tableId) {
-      // No table id on the record: classify it with the settings it carries.
       tableId = `record-${index}`;
       allTables.push({
         id: tableId,
@@ -83,10 +86,20 @@ export function summarizeGoogleAdsCampaigns(
     }
     return { table_id: tableId, data: record.data || {} };
   });
-  const goals = googleReportCampaignGoals({
-    records: withTable,
-    tables: allTables,
-  });
+  return googleReportCampaignGoals({ records: withTable, tables: allTables });
+}
+
+/**
+ * Google Ads campaigns of a report with each campaign's own goal (ecommerce or
+ * leads), decided by the same rules as the pulse check. One account can run both,
+ * so totals are kept per goal: purchases and ROAS only from ecommerce campaigns,
+ * conversions and cost per conversion only from lead campaigns.
+ */
+export function summarizeGoogleAdsCampaigns(
+  records: ReportRecord[],
+  tables: ReportTable[],
+): GoogleAdsCampaignSummary {
+  const goals = googleCampaignGoalsForRecords(records, tables);
   const fallbackGoal: GoogleReportCampaignGoal = tables.some(
     (table) =>
       table.integration_type === "google_ads" &&
@@ -96,7 +109,8 @@ export function summarizeGoogleAdsCampaigns(
     : "leads";
 
   const map = new Map<string, GoogleAdsCampaignSummaryRow>();
-  for (const { data } of withTable) {
+  for (const record of records) {
+    const data = record.data || {};
     const name = String(data.campaign_name || data.campaign || "ללא שם");
     const key = String(data.campaign_id || name);
     let row = map.get(key);

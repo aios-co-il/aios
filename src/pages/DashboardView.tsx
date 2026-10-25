@@ -504,6 +504,7 @@ export default function DashboardView() {
             return records.map((record: any) => ({
               ...record,
               _source: table.integration_type,
+              _tableId: table.id,
             }));
           }),
         );
@@ -2024,6 +2025,7 @@ export default function DashboardView() {
               records={weeklyRecords}
               currency={getCurrencySymbol(dashboardCurrency)}
               isLoading={weeklyRecordsPending}
+              tables={tables}
               sourceModes={{
                 facebook_insights: campaignTypeByPlatform.facebook_insights,
                 facebook_ecommerce: campaignTypeByPlatform.facebook_ecommerce,

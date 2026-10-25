@@ -117,9 +117,14 @@ function campaignKind(
     campaignType?: string;
   },
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
+  googleGoal?: "leads" | "ecommerce",
 ): WeeklyCampaignKind {
+  // Google: each campaign by its own goal; the report's type only when unknown.
   if (source === "google_ads")
-    return sourceModes[source] === "ecommerce" ? "ecommerce" : "leads";
+    return (
+      googleGoal ??
+      (sourceModes[source] === "ecommerce" ? "ecommerce" : "leads")
+    );
   if (source === "facebook_ecommerce") return "ecommerce";
   if (sourceModes[source] === "leads") return "leads";
   return facebookKind(totals);
@@ -136,6 +141,8 @@ export function buildWeeklyCampaignSections(
     maxWeeks?: number;
     defaultSource?: WeeklyAdsSource;
     sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+    /** Goal per Google campaign id (name when missing), from the report's rules. */
+    googleCampaignGoals?: Map<string, "leads" | "ecommerce">;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -252,7 +259,14 @@ export function buildWeeklyCampaignSections(
 
       const rows = [...campaigns.entries()]
         .map(([key, campaign]) => {
-          const kind = campaignKind(campaign.source, campaign, sourceModes);
+          const kind = campaignKind(
+            campaign.source,
+            campaign,
+            sourceModes,
+            options.googleCampaignGoals?.get(campaign.campaignId),
+          );
+          // A lead campaign's conversion value (often ₪1 per lead) is not revenue.
+          const revenue = kind === "ecommerce" ? campaign.revenue : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases
@@ -270,9 +284,9 @@ export function buildWeeklyCampaignSections(
             results,
             spend: campaign.spend,
             costPerResult: results > 0 ? campaign.spend / results : 0,
-            revenue: campaign.revenue,
+            revenue,
             addToCart: campaign.addToCart,
-            roas: campaign.spend > 0 ? campaign.revenue / campaign.spend : 0,
+            roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
           };
         })
         .sort((a, b) => b.spend - a.spend);
@@ -301,7 +315,11 @@ export function buildWeeklyCampaignSections(
       );
       totals.costPerResult =
         totals.results > 0 ? totals.spend / totals.results : 0;
-      totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
+      // ROAS over ecommerce campaigns only: lead spend earns no revenue.
+      const ecommerceSpend = rows
+        .filter((row) => row.kind === "ecommerce")
+        .reduce((sum, row) => sum + row.spend, 0);
+      totals.roas = ecommerceSpend > 0 ? totals.revenue / ecommerceSpend : 0;
 
       return {
         key: utcDateString(start),

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -6,12 +7,20 @@ import {
   type WeeklyAdsRecord,
   type WeeklyAdsSource,
 } from "@/lib/weeklyAdsComparison";
+import { googleCampaignGoalsForRecords } from "@/lib/googleAdsReport";
 
 type Props = {
   records: WeeklyAdsRecord[];
   currency?: string;
   defaultSource?: WeeklyAdsSource;
   sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+  /** The report's tables: Google campaigns then show by their own goal. */
+  tables?: Array<{
+    id: string;
+    integration_type?: string | null;
+    integration_settings?: Record<string, unknown> | null;
+    category?: string | null;
+  }>;
   isLoading?: boolean;
 };
 
@@ -29,11 +38,25 @@ export function WeeklyCampaignComparison({
   currency = "₪",
   defaultSource,
   sourceModes,
+  tables,
   isLoading = false,
 }: Props) {
+  const googleCampaignGoals = useMemo(
+    () =>
+      tables
+        ? googleCampaignGoalsForRecords(
+            records.filter(
+              (record) => (record._source ?? defaultSource) === "google_ads",
+            ),
+            tables,
+          )
+        : undefined,
+    [records, tables, defaultSource],
+  );
   const weeks = buildWeeklyCampaignSections(records, {
     defaultSource,
     sourceModes,
+    googleCampaignGoals,
     maxWeeks: 53,
   });
   const sources = new Set(
@@ -85,9 +108,8 @@ export function WeeklyCampaignComparison({
                 ? "עלות לקליק"
                 : "עלות לליד"
             : "עלות לתוצאה";
-        const showRevenue = week.rows.some(
-          (row) => row.kind === "ecommerce" || row.revenue > 0,
-        );
+        // Revenue and ROAS only when the week has an ecommerce campaign.
+        const showRevenue = week.rows.some((row) => row.kind === "ecommerce");
 
         return (
           <Card key={week.key} className="overflow-hidden">

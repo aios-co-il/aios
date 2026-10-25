@@ -144,3 +144,59 @@ test("the current week rolls over at Sunday midnight in Jerusalem", () => {
   assert.equal(sections[0].rows[0].campaign, "new-week");
   assert.equal(sections[1].startDate, "2026-09-13");
 });
+
+test("google campaigns use their own goal and lead value is not revenue", () => {
+  const google = (campaign: string, value: number) => ({
+    _source: "google_ads",
+    data: {
+      date: "2026-09-14",
+      campaign_id: campaign,
+      campaign_name: campaign,
+      cost: 100,
+      conversions: 2,
+      conversions_value: value,
+    },
+  });
+  const sections = buildWeeklyCampaignSections(
+    [google("leads", 3), google("shop", 600)],
+    {
+      now: new Date("2026-09-18T12:00:00Z"),
+      sourceModes: { google_ads: "leads" },
+      googleCampaignGoals: new Map([["shop", "ecommerce"]]),
+    },
+  );
+  const byId = Object.fromEntries(
+    sections[0].rows.map((row) => [row.campaignId, row]),
+  );
+  assert.equal(byId.leads.kind, "leads");
+  assert.equal(byId.leads.revenue, 0);
+  assert.equal(byId.leads.roas, 0);
+  assert.equal(byId.shop.kind, "ecommerce");
+  assert.equal(byId.shop.roas, 6);
+  assert.equal(sections[0].totals.revenue, 600);
+  assert.equal(sections[0].totals.roas, 6);
+});
+
+test("a leads-only google week carries no revenue", () => {
+  const sections = buildWeeklyCampaignSections(
+    [
+      {
+        _source: "google_ads",
+        data: {
+          date: "2026-09-14",
+          campaign_id: "a",
+          campaign_name: "תרגום משפטי",
+          cost: 750,
+          conversions: 4,
+          conversions_value: 3,
+        },
+      },
+    ],
+    {
+      now: new Date("2026-09-18T12:00:00Z"),
+      sourceModes: { google_ads: "leads" },
+    },
+  );
+  assert.ok(sections[0].rows.every((row) => row.kind === "leads"));
+  assert.equal(sections[0].totals.revenue, 0);
+});

@@ -848,6 +848,7 @@ export default function SharedTable() {
               (data?.table?.integration_settings as any)?.currency,
             )}
             isLoading={weeklyPending}
+            tables={data?.table ? [data.table] : undefined}
             sourceModes={{
               facebook_insights: forceLeadsOnly ? "leads" : undefined,
               facebook_ecommerce: "ecommerce",

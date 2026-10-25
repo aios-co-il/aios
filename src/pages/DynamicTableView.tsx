@@ -3091,6 +3091,7 @@ export default function DynamicTableView({
           }
           currency={getCurrencySymbol(table?.integration_settings?.currency)}
           isLoading={weeklyRecordsPending}
+          tables={table ? [table] : undefined}
           sourceModes={{
             facebook_insights:
               table?.integration_settings?.campaign_type === "leads"
