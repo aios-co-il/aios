@@ -2527,6 +2527,13 @@ export async function executeWorkshopTool(
           .join(" | "),
       };
     const state = asRecord(produced.data);
+    // A production that failed at once gets no pending film page (it would spin forever).
+    if (state.status === "failed")
+      return {
+        success: false,
+        status: "failed",
+        error: String(state.error ?? "ההפקה נכשלה"),
+      };
     const alreadyRunning =
       state.status === "running" &&
       Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&

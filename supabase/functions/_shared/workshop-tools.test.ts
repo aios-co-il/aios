@@ -2094,3 +2094,31 @@ test("the closing call to action Carmen gives is kept for the film's end card", 
   )?.value as Record<string, any>;
   assert.equal(saved.payload.cta_text, "מחכים לכם בגפן");
 });
+
+test("a production that fails at once leaves no spinning film page", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+    "rpc:produce_video": { status: "failed", error: "narration missing" },
+  });
+  const failed = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true },
+    async () => {},
+    null,
+    { defaultEngine: async () => "mock" as const },
+  )) as Record<string, any>;
+  assert.equal(failed.success, false);
+  assert.equal(failed.error, "narration missing");
+  assert.equal(
+    db.calls.some(
+      (c) =>
+        c.table === "workshop_artifacts" &&
+        c.op === "insert" &&
+        (c.value as Record<string, any>)?.kind === "film",
+    ),
+    false,
+  );
+});
