@@ -15,6 +15,14 @@ test("leads and lead-integrations keep distinct permissions", () => {
   );
 });
 
+test("the workshop route needs the same permission as its menu item", () => {
+  assert.equal(permissionForSubpath("workshop"), "social_media");
+  assert.equal(
+    permissionHandleForPathname("/t/acme/workshop")?.permission,
+    "social_media",
+  );
+});
+
 test("chat-integrations is not treated as chat/:id", () => {
   assert.equal(permissionForSubpath("chat-integrations"), "chat_integrations");
   assert.equal(permissionForSubpath("chat/abc-123"), "chat");
