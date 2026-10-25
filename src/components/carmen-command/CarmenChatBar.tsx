@@ -442,6 +442,8 @@ export const CarmenChatBar = forwardRef<
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
     ) => {
+      // The reply belongs to the brain that started it, even if the picker changes.
+      const persistSlug = runBrain ?? brain.selected?.slug;
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -542,6 +544,9 @@ export const CarmenChatBar = forwardRef<
               }
             } else if (parsed.type === "done") {
               gotDone = true;
+              // A brain that failed before writing anything explains why here.
+              if (!answer && typeof parsed.error === "string" && parsed.error)
+                answer = `⚠️ ${parsed.error}`;
             }
           } catch {
             /* partial line */
@@ -568,7 +573,12 @@ export const CarmenChatBar = forwardRef<
           setStreamingText("");
         }
         if (boundId) {
-          brain.persistAssistant(boundId, finalText, crypto.randomUUID());
+          brain.persistAssistant(
+            boundId,
+            finalText,
+            crypto.randomUUID(),
+            persistSlug,
+          );
           delete streamBufRef.current[boundId];
         }
       } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {

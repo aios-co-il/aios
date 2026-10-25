@@ -100,6 +100,21 @@ test("Kling signs with the tenant's own key pair before the env pair", async () 
   }
 });
 
+test("a half-saved tenant Kling pair fails instead of using the env pair", async () => {
+  process.env.KLING_ACCESS_KEY = "env-ak";
+  process.env.KLING_SECRET_KEY = "env-sk";
+  try {
+    const provider = getVideoProvider("kling", { klingAccessKey: "tenant-ak" });
+    await assert.rejects(
+      provider.submit({ imageUrl: "https://x/a.png", prompt: "p" }),
+      /both the Access Key and the Secret Key/,
+    );
+  } finally {
+    delete process.env.KLING_ACCESS_KEY;
+    delete process.env.KLING_SECRET_KEY;
+  }
+});
+
 test("clip prompts always end with the no-text rule", () => {
   assert.equal(
     clipPrompt("Camera dollies in"),

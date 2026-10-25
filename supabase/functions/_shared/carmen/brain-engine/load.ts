@@ -63,13 +63,20 @@ export async function resolveBrainEngine(
   }
   if (!tenantId) return { kind: "internal" };
 
-  const { data: route } = await sb
+  const { data: route, error: routeError } = await sb
     .from("agent_brain_routes")
     .select("slug, label, route_type, connection_id, active, config")
     .eq("tenant_id", tenantId)
     .eq("slug", slug)
     .maybeSingle();
-  if (!route || route.route_type !== "model") return { kind: "internal" };
+  // A named brain that cannot be read never silently becomes Carmen's own
+  // (possibly paid) engine.
+  if (routeError || !route)
+    return {
+      kind: "refused",
+      message: "המוח שנבחר לא נמצא. בחרו מוח אחר בבורר ונסו שוב.",
+    };
+  if (route.route_type !== "model") return { kind: "internal" };
   if (route.active !== true) return { kind: "denied" };
 
   let allowed = (_slug: string) => true;
