@@ -294,6 +294,19 @@ serve(async (req: Request) => {
           );
         }
 
+        // Keep the arrival source history; the lead delete below cascades.
+        const { data: sourceEventsToTransfer } = await supabase
+          .from("lead_source_events")
+          .update({ lead_id: master.id })
+          .in("lead_id", duplicateIds)
+          .select("id");
+
+        if (sourceEventsToTransfer?.length) {
+          groupResult.actions.push(
+            `Transferred ${sourceEventsToTransfer.length} source events`,
+          );
+        }
+
         // Update master status if needed
         const bestStatus = duplicates.find(
           (d) => d.response_status && !d.response_status.startsWith("custom_"),
