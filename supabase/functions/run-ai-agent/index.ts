@@ -16103,6 +16103,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
         }
+        // A workshop question or budget request is sent to the user exactly as the server
+        // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
+        if (
+          isWorkshopTool(toolName) &&
+          typeof result?.say_to_user === "string" &&
+          result.say_to_user.trim()
+        ) {
+          pulseDigestShortcut = result.say_to_user.trim();
+        }
       }
 
       messages.push(...toolResults);

@@ -64,11 +64,8 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     input.needsStyle === false ||
     hasReferences ||
     (hasBible && input.styleApproved);
-  const askEngine =
-    input.needsEngine &&
-    input.connected !== null &&
-    input.connected.length > 1 &&
-    !(input.engine && input.connected.includes(input.engine));
+  // The engine is never a question for the user: the best connected one is used.
+  const askEngine = false;
   const missing: BriefingGate["missing"] = [];
   if (!styleOk) missing.push("style");
   if (input.kind === "video" && !input.look.film.trim()) missing.push("film");

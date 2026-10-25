@@ -1046,7 +1046,7 @@ test("a proposed style counts only once the user approved it, then it is remembe
   );
 });
 
-test("with several image engines connected the user is asked, the choice is saved and forwarded", async () => {
+test("with several image engines connected nobody is asked; a named engine is saved and forwarded", async () => {
   const connected = ["google", "elevenlabs", "higgsfield"] as const;
   const seenEngines: (string | undefined)[] = [];
   const deps = {
@@ -1075,13 +1075,8 @@ test("with several image engines connected the user is asked, the choice is save
     null,
     deps,
   )) as Record<string, any>;
-  assert.equal(asked.needs_input, true);
-  assert.deepEqual(asked.missing, ["engine"]);
-  assert.deepEqual(
-    asked.engines.map((e: any) => e.id),
-    ["google", "elevenlabs", "higgsfield"],
-  );
-  assert.equal(asked.questions, undefined);
+  assert.equal(asked.needs_input, undefined);
+  assert.notEqual(asked.missing?.[0], "engine");
 
   const unknown = (await executeWorkshopTool(
     fakeDb(script),
