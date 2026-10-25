@@ -210,6 +210,8 @@ export function WorkshopFeed({
             tenantId={tenantId}
             projectId={projectId}
             clientName={clientName}
+            assets={assets.data ?? []}
+            loading={assets.isLoading}
           />
         ) : shown === 0 ? (
           <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 text-center">

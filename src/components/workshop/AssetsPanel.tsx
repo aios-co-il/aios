@@ -23,7 +23,7 @@ import {
   assetTypeFor,
   hostLabel,
 } from "../../../supabase/functions/_shared/workshop/assets.ts";
-import { useWorkshopAssets } from "./useWorkshopAssets";
+import { workshopAssetsKey } from "./useWorkshopAssets";
 import {
   MAX_ASSET_TEXT,
   MAX_UPLOAD_BYTES,
@@ -168,12 +168,15 @@ export function AssetsPanel({
   tenantId,
   projectId,
   clientName,
+  assets,
+  loading,
 }: {
   tenantId: string | undefined;
   projectId: string;
   clientName?: string | null;
+  assets: WorkshopAsset[];
+  loading: boolean;
 }) {
-  const assets = useWorkshopAssets(tenantId, projectId);
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState<Adding>(null);
@@ -183,13 +186,13 @@ export function AssetsPanel({
   const [textTitle, setTextTitle] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const rows = assets.data ?? [];
+  const rows = assets;
   const sections = groupAssets(rows);
   const referencesFull = referenceCount(rows) >= MAX_USER_REFERENCES;
 
   const refresh = () =>
     queryClient.invalidateQueries({
-      queryKey: ["workshop-assets", tenantId, projectId],
+      queryKey: workshopAssetsKey(tenantId, projectId),
     });
 
   const insert = async (row: Record<string, unknown>) => {
@@ -234,6 +237,7 @@ export function AssetsPanel({
           .from(ASSET_BUCKET)
           .upload(path, file);
         if (error) throw error;
+        // Stored as an identifier for the server tools; the hook signs it for display.
         const { data } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(path);
         const type = assetTypeFor({ name: file.name, mime: file.type });
         await insert({
@@ -402,7 +406,7 @@ export function AssetsPanel({
         </div>
       ) : null}
 
-      {assets.isLoading ? (
+      {loading ? (
         <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
       ) : sections.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
