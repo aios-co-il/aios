@@ -200,7 +200,11 @@ test("a paid confirm needs the quoted token and the user's next message", async 
       return { image_url: "https://x/a.png" };
     },
   });
-  const call = (db: ReturnType<typeof fakeDb>, args: Record<string, unknown>, turn: string) =>
+  const call = (
+    db: ReturnType<typeof fakeDb>,
+    args: Record<string, unknown>,
+    turn: string,
+  ) =>
     runWorkshopTool(
       db,
       "tenant-1",
@@ -259,7 +263,10 @@ test("a paid confirm needs the quoted token and the user's next message", async 
   );
   assert.equal(approved.success, true);
   assert.equal(generated, 2);
-  assert.equal(lastPayload(spendDb).workshop_approvals.workshop_make_creative, undefined);
+  assert.equal(
+    lastPayload(spendDb).workshop_approvals.workshop_make_creative,
+    undefined,
+  );
 });
 
 test("after approval each format becomes a page and a failure is reported, not hidden", async () => {

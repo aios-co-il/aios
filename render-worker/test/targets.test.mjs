@@ -11,7 +11,11 @@ test("one SUPABASE_URL pair is the only target", () => {
     WORKER_ENV: "staging",
   });
   assert.deepEqual(targets, [
-    { name: "staging", url: "https://staging.supabase.co", serviceRoleKey: key },
+    {
+      name: "staging",
+      url: "https://staging.supabase.co",
+      serviceRoleKey: key,
+    },
   ]);
 });
 

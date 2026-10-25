@@ -9,8 +9,14 @@ import {
 } from "../src/providers/geminiTts.mjs";
 
 test("a starter-plan refusal is recognized", () => {
-  assert.equal(isPaidPlanError(new Error("elevenlabs speech 402: paid_plan_required")), true);
-  assert.equal(isPaidPlanError(new Error("ממשק התמונות דורש תוכנית Pro")), true);
+  assert.equal(
+    isPaidPlanError(new Error("elevenlabs speech 402: paid_plan_required")),
+    true,
+  );
+  assert.equal(
+    isPaidPlanError(new Error("ממשק התמונות דורש תוכנית Pro")),
+    true,
+  );
   assert.equal(isPaidPlanError(new Error("higgsfield submit 500")), false);
 });
 

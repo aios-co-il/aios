@@ -124,8 +124,7 @@ export function engineFromKeys(settings: Record<string, unknown>): SceneEngine {
 }
 
 const hasKey = (settings: Record<string, unknown>, key: string) =>
-  typeof settings[key] === "string" &&
-  (settings[key] as string).trim() !== "";
+  typeof settings[key] === "string" && (settings[key] as string).trim() !== "";
 
 /** Image and video generation on ElevenLabs starts at Pro. Starter and free stay on Higgsfield. */
 export function elevenLabsTierAllowsMedia(tier: unknown): boolean {

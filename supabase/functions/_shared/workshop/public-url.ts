@@ -244,7 +244,10 @@ export function bodyProblem(
     (hasLength && announced > options.maxBytes)
   )
     return "הקובץ גדול מדי";
-  if (response.complete === false || (hasLength && response.body.length < announced))
+  if (
+    response.complete === false ||
+    (hasLength && response.body.length < announced)
+  )
     return "ההורדה נקטעה באמצע";
   return null;
 }

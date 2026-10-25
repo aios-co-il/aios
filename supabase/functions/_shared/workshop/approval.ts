@@ -7,9 +7,7 @@
  */
 
 export type PaidTool =
-  | "workshop_make_creative"
-  | "workshop_make_stills"
-  | "workshop_produce_video";
+  "workshop_make_creative" | "workshop_make_stills" | "workshop_produce_video";
 
 export type Quote = {
   tool: PaidTool;
@@ -113,7 +111,12 @@ export function spendApproval(
   if (!stored) return payload;
   const left = Math.max(0, stored.left - Math.max(0, spent));
   if (left === 0) delete all[tool];
-  else all[tool] = { ...stored, left, confirmed_turn: stored.confirmed_turn ?? turnId ?? "approved" };
+  else
+    all[tool] = {
+      ...stored,
+      left,
+      confirmed_turn: stored.confirmed_turn ?? turnId ?? "approved",
+    };
   return { ...payload, [KEY]: all };
 }
 
@@ -127,6 +130,5 @@ export const APPROVAL_REFUSAL: Record<
     "העלות או המנוע השתנו מאז האישור. הציגי למשתמש את העלות החדשה שחזרה וחכי לאישור חדש.",
   same_turn:
     "המשתמש עוד לא ענה על הצעת המחיר. הציגי לו את העלות ועצרי. אחרי שהוא מאשר בהודעה שלו, קראי עם confirmed=true ו-approval_token.",
-  no_turn:
-    "אי אפשר לאשר עלות מהערוץ הזה. בקשי מהמשתמש לאשר בצ׳אט של כרמן.",
+  no_turn: "אי אפשר לאשר עלות מהערוץ הזה. בקשי מהמשתמש לאשר בצ׳אט של כרמן.",
 };

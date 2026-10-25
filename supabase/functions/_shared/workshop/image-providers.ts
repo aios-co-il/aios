@@ -344,7 +344,13 @@ async function viaHiggsfield(
   if (!submit.ok || !started?.request_id)
     throw new Error(`${submit.status} ${clip(JSON.stringify(started))}`);
   try {
-    return await awaitHiggsfield(started.request_id, base, headers, deps, fetchImpl);
+    return await awaitHiggsfield(
+      started.request_id,
+      base,
+      headers,
+      deps,
+      fetchImpl,
+    );
   } catch (error) {
     throw accepted(error);
   }

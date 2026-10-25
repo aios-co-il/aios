@@ -131,16 +131,12 @@ export async function loadFilmSources(db, run) {
       clipPath: assets.get(scene.clip_asset_id)?.url || null,
       clipProvider: metaOf(assets.get(scene.clip_asset_id)).provider || null,
       stillPath: assets.get(scene.still_asset_id)?.url || null,
-      voicePath: narrationPath
-        ? null
-        : assets.get(voiceOf(scene))?.url || null,
+      voicePath: narrationPath ? null : assets.get(voiceOf(scene))?.url || null,
     }))
     .filter((scene) => scene.clipPath);
   const missingNarration = mapped.some(
     (scene) =>
-      spokenLine(scene.voiceoverText) &&
-      !narrationPath &&
-      !scene.voicePath,
+      spokenLine(scene.voiceoverText) && !narrationPath && !scene.voicePath,
   );
   if (missingNarration) throw finalError("render: narration missing");
   return {
@@ -207,7 +203,8 @@ export async function renderFilm({ db, run, log = console.log }) {
       narrationPath,
     });
     const output = join(dir, "film.mp4");
-    if (process.env.REMOTION_DISABLE === "1") await assembleFilm(timeline, output);
+    if (process.env.REMOTION_DISABLE === "1")
+      await assembleFilm(timeline, output);
     else await assembleWithRemotion(timeline, output, dir);
     const bytes = await readFile(output);
     // One file per run: concurrent renders of the same item can never overwrite each other.
@@ -231,7 +228,8 @@ export async function renderFilm({ db, run, log = console.log }) {
         meta: {
           bucket: BUCKET,
           path,
-          provider: process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",
+          provider:
+            process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",
           duration_s: timeline.totalS,
           scene_count: timeline.scenes.length,
           aspect: timeline.aspect,

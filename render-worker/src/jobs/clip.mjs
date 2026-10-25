@@ -152,7 +152,6 @@ async function finishClip({
   fallbackFrom,
   log,
 }) {
-
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
   while (result.status === "pending") {

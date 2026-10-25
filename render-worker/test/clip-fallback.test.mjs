@@ -23,7 +23,10 @@ function recorder(answers) {
 test("a plan refusal before submit moves to Higgsfield and records what it replaced", async () => {
   const { calls, run } = recorder({ elevenlabs: paidPlan() });
   const result = await runClipWithFallback({ name: "elevenlabs", keys, run });
-  assert.deepEqual(result, { provider: "higgsfield", fallbackFrom: "elevenlabs" });
+  assert.deepEqual(result, {
+    provider: "higgsfield",
+    fallbackFrom: "elevenlabs",
+  });
   assert.deepEqual(calls, [
     ["elevenlabs", null],
     ["higgsfield", "elevenlabs"],
@@ -44,7 +47,10 @@ test("a rejected Higgsfield key before submit ends on the free preview", async (
 test("after a provider accepted the job nothing switches engines", async () => {
   const late = afterSubmit("ElevenLabs 402 paid_plan_required while polling");
   const { calls, run } = recorder({ elevenlabs: late });
-  await assert.rejects(runClipWithFallback({ name: "elevenlabs", keys, run }), late);
+  await assert.rejects(
+    runClipWithFallback({ name: "elevenlabs", keys, run }),
+    late,
+  );
   assert.deepEqual(calls, [["elevenlabs", null]]);
 
   const higgsLate = afterSubmit("Higgsfield 401 while downloading");
@@ -53,7 +59,10 @@ test("after a provider accepted the job nothing switches engines", async () => {
     runClipWithFallback({ name: "elevenlabs", keys, run: second.run }),
     higgsLate,
   );
-  assert.equal(second.calls.some(([provider]) => provider === "mock"), false);
+  assert.equal(
+    second.calls.some(([provider]) => provider === "mock"),
+    false,
+  );
 });
 
 test("a retry resumes the job a fallback already saved instead of submitting again", async () => {
@@ -65,13 +74,19 @@ test("a retry resumes the job a fallback already saved instead of submitting aga
     savedJobId: "job-1",
     run,
   });
-  assert.deepEqual(result, { provider: "higgsfield", fallbackFrom: "elevenlabs" });
+  assert.deepEqual(result, {
+    provider: "higgsfield",
+    fallbackFrom: "elevenlabs",
+  });
   assert.deepEqual(calls, [["higgsfield", "elevenlabs"]]);
 });
 
 test("a pinned engine other than ElevenLabs never falls back", async () => {
   const error = new Error("Higgsfield 402");
   const { calls, run } = recorder({ higgsfield: error });
-  await assert.rejects(runClipWithFallback({ name: "higgsfield", keys, run }), error);
+  await assert.rejects(
+    runClipWithFallback({ name: "higgsfield", keys, run }),
+    error,
+  );
   assert.equal(calls.length, 1);
 });

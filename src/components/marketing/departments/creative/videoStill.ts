@@ -9,7 +9,9 @@ export const getStillModel = (
     video && typeof video === "object"
       ? (video as Record<string, unknown>).still_model
       : undefined;
-  return model === "nano-banana-pro" ? "nano-banana-pro" : "gpt-image-2.5-sunburst";
+  return model === "nano-banana-pro"
+    ? "nano-banana-pro"
+    : "gpt-image-2.5-sunburst";
 };
 
 export const getCharacterRefUrl = (

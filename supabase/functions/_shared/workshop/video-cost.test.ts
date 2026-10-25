@@ -80,7 +80,9 @@ test("the engine follows the keys the tenant has", () => {
 
 test("Starter ElevenLabs video moves to Higgsfield", async () => {
   const fetchImpl = (async () =>
-    new Response(JSON.stringify({ tier: "starter" }), { status: 200 })) as typeof fetch;
+    new Response(JSON.stringify({ tier: "starter" }), {
+      status: 200,
+    })) as typeof fetch;
   assert.equal(
     await sceneEngineFor(
       {
@@ -97,7 +99,9 @@ test("Starter ElevenLabs video moves to Higgsfield", async () => {
     "mock",
   );
   const pro = (async () =>
-    new Response(JSON.stringify({ tier: "pro" }), { status: 200 })) as typeof fetch;
+    new Response(JSON.stringify({ tier: "pro" }), {
+      status: 200,
+    })) as typeof fetch;
   assert.equal(
     await sceneEngineFor({ elevenlabs_api_key: "xi" }, pro),
     "elevenlabs",

@@ -22,7 +22,8 @@ async function viewable(asset: WorkshopAsset): Promise<WorkshopAsset> {
       .createSignedUrl(asset.storage_path, SIGNED_TTL_SECONDS);
     if (data?.signedUrl) return { ...asset, url: data.signedUrl };
   }
-  if (asset.url) return { ...asset, url: await resolveCreativeImageUrl(asset.url) };
+  if (asset.url)
+    return { ...asset, url: await resolveCreativeImageUrl(asset.url) };
   return asset;
 }
 

@@ -26,7 +26,8 @@ function fakeDb({ scenes, assets, narration }) {
         return query.includes("clip_asset_id=not.is.null")
           ? scenes.filter((scene) => scene.clip_asset_id)
           : scenes;
-      if (query.includes("type=eq.narration")) return narration ? [narration] : [];
+      if (query.includes("type=eq.narration"))
+        return narration ? [narration] : [];
       if (query.includes("type=eq.music")) return [];
       return assets;
     },
@@ -44,8 +45,18 @@ test("the continuous narration is used only when every spoken scene is in the fi
   const full = await loadFilmSources(
     fakeDb({
       scenes: [
-        { id: "s1", position: 1, voiceover_text: "אחת\n", clip_asset_id: "clip-1" },
-        { id: "s2", position: 2, voiceover_text: "שתיים", clip_asset_id: "clip-2" },
+        {
+          id: "s1",
+          position: 1,
+          voiceover_text: "אחת\n",
+          clip_asset_id: "clip-1",
+        },
+        {
+          id: "s2",
+          position: 2,
+          voiceover_text: "שתיים",
+          clip_asset_id: "clip-2",
+        },
       ],
       assets,
       narration,
@@ -58,8 +69,18 @@ test("the continuous narration is used only when every spoken scene is in the fi
     loadFilmSources(
       fakeDb({
         scenes: [
-          { id: "s1", position: 1, voiceover_text: "אחת", clip_asset_id: "clip-1" },
-          { id: "s2", position: 2, voiceover_text: "שתיים", clip_asset_id: null },
+          {
+            id: "s1",
+            position: 1,
+            voiceover_text: "אחת",
+            clip_asset_id: "clip-1",
+          },
+          {
+            id: "s2",
+            position: 2,
+            voiceover_text: "שתיים",
+            clip_asset_id: null,
+          },
         ],
         assets,
         narration,

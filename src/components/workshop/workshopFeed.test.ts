@@ -134,9 +134,15 @@ test("failed pages leave the board and only recent errors are spoken", () => {
 test("a clip made on a replacement engine says so; a normal clip says nothing", () => {
   assert.equal(
     fallbackNote(
-      page({ kind: "clip", meta: { provider: "mock", fallback_from: "elevenlabs" } }),
+      page({
+        kind: "clip",
+        meta: { provider: "mock", fallback_from: "elevenlabs" },
+      }),
     ),
     "הונפש במנוע התצוגה החינמי במקום ElevenLabs",
   );
-  assert.equal(fallbackNote(page({ kind: "clip", meta: { provider: "higgsfield" } })), null);
+  assert.equal(
+    fallbackNote(page({ kind: "clip", meta: { provider: "higgsfield" } })),
+    null,
+  );
 });

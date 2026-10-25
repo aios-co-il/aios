@@ -14,11 +14,7 @@ import {
 } from "remotion";
 
 export type WorkshopMove =
-  | "push"
-  | "drift-left"
-  | "drift-right"
-  | "rise"
-  | "pull";
+  "push" | "drift-left" | "drift-right" | "rise" | "pull";
 
 export type WorkshopScene = {
   id: string;

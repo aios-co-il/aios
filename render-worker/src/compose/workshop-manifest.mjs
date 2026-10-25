@@ -63,7 +63,9 @@ export function buildWorkshopManifest(timeline) {
       frameCount,
       still: useStill ? name : null,
       clip: useStill ? null : name,
-      caption: String(scene.overlayText ?? "").trim().slice(0, 180),
+      caption: String(scene.overlayText ?? "")
+        .trim()
+        .slice(0, 180),
       move: WORKSHOP_MOVES[index % WORKSHOP_MOVES.length],
     });
     files.push({ from: source, to: name });

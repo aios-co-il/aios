@@ -1,4 +1,10 @@
-import { copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { bundle } from "@remotion/bundler";
 import { getCompositions, renderMedia } from "@remotion/renderer";
@@ -58,9 +64,15 @@ assert(
 );
 
 const stageFile = async (root, publicDir, name) => {
-  assert(typeof name === "string" && SAFE_NAME.test(name), "Invalid media name");
+  assert(
+    typeof name === "string" && SAFE_NAME.test(name),
+    "Invalid media name",
+  );
   const source = await realpath(join(root, name));
-  assert(source.startsWith(root + sep), "Media must stay in the manifest folder");
+  assert(
+    source.startsWith(root + sep),
+    "Media must stay in the manifest folder",
+  );
   const target = join(publicDir, name);
   await mkdir(dirname(target), { recursive: true });
   await copyFile(source, target);
@@ -98,7 +110,9 @@ if (manifest.schemaVersion === 1) {
     if (still) names.add(await stageFile(root, publicDir, still));
     if (clip) names.add(await stageFile(root, publicDir, clip));
     assert(
-      ["push", "drift-left", "drift-right", "rise", "pull"].includes(scene.move),
+      ["push", "drift-left", "drift-right", "rise", "pull"].includes(
+        scene.move,
+      ),
       "Invalid camera move",
     );
   }

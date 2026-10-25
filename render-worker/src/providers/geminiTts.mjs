@@ -7,18 +7,23 @@ export const GEMINI_TTS_MODEL = () =>
 export const GEMINI_TTS_VOICE = () => process.env.GEMINI_TTS_VOICE || "Kore";
 
 /** Paid-tier list prices per million tokens; override when Google changes them. */
-const USD_PER_M_INPUT = () => Number(process.env.GEMINI_TTS_USD_PER_M_INPUT) || 0.5;
-const USD_PER_M_OUTPUT = () => Number(process.env.GEMINI_TTS_USD_PER_M_OUTPUT) || 10;
+const USD_PER_M_INPUT = () =>
+  Number(process.env.GEMINI_TTS_USD_PER_M_INPUT) || 0.5;
+const USD_PER_M_OUTPUT = () =>
+  Number(process.env.GEMINI_TTS_USD_PER_M_OUTPUT) || 10;
 /** Gemini counts 25 audio tokens per second of speech. */
 const AUDIO_TOKENS_PER_SECOND = 25;
 
 const BASE = () =>
-  (process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com").replace(
-    /\/$/,
-    "",
-  );
+  (
+    process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com"
+  ).replace(/\/$/, "");
 
-export function geminiSpeechBody(text, model = GEMINI_TTS_MODEL(), voice = GEMINI_TTS_VOICE()) {
+export function geminiSpeechBody(
+  text,
+  model = GEMINI_TTS_MODEL(),
+  voice = GEMINI_TTS_VOICE(),
+) {
   return {
     model,
     contents: [{ role: "user", parts: [{ text }] }],
@@ -37,7 +42,10 @@ const isWav = (bytes) =>
   bytes.toString("ascii", 8, 12) === "WAVE";
 
 /** A WAV container around raw little-endian PCM. */
-export function pcmToWav(pcm, { sampleRate = 24000, channels = 1, bitsPerSample = 16 } = {}) {
+export function pcmToWav(
+  pcm,
+  { sampleRate = 24000, channels = 1, bitsPerSample = 16 } = {},
+) {
   const header = Buffer.alloc(44);
   const byteRate = (sampleRate * channels * bitsPerSample) / 8;
   header.write("RIFF", 0, "ascii");
@@ -59,7 +67,11 @@ export function pcmToWav(pcm, { sampleRate = 24000, channels = 1, bitsPerSample 
 /** Turns Gemini's inline audio into a file the worker can store and ffmpeg can read. */
 export function speechFile(bytes, mimeType) {
   const mime = String(mimeType || "").toLowerCase();
-  if (isWav(bytes) || mime.startsWith("audio/wav") || mime.startsWith("audio/x-wav"))
+  if (
+    isWav(bytes) ||
+    mime.startsWith("audio/wav") ||
+    mime.startsWith("audio/x-wav")
+  )
     return { bytes, contentType: "audio/wav", seconds: null };
   if (!mime || /audio\/l16|codec=pcm|audio\/pcm/.test(mime)) {
     const rate = Number(/rate=(\d+)/.exec(mime)?.[1]) || 24000;
@@ -80,7 +92,8 @@ export function geminiSpeechCost(usage, { text, seconds }) {
   const output =
     Number(usage?.candidatesTokenCount) ||
     (seconds ? Math.ceil(seconds * AUDIO_TOKENS_PER_SECOND) : 0);
-  const usd = (input * USD_PER_M_INPUT() + output * USD_PER_M_OUTPUT()) / 1_000_000;
+  const usd =
+    (input * USD_PER_M_INPUT() + output * USD_PER_M_OUTPUT()) / 1_000_000;
   return Math.round(usd * 10000) / 10000;
 }
 
@@ -110,7 +123,9 @@ export async function synthesizeGeminiSpeech({
     );
   }
   const parts = data.candidates?.[0]?.content?.parts ?? [];
-  const audio = parts.find((part) => part.inlineData?.data || part.inline_data?.data);
+  const audio = parts.find(
+    (part) => part.inlineData?.data || part.inline_data?.data,
+  );
   const inline = audio?.inlineData ?? audio?.inline_data;
   if (!inline?.data) throw new Error("gemini tts returned no audio");
   const file = speechFile(
@@ -122,6 +137,9 @@ export async function synthesizeGeminiSpeech({
     contentType: file.contentType,
     model,
     voice,
-    costUsd: geminiSpeechCost(data.usageMetadata, { text, seconds: file.seconds }),
+    costUsd: geminiSpeechCost(data.usageMetadata, {
+      text,
+      seconds: file.seconds,
+    }),
   };
 }

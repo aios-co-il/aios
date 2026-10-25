@@ -288,7 +288,10 @@ test("a pinned ElevenLabs Starter plan falls through to Google", async () => {
       sleep: async () => {},
       gemini: async () => ({ bytes: png }),
       fetchImpl: (async () =>
-        json({ detail: { status: "paid_plan_required" } }, 402)) as typeof fetch,
+        json(
+          { detail: { status: "paid_plan_required" } },
+          402,
+        )) as typeof fetch,
     },
   );
   assert.equal(made.provider, "google");
@@ -326,7 +329,8 @@ test("a Higgsfield job that was accepted and then failed does not fall through",
           hosts.push(new URL(url).host);
           if (url.includes("elevenlabs"))
             return json({ detail: { status: "paid_plan_required" } }, 402);
-          if (url.includes("openai")) return json({ data: [{ b64_json: b64 }] });
+          if (url.includes("openai"))
+            return json({ data: [{ b64_json: b64 }] });
           if (init?.method === "POST") return json({ request_id: "req-1" });
           return json({ status: "in_progress" });
         }) as typeof fetch,
@@ -335,5 +339,8 @@ test("a Higgsfield job that was accepted and then failed does not fall through",
     /הזמן אזל/,
   );
   assert.ok(hosts.includes("api.higgsfield.ai"));
-  assert.equal(hosts.some((host) => host.includes("openai")), false);
+  assert.equal(
+    hosts.some((host) => host.includes("openai")),
+    false,
+  );
 });

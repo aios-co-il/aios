@@ -34,7 +34,8 @@ export async function assembleWithRemotion(timeline, outputPath, workDir) {
   const plan = buildWorkshopManifest(timeline);
   const stage = join(workDir, "remotion");
   await mkdir(stage, { recursive: true });
-  for (const file of plan.files) await copyFile(file.from, join(stage, file.to));
+  for (const file of plan.files)
+    await copyFile(file.from, join(stage, file.to));
   const manifestPath = join(stage, "manifest.json");
   await writeFile(manifestPath, JSON.stringify(plan.manifest));
   await run(

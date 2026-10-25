@@ -54,7 +54,12 @@ async function generateOnce({ db, run, path, generate }) {
   if (run.output?.audio_path === path) return run.output.audio_meta ?? {};
   const result = await generate();
   try {
-    await db.upload(BUCKET, path, result.bytes, result.contentType || "audio/mpeg");
+    await db.upload(
+      BUCKET,
+      path,
+      result.bytes,
+      result.contentType || "audio/mpeg",
+    );
   } catch (error) {
     throw finalError(
       `audio was generated but could not be stored (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
@@ -88,9 +93,7 @@ export async function generateVoice({
   const scene = continuous
     ? null
     : await loadRunScene(db, run, "id,voiceover_text");
-  const text = continuous
-    ? spoken.text
-    : spokenLine(scene.voiceover_text);
+  const text = continuous ? spoken.text : spokenLine(scene.voiceover_text);
   if (!text) throw finalError("voice run: voiceover_text is required");
   const path = assetPath(
     run,

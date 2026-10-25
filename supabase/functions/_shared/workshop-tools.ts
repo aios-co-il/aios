@@ -9,7 +9,13 @@
  * runs with the service role, so RLS does not apply.
  */
 
-import { APPROVAL_REFUSAL, checkApproval, issueApproval, spendApproval, type Quote } from "./workshop/approval.ts";
+import {
+  APPROVAL_REFUSAL,
+  checkApproval,
+  issueApproval,
+  spendApproval,
+  type Quote,
+} from "./workshop/approval.ts";
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
@@ -665,7 +671,9 @@ async function gatePaid(
   args: Record<string, unknown>,
   deps: WorkshopDeps,
   offer: Record<string, unknown>,
-): Promise<{ stop: Record<string, unknown> } | { payload: Record<string, unknown> }> {
+): Promise<
+  { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
+> {
   if (args.confirmed === true) {
     const check = checkApproval(payload, quote, {
       token: args.approval_token,
@@ -673,18 +681,33 @@ async function gatePaid(
       approvedOutOfBand: deps.approvedOutOfBand === true,
     });
     if (check.ok) return { payload };
-    const fresh = await quotePaid(supabase, tenantId, itemId, payload, quote, deps);
+    const fresh = await quotePaid(
+      supabase,
+      tenantId,
+      itemId,
+      payload,
+      quote,
+      deps,
+    );
     return {
       stop: {
         ...offer,
         needs_approval: true,
         approval_token: fresh,
         refused: check.reason,
-        message: `${APPROVAL_REFUSAL[check.reason]} ${String(offer.message ?? "")}`.trim(),
+        message:
+          `${APPROVAL_REFUSAL[check.reason]} ${String(offer.message ?? "")}`.trim(),
       },
     };
   }
-  const token = await quotePaid(supabase, tenantId, itemId, payload, quote, deps);
+  const token = await quotePaid(
+    supabase,
+    tenantId,
+    itemId,
+    payload,
+    quote,
+    deps,
+  );
   return { stop: { ...offer, needs_approval: true, approval_token: token } };
 }
 
@@ -1938,7 +1961,9 @@ export async function executeWorkshopTool(
     const redone = new Set(
       results.filter((result) => result.ok).map((result) => result.scene),
     );
-    const leftToRedo = stringList(payload[REDO_KEY]).filter((id) => !redone.has(id));
+    const leftToRedo = stringList(payload[REDO_KEY]).filter(
+      (id) => !redone.has(id),
+    );
     const settled = spendApproval(
       { ...payload, [REDO_KEY]: leftToRedo },
       "workshop_make_stills",
@@ -2089,7 +2114,11 @@ export async function executeWorkshopTool(
         spendApproval(
           {
             ...gate.payload,
-            video: { ...video, scene_engine: engine, sound_engine: "elevenlabs" },
+            video: {
+              ...video,
+              scene_engine: engine,
+              sound_engine: "elevenlabs",
+            },
           },
           "workshop_produce_video",
           costScenes.length,
