@@ -6,19 +6,24 @@
 
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
 
-export type SceneEngine = "mock" | "kling" | "elevenlabs" | "higgsfield";
+export type SceneEngine =
+  "mock" | "kling" | "elevenlabs" | "higgsfield" | "openrouter";
 
 export const ENGINE_LABEL: Record<SceneEngine, string> = {
   mock: "חינם — תצוגה",
   kling: "Kling",
   elevenlabs: "ElevenLabs",
   higgsfield: "Higgsfield",
+  openrouter: "OpenRouter (Kling 3)",
 };
 
 const KLING_USD_PER_5S = 0.85;
 const KLING_CREDITS_PER_5S = 5100;
 const ELEVENLABS_VIDEO_USD_PER_SECOND = 0.15;
 const HIGGSFIELD_USD_PER_SECOND = 0.1;
+/** OpenRouter kwaivgi/kling-v3.0-std (720p, no audio); Veo 3.1 for a talking scene. */
+const OPENROUTER_USD_PER_SECOND = 0.084;
+const OPENROUTER_TALKING_USD_PER_SECOND = 0.4;
 const VOICE_USD_PER_1000_CHARS = 0.12;
 const MUSIC_USD_PER_MINUTE = 0.5;
 
@@ -28,7 +33,8 @@ export const isSceneEngine = (value: unknown): value is SceneEngine =>
   value === "mock" ||
   value === "kling" ||
   value === "elevenlabs" ||
-  value === "higgsfield";
+  value === "higgsfield" ||
+  value === "openrouter";
 
 export function sceneClipSeconds(engine: SceneEngine, duration: number) {
   if (engine === "elevenlabs") {
@@ -37,8 +43,17 @@ export function sceneClipSeconds(engine: SceneEngine, duration: number) {
   }
   if (engine === "higgsfield")
     return Math.min(15, Math.max(1, Math.ceil(Number(duration) || 5)));
+  // OpenRouter's default video model, Kling v3, renders 3 to 15 s.
+  if (engine === "openrouter")
+    return Math.min(15, Math.max(3, Math.ceil(Number(duration) || 5)));
   return Number(duration) > 5 ? 10 : 5;
 }
+
+/** Veo 3.1 renders 4, 6 or 8 s; OpenRouter makes a talking scene on it. */
+const veoSeconds = (duration: number) => {
+  const seconds = Number(duration) || 5;
+  return seconds <= 4 ? 4 : seconds <= 6 ? 6 : 8;
+};
 
 export interface CostScene {
   duration_s: number;
@@ -57,7 +72,7 @@ export const LIPSYNC_USD_PER_SECOND = 0.1;
 
 /** Engines whose clip speaks the line itself (Veo 3.1, Seedance 2.5), so no lip-sync pass. */
 export const speaksNatively = (engine: SceneEngine) =>
-  engine === "elevenlabs" || engine === "higgsfield";
+  engine === "elevenlabs" || engine === "higgsfield" || engine === "openrouter";
 
 const talkingLine = (scene: CostScene) =>
   scene.lipsync
@@ -70,6 +85,23 @@ const talkingLine = (scene: CostScene) =>
  */
 export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
   const talking = scenes.filter((scene) => talkingLine(scene));
+  // OpenRouter makes a talking scene on Veo 3.1 with audio instead of the Kling clip that
+  // clipEstimate already counted; only the difference is added here.
+  if (talking.length > 0 && engine === "openrouter") {
+    const extra = talking.reduce(
+      (sum, scene) =>
+        sum +
+        veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
+        sceneClipSeconds(engine, scene.duration_s) * OPENROUTER_USD_PER_SECOND,
+      0,
+    );
+    return {
+      usd: roundUsd(Math.max(0, extra)),
+      credits: 0,
+      scenes: talking.length,
+      native: true,
+    };
+  }
   if (talking.length === 0 || speaksNatively(engine))
     return {
       usd: 0,
@@ -114,7 +146,9 @@ export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
   const rate =
     engine === "elevenlabs"
       ? ELEVENLABS_VIDEO_USD_PER_SECOND
-      : HIGGSFIELD_USD_PER_SECOND;
+      : engine === "openrouter"
+        ? OPENROUTER_USD_PER_SECOND
+        : HIGGSFIELD_USD_PER_SECOND;
   return { usd: roundUsd(seconds * rate), credits: 0, seconds };
 }
 
@@ -168,13 +202,26 @@ export function productionEstimate(
   };
 }
 
-/** The engine the tenant can actually use: its own ElevenLabs or Higgsfield keys, else the free preview. */
-export function engineFromKeys(settings: Record<string, unknown>): SceneEngine {
+/** Connections outside the LLM integration settings that can make video. */
+export interface VideoConnections {
+  /** The tenant connected OpenRouter as a Carmen brain (existence only; no key here). */
+  openrouter?: boolean;
+}
+
+/**
+ * The engine the tenant can actually use: its own ElevenLabs or Higgsfield keys, then an
+ * OpenRouter brain connection, else the free preview.
+ */
+export function engineFromKeys(
+  settings: Record<string, unknown>,
+  connections: VideoConnections = {},
+): SceneEngine {
   const has = (key: string) =>
     typeof settings[key] === "string" &&
     (settings[key] as string).trim() !== "";
   if (has("elevenlabs_api_key")) return "elevenlabs";
   if (higgsfieldReady(settings)) return "higgsfield";
+  if (connections.openrouter) return "openrouter";
   return "mock";
 }
 
@@ -222,20 +269,24 @@ export async function elevenLabsMediaAllowed(
 
 /**
  * Picks a scene engine the account can run. ElevenLabs video needs Pro; a Starter key
- * uses Higgsfield when it is connected, otherwise the free preview.
+ * uses Higgsfield when it is connected, then OpenRouter, otherwise the free preview.
  */
 export async function sceneEngineFor(
   settings: Record<string, unknown>,
   fetchImpl: typeof fetch = fetch,
+  connections: VideoConnections = {},
 ): Promise<SceneEngine> {
-  const higgsfield = higgsfieldReady(settings);
+  const fallback: SceneEngine = higgsfieldReady(settings)
+    ? "higgsfield"
+    : connections.openrouter
+      ? "openrouter"
+      : "mock";
   const elevenKey = hasKey(settings, "elevenlabs_api_key")
     ? String(settings.elevenlabs_api_key).trim()
     : "";
   if (elevenKey) {
     const allowed = await elevenLabsMediaAllowed(elevenKey, fetchImpl);
     if (allowed !== false) return "elevenlabs";
-    return higgsfield ? "higgsfield" : "mock";
   }
-  return higgsfield ? "higgsfield" : "mock";
+  return fallback;
 }

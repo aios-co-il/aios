@@ -93,6 +93,13 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - Migration `20261025150000_video_lipsync.sql`. Request shapes follow the docs below and need one paid call each before they are relied on, including Hebrew speech quality on Veo 3.1 and Seedance 2.5. Kling's own native audio supports only Chinese and English, so Kling is used only for the lip-sync pass.
 - Docs: [ElevenLabs Create Video Generation](https://elevenlabs.io/docs/api-reference/flows/video/create), [ElevenLabs API models](https://elevenlabs.io/docs/eleven-api/guides/cookbooks/image-and-video), [Higgsfield Seedance 2.5 image-to-video](https://docs.higgsfield.ai/docs/models/seedance-2-5/image-to-video), [Higgsfield Seedance 2.5 reference-to-video](https://docs.higgsfield.ai/docs/models/seedance-2-5/reference-to-video), [Kling lip-sync (mirror of the official reference)](https://glama.ai/mcp/servers/@199-mcp/mcp-kling/blob/e9fb31f6890c56512def634e9f7ca5eadc3e3ea6/kling-api-docs.md), [Kling 2.6 audio guide](https://kling.ai/quickstart/klingai-video-26-audio-user-guide).
 
+## OpenRouter engine
+
+- A talking scene on `openrouter` is made in one pass on Veo 3.1 (`OPENROUTER_TALKING_MODEL`) with audio, the Hebrew line in the prompt. Planning price $0.40 per second for that scene instead of Kling 3's $0.084.
+- Carmen sees OpenRouter as a video engine when the tenant has an OpenRouter brain (`tenantOpenRouterConnectionId`, existence only; the worker reads the key from Vault). No new settings field.
+- Carmen picks it after ElevenLabs and Higgsfield, and the worker uses it as the fallback when the chosen engine refuses before submit, before the free preview.
+- Migration `20261025120000_video_studio_openrouter_engine.sql` lets `queue_video_clips` accept `openrouter`. The talking slug, `generate_audio` and Hebrew speech need one paid call before relying on them. Docs: [video generation](https://openrouter.ai/docs/guides/overview/multimodal/video-generation), [image-to-video](https://openrouter.ai/docs/cookbook/video-generation/image-to-video).
+
 ## Provider checks (before writing provider code)
 
 Checked against current public docs on 2026-10-13; outbound access to the vendor docs sites is blocked from the agent container, so these come from search results and should be confirmed with a live API call when the phase starts.

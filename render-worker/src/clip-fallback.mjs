@@ -18,15 +18,36 @@ const isNoCredit = (error) =>
     String(error instanceof Error ? error.message : error),
   );
 
+/** Refused before any job was accepted, so moving on cannot charge twice. */
+const refusedBeforeSubmit = (error) =>
+  !error?.submitted && (isNoCredit(error) || isRejectedKey(error));
+
+/** The tenant has an OpenRouter key; it is read from Vault only when a fallback needs it. */
+async function openRouterReady(keys, resolveOpenRouterKey, log) {
+  if (keys?.openRouterKey) return true;
+  if (!resolveOpenRouterKey) return false;
+  try {
+    return Boolean(await resolveOpenRouterKey());
+  } catch (error) {
+    log(
+      `OpenRouter key lookup failed: ${error instanceof Error ? error.message : error}`,
+    );
+    return false;
+  }
+}
+
 /**
- * Runs a clip on the engine the user approved. Only an ElevenLabs plan that cannot make video
- * moves the clip to Higgsfield, and a rejected Higgsfield key to the free preview, and only
- * before any provider accepted a job: once a job id is saved the run resumes that job or fails,
- * so a scene is never paid for twice. The clip records which engine it replaced.
+ * Runs a clip on the engine the user approved. When that engine refuses the job before
+ * accepting it, the clip moves down the chain and records which engine it replaced:
+ *   ElevenLabs plan that cannot make video -> Higgsfield (with a key) -> OpenRouter -> free preview
+ *   any other paid engine with no credits or a rejected key -> OpenRouter (with a key) -> free preview
+ * Only before any provider accepted a job: once a job id is saved the run resumes that job or
+ * fails, so a scene is never paid for twice.
  *
  * @param {{
  *   name: string,
- *   keys: { higgsfieldKeyId?: string | null, higgsfieldKeySecret?: string | null },
+ *   keys: { higgsfieldKeyId?: string | null, higgsfieldKeySecret?: string | null, openRouterKey?: string | null },
+ *   resolveOpenRouterKey?: (() => Promise<string | null>) | null,
  *   savedProvider?: string | null,
  *   savedJobId?: string | null,
  *   run: (provider: string, fallbackFrom: string | null) => Promise<any>,
@@ -38,6 +59,7 @@ export async function runClipWithFallback({
   keys,
   savedProvider = null,
   savedJobId = null,
+  resolveOpenRouterKey = null,
   run,
   log = () => {},
 }) {
@@ -48,33 +70,36 @@ export async function runClipWithFallback({
   try {
     return await run(name, null);
   } catch (error) {
-    const submitted = Boolean(error?.submitted) || Boolean(savedJobId);
-    // A paid engine that refused the job before accepting it (no credits, rejected key):
-    // the scene moves with the free camera motion so the film still assembles.
-    if (
-      name !== "mock" &&
-      name !== "elevenlabs" &&
-      !submitted &&
-      (isNoCredit(error) || isRejectedKey(error))
-    ) {
-      log(`${name} refused the job before it started; using the free preview`);
-      return await run("mock", name);
-    }
-    if (name !== "elevenlabs" || submitted || !isPaidPlanError(error))
+    if (name === "mock" || error?.submitted || savedJobId) throw error;
+    const chain = [];
+    if (name === "elevenlabs") {
+      // ElevenLabs keeps its own rule: only a plan that cannot make video moves on.
+      if (!isPaidPlanError(error)) throw error;
+      log("ElevenLabs plan cannot make video");
+      if (
+        higgsfieldCredential(keys?.higgsfieldKeyId, keys?.higgsfieldKeySecret)
+      )
+        chain.push("higgsfield");
+    } else if (refusedBeforeSubmit(error)) {
+      log(`${name} refused the job before it started`);
+    } else {
       throw error;
-    if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret)) {
+    }
+    if (
+      name !== "openrouter" &&
+      (await openRouterReady(keys, resolveOpenRouterKey, log))
+    )
+      chain.push("openrouter");
+    for (const next of chain) {
       try {
-        log("ElevenLabs plan cannot make video; using higgsfield");
-        return await run("higgsfield", name);
-      } catch (higgsError) {
-        if (
-          higgsError?.submitted ||
-          !(isRejectedKey(higgsError) || isNoCredit(higgsError))
-        )
-          throw higgsError;
-        log("Higgsfield refused the job; using the free preview");
+        log(`using ${next}`);
+        return await run(next, name);
+      } catch (nextError) {
+        if (!refusedBeforeSubmit(nextError)) throw nextError;
+        log(`${next} refused the job before it started`);
       }
     }
+    log("using the free preview");
     return await run("mock", name);
   }
 }

@@ -24,12 +24,18 @@ const HANDLERS = {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
         ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
-      // Read from Vault only for the engine that needs it.
-      if (name === "openrouter")
-        keys.openRouterKey = await openRouterKey(ctx.run.tenant_id);
+      // Read from Vault only for the engine that needs it: the chosen engine, a saved
+      // OpenRouter fallback job being resumed, or the fallback itself (resolved on demand).
+      if (name === "openrouter" || ctx.run.provider === "openrouter")
+        keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id);
       return runClipWithFallback({
         name,
         keys,
+        resolveOpenRouterKey: async () =>
+          (keys.openRouterKey ??= await openRouterKey(
+            ctx.db,
+            ctx.run.tenant_id,
+          )),
         savedProvider: ctx.run.provider ?? null,
         savedJobId: ctx.run.provider_job_id ?? null,
         run: (providerName, fallbackFrom) =>
@@ -143,7 +149,7 @@ async function resolveMediaKeys(db, tenantId) {
  * settings (מוחות, חיבורים ומפתחות AI), read from Vault. No env fallback, so
  * every tenant pays for its own generations.
  */
-async function openRouterKey(tenantId) {
+async function openRouterKey(db, tenantId) {
   const rows = await db.select(
     "carmen_brain_connections",
     `tenant_id=eq.${tenantId}&kind=eq.chat_model&provider_preset=eq.openrouter&key_last4=not.is.null&select=id&order=created_at.asc&limit=1`,

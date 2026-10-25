@@ -73,6 +73,7 @@ import {
 } from "../_shared/workshop/role-project.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
   connectedProviders,
@@ -5845,8 +5846,11 @@ async function executeTool(
             .maybeSingle();
           return sceneEngineFor(
             (data?.settings || {}) as Record<string, unknown>,
+            fetch,
+            await videoConnectionsFor(supabase, tenantId),
           );
         },
+        videoConnections: () => videoConnectionsFor(supabase, tenantId),
       },
     );
   }

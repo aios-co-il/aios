@@ -86,7 +86,7 @@ export async function generateClip({
     throw finalError("clip run: the scene has no still (is required)");
   const durationS = Number(input.duration_s) || 5;
   const aspect = input.aspect || "9:16";
-  const estimate = provider.estimate({ durationS });
+  const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
   let jobId =
     run.provider === provider.name && provider.name !== "mock"

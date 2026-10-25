@@ -54,6 +54,20 @@ test("the report says what can be made and what is missing, without key values",
   assert.ok(bare.missing.length >= 3);
 });
 
+test("an OpenRouter brain connection counts as a real video engine", () => {
+  const report = capabilityReport(
+    { google_api_key: "g" },
+    {},
+    {
+      openrouter: true,
+    },
+  );
+  assert.equal(report.can.video, true);
+  assert.equal(report.can.video_engine, "OpenRouter (Kling 3)");
+  assert.equal(report.can.openrouter_video, true);
+  assert.equal(capabilityReport({}).can.openrouter_video, false);
+});
+
 test("a Google key is enough for Gemini narration", () => {
   const report = capabilityReport({ google_api_key: "g" });
   assert.equal(report.can.narration, true);

@@ -4,7 +4,11 @@
  */
 
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
-import { engineFromKeys, ENGINE_LABEL } from "./video-cost.ts";
+import {
+  engineFromKeys,
+  ENGINE_LABEL,
+  type VideoConnections,
+} from "./video-cost.ts";
 
 export type Provider =
   "openai" | "google" | "anthropic" | "elevenlabs" | "higgsfield";
@@ -45,10 +49,11 @@ export const imageProvidersFor = (connected: Record<Provider, boolean>) =>
 export function capabilityReport(
   settings: Record<string, unknown>,
   env: { openai?: string } = {},
+  connections: VideoConnections = {},
 ) {
   const connected = connectedProviders(settings, env);
   const images = imageProvidersFor(connected);
-  const engine = engineFromKeys(settings);
+  const engine = engineFromKeys(settings, connections);
   const brains = (["openai", "google", "anthropic"] as const).filter(
     (provider) => connected[provider],
   );
@@ -63,7 +68,7 @@ export function capabilityReport(
     missing.push("בלי ElevenLabs אין מוזיקה והנפשה במנוע ElevenLabs");
   if (engine === "mock")
     missing.push(
-      "אין מנוע וידאו אמיתי (ElevenLabs או Higgsfield): הסרט יופק במנוע בדיקה",
+      "אין מנוע וידאו אמיתי (ElevenLabs, Higgsfield או OpenRouter): הסרט יופק במנוע בדיקה",
     );
   if (brains.length === 0) missing.push("אין מפתח למודל שפה");
   return {
@@ -74,6 +79,8 @@ export function capabilityReport(
       image_providers: images.map((provider) => PROVIDER_LABEL[provider]),
       video: engine !== "mock",
       video_engine: ENGINE_LABEL[engine],
+      /** OpenRouter is connected as a Carmen brain and can also make video. */
+      openrouter_video: connections.openrouter === true,
       narration: connected.elevenlabs || connected.google,
       music: connected.elevenlabs,
     },

@@ -39,6 +39,7 @@ test("clip prices match the app for every engine", () => {
     "kling",
     "elevenlabs",
     "higgsfield",
+    "openrouter",
   ] as SceneEngine[]) {
     const mine = clipEstimate(engine, scenes);
     const app = appScenes(engine, frames);
@@ -151,4 +152,40 @@ test("Starter ElevenLabs video moves to Higgsfield", async () => {
     await sceneEngineFor({ elevenlabs_api_key: "xi" }, pro),
     "elevenlabs",
   );
+});
+
+test("an OpenRouter brain connection makes OpenRouter the video engine after ElevenLabs and Higgsfield", async () => {
+  const openrouter = { openrouter: true };
+  assert.equal(engineFromKeys({}, openrouter), "openrouter");
+  assert.equal(
+    engineFromKeys({ elevenlabs_api_key: "xi" }, openrouter),
+    "elevenlabs",
+  );
+  assert.equal(
+    engineFromKeys({ higgsfield_api_key_secret: "a:b" }, openrouter),
+    "higgsfield",
+  );
+  const starter = (async () =>
+    new Response(JSON.stringify({ tier: "starter" }), {
+      status: 200,
+    })) as typeof fetch;
+  assert.equal(
+    await sceneEngineFor({ elevenlabs_api_key: "xi" }, starter, openrouter),
+    "openrouter",
+  );
+  assert.equal(await sceneEngineFor({}, starter, openrouter), "openrouter");
+  assert.equal(await sceneEngineFor({}, starter), "mock");
+});
+
+test("OpenRouter quotes Kling 3 lengths and adds the Veo price for talking scenes", () => {
+  const clips = clipEstimate("openrouter", scenes);
+  assert.equal(clips.seconds, 3 + 7 + 12);
+  assert.equal(clips.usd, 1.85);
+  assert.ok(speaksNatively("openrouter"));
+  const talking = lipsyncEstimate("openrouter", [
+    { duration_s: 5, voiceover_text: "", lipsync: true, dialogue: "שלום" },
+  ]);
+  assert.equal(talking.native, true);
+  // Veo 3.1 6 s at $0.40 instead of a 5 s Kling clip at $0.084.
+  assert.equal(talking.usd, 1.98);
 });

@@ -66,6 +66,7 @@ import {
   isSceneEngine,
   productionEstimate,
   type SceneEngine,
+  type VideoConnections,
 } from "./workshop/video-cost.ts";
 import { executeCreativeStudioTool } from "./creative-studio-tools.ts";
 import { buildEditScenes, EDIT_TOOL } from "./workshop/edit-tool.ts";
@@ -476,7 +477,7 @@ export const WORKSHOP_TOOLS = [
         client_id: { type: "string" },
         engine: {
           type: "string",
-          enum: ["mock", "kling", "elevenlabs", "higgsfield"],
+          enum: ["mock", "kling", "elevenlabs", "higgsfield", "openrouter"],
           description:
             "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון",
         },
@@ -699,6 +700,8 @@ export interface WorkshopDeps {
   /** Image engines the tenant has keys for; more than one means the user chooses. */
   imageEngines?: () => Promise<ImageProvider[]>;
   defaultEngine?: () => Promise<SceneEngine>;
+  /** Video engines connected outside the LLM settings (an OpenRouter brain connection). */
+  videoConnections?: () => Promise<VideoConnections>;
   envOpenAiKey?: string;
   /** Keeps work running after the chat reply is sent (the edge runtime's waitUntil). */
   background?: (work: Promise<unknown>) => void;
@@ -1144,6 +1147,7 @@ export async function executeWorkshopTool(
     const report = capabilityReport(
       (data?.settings ?? {}) as Record<string, unknown>,
       { openai: deps.envOpenAiKey },
+      deps.videoConnections ? await deps.videoConnections() : {},
     );
     return {
       success: true,

@@ -8,11 +8,14 @@ import { connectionSecret } from "../carmen/brain-connections/overrides.ts";
 export const OPENROUTER_IMAGE_MODEL = "google/gemini-3.1-flash-image";
 const IMAGES_URL = "https://openrouter.ai/api/v1/images";
 
-/** The first connected OpenRouter brain's key in this tenant, or "". */
-export async function tenantOpenRouterKey(
+/**
+ * The first connected OpenRouter brain in this tenant (its row id), or null. Reads no
+ * secret, so it also answers "does this tenant have OpenRouter?" (workshop video engine).
+ */
+export async function tenantOpenRouterConnectionId(
   sb: SecretClient,
   tenantId: string,
-): Promise<string> {
+): Promise<string | null> {
   const { data, error } = await sb
     .from("carmen_brain_connections")
     .select("id")
@@ -23,8 +26,18 @@ export async function tenantOpenRouterKey(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error || !data?.id) return "";
-  return await connectionSecret(sb, data.id);
+  if (error || !data?.id) return null;
+  return data.id;
+}
+
+/** The first connected OpenRouter brain's key in this tenant, or "". */
+export async function tenantOpenRouterKey(
+  sb: SecretClient,
+  tenantId: string,
+): Promise<string> {
+  const id = await tenantOpenRouterConnectionId(sb, tenantId);
+  if (!id) return "";
+  return await connectionSecret(sb, id);
 }
 
 /** One image; throws with the provider's status on failure (502 is not billed). */
