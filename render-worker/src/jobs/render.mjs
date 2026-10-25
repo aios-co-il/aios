@@ -124,10 +124,18 @@ export async function renderFilm({ db, run, log = console.log }) {
           join(dir, "music.audio"),
         )
       : null;
+    const narrationPath = sources.narrationPath
+      ? await materialize(
+          db,
+          run.tenant_id,
+          sources.narrationPath,
+          join(dir, "narration.audio"),
+        )
+      : null;
     const timeline = buildTimeline(local, {
       aspect: run.input?.aspect || "9:16",
       musicPath,
-      narrationPath: sources.narrationPath,
+      narrationPath,
     });
     const output = join(dir, "film.mp4");
     await assembleFilm(timeline, output);
