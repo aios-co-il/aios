@@ -192,3 +192,27 @@ test("a brand with a logo or CTA adds an end card and stages the logo", () => {
   assert.equal(colorsOnly.endCard, null);
   assert.equal(colorsOnly.totalFrames, 60);
 });
+
+test("a talking clip's line is captioned across its speech", () => {
+  const { manifest } = buildWorkshopManifest({
+    scenes: [
+      scene("t", {
+        clipProvider: "openrouter",
+        stillPath: null,
+        lipsync: true,
+        clipDurationS: 4,
+        spokenText: "מחכה לכם לקפה של בוקר",
+      }),
+    ],
+  });
+  const words = manifest.captions.flatMap((chunk) => chunk.words);
+  assert.deepEqual(
+    words.map((w) => w.text),
+    ["מחכה", "לכם", "לקפה", "של", "בוקר"],
+  );
+  assert.ok(words[0].startFrame > 0);
+  const last = words[words.length - 1];
+  assert.ok(last.endFrame <= manifest.scenes[0].frameCount);
+  for (let i = 1; i < words.length; i++)
+    assert.ok(words[i].startFrame >= words[i - 1].endFrame);
+});

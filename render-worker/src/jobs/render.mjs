@@ -182,6 +182,7 @@ export async function loadFilmSources(db, run) {
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
+        spokenText: clipTalks ? talkingLine(scene) : "",
         muteClip: spokeOldLine,
       };
     })

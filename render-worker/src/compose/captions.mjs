@@ -67,6 +67,31 @@ export const wordsToFrames = (words, fps, offsetFrames = 0) =>
   });
 
 /**
+ * Captions for a line we know but have no word timings for (a talking clip speaks it): the words
+ * share the span by length, so each shows roughly while it is said.
+ */
+export function spreadWords(text, startFrame, endFrame) {
+  const words = String(text ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 60);
+  const span = endFrame - startFrame;
+  if (!words.length || span < words.length) return [];
+  const total = words.reduce((sum, word) => sum + word.length + 1, 0);
+  let at = startFrame;
+  return words.map((word) => {
+    const length = Math.max(1, Math.round((span * (word.length + 1)) / total));
+    const framed = {
+      text: word.slice(0, 40),
+      startFrame: at,
+      endFrame: Math.min(endFrame, at + length),
+    };
+    at = framed.endFrame;
+    return framed;
+  });
+}
+
+/**
  * Groups framed words into short caption lines: at most five words, a new line after a
  * pause or a sentence end. A line holds on screen briefly after its last word.
  */

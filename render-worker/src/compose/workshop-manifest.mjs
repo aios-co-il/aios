@@ -3,6 +3,7 @@
 import { brandColor, brandFont } from "./brand.mjs";
 import {
   captionChunks,
+  spreadWords,
   wordsFromAlignment,
   wordsToFrames,
 } from "./captions.mjs";
@@ -154,7 +155,18 @@ export function buildWorkshopManifest(timeline) {
       if (!words.length && p.voiceS)
         spans.push([startFrame, startFrame + Math.ceil(p.voiceS * fps)]);
     }
-    if (p.scene.lipsync) spans.push([startFrame, startFrame + frameCount]);
+    if (p.scene.lipsync) {
+      spans.push([startFrame, startFrame + frameCount]);
+      // The clip speaks the line with no word timings: caption it across the speech.
+      if (p.scene.spokenText)
+        framed = framed.concat(
+          spreadWords(
+            p.scene.spokenText,
+            startFrame + Math.round(fps * 0.3),
+            startFrame + frameCount - TAIL_FRAMES,
+          ),
+        );
+    }
     const transition = sceneTransition(order, p.scene.transition);
     return {
       id: String(p.scene.id),
