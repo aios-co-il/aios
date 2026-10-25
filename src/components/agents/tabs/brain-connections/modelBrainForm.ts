@@ -20,6 +20,8 @@ export type ModelBrainForm = {
   maxTokens: string;
   description: string;
   color: string;
+  tier: "free" | "premium";
+  clientDataOk: boolean;
   active: boolean;
 };
 
@@ -37,6 +39,8 @@ export function formFor(conn: BrainConnection | null): ModelBrainForm {
     maxTokens: p.max_tokens !== undefined ? String(p.max_tokens) : "",
     description: p.description ?? "",
     color: p.color ?? "#7c5cff",
+    tier: p.tier ?? (conn ? "premium" : tierOf(MODEL_PRESETS[0].id)),
+    clientDataOk: p.client_data_ok === true,
     active: true,
   };
 }
@@ -51,7 +55,13 @@ export function withPreset(f: ModelBrainForm, id: string): ModelBrainForm {
     baseUrl: p.base_url || f.baseUrl,
     model: p.models[0] ?? f.model,
     name: f.name || (p.id === "custom" ? "" : p.label),
+    tier: tierOf(id),
   };
+}
+
+/** A preset with a free tier starts as a free brain. */
+function tierOf(presetId: string): "free" | "premium" {
+  return presetById(presetId)?.free ? "free" : "premium";
 }
 
 export function profileOf(f: ModelBrainForm): BrainProfile {
@@ -61,6 +71,8 @@ export function profileOf(f: ModelBrainForm): BrainProfile {
     max_tokens: f.maxTokens === "" ? undefined : Number(f.maxTokens),
     description: f.description,
     color: f.color,
+    tier: f.tier,
+    client_data_ok: f.clientDataOk,
   };
 }
 

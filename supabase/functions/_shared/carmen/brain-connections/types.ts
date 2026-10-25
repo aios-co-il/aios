@@ -11,6 +11,10 @@ export type BrainProfile = {
   max_tokens?: number;
   description?: string;
   color?: string;
+  /** "נתב חכם" picks free models first; a premium model never runs on its own. */
+  tier?: "free" | "premium";
+  /** The owner allows client data to be sent to this model. */
+  client_data_ok?: boolean;
 };
 
 export type ChatMessage = {

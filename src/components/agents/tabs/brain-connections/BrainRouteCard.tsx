@@ -49,7 +49,7 @@ export function BrainRouteCard({
           >
             {connection
               ? `${connection.model} · ${connection.base_url}`
-              : route.slug}
+              : routeDescription(route)}
           </div>
         </div>
         <KeyBadge connection={connection} builtin={builtin} />
@@ -118,4 +118,10 @@ function KeyBadge({
   ) : (
     <Badge variant="destructive">לא מוגדר</Badge>
   );
+}
+
+/** The route's own description (e.g. "נתב חכם"), else its slug. */
+function routeDescription(route: BrainRouteSummary): string {
+  const d = route.config.description;
+  return typeof d === "string" && d ? d : route.slug;
 }

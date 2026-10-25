@@ -107,13 +107,15 @@ export function useBrainChannel(tenantId: string | null) {
           conversation_id: conversationId,
           content,
           idempotency_key: idempotencyKey,
+          // "נתב חכם" hands tool tasks to Carmen; her reply stays on its thread.
+          brain_slug: selectedRef.current?.slug,
         });
         setStatus("idle");
       } catch {
         /* best-effort */
       }
     },
-    [tenantId],
+    [tenantId, selectedRef],
   );
 
   const { cancelParliament, parliamentAction } = useParliamentActions(

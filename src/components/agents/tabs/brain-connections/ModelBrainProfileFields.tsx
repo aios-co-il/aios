@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { FormFieldsProps } from "./modelBrainForm";
 
@@ -49,6 +50,27 @@ export function ModelBrainProfileFields({ f, set }: FormFieldsProps) {
           onChange={(e) => set("description", e.target.value)}
           placeholder="למה המוח הזה טוב"
         />
+      </div>
+      <div className="space-y-2 rounded-md bg-muted/40 p-2">
+        <div className="text-xs font-medium">נתב חכם</div>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="brain-tier">מוח חינמי (הנתב בוחר בו קודם)</Label>
+          <Switch
+            id="brain-tier"
+            checked={f.tier === "free"}
+            onCheckedChange={(v) => set("tier", v ? "free" : "premium")}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="brain-client-data">
+            מותר לשלוח לו מידע של לקוחות
+          </Label>
+          <Switch
+            id="brain-client-data"
+            checked={f.clientDataOk}
+            onCheckedChange={(v) => set("clientDataOk", v)}
+          />
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <Label htmlFor="brain-color">צבע בבורר</Label>

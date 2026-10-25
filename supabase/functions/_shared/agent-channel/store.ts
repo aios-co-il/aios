@@ -89,7 +89,7 @@ export async function ensureDefaultRoutes(
       route_type: seed.route_type,
       provider: seed.provider,
       config: seed.config,
-      active: true,
+      active: seed.active ?? true,
     }));
     const { error } = await sb
       .from("agent_brain_routes")

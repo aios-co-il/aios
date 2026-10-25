@@ -20,6 +20,8 @@ export function sanitizeProfile(raw: unknown): BrainProfile {
     /^#[0-9a-fA-F]{6}$/.test(src.color.trim())
   )
     out.color = src.color.trim();
+  if (src.tier === "free" || src.tier === "premium") out.tier = src.tier;
+  if (src.client_data_ok === true) out.client_data_ok = true;
   return out;
 }
 

@@ -11,7 +11,17 @@ import { chatCompletionsUrl } from "../carmen/brain-connections/url.ts";
 
 const TIMEOUT_MS = 90_000;
 
-/** The reply text. Throws with the provider's error text on failure. */
+/** A failed call; status 0 means the request timed out. */
+export class ModelApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** The reply text. Throws ModelApiError with the provider's error text. */
 export async function callChatModel(args: {
   baseUrl: string;
   apiKey: string;
@@ -36,11 +46,14 @@ export async function callChatModel(args: {
     });
     const raw = await resp.text();
     if (!resp.ok)
-      throw new Error(`Model API ${resp.status}: ${providerError(raw)}`);
+      throw new ModelApiError(
+        resp.status,
+        `Model API ${resp.status}: ${providerError(raw)}`,
+      );
     return replyText(raw);
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError")
-      throw new Error("Model API timed out");
+      throw new ModelApiError(0, "Model API timed out");
     throw e;
   } finally {
     clearTimeout(timer);

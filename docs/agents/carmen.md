@@ -41,6 +41,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - **Built-in keys** (`kind = 'builtin'`): a UI key for cursor / claude / codex / chatgpt / grok overrides the env secret for that tenant's Command Center sends (`brain-env.ts` → `SendContext.env`). Other callers (MCP bridges, creatives, WhatsApp direct) still read env secrets.
 - Keys live in Vault. Only the service role can call `carmen_brain_secret_set/get/delete`; browsers see `key_last4` only. Shared presets, validation and types: `_shared/carmen/brain-connections/` (one file per topic, imported directly by the UI).
 - A member with a `brain_access` row gets a new brain only after a manager grants its slug in הרשאות.
+- **"נתב חכם"** (route `smart`, seeded hidden, `config.router = "free_first"`): per message, `_shared/carmen/free-first/` classifies the task. Tasks needing tools, approval or images go to Carmen's internal brain (her reply stays on the `smart` thread). Other tasks go to a connected model brain marked `tier: "free"` and `client_data_ok`, with failover to the next free brain on rate limit, timeout or 5xx. A paid brain never runs automatically: there is no budget ledger yet (`cost.ts` / `budget-reservation.ts` are not wired, AIO-211). Code: `_shared/agent-channel/smart-router.ts`.
 
 ## Carmen memory architecture
 

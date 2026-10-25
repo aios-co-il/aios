@@ -677,7 +677,9 @@ export const CarmenChatBar = forwardRef<
               role: "assistant",
               content: routed.inline_reply,
               speaker: routed.speaker ?? routed.kind,
-              channel: routed.speaker ?? routed.kind,
+              // The route's thread: "נתב חכם" replies keep its slug, spoken by
+              // whichever model it picked.
+              channel: route?.slug ?? routed.kind,
               ...tagChatTurn("typed"),
             },
           ]);

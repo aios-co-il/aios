@@ -68,4 +68,36 @@ describe("model brains", () => {
     expect(speakerLabel("gpt-copy")).toBe("GPT קופי");
     expect(speakerLabel("cursor")).toBe("Cursor");
   });
+
+  it("the smart router keeps replies from the model it picked on its own thread", () => {
+    const smart: BrainRoute = {
+      id: "r-smart",
+      slug: "smart",
+      label: "נתב חכם",
+      route_type: "model",
+      provider: "model",
+      config: { router: "free_first" },
+    };
+    const msgs = [
+      { role: "user", content: "שאלה", channel: "smart" },
+      {
+        role: "assistant",
+        content: "תשובה",
+        speaker: "gemini",
+        channel: "smart",
+      },
+      {
+        role: "assistant",
+        content: "ישיר",
+        speaker: "gemini",
+        channel: "gemini",
+      },
+    ];
+    expect(filterMessagesForRoute(msgs, smart).map((m) => m.content)).toEqual([
+      "שאלה",
+      "תשובה",
+    ]);
+    rememberRouteLabels([gemini]);
+    expect(speakerLabel("gemini")).toBe("Gemini");
+  });
 });

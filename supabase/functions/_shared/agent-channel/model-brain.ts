@@ -1,52 +1,88 @@
 /**
  * Chat-model brains connected from Carmen settings (route_type "model").
  * One synchronous chat completion per message; the reply is stored in the
- * conversation and returned inline.
+ * conversation and returned inline. "נתב חכם" reuses answerWithConnection.
  */
 import { buildModelMessages } from "../carmen/brain-connections/messages.ts";
 import { connectionSecret } from "../carmen/brain-connections/overrides.ts";
 import { sanitizeProfile } from "../carmen/brain-connections/profile.ts";
 import { type DbClient, serviceClient } from "../supabase-clients.ts";
-import { callChatModel } from "./chat-model-api.ts";
+import { callChatModel, ModelApiError } from "./chat-model-api.ts";
 import { acceptedMessageFor, capabilitiesForProvider } from "./logic.ts";
 import { insertMessage, logChannelAction } from "./store.ts";
 import type { SendContext, SendResult } from "./types.ts";
 
-/** Asks the route's model and stores its reply in the conversation. */
+export type ModelConnection = {
+  id: string;
+  slug: string;
+  name: string;
+  base_url: string;
+  model: string;
+  profile: unknown;
+};
+
+/** Asks the route's own model and stores its reply in the conversation. */
 export async function launchModelBrain(ctx: SendContext): Promise<SendResult> {
   const sb = serviceClient();
   const conn = await loadModelConnection(sb, ctx);
+  try {
+    return await answerWithConnection(sb, ctx, conn);
+  } catch (e) {
+    throw new Error(`${conn.name}: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/**
+ * One reply from `conn`, stored on the route's thread (channel = route slug)
+ * and spoken as the model (speaker = connection slug). Throws ModelApiError.
+ */
+export async function answerWithConnection(
+  sb: DbClient,
+  ctx: SendContext,
+  conn: ModelConnection,
+  routing?: Record<string, unknown>,
+): Promise<SendResult> {
   const apiKey = await connectionSecret(sb, conn.id);
   if (!apiKey)
-    throw new Error(`${conn.name}: אין מפתח API. הוסיפו מפתח בהגדרות המוחות.`);
-
+    throw new ModelApiError(401, "אין מפתח API. הוסיפו מפתח בהגדרות המוחות.");
   const profile = sanitizeProfile(conn.profile);
-  const outcome = await askModel({
-    baseUrl: conn.base_url,
-    apiKey,
-    model: conn.model,
-    profile,
-    messages: buildModelMessages({
+  let answer: string;
+  try {
+    answer = await callChatModel({
+      baseUrl: conn.base_url,
+      apiKey,
+      model: conn.model,
       profile,
-      history: ctx.history,
-      content: ctx.content,
-    }),
-  });
-  await logModelSend(sb, ctx, conn, outcome.error);
-  if (outcome.error) throw new Error(`${conn.name}: ${outcome.error}`);
+      messages: buildModelMessages({
+        profile,
+        history: ctx.history,
+        content: ctx.content,
+      }),
+    });
+  } catch (e) {
+    await logModelSend(
+      sb,
+      ctx,
+      conn,
+      e instanceof Error ? e.message : String(e),
+    );
+    throw e;
+  }
+  await logModelSend(sb, ctx, conn, null);
 
   await insertMessage(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
     role: "assistant",
     speaker: conn.slug,
-    channel: conn.slug,
-    content: outcome.answer,
+    channel: ctx.route.slug,
+    content: answer,
     metadata: {
       origin: "model",
       delivery_mode: "text",
       connection_id: conn.id,
       model: conn.model,
+      ...(routing ? { routing } : {}),
     },
   });
   return {
@@ -59,18 +95,9 @@ export async function launchModelBrain(ctx: SendContext): Promise<SendResult> {
     accepted_message: acceptedMessageFor("model"),
     external_url: null,
     capabilities: capabilitiesForProvider("model"),
-    inline_reply: outcome.answer,
+    inline_reply: answer,
   };
 }
-
-type ModelConnection = {
-  id: string;
-  slug: string;
-  name: string;
-  base_url: string;
-  model: string;
-  profile: unknown;
-};
 
 /** The route's chat-model connection in this tenant, fully configured. */
 async function loadModelConnection(
@@ -91,18 +118,7 @@ async function loadModelConnection(
   return { ...data, base_url: data.base_url, model: data.model };
 }
 
-/** The model's answer, or the error text to log and show. */
-async function askModel(
-  args: Parameters<typeof callChatModel>[0],
-): Promise<{ answer: string; error: null } | { answer: ""; error: string }> {
-  try {
-    return { answer: await callChatModel(args), error: null };
-  } catch (e) {
-    return { answer: "", error: e instanceof Error ? e.message : String(e) };
-  }
-}
-
-/** One agent_action_log row per model send, success or failure. */
+/** One agent_action_log row per model call, success or failure. */
 async function logModelSend(
   sb: DbClient,
   ctx: SendContext,
@@ -115,6 +131,7 @@ async function logModelSend(
     action: "channel_send_model",
     details: {
       conversation_id: ctx.conversationId,
+      route: ctx.route.slug,
       connection_id: conn.id,
       slug: conn.slug,
       model: conn.model,

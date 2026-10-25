@@ -17,7 +17,11 @@ import {
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
-import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
+import {
+  type InputMode,
+  isSmartRouter,
+  type SendResult,
+} from "../_shared/agent-channel/types.ts";
 import {
   cancelParliament,
   clarifyParliamentSeat,
@@ -235,12 +239,13 @@ Deno.serve(async (req) => {
     const content = String(body.content || "").trim();
     if (!conversationId || !content)
       return json(400, { error: "conversation_id and content are required" });
+    const channel = await persistChannel(sb, tenantId, body.brain_slug);
     const { row, duplicate } = await insertMessage(sb, {
       tenant_id: tenantId,
       conversation_id: conversationId,
       role: "assistant",
       speaker: "carmen",
-      channel: "internal",
+      channel,
       content,
       idempotency_key: body.idempotency_key
         ? String(body.idempotency_key)
@@ -414,3 +419,19 @@ Deno.serve(async (req) => {
     return json(500, { error: String(e?.message ?? e) });
   }
 });
+
+/**
+ * Carmen's streamed reply belongs to her own thread, except when "נתב חכם"
+ * handed her the task: then it stays on the router's thread.
+ */
+async function persistChannel(
+  sb: ReturnType<typeof serviceClient>,
+  tenantId: string,
+  brainSlug: unknown,
+): Promise<string> {
+  if (typeof brainSlug !== "string" || !brainSlug) return "internal";
+  const route = await loadRoute(sb, tenantId, { slug: brainSlug });
+  return route && route.slug === brainSlug && isSmartRouter(route)
+    ? route.slug
+    : "internal";
+}

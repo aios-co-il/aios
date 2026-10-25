@@ -138,6 +138,8 @@ export const DEFAULT_BRAIN_ROUTE_SEEDS: Array<{
   route_type: RouteType;
   provider: ChannelProvider | null;
   config: Record<string, unknown>;
+  /** Seeded hidden; the owner shows it in Carmen settings → מוחות. */
+  active?: boolean;
 }> = [
   {
     slug: "cursor",
@@ -193,4 +195,21 @@ export const DEFAULT_BRAIN_ROUTE_SEEDS: Array<{
       tools: "read_only",
     },
   },
+  {
+    slug: "smart",
+    label: "נתב חכם · חינמי קודם",
+    route_type: "model",
+    provider: "model",
+    config: {
+      router: "free_first",
+      description:
+        "בוחר לכל הודעה מוח חינמי מתאים; משימות עם כלים עוברות לכרמן",
+    },
+    active: false,
+  },
 ];
+
+/** The "נתב חכם" route: a model route that picks a connected model per message. */
+export function isSmartRouter(route: Pick<BrainRouteRow, "config">): boolean {
+  return route.config?.router === "free_first";
+}

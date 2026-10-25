@@ -3,6 +3,7 @@ import type {
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
+  SendResult,
   WorkspaceProvider,
 } from "./types.ts";
 
@@ -101,6 +102,19 @@ export function capabilitiesForProvider(
         supports_cancel: false,
       };
   }
+}
+
+/** Carmen's own brain answers: the client streams the reply from run-ai-agent. */
+export function internalStreamResult(conversationId: string): SendResult {
+  return {
+    ok: true,
+    kind: "internal",
+    conversation_id: conversationId,
+    status: statusForKind("internal"),
+    stream: true,
+    accepted_message: acceptedMessageFor("internal"),
+    capabilities: capabilitiesForProvider("internal"),
+  };
 }
 
 export function statusForKind(kind: ChannelProvider): ConversationStatus {

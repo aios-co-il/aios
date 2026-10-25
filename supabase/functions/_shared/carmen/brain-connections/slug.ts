@@ -11,6 +11,7 @@ export const RESERVED_BRAIN_SLUGS = new Set([
   "parliament",
   "carmen",
   "model",
+  "smart",
 ]);
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{1,47}$/;
