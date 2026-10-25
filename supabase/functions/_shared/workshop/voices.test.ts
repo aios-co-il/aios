@@ -23,3 +23,23 @@ test("only voices that produced a sample are offered when some did", () => {
   assert.match(menu, /יעל/);
   assert.doesNotMatch(menu, /תמר/);
 });
+
+test("Carmen's guess of a gender does not hide voices the user did not rule out", async () => {
+  const { chooseVoice } = await import("./voice-tool.ts");
+  const helpers = (userText: string | null) => ({
+    voiceSample: async (id: string) => ({ path: `voices/${id}.mp3` }),
+    addSamplePage: async () => {},
+    saveVoice: async () => {},
+    userText,
+  });
+  const open = await chooseVoice(
+    { gender: "female" },
+    helpers("תערכי לי סרטון מהחומרים"),
+  );
+  assert.match(String(open.say_to_user), /נמרוד/);
+  const asked = await chooseVoice(
+    { gender: "female" },
+    helpers("אני רוצה קריינית"),
+  );
+  assert.doesNotMatch(String(asked.say_to_user), /נמרוד/);
+});

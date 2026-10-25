@@ -38,7 +38,12 @@ export interface VoiceHelpers {
   ) => Promise<void>;
   /** Saves the chosen voice on the project. */
   saveVoice: (voiceId: string, name: string) => Promise<void>;
+  /** The user's message this turn: a gender filter applies only when the user asked for one. */
+  userText?: string | null;
 }
+
+/** Did the user ask for a woman's or a man's voice? */
+const ASKED_GENDER = /קריינית|קריין|קול נשי|קול גברי|אישה|גבר|female|male/i;
 
 export async function chooseVoice(
   args: Record<string, unknown>,
@@ -54,8 +59,11 @@ export async function chooseVoice(
       message: `הקול נשמר: ${picked.name}. הקריינות של הסרט תהיה בקול הזה.`,
     };
   }
+  const asked =
+    helpers.userText === undefined ||
+    ASKED_GENDER.test(String(helpers.userText ?? ""));
   const gender =
-    args.gender === "female" || args.gender === "male"
+    asked && (args.gender === "female" || args.gender === "male")
       ? args.gender
       : undefined;
   const voices = HEBREW_VOICES.filter((v) => !gender || v.gender === gender);
@@ -72,7 +80,12 @@ export async function chooseVoice(
         sample.path,
         voice.id,
       );
-    else missing.push(voice.name);
+    else {
+      missing.push(voice.name);
+      console.warn(
+        `[workshop voice] no sample for ${voice.name}: ${sample.error ?? ""}`,
+      );
+    }
   }
   return {
     needs_input: true,

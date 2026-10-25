@@ -104,7 +104,7 @@ export async function workshopTurnNote(
     if (payload.project_type === "video") {
       const scenes = await supabase
         .from("marketing_video_scenes")
-        .select("still_asset_id, voiceover_text")
+        .select("still_asset_id, clip_asset_id, clip_stale, voiceover_text")
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId);
       const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Record<
@@ -114,7 +114,12 @@ export async function workshopTurnNote(
       const production = asRecord(asRecord(payload.video).production);
       const state: FilmState = {
         scenes: rows.length,
-        withStill: rows.filter((row) => row.still_asset_id).length,
+        // A scene made from the user's own video has its clip and needs no picture.
+        withStill: rows.filter(
+          (row) =>
+            row.still_asset_id ||
+            (row.clip_asset_id && row.clip_stale !== true),
+        ).length,
         narrated: rows.some((row) => String(row.voiceover_text ?? "").trim()),
         voiceChosen: Boolean(asRecord(payload.video).voice_id),
         producing: production.status === "running",
