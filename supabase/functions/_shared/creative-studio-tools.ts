@@ -14,7 +14,11 @@
  */
 
 const FORMATS = ["1:1", "4:5", "9:16", "16:9"] as const;
-const STILL_MODELS = ["gpt-image-1", "nano-banana-pro"] as const;
+const STILL_MODELS = [
+  "gpt-image-2.5-sunburst",
+  "gpt-image-1",
+  "nano-banana-pro",
+] as const;
 const SCENE_ENGINES = ["mock", "kling", "elevenlabs", "higgsfield"] as const;
 const SOUND_ENGINES = ["elevenlabs", "higgsfield"] as const;
 const ATTACH_ROLES = [
@@ -325,7 +329,10 @@ export async function executeCreativeStudioTool(
       },
       engines: isVideo(payload)
         ? {
-            still_model: video.still_model ?? "gpt-image-1",
+            still_model:
+              video.still_model === "nano-banana-pro"
+                ? "nano-banana-pro"
+                : "gpt-image-2.5-sunburst",
             scene_engine: video.scene_engine ?? "mock",
             sound_engine: video.sound_engine ?? "elevenlabs",
             voice_id: video.voice_id ?? null,
@@ -376,7 +383,10 @@ export async function executeCreativeStudioTool(
     }
     const stillModel = pick(STILL_MODELS, args.still_model);
     if (stillModel) {
-      nextVideo.still_model = stillModel;
+      nextVideo.still_model =
+        stillModel === "nano-banana-pro"
+          ? "nano-banana-pro"
+          : "gpt-image-2.5-sunburst";
       changed.push(`מודל פריימים ${stillModel}`);
     }
     const sceneEngine = pick(SCENE_ENGINES, args.scene_engine);

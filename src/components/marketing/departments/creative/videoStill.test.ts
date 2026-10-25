@@ -15,14 +15,14 @@ test("studio names are replaced and the no-text rule is appended", () => {
 });
 
 test("video settings read from payload.video with safe defaults", () => {
-  assert.equal(getStillModel(null), "gpt-image-1");
+  assert.equal(getStillModel(null), "gpt-image-2.5-sunburst");
   assert.equal(
     getStillModel({ video: { still_model: "nano-banana-pro" } }),
     "nano-banana-pro",
   );
   assert.equal(
     getStillModel({ video: { still_model: "other" } }),
-    "gpt-image-1",
+    "gpt-image-2.5-sunburst",
   );
   assert.equal(
     getCharacterRefUrl({ video: { character_ref_url: "https://x/c.png" } }),
