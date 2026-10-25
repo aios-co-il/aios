@@ -108,6 +108,9 @@ export function withLook(
   return { payload: { ...payload, [KEY]: next }, changed: true };
 }
 
+/** Words to print on the picture come in double quotes (workshop_make_creative's prompt rule). */
+const QUOTED = /["“”][^"“”]{2,}["“”]/;
+
 /** Prompt for one picture of the project, tied to the look. */
 export function stillPrompt(input: {
   visual: string;
@@ -134,6 +137,10 @@ export function stillPrompt(input: {
   if (rules.length === 0)
     rules.push(
       "Keep one consistent character, wardrobe and visual style across the whole project.",
+    );
+  if (QUOTED.test(input.visual))
+    rules.push(
+      "Write each quoted text exactly once, spelled exactly as given (Hebrew reads right to left), and no other words or letters anywhere in the picture.",
     );
   return [...parts, ...rules, input.suffix].join("\n\n");
 }

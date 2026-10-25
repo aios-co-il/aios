@@ -79,3 +79,31 @@ test("pictures a cut-off request left pending turn into failed pages", async () 
     calls.some((c) => c[0] === "eq" && c[1] === "status" && c[2] === "pending"),
   );
 });
+
+test("the turn note carries the brief answers and stops re-saving concepts", async () => {
+  const { workshopTurnNote } = await import("./turn-note.ts");
+  const payload = {
+    project_type: "static",
+    workshop_brief: { answers: { "טקסט על התמונה": "כותרת וקריאה לפעולה" } },
+  };
+  const rows: Record<string, unknown[]> = {
+    workshop_artifacts: [
+      { kind: "concept" },
+      { kind: "concept" },
+      { kind: "copy" },
+    ],
+  };
+  const query = (table: string) => {
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "in", "lt", "update"])
+      chain[name] = () => chain;
+    chain.maybeSingle = async () => ({ data: { payload } });
+    chain.then = (resolve: (value: unknown) => void) =>
+      resolve({ data: rows[table] ?? [], error: null });
+    return chain;
+  };
+  const note = await workshopTurnNote({ from: query }, "t1", "item-1", "שלום");
+  assert.ok(note);
+  assert.match(note, /טקסט על התמונה: כותרת וקריאה לפעולה/);
+  assert.match(note, /2 קונספטים ו-1 טקסטים/);
+});

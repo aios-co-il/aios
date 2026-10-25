@@ -71,3 +71,19 @@ test("the prompt carries the bible and tells the model which images are which", 
   assert.match(bare, /consistent character/);
   assert.doesNotMatch(bare, /attached/);
 });
+
+test("words to print are asked for exactly once, and only when there are words", () => {
+  const look = { bible: "" };
+  const base = { look, userReferences: 0, hasAnchor: false, suffix: "" };
+  const withText = stillPrompt({
+    ...base,
+    visual:
+      'A croissant on a wooden table. The text "קפה ומאפה ב-20 ש״ח" at the top.',
+  });
+  assert.match(withText, /exactly once/);
+  const bare = stillPrompt({
+    ...base,
+    visual: "A croissant on a wooden table.",
+  });
+  assert.doesNotMatch(bare, /exactly once/);
+});

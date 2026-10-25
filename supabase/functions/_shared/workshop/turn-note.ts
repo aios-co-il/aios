@@ -6,6 +6,10 @@
  */
 
 import { approveFromMessage } from "./budget-approve.ts";
+import { briefAnswersOf } from "./brief-answers.ts";
+import { failStalePictures } from "./stale-pictures.ts";
+
+export { failStalePictures };
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -40,28 +44,19 @@ export function nextFilmStep(state: FilmState): string {
   return "הפקת הסרט (workshop_produce_video)";
 }
 
-/** A picture page still pending after this was cut off: the request making it has ended. */
-const STALE_PICTURE_MS = 5 * 60_000;
-
-/** Turns pictures a cut-off request left spinning on the board into failed pages. */
-export async function failStalePictures(
-  supabase: Db,
-  tenantId: string,
-  itemId: string,
-  now = Date.now(),
-) {
-  await supabase
+/** How many concept and copy pages the project already has on the board. */
+async function boardCounts(supabase: Db, tenantId: string, itemId: string) {
+  const { data } = await supabase
     .from("workshop_artifacts")
-    .update({
-      status: "failed",
-      meta: { text: "נקטע לפני שהסתיים. אפשר לבקש שוב." },
-    })
+    .select("kind")
     .eq("tenant_id", tenantId)
     .eq("item_id", itemId)
-    .eq("status", "pending")
-    .eq("meta->>placeholder", "true")
-    .in("kind", ["image", "scene_still"])
-    .lt("created_at", new Date(now - STALE_PICTURE_MS).toISOString());
+    .in("kind", ["concept", "copy"]);
+  const rows = (Array.isArray(data) ? data : []) as { kind: string }[];
+  return {
+    concept: rows.filter((row) => row.kind === "concept").length,
+    copy: rows.filter((row) => row.kind === "copy").length,
+  };
 }
 
 export async function workshopTurnNote(
@@ -96,6 +91,16 @@ export async function workshopTurnNote(
         );
       }
     }
+    const answers = Object.entries(briefAnswersOf(payload));
+    if (answers.length > 0)
+      lines.push(
+        `תשובות הבריף (עבדי לפיהן ואל תשאלי שוב): ${answers.map(([q, a]) => `${q}: ${a}`).join(" · ")}.`,
+      );
+    const onBoard = await boardCounts(supabase, tenantId, itemId);
+    if (onBoard.concept + onBoard.copy > 0)
+      lines.push(
+        `בלוח כבר יש ${onBoard.concept} קונספטים ו-${onBoard.copy} טקסטים: אל תשמרי קונספטים או קופי שוב אלא אם המשתמש ביקש חדשים.`,
+      );
     if (payload.project_type === "video") {
       const scenes = await supabase
         .from("marketing_video_scenes")
