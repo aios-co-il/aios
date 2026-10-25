@@ -591,6 +591,10 @@ function endingOf(payload: Record<string, unknown>, ctaText: string) {
   return next;
 }
 
+/** The user asked for a new or changed story (a filmed storyboard may then be replaced). */
+const STORY_CHANGE =
+  /סטוריבורד|סצנ|תסריט|סיפור|מחדש|מההתחלה|לשנות|תשני|שני את|חדש|אחר|storyboard|scene|script/i;
+
 /** A scene that already has a current clip (the user's own video) needs no picture. */
 const hasOwnClip = (scene: Record<string, any>) =>
   Boolean(scene.clip_asset_id) && scene.clip_stale !== true;
@@ -2002,6 +2006,16 @@ export async function executeWorkshopTool(
     const old = await loadScenes(supabase, tenantId, itemId);
     if (old.length > 0 && args.replace !== true)
       return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
+    // Replacing a storyboard that was already filmed throws away paid clips: only when the user
+    // asks for a new or changed story, never to recover from a failed step.
+    if (
+      old.some((scene) => scene.clip_asset_id) &&
+      !STORY_CHANGE.test(deps.userText ?? "")
+    )
+      return {
+        error:
+          "לסטוריבורד הזה כבר יש סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש.",
+      };
     const rows = input.map((scene, index) => ({
       id: crypto.randomUUID(),
       position: index + 1,

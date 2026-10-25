@@ -2229,3 +2229,37 @@ test("the chosen ending decides the closing card, and the narration voice is sav
   assert.equal(cta.cta_text, "בואו");
   assert.equal(cta.video.voice_id, "ZiofZHcEBTn5sRySe5h8");
 });
+
+test("a filmed storyboard is replaced only when the user asks for a new story", async () => {
+  const filmed = {
+    ...videoProject(),
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a", clip_asset_id: "paid-clip" }),
+    ],
+  };
+  const args = {
+    item_id: "item-1",
+    replace: true,
+    scenes: [{ visual_prompt: "a bakery at dawn" }],
+  };
+  const refused = (await executeWorkshopTool(
+    fakeDb(filmed),
+    "tenant-1",
+    "workshop_storyboard",
+    args,
+    async () => {},
+    null,
+    { userText: "תחליפי את הקריינות לקול של נמרוד ותפיקי שוב" },
+  )) as Record<string, any>;
+  assert.match(String(refused.error), /סיפור חדש/);
+  const asked = (await executeWorkshopTool(
+    fakeDb(filmed),
+    "tenant-1",
+    "workshop_storyboard",
+    args,
+    async () => {},
+    null,
+    { userText: "תכתבי סטוריבורד חדש עם סוף אחר" },
+  )) as Record<string, any>;
+  assert.doesNotMatch(String(asked.error ?? ""), /סיפור חדש/);
+});
