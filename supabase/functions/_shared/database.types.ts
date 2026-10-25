@@ -7795,6 +7795,48 @@ export type Database = {
           },
         ];
       };
+      lead_source_events: {
+        Row: {
+          campaign_name: string | null;
+          id: string;
+          lead_id: string;
+          received_at: string;
+          source: string;
+          tenant_id: string | null;
+        };
+        Insert: {
+          campaign_name?: string | null;
+          id?: string;
+          lead_id: string;
+          received_at?: string;
+          source: string;
+          tenant_id?: string | null;
+        };
+        Update: {
+          campaign_name?: string | null;
+          id?: string;
+          lead_id?: string;
+          received_at?: string;
+          source?: string;
+          tenant_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lead_source_events_lead_id_fkey";
+            columns: ["lead_id"];
+            isOneToOne: false;
+            referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "lead_source_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lead_statuses: {
         Row: {
           color: string;
@@ -7900,7 +7942,7 @@ export type Database = {
           facebook_form_id: string | null;
           facebook_leadgen_id: string | null;
           first_created_at: string | null;
-          first_source: Database["public"]["Enums"]["lead_source"] | null;
+          first_source: string | null;
           folder_link: string | null;
           folder_links: Json;
           follow_up_date: string | null;
@@ -7927,7 +7969,7 @@ export type Database = {
           response_status: string | null;
           sale_date: string | null;
           sales_person_id: string | null;
-          source: Database["public"]["Enums"]["lead_source"];
+          source: string;
           status: string;
           tenant_id: string | null;
           three_month_budget: number | null;
@@ -7953,7 +7995,7 @@ export type Database = {
           facebook_form_id?: string | null;
           facebook_leadgen_id?: string | null;
           first_created_at?: string | null;
-          first_source?: Database["public"]["Enums"]["lead_source"] | null;
+          first_source?: string | null;
           folder_link?: string | null;
           folder_links?: Json;
           follow_up_date?: string | null;
@@ -7980,7 +8022,7 @@ export type Database = {
           response_status?: string | null;
           sale_date?: string | null;
           sales_person_id?: string | null;
-          source?: Database["public"]["Enums"]["lead_source"];
+          source?: string;
           status?: string;
           tenant_id?: string | null;
           three_month_budget?: number | null;
@@ -8006,7 +8048,7 @@ export type Database = {
           facebook_form_id?: string | null;
           facebook_leadgen_id?: string | null;
           first_created_at?: string | null;
-          first_source?: Database["public"]["Enums"]["lead_source"] | null;
+          first_source?: string | null;
           folder_link?: string | null;
           folder_links?: Json;
           follow_up_date?: string | null;
@@ -8033,7 +8075,7 @@ export type Database = {
           response_status?: string | null;
           sale_date?: string | null;
           sales_person_id?: string | null;
-          source?: Database["public"]["Enums"]["lead_source"];
+          source?: string;
           status?: string;
           tenant_id?: string | null;
           three_month_budget?: number | null;
@@ -15542,7 +15584,7 @@ export type Database = {
           facebook_form_id: string | null;
           facebook_leadgen_id: string | null;
           first_created_at: string | null;
-          first_source: Database["public"]["Enums"]["lead_source"] | null;
+          first_source: string | null;
           folder_link: string | null;
           folder_links: Json;
           follow_up_date: string | null;
@@ -15569,7 +15611,7 @@ export type Database = {
           response_status: string | null;
           sale_date: string | null;
           sales_person_id: string | null;
-          source: Database["public"]["Enums"]["lead_source"];
+          source: string;
           status: string;
           tenant_id: string | null;
           three_month_budget: number | null;
@@ -15734,6 +15776,7 @@ export type Database = {
         Args: { p_campaign_name: string; p_source: string };
         Returns: string[];
       };
+      lead_source_is_given: { Args: { p_source: string }; Returns: boolean };
       lead_source_tag_name: { Args: { p_source: string }; Returns: string };
       link_visitor_to_lead: {
         Args: {

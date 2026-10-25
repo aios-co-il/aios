@@ -9,6 +9,7 @@ import {
   applyRepeatInboundReopen,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
+import { recordLeadSourceEvent } from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import {
   claimFacebookLeadIntake,
@@ -829,6 +830,13 @@ serve(async (req) => {
                     );
                   }
                 }
+
+                await recordLeadSourceEvent(supabase, {
+                  leadId: existingLead.id,
+                  tenantId: integration.tenant_id,
+                  source: leadRecord.source || "paid_ads",
+                  campaignName: leadRecord.campaign_name,
+                });
 
                 // Apply tag to existing lead if configured
                 if (formMappings.tag_id) {

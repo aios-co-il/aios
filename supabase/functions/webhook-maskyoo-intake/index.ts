@@ -3,6 +3,7 @@ import {
   applyRepeatInboundReopen,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
+import { recordLeadSourceEvent } from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 
 const corsHeaders = {
@@ -266,6 +267,11 @@ Deno.serve(async (req) => {
       );
 
       await updateLeadWithRepeatReopen(supabase, existingLead.id, updates);
+      await recordLeadSourceEvent(supabase, {
+        leadId: existingLead.id,
+        tenantId,
+        source: "cold_call",
+      });
 
       // Trigger automations for existing lead
       try {

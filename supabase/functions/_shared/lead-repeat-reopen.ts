@@ -1,3 +1,5 @@
+import { givenLeadSource } from "./lead-source-events.ts";
+
 /** When an inbound lead matches an existing phone/email, reopen the card at the top. */
 
 export type LeadOriginRow = {
@@ -20,7 +22,8 @@ export function applyRepeatInboundReopen(
     updated_at: nowIso,
   };
 
-  const incomingSource = incoming.source?.trim() || null;
+  // No source given: keep the one the lead already has.
+  const incomingSource = givenLeadSource(incoming.source);
   const currentSource = existing.source || null;
   const originalSource = existing.first_source || currentSource;
   if (originalSource) updates.first_source = originalSource;

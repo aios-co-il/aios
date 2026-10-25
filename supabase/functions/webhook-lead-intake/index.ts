@@ -13,6 +13,10 @@ import {
   applyRepeatInboundReopen,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
+import {
+  givenLeadSource,
+  recordLeadSourceEvent,
+} from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import { RETURNING_LEAD_TAG } from "./lead-duplicate-match.ts";
 import {
@@ -383,70 +387,9 @@ Deno.serve(async (req) => {
       parsedFormData,
     );
 
-    // Map source into DB enum values (lead_source)
-    // Allowed enum values: website, referral, social_media, paid_ads, cold_call, email_campaign, event, other
-    const sourceMap: Record<string, string> = {
-      // website
-      website: "website",
-      site: "website",
-      form: "website",
-      contact_form: "website",
-      אתר: "website",
-      טופס: "website",
-
-      // referral
-      referral: "referral",
-      recommendation: "referral",
-      המלצה: "referral",
-
-      // social media
-      social: "social_media",
-      social_media: "social_media",
-      facebook: "social_media",
-      instagram: "social_media",
-      linkedin: "social_media",
-      tiktok: "social_media",
-      סושיאל: "social_media",
-
-      // paid ads
-      paid_ads: "paid_ads",
-      ads: "paid_ads",
-      google_ads: "paid_ads",
-      facebook_ads: "paid_ads",
-      ממומן: "paid_ads",
-
-      // cold call
-      cold_call: "cold_call",
-      call: "cold_call",
-      phone_call: "cold_call",
-      שיחה: "cold_call",
-
-      // email campaign
-      email_campaign: "email_campaign",
-      email: "email_campaign",
-      newsletter: "email_campaign",
-      דיוור: "email_campaign",
-
-      // event
-      event: "event",
-      webinar: "event",
-      conference: "event",
-      כנס: "event",
-
-      // tooling / misc
-      make: "other",
-      zapier: "other",
-
-      // messaging channels - now has dedicated enum value
-      whatsapp: "whatsapp",
-      ווטסאפ: "whatsapp",
-    };
-
-    const normalizedSource =
-      payload.source?.toString().trim().toLowerCase() || "";
-    const leadSource = normalizedSource
-      ? sourceMap[normalizedSource] || "other"
-      : "other";
+    // Arrival source is saved exactly as sent (e.g. "FB"); none -> "other".
+    const sentSource = givenLeadSource(payload.source);
+    const leadSource = sentSource ?? "other";
 
     // ========== DEDUPLICATION LOGIC ==========
     const existingLead = await getExistingLead(supabase, tenantId, {
@@ -517,7 +460,7 @@ Deno.serve(async (req) => {
 
       Object.assign(
         updates,
-        applyRepeatInboundReopen(existingLead, { source: leadSource }),
+        applyRepeatInboundReopen(existingLead, { source: sentSource }),
       );
       Object.assign(updates, returningLeadStatusUpdate(existingLead));
       hasUpdates = true;
@@ -535,6 +478,13 @@ Deno.serve(async (req) => {
           console.error("❌ Error updating existing lead:", updateError);
         }
       }
+
+      await recordLeadSourceEvent(supabase, {
+        leadId: existingLead.id,
+        tenantId,
+        source: sentSource,
+        campaignName: payload.campaign_name,
+      });
 
       // Returning lead: tag it, plus any tag the webhook asked for
       if (tenantId) {
