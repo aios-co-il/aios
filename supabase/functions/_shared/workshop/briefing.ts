@@ -41,18 +41,29 @@ export const styleQuestions = (kind: "video" | "static") =>
         "יש תמונה או מודעה שאהבת כרפרנס? אפשר לצרף.",
       ];
 
+/** Before a film is written: how it should feel, beyond how the pictures look. */
+export const filmQuestions = [
+  "איזה סגנון לסרט: קולנועי ריאליסטי, אנימציית תלת־ממד, איור מונפש או מושן גרפיקס?",
+  "איזה קצב ואווירה: אנרגטי ומהיר, רגוע ורגשי, או מצחיק וקליל?",
+  "קריינות: קול נשי, קול גברי, בלי קריין, או דמות שמדברת למצלמה (ליפ סינק)?",
+  "איזו מוזיקה: אלקטרונית קצבית, אקוסטית חמה, תזמורתית, או בלי מוזיקה?",
+  "איך מסיימים: לוגו וקריאה לפעולה (מה הכיתוב?), או בלי סגיר?",
+];
+
 export interface BriefingInput {
-  look: Pick<ProjectLook, "bible" | "references">;
+  look: Pick<ProjectLook, "bible" | "references" | "film">;
   styleApproved: boolean;
   connected: ImageProvider[] | null;
   engine: ImageProvider | null;
   kind: "video" | "static";
   needsEngine: boolean;
+  /** Editing the user's own footage: the look is the footage, only the film brief is asked. */
+  needsStyle?: boolean;
 }
 
 export interface BriefingGate {
   needs_input: true;
-  missing: ("style" | "engine")[];
+  missing: ("style" | "film" | "engine")[];
   questions?: string[];
   engines?: ReturnType<typeof engineOptions>;
   message: string;
@@ -62,7 +73,10 @@ export interface BriefingGate {
 export function briefingGate(input: BriefingInput): BriefingGate | null {
   const hasReferences = input.look.references.length > 0;
   const hasBible = input.look.bible.trim().length > 0;
-  const styleOk = hasReferences || (hasBible && input.styleApproved);
+  const styleOk =
+    input.needsStyle === false ||
+    hasReferences ||
+    (hasBible && input.styleApproved);
   const askEngine =
     input.needsEngine &&
     input.connected !== null &&
@@ -70,6 +84,7 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     !(input.engine && input.connected.includes(input.engine));
   const missing: BriefingGate["missing"] = [];
   if (!styleOk) missing.push("style");
+  if (input.kind === "video" && !input.look.film.trim()) missing.push("film");
   if (askEngine) missing.push("engine");
   if (missing.length === 0) return null;
 
@@ -82,6 +97,10 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
         ? "הצגת style_bible אבל המשתמש לא אישר אותו: הציגי אותו בקצרה ובקשי אישור."
         : "לא הוגדר סגנון ולא צורף רפרנס. אם המשתמש כבר אמר סגנון, דמות או אווירה, אל תשאלי שוב, אלא הציעי style_bible מסוכם ובקשי אישור.",
     );
+  if (missing.includes("film"))
+    parts.push(
+      "עוד לא סוכם איך הסרט ירגיש: סגנון, קצב, קריינות או דמות מדברת, מוזיקה וסגיר. מה שהמשתמש כבר אמר לא שואלים שוב. אחרי התשובות סכמי אותן ב-film_brief (בעברית, משפט לכל נושא).",
+    );
   if (missing.includes("engine"))
     parts.push(
       "מחוברים כמה מנועי תמונה. שאלי באיזה ליצור והסבירי בשורה על כל אחד, והמלצי אחד לפי הצורך (עקביות דמות ורפרנס: Google).",
@@ -90,13 +109,18 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     "כתבי כל שאלה עם כפתורי תשובה בשורה נפרדת בפורמט [[בחירה: נושא | אפשרות | אפשרות]], 2 עד 4 אפשרויות קצרות, והראשונה היא ההמלצה שלך. הסימונים הופכים לכפתורים והמשתמש לוחץ במקום לכתוב.",
   );
   parts.push(
-    "אחרי התשובה קראי שוב לכלי עם style_bible (באנגלית), style_approved=true, reference_urls אם יש, ו-engine שנבחר. הבחירה נשמרת לפרויקט ולא שואלים שוב.",
+    "אחרי התשובה קראי שוב לכלי עם style_bible (באנגלית), style_approved=true, film_brief לסרט, reference_urls אם יש, ו-engine שנבחר. הבחירה נשמרת לפרויקט ולא שואלים שוב.",
   );
   return {
     needs_input: true,
     missing,
-    ...(missing.includes("style")
-      ? { questions: styleQuestions(input.kind) }
+    ...(missing.includes("style") || missing.includes("film")
+      ? {
+          questions: [
+            ...(missing.includes("style") ? styleQuestions(input.kind) : []),
+            ...(missing.includes("film") ? filmQuestions : []),
+          ],
+        }
       : {}),
     ...(missing.includes("engine") && input.connected
       ? { engines: engineOptions(input.connected) }

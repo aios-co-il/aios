@@ -49,6 +49,13 @@ import {
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import {
+  ROLE_PERSONA,
+  ROLE_SKILL,
+  ROLE_TOOLS,
+  toolsForRole,
+  workshopRole,
+} from "../_shared/workshop/roles.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
@@ -13656,12 +13663,28 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills,
+      task_skills: requestedTaskSkills,
       task_mode,
       conversation_history,
       conversation_id,
       wa_notify,
     } = bodyJson;
+    // In the workshop the server picks the specialist for this message (designer, producer or
+    // video editor) and pins her skin; see _shared/workshop/roles.ts.
+    const workshopRoleForRun =
+      surface !== "whatsapp" &&
+      Array.isArray(requestedTaskSkills) &&
+      requestedTaskSkills.includes(WORKSHOP_SKIN)
+        ? workshopRole(
+            String(command_text ?? ""),
+            parseActiveSkin(bodyJson.active_skin),
+          )
+        : null;
+    const task_skills = workshopRoleForRun
+      ? [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]]
+      : requestedTaskSkills;
+    if (workshopRoleForRun && emit)
+      emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
     const modelOverride =
@@ -14757,7 +14780,9 @@ async function handleRunAgent(
     // The skin picked in this chat session shapes Carmen for this run only.
     if (isCarmen && !pinSkillsOnly) {
       systemPrompt += await activeSkinBlock({
-        slug: parseActiveSkin(bodyJson.active_skin),
+        slug: workshopRoleForRun
+          ? ROLE_PERSONA[workshopRoleForRun]
+          : parseActiveSkin(bodyJson.active_skin),
         tenantId: agent.tenant_id || tenant_id || null,
         disabledSkins: agent.disabled_skins,
         pinned: task_skills,
@@ -14918,7 +14943,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       task_skills.includes(WORKSHOP_SKIN);
     if (!inWorkshop) {
       filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
+    } else if (workshopRoleForRun) {
+      filteredTools = toolsForRole(
+        filteredTools,
+        workshopRoleForRun,
+        isWorkshopTool,
+      );
     }
+    // A skin's tools may be added below; workshop tools only for this run's role.
+    const workshopToolAllowed = (name: string) =>
+      !isWorkshopTool(name) ||
+      (inWorkshop &&
+        (!workshopRoleForRun || ROLE_TOOLS[workshopRoleForRun].includes(name)));
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15232,7 +15268,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             skillToolNames.has(t.name) &&
-            (inWorkshop || !isWorkshopTool(t.name)) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15274,7 +15310,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             pinnedTools.has(t.name) &&
-            (inWorkshop || !isWorkshopTool(t.name)) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15908,7 +15944,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               : undefined;
           if (workshopEvent && typeof workshopEvent === "object")
             emit({ type: "workshop", tool: toolName, ...workshopEvent });
-          const skinSlug = skinForTool(toolName);
+          const skinSlug =
+            workshopRoleForRun && isWorkshopTool(toolName)
+              ? ROLE_PERSONA[workshopRoleForRun]
+              : skinForTool(toolName);
           if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
         }
 

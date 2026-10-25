@@ -6,6 +6,7 @@
 
 export const MAX_USER_REFERENCES = 4;
 const MAX_BIBLE_CHARS = 1500;
+const MAX_FILM_CHARS = 800;
 const KEY = "workshop_look";
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -25,6 +26,8 @@ const urlsFrom = (value: unknown): string[] =>
 export interface ProjectLook {
   references: string[];
   bible: string;
+  /** How the film feels: style, pace, narration voice, music mood, who speaks on camera. */
+  film: string;
   anchorUrl: string | null;
   engine: string | null;
 }
@@ -41,6 +44,7 @@ export function lookOf(payload: Record<string, unknown>): ProjectLook {
   return {
     references,
     bible: typeof stored.bible === "string" ? stored.bible : "",
+    film: typeof stored.film === "string" ? stored.film : "",
     anchorUrl: isHttps(stored.anchor_url) ? stored.anchor_url : null,
     engine:
       typeof stored.engine === "string" && stored.engine ? stored.engine : null,
@@ -56,6 +60,7 @@ export function withLook(
   input: {
     reference_urls?: unknown;
     style_bible?: unknown;
+    film_brief?: unknown;
     engine?: unknown;
   },
   extra: { anchorUrl?: string | null } = {},
@@ -66,6 +71,10 @@ export function withLook(
     typeof input.style_bible === "string" && input.style_bible.trim()
       ? input.style_bible.trim().slice(0, MAX_BIBLE_CHARS)
       : null;
+  const film =
+    typeof input.film_brief === "string" && input.film_brief.trim()
+      ? input.film_brief.trim().slice(0, MAX_FILM_CHARS)
+      : null;
   const anchorChanged =
     extra.anchorUrl !== undefined &&
     (extra.anchorUrl ?? null) !== (stored.anchor_url ?? null);
@@ -74,7 +83,13 @@ export function withLook(
       ? input.engine.trim()
       : null;
   const engineChanged = engine !== null && engine !== (stored.engine ?? null);
-  if (incoming.length === 0 && !bible && !anchorChanged && !engineChanged)
+  if (
+    incoming.length === 0 &&
+    !bible &&
+    !film &&
+    !anchorChanged &&
+    !engineChanged
+  )
     return { payload, changed: false };
   const references = [
     ...new Set([...incoming, ...urlsFrom(stored.references)]),
@@ -83,6 +98,7 @@ export function withLook(
     ...stored,
     references,
     ...(bible ? { bible } : {}),
+    ...(film ? { film } : {}),
     ...(engine ? { engine } : {}),
   };
   if (extra.anchorUrl !== undefined) {

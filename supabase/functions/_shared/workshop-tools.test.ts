@@ -158,7 +158,10 @@ const project = {
     payload: {
       format: "1:1",
       workshop: { formats: ["9:16", "4:5"] },
-      workshop_look: { bible: "warm editorial look" },
+      workshop_look: {
+        film: "cinematic, calm, female narrator",
+        bible: "warm editorial look",
+      },
     },
   },
 };
@@ -356,7 +359,10 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
     payload: {
       format: "9:16",
       project_type: "video",
-      workshop_look: { bible: "warm editorial look" },
+      workshop_look: {
+        film: "cinematic, calm, female narrator",
+        bible: "warm editorial look",
+      },
     },
     ...over,
   },
@@ -819,6 +825,7 @@ test("redo drops the anchor and renders every scene again without blanking the o
     ...videoProject({
       payload: {
         workshop_look: {
+          film: "cinematic, calm, female narrator",
           bible: "warm editorial look",
           anchor_url: "https://x/old.png",
         },
@@ -866,7 +873,14 @@ test("a redo that stops early leaves the rest queued, and the next call picks th
     scene(`s-${i + 1}`, { still_asset_id: `old-${i + 1}` }),
   );
   const db = fakeDb({
-    ...videoProject({ payload: { workshop_look: { bible: "warm" } } }),
+    ...videoProject({
+      payload: {
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "warm",
+        },
+      },
+    }),
     "marketing_video_scenes:select": scenes,
     "rpc:attach_video_scene_asset": { id: "asset-1" },
   });
@@ -896,7 +910,11 @@ test("a redo that stops early leaves the rest queued, and the next call picks th
   const next = fakeDb({
     ...videoProject({
       payload: {
-        workshop_look: { bible: "warm", anchor_url: "https://x/new-1.png" },
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "warm",
+          anchor_url: "https://x/new-1.png",
+        },
         workshop_redo_scenes: ["s-11", "s-12"],
       },
     }),
@@ -969,8 +987,8 @@ test("without a defined style Carmen gets questions instead of pictures, storybo
       deps,
     )) as Record<string, any>;
     assert.equal(result.needs_input, true, name);
-    assert.deepEqual(result.missing, ["style"]);
-    assert.equal(result.questions.length, 4);
+    assert.deepEqual(result.missing, ["style", "film"]);
+    assert.equal(result.questions.length, 9);
     assert.equal(
       db.calls.some((c) => c.op === "update" || c.op === "rpc"),
       false,
@@ -980,7 +998,11 @@ test("without a defined style Carmen gets questions instead of pictures, storybo
 });
 
 test("a proposed style counts only once the user approved it, then it is remembered", async () => {
-  const proposal = { item_id: "item-1", style_bible: "flat vector, teal" };
+  const proposal = {
+    item_id: "item-1",
+    style_bible: "flat vector, teal",
+    film_brief: "איור מונפש, קליל, קריינית, מוזיקה אקוסטית, סגיר עם לוגו",
+  };
   const unapproved = (await executeWorkshopTool(
     fakeDb({
       ...bareProject(),
@@ -1088,7 +1110,11 @@ test("with several image engines connected the user is asked, the choice is save
     ...videoProject({
       payload: {
         format: "9:16",
-        workshop_look: { bible: "x", engine: "google" },
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "x",
+          engine: "google",
+        },
       },
     }),
     "marketing_video_scenes:select": [scene("s-1")],
@@ -1585,7 +1611,10 @@ test("approving without repeating the prompt reuses the remembered one", async (
       title: "מסעדה",
       client_id: null,
       payload: {
-        workshop_look: { bible: "warm bistro look" },
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "warm bistro look",
+        },
         workshop_last_prompt: "a plated pasta dish, warm light",
       },
     },
@@ -1615,7 +1644,12 @@ test("with no prompt anywhere the title and style bible stand in", async () => {
       id: "item-1",
       title: "מסעדה",
       client_id: null,
-      payload: { workshop_look: { bible: "warm bistro look" } },
+      payload: {
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "warm bistro look",
+        },
+      },
     },
   });
   const prompts: string[] = [];
@@ -1667,7 +1701,13 @@ test("a film project with scenes still missing pictures is sent to the scene too
       id: "item-1",
       title: "סרט",
       client_id: null,
-      payload: { project_type: "video", workshop_look: { bible: "look" } },
+      payload: {
+        project_type: "video",
+        workshop_look: {
+          film: "cinematic, calm, female narrator",
+          bible: "look",
+        },
+      },
     },
     "marketing_video_scenes:select": [
       { id: "s1", position: 1, still_asset_id: null },
