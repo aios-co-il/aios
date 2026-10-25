@@ -22,6 +22,9 @@ export type BrainEngineTarget = {
   label: string;
   provider: "openai";
   connectionId: string;
+  /** The brain's own settings; a request's temperature still wins. */
+  temperature?: number;
+  maxTokens?: number;
 };
 
 export type BrainEngine =
@@ -127,6 +130,8 @@ export async function resolveBrainEngine(
         label: `brain:${c.slug}/${c.model}`,
         provider: "openai",
         connectionId: c.id,
+        temperature: c.profile.temperature,
+        maxTokens: c.profile.max_tokens,
       });
     } catch (e) {
       console.warn(

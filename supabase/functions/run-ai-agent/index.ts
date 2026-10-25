@@ -648,6 +648,9 @@ interface LLMTarget {
   provider: LLMProvider;
   /** Set for a connected brain (carmen_brain_connections). */
   connectionId?: string;
+  /** A connected brain's own settings. */
+  temperature?: number;
+  maxTokens?: number;
 }
 const LLM_FALLBACK_ORDER = [
   "google/gemini-3-flash-preview",
@@ -15563,18 +15566,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Models often repeat their mid-loop text ("creating the image…") in the
     // final answer; the client joins tokens, so send each text once, apart.
-    const emittedTexts = new Set<string>();
+    const emittedTexts: string[] = [];
     const emitText = (text: string) => {
       const key = text.trim();
-      if (!emit || !key || emittedTexts.has(key)) return;
-      // A final answer that opens with text already sent adds only the rest.
-      const prev = [...emittedTexts].find((t) => key.startsWith(t));
-      const fresh = prev ? key.slice(prev.length).trim() : text;
-      emittedTexts.add(key);
+      if (!emit || !key || emittedTexts.includes(key)) return;
+      // A final answer that opens with texts already sent adds only the rest.
+      let fresh = key;
+      for (const sent of emittedTexts) {
+        if (fresh.startsWith(sent)) fresh = fresh.slice(sent.length).trim();
+      }
+      emittedTexts.push(key);
       if (!fresh) return;
       emit({
         type: "token",
-        content: emittedTexts.size > 1 ? `\n\n${fresh}` : fresh,
+        content: emittedTexts.length > 1 ? `\n\n${fresh}` : fresh,
       });
     };
 
@@ -15589,7 +15594,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       while (true) {
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
         const payload: any = { model: llm.model, messages };
-        if (safeTemp !== undefined) payload.temperature = safeTemp;
+        const temp = safeTemp ?? llm.temperature;
+        if (temp !== undefined) payload.temperature = temp;
+        if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
         if (cappedTools.length > 0) payload.tools = cappedTools;
         if (
           round === 0 &&
