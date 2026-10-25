@@ -5,7 +5,7 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { joinNarration } from "../narration.mjs";
+import { joinNarration, spokenLine } from "../narration.mjs";
 import {
   MUSIC_MODEL,
   SPEECH_MODEL,
@@ -39,7 +39,7 @@ async function narrationLines(db, run) {
   const lines = {};
   for (const row of rows) {
     if (wanted.size && !wanted.has(row.id)) continue;
-    const text = String(row.voiceover_text ?? "").trim();
+    const text = spokenLine(row.voiceover_text);
     if (text) lines[row.id] = text;
   }
   return { text: joinNarration(Object.values(lines)), lines };
@@ -90,7 +90,7 @@ export async function generateVoice({
     : await loadRunScene(db, run, "id,voiceover_text");
   const text = continuous
     ? spoken.text
-    : String(scene.voiceover_text ?? "").trim();
+    : spokenLine(scene.voiceover_text);
   if (!text) throw finalError("voice run: voiceover_text is required");
   const path = assetPath(
     run,

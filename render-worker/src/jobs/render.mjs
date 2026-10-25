@@ -10,7 +10,7 @@ import {
   finalError,
   loadRunItem,
 } from "../guard.mjs";
-import { joinNarration } from "../narration.mjs";
+import { joinNarration, spokenLine } from "../narration.mjs";
 
 const BUCKET = "creative-video";
 
@@ -73,7 +73,7 @@ export async function loadFilmSources(db, run) {
     )) ?? [];
   // Narration removed from the storyboard leaves its old voice asset linked; drop it.
   const voiceOf = (scene) =>
-    String(scene.voiceover_text ?? "").trim() ? scene.voice_asset_id : null;
+    spokenLine(scene.voiceover_text) ? scene.voice_asset_id : null;
   const assetIds = scenes
     .flatMap((scene) => [
       scene.clip_asset_id,
@@ -103,11 +103,22 @@ export async function loadFilmSources(db, run) {
   const scriptRows =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=voiceover_text&order=position`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text,clip_asset_id&order=position`,
     )) ?? [];
   const script = joinNarration(scriptRows.map((scene) => scene.voiceover_text));
+  const filmed = new Set(
+    scenes
+      .filter((scene) => assets.get(scene.clip_asset_id)?.url)
+      .map((scene) => scene.id),
+  );
+  // One take spans the whole storyboard: laid over a film missing a spoken scene it would drift.
+  const everySpokenSceneFilmed = scriptRows.every(
+    (scene) => !spokenLine(scene.voiceover_text) || filmed.has(scene.id),
+  );
   const narrationPath =
-    script && String(narration?.meta?.text ?? "") === script
+    script &&
+    everySpokenSceneFilmed &&
+    String(narration?.meta?.text ?? "") === script
       ? narration.url
       : null;
   const mapped = scenes
@@ -127,7 +138,7 @@ export async function loadFilmSources(db, run) {
     .filter((scene) => scene.clipPath);
   const missingNarration = mapped.some(
     (scene) =>
-      String(scene.voiceoverText ?? "").trim() &&
+      spokenLine(scene.voiceoverText) &&
       !narrationPath &&
       !scene.voicePath,
   );
