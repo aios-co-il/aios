@@ -44,6 +44,11 @@ export interface BriefingInput {
   needsStyle?: boolean;
   /** What the user already answered (payload.workshop_brief); answered questions are not asked again. */
   answers?: BriefAnswers;
+  /**
+   * The questions were already shown to the user once. Until then a style or film brief that
+   * Carmen wrote herself does not count: the user is asked first (only their answers count).
+   */
+  asked?: boolean;
 }
 
 export interface BriefingGate {
@@ -60,19 +65,27 @@ export interface BriefingGate {
 export function briefingGate(input: BriefingInput): BriefingGate | null {
   const hasReferences = input.look.references.length > 0;
   const hasBible = input.look.bible.trim().length > 0;
+  const answers = input.answers ?? {};
+  const answered = (choices: Choice[]) =>
+    choices.some((choice) => Boolean(answers[choice.label]));
+  const userStyle = answered(STYLE_CHOICES[input.kind]);
   const styleOk =
     input.needsStyle === false ||
     hasReferences ||
-    (hasBible && input.styleApproved);
+    (hasBible && input.styleApproved && (userStyle || input.asked === true));
+  // A film brief counts once the user answered the film questions or saw them once.
+  const filmOk =
+    input.kind !== "video" ||
+    (input.look.film.trim().length > 0 &&
+      (answered(FILM_CHOICES) || input.asked === true));
   // The engine is never a question for the user: the best connected one is used.
   const askEngine = false;
   const missing: BriefingGate["missing"] = [];
   if (!styleOk) missing.push("style");
-  if (input.kind === "video" && !input.look.film.trim()) missing.push("film");
+  if (!filmOk) missing.push("film");
   if (askEngine) missing.push("engine");
   if (missing.length === 0) return null;
 
-  const answers = input.answers ?? {};
   const choices: Choice[] = unanswered(
     [
       ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),

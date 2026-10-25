@@ -159,6 +159,8 @@ const project = {
     payload: {
       format: "1:1",
       workshop: { formats: ["9:16", "4:5"] },
+      workshop_brief: { asked: true },
+
       workshop_look: {
         film: "cinematic, calm, female narrator",
         bible: "warm editorial look",
@@ -363,6 +365,8 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
       format: "9:16",
       project_type: "video",
       video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
+      workshop_brief: { asked: true },
+
       workshop_look: {
         film: "cinematic, calm, female narrator",
         bible: "warm editorial look",
@@ -837,6 +841,8 @@ test("redo drops the anchor and renders every scene again without blanking the o
   const db = fakeDb({
     ...videoProject({
       payload: {
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "warm editorial look",
@@ -888,6 +894,8 @@ test("a redo that stops early leaves the rest queued, and the next call picks th
   const db = fakeDb({
     ...videoProject({
       payload: {
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "warm",
@@ -923,6 +931,8 @@ test("a redo that stops early leaves the rest queued, and the next call picks th
   const next = fakeDb({
     ...videoProject({
       payload: {
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "warm",
@@ -1003,10 +1013,14 @@ test("without a defined style Carmen gets questions instead of pictures, storybo
     assert.deepEqual(result.missing, ["style", "film"]);
     assert.equal(result.say_to_user.match(/\[\[בחירה:/g).length, 7);
     assert.equal("message" in result, false);
+    // Nothing is made; the project only remembers that the questions were shown.
     assert.equal(
-      db.calls.some((c) => c.op === "update" || c.op === "rpc"),
+      db.calls.some((c) => c.op === "rpc"),
       false,
     );
+    const updates = db.calls.filter((c) => c.op === "update");
+    assert.equal(updates.length, 1);
+    assert.equal((updates[0].value as any).payload.workshop_brief.asked, true);
   }
   assert.equal(generated, 0);
 });
@@ -1029,11 +1043,19 @@ test("a proposed style counts only once the user approved it, then it is remembe
     null,
     { generateImage: async () => ({ image_url: "https://x/1.png" }) },
   )) as Record<string, any>;
+  // Carmen's own style and film brief do not skip the user's questions the first time.
   assert.equal(unapproved.needs_input, true);
-  assert.deepEqual(unapproved.missing, ["style"]);
+  assert.deepEqual(unapproved.missing, ["style", "film"]);
+  assert.match(unapproved.say_to_user, /\[\[בחירה: קצב/);
 
+  // Once the questions were shown, her proposal counts when the user approves it.
+  const asked = bareProject() as Record<string, any>;
+  asked["marketing_work_items:select"].payload = {
+    ...asked["marketing_work_items:select"].payload,
+    workshop_brief: { asked: true },
+  };
   const db = fakeDb({
-    ...bareProject(),
+    ...asked,
     "marketing_video_scenes:select": [scene("s-1")],
   });
   const approved = (await executeWorkshopTool(
@@ -1119,6 +1141,8 @@ test("with several image engines connected nobody is asked; a named engine is sa
     ...videoProject({
       payload: {
         format: "9:16",
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "x",
@@ -1822,6 +1846,8 @@ test("approving without repeating the prompt reuses the remembered one", async (
       title: "מסעדה",
       client_id: null,
       payload: {
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "warm bistro look",
@@ -1856,6 +1882,8 @@ test("with no prompt anywhere the title and style bible stand in", async () => {
       title: "מסעדה",
       client_id: null,
       payload: {
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "warm bistro look",
@@ -1914,6 +1942,8 @@ test("a film project with scenes still missing pictures is sent to the scene too
       client_id: null,
       payload: {
         project_type: "video",
+        workshop_brief: { asked: true },
+
         workshop_look: {
           film: "cinematic, calm, female narrator",
           bible: "look",
@@ -1996,6 +2026,8 @@ test("narration waits for a voice the user heard and chose", async () => {
       payload: {
         format: "9:16",
         project_type: "video",
+        workshop_brief: { asked: true },
+
         workshop_look: { film: "calm", bible: "warm" },
       },
     },

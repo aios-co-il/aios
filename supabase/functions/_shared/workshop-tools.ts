@@ -33,6 +33,8 @@ import {
   filmFromAnswers,
   unanswered,
   withBriefAnswers,
+  briefAsked,
+  withBriefAsked,
 } from "./workshop/brief-answers.ts";
 import {
   productionReport,
@@ -979,13 +981,21 @@ async function briefProject(
     needsEngine: options.needsEngine,
     needsStyle: options.needsStyle,
     answers,
+    asked: briefAsked(payload),
   });
   if (gate) {
-    if (options.save && (Object.keys(fresh).length > 0 || writtenFilm))
-      await options.save(
-        withLook(briefed, writtenFilm ? { film_brief: writtenFilm } : {})
-          .payload,
-      );
+    // Shown to the user now: from the next turn Carmen may fill in what they leave open.
+    const asking = typeof gate.say_to_user === "string" && gate.say_to_user;
+    if (
+      options.save &&
+      (Object.keys(fresh).length > 0 || writtenFilm || asking)
+    ) {
+      const kept = withLook(
+        briefed,
+        writtenFilm ? { film_brief: writtenFilm } : {},
+      ).payload;
+      await options.save(asking ? withBriefAsked(kept) : kept);
+    }
     return { gate: gate as unknown as Record<string, unknown> };
   }
   return {

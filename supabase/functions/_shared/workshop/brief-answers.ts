@@ -91,3 +91,12 @@ export function filmFromAnswers(answers: BriefAnswers): string | null {
 /** Questions not yet answered. */
 export const unanswered = (choices: Choice[], answers: BriefAnswers) =>
   choices.filter((choice) => !answers[choice.label]);
+
+/** The briefing questions were shown to the user once (briefing.ts counts Carmen's brief after that). */
+export const briefAsked = (payload: Record<string, unknown>) =>
+  asRecord(payload[KEY]).asked === true;
+
+export const withBriefAsked = (payload: Record<string, unknown>) => ({
+  ...payload,
+  [KEY]: { ...asRecord(payload[KEY]), asked: true },
+});
