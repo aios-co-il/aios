@@ -13918,7 +13918,8 @@ async function handleRunAgent(
       const m = cmdRaw.match(TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
-      if (looksLikeInstruction && resolvedTenantId) {
+      // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction.
+      if (looksLikeInstruction && resolvedTenantId && !inWorkshopRequest) {
         // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
         const triggerIdx = m!.index ?? 0;
         const before =
@@ -14751,16 +14752,17 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
-    // The skin picked in this chat session shapes Carmen for this run only.
+    // The skin picked in this chat session shapes Carmen for this run only. In the workshop the
+    // role's skill is already pinned; the persona's older skills would contradict it.
     if (isCarmen && !pinSkillsOnly) {
-      systemPrompt += await activeSkinBlock({
-        slug: workshopRoleForRun
-          ? ROLE_PERSONA[workshopRoleForRun]
-          : parseActiveSkin(bodyJson.active_skin),
-        tenantId: agent.tenant_id || tenant_id || null,
-        disabledSkins: agent.disabled_skins,
-        pinned: task_skills,
-      });
+      if (!workshopRoleForRun) {
+        systemPrompt += await activeSkinBlock({
+          slug: parseActiveSkin(bodyJson.active_skin),
+          tenantId: agent.tenant_id || tenant_id || null,
+          disabledSkins: agent.disabled_skins,
+          pinned: task_skills,
+        });
+      }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
     // Per-automation instructions for this WhatsApp conversation (set on the
@@ -15323,7 +15325,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       String(command_text || ""),
     );
     let pendingForConfirm: any = null;
-    if (isCarmen && !pinSkillsOnly && (userSaidApprove || userSaidReject)) {
+    // A workshop "כן" answers the workshop, never a pending WhatsApp/Meta approval; its budget
+    // code is approved by workshopTurnNote.
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      !inWorkshopRequest &&
+      (userSaidApprove || userSaidReject)
+    ) {
       const { data: pendingRows } = await supabase
         .from("agent_approval_queue")
         .select(
@@ -15856,6 +15865,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // Execute tool calls — promote any called tool to full schema for the next round.
       const toolResults: any[] = [];
       let pulseDigestShortcut: string | null = null;
+      // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
+      const sayToUser: string[] = [];
       if (tokenOptimize && msg.tool_calls?.length) {
         for (const tc of msg.tool_calls)
           promotedToolNames.add(tc.function.name);
@@ -16000,14 +16011,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           typeof result?.say_to_user === "string" &&
           result.say_to_user.trim()
         ) {
-          pulseDigestShortcut = result.say_to_user.trim();
+          const say = result.say_to_user.trim();
+          if (!sayToUser.includes(say)) sayToUser.push(say);
         }
       }
 
       messages.push(...toolResults);
+      if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;
-        if (emit) emit({ type: "token", content: finalOutput });
+        // emitText puts it apart from any text the model already sent this turn.
+        emitText(finalOutput);
         break;
       }
     }

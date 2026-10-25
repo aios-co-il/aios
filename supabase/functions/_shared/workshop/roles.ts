@@ -55,13 +55,16 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
   ],
 };
 
+// JS \b does not see Hebrew letters, so short Hebrew words use [א-ת] lookarounds: "סרט" also
+// after a prefix ("הסרט"), "ערכי" only as a verb (not "הערכים", "ערכי המותג"), and "סטורי" not
+// inside "היסטוריה".
 const EDITOR =
-  /(מהחומרים|מהחומר|מהקבצים|מהסרטונים|מהתמונות שלי|מהקטעים|שהעליתי|שהעלתי|שצילמתי|לערוך|ערכי|תערכי|עריכה|עריכת|חתכי|לחתוך|footage|\bedit\b)/i;
+  /(מהחומרים|מהחומר|מהקבצים|מהסרטונים|מהתמונות שלי|מהקטעים|שהעליתי|שהעלתי|שצילמתי|לערוך|(?<![א-ת])ערכי(?![א-ת])(?!\s+ה)|תערכי|עריכה|עריכת|חתכי|לחתוך|footage|\bedit\b)/i;
 const VIDEO =
-  /(סרטון|וידאו|וידיאו|סרט\b|סרט |רילס|ריל\b|טיקטוק|פרומו|תסריט|סטוריבורד|הנפש|ליפ ?סינק|קריינ|\bvideo\b|\breel|\bfilm\b|\bpromo\b|lip ?sync)/i;
+  /(סרטון|וידאו|וידיאו|(?<![א-ת])[הבלמושכ]{0,3}סרט(?:ים|י)?(?![א-ת])|רילס|(?<![א-ת])[הבלמושכ]{0,3}ריל(?![א-ת])|טיקטוק|פרומו|תסריט|סטוריבורד|הנפש|ליפ ?סינק|קריינ|\bvideo\b|\breel|\bfilm\b|\bpromo\b|lip ?sync)/i;
 /** A new static deliverable: moves to the designer even inside a film project. */
 const STATIC_DELIVERABLE =
-  /(פוסט|מודע|באנר|סטורי|פלייר|קרוסלה|\bpost\b|\bbanner\b|\bflyer\b|\bad\b)/i;
+  /(פוסט|מודע|באנר|(?<!י)סטורי|פלייר|קרוסלה|\bpost\b|\bbanner\b|\bflyer\b|\bad\b)/i;
 /** Picture words: the designer's only when the open project is not a film. */
 const STATIC_HINT = /(תמונ|קריאייטיב|לוגו|גרפיק|עיצוב|\bstatic\b|\bimage\b)/i;
 

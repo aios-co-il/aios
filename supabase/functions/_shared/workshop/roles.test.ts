@@ -71,3 +71,25 @@ test("the open project keeps short replies and picture edits with its specialist
     "producer",
   );
 });
+
+test("Hebrew film words match as whole words, with or without a prefix", () => {
+  assert.equal(workshopRole("תעשי לי סרט", null), "producer");
+  assert.equal(workshopRole("אפשר סרט?", null), "producer");
+  assert.equal(workshopRole("תכיני ריל", null), "producer");
+  assert.equal(workshopRole("תכיני ריל לאינסטגרם", null), "producer");
+  assert.equal(workshopRole("תכיני לי את הסרט", null), "producer");
+  assert.equal(workshopRole("ערכי את הסרטון", null), "editor");
+  assert.equal(workshopRole("פוסט על הגריל החדש", null), "designer");
+  assert.equal(workshopRole("פוסט לאפריל", null), "designer");
+  assert.equal(workshopRole("סטורי לאינסטגרם", null), "designer");
+});
+
+test("brand values and history are not editing or story words", () => {
+  assert.equal(workshopRole("סרטון על הערכים של המותג", null), "producer");
+  assert.equal(workshopRole("סרטון על ערכי המותג", null), "producer");
+  const film = { video: true, edit: false };
+  assert.equal(
+    workshopRole("סצנה על ההיסטוריה של המותג", "video_director", film),
+    "producer",
+  );
+});
