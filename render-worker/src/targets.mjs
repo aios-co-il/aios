@@ -1,54 +1,31 @@
-const NAMED = ["production", "staging", "develop"];
-
-function originOf(name, url) {
-  try {
-    return new URL(url).origin;
-  } catch {
-    throw new Error(`invalid Supabase URL for ${name}`);
-  }
-}
+const ENVIRONMENTS = ["staging", "develop", "preview", "production"];
+const LEGACY = /^SUPABASE_(URL|SERVICE_ROLE_KEY)_[A-Z]+$/;
 
 /**
- * One worker process polls every configured Supabase project.
- * The unsuffixed SUPABASE_URL pair stays valid for a single-environment droplet.
- * Named pairs add production, staging and develop without a second container.
- * The same origin is polled once.
+ * One container serves one Supabase project, built from that environment's branch with that
+ * environment's keys. Code that has only run on Staging must never claim Production jobs, and
+ * Staging tenants must never spend Production fallback keys.
  */
 export function loadTargets(env = process.env) {
-  const targets = [];
-  const bareUrl = env.SUPABASE_URL?.trim();
-  const bareKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (bareUrl || bareKey) {
-    if (!bareUrl || !bareKey)
-      throw new Error(
-        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required together",
-      );
-    targets.push({
-      name: env.WORKER_TARGET?.trim() || "default",
-      url: bareUrl,
-      serviceRoleKey: bareKey,
-    });
-  }
-  for (const name of NAMED) {
-    const suffix = name.toUpperCase();
-    const url = env[`SUPABASE_URL_${suffix}`]?.trim();
-    const key = env[`SUPABASE_SERVICE_ROLE_KEY_${suffix}`]?.trim();
-    if (!url && !key) continue;
-    if (!url || !key)
-      throw new Error(
-        `SUPABASE_URL_${suffix} and SUPABASE_SERVICE_ROLE_KEY_${suffix} are required together`,
-      );
-    targets.push({ name, url, serviceRoleKey: key });
-  }
-  const seen = new Set();
-  const unique = [];
-  for (const target of targets) {
-    const url = originOf(target.name, target.url);
-    if (seen.has(url)) continue;
-    seen.add(url);
-    unique.push({ ...target, url });
-  }
-  if (!unique.length)
+  const legacy = Object.keys(env).filter(
+    (name) => LEGACY.test(name) && env[name]?.trim(),
+  );
+  if (legacy.length)
+    throw new Error(
+      `${legacy.join(", ")}: one worker serves one environment; run a container per environment with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY`,
+    );
+  const url = env.SUPABASE_URL?.trim();
+  const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key)
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
-  return unique;
+  const name = env.WORKER_ENV?.trim() || env.WORKER_TARGET?.trim() || "default";
+  if (name !== "default" && !ENVIRONMENTS.includes(name))
+    throw new Error(`WORKER_ENV must be one of ${ENVIRONMENTS.join(", ")}`);
+  let origin;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    throw new Error("invalid SUPABASE_URL");
+  }
+  return [{ name, url: origin, serviceRoleKey: key }];
 }

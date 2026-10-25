@@ -59,4 +59,5 @@ jobs:
           CONCURRENCY: "2"
           POLL_MS: "2000"
           WORKER_ID: gha-staging
+          WORKER_ENV: staging
         run: node src/index.mjs

@@ -33,23 +33,25 @@ Every provider implements `estimate / submit / poll` (`src/providers/`), so chan
 
 No dependencies beyond Node 22 and ffmpeg.
 
-## Staging queue
+## One container per environment
 
-One container polls every configured project. `SUPABASE_URL` is the existing target. Add `SUPABASE_URL_PRODUCTION`, `SUPABASE_URL_STAGING` and `SUPABASE_URL_DEVELOP` (each with its matching `SUPABASE_SERVICE_ROLE_KEY_*`) and restart the container. A repeated URL is polled once. Feature previews that use the Staging project are covered by the staging pair.
+Each container serves one Supabase project: `WORKER_ENV`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Build it from that environment's branch (`develop` for Staging, `main` for Production) and give it only that environment's fallback keys. The worker refuses to start if suffixed pairs such as `SUPABASE_URL_PRODUCTION` are set, so code that has only run on Staging never claims Production jobs.
 
-`.github/workflows/render-worker.yml` still drains **Staging only** every 10 minutes. It does not call Production. `VIDEO_PROVIDER` defaults to `mock` there. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider.
+`.github/workflows/render-worker.yml` drains **Staging only** every 10 minutes. `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch on every push, and on demand with "Run workflow" on that branch for jobs queued while testing. Neither calls Production. `VIDEO_PROVIDER` defaults to `mock` on Staging. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider.
 
 ## Run on the Droplet
 
+Run from the repo root so the Remotion package is in the image. Repeat with another env file and container name for each environment.
+
 ```bash
-git clone … && cd aios/render-worker
-cp .env.example .env   # production, staging and develop URL plus service-role pairs
-docker build -t aios-render-worker .
-docker run -d --name aios-render-worker --restart unless-stopped --env-file .env aios-render-worker
-docker logs -f aios-render-worker
+git clone … && cd aios && git checkout develop
+cp render-worker/.env.example render-worker/.env.staging   # Staging URL, key and fallback keys only
+docker build -f render-worker/Dockerfile -t aios-render-worker:staging .
+docker run -d --name aios-render-worker-staging --restart unless-stopped --env-file render-worker/.env.staging aios-render-worker:staging
+docker logs -f aios-render-worker-staging
 ```
 
-Give the Droplet at least 4 vCPUs. Build the image from the repo root so the Remotion package is included: `docker build -f render-worker/Dockerfile -t aios-render-worker .`
+Give the Droplet at least 4 vCPUs.
 
 ## Test
 
