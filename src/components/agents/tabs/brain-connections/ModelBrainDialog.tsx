@@ -73,7 +73,7 @@ export function ModelBrainDialog({
   const runTest = () =>
     test.mutate(
       editing && !f.apiKey.trim()
-        ? { connection_id: connection.id }
+        ? { connection_id: connection.id, base_url: f.baseUrl, model: f.model }
         : { base_url: f.baseUrl, model: f.model, api_key: f.apiKey.trim() },
     );
 

@@ -36,6 +36,30 @@ export function candidatesFromConnections(
     }));
 }
 
+/** A model brain's row in agent_brain_routes. */
+export type ModelRouteRow = {
+  slug: string;
+  connection_id: string | null;
+  active: boolean | null;
+};
+
+/**
+ * Connections the user could pick themselves: the brain is shown in the picker
+ * (switch on) and the user holds a grant for its slug.
+ */
+export function pickableConnections<T extends { id: string }>(
+  conns: T[],
+  routes: ModelRouteRow[],
+  allowed: (slug: string) => boolean,
+): T[] {
+  const ok = new Set(
+    routes
+      .filter((r) => r.connection_id && r.active === true && allowed(r.slug))
+      .map((r) => r.connection_id),
+  );
+  return conns.filter((c) => ok.has(c.id));
+}
+
 /** The failover kind for an HTTP status from a chat API (0 = timeout). */
 export function failureKindFor(status: number): FailureKind {
   if (status === 0) return "timeout";

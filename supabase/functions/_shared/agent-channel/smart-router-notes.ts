@@ -10,7 +10,7 @@ import { insertMessage, logChannelAction } from "./store.ts";
 import type { SendContext, SendResult } from "./types.ts";
 
 /** Answers in the chat why no brain was picked, instead of failing silently. */
-export async function explainNoModel(
+export function explainNoModel(
   sb: DbClient,
   ctx: SendContext,
   decision: RoutingDecision,
@@ -19,6 +19,29 @@ export async function explainNoModel(
     decision.status === "approval_required"
       ? "מתאימים לבקשה הזו רק מוחות בתשלום, והנתב לא מפעיל מוח בתשלום לבד. בחרו אותו ישירות בבורר."
       : 'אין מוח חינמי שמותר לשלוח לו את הבקשה. בהגדרות המוחות סמנו מוח כ"חינמי" ו"מותר לשלוח מידע של לקוחות", או בחרו מוח אחר בבורר.';
+  return routerNote(sb, ctx, text, decision.reason);
+}
+
+/** The task needs Carmen's tools, but this user has no grant for her brain. */
+export function explainNoCarmen(
+  sb: DbClient,
+  ctx: SendContext,
+): Promise<SendResult> {
+  return routerNote(
+    sb,
+    ctx,
+    "הבקשה הזו צריכה את הכלים של כרמן, ואין לך הרשאה למוח הפנימי שלה. בקשו ממנהל החשבון הרשאה בהגדרות → הרשאות.",
+    "internal_not_allowed",
+  );
+}
+
+/** Stores the router's own reply on the route's thread and returns it inline. */
+async function routerNote(
+  sb: DbClient,
+  ctx: SendContext,
+  text: string,
+  reason: string,
+): Promise<SendResult> {
   await insertMessage(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
@@ -29,7 +52,7 @@ export async function explainNoModel(
     metadata: {
       origin: "model",
       router: "free_first",
-      reason: decision.reason,
+      reason,
     },
   });
   return {

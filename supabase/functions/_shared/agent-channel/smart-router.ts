@@ -7,6 +7,7 @@ import { classifyCarmenTask } from "../carmen/free-first/classifier.ts";
 import {
   candidatesFromConnections,
   failureKindFor,
+  pickableConnections,
 } from "../carmen/free-first/candidates.ts";
 import { planSafeFailover } from "../carmen/free-first/failover.ts";
 import { routeCarmenTask } from "../carmen/free-first/router.ts";
@@ -19,7 +20,11 @@ import { type DbClient, serviceClient } from "../supabase-clients.ts";
 import { ModelApiError } from "./chat-model-api.ts";
 import { internalStreamResult } from "./logic.ts";
 import { answerWithConnection, type ModelConnection } from "./model-brain.ts";
-import { explainNoModel, logRouting } from "./smart-router-notes.ts";
+import {
+  explainNoCarmen,
+  explainNoModel,
+  logRouting,
+} from "./smart-router-notes.ts";
 import type { SendContext, SendResult } from "./types.ts";
 
 export async function launchSmartRouter(ctx: SendContext): Promise<SendResult> {
@@ -35,11 +40,16 @@ export async function launchSmartRouter(ctx: SendContext): Promise<SendResult> {
     task.requiresActionApproval ||
     task.needsVision
   ) {
+    // run-ai-agent refuses a user without the internal grant; say so here.
+    if (ctx.brainAllowed && !ctx.brainAllowed("internal")) {
+      await logRouting(sb, ctx, task, "none", "internal_not_allowed");
+      return explainNoCarmen(sb, ctx);
+    }
     await logRouting(sb, ctx, task, "carmen", "needs_carmen_tools");
     return internalStreamResult(ctx.conversationId);
   }
 
-  const conns = await loadRoutableConnections(sb, ctx.tenantId);
+  const conns = await loadRoutableConnections(sb, ctx);
   const decision = routeCarmenTask(
     task,
     { mode: "free_first", allowAutomaticPremium: false },
@@ -99,8 +109,19 @@ async function answerWithFailover(
   throw new Error("נתב חכם: אין מוח זמין");
 }
 
-/** Chat-model connections of this tenant with endpoint and model set. */
-async function loadRoutableConnections(sb: DbClient, tenantId: string) {
+/**
+ * Chat-model connections of this tenant with endpoint and model set, limited
+ * to brains this user could pick in the picker.
+ */
+async function loadRoutableConnections(sb: DbClient, ctx: SendContext) {
+  const tenantId = ctx.tenantId;
+  const routes = await sb
+    .from("agent_brain_routes")
+    .select("slug, connection_id, active")
+    .eq("tenant_id", tenantId)
+    .eq("route_type", "model");
+  if (routes.error)
+    throw new Error(`Brain routes read failed: ${routes.error.message}`);
   const { data, error } = await sb
     .from("carmen_brain_connections")
     .select(
@@ -110,9 +131,14 @@ async function loadRoutableConnections(sb: DbClient, tenantId: string) {
     .eq("kind", "chat_model")
     .order("created_at", { ascending: true });
   if (error) throw new Error(`Brain connections read failed: ${error.message}`);
-  return (data ?? []).flatMap((c) =>
+  const ready = (data ?? []).flatMap((c) =>
     c.base_url && c.model
       ? [{ ...c, base_url: c.base_url, model: c.model }]
       : [],
+  );
+  return pickableConnections(
+    ready,
+    routes.data ?? [],
+    ctx.brainAllowed ?? (() => true),
   );
 }

@@ -99,6 +99,11 @@ export type SendContext = {
   history: Array<{ role: string; content: string }>;
   /** Env for this send: tenant UI keys over project env secrets. Loaded lazily when absent. */
   env?: Record<string, string | undefined>;
+  /**
+   * Whether this user may use a brain slug (Carmen settings → הרשאות). "נתב
+   * חכם" only hands a message to brains the user could pick. Absent = all.
+   */
+  brainAllowed?: (slug: string) => boolean;
 };
 
 export type SendResult = {
