@@ -238,9 +238,10 @@ export function engineFromKeys(
   const has = (key: string) =>
     typeof settings[key] === "string" &&
     (settings[key] as string).trim() !== "";
+  // The tenant's OpenRouter brain comes first: David chose it for video (Kling, Veo, Seedance).
+  if (connections.openrouter) return "openrouter";
   if (has("elevenlabs_api_key")) return "elevenlabs";
   if (higgsfieldReady(settings)) return "higgsfield";
-  if (connections.openrouter) return "openrouter";
   return "mock";
 }
 
@@ -287,14 +288,15 @@ export async function elevenLabsMediaAllowed(
 }
 
 /**
- * Picks a scene engine the account can run. ElevenLabs video needs Pro; a Starter key
- * uses Higgsfield when it is connected, then OpenRouter, otherwise the free preview.
+ * Picks a scene engine the account can run: the OpenRouter brain when connected, then ElevenLabs
+ * video (it needs Pro), then Higgsfield, otherwise the free preview.
  */
 export async function sceneEngineFor(
   settings: Record<string, unknown>,
   fetchImpl: typeof fetch = fetch,
   connections: VideoConnections = {},
 ): Promise<SceneEngine> {
+  if (connections.openrouter) return "openrouter";
   const fallback: SceneEngine = higgsfieldReady(settings)
     ? "higgsfield"
     : connections.openrouter

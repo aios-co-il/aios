@@ -155,16 +155,25 @@ test("Starter ElevenLabs video moves to Higgsfield", async () => {
   );
 });
 
-test("an OpenRouter brain connection makes OpenRouter the video engine after ElevenLabs and Higgsfield", async () => {
+test("a connected OpenRouter brain is the video engine before ElevenLabs and Higgsfield", async () => {
   const openrouter = { openrouter: true };
   assert.equal(engineFromKeys({}, openrouter), "openrouter");
   assert.equal(
     engineFromKeys({ elevenlabs_api_key: "xi" }, openrouter),
-    "elevenlabs",
+    "openrouter",
   );
   assert.equal(
     engineFromKeys({ higgsfield_api_key_secret: "a:b" }, openrouter),
-    "higgsfield",
+    "openrouter",
+  );
+  assert.equal(engineFromKeys({ elevenlabs_api_key: "xi" }), "elevenlabs");
+  assert.equal(
+    await sceneEngineFor(
+      { higgsfield_api_key_id: "a", higgsfield_api_key_secret: "b" },
+      fetch,
+      openrouter,
+    ),
+    "openrouter",
   );
   const starter = (async () =>
     new Response(JSON.stringify({ tier: "starter" }), {
