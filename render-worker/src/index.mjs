@@ -8,6 +8,7 @@ import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
 import { runClipWithFallback } from "./clip-fallback.mjs";
+import { createInFlight } from "./inflight.mjs";
 import { runSlots } from "./loop.mjs";
 import { loadTargets } from "./targets.mjs";
 
@@ -88,6 +89,11 @@ const DRAIN = process.env.DRAIN === "1";
 const DRAIN_IDLE_MS = Number(process.env.DRAIN_IDLE_MS) || 0;
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
+/** A runner with a time limit stops claiming new runs this long after start (unset: never). */
+const STOP_CLAIMING_AT = Number(process.env.STOP_CLAIMING_AFTER_MS)
+  ? Date.now() + Number(process.env.STOP_CLAIMING_AFTER_MS)
+  : Infinity;
+const inFlight = createInFlight();
 
 const targets = loadTargets().map((target) => ({
   ...target,
@@ -201,17 +207,24 @@ async function finish(db, run, patch) {
 }
 
 async function processOne(db, workerId) {
-  const claimed = await db.rpc("claim_video_run", {
-    p_kinds: Object.keys(HANDLERS),
-    p_worker: workerId,
-  });
+  const claimed = await inFlight.claim(
+    db.rpc("claim_video_run", {
+      p_kinds: Object.keys(HANDLERS),
+      p_worker: workerId,
+    }),
+  );
   const run = Array.isArray(claimed) ? claimed[0] : null;
   if (!run) return false;
+  inFlight.hold(db, run);
   console.log(
     `[worker] ${workerId} claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
   );
   try {
-    const result = await HANDLERS[run.kind].run({ db, run });
+    const result = await HANDLERS[run.kind].run({
+      db,
+      run,
+      submitting: (submit) => inFlight.submitting(run, submit),
+    });
     await finish(db, run, {
       status: "completed",
       error: null,
@@ -245,13 +258,29 @@ async function processOne(db, workerId) {
         );
     // After the scene is marked failed, so the film is assembled without it.
     if (!retry) await advanceProduction(db, run);
+  } finally {
+    inFlight.release(run);
   }
   return true;
 }
 
+// A stop (GitHub cancels a job with SIGINT, then SIGTERM, then kills it ~10 s later) puts this
+// worker's runs back to queued and exits, so the next worker resumes them at once.
 let stopping = false;
+let exiting = null;
 for (const signal of ["SIGINT", "SIGTERM"])
-  process.on(signal, () => (stopping = true));
+  process.on(signal, () => {
+    stopping = true;
+    exiting ??= inFlight
+      .requeue()
+      .then(
+        (ids) =>
+          ids.length &&
+          console.log(`[worker] ${signal}: queued again ${ids.join(", ")}`),
+        (error) => console.error(`[worker] ${signal}: requeue failed`, error),
+      )
+      .finally(() => process.exit(0));
+  });
 
 console.log(
   `[worker] ${WORKER_ID} ${DRAIN ? "draining" : "polling"} ${targets.map((target) => target.name).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots each`,
@@ -263,6 +292,7 @@ await Promise.all(
       concurrency: CONCURRENCY,
       drain: DRAIN,
       idleMs: DRAIN_IDLE_MS,
+      stopAt: STOP_CLAIMING_AT,
       shouldStop: () => stopping,
       sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
       onError: (error) =>

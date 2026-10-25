@@ -38,6 +38,8 @@ export function buildTimeline(
       voiceAlignment: narration ? null : scene.voiceAlignment || null,
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
+      // A talking clip made for an older line: its speech is muted.
+      muteClip: scene.muteClip === true,
       transition: scene.transition || null,
       overlayText: String(scene.overlayText ?? "").trim(),
       durationS: Math.min(120, Math.max(0.5, Number(scene.durationS) || 3)),

@@ -53,3 +53,23 @@ test("drain with an idle window keeps polling and picks up work queued meanwhile
   assert.ok(claims >= 6);
   assert.equal(answers[2], true);
 });
+
+test("no slot claims a new job at or after stopAt", async () => {
+  let clock = 0;
+  let claims = 0;
+  await runSlots({
+    concurrency: 1,
+    drain: true,
+    stopAt: 3000,
+    now: () => clock,
+    sleep: async () => {
+      clock += 1000;
+    },
+    processOne: async () => {
+      claims += 1;
+      clock += 1000;
+      return claims < 10;
+    },
+  });
+  assert.equal(claims, 3);
+});

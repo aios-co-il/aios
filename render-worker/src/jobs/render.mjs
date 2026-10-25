@@ -152,7 +152,9 @@ export async function loadFilmSources(db, run) {
     const line = narrationLine(scene);
     if (!line || narrationPath) return null;
     if (hasTalking) return ownVoice(scene, line);
-    return assets.get(scene.voice_asset_id)?.url || null;
+    // Only a scene's own voiceover. A continuous narration linked here is the whole script.
+    const voice = assets.get(scene.voice_asset_id);
+    return voice?.type === "voiceover" ? voice.url || null : null;
   };
   const mapped = scenes
     .map((scene) => {
@@ -160,8 +162,12 @@ export async function loadFilmSources(db, run) {
       const clipMeta = metaOf(clip);
       // A clip that speaks (one-shot talking clip or a lip-sync pass) carries its own line.
       // The manifest then keeps the camera still, plays the clip audio, ducks the music and
-      // stretches the scene to the probed clip length.
-      const clipTalks = clipMeta.lipsync === true;
+      // stretches the scene to the probed clip length. One made for an older line is muted
+      // and the scene's current line plays as a voiceover.
+      const spokeOldLine =
+        clipMeta.lipsync === true &&
+        spokenLine(clipMeta.dialogue) !== talkingLine(scene);
+      const clipTalks = clipMeta.lipsync === true && !spokeOldLine;
       const voicePath = voicePathOf(scene, clipTalks);
       const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
       return {
@@ -176,6 +182,7 @@ export async function loadFilmSources(db, run) {
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
+        muteClip: spokeOldLine,
       };
     })
     .filter((scene) => scene.clipPath);

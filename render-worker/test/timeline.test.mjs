@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { assembleFilm } from "../src/compose/assemble.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
+import { probe } from "../src/ffmpeg.mjs";
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
@@ -171,6 +172,60 @@ test(
         detected.stderr.match(/mean_volume:\s*(-?[0-9.]+) dB/)?.[1],
       );
       assert.ok(mean > -45, detected.stderr.slice(-400));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "assembleFilm stretches a scene to its voice and the film to the narration",
+  { skip: !hasFfmpeg },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "lengths-"));
+    const quiet = ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"];
+    try {
+      const clip = join(dir, "clip.mp4");
+      const voice = join(dir, "voice.wav");
+      const narration = join(dir, "narration.wav");
+      media([
+        ...quiet,
+        ...["-i", "color=c=green:s=320x240:d=1", "-c:v", "libx264"],
+        ...["-pix_fmt", "yuv420p", clip],
+      ]);
+      media([...quiet, "-i", "sine=frequency=440:duration=2", voice]);
+      media([...quiet, "-i", "sine=frequency=330:duration=3", narration]);
+
+      const voiced = join(dir, "voiced.mp4");
+      await assembleFilm(
+        buildTimeline(
+          [
+            {
+              id: "a",
+              position: 1,
+              clipPath: clip,
+              durationS: 1,
+              voicePath: voice,
+            },
+          ],
+          { aspect: "1:1" },
+        ),
+        voiced,
+      );
+      assert.ok((await probe(voiced)).duration >= 2.4);
+
+      const narrated = join(dir, "narrated.mp4");
+      await assembleFilm(
+        buildTimeline(
+          [
+            { id: "a", position: 1, clipPath: clip, durationS: 0.8 },
+            { id: "b", position: 2, clipPath: clip, durationS: 0.8 },
+          ],
+          { aspect: "1:1", narrationPath: narration },
+        ),
+        narrated,
+      );
+      assert.ok((await probe(narrated)).duration >= 3.4);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

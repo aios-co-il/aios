@@ -101,6 +101,7 @@ async function segment(timeline, scene, index, dir) {
   // Voiceover first; otherwise the clip's own sound (engines that generate audio), else silence.
   const clipHasAudio =
     !scene.voicePath &&
+    !scene.muteClip &&
     (await probe(scene.clipPath).catch(() => null))?.hasAudio;
   const audioArgs = scene.voicePath
     ? ["-i", scene.voicePath]
@@ -144,14 +145,44 @@ async function segment(timeline, scene, index, dir) {
   return output;
 }
 
+const TAIL_S = 0.5;
+
+/**
+ * Seconds each scene lasts. Speech is never cut: a scene runs as long as its voice (plus a short
+ * tail) or its lip-synced clip, and a narration longer than the scenes holds the last one.
+ */
+async function sceneLengths(timeline) {
+  const seconds = async (file) =>
+    file ? (await probe(file).catch(() => null))?.duration || 0 : 0;
+  const lengths = [];
+  for (const scene of timeline.scenes) {
+    const voiceS = await seconds(scene.voicePath);
+    const clipS = scene.lipsync ? await seconds(scene.clipPath) : 0;
+    lengths.push(Math.max(scene.durationS, voiceS && voiceS + TAIL_S, clipS));
+  }
+  const narrationS = await seconds(timeline.narrationPath);
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  if (narrationS && narrationS + TAIL_S > total)
+    lengths[lengths.length - 1] += narrationS + TAIL_S - total;
+  return lengths;
+}
+
 /** Concatenates the segments and lays the music bed under the voice. */
 export async function assembleFilm(timeline, outputPath) {
   if (!timeline.scenes.length) throw new Error("render: no approved clips");
   const dir = join(outputPath, "..", "segments");
   await mkdir(dir, { recursive: true });
+  const lengths = await sceneLengths(timeline);
   const segments = [];
   for (const [index, scene] of timeline.scenes.entries()) {
-    segments.push(await segment(timeline, scene, index, dir));
+    segments.push(
+      await segment(
+        timeline,
+        { ...scene, durationS: lengths[index] },
+        index,
+        dir,
+      ),
+    );
   }
   const list = join(dir, "list.txt");
   await writeFile(
@@ -190,7 +221,7 @@ export async function assembleFilm(timeline, outputPath) {
     ]);
     return outputPath;
   }
-  const duration = Number(timeline.totalS || 0).toFixed(3);
+  const duration = lengths.reduce((sum, length) => sum + length, 0).toFixed(3);
   const inputs = ["-i", picture];
   const filters = [];
   const beds = [];

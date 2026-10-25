@@ -12,6 +12,7 @@ import {
   getVideoProvider,
   talkingPrompt,
 } from "../providers/index.mjs";
+import { publicStill } from "./still-image.mjs";
 
 const BUCKET = "creative-video";
 const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
@@ -57,6 +58,9 @@ export async function generateClip({
   provider = getVideoProvider(),
   fallbackFrom = null,
   log = console.log,
+  // The worker wraps the paid submit and the save of its job id, so a stop never requeues
+  // the run in between (src/inflight.mjs).
+  submitting = (submit) => submit(),
 }) {
   const input = run.input ?? {};
   if (!run.scene_id) throw finalError("clip run: scene_id is required");
@@ -98,38 +102,42 @@ export async function generateClip({
     const imageBytes = await loadStill(db, run.tenant_id, still.url);
     let imageUrl = null;
     if (provider.needsPublicImage) {
-      // Stored stills can be expiring signed links; hand the provider a fresh one of a copy.
+      // Stored stills can be expiring signed links; hand the provider a fresh one of a copy,
+      // labelled with its real type (a WebP becomes a PNG).
+      const copy = await publicStill(imageBytes);
       const source = assertTenantPath(
         run.tenant_id,
-        `${item.folder}/${safeSegment(run.scene_id)}/still-source-${safeSegment(run.id)}.png`,
+        `${item.folder}/${safeSegment(run.scene_id)}/still-source-${safeSegment(run.id)}.${copy.ext}`,
       );
-      await db.upload(BUCKET, source, imageBytes, "image/png");
+      await db.upload(BUCKET, source, copy.bytes, copy.contentType);
       imageUrl = await db.sign(BUCKET, source, 3600);
     }
-    ({ jobId } = await provider.submit({
-      imageBytes,
-      imageUrl,
-      prompt: talking
-        ? talkingPrompt(input.motion_prompt, talking)
-        : clipPrompt(input.motion_prompt),
-      durationS,
-      aspect,
-      generateAudio: Boolean(talking) || input.generate_audio === true,
-      talking: Boolean(talking),
-    }));
-    try {
-      await db.update("marketing_runs", `id=eq.${run.id}`, {
-        provider: provider.name,
-        provider_job_id: jobId,
-      });
-    } catch (error) {
-      // The provider already accepted (and charges for) the job: never submit it again.
-      throw submitted(
-        finalError(
-          `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
-        ),
-      );
-    }
+    await submitting(async () => {
+      ({ jobId } = await provider.submit({
+        imageBytes,
+        imageUrl,
+        prompt: talking
+          ? talkingPrompt(input.motion_prompt, talking)
+          : clipPrompt(input.motion_prompt),
+        durationS,
+        aspect,
+        generateAudio: Boolean(talking) || input.generate_audio === true,
+        talking: Boolean(talking),
+      }));
+      try {
+        await db.update("marketing_runs", `id=eq.${run.id}`, {
+          provider: provider.name,
+          provider_job_id: jobId,
+        });
+      } catch (error) {
+        // The provider already accepted (and charges for) the job: never submit it again.
+        throw submitted(
+          finalError(
+            `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+          ),
+        );
+      }
+    });
     log(`[clip] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
   try {
@@ -184,8 +192,9 @@ async function finishClip({
     await sleep(POLL_EVERY_MS());
     result = await provider.poll(jobId);
   }
+  // A failed job stays failed: polling it again on a retry cannot help.
   if (result.status !== "succeeded")
-    throw new Error(result.error || `${provider.name} job ${jobId} failed`);
+    throw finalError(result.error || `${provider.name} job ${jobId} failed`);
 
   let bytes = result.bytes;
   if (!bytes) {

@@ -1,0 +1,152 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { createServer } from "node:http";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { createInFlight } from "../src/inflight.mjs";
+
+const REQUEUED = {
+  status: "queued",
+  error: "worker stopped during the job; queued again",
+};
+const tick = (ms = 10) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function fakeDb() {
+  const updates = [];
+  return {
+    updates,
+    update: async (table, query, patch) => {
+      updates.push({ table, query, patch });
+      return [{}];
+    },
+  };
+}
+
+test("a stop puts held runs back to queued and leaves their provider job alone", async () => {
+  const db = fakeDb();
+  const inFlight = createInFlight();
+  inFlight.hold(db, { id: "r1" });
+  inFlight.hold(db, { id: "r2" });
+  inFlight.release({ id: "r2" });
+  assert.deepEqual(await inFlight.requeue(), ["r1"]);
+  assert.deepEqual(db.updates, [
+    {
+      table: "marketing_runs",
+      query: "id=eq.r1&status=eq.running",
+      patch: REQUEUED,
+    },
+  ]);
+});
+
+test("a stop waits for a paid submit to save its job id, and no submit starts after it", async () => {
+  const db = fakeDb();
+  const inFlight = createInFlight();
+  const run = { id: "r1" };
+  inFlight.hold(db, run);
+  const order = [];
+  let finish;
+  inFlight.submitting(run, async () => {
+    await new Promise((resolve) => (finish = resolve));
+    order.push("saved");
+  });
+  const stop = inFlight.requeue({ waitMs: 2000 });
+  await tick();
+  assert.equal(db.updates.length, 0);
+  finish();
+  assert.deepEqual(await stop, ["r1"]);
+  order.push("requeued");
+  assert.deepEqual(order, ["saved", "requeued"]);
+
+  let started = false;
+  inFlight.submitting(run, async () => (started = true));
+  await tick();
+  assert.equal(started, false);
+});
+
+test("a run still inside its submit when the wait ends stays running", async () => {
+  const db = fakeDb();
+  const inFlight = createInFlight();
+  const run = { id: "r1" };
+  inFlight.hold(db, run);
+  inFlight.submitting(run, () => new Promise(() => {}));
+  assert.deepEqual(await inFlight.requeue({ waitMs: 100 }), []);
+  assert.equal(db.updates.length, 0);
+});
+
+test("a run being claimed when the stop comes is queued again too", async () => {
+  const db = fakeDb();
+  const inFlight = createInFlight();
+  inFlight
+    .claim(tick(30).then(() => [{ id: "r3" }]))
+    .then(([run]) => inFlight.hold(db, run));
+  assert.deepEqual(await inFlight.requeue(), ["r3"]);
+});
+
+test("on SIGTERM the worker queues its run again and exits", async () => {
+  const patches = [];
+  let claims = 0;
+  let working;
+  const inJob = new Promise((resolve) => (working = resolve));
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => (body += chunk));
+    request.on("end", () => {
+      response.setHeader("Content-Type", "application/json");
+      if (request.url === "/rest/v1/rpc/claim_video_run") {
+        claims += 1;
+        const run = {
+          id: "run-1",
+          kind: "render",
+          tenant_id: "t1",
+          item_id: "i1",
+          attempts: 1,
+          output: {},
+        };
+        return response.end(JSON.stringify(claims === 1 ? [run] : []));
+      }
+      if (request.method === "PATCH") {
+        patches.push({ url: request.url, body: JSON.parse(body) });
+        return response.end("[{}]");
+      }
+      // Every read of the job hangs, so the run is still in flight when the signal comes.
+      working();
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const child = spawn(
+    process.execPath,
+    [fileURLToPath(new URL("../src/index.mjs", import.meta.url))],
+    {
+      env: {
+        PATH: process.env.PATH,
+        SUPABASE_URL: `http://127.0.0.1:${server.address().port}`,
+        SUPABASE_SERVICE_ROLE_KEY: "test-key",
+        CONCURRENCY: "1",
+        POLL_MS: "50",
+        WORKER_ID: "test",
+      },
+      stdio: "ignore",
+    },
+  );
+  try {
+    await inJob;
+    child.kill("SIGTERM");
+    const exited = await Promise.race([
+      once(child, "exit").then(() => true),
+      tick(8000).then(() => false),
+    ]);
+    assert.equal(exited, true);
+    assert.deepEqual(patches, [
+      {
+        url: "/rest/v1/marketing_runs?id=eq.run-1&status=eq.running",
+        body: REQUEUED,
+      },
+    ]);
+  } finally {
+    child.kill("SIGKILL");
+    server.closeAllConnections();
+    server.close();
+  }
+});

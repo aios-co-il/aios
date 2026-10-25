@@ -17,6 +17,7 @@ import {
 } from "../providers/index.mjs";
 import { audioMime } from "../providers/lipsync.mjs";
 import { isPaidPlanError } from "../providers/plan.mjs";
+import { publicStill } from "./still-image.mjs";
 
 const BUCKET = "creative-video";
 const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
@@ -96,6 +97,8 @@ export async function generateLipsync({
   providerFor = getLipsyncProvider,
   env = process.env,
   log = console.log,
+  // Wraps the paid submit and the save of its job id (src/inflight.mjs).
+  submitting = (submit) => submit(),
 }) {
   if (!run.scene_id) throw finalError("lipsync run: scene_id is required");
   const item = await loadRunItem(db, run);
@@ -135,61 +138,63 @@ export async function generateLipsync({
     source = run.output?.lipsync_source ?? null;
     log(`[lipsync] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
-    let lastError = null;
-    for (const name of names) {
-      const candidate = providerFor(name, keys);
-      const picture = candidate.needs === "video" ? clip : still;
-      if (!picture) {
-        lastError = new Error(
-          `${name} lip sync needs the scene ${candidate.needs === "video" ? "clip" : "still"}`,
-        );
-        continue;
-      }
-      try {
-        const input = await providerInput(db, run, item, candidate, {
-          picture,
-          voice,
-          line,
-          speaker: String(scene.meta?.speaker ?? "").trim() || null,
-          durationS,
-          aspect,
-        });
-        ({ jobId } = await candidate.submit(input));
-        provider = candidate;
-        source = {
-          kind: candidate.needs === "video" ? "clip" : "still",
-          asset_id: picture.id,
-        };
-        break;
-      } catch (error) {
-        lastError = error;
-        // Only a plan that cannot make video, or a rejected key, moves on to the next provider;
-        // nothing was accepted, so nothing was charged.
-        if (
-          !isPaidPlanError(error) &&
-          !/\b40[13]\b|invalid credentials|model_access_denied/i.test(
-            String(error?.message),
+    await submitting(async () => {
+      let lastError = null;
+      for (const name of names) {
+        const candidate = providerFor(name, keys);
+        const picture = candidate.needs === "video" ? clip : still;
+        if (!picture) {
+          lastError = new Error(
+            `${name} lip sync needs the scene ${candidate.needs === "video" ? "clip" : "still"}`,
+          );
+          continue;
+        }
+        try {
+          const input = await providerInput(db, run, item, candidate, {
+            picture,
+            voice,
+            line,
+            speaker: String(scene.meta?.speaker ?? "").trim() || null,
+            durationS,
+            aspect,
+          });
+          ({ jobId } = await candidate.submit(input));
+          provider = candidate;
+          source = {
+            kind: candidate.needs === "video" ? "clip" : "still",
+            asset_id: picture.id,
+          };
+          break;
+        } catch (error) {
+          lastError = error;
+          // Only a plan that cannot make video, or a rejected key, moves on to the next provider;
+          // nothing was accepted, so nothing was charged.
+          if (
+            !isPaidPlanError(error) &&
+            !/\b40[13]\b|invalid credentials|model_access_denied/i.test(
+              String(error?.message),
+            )
           )
-        )
-          throw error;
-        log(`[lipsync] ${run.id} ${name} unavailable: ${error.message}`);
+            throw error;
+          log(`[lipsync] ${run.id} ${name} unavailable: ${error.message}`);
+        }
       }
-    }
-    if (!provider)
-      throw finalError(
-        `lipsync run: ${lastError?.message ?? NO_LIPSYNC_PROVIDER}`,
-      );
-    try {
-      await db.update("marketing_runs", `id=eq.${run.id}`, {
-        provider: provider.name,
-        provider_job_id: jobId,
-        output: { ...(run.output ?? {}), lipsync_source: source },
-      });
-    } catch (error) {
-      throw finalError(
-        `${provider.name} lip-sync job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
-      );
-    }
+      if (!provider)
+        throw finalError(
+          `lipsync run: ${lastError?.message ?? NO_LIPSYNC_PROVIDER}`,
+        );
+      try {
+        await db.update("marketing_runs", `id=eq.${run.id}`, {
+          provider: provider.name,
+          provider_job_id: jobId,
+          output: { ...(run.output ?? {}), lipsync_source: source },
+        });
+      } catch (error) {
+        throw finalError(
+          `${provider.name} lip-sync job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+        );
+      }
+    });
     log(`[lipsync] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
 
@@ -246,11 +251,12 @@ async function providerInput(
         3600,
       );
     } else {
+      const copy = await publicStill(input.imageBytes);
       const imagePath = assertTenantPath(
         run.tenant_id,
-        `${base}/lipsync-still-${safeSegment(run.id)}.png`,
+        `${base}/lipsync-still-${safeSegment(run.id)}.${copy.ext}`,
       );
-      await db.upload(BUCKET, imagePath, input.imageBytes, "image/png");
+      await db.upload(BUCKET, imagePath, copy.bytes, copy.contentType);
       input.imageUrl = await db.sign(BUCKET, imagePath, 3600);
     }
   }

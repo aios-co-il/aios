@@ -160,8 +160,15 @@ function fakeDb({ still }) {
         return [{ id: "still-1", url: "t1/c1/i1/still.png" }];
       return [];
     },
-    upload: async (bucket, path, bytes) =>
-      calls.uploads.push({ bucket, path, size: bytes.length }),
+    upload: async (bucket, path, bytes, contentType) =>
+      calls.uploads.push({
+        bucket,
+        path,
+        size: bytes.length,
+        bytes,
+        contentType,
+      }),
+    sign: async (bucket, path) => `https://p.supabase.co/sign/${path}`,
     rpc: async (name, args) => calls.rpcs.push({ name, args }),
     update: async (table, query, patch) =>
       calls.updates.push({ table, query, patch }),
@@ -314,4 +321,112 @@ test("a clip run for a scene outside the run's tenant is refused before any prov
     /not in the run's tenant/,
   );
   assert.equal(submitted, false);
+});
+
+/** A provider that records what it is sent and answers each poll with `answer`. */
+function recordingProvider(answer, extra = {}) {
+  const seen = { submits: [], polls: 0 };
+  return {
+    seen,
+    provider: {
+      name: "openrouter",
+      model: "m",
+      estimate: () => ({ credits: 0, usd: 0 }),
+      submit: async (input) => (seen.submits.push(input), { jobId: "job-1" }),
+      poll: async () => (seen.polls++, answer),
+      ...extra,
+    },
+  };
+}
+
+test("a provider job that failed is final, so a retry does not poll the dead job again", async () => {
+  const db = fakeDb({ still: new Uint8Array([1]) });
+  const { provider, seen } = recordingProvider({
+    status: "failed",
+    error: "Content policy violation",
+  });
+  await assert.rejects(
+    generateClip({ db, run: clipRun("s1"), provider, log: () => {} }),
+    (error) =>
+      error.final === true &&
+      error.submitted === true &&
+      /Content policy violation/.test(error.message),
+  );
+  assert.equal(seen.polls, 1);
+});
+
+const done = { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 0]) };
+
+test("the still copy an engine fetches carries the still's real type", async () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  const db = fakeDb({ still: jpeg });
+  const { provider, seen } = recordingProvider(done, {
+    needsPublicImage: true,
+  });
+  await generateClip({ db, run: clipRun("s1"), provider, log: () => {} });
+  const [copy] = db.calls.uploads;
+  assert.equal(copy.path, "t1/c1/i1/s1/still-source-run-s1.jpg");
+  assert.equal(copy.contentType, "image/jpeg");
+  assert.match(seen.submits[0].imageUrl, /still-source-run-s1\.jpg$/);
+});
+
+/** A small WebP made with ffmpeg; empty when ffmpeg cannot write WebP. */
+function stillWebp() {
+  const result = spawnSync(
+    "ffmpeg",
+    [
+      ...["-hide_banner", "-loglevel", "error", "-f", "lavfi"],
+      ...["-i", "testsrc2=size=64x64", "-frames:v", "1"],
+      ...["-c:v", "libwebp", "-f", "webp", "-"],
+    ],
+    { maxBuffer: 10 * 1024 * 1024 },
+  );
+  return result.status === 0 ? new Uint8Array(result.stdout) : new Uint8Array();
+}
+const webp = hasFfmpeg ? stillWebp() : new Uint8Array();
+
+test(
+  "a WebP still is handed to the engine as a PNG",
+  { skip: !webp.length },
+  async () => {
+    const db = fakeDb({ still: webp });
+    const { provider } = recordingProvider(done, { needsPublicImage: true });
+    await generateClip({ db, run: clipRun("s1"), provider, log: () => {} });
+    const [copy] = db.calls.uploads;
+    assert.equal(copy.path, "t1/c1/i1/s1/still-source-run-s1.png");
+    assert.equal(copy.contentType, "image/png");
+    assert.deepEqual([...copy.bytes.slice(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+  },
+);
+
+test("the paid submit and the save of its job id run inside the worker's submit guard", async () => {
+  const db = fakeDb({ still: new Uint8Array([1]) });
+  let inside = false;
+  const seen = [];
+  const update = db.update;
+  db.update = async (table, query, patch) => {
+    seen.push(["save", inside]);
+    return update(table, query, patch);
+  };
+  const { provider } = recordingProvider(done, {
+    submit: async () => (seen.push(["submit", inside]), { jobId: "job-1" }),
+  });
+  await generateClip({
+    db,
+    run: clipRun("s1"),
+    provider,
+    log: () => {},
+    submitting: async (submit) => {
+      inside = true;
+      try {
+        return await submit();
+      } finally {
+        inside = false;
+      }
+    },
+  });
+  assert.deepEqual(seen, [
+    ["submit", true],
+    ["save", true],
+  ]);
 });

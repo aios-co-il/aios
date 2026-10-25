@@ -275,3 +275,36 @@ test("a retry resumes a saved OpenRouter fallback job instead of submitting agai
   });
   assert.deepEqual(calls, [["openrouter", "higgsfield"]]);
 });
+
+test("an ElevenLabs key refused at submit moves to OpenRouter, not Higgsfield", async () => {
+  const { calls, run } = recorder({
+    elevenlabs: new Error(
+      'elevenlabs submit 401: {"detail":{"status":"missing_permissions"}}',
+    ),
+  });
+  const result = await runClipWithFallback({
+    name: "elevenlabs",
+    keys: withOpenRouter,
+    run,
+  });
+  assert.deepEqual(result, {
+    provider: "openrouter",
+    fallbackFrom: "elevenlabs",
+  });
+  assert.deepEqual(calls, [
+    ["elevenlabs", null],
+    ["openrouter", "elevenlabs"],
+  ]);
+
+  const broken = new Error("elevenlabs submit 500: server error");
+  const other = recorder({ elevenlabs: broken });
+  await assert.rejects(
+    runClipWithFallback({
+      name: "elevenlabs",
+      keys: withOpenRouter,
+      run: other.run,
+    }),
+    broken,
+  );
+  assert.equal(other.calls.length, 1);
+});

@@ -185,10 +185,11 @@ export function buildWorkshopManifest(timeline) {
   for (const word of framed) spans.push([word.startFrame, word.endFrame]);
   const speech = speechSpans(spans);
   const clipAudio = timeline.clipAudio !== false;
-  for (const scene of scenes) {
+  for (const [order, scene] of scenes.entries()) {
     const end = scene.startFrame + scene.frameCount;
     // A lip-synced clip carries the speech itself; any other clip sits under the narration.
-    if (!scene.clip || !scene.hasAudio) scene.clipVolume = 0;
+    if (!scene.clip || !scene.hasAudio || picked[order].scene.muteClip)
+      scene.clipVolume = 0;
     else if (scene.lipsync) scene.clipVolume = 1;
     else if (!clipAudio) scene.clipVolume = 0;
     else if (speaks(speech, scene.startFrame, end))

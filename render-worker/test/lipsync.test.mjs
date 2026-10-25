@@ -298,6 +298,44 @@ test("a lip-sync run stores the provider job before polling and attaches a talki
   assert.equal(result.output.lipsync, true);
 });
 
+test("the lip-sync submit and the save of its job id run inside the worker's submit guard", async () => {
+  const db = fakeDb();
+  const { provider } = fakeProvider();
+  let inside = false;
+  const seen = [];
+  const update = db.update;
+  db.update = async (table, query, patch) => {
+    seen.push(["save", inside]);
+    return update(table, query, patch);
+  };
+  await generateLipsync({
+    db,
+    run: RUN,
+    keys: { elevenLabsKey: "xi" },
+    providerFor: () => ({
+      ...provider,
+      submit: async (input) => {
+        seen.push(["submit", inside]);
+        return provider.submit(input);
+      },
+    }),
+    env: {},
+    log: () => {},
+    submitting: async (submit) => {
+      inside = true;
+      try {
+        return await submit();
+      } finally {
+        inside = false;
+      }
+    },
+  });
+  assert.deepEqual(seen, [
+    ["submit", true],
+    ["save", true],
+  ]);
+});
+
 test("a retried lip-sync run with a provider job resumes it and does not pay again", async () => {
   const db = fakeDb();
   const { provider, seen } = fakeProvider("kling");

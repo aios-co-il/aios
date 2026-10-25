@@ -40,7 +40,7 @@ async function openRouterReady(keys, resolveOpenRouterKey, log) {
  * Runs a clip on the engine the user approved. When that engine refuses the job before
  * accepting it, the clip moves down the chain and records which engine it replaced:
  *   ElevenLabs plan that cannot make video -> Higgsfield (with a key) -> OpenRouter -> free preview
- *   any other paid engine with no credits or a rejected key -> OpenRouter (with a key) -> free preview
+ *   any paid engine with no credits or a rejected key -> OpenRouter (with a key) -> free preview
  * Only before any provider accepted a job: once a job id is saved the run resumes that job or
  * fails, so a scene is never paid for twice.
  *
@@ -72,9 +72,7 @@ export async function runClipWithFallback({
   } catch (error) {
     if (name === "mock" || error?.submitted || savedJobId) throw error;
     const chain = [];
-    if (name === "elevenlabs") {
-      // ElevenLabs keeps its own rule: only a plan that cannot make video moves on.
-      if (!isPaidPlanError(error)) throw error;
+    if (name === "elevenlabs" && isPaidPlanError(error)) {
       log("ElevenLabs plan cannot make video");
       if (
         higgsfieldCredential(keys?.higgsfieldKeyId, keys?.higgsfieldKeySecret)
