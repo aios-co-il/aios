@@ -117,6 +117,17 @@ export function internalStreamResult(conversationId: string): SendResult {
   };
 }
 
+/**
+ * A picked chat-model brain (or "נתב חכם") runs as Carmen: the client streams
+ * run-ai-agent with this slug, and the server picks the models from it.
+ */
+export function brainStreamResult(
+  conversationId: string,
+  routeSlug: string,
+): SendResult {
+  return { ...internalStreamResult(conversationId), run_brain: routeSlug };
+}
+
 export function statusForKind(kind: ChannelProvider): ConversationStatus {
   if (kind === "internal") return "streaming";
   if (kind === "parliament") return "debating";

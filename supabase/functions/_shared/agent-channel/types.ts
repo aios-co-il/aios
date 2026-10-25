@@ -121,6 +121,8 @@ export type SendResult = {
   inline_reply?: string;
   /** Who answered, when it is not `kind` (model brains answer as their route slug). */
   speaker?: string;
+  /** Stream run-ai-agent with this brain_slug: the brain runs Carmen's loop. */
+  run_brain?: string;
 };
 
 export type CallbackPayload = {

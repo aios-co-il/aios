@@ -4,25 +4,7 @@
  */
 import type { BrainProfile } from "../brain-connections/types.ts";
 import type { FailureKind } from "./failover.ts";
-import type { ModelCandidate, TaskDescriptor, TaskKind } from "./types.ts";
-
-/** Pure writing tasks a model without Carmen's tools or data can answer. */
-const FREE_MODEL_KINDS = new Set<TaskKind>(["content_draft", "customer_reply"]);
-
-/**
- * True when "נתב חכם" must hand the message to Carmen's own brain: it needs
- * tools, an approval or vision, or it is not a recognised writing task. An
- * unrecognised message ("pulse check for clients") usually means Carmen's
- * data, so it never goes to a model that would answer without it.
- */
-export function needsCarmenBrain(task: TaskDescriptor): boolean {
-  return (
-    !!task.needsToolCalling ||
-    !!task.requiresActionApproval ||
-    !!task.needsVision ||
-    !FREE_MODEL_KINDS.has(task.kind)
-  );
-}
+import type { ModelCandidate } from "./types.ts";
 
 export type RoutableConnection = {
   id: string;

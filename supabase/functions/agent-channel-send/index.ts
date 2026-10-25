@@ -19,7 +19,6 @@ import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
 import {
   type InputMode,
-  isSmartRouter,
   type SendResult,
 } from "../_shared/agent-channel/types.ts";
 import {
@@ -422,8 +421,8 @@ Deno.serve(async (req) => {
 });
 
 /**
- * Carmen's streamed reply belongs to her own thread, except when "נתב חכם"
- * handed her the task: then it stays on the router's thread.
+ * Carmen's streamed reply belongs to her own thread, except when a model
+ * brain or "נתב חכם" ran her loop: then it stays on that brain's thread.
  */
 async function persistChannel(
   sb: ReturnType<typeof serviceClient>,
@@ -432,7 +431,7 @@ async function persistChannel(
 ): Promise<string> {
   if (typeof brainSlug !== "string" || !brainSlug) return "internal";
   const route = await loadRoute(sb, tenantId, { slug: brainSlug });
-  return route && route.slug === brainSlug && isSmartRouter(route)
+  return route && route.slug === brainSlug && route.route_type === "model"
     ? route.slug
     : "internal";
 }
