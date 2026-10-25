@@ -10,7 +10,11 @@ import { klingProvider } from "./kling.mjs";
 import { mockProvider } from "./mock.mjs";
 
 const PROVIDERS = {
-  kling: () => klingProvider(),
+  kling: (keys) =>
+    klingProvider({
+      accessKey: keys?.klingAccessKey,
+      secretKey: keys?.klingSecretKey,
+    }),
   mock: () => mockProvider(),
   elevenlabs: (keys) => elevenLabsProvider({ apiKey: keys?.elevenLabsKey }),
   higgsfield: (keys) =>

@@ -29,7 +29,7 @@ Handled kinds:
 Every provider implements `estimate / submit / poll` (`src/providers/`), so changing provider touches only that folder.
 
 - `mock` (default): a free ffmpeg Ken Burns push-in on the still. Use it on Staging to exercise the full flow without spending.
-- `kling`: the official Kling image-to-video API. It takes a JWT from `KLING_ACCESS_KEY` and `KLING_SECRET_KEY`, and `KLING_BASE_URL`, `KLING_MODEL` and `KLING_MODE` override the defaults. The request shape follows the published v1 `image2video` API; confirm it with one paid test clip before turning it on. Cost is estimated at about $0.85 (5,100 credits) per 5 s pro clip, and 10 s for scenes longer than 5 s.
+- `kling`: the official Kling image-to-video API. It signs a JWT with the tenant's Kling Access Key and Secret Key (AI keys settings, `kling_access_key` / `kling_secret_key` in the `llm` integration), falling back to `KLING_ACCESS_KEY` and `KLING_SECRET_KEY`, and `KLING_BASE_URL`, `KLING_MODEL` and `KLING_MODE` override the defaults. The request shape follows the published v1 `image2video` API; confirm it with one paid test clip before turning it on. Cost is estimated at about $0.85 (5,100 credits) per 5 s pro clip, and 10 s for scenes longer than 5 s.
 
 No dependencies beyond Node 22 and ffmpeg.
 

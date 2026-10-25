@@ -34,13 +34,18 @@ export function klingToken(
 
 export const klingDuration = (seconds) => (Number(seconds) > 5 ? "10" : "5");
 
-export function klingProvider() {
-  const accessKey = process.env.KLING_ACCESS_KEY;
-  const secretKey = process.env.KLING_SECRET_KEY;
+/** The tenant's own key pair wins; the env pair is the agency's fallback. */
+export function klingProvider({
+  accessKey: tenantAccess,
+  secretKey: tenantSecret,
+} = {}) {
+  const pair = tenantAccess && tenantSecret;
+  const accessKey = pair ? tenantAccess : process.env.KLING_ACCESS_KEY;
+  const secretKey = pair ? tenantSecret : process.env.KLING_SECRET_KEY;
   const auth = () => {
     if (!accessKey || !secretKey)
       throw new Error(
-        "KLING_ACCESS_KEY and KLING_SECRET_KEY are required for VIDEO_PROVIDER=kling",
+        "Kling needs an Access Key and a Secret Key (AI keys settings, or KLING_ACCESS_KEY / KLING_SECRET_KEY)",
       );
     return {
       Authorization: `Bearer ${klingToken(accessKey, secretKey)}`,

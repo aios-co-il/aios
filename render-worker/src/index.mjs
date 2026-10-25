@@ -89,6 +89,10 @@ async function resolveMediaKeys(tenantId) {
       settings.higgsfield_api_key_secret ||
       process.env.HF_API_KEY_SECRET ||
       null,
+    klingAccessKey:
+      settings.kling_access_key || process.env.KLING_ACCESS_KEY || null,
+    klingSecretKey:
+      settings.kling_secret_key || process.env.KLING_SECRET_KEY || null,
   };
 }
 
