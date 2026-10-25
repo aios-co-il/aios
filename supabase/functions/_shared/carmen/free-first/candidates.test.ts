@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   candidatesFromConnections,
   failureKindFor,
+  needsCarmenBrain,
   pickableConnections,
 } from "./candidates.ts";
 import { routeCarmenTask } from "./router.ts";
@@ -92,4 +93,15 @@ test("only brains shown in the picker and granted to the user are routable", () 
     ids((s) => s !== "groq-c"),
     ["a"],
   );
+});
+
+test("only recognised writing tasks skip Carmen's brain", () => {
+  const goesToCarmen = (text: string) =>
+    needsCarmenBrain(classifyCarmenTask(text, { containsClientData: true }));
+  assert.equal(goesToCarmen("תכתוב קופי למודעה"), false);
+  assert.equal(goesToCarmen("תנסח הודעה ללקוח שמבקש הנחה"), false);
+  assert.equal(goesToCarmen("כמה לידים נכנסו היום"), true);
+  assert.equal(goesToCarmen("כרמן את יכולה לעשות בדיקת דופק ללקוחות?"), true);
+  assert.equal(goesToCarmen("היי כרמן"), true);
+  assert.equal(goesToCarmen("תכתוב פוסט ותפרסם אותו"), true);
 });
