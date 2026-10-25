@@ -76,3 +76,53 @@ export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
       })),
   };
 }
+
+/** Workshop film (manifest schemaVersion 2 and 3). Every v3 field is optional. */
+export type WorkshopMove =
+  "push" | "drift-left" | "drift-right" | "rise" | "pull" | "static";
+export type WorkshopTransition =
+  "cut" | "crossfade" | "slide" | "wipe" | "zoom";
+export type WorkshopWord = {
+  text: string;
+  startFrame: number;
+  endFrame: number;
+};
+export type WorkshopCaption = {
+  startFrame: number;
+  endFrame: number;
+  words: WorkshopWord[];
+};
+export type WorkshopEnvelope = { frames: number[]; volumes: number[] };
+export type WorkshopBrand = {
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  logo?: string | null;
+  fontFamily?: string | null;
+  ctaText?: string | null;
+  ctaUrl?: string | null;
+};
+export type WorkshopScene = {
+  id: string;
+  durationFrames: number;
+  still?: string | null;
+  clip?: string | null;
+  voice?: string | null;
+  caption?: string;
+  move?: WorkshopMove;
+  transition?: WorkshopTransition;
+  transitionFrames?: number;
+  lipsync?: boolean;
+  clipVolume?: number;
+  /** The clip's own length; past it the last frame holds. */
+  clipFrames?: number;
+};
+export type WorkshopFilmProps = {
+  scenes: WorkshopScene[];
+  narration?: string | null;
+  music?: string | null;
+  musicEnvelope?: WorkshopEnvelope | null;
+  captions?: WorkshopCaption[];
+  brand?: WorkshopBrand | null;
+  endCardFrames?: number;
+};
+export const WORKSHOP_ACCENT = "#08F467";

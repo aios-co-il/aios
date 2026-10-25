@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
+import { brandFromPayload } from "../compose/brand.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
@@ -32,7 +33,12 @@ const metaOf = (asset) => {
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
-  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46) return "wav";
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46)
+    return bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42
+      ? "webp"
+      : "wav";
+  if (/^\s*<(\?xml|svg)/i.test(new TextDecoder().decode(bytes.slice(0, 64))))
+    return "svg";
   if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return "mp3";
   if (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return "mp3";
   if (
@@ -132,6 +138,10 @@ export async function loadFilmSources(db, run) {
       clipProvider: metaOf(assets.get(scene.clip_asset_id)).provider || null,
       stillPath: assets.get(scene.still_asset_id)?.url || null,
       voicePath: narrationPath ? null : assets.get(voiceOf(scene))?.url || null,
+      voiceAlignment: narrationPath
+        ? null
+        : metaOf(assets.get(voiceOf(scene))).alignment || null,
+      lipsync: metaOf(assets.get(scene.clip_asset_id)).lipsync === true,
     }))
     .filter((scene) => scene.clipPath);
   const missingNarration = mapped.some(
@@ -143,7 +153,20 @@ export async function loadFilmSources(db, run) {
     scenes: mapped,
     musicPath: music?.url || null,
     narrationPath,
+    narrationAlignment: narrationPath
+      ? metaOf(narration).alignment || null
+      : null,
   };
+}
+
+/** The brand kit on the run's work item (colors, font, logo, CTA), read for the run's tenant. */
+export async function loadFilmBrand(db, run) {
+  const [row] =
+    (await db.select(
+      "marketing_work_items",
+      `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
+    )) ?? [];
+  return brandFromPayload(row?.payload);
 }
 
 /** Builds the finished MP4 from each scene's current clip, its voiceover and the music bed. */
@@ -197,15 +220,36 @@ export async function renderFilm({ db, run, log = console.log }) {
           join(dir, "narration"),
         )
       : null;
+    const remotion = process.env.REMOTION_DISABLE !== "1";
+    const brand = remotion ? await loadFilmBrand(db, run) : null;
+    let logoPath = null;
+    if (brand?.logoUrl) {
+      try {
+        logoPath = await materialize(
+          db,
+          run.tenant_id,
+          brand.logoUrl,
+          join(dir, "logo"),
+        );
+      } catch (error) {
+        // A logo outside the tenant folder or the media hosts is left off the end card.
+        log(`[render] ${run.id} logo skipped: ${error.message}`);
+      }
+    }
     const timeline = buildTimeline(local, {
       aspect: run.input?.aspect || "9:16",
       musicPath,
       narrationPath,
+      narrationAlignment: sources.narrationAlignment,
+      brand: brand ? { ...brand, logoPath } : null,
     });
     const output = join(dir, "film.mp4");
-    if (process.env.REMOTION_DISABLE === "1")
-      await assembleFilm(timeline, output);
-    else await assembleWithRemotion(timeline, output, dir);
+    let durationS = timeline.totalS;
+    if (!remotion) await assembleFilm(timeline, output);
+    else
+      durationS =
+        (await assembleWithRemotion(timeline, output, dir)).durationS ||
+        durationS;
     const bytes = await readFile(output);
     // One file per run: concurrent renders of the same item can never overwrite each other.
     const path = assertTenantPath(
@@ -230,7 +274,7 @@ export async function renderFilm({ db, run, log = console.log }) {
           path,
           provider:
             process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",
-          duration_s: timeline.totalS,
+          duration_s: durationS,
           scene_count: timeline.scenes.length,
           aspect: timeline.aspect,
         },
@@ -239,7 +283,7 @@ export async function renderFilm({ db, run, log = console.log }) {
     return {
       output: {
         path,
-        duration_s: timeline.totalS,
+        duration_s: durationS,
         scene_count: timeline.scenes.length,
       },
       provider: process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",

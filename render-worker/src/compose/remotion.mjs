@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { probe } from "../ffmpeg.mjs";
 import { buildWorkshopManifest } from "./workshop-manifest.mjs";
 
 const remotionDir = () =>
@@ -29,9 +30,47 @@ const run = (command, args, cwd) =>
     );
   });
 
-/** Renders the film with the WorkshopFilm composition. Media stays on local disk. */
-export async function assembleWithRemotion(timeline, outputPath, workDir) {
-  const plan = buildWorkshopManifest(timeline);
+/** Media lengths and audio tracks the edit needs; an unreadable file keeps the defaults. */
+async function measured(timeline, probeFile) {
+  const read = async (file) => {
+    try {
+      return await probeFile(file);
+    } catch {
+      return null;
+    }
+  };
+  const scenes = [];
+  for (const scene of timeline.scenes) {
+    const clip = scene.clipPath ? await read(scene.clipPath) : null;
+    const voice = scene.voicePath ? await read(scene.voicePath) : null;
+    scenes.push({
+      ...scene,
+      clipHasAudio: clip ? clip.hasAudio : scene.clipHasAudio,
+      clipDurationS: clip?.duration || scene.clipDurationS || 0,
+      voiceDurationS: voice?.duration || scene.voiceDurationS || 0,
+    });
+  }
+  const narration = timeline.narrationPath
+    ? await read(timeline.narrationPath)
+    : null;
+  return {
+    ...timeline,
+    scenes,
+    narrationDurationS: narration?.duration || timeline.narrationDurationS || 0,
+  };
+}
+
+/**
+ * Renders the film with the WorkshopFilm composition. Media stays on local disk.
+ * Returns the film length, which grows past the storyboard when the narration is longer.
+ */
+export async function assembleWithRemotion(
+  timeline,
+  outputPath,
+  workDir,
+  { probeFile = probe } = {},
+) {
+  const plan = buildWorkshopManifest(await measured(timeline, probeFile));
   const stage = join(workDir, "remotion");
   await mkdir(stage, { recursive: true });
   for (const file of plan.files)
@@ -43,5 +82,9 @@ export async function assembleWithRemotion(timeline, outputPath, workDir) {
     [join(remotionDir(), "render-job.mjs"), manifestPath, outputPath],
     remotionDir(),
   );
-  return outputPath;
+  return {
+    outputPath,
+    durationS:
+      Math.round((plan.manifest.totalFrames / plan.manifest.fps) * 100) / 100,
+  };
 }

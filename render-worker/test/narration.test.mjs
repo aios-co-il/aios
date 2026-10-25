@@ -41,7 +41,11 @@ test("the continuous narration is used only when every spoken scene is in the fi
     { id: "clip-1", url: "t/clip-1.mp4", meta: {} },
     { id: "clip-2", url: "t/clip-2.mp4", meta: {} },
   ];
-  const narration = { url: "t/narration.mp3", meta: { text: "אחת שתיים" } };
+  const alignment = { characters: ["א"], character_start_times_seconds: [0] };
+  const narration = {
+    url: "t/narration.mp3",
+    meta: { text: "אחת שתיים", alignment },
+  };
   const full = await loadFilmSources(
     fakeDb({
       scenes: [
@@ -64,6 +68,8 @@ test("the continuous narration is used only when every spoken scene is in the fi
     run,
   );
   assert.equal(full.narrationPath, "t/narration.mp3");
+  // The word timings travel with the narration for karaoke captions.
+  assert.deepEqual(full.narrationAlignment, alignment);
 
   await assert.rejects(
     loadFilmSources(

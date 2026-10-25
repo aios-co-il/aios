@@ -15,7 +15,14 @@ export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
  */
 export function buildTimeline(
   scenes,
-  { aspect = "9:16", musicPath = null, narrationPath = null } = {},
+  {
+    aspect = "9:16",
+    musicPath = null,
+    narrationPath = null,
+    narrationAlignment = null,
+    brand = null,
+    clipAudio = true,
+  } = {},
 ) {
   const narration = narrationPath || null;
   const frames = [...scenes]
@@ -28,6 +35,10 @@ export function buildTimeline(
       clipProvider: scene.clipProvider || null,
       // A continuous narration plays across the whole film, not inside each scene.
       voicePath: narration ? null : scene.voicePath || null,
+      voiceAlignment: narration ? null : scene.voiceAlignment || null,
+      // A lip-synced clip keeps its own speech and is not moved by the camera.
+      lipsync: scene.lipsync === true,
+      transition: scene.transition || null,
       overlayText: String(scene.overlayText ?? "").trim(),
       durationS: Math.min(120, Math.max(0.5, Number(scene.durationS) || 3)),
     }));
@@ -40,6 +51,9 @@ export function buildTimeline(
     height,
     musicPath,
     narrationPath: narration,
+    narrationAlignment: narration ? narrationAlignment : null,
+    brand,
+    clipAudio: clipAudio !== false,
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };

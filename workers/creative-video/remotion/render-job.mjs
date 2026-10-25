@@ -22,8 +22,7 @@ const SAFE_NAME = /^[a-z0-9][a-z0-9._-]*$/i;
 
 const manifest = JSON.parse(await readFile(resolve(manifestPath), "utf8"));
 assert(
-  (manifest.schemaVersion === 1 || manifest.schemaVersion === 2) &&
-    manifest.fps === 30,
+  [1, 2, 3].includes(manifest.schemaVersion) && manifest.fps === 30,
   "Invalid manifest",
 );
 assert(
@@ -58,10 +57,77 @@ for (const scene of sorted) {
   );
   cursor += scene.frameCount;
 }
+const endCardFrames =
+  manifest.schemaVersion === 3 && manifest.endCard
+    ? manifest.endCard.frameCount
+    : 0;
 assert(
-  cursor === manifest.totalFrames && cursor <= 18000,
+  Number.isInteger(endCardFrames) && endCardFrames >= 0 && endCardFrames <= 300,
+  "Invalid end card",
+);
+const totalFrames = cursor + endCardFrames;
+assert(
+  totalFrames === manifest.totalFrames && totalFrames <= 18000,
   "Invalid totalFrames",
 );
+
+const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
+const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom"];
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
+const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
+const unit = (n, fallback) =>
+  typeof n === "number" && n >= 0 && n <= 1 ? n : fallback;
+const text = (value, max) => String(value ?? "").slice(0, max);
+
+/** Volume keyframes: strictly increasing frames, volumes between 0 and 1. */
+const envelopeOf = (env) => {
+  if (!env) return null;
+  const { frames, volumes } = env;
+  assert(
+    Array.isArray(frames) &&
+      Array.isArray(volumes) &&
+      frames.length >= 2 &&
+      frames.length === volumes.length &&
+      frames.length <= 4000 &&
+      frames.every((f, i) => frameNo(f) && (i === 0 || f > frames[i - 1])) &&
+      volumes.every((v) => unit(v, -1) >= 0),
+    "Invalid music envelope",
+  );
+  return { frames, volumes };
+};
+
+/** Karaoke lines: frame-timed words, at most 2000 lines of 12 words. */
+const captionsOf = (list) => {
+  if (!Array.isArray(list)) return [];
+  assert(list.length <= 2000, "Too many captions");
+  return list.map((line) => {
+    assert(
+      frameNo(line?.startFrame) &&
+        frameNo(line?.endFrame) &&
+        line.endFrame > line.startFrame &&
+        Array.isArray(line.words) &&
+        line.words.length > 0 &&
+        line.words.length <= 12,
+      "Invalid caption",
+    );
+    return {
+      startFrame: line.startFrame,
+      endFrame: line.endFrame,
+      words: line.words.map((word) => {
+        assert(
+          frameNo(word?.startFrame) && frameNo(word?.endFrame),
+          "Invalid caption word",
+        );
+        return {
+          text: text(word.text, 40),
+          startFrame: word.startFrame,
+          endFrame: word.endFrame,
+        };
+      }),
+    };
+  });
+};
 
 const stageFile = async (root, publicDir, name) => {
   assert(
@@ -101,45 +167,86 @@ if (manifest.schemaVersion === 1) {
   await mkdir(join(publicDir, "fonts"), { recursive: true });
   const fontSource = resolve("public/fonts/Heebo-Bold.ttf");
   await copyFile(fontSource, join(publicDir, "fonts/Heebo-Bold.ttf"));
-  const names = new Set();
+  const v3 = manifest.schemaVersion === 3;
   for (const scene of sorted) {
     const still = scene.still || null;
     const clip = scene.clip || null;
     assert(still || clip, "Scene needs a still or a clip");
     assert(!(still && clip), "Scene has both a still and a clip");
-    if (still) names.add(await stageFile(root, publicDir, still));
-    if (clip) names.add(await stageFile(root, publicDir, clip));
-    assert(
-      ["push", "drift-left", "drift-right", "rise", "pull"].includes(
-        scene.move,
-      ),
-      "Invalid camera move",
-    );
+    if (still) await stageFile(root, publicDir, still);
+    if (clip) await stageFile(root, publicDir, clip);
+    if (v3 && scene.voice) await stageFile(root, publicDir, scene.voice);
+    assert(MOVES.includes(scene.move), "Invalid camera move");
+    if (v3) {
+      assert(
+        !scene.transition || TRANSITIONS.includes(scene.transition),
+        "Invalid transition",
+      );
+      assert(
+        scene.transitionFrames === undefined ||
+          (Number.isInteger(scene.transitionFrames) &&
+            scene.transitionFrames >= 0 &&
+            scene.transitionFrames <= scene.frameCount),
+        "Invalid transition length",
+      );
+    }
   }
   let narration = null;
   let music = null;
   if (manifest.narration)
     narration = await stageFile(root, publicDir, manifest.narration);
   if (manifest.music) music = await stageFile(root, publicDir, manifest.music);
+  let brand = null;
+  if (v3 && manifest.brand) {
+    const b = manifest.brand;
+    brand = {
+      primaryColor: HEX.test(b.primaryColor ?? "") ? b.primaryColor : null,
+      secondaryColor: HEX.test(b.secondaryColor ?? "")
+        ? b.secondaryColor
+        : null,
+      logo: b.logo ? await stageFile(root, publicDir, b.logo) : null,
+      fontFamily: FONT.test(b.fontFamily ?? "") ? b.fontFamily : null,
+      ctaText: b.ctaText ? text(b.ctaText, 60) : null,
+      ctaUrl: b.ctaUrl ? text(b.ctaUrl, 120) : null,
+    };
+  }
   compositionId = "WorkshopFilm";
   props = {
     narration,
     music,
+    musicEnvelope: v3 ? envelopeOf(manifest.musicEnvelope) : null,
+    captions: v3 ? captionsOf(manifest.captions) : [],
+    brand,
+    endCardFrames,
     scenes: sorted.map((scene) => ({
       id: scene.id,
       durationFrames: scene.frameCount,
       still: scene.still || null,
       clip: scene.clip || null,
-      caption: String(scene.caption || "").slice(0, 180),
+      caption: text(scene.caption, 180),
       move: scene.move,
+      ...(v3
+        ? {
+            voice: scene.voice || null,
+            transition: scene.transition || "crossfade",
+            transitionFrames: scene.transitionFrames ?? 0,
+            lipsync: scene.lipsync === true,
+            // A v3 manifest sets each clip's level; a missing one stays quiet under the mix.
+            clipVolume: unit(scene.clipVolume, scene.lipsync ? 1 : 0.15),
+            clipFrames:
+              Number.isInteger(scene.clipFrames) && scene.clipFrames > 0
+                ? scene.clipFrames
+                : undefined,
+          }
+        : // A v2 manifest keeps its look: muted clips and short crossfades.
+          { transition: "crossfade", transitionFrames: 8, clipVolume: 0 }),
     })),
   };
-  void names;
 }
 
 const entry = resolve("src/index.ts");
 const bundleOptions = { entryPoint: entry };
-if (manifest.schemaVersion === 2) {
+if (manifest.schemaVersion >= 2) {
   bundleOptions.publicDir = join(
     await realpath(dirname(resolve(manifestPath))),
     "public",
@@ -156,11 +263,19 @@ await renderMedia({
     ...composition,
     width: manifest.width,
     height: manifest.height,
-    durationInFrames: cursor,
+    durationInFrames: totalFrames,
     fps: 30,
   },
   serveUrl,
   codec: "h264",
+  // Promo quality: near-transparent x264, broadly playable 4:2:0, clear AAC.
+  crf: 18,
+  x264Preset: "medium",
+  pixelFormat: "yuv420p",
+  audioCodec: "aac",
+  audioBitrate: "192k",
+  imageFormat: "jpeg",
+  jpegQuality: 92,
   outputLocation: output,
   inputProps: props,
   concurrency: 2,
@@ -171,7 +286,7 @@ await writeFile(
     {
       status: "completed",
       composition: compositionId,
-      frames: cursor,
+      frames: totalFrames,
       fps: 30,
       width: manifest.width,
       height: manifest.height,
