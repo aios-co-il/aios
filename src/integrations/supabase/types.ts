@@ -3537,6 +3537,68 @@ export type Database = {
         };
         Relationships: [];
       };
+      carmen_brain_connections: {
+        Row: {
+          base_url: string | null;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          key_last4: string | null;
+          kind: string;
+          model: string | null;
+          name: string;
+          profile: Json;
+          provider_preset: string | null;
+          secret_id: string | null;
+          settings: Json;
+          slug: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          base_url?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          key_last4?: string | null;
+          kind: string;
+          model?: string | null;
+          name: string;
+          profile?: Json;
+          provider_preset?: string | null;
+          secret_id?: string | null;
+          settings?: Json;
+          slug: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          base_url?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          key_last4?: string | null;
+          kind?: string;
+          model?: string | null;
+          name?: string;
+          profile?: Json;
+          provider_preset?: string | null;
+          secret_id?: string | null;
+          settings?: Json;
+          slug?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_brain_connections_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_client_group_access: {
         Row: {
           agency_id: string | null;
@@ -15225,6 +15287,18 @@ export type Database = {
           p_version: string;
         };
         Returns: Json;
+      };
+      carmen_brain_secret_delete: {
+        Args: { p_connection_id: string };
+        Returns: undefined;
+      };
+      carmen_brain_secret_get: {
+        Args: { p_connection_id: string };
+        Returns: string;
+      };
+      carmen_brain_secret_set: {
+        Args: { p_connection_id: string; p_secret: string };
+        Returns: undefined;
       };
       carmen_fix_campaigner_access: {
         Args: {

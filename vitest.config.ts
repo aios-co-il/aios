@@ -14,6 +14,7 @@ export default defineConfig({
     // Keep node:test suites on their existing runner.
     include: [
       "src/**/*.test.tsx",
+      "src/lib/carmenSkinPortraits.test.ts",
       "src/lib/clientConnectionProvision.test.ts",
       "src/lib/commandCenterAttachments.test.ts",
       "src/lib/crmTableCategories.test.ts",

@@ -1,4 +1,4 @@
-export type BrainMode = "internal" | "direct_channel" | "parliament";
+export type BrainMode = "internal" | "direct_channel" | "parliament" | "model";
 export type RouteType = BrainMode;
 export type ChannelProvider =
   | "cursor"
@@ -7,7 +7,9 @@ export type ChannelProvider =
   | "claude"
   | "chatgpt"
   | "internal"
-  | "parliament";
+  | "parliament"
+  /** A chat-model brain connected from Carmen settings (carmen_brain_connections). */
+  | "model";
 export type CloudDirectProvider = "cursor" | "grok";
 export type WorkspaceProvider = "chatgpt" | "codex";
 export type ConversationStatus =
@@ -95,6 +97,13 @@ export type SendContext = {
   inputMode: InputMode;
   idempotencyKey: string;
   history: Array<{ role: string; content: string }>;
+  /** Env for this send: tenant UI keys over project env secrets. Loaded lazily when absent. */
+  env?: Record<string, string | undefined>;
+  /**
+   * Whether this user may use a brain slug (Carmen settings → הרשאות). "נתב
+   * חכם" only hands a message to brains the user could pick. Absent = all.
+   */
+  brainAllowed?: (slug: string) => boolean;
 };
 
 export type SendResult = {
@@ -110,6 +119,8 @@ export type SendResult = {
   capabilities: AdapterCapabilities;
   /** Sync Codex OpenAI API path — answer already persisted server-side. */
   inline_reply?: string;
+  /** Who answered, when it is not `kind` (model brains answer as their route slug). */
+  speaker?: string;
 };
 
 export type CallbackPayload = {
@@ -132,6 +143,8 @@ export const DEFAULT_BRAIN_ROUTE_SEEDS: Array<{
   route_type: RouteType;
   provider: ChannelProvider | null;
   config: Record<string, unknown>;
+  /** Seeded hidden; the owner shows it in Carmen settings → מוחות. */
+  active?: boolean;
 }> = [
   {
     slug: "cursor",
@@ -187,4 +200,21 @@ export const DEFAULT_BRAIN_ROUTE_SEEDS: Array<{
       tools: "read_only",
     },
   },
+  {
+    slug: "smart",
+    label: "נתב חכם · חינמי קודם",
+    route_type: "model",
+    provider: "model",
+    config: {
+      router: "free_first",
+      description:
+        "בוחר לכל הודעה מוח חינמי מתאים; משימות עם כלים עוברות לכרמן",
+    },
+    active: false,
+  },
 ];
+
+/** The "נתב חכם" route: a model route that picks a connected model per message. */
+export function isSmartRouter(route: Pick<BrainRouteRow, "config">): boolean {
+  return route.config?.router === "free_first";
+}
