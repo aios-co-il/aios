@@ -10,11 +10,12 @@
  */
 
 import {
-  APPROVAL_REFUSAL,
   checkApproval,
   issueApproval,
   spendApproval,
+  storedApproval,
   type Quote,
+  type StoredApproval,
 } from "./workshop/approval.ts";
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
@@ -658,9 +659,16 @@ export interface WorkshopDeps {
   newToken?: () => string;
 }
 
+const sameQuote = (stored: StoredApproval, quote: Quote) =>
+  stored.engine === quote.engine &&
+  stored.count === quote.count &&
+  Math.abs(stored.usd - Math.round(quote.usd * 100) / 100) <= 0.01;
+
 /**
- * Without confirmed=true, or when the approval does not hold, stores a fresh quote and returns
- * it for the user. Otherwise returns the payload with the approval in it, ready to spend.
+ * Without confirmed=true, or when the approval does not hold, returns the quote for the user.
+ * A matching quote already stored is kept as-is: asking for the price again, or confirming
+ * with a stale token, must not bind a new quote to this turn or the user's "מאשר" can never
+ * land in a later turn. Otherwise returns the payload with the approval in it, ready to spend.
  */
 async function gatePaid(
   supabase: Db,
@@ -674,6 +682,18 @@ async function gatePaid(
 ): Promise<
   { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
 > {
+  const stored = storedApproval(payload, quote.tool);
+  const reusable =
+    stored && sameQuote(stored, quote) ? stored.token : undefined;
+  const hold = (token: string, reason?: string) => ({
+    stop: {
+      ...offer,
+      needs_approval: true,
+      approval_token: token,
+      ...(reason ? { refused: reason } : {}),
+      message: String(offer.message ?? ""),
+    },
+  });
   if (args.confirmed === true) {
     const check = checkApproval(payload, quote, {
       token: args.approval_token,
@@ -681,6 +701,8 @@ async function gatePaid(
       approvedOutOfBand: deps.approvedOutOfBand === true,
     });
     if (check.ok) return { payload };
+    if (reusable && check.reason !== "changed")
+      return hold(reusable, check.reason);
     const fresh = await quotePaid(
       supabase,
       tenantId,
@@ -689,17 +711,9 @@ async function gatePaid(
       quote,
       deps,
     );
-    return {
-      stop: {
-        ...offer,
-        needs_approval: true,
-        approval_token: fresh,
-        refused: check.reason,
-        message:
-          `${APPROVAL_REFUSAL[check.reason]} ${String(offer.message ?? "")}`.trim(),
-      },
-    };
+    return hold(fresh, check.reason);
   }
+  if (reusable) return hold(reusable);
   const token = await quotePaid(
     supabase,
     tenantId,
@@ -708,7 +722,7 @@ async function gatePaid(
     quote,
     deps,
   );
-  return { stop: { ...offer, needs_approval: true, approval_token: token } };
+  return hold(token);
 }
 
 async function quotePaid(
