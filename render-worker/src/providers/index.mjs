@@ -14,6 +14,7 @@ import {
   lipsyncCandidates,
 } from "./lipsync.mjs";
 import { mockProvider } from "./mock.mjs";
+import { openRouterProvider } from "./openrouter.mjs";
 
 const LIPSYNC_PROVIDERS = {
   elevenlabs: (keys) =>
@@ -63,9 +64,18 @@ export const talkingPrompt = (motionPrompt, { line, speaker } = {}) =>
   ].join(" ");
 
 const PROVIDERS = {
-  kling: () => klingProvider(),
+  kling: (keys) =>
+    klingProvider({
+      accessKey: keys?.klingAccessKey,
+      secretKey: keys?.klingSecretKey,
+    }),
   mock: () => mockProvider(),
   elevenlabs: (keys) => elevenLabsProvider({ apiKey: keys?.elevenLabsKey }),
+  openrouter: (keys) =>
+    openRouterProvider({
+      apiKey: keys?.openRouterKey,
+      model: keys?.openRouterVideoModel,
+    }),
   higgsfield: (keys) =>
     higgsfieldProvider({
       keyId: keys?.higgsfieldKeyId,

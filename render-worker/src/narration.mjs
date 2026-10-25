@@ -16,7 +16,7 @@ export const isTalkingScene = (scene) => scene?.meta?.lipsync === true;
 
 /**
  * What a talking scene's character says: meta.dialogue, else its voiceover text. Kept in step
- * with public.video_talking_line (supabase/migrations/20261025120000_video_lipsync.sql).
+ * with public.video_talking_line (supabase/migrations/20261025150000_video_lipsync.sql).
  */
 export function talkingLine(scene) {
   if (!isTalkingScene(scene)) return "";

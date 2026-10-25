@@ -24,6 +24,9 @@ const HANDLERS = {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
         ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
+      // Read from Vault only for the engine that needs it.
+      if (name === "openrouter")
+        keys.openRouterKey = await openRouterKey(ctx.run.tenant_id);
       return runClipWithFallback({
         name,
         keys,
@@ -128,7 +131,29 @@ async function resolveMediaKeys(db, tenantId) {
       settings.higgsfield_api_key_secret ||
       process.env.HF_API_KEY_SECRET ||
       null,
+    klingAccessKey:
+      settings.kling_access_key || process.env.KLING_ACCESS_KEY || null,
+    klingSecretKey:
+      settings.kling_secret_key || process.env.KLING_SECRET_KEY || null,
   };
+}
+
+/**
+ * The tenant's OpenRouter key: the first OpenRouter brain connected in Carmen
+ * settings (מוחות, חיבורים ומפתחות AI), read from Vault. No env fallback, so
+ * every tenant pays for its own generations.
+ */
+async function openRouterKey(tenantId) {
+  const rows = await db.select(
+    "carmen_brain_connections",
+    `tenant_id=eq.${tenantId}&kind=eq.chat_model&provider_preset=eq.openrouter&key_last4=not.is.null&select=id&order=created_at.asc&limit=1`,
+  );
+  const id = rows?.[0]?.id;
+  if (!id) return null;
+  const secret = await db.rpc("carmen_brain_secret_get", {
+    p_connection_id: id,
+  });
+  return typeof secret === "string" && secret ? secret : null;
 }
 
 const PRODUCTION_KINDS = new Set([

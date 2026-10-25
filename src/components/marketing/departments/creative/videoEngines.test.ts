@@ -46,6 +46,8 @@ test("each engine bills the clip length its API actually renders", () => {
   assert.equal(sceneClipSeconds("kling", 8), 10);
   assert.equal(sceneClipSeconds("higgsfield", 3.2), 4);
   assert.equal(sceneClipSeconds("higgsfield", 40), 15);
+  assert.equal(sceneClipSeconds("openrouter", 2), 3);
+  assert.equal(sceneClipSeconds("openrouter", 7.5), 8);
   assert.equal(elevenLabsAspect("16:9"), "16:9");
   assert.equal(elevenLabsAspect("1:1"), "9:16");
 });
