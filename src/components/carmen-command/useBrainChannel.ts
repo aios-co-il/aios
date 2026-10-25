@@ -98,7 +98,12 @@ export function useBrainChannel(tenantId: string | null) {
   );
 
   const persistAssistant = useCallback(
-    async (conversationId: string, content: string, idempotencyKey: string) => {
+    async (
+      conversationId: string,
+      content: string,
+      idempotencyKey: string,
+      brainSlug?: string,
+    ) => {
       if (!tenantId || !conversationId || !content) return;
       try {
         await postChannel({
@@ -108,7 +113,7 @@ export function useBrainChannel(tenantId: string | null) {
           content,
           idempotency_key: idempotencyKey,
           // "נתב חכם" hands tool tasks to Carmen; her reply stays on its thread.
-          brain_slug: selectedRef.current?.slug,
+          brain_slug: brainSlug ?? selectedRef.current?.slug,
         });
         setStatus("idle");
       } catch {

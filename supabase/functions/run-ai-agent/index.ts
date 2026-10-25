@@ -15636,9 +15636,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           // A tenant-set endpoint may not bounce the request (and key) elsewhere.
           redirect: llm.connectionId ? "manual" : "follow",
         });
-        if (res.ok) break;
+        // A connected brain's 200 must be a chat completion; anything else
+        // counts as that brain failing, so the chain can move on.
+        const malformed =
+          res.ok && !!llm.connectionId
+            ? await res
+                .clone()
+                .json()
+                .then((d: any) => !d?.choices?.[0]?.message)
+                .catch(() => true)
+            : false;
+        if (res.ok && !malformed) break;
 
-        const err = await res.text();
+        const err = malformed
+          ? "המוח החזיר תשובה לא תקינה (בלי הודעה)."
+          : await res.text();
         console.error(
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
