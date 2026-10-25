@@ -3,19 +3,18 @@ name: Render worker (PR preview)
 on:
   pull_request:
     branches: [develop]
+  workflow_dispatch:
 
 concurrency:
-  group: render-worker-preview-${{ github.head_ref }}
+  group: render-worker-preview-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   drain:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
-      GIT_BRANCH: ${{ github.head_ref }}
+      GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
       PARENT_REF: ${{ vars.PROD_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
@@ -31,9 +30,13 @@ jobs:
         working-directory: workers/creative-video/remotion
         run: npm install --no-audit --no-fund && npx remotion browser ensure
 
-      - name: Resolve this PR's Supabase preview
+      # The account token can read every project's keys. Only these two steps see it;
+      # the install and drain steps run branch code and get the preview's own key only.
+      - name: Resolve this branch's Supabase preview
         id: preview
         shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -47,33 +50,31 @@ jobs:
               with urllib.request.urlopen(req, timeout=60) as response:
                   return json.load(response)
 
-          parents = [parent] if parent else []
-          if not parents:
-              projects = get("https://api.supabase.com/v1/projects")
-              if isinstance(projects, dict):
-                  projects = projects.get("projects") or []
-              parents = [p.get("id") or p.get("ref") for p in projects if isinstance(p, dict)]
           found = ""
-          for ref in parents:
-              if not ref:
-                  continue
-              try:
-                  branches = get(f"https://api.supabase.com/v1/projects/{ref}/branches")
-              except urllib.error.HTTPError:
-                  continue
-              if isinstance(branches, dict):
-                  branches = branches.get("branches") or []
-              for branch in branches:
-                  if branch.get("git_branch") != want or branch.get("is_default"):
+          if want not in ("main", "develop"):
+              parents = [parent] if parent else []
+              if not parents:
+                  projects = get("https://api.supabase.com/v1/projects")
+                  if isinstance(projects, dict):
+                      projects = projects.get("projects") or []
+                  parents = [p.get("id") or p.get("ref") for p in projects if isinstance(p, dict)]
+              for ref in parents:
+                  if not ref:
                       continue
-                  if branch.get("git_branch") in ("main", "develop"):
+                  try:
+                      branches = get(f"https://api.supabase.com/v1/projects/{ref}/branches")
+                  except urllib.error.HTTPError:
                       continue
-                  found = branch.get("project_ref") or ""
-                  break
-              if found:
-                  break
-          path = os.environ["GITHUB_OUTPUT"]
-          with open(path, "a", encoding="utf-8") as handle:
+                  if isinstance(branches, dict):
+                      branches = branches.get("branches") or []
+                  for branch in branches:
+                      if branch.get("git_branch") != want or branch.get("is_default"):
+                          continue
+                      found = branch.get("project_ref") or ""
+                      break
+                  if found:
+                      break
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               handle.write(f"ref={found}\n")
           if not found:
               print(f"No Supabase preview for {want}; nothing to drain")
@@ -83,6 +84,7 @@ jobs:
         if: steps.preview.outputs.ref != ''
         shell: bash
         env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
           PROJECT_REF: ${{ steps.preview.outputs.ref }}
         run: |
           set -euo pipefail
@@ -106,4 +108,5 @@ jobs:
           CONCURRENCY: "2"
           POLL_MS: "2000"
           WORKER_ID: gha-preview
+          WORKER_ENV: preview
         run: node src/index.mjs
