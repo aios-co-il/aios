@@ -103,9 +103,14 @@ export default function CarmenCommandCenter() {
   return (
     <div
       dir="rtl"
-      className="cc-root relative flex h-full min-h-0 flex-col overflow-hidden font-heebo"
+      className="cc-root relative flex min-h-0 flex-col overflow-hidden font-heebo"
     >
-      <CommandCenterSidecar session page headerActions={headerActions} />
+      <CommandCenterSidecar
+        session
+        page
+        headerActions={headerActions}
+        className="min-h-0 flex-1"
+      />
       <CarmenPanel
         open={panelOpen}
         path={panelParam ?? ""}

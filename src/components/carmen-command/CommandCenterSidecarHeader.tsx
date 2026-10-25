@@ -23,7 +23,12 @@ export function CommandCenterSidecarHeader({
   subtitle,
 }: CommandCenterSidecarHeaderProps) {
   return (
-    <header className="cc-sidecar-header flex shrink-0 items-center justify-between gap-2 border-b border-[var(--cc-line)] px-3 py-2">
+    <header
+      className={`cc-sidecar-header flex shrink-0 items-center gap-2 border-b border-[var(--cc-line)] px-3 py-2 ${
+        // Full page: every control sits on the right, next to the title.
+        actions ? "justify-start gap-4" : "justify-between"
+      }`}
+    >
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-[var(--cc-accent)]">
           {session ? `${name} · איתך במערכת` : "כרמן · תיקון מערכת"}
