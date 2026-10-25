@@ -173,7 +173,10 @@ export function buildWorkshopManifest(timeline) {
           spreadWords(
             p.scene.spokenText,
             startFrame + Math.round(fps * 0.3),
-            startFrame + frameCount - TAIL_FRAMES,
+            // Over the clip's own speech: a longer scene holds its last frame silently.
+            startFrame +
+              Math.min(frameCount, p.clipFrames || frameCount) -
+              TAIL_FRAMES,
           ),
         );
     }

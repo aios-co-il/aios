@@ -39,22 +39,19 @@ const reportsProgress = (result: Record<string, unknown>) =>
   result.needs_budget === true ||
   result.needs_input === true;
 
+/** Tools that only read the project: they never carry the outcome of the turn. */
+const READ_ONLY = new Set(["workshop_get_state", "workshop_check_connections"]);
+
 const textOf = (value: unknown) =>
   typeof value === "string" && value ? value : null;
 
 export function fallbackReply(log: ToolLogEntry[]): string | null {
   const workshop = log.filter((entry) => entry.tool.startsWith("workshop_"));
   if (workshop.length === 0) return null;
-  // The latest tool that had something to tell the user; a status check after it says nothing.
+  // The latest tool that did something; a status check after it says nothing new.
   const telling =
-    [...workshop].reverse().find((entry) => {
-      const result = asRecord(entry.result);
-      return (
-        textOf(result.error) ||
-        textOf(result.say_to_user) ||
-        reportsProgress(result)
-      );
-    }) ?? workshop[workshop.length - 1];
+    [...workshop].reverse().find((entry) => !READ_ONLY.has(entry.tool)) ??
+    workshop[workshop.length - 1];
   const result = asRecord(telling.result);
   const error = textOf(result.error);
   if (error) return `לא הצלחתי להשלים: ${error}`;

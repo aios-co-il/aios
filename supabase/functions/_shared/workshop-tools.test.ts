@@ -2154,3 +2154,37 @@ test("a production that fails at once leaves no spinning film page", async () =>
     false,
   );
 });
+
+test("a redo of the pictures keeps the user's own video scenes", async () => {
+  const generatedFor: string[] = [];
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [
+      scene("own", { clip_asset_id: "user-clip", status: "clip_ready" }),
+      scene("made", { still_asset_id: "old-still" }),
+    ],
+    "rpc:attach_video_scene_asset": { id: "asset-new" },
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1", confirmed: true, redo: true },
+    async () => {},
+    null,
+    {
+      generateImage: async (prompt: string) => {
+        generatedFor.push(prompt);
+        return { image_url: "https://x/new.png" };
+      },
+    },
+  );
+  assert.equal(generatedFor.length, 1);
+  const attached = db.calls.filter(
+    (c) => c.table === "rpc:attach_video_scene_asset",
+  );
+  assert.deepEqual(
+    attached.map((c) => (c.value as Record<string, unknown>).p_scene_id),
+    ["made"],
+  );
+});

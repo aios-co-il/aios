@@ -118,3 +118,14 @@ test("a post or an ad about films stays with the designer; a bare film request g
   for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"])
     assert.equal(workshopRole(text, null, null), "producer", text);
 });
+
+test("the deliverable named first decides between a film and a post", () => {
+  for (const text of [
+    "תעשי לי סרט לסטורי",
+    "סרט קצר לסטורי באינסטגרם",
+    "סרט פרסומת למודעה בפייסבוק",
+  ])
+    assert.equal(workshopRole(text, null, null), "producer", text);
+  for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"])
+    assert.equal(workshopRole(text, null, null), "designer", text);
+});

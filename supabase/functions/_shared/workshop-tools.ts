@@ -2079,7 +2079,10 @@ export async function executeWorkshopTool(
     const redo = args.redo === true;
     const redoIds = new Set(
       redo
-        ? scenes.map((scene) => String(scene.id))
+        ? scenes
+            // A scene of the user's own video keeps its footage: no picture replaces it.
+            .filter((scene) => scene.still_asset_id || !scene.clip_asset_id)
+            .map((scene) => String(scene.id))
         : stringList(project.payload[REDO_KEY]),
     );
     const pending = scenes.filter(

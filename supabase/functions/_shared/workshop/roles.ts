@@ -92,8 +92,12 @@ export function workshopRole(
   const text = String(message ?? "");
   if (EDITOR.test(text)) return "editor";
   if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
-  if (STATIC_DELIVERABLE.test(text)) return "designer";
-  if (FILM_NOUN.test(text)) return project?.edit ? "editor" : "producer";
+  // "סרט לסטורי" is a film, "פוסט על הסרט" a post: the word that comes first is the deliverable.
+  const film = text.search(FILM_NOUN);
+  const still = text.search(STATIC_DELIVERABLE);
+  if (film >= 0 && (still < 0 || film < still))
+    return project?.edit ? "editor" : "producer";
+  if (still >= 0) return "designer";
   if (project?.video) return project.edit ? "editor" : "producer";
   if (project && STATIC_HINT.test(text)) return "designer";
   if (STATIC_HINT.test(text) && !roleOfPersona(current)) return "designer";

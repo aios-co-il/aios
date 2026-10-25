@@ -15918,12 +15918,23 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               error: "isolated_session",
               message: "סשן מבודד — כלים כבויים.",
             };
+          } else if (inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(toolName)) {
+            // A workshop tap is never an approval of a WhatsApp/Meta action, whatever is called.
+            result = {
+              error: "not_in_workshop",
+              message:
+                "אישורים של וואטסאפ ומטא לא מטופלים מהסדנה. המשיכי בעבודה על הפרויקט.",
+            };
           } else if (toolName === "search_agent_tools") {
-            const discovered = await searchToolsFromIndex(
-              supabase,
-              String(toolArgs.query || command_text || ""),
-              toolPoolBeforeRouting,
-              typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
+            const discovered = (
+              await searchToolsFromIndex(
+                supabase,
+                String(toolArgs.query || command_text || ""),
+                toolPoolBeforeRouting,
+                typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
+              )
+            ).filter(
+              (tool) => !(inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(tool.name)),
             );
             expandAgentTools(discovered);
             result = {

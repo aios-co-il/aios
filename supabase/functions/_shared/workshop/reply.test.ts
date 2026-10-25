@@ -90,3 +90,15 @@ test("after a film starts, a later status check does not turn the reply into a f
   ]);
   assert.equal(reply, "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.");
 });
+
+test("an error a later step already fixed is not reported as the outcome", () => {
+  const reply = fallbackReply([
+    { tool: "workshop_produce_video", result: { error: "חסרות תמונות" } },
+    {
+      tool: "workshop_make_stills",
+      result: { needs_budget: true, say_to_user: "לאשר תקציב?" },
+    },
+    { tool: "workshop_get_state", result: {} },
+  ]);
+  assert.equal(reply, "לאשר תקציב?");
+});

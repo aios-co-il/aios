@@ -216,3 +216,20 @@ test("a talking clip's line is captioned across its speech", () => {
   for (let i = 1; i < words.length; i++)
     assert.ok(words[i].startFrame >= words[i - 1].endFrame);
 });
+
+test("a talking clip shorter than its scene is captioned only while it speaks", () => {
+  const { manifest } = buildWorkshopManifest({
+    scenes: [
+      scene("t", {
+        clipProvider: "openrouter",
+        stillPath: null,
+        lipsync: true,
+        clipDurationS: 4,
+        durationS: 8,
+        spokenText: "בואו לבקר אותנו",
+      }),
+    ],
+  });
+  const words = manifest.captions.flatMap((chunk) => chunk.words);
+  assert.ok(words.at(-1).endFrame <= 4 * manifest.fps);
+});
