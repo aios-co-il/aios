@@ -26,7 +26,7 @@ export function shouldNudgeSilentTurn(log: ToolLogEntry[]): boolean {
     return (
       result.started === true ||
       result.already_running === true ||
-      result.needs_approval === true ||
+      result.needs_budget === true ||
       result.needs_input === true ||
       (typeof result.error === "string" && !!result.error)
     );
@@ -40,10 +40,13 @@ export function fallbackReply(log: ToolLogEntry[]): string | null {
   const result = asRecord(last.result);
   if (typeof result.error === "string" && result.error)
     return `לא הצלחתי להשלים: ${result.error}`;
+  // A question or a budget request carries the user's message ready to send.
+  if (typeof result.say_to_user === "string" && result.say_to_user)
+    return result.say_to_user;
   const reports =
     result.started === true ||
     result.already_running === true ||
-    result.needs_approval === true ||
+    result.needs_budget === true ||
     result.needs_input === true;
   if (reports && typeof result.message === "string" && result.message)
     return result.message;

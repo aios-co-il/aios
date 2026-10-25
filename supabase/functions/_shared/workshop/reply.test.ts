@@ -20,7 +20,7 @@ test("a turn that only looked around is nudged to continue, one that started wor
   for (const result of [
     { started: true },
     { already_running: true },
-    { needs_approval: true },
+    { needs_budget: true },
     { needs_input: true },
     { error: "boom" },
   ])
@@ -55,5 +55,22 @@ test("the fallback never passes a connections check off as the answer", () => {
       { tool: "workshop_check_connections", result: { message: "הכול מחובר" } },
     ]) ?? "",
     /תמשיכי/,
+  );
+});
+
+test("a question or budget request reaches the user even when rounds ran out", () => {
+  assert.equal(
+    fallbackReply([
+      {
+        tool: "workshop_make_stills",
+        result: {
+          needs_budget: true,
+          say_to_user:
+            "תקציב של $5?\n[[בחירה: לאשר | מאשר תקציב AB12 | לא עכשיו]]",
+          carmen_next: "internal",
+        },
+      },
+    ]),
+    "תקציב של $5?\n[[בחירה: לאשר | מאשר תקציב AB12 | לא עכשיו]]",
   );
 });
