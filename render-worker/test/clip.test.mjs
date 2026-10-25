@@ -355,6 +355,18 @@ test("a provider job that failed is final, so a retry does not poll the dead job
   assert.equal(seen.polls, 1);
 });
 
+test("a failed free-preview clip may be retried, since a retry renders a new one", async () => {
+  const db = fakeDb({ still: new Uint8Array([1]) });
+  const { provider } = recordingProvider(
+    { status: "failed", error: "ffmpeg null: killed" },
+    { name: "mock" },
+  );
+  await assert.rejects(
+    generateClip({ db, run: clipRun("s1"), provider, log: () => {} }),
+    (error) => error.final !== true && /killed/.test(error.message),
+  );
+});
+
 const done = { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 0]) };
 
 test("the still copy an engine fetches carries the still's real type", async () => {

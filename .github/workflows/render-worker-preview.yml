@@ -108,11 +108,13 @@ jobs:
           # Keep listening 15 minutes after the queue empties, so a film started while
           # testing the Preview is still made.
           DRAIN_IDLE_MS: "900000"
-          # Stop claiming 35 minutes in, so the last job (a clip or lip sync polls up to
-          # 15 minutes) ends before the 60-minute cap. A killed run is queued again.
+          # Stop claiming clips and lip syncs (they poll up to 15 minutes) 35 minutes in, so
+          # they end before the 60-minute cap; voice, music and the render are still taken.
+          # A killed run is queued again.
           STOP_CLAIMING_AFTER_MS: "2100000"
           CONCURRENCY: "2"
           POLL_MS: "2000"
           WORKER_ID: gha-preview
           WORKER_ENV: preview
-        run: node src/index.mjs
+        # exec: the runner's stop signal reaches node (not only bash), so it requeues its runs.
+        run: exec node src/index.mjs

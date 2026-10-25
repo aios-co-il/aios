@@ -73,3 +73,22 @@ test("no slot claims a new job at or after stopAt", async () => {
   });
   assert.equal(claims, 3);
 });
+
+test("near the runner's limit only short jobs are claimed", async () => {
+  const { claimableKinds } = await import("../src/loop.mjs");
+  const kinds = [
+    "reference_analysis",
+    "clip",
+    "voice",
+    "music",
+    "lipsync",
+    "render",
+  ];
+  assert.deepEqual(claimableKinds(kinds, 1000, 2000), kinds);
+  assert.deepEqual(claimableKinds(kinds, 2000, 2000), [
+    "voice",
+    "music",
+    "render",
+  ]);
+  assert.deepEqual(claimableKinds(kinds, 5000), kinds);
+});

@@ -33,7 +33,7 @@ test("a stop puts held runs back to queued and leaves their provider job alone",
   assert.deepEqual(db.updates, [
     {
       table: "marketing_runs",
-      query: "id=eq.r1&status=eq.running",
+      query: "id=eq.r1&status=eq.running&attempts=eq.0",
       patch: REQUEUED,
     },
   ]);
@@ -140,7 +140,7 @@ test("on SIGTERM the worker queues its run again and exits", async () => {
     assert.equal(exited, true);
     assert.deepEqual(patches, [
       {
-        url: "/rest/v1/marketing_runs?id=eq.run-1&status=eq.running",
+        url: "/rest/v1/marketing_runs?id=eq.run-1&status=eq.running&attempts=eq.1",
         body: REQUEUED,
       },
     ]);
@@ -149,4 +149,16 @@ test("on SIGTERM the worker queues its run again and exits", async () => {
     server.closeAllConnections();
     server.close();
   }
+});
+
+test("a run out of attempts is left running so it fails instead of looping", async () => {
+  const db = fakeDb();
+  const inFlight = createInFlight({ maxAttempts: 3 });
+  inFlight.hold(db, { id: "last", attempts: 3 });
+  inFlight.hold(db, { id: "early", attempts: 1 });
+  assert.deepEqual(await inFlight.requeue(), ["early"]);
+  assert.deepEqual(
+    db.updates.map((update) => update.query),
+    ["id=eq.early&status=eq.running&attempts=eq.1"],
+  );
 });

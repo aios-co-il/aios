@@ -192,9 +192,12 @@ async function finishClip({
     await sleep(POLL_EVERY_MS());
     result = await provider.poll(jobId);
   }
-  // A failed job stays failed: polling it again on a retry cannot help.
-  if (result.status !== "succeeded")
-    throw finalError(result.error || `${provider.name} job ${jobId} failed`);
+  // A paid job that failed stays failed: a retry would poll the same dead job. The free
+  // preview makes a new clip on retry, so its failure may be retried.
+  if (result.status !== "succeeded") {
+    const message = result.error || `${provider.name} job ${jobId} failed`;
+    throw provider.name === "mock" ? new Error(message) : finalError(message);
+  }
 
   let bytes = result.bytes;
   if (!bytes) {

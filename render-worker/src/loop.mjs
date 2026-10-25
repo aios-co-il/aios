@@ -38,3 +38,13 @@ export async function runSlots({
   }
   await Promise.all(Array.from({ length: slots }, slot));
 }
+
+/** Jobs that can poll a provider for up to 15 minutes; not started close to a runner's limit. */
+const LONG_KINDS = new Set(["clip", "lipsync", "reference_analysis"]);
+
+/**
+ * The kinds to claim now. After stopAt a runner with a hard time limit takes only short jobs
+ * (voice, music, render), so a film whose last clip ends late is still assembled.
+ */
+export const claimableKinds = (kinds, now, stopAt = Infinity) =>
+  now >= stopAt ? kinds.filter((kind) => !LONG_KINDS.has(kind)) : kinds;

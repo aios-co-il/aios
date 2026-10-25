@@ -6,6 +6,7 @@
  * submitted and paid for again.
  */
 export function createInFlight({
+  maxAttempts = Infinity,
   now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 } = {}) {
@@ -49,13 +50,22 @@ export function createInFlight({
       closed = true;
       const deadline = now() + waitMs;
       while (busy() && now() < deadline) await sleep(50);
-      const ready = [...held.values()].filter((entry) => !entry.submitting);
+      // A run out of attempts stays running, so claim_video_run fails it as before instead of
+      // queueing it forever. Only this worker's own claim (same attempt) is put back.
+      const ready = [...held.values()].filter(
+        (entry) =>
+          !entry.submitting && Number(entry.run.attempts ?? 0) < maxAttempts,
+      );
       const done = await Promise.allSettled(
         ready.map(({ db, run }) =>
-          db.update("marketing_runs", `id=eq.${run.id}&status=eq.running`, {
-            status: "queued",
-            error: "worker stopped during the job; queued again",
-          }),
+          db.update(
+            "marketing_runs",
+            `id=eq.${run.id}&status=eq.running&attempts=eq.${Number(run.attempts ?? 0)}`,
+            {
+              status: "queued",
+              error: "worker stopped during the job; queued again",
+            },
+          ),
         ),
       );
       return ready

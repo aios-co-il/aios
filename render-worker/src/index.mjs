@@ -9,7 +9,7 @@ import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
 import { runClipWithFallback } from "./clip-fallback.mjs";
 import { createInFlight } from "./inflight.mjs";
-import { runSlots } from "./loop.mjs";
+import { claimableKinds, runSlots } from "./loop.mjs";
 import { loadTargets } from "./targets.mjs";
 
 const HANDLERS = {
@@ -89,11 +89,11 @@ const DRAIN = process.env.DRAIN === "1";
 const DRAIN_IDLE_MS = Number(process.env.DRAIN_IDLE_MS) || 0;
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
-/** A runner with a time limit stops claiming new runs this long after start (unset: never). */
+/** A runner with a time limit stops claiming clips and lip syncs this long after start (unset: never). */
 const STOP_CLAIMING_AT = Number(process.env.STOP_CLAIMING_AFTER_MS)
   ? Date.now() + Number(process.env.STOP_CLAIMING_AFTER_MS)
   : Infinity;
-const inFlight = createInFlight();
+const inFlight = createInFlight({ maxAttempts: MAX_ATTEMPTS });
 
 const targets = loadTargets().map((target) => ({
   ...target,
@@ -209,7 +209,11 @@ async function finish(db, run, patch) {
 async function processOne(db, workerId) {
   const claimed = await inFlight.claim(
     db.rpc("claim_video_run", {
-      p_kinds: Object.keys(HANDLERS),
+      p_kinds: claimableKinds(
+        Object.keys(HANDLERS),
+        Date.now(),
+        STOP_CLAIMING_AT,
+      ),
       p_worker: workerId,
     }),
   );
@@ -292,7 +296,6 @@ await Promise.all(
       concurrency: CONCURRENCY,
       drain: DRAIN,
       idleMs: DRAIN_IDLE_MS,
-      stopAt: STOP_CLAIMING_AT,
       shouldStop: () => stopping,
       sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
       onError: (error) =>
