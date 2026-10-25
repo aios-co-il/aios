@@ -1942,7 +1942,16 @@ export async function executeWorkshopTool(
         "Instrumental commercial bed matching the storyboard, no vocals and no lyrics.",
       p_generate_audio: false,
     });
-    if (produced.error) return { error: produced.error.message };
+    if (produced.error)
+      return {
+        error: [
+          produced.error.message,
+          produced.error.details,
+          produced.error.code,
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      };
     const state = asRecord(produced.data);
     const alreadyRunning =
       state.status === "running" &&
