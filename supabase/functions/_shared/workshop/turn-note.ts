@@ -6,7 +6,8 @@
  */
 
 import { approveFromMessage } from "./budget-approve.ts";
-import { briefAnswersOf } from "./brief-answers.ts";
+import { briefAnswersOf, withBriefAnswers } from "./brief-answers.ts";
+import { tappedAnswers } from "./tapped-answers.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 
 export { failStalePictures };
@@ -64,6 +65,7 @@ export async function workshopTurnNote(
   tenantId: unknown,
   itemId: string | null,
   userText: string,
+  lastAssistant = "",
 ): Promise<string | null> {
   if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
   try {
@@ -78,17 +80,21 @@ export async function workshopTurnNote(
     let payload = asRecord(data.payload);
     const lines: string[] = ["=== מצב הפרויקט (מהשרת) ==="];
     const approved = approveFromMessage(payload, userText);
-    if (approved) {
+    // Every tapped answer goes into the brief, so Carmen can come back to it later.
+    const tapped = tappedAnswers(lastAssistant, userText);
+    const next = withBriefAnswers(approved?.payload ?? payload, tapped);
+    if (next !== payload) {
       const { error } = await supabase
         .from("marketing_work_items")
-        .update({ payload: approved.payload })
+        .update({ payload: next })
         .eq("id", itemId)
         .eq("tenant_id", tenantId);
       if (!error) {
-        payload = approved.payload;
-        lines.push(
-          `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,
-        );
+        payload = next;
+        if (approved)
+          lines.push(
+            `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,
+          );
       }
     }
     const answers = Object.entries(briefAnswersOf(payload));

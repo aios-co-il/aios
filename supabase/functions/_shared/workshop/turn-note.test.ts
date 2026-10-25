@@ -107,3 +107,34 @@ test("the turn note carries the brief answers and stops re-saving concepts", asy
   assert.match(note, /טקסט על התמונה: כותרת וקריאה לפעולה/);
   assert.match(note, /2 קונספטים ו-1 טקסטים/);
 });
+
+test("a tapped answer is saved to the brief at the start of the turn", async () => {
+  const { workshopTurnNote } = await import("./turn-note.ts");
+  const updates: Record<string, unknown>[] = [];
+  const query = () => {
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "in", "lt"]) chain[name] = () => chain;
+    chain.update = (value: Record<string, unknown>) => {
+      updates.push(value);
+      return chain;
+    };
+    chain.maybeSingle = async () => ({
+      data: { payload: { project_type: "video" } },
+    });
+    chain.then = (resolve: (value: unknown) => void) =>
+      resolve({ data: [], error: null });
+    return chain;
+  };
+  const note = await workshopTurnNote(
+    { from: query },
+    "t1",
+    "item-1",
+    "חם ונינוח",
+    "[[בחירה: אווירה | חם ונינוח | אנרגטי]]",
+  );
+  const saved = updates.find((u) => u.payload) as {
+    payload: { workshop_brief: { answers: Record<string, string> } };
+  };
+  assert.equal(saved.payload.workshop_brief.answers["אווירה"], "חם ונינוח");
+  assert.match(String(note), /אווירה: חם ונינוח/);
+});

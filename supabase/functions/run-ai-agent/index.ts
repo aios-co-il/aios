@@ -71,6 +71,7 @@ import {
 } from "../_shared/workshop/role-project.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
@@ -13660,6 +13661,7 @@ async function handleRunAgent(
           tenant_id,
           workshopItemIdFrom(bodyJson),
           String(command_text ?? ""),
+          lastAssistantText(conversation_history),
         )
       : null;
     const workshopRoleForRun = inWorkshopRequest
