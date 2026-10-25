@@ -75,6 +75,7 @@ import {
 import { executeCreativeStudioTool } from "./creative-studio-tools.ts";
 import { buildEditScenes, EDIT_TOOL } from "./workshop/edit-tool.ts";
 import { chooseVoice, VOICE_TOOL } from "./workshop/voice-tool.ts";
+import { narrationVoiceId } from "./workshop/voices.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -2431,9 +2432,7 @@ export async function executeWorkshopTool(
       deps.videoConnections ? await deps.videoConnections() : {},
     );
     // Narration needs a voice the user chose after hearing it.
-    const chosenVoice =
-      (typeof args.voice_id === "string" && args.voice_id.trim()) ||
-      (typeof video.voice_id === "string" && video.voice_id);
+    const chosenVoice = narrationVoiceId(args.voice_id, video.voice_id);
     if (withVoice && !chosenVoice)
       return await chooseVoice(
         {},
@@ -2473,12 +2472,7 @@ export async function executeWorkshopTool(
       typeof args.cta_text === "string"
         ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 60)
         : "";
-    const voiceId =
-      typeof args.voice_id === "string" && args.voice_id.trim()
-        ? args.voice_id.trim()
-        : typeof video.voice_id === "string"
-          ? video.voice_id
-          : null;
+    const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
     try {
       await savePayload(
         supabase,

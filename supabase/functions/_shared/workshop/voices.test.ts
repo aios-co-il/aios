@@ -43,3 +43,18 @@ test("Carmen's guess of a gender does not hide voices the user did not rule out"
   );
   assert.doesNotMatch(String(asked.say_to_user), /נמרוד/);
 });
+
+test("the narration voice is a real voice id, never a board page id", async () => {
+  const { narrationVoiceId } = await import("./voices.ts");
+  const zina = "Tbj9UQjXon5RB9MPEyc2";
+  assert.equal(
+    narrationVoiceId("fefeda21-4607-44d1-894d-0e54a1802df8", zina),
+    zina,
+  );
+  assert.equal(narrationVoiceId("יעל", zina), "d4eLZ8u5dfBCsjp4YPyz");
+  assert.equal(
+    narrationVoiceId("AbCdEfGhIjKlMnOpQrSt", zina),
+    "AbCdEfGhIjKlMnOpQrSt",
+  );
+  assert.equal(narrationVoiceId(undefined, null), null);
+});

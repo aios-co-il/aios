@@ -100,6 +100,21 @@ export function findVoice(value: unknown): Voice | null {
   );
 }
 
+/** An ElevenLabs voice id: 20 letters and digits (a tenant's own cloned voice included). */
+const VOICE_ID = /^[A-Za-z0-9]{20}$/;
+
+/**
+ * The voice to narrate with: what Carmen passed when it names a voice (by id or name), else the
+ * one saved on the project. A board page's id passed by mistake is ignored.
+ */
+export function narrationVoiceId(passed: unknown, saved: unknown) {
+  const known = findVoice(passed);
+  if (known) return known.id;
+  const text = typeof passed === "string" ? passed.trim() : "";
+  if (VOICE_ID.test(text)) return text;
+  return typeof saved === "string" && saved.trim() ? saved.trim() : null;
+}
+
 /** The message with every voice and a button row per gender. */
 export function voiceMenu(
   gender?: "female" | "male",
