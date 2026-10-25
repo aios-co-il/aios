@@ -68,11 +68,14 @@ const HANDLERS = {
       }),
   },
   lipsync: {
-    run: async (ctx) =>
-      generateLipsync({
-        ...ctx,
-        keys: await resolveMediaKeys(ctx.db, ctx.run.tenant_id),
-      }),
+    run: async (ctx) => {
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
+      // OpenRouter is the last lip-sync option; its key is read from Vault for it.
+      keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id).catch(
+        () => null,
+      );
+      return generateLipsync({ ...ctx, keys });
+    },
   },
   render: {
     run: (ctx) => renderFilm(ctx),

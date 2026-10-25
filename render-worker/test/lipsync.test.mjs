@@ -546,3 +546,30 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
   assert.ok(manifest.scenes[1].frameCount >= Math.floor(5.5 * 30));
   assert.ok(files.some((file) => file.to === "voice-0.mp3"));
 });
+
+test("OpenRouter is the last lip-sync option and says the line itself with audio", async () => {
+  const { lipsyncCandidates, openRouterLipsyncProvider } =
+    await import("../src/providers/lipsync.mjs");
+  assert.deepEqual(
+    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
+    ["elevenlabs", "openrouter"],
+  );
+  let sent = null;
+  const provider = openRouterLipsyncProvider({
+    apiKey: "or-key",
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ id: "job-1" }) };
+    },
+  });
+  const { jobId } = await provider.submit({
+    imageUrl: "https://x.supabase.co/s.png",
+    prompt: 'She says "שלום".',
+    durationS: 5,
+    aspect: "9:16",
+  });
+  assert.equal(jobId, "job-1");
+  assert.equal(sent.generate_audio, true);
+  assert.equal(sent.model, provider.model);
+  assert.match(sent.prompt, /שלום/);
+});

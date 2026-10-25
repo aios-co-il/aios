@@ -13,6 +13,7 @@ import { elevenLabsBaseUrl, imageMime } from "./elevenlabs.mjs";
 import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 import { higgsfieldBaseUrl } from "./higgsfield.mjs";
 import { klingBaseUrl, klingToken } from "./kling.mjs";
+import { openRouterProvider } from "./openrouter.mjs";
 
 /** Planning price per second of talking video, until the first paid run gives the real one. */
 const usdPerSecond = (name) =>
@@ -306,5 +307,31 @@ export function lipsyncCandidates(keys = {}, env = process.env) {
   if (env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY) names.push("kling");
   if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret))
     names.push("higgsfield");
+  // Last: Veo speaks the line itself from the still, so the voice is Veo's, not the chosen one.
+  if (keys.openRouterKey) names.push("openrouter");
   return names;
+}
+
+/**
+ * OpenRouter talking clip as the lip-sync fallback: the still and the line go to the talking
+ * model (Veo 3.1 with audio), which says the line with matching lips in one generation.
+ */
+export function openRouterLipsyncProvider({ apiKey, fetchImpl = fetch } = {}) {
+  const base = openRouterProvider({ apiKey, fetchImpl });
+  return {
+    name: "openrouter",
+    model: base.talkingModel,
+    needs: "image",
+    needsPublicMedia: true,
+    estimate: ({ durationS }) => base.estimate({ durationS, talking: true }),
+    submit: (input) =>
+      base.submit({
+        imageUrl: input.imageUrl,
+        prompt: `${input.prompt} Spoken in Hebrew.`,
+        durationS: input.durationS,
+        aspect: input.aspect,
+        talking: true,
+      }),
+    poll: (jobId) => base.poll(jobId),
+  };
 }

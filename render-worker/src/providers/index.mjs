@@ -11,6 +11,7 @@ import {
   elevenLabsLipsyncProvider,
   higgsfieldLipsyncProvider,
   klingLipsyncProvider,
+  openRouterLipsyncProvider,
   lipsyncCandidates,
 } from "./lipsync.mjs";
 import { mockProvider } from "./mock.mjs";
@@ -25,6 +26,8 @@ const LIPSYNC_PROVIDERS = {
       keyId: keys?.higgsfieldKeyId,
       keySecret: keys?.higgsfieldKeySecret,
     }),
+  openrouter: (keys) =>
+    openRouterLipsyncProvider({ apiKey: keys?.openRouterKey }),
 };
 
 /** A lip-sync provider by name (elevenlabs | kling | higgsfield). */
