@@ -69,6 +69,7 @@ import {
 } from "./workshop/video-cost.ts";
 import { executeCreativeStudioTool } from "./creative-studio-tools.ts";
 import { buildEditScenes, EDIT_TOOL } from "./workshop/edit-tool.ts";
+import { chooseVoice, VOICE_TOOL } from "./workshop/voice-tool.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -78,6 +79,7 @@ export const WORKSHOP_SKIN = "carmen_workshop";
 
 export const WORKSHOP_TOOLS = [
   EDIT_TOOL,
+  VOICE_TOOL,
   {
     name: "workshop_start_project",
     description:
@@ -720,6 +722,8 @@ export interface WorkshopDeps {
   turnId?: string | null;
   /** The user's own message in this turn; a paid confirm needs the approval code in it. */
   userText?: string | null;
+  /** Makes (or finds) a short sample of a narration voice; returns its creative-video path. */
+  voiceSample?: (voiceId: string) => Promise<{ path?: string; error?: string }>;
   /** David approved this exact call in the approvals queue. */
   approvedOutOfBand?: boolean;
   newToken?: () => string;
@@ -784,6 +788,43 @@ async function gatePaid(
       say_to_user: budgetMessage(budget, quote.usd, request.cap_usd, request),
       carmen_next: `${BUDGET_REFUSAL[reason]} שלחי את say_to_user כמו שהוא; carmen_next הוא רק בשבילך.`,
     },
+  };
+}
+
+/** Board pages for voice samples, and saving the chosen voice on the project. */
+function voiceHelpers(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  payload: Record<string, unknown>,
+  deps: WorkshopDeps,
+) {
+  return {
+    voiceSample: deps.voiceSample,
+    addSamplePage: async (title: string, path: string, voiceId: string) => {
+      await recordArtifact(supabase, {
+        tenantId,
+        itemId,
+        kind: "narration",
+        folder: "voices",
+        title,
+        url: path,
+        meta: { voice_id: voiceId, sample: true },
+      });
+    },
+    saveVoice: (voiceId: string, voiceName: string) =>
+      savePayload(
+        supabase,
+        tenantId,
+        itemId,
+        withBriefAnswers(
+          {
+            ...payload,
+            video: { ...asRecord(payload.video), voice_id: voiceId },
+          },
+          { "קול קריינות": voiceName },
+        ),
+      ),
   };
 }
 
@@ -1779,6 +1820,22 @@ export async function executeWorkshopTool(
     };
   }
 
+  if (name === "workshop_choose_voice") {
+    const itemId = String(args.item_id ?? "").trim();
+    if (!itemId) return { error: "item_id נדרש" };
+    const loaded = await loadProject(
+      supabase,
+      tenantId,
+      itemId,
+      assertClientAccess,
+    );
+    if ("error" in loaded) return loaded;
+    const { payload } = loaded.project;
+    return await chooseVoice(
+      args,
+      voiceHelpers(supabase, tenantId, itemId, payload, deps),
+    );
+  }
   if (name === "workshop_edit_from_assets") {
     const itemId = String(args.item_id ?? "").trim();
     if (!itemId) return { error: "item_id נדרש" };
@@ -2242,6 +2299,15 @@ export async function executeWorkshopTool(
       withVoice,
       withMusic,
     });
+    // Narration needs a voice the user chose after hearing it.
+    const chosenVoice =
+      (typeof args.voice_id === "string" && args.voice_id.trim()) ||
+      (typeof video.voice_id === "string" && video.voice_id);
+    if (withVoice && !chosenVoice)
+      return await chooseVoice(
+        {},
+        voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
+      );
     const gate = await gatePaid(
       supabase,
       tenantId,

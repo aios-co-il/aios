@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { findVoice, HEBREW_VOICES, voiceMenu } from "./voices.ts";
+
+test("a voice is found by id, Hebrew name, English name or a tap", () => {
+  assert.equal(findVoice("d4eLZ8u5dfBCsjp4YPyz")?.name, "יעל");
+  assert.equal(findVoice("נמרוד")?.id, "ZiofZHcEBTn5sRySe5h8");
+  assert.equal(findVoice("itamar")?.name, "איתמר");
+  assert.equal(findVoice("סתם"), null);
+});
+
+test("the menu lists every voice with buttons per gender, at most six each", () => {
+  const menu = voiceMenu();
+  for (const voice of HEBREW_VOICES) assert.match(menu, new RegExp(voice.name));
+  assert.match(menu, /\[\[בחירה: קריינית \| יעל \| תמר \| זינה\]\]/);
+  const male = menu.match(/\[\[בחירה: קריין \|([^\]]*)\]\]/)?.[1] ?? "";
+  assert.equal(male.split("|").length, 5);
+  assert.doesNotMatch(voiceMenu("female"), /נמרוד/);
+});

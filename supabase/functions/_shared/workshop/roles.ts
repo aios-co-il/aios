@@ -42,6 +42,7 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
     "workshop_save_concepts",
     "workshop_storyboard",
     "workshop_make_stills",
+    "workshop_choose_voice",
     "workshop_produce_video",
   ],
   editor: [
@@ -49,6 +50,7 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
     "workshop_edit_from_assets",
     "workshop_storyboard",
     "workshop_make_stills",
+    "workshop_choose_voice",
     "workshop_produce_video",
   ],
 };

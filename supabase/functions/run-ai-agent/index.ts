@@ -60,6 +60,7 @@ import {
   workshopItemIdFrom,
   workshopProjectKind,
 } from "../_shared/workshop/role-project.ts";
+import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
@@ -5769,6 +5770,8 @@ async function executeTool(
           }
         },
         fetchPublic: (url, options) => fetchPublic(url, options),
+        voiceSample: (voiceId) =>
+          workshopVoiceSample(supabase, tenantId, voiceId),
         importImage: async (url, scope) => {
           const fetched = await fetchPublic(url, {
             accept: "image/*,*/*",

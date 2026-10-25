@@ -361,6 +361,7 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
     payload: {
       format: "9:16",
       project_type: "video",
+      video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
       workshop_look: {
         film: "cinematic, calm, female narrator",
         bible: "warm editorial look",
@@ -1779,4 +1780,54 @@ test("tapped briefing answers are saved to the project brief and not asked again
     .pop();
   assert.equal(saved.workshop_brief.answers.קצב, "מצחיק וקליל");
   assert.match(saved.workshop_look.film, /מוזיקה: אקוסטית חמה/);
+});
+
+test("narration waits for a voice the user heard and chose", async () => {
+  const samples: string[] = [];
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      ...(videoProject()["marketing_work_items:select"] as any),
+      payload: {
+        format: "9:16",
+        project_type: "video",
+        workshop_look: { film: "calm", bible: "warm" },
+      },
+    },
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a", voiceover_text: "שלום" }),
+    ],
+  });
+  const asked = (await runWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    {
+      voiceSample: async (id: string) => {
+        samples.push(id);
+        return { path: `tenant-1/voices/${id}.mp3` };
+      },
+    },
+  )) as Record<string, any>;
+  assert.deepEqual(asked.missing, ["voice"]);
+  assert.match(asked.say_to_user, /\[\[בחירה: קריינית \| יעל/);
+  assert.equal(samples.length, 8);
+
+  const chosenDb = fakeDb(videoProject());
+  const chosen = (await runWorkshopTool(
+    chosenDb,
+    "tenant-1",
+    "workshop_choose_voice",
+    { item_id: "item-1", voice: "נמרוד" },
+    async () => {},
+  )) as Record<string, any>;
+  assert.equal(chosen.voice_id, "ZiofZHcEBTn5sRySe5h8");
+  const saved = chosenDb.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map((c) => (c.value as any).payload)
+    .pop();
+  assert.equal(saved.video.voice_id, "ZiofZHcEBTn5sRySe5h8");
+  assert.equal(saved.workshop_brief.answers["קול קריינות"], "נמרוד");
 });
