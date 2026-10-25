@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  approvalCode,
   checkApproval,
   issueApproval,
   spendApproval,
@@ -23,11 +24,43 @@ test("a confirm in the same turn as the quote is refused", () => {
   );
 });
 
-test("a confirm in the next turn with the token passes", () => {
+const yes = `מאשר ${approvalCode("tok")}`;
+
+test("a confirm in the next turn with the token and the user's code passes", () => {
   const { payload } = issueApproval({}, quote, "turn-1", "tok");
   assert.deepEqual(
-    checkApproval(payload, quote, { token: "tok", turnId: "turn-2" }),
+    checkApproval(payload, quote, {
+      token: "tok",
+      turnId: "turn-2",
+      userText: yes,
+    }),
     { ok: true },
+  );
+});
+
+test("a later turn without the code in the user's own message is refused", () => {
+  const { payload } = issueApproval({}, quote, "turn-1", "tok");
+  assert.deepEqual(
+    checkApproval(payload, quote, {
+      token: "tok",
+      turnId: "turn-2",
+      userText: "תסתכלי על האתר",
+    }),
+    { ok: false, reason: "not_user" },
+  );
+});
+
+test("a quote older than the time limit is refused", () => {
+  const quotedAt = new Date("2026-10-25T10:00:00Z");
+  const { payload } = issueApproval({}, quote, "turn-1", "tok", quotedAt);
+  assert.deepEqual(
+    checkApproval(
+      payload,
+      quote,
+      { token: "tok", turnId: "turn-2", userText: yes },
+      new Date("2026-10-25T10:31:00Z"),
+    ),
+    { ok: false, reason: "expired" },
   );
 });
 
@@ -68,10 +101,19 @@ test("a different engine or higher unit price needs a new approval", () => {
   );
 });
 
-test("a queue approval from David skips the turn rule", () => {
+test("a queue approval from David skips the message rule, not the price", () => {
   assert.deepEqual(checkApproval({}, quote, { approvedOutOfBand: true }), {
     ok: true,
   });
+  const { payload } = issueApproval({}, quote, "turn-1", "tok");
+  assert.deepEqual(
+    checkApproval(
+      payload,
+      { ...quote, engine: "elevenlabs" },
+      { approvedOutOfBand: true },
+    ),
+    { ok: false, reason: "changed" },
+  );
 });
 
 test("spending keeps the rest for the next batch and removes it when done", () => {

@@ -11,11 +11,11 @@ concurrency:
 
 jobs:
   drain:
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    # Only develop's code drains Staging; a dispatch from another branch does nothing.
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
       PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,8 @@ jobs:
 
       - name: Resolve Staging service key
         shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${PROJECT_REF}" ]; then

@@ -5643,7 +5643,11 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
-  approval: { turnId?: string | null; outOfBand?: boolean } = {},
+  approval: {
+    turnId?: string | null;
+    userText?: string | null;
+    outOfBand?: boolean;
+  } = {},
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5701,6 +5705,7 @@ async function executeTool(
       actorUserId,
       {
         turnId: approval.turnId ?? null,
+        userText: approval.userText ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         imageEngines: async () => {
           const { data } = await supabase
@@ -15858,7 +15863,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId },
+              { turnId, userText: String(command_text ?? "") },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

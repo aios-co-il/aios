@@ -10,8 +10,12 @@
  */
 
 import {
+  APPROVAL_REFUSAL,
+  approvalCode,
+  approvalPrompt,
   checkApproval,
   issueApproval,
+  QUOTE_TTL_MS,
   spendApproval,
   storedApproval,
   type Quote,
@@ -186,7 +190,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_creative",
     description:
-      "יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף: קודם הציגי למשתמש את העלות מהחזרה של confirmed=false וחכי שיאשר במפורש, ורק אז קראי שוב עם confirmed=true. אישור אחד מכסה את כל ההפקה. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה.",
+      'יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף: קודם הציגי למשתמש את העלות מהחזרה של confirmed=false וחכי שיאשר במפורש, ורק אז קראי שוב עם confirmed=true. אישור אחד מכסה את כל ההפקה. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור).',
     parameters: {
       type: "object",
       properties: {
@@ -351,7 +355,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_stills",
     description:
-      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה.",
+      'יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור).',
     parameters: {
       type: "object",
       properties: {
@@ -396,7 +400,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_produce_video",
     description:
-      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.",
+      'מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור). לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.',
     parameters: {
       type: "object",
       properties: {
@@ -654,6 +658,8 @@ export interface WorkshopDeps {
   ) => Promise<{ url?: string; path?: string; error?: string }>;
   /** One id per user message; a paid confirm must come in a later turn than its quote. */
   turnId?: string | null;
+  /** The user's own message in this turn; a paid confirm needs the approval code in it. */
+  userText?: string | null;
   /** David approved this exact call in the approvals queue. */
   approvedOutOfBand?: boolean;
   newToken?: () => string;
@@ -683,14 +689,19 @@ async function gatePaid(
   { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
 > {
   const stored = storedApproval(payload, quote.tool);
+  const fresh =
+    stored && Date.now() - Date.parse(stored.quoted_at) <= QUOTE_TTL_MS;
   const reusable =
-    stored && sameQuote(stored, quote) ? stored.token : undefined;
-  const hold = (token: string, reason?: string) => ({
+    stored && fresh && sameQuote(stored, quote) ? stored.token : undefined;
+  const hold = (token: string, reason?: keyof typeof APPROVAL_REFUSAL) => ({
     stop: {
       ...offer,
       needs_approval: true,
       approval_token: token,
-      ...(reason ? { refused: reason } : {}),
+      approval_prompt: approvalPrompt(approvalCode(token)),
+      ...(reason
+        ? { refused: reason, next_step: APPROVAL_REFUSAL[reason] }
+        : {}),
       message: String(offer.message ?? ""),
     },
   });
@@ -698,12 +709,13 @@ async function gatePaid(
     const check = checkApproval(payload, quote, {
       token: args.approval_token,
       turnId: deps.turnId ?? null,
+      userText: deps.userText ?? null,
       approvedOutOfBand: deps.approvedOutOfBand === true,
     });
     if (check.ok) return { payload };
     if (reusable && check.reason !== "changed")
       return hold(reusable, check.reason);
-    const fresh = await quotePaid(
+    const requoted = await quotePaid(
       supabase,
       tenantId,
       itemId,
@@ -711,7 +723,7 @@ async function gatePaid(
       quote,
       deps,
     );
-    return hold(fresh, check.reason);
+    return hold(requoted, check.reason);
   }
   if (reusable) return hold(reusable);
   const token = await quotePaid(

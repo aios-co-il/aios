@@ -194,6 +194,7 @@ test("a paid confirm needs the quoted token and the user's next message", async 
   let generated = 0;
   const deps = (turnId: string) => ({
     turnId,
+    userText: "מאשר URN1",
     newToken: () => `token-${turnId}`,
     generateImage: async () => {
       generated += 1;
@@ -224,6 +225,7 @@ test("a paid confirm needs the quoted token and the user's next message", async 
   const quoted = await call(quoteDb, {}, "turn-1");
   assert.equal(quoted.needs_approval, true);
   assert.equal(quoted.approval_token, "token-turn-1");
+  assert.match(quoted.approval_prompt, /מאשר URN1/);
   const stored = lastPayload(quoteDb);
   assert.equal(stored.workshop_approvals.workshop_make_creative.count, 2);
   const withQuote = {
@@ -275,6 +277,7 @@ test("asking for the price again keeps the quote the user can still approve", as
   let generated = 0;
   const deps = (turnId: string) => ({
     turnId,
+    userText: "מאשר URN1",
     newToken: () => `token-${turnId}`,
     generateImage: async () => {
       generated += 1;
