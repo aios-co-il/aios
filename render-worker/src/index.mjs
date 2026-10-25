@@ -38,11 +38,9 @@ const HANDLERS = {
       } catch (error) {
         // Starter cannot call the ElevenLabs video API. Higgsfield is the next
         // engine; a rejected Higgsfield key still finishes on the free preview.
-        if (
-          name !== "elevenlabs" ||
-          ctx.run.provider_job_id ||
-          !isPaidPlanError(error)
-        )
+        const elevenLabsJobSaved =
+          ctx.run.provider === "elevenlabs" && ctx.run.provider_job_id;
+        if (name !== "elevenlabs" || elevenLabsJobSaved || !isPaidPlanError(error))
           throw error;
         if (keys.higgsfieldKeyId && keys.higgsfieldKeySecret) {
           try {

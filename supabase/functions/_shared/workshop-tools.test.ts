@@ -444,12 +444,12 @@ test("producing needs stills, a client, then one approval with the engine the te
     (c) => c.table === "rpc:workshop_creative_stage",
   );
   assert.equal((stageCall?.value as Record<string, unknown>).p_client_id, null);
-  assert.equal(
-    noClientDb.calls.some(
-      (c) => c.table === "marketing_work_items" && c.op === "update",
-    ),
-    false,
-  );
+  const linked = noClientDb.calls.find(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  )?.value as Record<string, unknown>;
+  assert.equal(linked.pipeline_id, "pipe-general");
+  assert.equal(linked.current_stage_id, "stage-general");
+  assert.equal(linked.client_id, undefined);
 
   const script = {
     ...videoProject(),

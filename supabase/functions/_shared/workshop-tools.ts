@@ -1849,18 +1849,16 @@ export async function executeWorkshopTool(
         if (wanted && wanted !== project.client_id)
           await assertClientAccess(wanted);
         const stage = await creativeStageFor(supabase, tenantId, wanted);
-        if (wanted) {
-          const linked = await supabase
-            .from("marketing_work_items")
-            .update({
-              client_id: wanted,
-              pipeline_id: stage.pipelineId,
-              current_stage_id: stage.stageId,
-            })
-            .eq("id", itemId)
-            .eq("tenant_id", tenantId);
-          if (linked.error) return { error: linked.error.message };
-        }
+        const linked = await supabase
+          .from("marketing_work_items")
+          .update({
+            ...(wanted ? { client_id: wanted } : {}),
+            pipeline_id: stage.pipelineId,
+            current_stage_id: stage.stageId,
+          })
+          .eq("id", itemId)
+          .eq("tenant_id", tenantId);
+        if (linked.error) return { error: linked.error.message };
         stageId = stage.stageId;
         clientId = wanted;
       } catch (error) {
