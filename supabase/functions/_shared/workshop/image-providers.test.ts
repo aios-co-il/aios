@@ -293,3 +293,47 @@ test("a pinned ElevenLabs Starter plan falls through to Google", async () => {
   );
   assert.equal(made.provider, "google");
 });
+
+test("a provider that times out is not followed by a second, possibly paid, engine", async () => {
+  let geminiCalls = 0;
+  await assert.rejects(
+    generateStill({ openai: "k", google: "g" }, "a cat", "1:1", {
+      fetchImpl: (async () => {
+        throw new DOMException("timed out", "TimeoutError");
+      }) as typeof fetch,
+      gemini: async () => {
+        geminiCalls += 1;
+        return { bytes: png };
+      },
+    }),
+    /לא ענה בזמן/,
+  );
+  assert.equal(geminiCalls, 0);
+});
+
+test("a Higgsfield job that was accepted and then failed does not fall through", async () => {
+  const hosts: string[] = [];
+  await assert.rejects(
+    generateStill(
+      { elevenlabs: "e", higgsfield: "id:secret", openai: "k" },
+      "a cat",
+      "1:1",
+      {
+        engine: "elevenlabs",
+        sleep: async () => {},
+        maxPolls: 2,
+        fetchImpl: (async (url: string, init?: RequestInit) => {
+          hosts.push(new URL(url).host);
+          if (url.includes("elevenlabs"))
+            return json({ detail: { status: "paid_plan_required" } }, 402);
+          if (url.includes("openai")) return json({ data: [{ b64_json: b64 }] });
+          if (init?.method === "POST") return json({ request_id: "req-1" });
+          return json({ status: "in_progress" });
+        }) as typeof fetch,
+      },
+    ),
+    /הזמן אזל/,
+  );
+  assert.ok(hosts.includes("api.higgsfield.ai"));
+  assert.equal(hosts.some((host) => host.includes("openai")), false);
+});

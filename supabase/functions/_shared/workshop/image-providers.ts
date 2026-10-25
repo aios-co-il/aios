@@ -343,13 +343,34 @@ async function viaHiggsfield(
   const started = await submit.json().catch(() => ({}));
   if (!submit.ok || !started?.request_id)
     throw new Error(`${submit.status} ${clip(JSON.stringify(started))}`);
+  try {
+    return await awaitHiggsfield(started.request_id, base, headers, deps, fetchImpl);
+  } catch (error) {
+    throw accepted(error);
+  }
+}
+
+/** The provider holds a paid job: trying the next engine could charge for the picture twice. */
+function accepted(error: unknown) {
+  const tagged = error instanceof Error ? error : new Error(String(error));
+  (tagged as Error & { accepted?: boolean }).accepted = true;
+  return tagged;
+}
+
+async function awaitHiggsfield(
+  requestId: string,
+  base: string,
+  headers: Record<string, string>,
+  deps: ImageDeps,
+  fetchImpl: typeof fetch,
+): Promise<MadeImage> {
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const polls = deps.maxPolls ?? 40;
   for (let attempt = 0; attempt < polls; attempt++) {
     await sleep(deps.pollMs ?? 2000);
     const poll = await fetchImpl(
-      `${base}/requests/${encodeURIComponent(started.request_id)}/status`,
+      `${base}/requests/${encodeURIComponent(requestId)}/status`,
       { headers },
     );
     const state = await poll.json().catch(() => ({}));
@@ -434,6 +455,11 @@ export async function generateStill(
             ? error.message
             : String(error);
       failures.push(`${PROVIDER_LABEL[provider]}: ${message}`);
+      // A timeout or an accepted job may still be charged: stop instead of paying a second engine.
+      const timedOut =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError");
+      if (timedOut || (error as { accepted?: boolean })?.accepted) break;
       // A pinned ElevenLabs choice on Starter still has to produce the picture.
       if (
         provider === "elevenlabs" &&
