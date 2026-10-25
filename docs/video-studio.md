@@ -76,8 +76,8 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 - "הרכב סרט" is enabled when at least one scene is `clip_approved`. The confirm dialog says the assembly is local and costs $0.
 - Migration `20261016140500_video_studio_render.sql` adds `queue_video_render`. It stores the approved clips (and their voice paths) plus the latest `music` asset on the run, so the worker does not trust a path sent from the browser. A render already queued or running is left as-is. Apply it on Staging before using the button. Production waits for `מאשר לפרודקשן`.
 - The same migration drops the original `marketing_assets.type` check (`copy`, `image`, `video`, `brief`, `data`). The app already stores stills, clips, voice, music, renders, reference videos, storyboards and SEO plans, and existing rows are left in place.
-- `render-worker` claims `kind = 'render'` and assembles an MP4 with ffmpeg from `buildTimeline`. The file is `creative-video/<tenant>/<client>/<item>/render/film-v<n>.mp4`, saved as a `render` asset with `meta.provider = compose`. The screen polls the run every 4 s and plays the signed MP4.
-- The film is assembled with ffmpeg only: clips fitted to the frame, `overlay_text` burned in as centred Hebrew titles (ffmpeg's fribidi orders the text), voice per scene and music at 0.18. No Remotion render runs, so no Remotion licence is needed for now.
+- `render-worker` claims `kind = 'render'` and renders an MP4 with Remotion from `buildTimeline`. The file is `creative-video/<tenant>/<client>/<item>/render/film-v<n>.mp4`, saved as a `render` asset with `meta.provider = remotion`. The screen polls the run every 4 s and plays the signed MP4.
+- The film is the `WorkshopFilm` composition: camera moves on stills, Hebrew lower-thirds, fades, narration and a music bed. A real provider clip replaces the still for that scene. `REMOTION_DISABLE=1` keeps the older ffmpeg concat.
 
 ## Phase 7 video director
 

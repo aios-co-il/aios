@@ -2,7 +2,7 @@
   "name": "aios-render-worker",
   "private": true,
   "version": "0.1.0",
-  "description": "Video Studio worker: reference analysis and clips now; audio and Remotion renders in later phases.",
+  "description": "Video Studio worker: reference analysis, clips, sound, and Remotion film renders.",
   "type": "module",
   "engines": {
     "node": ">=22"

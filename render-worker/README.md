@@ -22,7 +22,7 @@ Handled kinds:
 
 - `voice` and `music` (phase 5). ElevenLabs writes one voiceover per scene and one music bed. Higgsfield sound is `generate_audio` on the clip, not a separate job.
 
-- `render` (phase 6). Queued by `queue_video_render`. The worker reads the approved scenes, their current clip and voice, and the newest music bed from the database for the run's tenant; `run.input` only supplies the aspect. It builds one timeline (`src/compose/timeline.mjs`) and assembles an MP4 with ffmpeg (`src/compose/assemble.mjs`): every segment is normalised to stereo 48 kHz, music sits at 0.18 under the voice, and `overlay_text` is burned in as centred Hebrew titles (DejaVu Sans Bold, `OVERLAY_FONT` overrides). Each render is stored as `render/film-<run id>.mp4`.
+- `render` (phase 6). Queued by `queue_video_render`. The worker reads the approved scenes, their current clip and voice, and the newest music bed from the database for the run's tenant; `run.input` only supplies the aspect. It builds one timeline (`src/compose/timeline.mjs`) and renders it with Remotion (`workers/creative-video/remotion`, composition `WorkshopFilm`): camera moves, Hebrew lower-thirds (Heebo), and a fade between scenes. A mock clip is replaced by its still so the camera move is done in Remotion. A real provider clip (Kling, ElevenLabs, Higgsfield) is placed on the timeline. Narration plays across the film and music sits at 0.16. Set `REMOTION_DISABLE=1` to fall back to the ffmpeg concat. Each render is stored as `render/film-<run id>.mp4`.
 
 ### Video providers
 
@@ -49,7 +49,7 @@ docker run -d --name aios-render-worker --restart unless-stopped --env-file .env
 docker logs -f aios-render-worker
 ```
 
-Give the Droplet at least 4 vCPUs. Films are assembled with ffmpeg; no Remotion licence is needed.
+Give the Droplet at least 4 vCPUs. Build the image from the repo root so the Remotion package is included: `docker build -f render-worker/Dockerfile -t aios-render-worker .`
 
 ## Test
 

@@ -27,6 +27,10 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
 
+      - name: Install Remotion
+        working-directory: workers/creative-video/remotion
+        run: npm install --no-audit --no-fund && npx remotion browser ensure
+
       - name: Resolve Staging service key
         shell: bash
         run: |

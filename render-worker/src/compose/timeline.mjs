@@ -24,6 +24,8 @@ export function buildTimeline(
     .map((scene) => ({
       id: scene.id,
       clipPath: scene.clipPath,
+      stillPath: scene.stillPath || null,
+      clipProvider: scene.clipProvider || null,
       // A continuous narration plays across the whole film, not inside each scene.
       voicePath: narration ? null : scene.voicePath || null,
       overlayText: String(scene.overlayText ?? "").trim(),
