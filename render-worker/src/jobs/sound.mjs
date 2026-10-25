@@ -134,7 +134,12 @@ export async function generateVoice({
       return {
         bytes: speech.bytes,
         contentType: speech.contentType,
-        meta: { provider: "gemini", model: speech.model, voice_id: "Kore" },
+        meta: {
+          provider: "gemini",
+          model: speech.model,
+          voice_id: speech.voice,
+          cost_usd: speech.costUsd,
+        },
       };
     },
   });
@@ -182,10 +187,10 @@ export async function generateVoice({
     output: { path, provider, voice_id: meta.voice_id ?? null },
     provider,
     credits: 0,
-    // ElevenLabs bills characters and returns no price. Gemini TTS on the free tier is 0.
+    // ElevenLabs bills characters and returns no price; Gemini's comes from its token counts.
     costUsd:
       provider === "gemini"
-        ? 0
+        ? Number(meta.cost_usd) || 0
         : Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
           10000,
   };
