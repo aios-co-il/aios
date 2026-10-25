@@ -73,6 +73,33 @@ test("Kling durations round to the 5 s and 10 s clips the API offers, and cost f
   });
 });
 
+test("Kling signs with the tenant's own key pair before the env pair", async () => {
+  const realFetch = globalThis.fetch;
+  let auth = "";
+  globalThis.fetch = async (_url, init) => {
+    auth = init.headers.Authorization;
+    return new Response(JSON.stringify({ code: 0, data: { task_id: "t1" } }));
+  };
+  try {
+    const provider = getVideoProvider("kling", {
+      klingAccessKey: "tenant-ak",
+      klingSecretKey: "tenant-sk",
+    });
+    assert.equal(provider.name, "kling");
+    assert.deepEqual(
+      await provider.submit({ imageUrl: "https://x/a.png", prompt: "p" }),
+      { jobId: "t1" },
+    );
+    const [, payload] = auth.replace("Bearer ", "").split(".");
+    assert.equal(
+      JSON.parse(Buffer.from(payload, "base64url").toString()).iss,
+      "tenant-ak",
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test("clip prompts always end with the no-text rule", () => {
   assert.equal(
     clipPrompt("Camera dollies in"),
