@@ -62,7 +62,10 @@ export function budgetOf(payload: Record<string, unknown>): Budget {
   };
 }
 
-const withBudget = (payload: Record<string, unknown>, budget: Budget) => ({
+export const withBudget = (
+  payload: Record<string, unknown>,
+  budget: Budget,
+) => ({
   ...payload,
   [KEY]: budget,
 });
@@ -91,6 +94,7 @@ export function requestBudget(
   turnId: string | null,
   token: string,
   now = new Date(),
+  tool?: PaidTool,
 ): { payload: Record<string, unknown>; request: BudgetRequest } {
   const request: BudgetRequest = {
     cap_usd: capUsd,
@@ -98,6 +102,7 @@ export function requestBudget(
     code: approvalCode(token),
     turn_id: turnId,
     asked_at: now.toISOString(),
+    ...(tool ? { tool } : {}),
   };
   return {
     payload: withBudget(payload, { ...budgetOf(payload), request }),

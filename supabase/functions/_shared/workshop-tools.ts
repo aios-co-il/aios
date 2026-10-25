@@ -770,6 +770,8 @@ async function gatePaid(
       suggestCap(budget, quote, args.budget_usd),
       deps.turnId ?? null,
       token,
+      new Date(),
+      quote.tool,
     );
     await savePayload(supabase, tenantId, itemId, asked.payload);
     request = asked.request;

@@ -72,6 +72,7 @@ import {
   workshopProjectKind,
 } from "../_shared/workshop/role-project.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
+import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
@@ -13773,6 +13774,15 @@ async function handleRunAgent(
 
     // In the workshop the server picks the specialist for this message (designer, producer or
     // video editor) from the message and the open project, and pins her skin; see roles.ts.
+    // Approves a waiting budget from the user's code and states the project's next step.
+    const workshopNote = inWorkshopRequest
+      ? await workshopTurnNote(
+          supabase,
+          tenant_id,
+          workshopItemIdFrom(bodyJson),
+          String(command_text ?? ""),
+        )
+      : null;
     const workshopRoleForRun = inWorkshopRequest
       ? workshopRole(
           String(command_text ?? ""),
@@ -14872,6 +14882,7 @@ async function handleRunAgent(
         disabledSkins: agent.disabled_skins,
         pinned: task_skills,
       });
+      if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).

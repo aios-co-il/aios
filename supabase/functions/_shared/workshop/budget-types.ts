@@ -16,6 +16,8 @@ export type BudgetRequest = {
   code: string;
   turn_id: string | null;
   asked_at: string;
+  /** The paid step that waits for this approval. */
+  tool?: PaidTool;
 };
 
 export type Budget = {
