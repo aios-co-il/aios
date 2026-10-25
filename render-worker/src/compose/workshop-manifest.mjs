@@ -1,6 +1,7 @@
 /** The edit Remotion renders. A mock clip is a still with a zoom, so the
  * composition animates the still. A real video clip is placed on the timeline as-is. */
 import { brandColor, brandFont } from "./brand.mjs";
+import { lineFrames } from "./line-sync.mjs";
 import {
   captionChunks,
   spreadWords,
@@ -135,10 +136,19 @@ export function buildWorkshopManifest(timeline) {
     );
     if (narrationS) narrationFrames = Math.ceil(narrationS * fps) + TAIL_FRAMES;
   }
-  const counts = fitScenes(
-    picked.map((p) => p.frames),
-    narrationFrames,
-  );
+  // One continuous take: each scene starts with its own line, else scenes stretch evenly.
+  const counts =
+    (narration &&
+      lineFrames(
+        picked.map((p) => p.scene.narrationText ?? ""),
+        wordsToFrames(narrationWords, fps),
+        picked.map((p) => p.frames),
+        narrationFrames,
+      )) ||
+    fitScenes(
+      picked.map((p) => p.frames),
+      narrationFrames,
+    );
 
   let cursor = 0;
   let framed = wordsToFrames(narrationWords, fps);

@@ -36,6 +36,8 @@ export function buildTimeline(
       // A continuous narration plays across the whole film, not inside each scene.
       voicePath: narration ? null : scene.voicePath || null,
       voiceAlignment: narration ? null : scene.voiceAlignment || null,
+      // This scene's part of the continuous narration, to cut the scene where it starts.
+      narrationText: narration ? String(scene.voiceoverText ?? "").trim() : "",
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
       // What a talking clip says, for its captions.
