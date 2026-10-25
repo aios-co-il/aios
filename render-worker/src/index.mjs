@@ -72,6 +72,8 @@ const HANDLERS = {
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
 const DRAIN = process.env.DRAIN === "1";
+/** With DRAIN, keep polling this long after the queue empties (preview runners). */
+const DRAIN_IDLE_MS = Number(process.env.DRAIN_IDLE_MS) || 0;
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
 
@@ -226,6 +228,7 @@ await Promise.all(
       processOne: () => processOne(target.db, target.workerId),
       concurrency: CONCURRENCY,
       drain: DRAIN,
+      idleMs: DRAIN_IDLE_MS,
       shouldStop: () => stopping,
       sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
       onError: (error) =>

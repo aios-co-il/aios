@@ -12,6 +12,12 @@ const isRejectedKey = (error) => {
   );
 };
 
+/** The account cannot pay for the job (no credits, quota, billing). Nothing was charged. */
+const isNoCredit = (error) =>
+  /not_enough_credits|insufficient|no credits|quota|billing|\b402\b/i.test(
+    String(error instanceof Error ? error.message : error),
+  );
+
 /**
  * Runs a clip on the engine the user approved. Only an ElevenLabs plan that cannot make video
  * moves the clip to Higgsfield, and a rejected Higgsfield key to the free preview, and only
@@ -43,6 +49,17 @@ export async function runClipWithFallback({
     return await run(name, null);
   } catch (error) {
     const submitted = Boolean(error?.submitted) || Boolean(savedJobId);
+    // A paid engine that refused the job before accepting it (no credits, rejected key):
+    // the scene moves with the free camera motion so the film still assembles.
+    if (
+      name !== "mock" &&
+      name !== "elevenlabs" &&
+      !submitted &&
+      (isNoCredit(error) || isRejectedKey(error))
+    ) {
+      log(`${name} refused the job before it started; using the free preview`);
+      return await run("mock", name);
+    }
     if (name !== "elevenlabs" || submitted || !isPaidPlanError(error))
       throw error;
     if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret)) {
@@ -50,9 +67,12 @@ export async function runClipWithFallback({
         log("ElevenLabs plan cannot make video; using higgsfield");
         return await run("higgsfield", name);
       } catch (higgsError) {
-        if (higgsError?.submitted || !isRejectedKey(higgsError))
+        if (
+          higgsError?.submitted ||
+          !(isRejectedKey(higgsError) || isNoCredit(higgsError))
+        )
           throw higgsError;
-        log("Higgsfield rejected the key; using the free preview");
+        log("Higgsfield refused the job; using the free preview");
       }
     }
     return await run("mock", name);

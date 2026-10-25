@@ -105,6 +105,9 @@ jobs:
         working-directory: render-worker
         env:
           DRAIN: "1"
+          # Keep listening 15 minutes after the queue empties, so a film started while
+          # testing the Preview is still made.
+          DRAIN_IDLE_MS: "900000"
           CONCURRENCY: "2"
           POLL_MS: "2000"
           WORKER_ID: gha-preview

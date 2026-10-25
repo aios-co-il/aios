@@ -35,3 +35,21 @@ test("a running worker sleeps when the queue is empty until stopped", async () =
   });
   assert.equal(slept, 1);
 });
+
+test("drain with an idle window keeps polling and picks up work queued meanwhile", async () => {
+  let clock = 0;
+  const answers = [false, false, true, false, false, false];
+  let claims = 0;
+  await runSlots({
+    concurrency: 1,
+    drain: true,
+    idleMs: 3000,
+    now: () => clock,
+    sleep: async () => {
+      clock += 1000;
+    },
+    processOne: async () => answers[claims++] ?? false,
+  });
+  assert.ok(claims >= 6);
+  assert.equal(answers[2], true);
+});

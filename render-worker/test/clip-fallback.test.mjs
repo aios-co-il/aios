@@ -92,8 +92,32 @@ test("a full key in the secret field is enough to fall back to Higgsfield", asyn
   assert.deepEqual(calls[1], ["higgsfield", "elevenlabs"]);
 });
 
-test("a pinned engine other than ElevenLabs never falls back", async () => {
-  const error = new Error("Higgsfield 402");
+test("a pinned engine that fails for another reason does not fall back", async () => {
+  const error = new Error("Higgsfield 500 server error");
+  const { calls, run } = recorder({ higgsfield: error });
+  await assert.rejects(
+    runClipWithFallback({ name: "higgsfield", keys, run }),
+    error,
+  );
+  assert.equal(calls.length, 1);
+});
+
+test("an engine with no credits before submit moves the scene to the free preview", async () => {
+  const { calls, run } = recorder({
+    higgsfield: new Error(
+      'higgsfield submit 403: {"detail":"not_enough_credits"}',
+    ),
+  });
+  const result = await runClipWithFallback({ name: "higgsfield", keys, run });
+  assert.deepEqual(result, { provider: "mock", fallbackFrom: "higgsfield" });
+  assert.deepEqual(calls, [
+    ["higgsfield", null],
+    ["mock", "higgsfield"],
+  ]);
+});
+
+test("no credits after the job was accepted never switches engines", async () => {
+  const error = afterSubmit("higgsfield poll 402 not_enough_credits");
   const { calls, run } = recorder({ higgsfield: error });
   await assert.rejects(
     runClipWithFallback({ name: "higgsfield", keys, run }),
