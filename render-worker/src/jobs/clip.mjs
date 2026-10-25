@@ -50,6 +50,7 @@ export async function generateClip({
   db,
   run,
   provider = getVideoProvider(),
+  fallbackFrom = null,
   log = console.log,
 }) {
   const input = run.input ?? {};
@@ -101,12 +102,56 @@ export async function generateClip({
       });
     } catch (error) {
       // The provider already accepted (and charges for) the job: never submit it again.
-      throw finalError(
-        `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+      throw submitted(
+        finalError(
+          `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+        ),
       );
     }
     log(`[clip] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
+  try {
+    return await finishClip({
+      db,
+      run,
+      provider,
+      jobId,
+      item,
+      still,
+      durationS,
+      aspect,
+      estimate,
+      fallbackFrom,
+      log,
+    });
+  } catch (error) {
+    throw submitted(error);
+  }
+}
+
+/**
+ * Marks an error raised once the provider holds a job: that job may be charged, so the run
+ * must not switch to another engine and pay twice.
+ */
+function submitted(error) {
+  const tagged = error instanceof Error ? error : new Error(String(error));
+  tagged.submitted = true;
+  return tagged;
+}
+
+async function finishClip({
+  db,
+  run,
+  provider,
+  jobId,
+  item,
+  still,
+  durationS,
+  aspect,
+  estimate,
+  fallbackFrom,
+  log,
+}) {
 
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
@@ -144,6 +189,7 @@ export async function generateClip({
       aspect,
       source_still_asset_id: still.id,
       generation_cost: { usd: estimate.usd, credits: estimate.credits },
+      ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
     },
     p_run_id: run.id,
   });
@@ -154,6 +200,7 @@ export async function generateClip({
       provider: provider.name,
       model: provider.model,
       job_id: jobId,
+      ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
     },
     costUsd: estimate.usd,
     credits: estimate.credits,

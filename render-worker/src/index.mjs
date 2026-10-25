@@ -6,12 +6,7 @@ import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
-import { isPaidPlanError } from "./providers/plan.mjs";
-
-const isRejectedKey = (error) => {
-  const text = String(error instanceof Error ? error.message : error).toLowerCase();
-  return text.includes("invalid credentials") || /\b401\b/.test(text) || /\b403\b/.test(text);
-};
+import { runClipWithFallback } from "./clip-fallback.mjs";
 import { runSlots } from "./loop.mjs";
 import { loadTargets } from "./targets.mjs";
 
@@ -28,35 +23,19 @@ const HANDLERS = {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
         ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
-      const runWith = (providerName) =>
-        generateClip({
-          ...ctx,
-          provider: getVideoProvider(providerName, keys),
-        });
-      try {
-        return await runWith(name);
-      } catch (error) {
-        // Starter cannot call the ElevenLabs video API. Higgsfield is the next
-        // engine; a rejected Higgsfield key still finishes on the free preview.
-        const elevenLabsJobSaved =
-          ctx.run.provider === "elevenlabs" && ctx.run.provider_job_id;
-        if (name !== "elevenlabs" || elevenLabsJobSaved || !isPaidPlanError(error))
-          throw error;
-        if (keys.higgsfieldKeyId && keys.higgsfieldKeySecret) {
-          try {
-            console.log(
-              `[clip] ${ctx.run.id} ElevenLabs plan cannot make video; using higgsfield`,
-            );
-            return await runWith("higgsfield");
-          } catch (higgsError) {
-            if (!isRejectedKey(higgsError)) throw higgsError;
-            console.log(
-              `[clip] ${ctx.run.id} Higgsfield rejected the key; using the free preview`,
-            );
-          }
-        }
-        return await runWith("mock");
-      }
+      return runClipWithFallback({
+        name,
+        keys,
+        savedProvider: ctx.run.provider ?? null,
+        savedJobId: ctx.run.provider_job_id ?? null,
+        run: (providerName, fallbackFrom) =>
+          generateClip({
+            ...ctx,
+            provider: getVideoProvider(providerName, keys),
+            fallbackFrom,
+          }),
+        log: (line) => console.log(`[clip] ${ctx.run.id} ${line}`),
+      });
     },
     onFailed: failClip,
   },

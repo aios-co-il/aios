@@ -135,3 +135,23 @@ export function projectFormat(artifacts: WorkshopArtifact[]): string {
   const format = plan?.format;
   return typeof format === "string" ? format : "4:5";
 }
+
+const CLIP_ENGINE: Record<string, string> = {
+  elevenlabs: "ElevenLabs",
+  higgsfield: "Higgsfield",
+  kling: "Kling",
+  mock: "מנוע התצוגה החינמי",
+};
+
+const engineName = (value: unknown) =>
+  typeof value === "string" ? (CLIP_ENGINE[value] ?? value) : "";
+
+/** When the worker could not use the chosen engine for a clip, the page says what it used instead. */
+export function fallbackNote(artifact: WorkshopArtifact): string | null {
+  const from = engineName(artifact.meta.fallback_from);
+  if (!from) return null;
+  const used = engineName(artifact.meta.provider);
+  return used
+    ? `הונפש ב${used} במקום ${from}`
+    : `הונפש במנוע אחר במקום ${from}`;
+}

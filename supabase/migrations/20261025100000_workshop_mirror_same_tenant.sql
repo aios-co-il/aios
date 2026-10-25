@@ -1,4 +1,5 @@
--- The asset mirror reads the project, scene and pending pages of the asset's own tenant only.
+-- The asset mirror reads the project, scene and pending pages of the asset's own tenant only,
+-- and a clip page says which engine made it when the worker had to replace the chosen one.
 
 create or replace function public.workshop_mirror_asset()
 returns trigger
@@ -130,6 +131,10 @@ begin
     'marketing_assets',
     new.id,
     jsonb_build_object('asset_id', new.id, 'asset_type', new.type)
+      || jsonb_strip_nulls(jsonb_build_object(
+           'provider', new.meta ->> 'provider',
+           'fallback_from', new.meta ->> 'fallback_from'
+         ))
   );
   return new;
 exception when others then

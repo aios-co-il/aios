@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   artifactText,
+  fallbackNote,
   foldersOf,
   pagesIn,
   pageTypeFor,
@@ -128,4 +129,14 @@ test("failed pages leave the board and only recent errors are spoken", () => {
   );
   assert.deepEqual(result.failedIds, ["new", "dup", "old"]);
   assert.deepEqual(result.messages, ["OpenAI: 400"]);
+});
+
+test("a clip made on a replacement engine says so; a normal clip says nothing", () => {
+  assert.equal(
+    fallbackNote(
+      page({ kind: "clip", meta: { provider: "mock", fallback_from: "elevenlabs" } }),
+    ),
+    "הונפש במנוע התצוגה החינמי במקום ElevenLabs",
+  );
+  assert.equal(fallbackNote(page({ kind: "clip", meta: { provider: "higgsfield" } })), null);
 });

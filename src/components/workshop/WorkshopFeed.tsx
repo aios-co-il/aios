@@ -13,6 +13,7 @@ import { AssetsPanel } from "./AssetsPanel";
 import { useWorkshopAssets } from "./useWorkshopAssets";
 import {
   artifactText,
+  fallbackNote,
   foldersOf,
   pagesIn,
   pageTypeFor,
@@ -68,15 +69,25 @@ function PageBody({
         className="mx-auto max-h-[72vh] w-auto max-w-full object-contain"
       />
     );
-  if (type === "video" && artifact.url)
+  if (type === "video" && artifact.url) {
+    const note = fallbackNote(artifact);
     return (
-      <video
-        src={artifact.url}
-        controls
-        playsInline
-        className="mx-auto max-h-[72vh] w-full bg-black"
-      />
+      <>
+        <video
+          src={artifact.url}
+          controls
+          playsInline
+          className="mx-auto max-h-[72vh] w-full bg-black"
+        />
+        {note ? (
+          <p className="flex items-center gap-1.5 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <TriangleAlert className="h-3 w-3 shrink-0" />
+            {note}
+          </p>
+        ) : null}
+      </>
     );
+  }
   if (type === "audio" && artifact.url)
     return (
       <div className="p-4">
