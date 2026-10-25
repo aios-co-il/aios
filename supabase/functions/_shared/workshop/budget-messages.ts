@@ -1,4 +1,5 @@
-import type { BudgetRefusal } from "./budget-types.ts";
+import { approvalCode, budgetPrompt } from "./budget.ts";
+import type { Budget, BudgetRefusal, BudgetRequest } from "./budget-types.ts";
 
 /** What Carmen is told to do when a paid step cannot run on the budget. */
 export const BUDGET_REFUSAL: Record<BudgetRefusal, string> = {
@@ -14,3 +15,19 @@ export const BUDGET_REFUSAL: Record<BudgetRefusal, string> = {
   expired:
     "בקשת התקציב פגה. הציגי למשתמש את התקציב המוצע ואת approval_prompt, ועצרי.",
 };
+
+const usd = (amount: number) => `$${Math.round(amount * 100) / 100}`;
+
+/** What the user reads: the budget asked for, what this step costs, and the approve button. */
+export function budgetMessage(
+  budget: Budget,
+  stepUsd: number,
+  capUsd: number,
+  request: BudgetRequest,
+): string {
+  const head =
+    budget.cap_usd > 0
+      ? `השלב הזה עולה כ-${usd(stepUsd)}, ובתקציב של הפרויקט נשארו ${usd(Math.max(0, budget.cap_usd - budget.spent_usd))}. להגדיל את התקציב ל-${usd(capUsd)}?`
+      : `לפרויקט הזה אני מציעה תקציב של ${usd(capUsd)} (השלב הראשון כ-${usd(stepUsd)}). אחרי האישור אני ממשיכה בלי לשאול על כל שלב, ומתריעה רק אם צריך יותר.`;
+  return `${head}\n${budgetPrompt(capUsd, request.code || approvalCode(request.token))}`;
+}

@@ -237,6 +237,8 @@ test("one budget approval from the user's tap covers the next paid steps", async
   assert.equal(asked.refused, "no_budget");
   assert.equal(asked.approval_token, "token-turn-1");
   assert.match(asked.approval_prompt, /מאשר תקציב URN1/);
+  assert.match(asked.say_to_user, /מאשר תקציב URN1/);
+  assert.equal("message" in asked, false);
   assert.equal(generated, 0);
   const pending = lastPayload(askDb);
 
@@ -654,7 +656,8 @@ test("with no paid keys the film is produced on the free preview engine", async 
     { defaultEngine: async () => "mock" as const },
   )) as Record<string, any>;
   assert.equal(asked.engine, "mock");
-  assert.match(asked.message, /בלי עלות/);
+  // The clips are free; narration and music still draw on the budget.
+  assert.equal(asked.needs_budget, true);
 });
 
 test("a project can be assigned to a client later, or released back to no client", async () => {
@@ -988,7 +991,8 @@ test("without a defined style Carmen gets questions instead of pictures, storybo
     )) as Record<string, any>;
     assert.equal(result.needs_input, true, name);
     assert.deepEqual(result.missing, ["style", "film"]);
-    assert.equal(result.questions.length, 9);
+    assert.equal(result.say_to_user.match(/\[\[בחירה:/g).length, 7);
+    assert.equal("message" in result, false);
     assert.equal(
       db.calls.some((c) => c.op === "update" || c.op === "rpc"),
       false,
@@ -1016,7 +1020,7 @@ test("a proposed style counts only once the user approved it, then it is remembe
     { generateImage: async () => ({ image_url: "https://x/1.png" }) },
   )) as Record<string, any>;
   assert.equal(unapproved.needs_input, true);
-  assert.match(unapproved.message, /לא אישר/);
+  assert.deepEqual(unapproved.missing, ["style"]);
 
   const db = fakeDb({
     ...bareProject(),

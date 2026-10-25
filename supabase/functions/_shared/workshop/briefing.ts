@@ -7,6 +7,12 @@
 import { PROVIDER_LABEL } from "./capabilities.ts";
 import type { ImageProvider } from "./image-providers.ts";
 import type { ProjectLook } from "./look.ts";
+import {
+  choiceLine,
+  FILM_CHOICES,
+  STYLE_CHOICES,
+  type Choice,
+} from "./briefing-choices.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -26,30 +32,6 @@ export const engineOptions = (connected: ImageProvider[]) =>
     note: ENGINE_NOTES[id],
   }));
 
-export const styleQuestions = (kind: "video" | "static") =>
-  kind === "video"
-    ? [
-        "מי מופיע בסרט ואיך הוא נראה (גיל, שיער, לבוש), או שאין דמות?",
-        "איזה סגנון: צילום ריאליסטי, קולנועי, אנימציה תלת־ממדית או איור שטוח?",
-        "איזו אווירה וצבעים (למשל חם ומזמין, נקי ומינימליסטי, בהיר וצבעוני)?",
-        "יש תמונה או מודעה שאהבת כרפרנס? אפשר לצרף.",
-      ]
-    : [
-        "מה הנושא או המוצר המרכזי בתמונה?",
-        "איזה סגנון: צילום, איור, תלת־ממד או גרפי נקי?",
-        "איזו אווירה וצבעים (ואם יש צבעי מותג)?",
-        "יש תמונה או מודעה שאהבת כרפרנס? אפשר לצרף.",
-      ];
-
-/** Before a film is written: how it should feel, beyond how the pictures look. */
-export const filmQuestions = [
-  "איזה סגנון לסרט: קולנועי ריאליסטי, אנימציית תלת־ממד, איור מונפש או מושן גרפיקס?",
-  "איזה קצב ואווירה: אנרגטי ומהיר, רגוע ורגשי, או מצחיק וקליל?",
-  "קריינות: קול נשי, קול גברי, בלי קריין, או דמות שמדברת למצלמה (ליפ סינק)?",
-  "איזו מוזיקה: אלקטרונית קצבית, אקוסטית חמה, תזמורתית, או בלי מוזיקה?",
-  "איך מסיימים: לוגו וקריאה לפעולה (מה הכיתוב?), או בלי סגיר?",
-];
-
 export interface BriefingInput {
   look: Pick<ProjectLook, "bible" | "references" | "film">;
   styleApproved: boolean;
@@ -64,9 +46,11 @@ export interface BriefingInput {
 export interface BriefingGate {
   needs_input: true;
   missing: ("style" | "film" | "engine")[];
-  questions?: string[];
+  /** The message for the user, with the questions as buttons. Shown as is. */
+  say_to_user: string;
+  /** For Carmen only: what to do with the answers. Never shown to the user. */
+  carmen_next: string;
   engines?: ReturnType<typeof engineOptions>;
-  message: string;
 }
 
 /** Returns what is still missing, or null when Carmen can go ahead. */
@@ -88,43 +72,33 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   if (askEngine) missing.push("engine");
   if (missing.length === 0) return null;
 
-  const parts: string[] = [
-    "עוד לא מייצרים. שאלי את המשתמש בהודעה אחת קצרה, והציעי לכל שאלה ברירת מחדל מתאימה לבקשה שלו כדי שיוכל פשוט לאשר.",
+  const choices: Choice[] = [
+    ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),
+    ...(missing.includes("film") ? FILM_CHOICES : []),
+    ...(missing.includes("engine") && input.connected
+      ? [
+          {
+            label: "מנוע תמונות",
+            options: input.connected.map((id) => PROVIDER_LABEL[id]),
+          },
+        ]
+      : []),
   ];
-  if (missing.includes("style"))
-    parts.push(
-      hasBible
-        ? "הצגת style_bible אבל המשתמש לא אישר אותו: הציגי אותו בקצרה ובקשי אישור."
-        : "לא הוגדר סגנון ולא צורף רפרנס. אם המשתמש כבר אמר סגנון, דמות או אווירה, אל תשאלי שוב, אלא הציעי style_bible מסוכם ובקשי אישור.",
-    );
-  if (missing.includes("film"))
-    parts.push(
-      "עוד לא סוכם איך הסרט ירגיש: סגנון, קצב, קריינות או דמות מדברת, מוזיקה וסגיר. מה שהמשתמש כבר אמר לא שואלים שוב. אחרי התשובות סכמי אותן ב-film_brief (בעברית, משפט לכל נושא).",
-    );
-  if (missing.includes("engine"))
-    parts.push(
-      "מחוברים כמה מנועי תמונה. שאלי באיזה ליצור והסבירי בשורה על כל אחד, והמלצי אחד לפי הצורך (עקביות דמות ורפרנס: Google).",
-    );
-  parts.push(
-    "כתבי כל שאלה עם כפתורי תשובה בשורה נפרדת בפורמט [[בחירה: נושא | אפשרות | אפשרות]], 2 עד 4 אפשרויות קצרות, והראשונה היא ההמלצה שלך. הסימונים הופכים לכפתורים והמשתמש לוחץ במקום לכתוב.",
-  );
-  parts.push(
-    "אחרי התשובה קראי שוב לכלי עם style_bible (באנגלית), style_approved=true, film_brief לסרט, reference_urls אם יש, ו-engine שנבחר. הבחירה נשמרת לפרויקט ולא שואלים שוב.",
-  );
+  const intro =
+    input.kind === "video"
+      ? "לפני שאני כותבת את הסרט, כמה בחירות קצרות כדי שייצא בדיוק כמו שצריך:"
+      : "לפני שאני מעצבת, כמה בחירות קצרות:";
+  const reference = missing.includes("style")
+    ? "\nיש תמונה או מודעה שאהבת? אפשר לצרף אותה כרפרנס."
+    : "";
   return {
     needs_input: true,
     missing,
-    ...(missing.includes("style") || missing.includes("film")
-      ? {
-          questions: [
-            ...(missing.includes("style") ? styleQuestions(input.kind) : []),
-            ...(missing.includes("film") ? filmQuestions : []),
-          ],
-        }
-      : {}),
+    say_to_user: [intro + reference, ...choices.map(choiceLine)].join("\n"),
+    carmen_next:
+      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. אם המשתמש כבר ענה על חלק מהבחירות בבקשה שלו, השמיטי את השורות האלה. אחרי התשובות קראי שוב לכלי עם style_bible באנגלית שמסכם את המראה, style_approved=true, film_brief בעברית שמסכם קצב, קול, מוזיקה וסיום, reference_urls אם צורפו, ו-engine אם נבחר.",
     ...(missing.includes("engine") && input.connected
       ? { engines: engineOptions(input.connected) }
       : {}),
-    message: parts.join(" "),
   };
 }

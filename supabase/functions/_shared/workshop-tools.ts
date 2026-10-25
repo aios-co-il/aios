@@ -9,7 +9,7 @@
  * runs with the service role, so RLS does not apply.
  */
 
-import { BUDGET_REFUSAL } from "./workshop/budget-messages.ts";
+import { BUDGET_REFUSAL, budgetMessage } from "./workshop/budget-messages.ts";
 import {
   budgetOf,
   budgetPrompt,
@@ -729,9 +729,10 @@ async function gatePaid(
     request = asked.request;
   }
   const reason: BudgetRefusal = check.reason;
+  const { message: _offerText, ...offerDetails } = offer;
   return {
     stop: {
-      ...offer,
+      ...offerDetails,
       needs_budget: true,
       step_usd: Math.round(quote.usd * 100) / 100,
       budget_usd: budget.cap_usd,
@@ -741,8 +742,8 @@ async function gatePaid(
       approval_token: request.token,
       approval_prompt: budgetPrompt(request.cap_usd, request.code),
       refused: reason,
-      next_step: BUDGET_REFUSAL[reason],
-      message: String(offer.message ?? ""),
+      say_to_user: budgetMessage(budget, quote.usd, request.cap_usd, request),
+      carmen_next: `${BUDGET_REFUSAL[reason]} שלחי את say_to_user כמו שהוא; carmen_next הוא רק בשבילך.`,
     },
   };
 }
