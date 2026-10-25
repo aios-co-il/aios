@@ -9,6 +9,7 @@
  * runs with the service role, so RLS does not apply.
  */
 
+import { APPROVAL_REFUSAL, checkApproval, issueApproval, spendApproval, type Quote } from "./workshop/approval.ts";
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
@@ -16,6 +17,7 @@ import { productionReport } from "./workshop/production.ts";
 import {
   ASSET_BUCKET,
   assetForCarmen,
+  untrusted,
   hostLabel,
   isHttpUrl,
   syncClientAssets,
@@ -174,7 +176,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_creative",
     description:
-      "יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף: קודם הציגי למשתמש את העלות מהחזרה של confirmed=false וחכי שיאשר במפורש, ורק אז קראי שוב עם confirmed=true. אישור אחד מכסה את כל ההפקה.",
+      "יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף: קודם הציגי למשתמש את העלות מהחזרה של confirmed=false וחכי שיאשר במפורש, ורק אז קראי שוב עם confirmed=true. אישור אחד מכסה את כל ההפקה. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה.",
     parameters: {
       type: "object",
       properties: {
@@ -215,6 +217,11 @@ export const WORKSHOP_TOOLS = [
           type: "boolean",
           description:
             "true רק אחרי שהמשתמש אישר את העלות בהודעה שלו בשיחה הזו. בלי אישור: false.",
+        },
+        approval_token: {
+          type: "string",
+          description:
+            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
         },
       },
       required: ["item_id", "prompt"],
@@ -334,12 +341,17 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_stills",
     description:
-      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true.",
+      "יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה.",
     parameters: {
       type: "object",
       properties: {
         item_id: { type: "string" },
         confirmed: { type: "boolean" },
+        approval_token: {
+          type: "string",
+          description:
+            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
+        },
         redo: {
           type: "boolean",
           description:
@@ -374,12 +386,17 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_produce_video",
     description:
-      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.",
+      "מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. האישור תקף רק עם approval_token שחזר, ורק בתור הבא אחרי שהמשתמש ענה. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.",
     parameters: {
       type: "object",
       properties: {
         item_id: { type: "string" },
         confirmed: { type: "boolean" },
+        approval_token: {
+          type: "string",
+          description:
+            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
+        },
         client_id: { type: "string" },
         engine: {
           type: "string",
@@ -460,6 +477,13 @@ const STILL_CONCURRENCY = 5;
 const RUNNING_WINDOW_MS = 4 * 60_000;
 /** The edge function has a hard time limit: no new batch of pictures starts after this. */
 const STILLS_BUDGET_MS = 50_000;
+/** Scenes a redo still has to replace; their old picture stays on the board until then. */
+const REDO_KEY = "workshop_redo_scenes";
+
+const stringList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 
 const SCENE_COLUMNS =
   "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id";
@@ -618,6 +642,61 @@ export interface WorkshopDeps {
     url: string,
     scope: { tenantId: string; itemId: string },
   ) => Promise<{ url?: string; path?: string; error?: string }>;
+  /** One id per user message; a paid confirm must come in a later turn than its quote. */
+  turnId?: string | null;
+  /** David approved this exact call in the approvals queue. */
+  approvedOutOfBand?: boolean;
+  newToken?: () => string;
+}
+
+/**
+ * Without confirmed=true, or when the approval does not hold, stores a fresh quote and returns
+ * it for the user. Otherwise returns the payload with the approval in it, ready to spend.
+ */
+async function gatePaid(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  payload: Record<string, unknown>,
+  quote: Quote,
+  args: Record<string, unknown>,
+  deps: WorkshopDeps,
+  offer: Record<string, unknown>,
+): Promise<{ stop: Record<string, unknown> } | { payload: Record<string, unknown> }> {
+  if (args.confirmed === true) {
+    const check = checkApproval(payload, quote, {
+      token: args.approval_token,
+      turnId: deps.turnId ?? null,
+      approvedOutOfBand: deps.approvedOutOfBand === true,
+    });
+    if (check.ok) return { payload };
+    const fresh = await quotePaid(supabase, tenantId, itemId, payload, quote, deps);
+    return {
+      stop: {
+        ...offer,
+        needs_approval: true,
+        approval_token: fresh,
+        refused: check.reason,
+        message: `${APPROVAL_REFUSAL[check.reason]} ${String(offer.message ?? "")}`.trim(),
+      },
+    };
+  }
+  const token = await quotePaid(supabase, tenantId, itemId, payload, quote, deps);
+  return { stop: { ...offer, needs_approval: true, approval_token: token } };
+}
+
+async function quotePaid(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  payload: Record<string, unknown>,
+  quote: Quote,
+  deps: WorkshopDeps,
+) {
+  const token = deps.newToken ? deps.newToken() : crypto.randomUUID();
+  const issued = issueApproval(payload, quote, deps.turnId ?? null, token);
+  await savePayload(supabase, tenantId, itemId, issued.payload);
+  return token;
 }
 
 async function savePayload(
@@ -1072,14 +1151,16 @@ export async function executeWorkshopTool(
     return {
       success: true,
       url: report.url,
-      title: report.title,
-      description: report.description,
       language: report.lang || undefined,
       colors: report.colors,
       fonts: report.fonts,
-      headings: report.headings,
-      copy_samples: report.copy,
-      buttons: report.buttons,
+      site_content: untrusted({
+        title: report.title,
+        description: report.description,
+        headings: report.headings,
+        copy_samples: report.copy,
+        buttons: report.buttons,
+      }),
       logo: report.logo,
       images: report.images.slice(0, 8),
       brand_applied: applied,
@@ -1350,15 +1431,27 @@ export async function executeWorkshopTool(
     );
     const formats = imageFormatsFrom(args.formats, projectFormats).slice(0, 3);
     const estimate = estimateImages(formats);
-    if (args.confirmed !== true) {
-      return {
-        needs_approval: true,
+    const gate = await gatePaid(
+      supabase,
+      tenantId,
+      itemId,
+      project.payload,
+      {
+        tool: "workshop_make_creative",
+        engine: brief.engine ?? "auto",
+        count: estimate.images,
+        usd: estimate.usd,
+      },
+      args,
+      deps,
+      {
         formats,
         images: estimate.images,
         estimated_usd: estimate.usd,
         message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. אשר/י והתחל.`,
-      };
-    }
+      },
+    );
+    if ("stop" in gate) return gate.stop;
     const running = await supabase
       .from("workshop_artifacts")
       .select("id")
@@ -1378,6 +1471,13 @@ export async function executeWorkshopTool(
         message:
           "התמונות כבר בהכנה והן מופיעות בלוח לבד. אל תקראי שוב. לעדכון קראי ל-workshop_get_state.",
       };
+    project.payload = spendApproval(
+      gate.payload,
+      "workshop_make_creative",
+      formats.length,
+      deps.turnId ?? null,
+    );
+    await savePayload(supabase, tenantId, itemId, project.payload);
     const holders = await openPlaceholders(
       supabase,
       tenantId,
@@ -1531,13 +1631,16 @@ export async function executeWorkshopTool(
         }),
       );
     if (!isConcepts && !loaded.project.payload.copy_text) {
-      await supabase
-        .from("marketing_work_items")
-        .update({
-          payload: { ...loaded.project.payload, copy_text: pages[0].text },
-        })
-        .eq("id", itemId)
-        .eq("tenant_id", tenantId);
+      try {
+        await savePayload(supabase, tenantId, itemId, {
+          ...loaded.project.payload,
+          copy_text: pages[0].text,
+        });
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : "שמירת הטקסט נכשלה",
+        };
+      }
     }
     return {
       success: true,
@@ -1659,11 +1762,35 @@ export async function executeWorkshopTool(
     if (scenes.length === 0)
       return { error: "אין סטוריבורד. קודם workshop_storyboard." };
     const redo = args.redo === true;
-    const pending = redo
-      ? scenes
-      : scenes.filter((scene) => !scene.still_asset_id);
+    const redoIds = new Set(
+      redo
+        ? scenes.map((scene) => String(scene.id))
+        : stringList(project.payload[REDO_KEY]),
+    );
+    const pending = scenes.filter(
+      (scene) => !scene.still_asset_id || redoIds.has(String(scene.id)),
+    );
     if (pending.length === 0)
       return { success: true, created: 0, remaining: 0 };
+    const running = await supabase
+      .from("workshop_artifacts")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("status", "pending")
+      .eq("kind", "scene_still")
+      .eq("meta->>placeholder", "true")
+      .gte(
+        "created_at",
+        new Date(Date.now() - RUNNING_WINDOW_MS).toISOString(),
+      );
+    if (Array.isArray(running.data) && running.data.length > 0)
+      return {
+        success: true,
+        already_running: true,
+        message:
+          "התמונות לסצנות כבר בהכנה והן מופיעות בלוח לבד. אל תקראי שוב. לעדכון קראי ל-workshop_get_state.",
+      };
     const brief = await briefProject(deps, project.payload, args, {
       kind: "video",
       needsEngine: true,
@@ -1677,28 +1804,40 @@ export async function executeWorkshopTool(
     const batch = pending.slice(0, STILLS_PER_CALL);
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
     const estimate = estimateImages([format], batch.length);
-    if (args.confirmed !== true)
-      return {
-        needs_approval: true,
-        scenes: batch.length,
-        remaining_after: pending.length - batch.length,
-        estimated_usd: estimate.usd,
-        message: `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
-      };
-    let payload = brief.payload;
+    const whole = estimateImages([format], pending.length);
+    const gate = await gatePaid(
+      supabase,
+      tenantId,
+      itemId,
+      project.payload,
+      {
+        tool: "workshop_make_stills",
+        engine: brief.engine ?? "auto",
+        count: pending.length,
+        usd: whole.usd,
+      },
+      args,
+      deps,
+      {
+        scenes: pending.length,
+        this_call: batch.length,
+        estimated_usd: whole.usd,
+        message:
+          pending.length > batch.length
+            ? `${pending.length} תמונות לסצנות יעלו עד כ-$${whole.usd} (${batch.length} בקריאה הזו, כ-$${estimate.usd}). אשר/י והתחל.`
+            : `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
+      },
+    );
+    if ("stop" in gate) return gate.stop;
+    let payload = gate.payload;
     if (redo) {
       payload = withLook(payload, {}, { anchorUrl: null }).payload;
-      const cleared = await supabase
-        .from("marketing_video_scenes")
-        .update({ still_asset_id: null })
-        .eq("tenant_id", tenantId)
-        .eq("item_id", itemId);
-      if (cleared.error) return { error: cleared.error.message };
+      payload = { ...payload, [REDO_KEY]: [...redoIds] };
     }
     if (payload !== project.payload)
       await savePayload(supabase, tenantId, itemId, payload);
     const look = lookOf(payload);
-    let anchorUrl = look.anchorUrl;
+    let anchorUrl = redo ? null : look.anchorUrl;
 
     const renderStill = async (
       scene: Record<string, any>,
@@ -1781,12 +1920,8 @@ export async function executeWorkshopTool(
       if (!done.ok) todo = [];
       else {
         anchorUrl = done.url ?? null;
-        await savePayload(
-          supabase,
-          tenantId,
-          itemId,
-          withLook(payload, {}, { anchorUrl }).payload,
-        );
+        payload = withLook(payload, {}, { anchorUrl }).payload;
+        await savePayload(supabase, tenantId, itemId, payload);
       }
     }
     for (let i = 0; i < todo.length; i += STILL_CONCURRENCY) {
@@ -1797,6 +1932,18 @@ export async function executeWorkshopTool(
     const created = results.filter((result) => result.ok).length;
     const failed = results.filter((result) => !result.ok);
     const remaining = pending.length - created;
+    const redone = new Set(
+      results.filter((result) => result.ok).map((result) => result.scene),
+    );
+    const leftToRedo = stringList(payload[REDO_KEY]).filter((id) => !redone.has(id));
+    const settled = spendApproval(
+      { ...payload, [REDO_KEY]: leftToRedo },
+      "workshop_make_stills",
+      results.length,
+      deps.turnId ?? null,
+    );
+    if (leftToRedo.length === 0) delete settled[REDO_KEY];
+    await savePayload(supabase, tenantId, itemId, settled);
     return {
       success: created > 0,
       created,
@@ -1813,7 +1960,7 @@ export async function executeWorkshopTool(
                 : "אין לפרויקט רפרנס: אם המשתמש צירף או הזכיר תמונה, העבירי אותה ב-reference_urls והציעי ליצור מחדש עם redo=true. "
             }${
               remaining > 0
-                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true להמשך, בלי redo (האישור כבר ניתן).`
+                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true ואותו approval_token להמשך, בלי redo (האישור כבר ניתן).`
                 : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
             }`,
       workshop: { event: "artifacts", item_id: itemId },
@@ -1895,9 +2042,20 @@ export async function executeWorkshopTool(
       withVoice,
       withMusic,
     });
-    if (args.confirmed !== true)
-      return {
-        needs_approval: true,
+    const gate = await gatePaid(
+      supabase,
+      tenantId,
+      itemId,
+      project.payload,
+      {
+        tool: "workshop_produce_video",
+        engine,
+        count: costScenes.length,
+        usd: estimate.totalUsd,
+      },
+      args,
+      deps,
+      {
         engine,
         engine_label: ENGINE_LABEL[engine],
         scenes: scenes.length,
@@ -1909,7 +2067,9 @@ export async function executeWorkshopTool(
           engine === "mock"
             ? "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
             : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. אשר/י והתחל.`,
-      };
+      },
+    );
+    if ("stop" in gate) return gate.stop;
 
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
     const voiceId =
@@ -1918,16 +2078,26 @@ export async function executeWorkshopTool(
         : typeof video.voice_id === "string"
           ? video.voice_id
           : null;
-    await supabase
-      .from("marketing_work_items")
-      .update({
-        payload: {
-          ...project.payload,
-          video: { ...video, scene_engine: engine, sound_engine: "elevenlabs" },
-        },
-      })
-      .eq("id", itemId)
-      .eq("tenant_id", tenantId);
+    try {
+      await savePayload(
+        supabase,
+        tenantId,
+        itemId,
+        spendApproval(
+          {
+            ...gate.payload,
+            video: { ...video, scene_engine: engine, sound_engine: "elevenlabs" },
+          },
+          "workshop_produce_video",
+          costScenes.length,
+          deps.turnId ?? null,
+        ),
+      );
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "שמירת הפרויקט נכשלה",
+      };
+    }
     const produced = await supabase.rpc("produce_video", {
       p_item_id: itemId,
       p_aspect: format,

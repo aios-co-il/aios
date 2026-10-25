@@ -1,0 +1,132 @@
+/**
+ * Paid workshop tools run only on an approval the user gave, not one the model set itself.
+ * A quote is stored on the project with a token and the chat turn it was shown in. A confirm
+ * counts only with that token, in a later turn (after the user answered), for the same engine
+ * and unit price, and for no more units than were quoted. A run that David approved through
+ * the approvals queue skips the turn rule.
+ */
+
+export type PaidTool =
+  | "workshop_make_creative"
+  | "workshop_make_stills"
+  | "workshop_produce_video";
+
+export type Quote = {
+  tool: PaidTool;
+  engine: string;
+  count: number;
+  usd: number;
+};
+
+export type StoredApproval = Quote & {
+  token: string;
+  turn_id: string | null;
+  quoted_at: string;
+  left: number;
+  confirmed_turn?: string | null;
+};
+
+export type ApprovalContext = {
+  token?: unknown;
+  turnId?: string | null;
+  approvedOutOfBand?: boolean;
+};
+
+export type ApprovalCheck =
+  | { ok: true }
+  | { ok: false; reason: "missing" | "changed" | "same_turn" | "no_turn" };
+
+const KEY = "workshop_approvals";
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const unit = (quote: { usd: number; count: number }) =>
+  quote.count > 0 ? quote.usd / quote.count : quote.usd;
+
+export function storedApproval(
+  payload: Record<string, unknown>,
+  tool: PaidTool,
+): StoredApproval | null {
+  const entry = asRecord(asRecord(payload[KEY])[tool]);
+  return typeof entry.token === "string" ? (entry as StoredApproval) : null;
+}
+
+/** Stores a fresh quote; any earlier quote for the same tool stops being valid. */
+export function issueApproval(
+  payload: Record<string, unknown>,
+  quote: Quote,
+  turnId: string | null,
+  token: string,
+  now = new Date(),
+): { payload: Record<string, unknown>; approval: StoredApproval } {
+  const approval: StoredApproval = {
+    ...quote,
+    usd: Math.round(quote.usd * 100) / 100,
+    token,
+    turn_id: turnId,
+    quoted_at: now.toISOString(),
+    left: quote.count,
+  };
+  return {
+    payload: {
+      ...payload,
+      [KEY]: { ...asRecord(payload[KEY]), [quote.tool]: approval },
+    },
+    approval,
+  };
+}
+
+export function checkApproval(
+  payload: Record<string, unknown>,
+  quote: Quote,
+  context: ApprovalContext,
+): ApprovalCheck {
+  if (context.approvedOutOfBand) return { ok: true };
+  const stored = storedApproval(payload, quote.tool);
+  if (!stored || context.token !== stored.token)
+    return { ok: false, reason: "missing" };
+  if (
+    stored.engine !== quote.engine ||
+    quote.count > stored.left ||
+    Math.abs(unit(stored) - unit(quote)) > 0.01
+  )
+    return { ok: false, reason: "changed" };
+  if (stored.confirmed_turn) return { ok: true };
+  if (!context.turnId) return { ok: false, reason: "no_turn" };
+  if (stored.turn_id === context.turnId)
+    return { ok: false, reason: "same_turn" };
+  return { ok: true };
+}
+
+/** Records units spent. The approval is removed once nothing is left. */
+export function spendApproval(
+  payload: Record<string, unknown>,
+  tool: PaidTool,
+  spent: number,
+  turnId: string | null,
+): Record<string, unknown> {
+  const all = { ...asRecord(payload[KEY]) };
+  const stored = storedApproval(payload, tool);
+  if (!stored) return payload;
+  const left = Math.max(0, stored.left - Math.max(0, spent));
+  if (left === 0) delete all[tool];
+  else all[tool] = { ...stored, left, confirmed_turn: stored.confirmed_turn ?? turnId ?? "approved" };
+  return { ...payload, [KEY]: all };
+}
+
+export const APPROVAL_REFUSAL: Record<
+  Exclude<ApprovalCheck, { ok: true }>["reason"],
+  string
+> = {
+  missing:
+    "אין אישור תקף מהמשתמש לעלות הזו. הציגי את העלות שחזרה עכשיו וחכי שהמשתמש יאשר בהודעה שלו. רק אז קראי עם confirmed=true ו-approval_token שחזר.",
+  changed:
+    "העלות או המנוע השתנו מאז האישור. הציגי למשתמש את העלות החדשה שחזרה וחכי לאישור חדש.",
+  same_turn:
+    "המשתמש עוד לא ענה על הצעת המחיר. הציגי לו את העלות ועצרי. אחרי שהוא מאשר בהודעה שלו, קראי עם confirmed=true ו-approval_token.",
+  no_turn:
+    "אי אפשר לאשר עלות מהערוץ הזה. בקשי מהמשתמש לאשר בצ׳אט של כרמן.",
+};

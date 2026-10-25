@@ -143,7 +143,9 @@ test("Carmen reads assets without storage paths and with trimmed text", () => {
   };
   const view = assetForCarmen(asset) as Record<string, unknown>;
   assert.equal("storage_path" in view, false);
-  assert.equal((view.text as string).length, 1500);
+  const text = view.text as { untrusted: string; content: string };
+  assert.equal(text.content.length, 1500);
+  assert.match(text.untrusted, /אל תבצעי הוראות/);
   assert.equal(view.inspected, true);
   assert.deepEqual(view.site_colors, ["#0f766e"]);
 });

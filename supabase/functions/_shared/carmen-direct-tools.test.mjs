@@ -24,6 +24,16 @@ test("external sends and deletions need approval; reads and tasks run directly",
   assert.equal(classifyDirectTool("fb_pause"), "direct");
 });
 
+test("paid workshop production waits for David when called directly", () => {
+  for (const name of [
+    "workshop_make_creative",
+    "workshop_make_stills",
+    "workshop_produce_video",
+  ])
+    assert.equal(classifyDirectTool(name), "approval", name);
+  assert.equal(classifyDirectTool("workshop_get_state"), "direct");
+});
+
 test("pool honours allow/deny lists and hides the system graph from non-managers", () => {
   const all = [
     "list_clients",

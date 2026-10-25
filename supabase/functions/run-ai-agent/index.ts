@@ -5638,6 +5638,7 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
+  approval: { turnId?: string | null; outOfBand?: boolean } = {},
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5694,6 +5695,8 @@ async function executeTool(
         assertCallerCanAccessClient(supabase, clientId, callerScope),
       actorUserId,
       {
+        turnId: approval.turnId ?? null,
+        approvedOutOfBand: approval.outOfBand === true,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -13828,6 +13831,8 @@ async function handleRunAgent(
     // completed turn here. This also makes Realtime ask_carmen calls continue
     // the exact same conversation as typed chat.
     let serverConversationId: string | null = null;
+    // A paid workshop confirm must arrive in a later user message than the quote it confirms.
+    const turnId = crypto.randomUUID();
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -15837,6 +15842,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
+              { turnId },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
@@ -16100,6 +16106,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
         null,
         "agent_direct",
         null,
+        { outOfBand: true },
       );
       failed = !!result?.error || !!result?.pending_approval;
     } catch (e: any) {
