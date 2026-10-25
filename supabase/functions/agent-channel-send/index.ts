@@ -16,7 +16,12 @@ import {
 } from "../_shared/carmen/active-skin.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
-import type { InputMode, SendResult } from "../_shared/agent-channel/types.ts";
+import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
+import {
+  type InputMode,
+  isSmartRouter,
+  type SendResult,
+} from "../_shared/agent-channel/types.ts";
 import {
   cancelParliament,
   clarifyParliamentSeat,
@@ -145,13 +150,9 @@ Deno.serve(async (req) => {
       await import("../_shared/agent-channel/sticky-agent.ts");
     const { probeWorkspaceAgent } =
       await import("../_shared/agent-channel/workspace-agent.ts");
-    let env: Record<string, string | undefined> = {};
-    try {
-      env = Deno.env.toObject();
-    } catch {
-      /* ignore */
-    }
-    const cursor = await probeCursorApiKey(cursorApiKey());
+    // Tenant keys from Carmen settings → מוחות win over env secrets.
+    const env = await loadBrainEnv(sb, tenantId);
+    const cursor = await probeCursorApiKey(cursorApiKey(env));
     const codex = await probeWorkspaceAgent("codex", env);
     const appEnv =
       Deno.env.get("APP_ENV") || Deno.env.get("VITE_APP_ENV") || "";
@@ -238,12 +239,13 @@ Deno.serve(async (req) => {
     const content = String(body.content || "").trim();
     if (!conversationId || !content)
       return json(400, { error: "conversation_id and content are required" });
+    const channel = await persistChannel(sb, tenantId, body.brain_slug);
     const { row, duplicate } = await insertMessage(sb, {
       tenant_id: tenantId,
       conversation_id: conversationId,
       role: "assistant",
       speaker: "carmen",
-      channel: "internal",
+      channel,
       content,
       idempotency_key: body.idempotency_key
         ? String(body.idempotency_key)
@@ -326,7 +328,9 @@ Deno.serve(async (req) => {
     conversation_id: conv.id,
     role: "user",
     speaker: "user",
-    channel: route.provider || route.slug,
+    // Model brains share provider "model"; their thread is keyed by slug.
+    channel:
+      route.route_type === "model" ? route.slug : route.provider || route.slug,
     content,
     idempotency_key: idempotencyKey,
     metadata: {
@@ -393,6 +397,7 @@ Deno.serve(async (req) => {
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,
+      brainAllowed: (slug) => brainLevel(accessRow, slug) !== null,
       history: Array.isArray(body.conversation_history)
         ? body.conversation_history
         : [],
@@ -415,3 +420,19 @@ Deno.serve(async (req) => {
     return json(500, { error: String(e?.message ?? e) });
   }
 });
+
+/**
+ * Carmen's streamed reply belongs to her own thread, except when "נתב חכם"
+ * handed her the task: then it stays on the router's thread.
+ */
+async function persistChannel(
+  sb: ReturnType<typeof serviceClient>,
+  tenantId: string,
+  brainSlug: unknown,
+): Promise<string> {
+  if (typeof brainSlug !== "string" || !brainSlug) return "internal";
+  const route = await loadRoute(sb, tenantId, { slug: brainSlug });
+  return route && route.slug === brainSlug && isSmartRouter(route)
+    ? route.slug
+    : "internal";
+}

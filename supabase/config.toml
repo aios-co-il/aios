@@ -110,6 +110,10 @@ verify_jwt = false
 [functions.agent-channel-send]
 verify_jwt = false
 
+# Carmen settings → מוחות: manager-only brain connections; keys go to Vault.
+[functions.carmen-brain-connections]
+verify_jwt = false
+
 [functions.agent-channel-callback]
 verify_jwt = false
 
