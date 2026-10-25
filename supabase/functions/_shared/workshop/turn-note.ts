@@ -40,6 +40,30 @@ export function nextFilmStep(state: FilmState): string {
   return "הפקת הסרט (workshop_produce_video)";
 }
 
+/** A picture page still pending after this was cut off: the request making it has ended. */
+const STALE_PICTURE_MS = 5 * 60_000;
+
+/** Turns pictures a cut-off request left spinning on the board into failed pages. */
+export async function failStalePictures(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  now = Date.now(),
+) {
+  await supabase
+    .from("workshop_artifacts")
+    .update({
+      status: "failed",
+      meta: { text: "נקטע לפני שהסתיים. אפשר לבקש שוב." },
+    })
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .eq("status", "pending")
+    .eq("meta->>placeholder", "true")
+    .in("kind", ["image", "scene_still"])
+    .lt("created_at", new Date(now - STALE_PICTURE_MS).toISOString());
+}
+
 export async function workshopTurnNote(
   supabase: Db,
   tenantId: unknown,
@@ -55,6 +79,7 @@ export async function workshopTurnNote(
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (!data) return null;
+    await failStalePictures(supabase, tenantId, itemId).catch(() => {});
     let payload = asRecord(data.payload);
     const lines: string[] = ["=== מצב הפרויקט (מהשרת) ==="];
     const approved = approveFromMessage(payload, userText);

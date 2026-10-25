@@ -133,8 +133,14 @@ const toBase64 = (bytes: Uint8Array) => {
   return btoa(binary);
 };
 
-const fromBase64 = (value: string) =>
-  Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+/** A plain loop: Uint8Array.from with a callback costs far more CPU on a picture-sized string. */
+export const fromBase64 = (value: string) => {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++)
+    bytes[index] = binary.charCodeAt(index);
+  return bytes;
+};
 
 const clip = (value: string) => value.replace(/\s+/g, " ").slice(0, 220);
 

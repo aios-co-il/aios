@@ -17,3 +17,9 @@ test("the menu lists every voice with buttons per gender, at most six each", () 
   assert.equal(male.split("|").length, 5);
   assert.doesNotMatch(voiceMenu("female"), /נמרוד/);
 });
+
+test("only voices that produced a sample are offered when some did", () => {
+  const menu = voiceMenu("female", new Set(["d4eLZ8u5dfBCsjp4YPyz"]));
+  assert.match(menu, /יעל/);
+  assert.doesNotMatch(menu, /תמר/);
+});

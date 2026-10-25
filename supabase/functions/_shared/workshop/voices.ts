@@ -101,9 +101,13 @@ export function findVoice(value: unknown): Voice | null {
 }
 
 /** The message with every voice and a button row per gender. */
-export function voiceMenu(gender?: "female" | "male"): string {
+export function voiceMenu(
+  gender?: "female" | "male",
+  only?: Set<string>,
+): string {
   const voices = HEBREW_VOICES.filter(
-    (voice) => !gender || voice.gender === gender,
+    (voice) =>
+      (!gender || voice.gender === gender) && (!only || only.has(voice.id)),
   );
   const lines = voices.map(
     (voice) => `• ${voice.name}: ${voice.character}. מתאים ל${voice.fits}.`,

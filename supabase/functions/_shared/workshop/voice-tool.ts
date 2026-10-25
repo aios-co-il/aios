@@ -60,10 +60,12 @@ export async function chooseVoice(
       : undefined;
   const voices = HEBREW_VOICES.filter((v) => !gender || v.gender === gender);
   const missing: string[] = [];
+  const heard = new Set<string>();
   for (const voice of voices) {
     const sample = helpers.voiceSample
       ? await helpers.voiceSample(voice.id)
       : { error: "no samples" };
+    if (sample.path) heard.add(voice.id);
     if (sample.path)
       await helpers.addSamplePage(
         `קול: ${voice.name} · ${voice.character}`,
@@ -75,7 +77,8 @@ export async function chooseVoice(
   return {
     needs_input: true,
     missing: ["voice"],
-    say_to_user: voiceMenu(gender),
+    // A voice the key cannot sample would not narrate either: offer only the ones heard.
+    say_to_user: voiceMenu(gender, heard.size > 0 ? heard : undefined),
     ...(missing.length > 0 ? { samples_missing: missing } : {}),
     carmen_next:
       "שלחי את say_to_user כמו שהוא ועצרי. כשהמשתמש בוחר, קראי שוב ל-workshop_choose_voice עם voice." +

@@ -20,10 +20,8 @@ import {
   type BrainEngine,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
-import {
-  generateOpenRouterImage,
-  tenantOpenRouterKey,
-} from "../_shared/creative/openrouterImage.ts";
+import { makeAdImage } from "../_shared/creative/ad-image.ts";
+import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -75,18 +73,12 @@ import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
-import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
   connectedProviders,
   imageProvidersFor,
 } from "../_shared/workshop/capabilities.ts";
-import {
-  generateStill,
-  loadReferences,
-  sniffMime,
-  type ImageKeys,
-} from "../_shared/workshop/image-providers.ts";
-import { fetchPublic, publicFetchAsFetch } from "../_shared/public-fetch.ts";
+import { sniffMime } from "../_shared/workshop/image-providers.ts";
+import { fetchPublic } from "../_shared/public-fetch.ts";
 import { ASSET_BUCKET } from "../_shared/workshop/assets.ts";
 import {
   SILENT_TURN_NUDGE,
@@ -5775,6 +5767,19 @@ async function executeTool(
           );
         },
         generateImage: async (prompt, format, references, engine) => {
+          // Each picture in its own request: several made here ran past the CPU limit.
+          const remote = await remoteAdImage(
+            SUPABASE_URL,
+            SUPABASE_SERVICE_ROLE_KEY,
+            tenantId,
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
+          );
+          if (!("missing" in remote && remote.missing)) return remote;
           const made = await executeTool(
             "generate_ad_image",
             {
@@ -8743,134 +8748,8 @@ async function executeTool(
     }
 
     case "generate_ad_image": {
-      const { data: llmRow } = await supabase
-        .from("tenant_integrations")
-        .select("settings")
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "llm")
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const connected = connectedProviders(
-        (llmRow?.settings || {}) as Record<string, unknown>,
-        { openai: Deno.env.get("OPENAI_API_KEY") ?? undefined },
-      );
-      const stored = (llmRow?.settings || {}) as Record<string, string>;
-      const keys: ImageKeys = {
-        openai:
-          (stored.openai_api_key || "").trim() ||
-          Deno.env.get("OPENAI_API_KEY") ||
-          undefined,
-        google: (stored.google_api_key || "").trim() || undefined,
-        elevenlabs: (stored.elevenlabs_api_key || "").trim() || undefined,
-        higgsfield:
-          higgsfieldCredential(
-            stored.higgsfield_api_key_id,
-            stored.higgsfield_api_key_secret,
-          ) || undefined,
-      };
-      if (
-        imageProvidersFor(connected).length === 0 &&
-        !(await tenantOpenRouterKey(supabase, tenantId).catch(() => ""))
-      ) {
-        return {
-          error:
-            "אין מפתח ליצירת תמונות. מספיק מוח OpenRouter מחובר, או אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
-          suggestion: "פנה למנהל המערכת להגדרת המפתח.",
-        };
-      }
-      const referenceUrls = (
-        Array.isArray(args.reference_urls) ? args.reference_urls : []
-      )
-        .filter((url: unknown): url is string => typeof url === "string")
-        .slice(0, 5);
-      const loadedReferences = await loadReferences(
-        referenceUrls,
-        publicFetchAsFetch,
-      );
-      if (
-        referenceUrls.length > 0 &&
-        loadedReferences.references.length === 0
-      ) {
-        return {
-          success: false,
-          error:
-            "לא הצלחתי לקרוא את תמונות הרפרנס (הקישור פג או לא נגיש). בקשי מהמשתמש לצרף אותן שוב.",
-        };
-      }
-      let made;
-      // OpenRouter first when the tenant connected an OpenRouter brain and gave no references
-      // (_shared/creative/openrouterImage.ts); the connected image engines are the fallback.
-      const openRouterKey =
-        loadedReferences.references.length === 0
-          ? await tenantOpenRouterKey(supabase, tenantId).catch(() => "")
-          : "";
-      if (openRouterKey) {
-        try {
-          const generated = await generateOpenRouterImage({
-            apiKey: openRouterKey,
-            prompt: `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
-            aspectRatio:
-              typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1",
-          });
-          made = {
-            bytes: Uint8Array.from(atob(generated.b64), (c) => c.charCodeAt(0)),
-            mime: generated.mediaType,
-            provider: `openrouter/${generated.model}`,
-          };
-        } catch (e: any) {
-          console.warn(
-            `[generate_ad_image] OpenRouter failed, using the image engines: ${e?.message ?? e}`,
-          );
-        }
-      }
-      if (!made)
-        try {
-          made = await generateStill(
-            keys,
-            loadedReferences.references.length > 0
-              ? String(args.prompt)
-              : `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`,
-            args.aspect_ratio,
-            {
-              engine: ["google", "elevenlabs", "higgsfield", "openai"].includes(
-                args.engine,
-              )
-                ? args.engine
-                : undefined,
-            },
-            loadedReferences.references,
-          );
-        } catch (error) {
-          return {
-            success: false,
-            error:
-              error instanceof Error ? error.message : "יצירת התמונה נכשלה",
-          };
-        }
-      const ext = made.mime.includes("jpeg") ? "jpg" : "png";
-      const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-      await supabase.storage
-        .createBucket("social-media", { public: true })
-        .catch(() => {});
-      const { error: uploadError } = await supabase.storage
-        .from("social-media")
-        .upload(fileName, made.bytes, {
-          contentType: made.mime,
-          upsert: true,
-        });
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-      const { data: urlData } = supabase.storage
-        .from("social-media")
-        .getPublicUrl(fileName);
-      return {
-        success: true,
-        image_url: urlData.publicUrl,
-        provider: made.provider,
-        references_used: loadedReferences.references.length,
-        message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
-      };
+      // _shared/creative/ad-image.ts; the workshop runs it in workshop-image (CPU limit).
+      return await makeAdImage(supabase, tenantId, args);
     }
     // CLIENTS - full CRUD
     case "create_client": {

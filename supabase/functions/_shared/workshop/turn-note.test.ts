@@ -48,3 +48,34 @@ test("the user's code approves the waiting budget at the start of the turn", () 
     null,
   );
 });
+
+test("pictures a cut-off request left pending turn into failed pages", async () => {
+  const { failStalePictures } = await import("./turn-note.ts");
+  const calls: [string, ...unknown[]][] = [];
+  const chain: Record<string, (...a: unknown[]) => unknown> = {};
+  for (const name of ["update", "eq", "in", "lt"])
+    chain[name] = (...a: unknown[]) => {
+      calls.push([name, ...a]);
+      return chain;
+    };
+  const db = { from: (table: string) => (calls.push(["from", table]), chain) };
+  await failStalePictures(
+    db,
+    "t1",
+    "item-1",
+    Date.parse("2026-10-25T14:30:00Z"),
+  );
+  assert.deepEqual(calls[0], ["from", "workshop_artifacts"]);
+  assert.equal((calls[1][1] as { status: string }).status, "failed");
+  assert.deepEqual(
+    calls.find((c) => c[0] === "in"),
+    ["in", "kind", ["image", "scene_still"]],
+  );
+  assert.deepEqual(
+    calls.find((c) => c[0] === "lt"),
+    ["lt", "created_at", "2026-10-25T14:25:00.000Z"],
+  );
+  assert.ok(
+    calls.some((c) => c[0] === "eq" && c[1] === "status" && c[2] === "pending"),
+  );
+});
