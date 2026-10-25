@@ -180,7 +180,7 @@ test("creating images first asks for approval with the cost and spends nothing",
       },
     },
   )) as Record<string, any>;
-  assert.equal(result.needs_approval, true);
+  assert.equal(result.needs_budget, true);
   assert.deepEqual(result.formats, ["9:16", "4:5"]);
   assert.equal(result.estimated_usd, 0.5);
   assert.equal(generated, 0);
@@ -190,11 +190,11 @@ test("creating images first asks for approval with the cost and spends nothing",
   );
 });
 
-test("a paid confirm needs the quoted token and the user's next message", async () => {
+test("one budget approval from the user's tap covers the next paid steps", async () => {
   let generated = 0;
-  const deps = (turnId: string) => ({
+  const deps = (turnId: string, userText = "") => ({
     turnId,
-    userText: "מאשר URN1",
+    userText,
     newToken: () => `token-${turnId}`,
     generateImage: async () => {
       generated += 1;
@@ -205,6 +205,7 @@ test("a paid confirm needs the quoted token and the user's next message", async 
     db: ReturnType<typeof fakeDb>,
     args: Record<string, unknown>,
     turn: string,
+    userText?: string,
   ) =>
     runWorkshopTool(
       db,
@@ -213,144 +214,103 @@ test("a paid confirm needs the quoted token and the user's next message", async 
       { item_id: "item-1", prompt: "festive table", ...args },
       async () => {},
       null,
-      deps(turn),
+      deps(turn, userText),
     ) as Promise<Record<string, any>>;
   const lastPayload = (db: ReturnType<typeof fakeDb>) =>
     db.calls
       .filter((c) => c.table === "marketing_work_items" && c.op === "update")
       .map((c) => (c.value as any).payload)
       .pop();
-
-  const quoteDb = fakeDb(project);
-  const quoted = await call(quoteDb, {}, "turn-1");
-  assert.equal(quoted.needs_approval, true);
-  assert.equal(quoted.approval_token, "token-turn-1");
-  assert.match(quoted.approval_prompt, /מאשר URN1/);
-  const stored = lastPayload(quoteDb);
-  assert.equal(stored.workshop_approvals.workshop_make_creative.count, 2);
-  const withQuote = {
+  const withPayload = (payload: unknown) => ({
     "marketing_work_items:select": {
       ...project["marketing_work_items:select"],
-      payload: stored,
+      payload,
     },
-  };
+  });
 
-  const selfConfirm = await call(
-    fakeDb(withQuote),
-    { confirmed: true, approval_token: "token-turn-1" },
+  const askDb = fakeDb(project);
+  const asked = await call(askDb, {}, "turn-1");
+  assert.equal(asked.needs_budget, true);
+  assert.equal(asked.refused, "no_budget");
+  assert.equal(asked.approval_token, "token-turn-1");
+  assert.match(asked.approval_prompt, /מאשר תקציב URN1/);
+  assert.equal(generated, 0);
+  const pending = lastPayload(askDb);
+
+  const sameTurn = await call(
+    fakeDb(withPayload(pending)),
+    { approval_token: "token-turn-1" },
     "turn-1",
+    "מאשר תקציב URN1",
   );
-  assert.equal(selfConfirm.refused, "same_turn");
-  assert.equal(selfConfirm.approval_token, "token-turn-1");
-  assert.equal(String(selfConfirm.message).includes("המשתמש עוד לא"), false);
+  assert.equal(sameTurn.refused, "same_turn");
 
-  const noToken = await call(fakeDb(withQuote), { confirmed: true }, "turn-2");
-  assert.equal(noToken.refused, "missing");
-
-  const moreFormats = await call(
-    fakeDb(withQuote),
-    {
-      confirmed: true,
-      approval_token: "token-turn-1",
-      formats: ["9:16", "4:5", "1:1"],
-    },
+  const notUser = await call(
+    fakeDb(withPayload(pending)),
+    { approval_token: "token-turn-1" },
     "turn-2",
+    "תמשיכי",
   );
-  assert.equal(moreFormats.refused, "changed");
+  assert.equal(notUser.refused, "not_user");
   assert.equal(generated, 0);
 
-  const spendDb = fakeDb(withQuote);
+  const approveDb = fakeDb(withPayload(pending));
   const approved = await call(
-    spendDb,
-    { confirmed: true, approval_token: "token-turn-1" },
+    approveDb,
+    { approval_token: "token-turn-1" },
     "turn-2",
+    "מאשר תקציב URN1",
   );
   assert.equal(approved.success, true);
   assert.equal(generated, 2);
-  assert.equal(
-    lastPayload(spendDb).workshop_approvals.workshop_make_creative,
-    undefined,
-  );
+  const budget = lastPayload(approveDb).workshop_budget;
+  assert.ok(budget.cap_usd > 0);
+  assert.ok(budget.spent_usd > 0);
+  assert.equal(budget.request, undefined);
+
+  const nextDb = fakeDb(withPayload(lastPayload(approveDb)));
+  const next = await call(nextDb, {}, "turn-3");
+  assert.equal(next.success, true);
+  assert.equal(generated, 4);
 });
 
-test("asking for the price again keeps the quote the user can still approve", async () => {
-  let generated = 0;
+test("asking again keeps the open budget request the user can still approve", async () => {
   const deps = (turnId: string) => ({
     turnId,
-    userText: "מאשר URN1",
     newToken: () => `token-${turnId}`,
-    generateImage: async () => {
-      generated += 1;
-      return { image_url: "https://x/a.png" };
-    },
+    generateImage: async () => ({ image_url: "https://x/a.png" }),
   });
-  const call = (
-    db: ReturnType<typeof fakeDb>,
-    args: Record<string, unknown>,
-    turn: string,
-  ) =>
+  const call = (db: ReturnType<typeof fakeDb>, turn: string) =>
     runWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
-      { item_id: "item-1", prompt: "festive table", ...args },
+      { item_id: "item-1", prompt: "festive table" },
       async () => {},
       null,
       deps(turn),
     ) as Promise<Record<string, any>>;
-  const approvalOf = (db: ReturnType<typeof fakeDb>) =>
+  const requestOf = (db: ReturnType<typeof fakeDb>) =>
     db.calls
       .filter((c) => c.table === "marketing_work_items" && c.op === "update")
       .map((c) => (c.value as any).payload)
-      .pop()?.workshop_approvals?.workshop_make_creative;
+      .pop()?.workshop_budget?.request;
 
-  const quoteDb = fakeDb(project);
-  const quoted = await call(quoteDb, {}, "turn-1");
-  const stored = approvalOf(quoteDb);
-  assert.equal(quoted.approval_token, "token-turn-1");
-  const withQuote = {
+  const askDb = fakeDb(project);
+  await call(askDb, "turn-1");
+  const request = requestOf(askDb);
+  const again = fakeDb({
     "marketing_work_items:select": {
       ...project["marketing_work_items:select"],
       payload: {
         ...(project["marketing_work_items:select"] as any).payload,
-        workshop_approvals: { workshop_make_creative: stored },
+        workshop_budget: { cap_usd: 0, spent_usd: 0, request },
       },
     },
-  };
-
-  const again = fakeDb(withQuote);
-  const requoted = await call(again, {}, "turn-2");
-  assert.equal(requoted.needs_approval, true);
-  assert.equal(requoted.approval_token, "token-turn-1");
-  assert.equal(requoted.refused, undefined);
-  const kept = approvalOf(again);
-  if (kept) {
-    assert.equal(kept.token, "token-turn-1");
-    assert.equal(kept.turn_id, "turn-1");
-  }
-
-  const stale = fakeDb(withQuote);
-  const wrong = await call(
-    stale,
-    { confirmed: true, approval_token: "old-token" },
-    "turn-2",
-  );
-  assert.equal(wrong.refused, "missing");
-  assert.equal(wrong.approval_token, "token-turn-1");
-  const afterWrong = approvalOf(stale);
-  if (afterWrong) {
-    assert.equal(afterWrong.token, "token-turn-1");
-    assert.equal(afterWrong.turn_id, "turn-1");
-  }
-
-  const spendDb = fakeDb(withQuote);
-  const approved = await call(
-    spendDb,
-    { confirmed: true, approval_token: "token-turn-1" },
-    "turn-2",
-  );
-  assert.equal(approved.success, true);
-  assert.equal(generated, 2);
+  });
+  const asked = await call(again, "turn-2");
+  assert.equal(asked.approval_token, "token-turn-1");
+  assert.equal(requestOf(again)?.turn_id ?? "turn-1", "turn-1");
 });
 
 test("after approval each format becomes a page and a failure is reported, not hidden", async () => {
@@ -519,7 +479,7 @@ test("stills ask first, then each scene gets its picture attached", async () => 
     null,
     deps,
   )) as Record<string, any>;
-  assert.equal(asked.needs_approval, true);
+  assert.equal(asked.needs_budget, true);
   assert.equal(asked.scenes, 2);
   assert.equal(generated, 0);
 
@@ -616,7 +576,7 @@ test("producing needs stills, a client, then one approval with the engine the te
     "workshop_produce_video",
     { item_id: "item-1" },
   )) as Record<string, any>;
-  assert.equal(noClient.needs_approval, true);
+  assert.equal(noClient.needs_budget, true);
   assert.equal(noClient.needs_client, undefined);
   const stageCall = noClientDb.calls.find(
     (c) => c.table === "rpc:workshop_creative_stage",
@@ -643,7 +603,7 @@ test("producing needs stills, a client, then one approval with the engine the te
     null,
     deps,
   )) as Record<string, any>;
-  assert.equal(asked.needs_approval, true);
+  assert.equal(asked.needs_budget, true);
   assert.equal(asked.engine, "elevenlabs");
   assert.equal(asked.with_voice, true);
   assert.ok(asked.estimated_usd > 0);
@@ -1049,7 +1009,7 @@ test("a proposed style counts only once the user approved it, then it is remembe
     null,
     { generateImage: async () => ({ image_url: "https://x/1.png" }) },
   )) as Record<string, any>;
-  assert.equal(approved.needs_approval, true);
+  assert.equal(approved.needs_budget, true);
   const saved = db.calls.filter(
     (c) => c.table === "marketing_work_items" && c.op === "update",
   );
@@ -1142,7 +1102,7 @@ test("with several image engines connected the user is asked, the choice is save
     null,
     deps,
   )) as Record<string, any>;
-  assert.equal(again.needs_approval, true);
+  assert.equal(again.needs_budget, true);
 });
 
 test("a single connected engine is used without asking", async () => {

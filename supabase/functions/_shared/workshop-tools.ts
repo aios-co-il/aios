@@ -9,18 +9,19 @@
  * runs with the service role, so RLS does not apply.
  */
 
+import { BUDGET_REFUSAL } from "./workshop/budget-messages.ts";
 import {
-  APPROVAL_REFUSAL,
-  approvalCode,
-  approvalPrompt,
-  checkApproval,
-  issueApproval,
-  QUOTE_TTL_MS,
-  spendApproval,
-  storedApproval,
+  budgetOf,
+  budgetPrompt,
+  checkBudget,
+  remainingUsd,
+  requestBudget,
+  requestFresh,
+  spendBudget,
+  suggestCap,
+  type BudgetRefusal,
   type Quote,
-  type StoredApproval,
-} from "./workshop/approval.ts";
+} from "./workshop/budget.ts";
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
@@ -190,7 +191,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_creative",
     description:
-      'יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף: קודם הציגי למשתמש את העלות מהחזרה של confirmed=false וחכי שיאשר במפורש, ורק אז קראי שוב עם confirmed=true. אישור אחד מכסה את כל ההפקה. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור).',
+      'יוצרת תמונות מודעה או פוסט לפרויקט, בגודל לכל ערוץ שביקשו (למשל סטורי ופיד). כל תמונה מופיעה כעמוד בלוח. עולה כסף ויורד מהתקציב של הפרויקט: כשהשלב נכנס בתקציב שאושר הוא רץ מיד, בלי לשאול. אם אין תקציב או שהשלב חורג ממנו, חוזר needs_budget: הציגי את התקציב המוצע ואת approval_prompt כמו שהוא, ועצרי. אחרי שהמשתמש לחץ "מאשר תקציב" קראי שוב עם approval_token שחזר.',
     parameters: {
       type: "object",
       properties: {
@@ -227,15 +228,15 @@ export const WORKSHOP_TOOLS = [
           description:
             "באנגלית, 3 עד 6 משפטים שמחזיקים את אותו מראה בכל הפרויקט: הדמות (גיל, פנים, שיער, מבנה, לבוש), המקום, פלטת צבעים, תאורה וסגנון רינדור. נשמר לפרויקט ומצורף לכל תמונה.",
         },
-        confirmed: {
-          type: "boolean",
-          description:
-            "true רק אחרי שהמשתמש אישר את העלות בהודעה שלו בשיחה הזו. בלי אישור: false.",
-        },
         approval_token: {
           type: "string",
           description:
-            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
+            'האסימון שחזר עם needs_budget. שולחים אותו רק אחרי שהמשתמש לחץ "מאשר תקציב".',
+        },
+        budget_usd: {
+          type: "number",
+          description:
+            "תקציב שהמשתמש ציין לפרויקט בדולרים, אם ציין. בלי זה מוצע תקציב לפי העלות.",
         },
       },
       required: ["item_id", "prompt"],
@@ -355,16 +356,20 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_make_stills",
     description:
-      'יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף: confirmed=false מחזיר עלות, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור).',
+      'יוצרת תמונה לכל סצנה שעדיין בלי תמונה (עד 10 בקריאה; אם נשארו, קראי שוב). התמונות נוצרות לפי הרפרנסים וה-style_bible של הפרויקט, והתמונה הראשונה נקבעת כעוגן שכל השאר נוצרות לפיו, כדי לשמור על אותה דמות ואותו סגנון. עולה כסף ויורד מהתקציב של הפרויקט: כשהשלב נכנס בתקציב שאושר הוא רץ מיד, בלי לשאול. אם אין תקציב או שהשלב חורג ממנו, חוזר needs_budget: הציגי את התקציב המוצע ואת approval_prompt כמו שהוא, ועצרי. אחרי שהמשתמש לחץ "מאשר תקציב" קראי שוב עם approval_token שחזר.',
     parameters: {
       type: "object",
       properties: {
         item_id: { type: "string" },
-        confirmed: { type: "boolean" },
         approval_token: {
           type: "string",
           description:
-            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
+            'האסימון שחזר עם needs_budget. שולחים אותו רק אחרי שהמשתמש לחץ "מאשר תקציב".',
+        },
+        budget_usd: {
+          type: "number",
+          description:
+            "תקציב שהמשתמש ציין לפרויקט בדולרים, אם ציין. בלי זה מוצע תקציב לפי העלות.",
         },
         redo: {
           type: "boolean",
@@ -400,16 +405,20 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_produce_video",
     description:
-      'מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף: confirmed=false מחזיר את העלות הכוללת, ורק אחרי שהמשתמש אישר בהודעה שלו קראי עם confirmed=true. אישור אחד מכסה הכול. מתחת לעלות הוסיפי את approval_prompt שחזר, כמו שהוא. האישור תקף רק עם approval_token שחזר, ורק אחרי שהמשתמש לחץ על "מאשר" (ההודעה שלו כוללת את קוד האישור). לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.',
+      'מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף ויורד מהתקציב של הפרויקט: כשהשלב נכנס בתקציב שאושר הוא רץ מיד, בלי לשאול. אם אין תקציב או שהשלב חורג ממנו, חוזר needs_budget: הציגי את התקציב המוצע ואת approval_prompt כמו שהוא, ועצרי. אחרי שהמשתמש לחץ "מאשר תקציב" קראי שוב עם approval_token שחזר. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.',
     parameters: {
       type: "object",
       properties: {
         item_id: { type: "string" },
-        confirmed: { type: "boolean" },
         approval_token: {
           type: "string",
           description:
-            "האסימון שחזר עם הצעת המחיר (needs_approval). שולחים אותו רק עם confirmed=true, אחרי שהמשתמש אישר בהודעה שלו.",
+            'האסימון שחזר עם needs_budget. שולחים אותו רק אחרי שהמשתמש לחץ "מאשר תקציב".',
+        },
+        budget_usd: {
+          type: "number",
+          description:
+            "תקציב שהמשתמש ציין לפרויקט בדולרים, אם ציין. בלי זה מוצע תקציב לפי העלות.",
         },
         client_id: { type: "string" },
         engine: {
@@ -665,16 +674,10 @@ export interface WorkshopDeps {
   newToken?: () => string;
 }
 
-const sameQuote = (stored: StoredApproval, quote: Quote) =>
-  stored.engine === quote.engine &&
-  stored.count === quote.count &&
-  Math.abs(stored.usd - Math.round(quote.usd * 100) / 100) <= 0.01;
-
 /**
- * Without confirmed=true, or when the approval does not hold, returns the quote for the user.
- * A matching quote already stored is kept as-is: asking for the price again, or confirming
- * with a stale token, must not bind a new quote to this turn or the user's "מאשר" can never
- * land in a later turn. Otherwise returns the payload with the approval in it, ready to spend.
+ * Runs a paid step when it fits in the project's approved budget. Otherwise stops with a budget
+ * request for the user. An open request that still covers the step is kept as-is, so asking
+ * again does not move it into this turn and the user's "מאשר תקציב" can still land in the next.
  */
 async function gatePaid(
   supabase: Db,
@@ -688,67 +691,48 @@ async function gatePaid(
 ): Promise<
   { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
 > {
-  const stored = storedApproval(payload, quote.tool);
-  const fresh =
-    stored && Date.now() - Date.parse(stored.quoted_at) <= QUOTE_TTL_MS;
-  const reusable =
-    stored && fresh && sameQuote(stored, quote) ? stored.token : undefined;
-  const hold = (token: string, reason?: keyof typeof APPROVAL_REFUSAL) => ({
+  const check = checkBudget(payload, quote, {
+    token: args.approval_token,
+    turnId: deps.turnId ?? null,
+    userText: deps.userText ?? null,
+    approvedOutOfBand: deps.approvedOutOfBand === true,
+  });
+  if (check.ok) return { payload: check.payload };
+  const budget = budgetOf(payload);
+  const open = budget.request;
+  const keep =
+    open &&
+    requestFresh(open) &&
+    open.cap_usd - budget.spent_usd + 0.005 >= quote.usd;
+  let request = open;
+  if (!keep || !request) {
+    const token = deps.newToken ? deps.newToken() : crypto.randomUUID();
+    const asked = requestBudget(
+      payload,
+      suggestCap(budget, quote, args.budget_usd),
+      deps.turnId ?? null,
+      token,
+    );
+    await savePayload(supabase, tenantId, itemId, asked.payload);
+    request = asked.request;
+  }
+  const reason: BudgetRefusal = check.reason;
+  return {
     stop: {
       ...offer,
-      needs_approval: true,
-      approval_token: token,
-      approval_prompt: approvalPrompt(approvalCode(token)),
-      ...(reason
-        ? { refused: reason, next_step: APPROVAL_REFUSAL[reason] }
-        : {}),
+      needs_budget: true,
+      step_usd: Math.round(quote.usd * 100) / 100,
+      budget_usd: budget.cap_usd,
+      spent_usd: budget.spent_usd,
+      left_usd: remainingUsd(budget),
+      proposed_budget_usd: request.cap_usd,
+      approval_token: request.token,
+      approval_prompt: budgetPrompt(request.cap_usd, request.code),
+      refused: reason,
+      next_step: BUDGET_REFUSAL[reason],
       message: String(offer.message ?? ""),
     },
-  });
-  if (args.confirmed === true) {
-    const check = checkApproval(payload, quote, {
-      token: args.approval_token,
-      turnId: deps.turnId ?? null,
-      userText: deps.userText ?? null,
-      approvedOutOfBand: deps.approvedOutOfBand === true,
-    });
-    if (check.ok) return { payload };
-    if (reusable && check.reason !== "changed")
-      return hold(reusable, check.reason);
-    const requoted = await quotePaid(
-      supabase,
-      tenantId,
-      itemId,
-      payload,
-      quote,
-      deps,
-    );
-    return hold(requoted, check.reason);
-  }
-  if (reusable) return hold(reusable);
-  const token = await quotePaid(
-    supabase,
-    tenantId,
-    itemId,
-    payload,
-    quote,
-    deps,
-  );
-  return hold(token);
-}
-
-async function quotePaid(
-  supabase: Db,
-  tenantId: string,
-  itemId: string,
-  payload: Record<string, unknown>,
-  quote: Quote,
-  deps: WorkshopDeps,
-) {
-  const token = deps.newToken ? deps.newToken() : crypto.randomUUID();
-  const issued = issueApproval(payload, quote, deps.turnId ?? null, token);
-  await savePayload(supabase, tenantId, itemId, issued.payload);
-  return token;
+  };
 }
 
 async function savePayload(
@@ -1457,7 +1441,7 @@ export async function executeWorkshopTool(
       if (scenes.some((scene) => !scene.still_asset_id))
         return {
           error:
-            "זה פרויקט סרט עם סצנות שעוד אין להן תמונה. תמונות לסצנות נוצרות עם workshop_make_stills (confirmed=false קודם), לא עם workshop_make_creative. אם המשתמש ביקש במפורש תמונת מודעה נפרדת, קראי שוב עם formats.",
+            "זה פרויקט סרט עם סצנות שעוד אין להן תמונה. תמונות לסצנות נוצרות עם workshop_make_stills, לא עם workshop_make_creative. אם המשתמש ביקש במפורש תמונת מודעה נפרדת, קראי שוב עם formats.",
         };
     }
     const brief = await briefProject(deps, project.payload, args, {
@@ -1523,11 +1507,10 @@ export async function executeWorkshopTool(
         message:
           "התמונות כבר בהכנה והן מופיעות בלוח לבד. אל תקראי שוב. לעדכון קראי ל-workshop_get_state.",
       };
-    project.payload = spendApproval(
+    project.payload = spendBudget(
       gate.payload,
       "workshop_make_creative",
       formats.length,
-      deps.turnId ?? null,
     );
     await savePayload(supabase, tenantId, itemId, project.payload);
     const holders = await openPlaceholders(
@@ -1990,11 +1973,10 @@ export async function executeWorkshopTool(
     const leftToRedo = stringList(payload[REDO_KEY]).filter(
       (id) => !redone.has(id),
     );
-    const settled = spendApproval(
+    const settled = spendBudget(
       { ...payload, [REDO_KEY]: leftToRedo },
       "workshop_make_stills",
       results.length,
-      deps.turnId ?? null,
     );
     if (leftToRedo.length === 0) delete settled[REDO_KEY];
     await savePayload(supabase, tenantId, itemId, settled);
@@ -2014,7 +1996,7 @@ export async function executeWorkshopTool(
                 : "אין לפרויקט רפרנס: אם המשתמש צירף או הזכיר תמונה, העבירי אותה ב-reference_urls והציעי ליצור מחדש עם redo=true. "
             }${
               remaining > 0
-                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills עם confirmed=true ואותו approval_token להמשך, בלי redo (האישור כבר ניתן).`
+                ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills להמשך, בלי redo. כל עוד זה בתקציב זה ירוץ בלי לשאול.`
                 : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
             }`,
       workshop: { event: "artifacts", item_id: itemId },
@@ -2137,7 +2119,7 @@ export async function executeWorkshopTool(
         supabase,
         tenantId,
         itemId,
-        spendApproval(
+        spendBudget(
           {
             ...gate.payload,
             video: {
@@ -2147,8 +2129,7 @@ export async function executeWorkshopTool(
             },
           },
           "workshop_produce_video",
-          costScenes.length,
-          deps.turnId ?? null,
+          costScenes.length || 1,
         ),
       );
     } catch (error) {
