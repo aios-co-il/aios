@@ -25,6 +25,15 @@ import {
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
+import { FILM_CHOICES, STYLE_CHOICES } from "./workshop/briefing-choices.ts";
+import {
+  answersFromArgs,
+  answersFromMessage,
+  briefAnswersOf,
+  filmFromAnswers,
+  unanswered,
+  withBriefAnswers,
+} from "./workshop/brief-answers.ts";
 import { productionReport } from "./workshop/production.ts";
 import {
   ASSET_BUCKET,
@@ -220,6 +229,11 @@ export const WORKSHOP_TOOLS = [
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
         },
+        brief_answers: {
+          type: "object",
+          description:
+            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
+        },
         style_approved: {
           type: "boolean",
           description:
@@ -312,6 +326,11 @@ export const WORKSHOP_TOOLS = [
           items: { type: "string" },
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        brief_answers: {
+          type: "object",
+          description:
+            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
         },
         style_approved: {
           type: "boolean",
@@ -409,6 +428,11 @@ export const WORKSHOP_TOOLS = [
           items: { type: "string" },
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
+        },
+        brief_answers: {
+          type: "object",
+          description:
+            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
         },
         style_approved: {
           type: "boolean",
@@ -801,6 +825,8 @@ async function briefProject(
     kind: "video" | "static";
     needsEngine: boolean;
     needsStyle?: boolean;
+    /** Keeps new answers on the project even when the tool stops to ask more. */
+    save?: (payload: Record<string, unknown>) => Promise<void>;
   },
 ): Promise<
   | { gate: Record<string, unknown> }
@@ -827,7 +853,27 @@ async function briefProject(
     (stored.engine && connected?.includes(stored.engine as ImageProvider)
       ? stored.engine
       : null)) as ImageProvider | null;
-  const folded = withLook(payload, { ...args, engine: asked });
+  // The user's answers (taps or brief_answers) go into the project brief right away.
+  const questions =
+    options.kind === "video"
+      ? [...STYLE_CHOICES.video, ...FILM_CHOICES]
+      : STYLE_CHOICES.static;
+  const fresh = {
+    ...answersFromMessage(
+      deps.userText ?? "",
+      unanswered(questions, briefAnswersOf(payload)),
+    ),
+    ...answersFromArgs(args.brief_answers),
+  };
+  const briefed = withBriefAnswers(payload, fresh);
+  const answers = briefAnswersOf(briefed);
+  const writtenFilm =
+    options.kind === "video" && !stored.film ? filmFromAnswers(answers) : null;
+  const folded = withLook(briefed, {
+    ...args,
+    engine: asked,
+    ...(writtenFilm && !args.film_brief ? { film_brief: writtenFilm } : {}),
+  });
   const look = lookOf(folded.payload);
   const gate = briefingGate({
     look,
@@ -837,8 +883,16 @@ async function briefProject(
     kind: options.kind,
     needsEngine: options.needsEngine,
     needsStyle: options.needsStyle,
+    answers,
   });
-  if (gate) return { gate: gate as unknown as Record<string, unknown> };
+  if (gate) {
+    if (options.save && (Object.keys(fresh).length > 0 || writtenFilm))
+      await options.save(
+        withLook(briefed, writtenFilm ? { film_brief: writtenFilm } : {})
+          .payload,
+      );
+    return { gate: gate as unknown as Record<string, unknown> };
+  }
   return {
     payload: folded.payload,
     engine: chosen ?? (connected?.length === 1 ? connected[0] : null),
@@ -1428,6 +1482,8 @@ export async function executeWorkshopTool(
       ),
       plan: asRecord(itemPayload.workshop),
       brief: String(itemPayload.brief_text ?? "").slice(0, 3000),
+      brief_answers: briefAnswersOf(itemPayload),
+      film_brief: lookOf(itemPayload).film,
       look: {
         references: lookOf(itemPayload).references.length,
         style_written: lookOf(itemPayload).bible.length > 0,
@@ -1479,6 +1535,7 @@ export async function executeWorkshopTool(
     }
     const brief = await briefProject(deps, project.payload, args, {
       kind: "static",
+      save: (next) => savePayload(supabase, tenantId, itemId, next),
       needsEngine: true,
     });
     if ("gate" in brief) return brief.gate;
@@ -1734,6 +1791,7 @@ export async function executeWorkshopTool(
     if ("error" in loaded) return loaded;
     const brief = await briefProject(deps, loaded.project.payload, args, {
       kind: "video",
+      save: (next) => savePayload(supabase, tenantId, itemId, next),
       needsEngine: false,
       needsStyle: false,
     });
@@ -1796,6 +1854,7 @@ export async function executeWorkshopTool(
     const { project } = loaded;
     const brief = await briefProject(deps, project.payload, args, {
       kind: "video",
+      save: (next) => savePayload(supabase, tenantId, itemId, next),
       needsEngine: false,
     });
     if ("gate" in brief) return brief.gate;
@@ -1930,6 +1989,7 @@ export async function executeWorkshopTool(
       };
     const brief = await briefProject(deps, project.payload, args, {
       kind: "video",
+      save: (next) => savePayload(supabase, tenantId, itemId, next),
       needsEngine: true,
     });
     if ("gate" in brief) return brief.gate;

@@ -42,6 +42,7 @@ export const EDIT_TOOL = {
         description: "כמה שניות כל תמונה על המסך (ברירת מחדל 3).",
       },
       film_brief: { type: "string" },
+      brief_answers: { type: "object" },
       replace: {
         type: "boolean",
         description: "true מחליף סטוריבורד קיים.",

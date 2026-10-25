@@ -1752,3 +1752,31 @@ test("project state tells Carmen why a page failed", async () => {
   assert.equal("meta" in state.artifacts[0], false);
   assert.equal("error" in state.artifacts[1], false);
 });
+
+test("tapped briefing answers are saved to the project brief and not asked again", async () => {
+  const db = fakeDb({
+    ...bareProject(),
+    "marketing_video_scenes:select": [scene("s-1")],
+  });
+  const result = (await runWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_storyboard",
+    { item_id: "item-1", scenes: [{ visual_prompt: "a woman" }] },
+    async () => {},
+    null,
+    {
+      userText:
+        "קצב: מצחיק וקליל\nקול: דמות שמדברת למצלמה\nמוזיקה: אקוסטית חמה\nסיום: בלי סגיר",
+    },
+  )) as Record<string, any>;
+  assert.equal(result.needs_input, true);
+  assert.deepEqual(result.missing, ["style"]);
+  assert.doesNotMatch(result.say_to_user, /בחירה: קצב/);
+  const saved = db.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map((c) => (c.value as any).payload)
+    .pop();
+  assert.equal(saved.workshop_brief.answers.קצב, "מצחיק וקליל");
+  assert.match(saved.workshop_look.film, /מוזיקה: אקוסטית חמה/);
+});

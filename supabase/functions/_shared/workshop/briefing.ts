@@ -13,6 +13,7 @@ import {
   STYLE_CHOICES,
   type Choice,
 } from "./briefing-choices.ts";
+import { unanswered, type BriefAnswers } from "./brief-answers.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -41,6 +42,8 @@ export interface BriefingInput {
   needsEngine: boolean;
   /** Editing the user's own footage: the look is the footage, only the film brief is asked. */
   needsStyle?: boolean;
+  /** What the user already answered (payload.workshop_brief); answered questions are not asked again. */
+  answers?: BriefAnswers;
 }
 
 export interface BriefingGate {
@@ -72,18 +75,36 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   if (askEngine) missing.push("engine");
   if (missing.length === 0) return null;
 
-  const choices: Choice[] = [
-    ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),
-    ...(missing.includes("film") ? FILM_CHOICES : []),
-    ...(missing.includes("engine") && input.connected
-      ? [
-          {
-            label: "מנוע תמונות",
-            options: input.connected.map((id) => PROVIDER_LABEL[id]),
-          },
-        ]
-      : []),
-  ];
+  const answers = input.answers ?? {};
+  const choices: Choice[] = unanswered(
+    [
+      ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),
+      ...(missing.includes("film") ? FILM_CHOICES : []),
+      ...(missing.includes("engine") && input.connected
+        ? [
+            {
+              label: "מנוע תמונות",
+              options: input.connected.map((id) => PROVIDER_LABEL[id]),
+            },
+          ]
+        : []),
+    ],
+    answers,
+  );
+  const answeredLines = Object.entries(answers)
+    .map(([label, answer]) => `${label}: ${answer}`)
+    .join("; ");
+  const fromAnswers =
+    "התשובות נשמרו בבריף של הפרויקט" +
+    (answeredLines ? ` (${answeredLines})` : "") +
+    ". כתבי מהן style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
+  if (choices.length === 0)
+    return {
+      needs_input: true,
+      missing,
+      say_to_user: "",
+      carmen_next: fromAnswers,
+    };
   const intro =
     input.kind === "video"
       ? "לפני שאני כותבת את הסרט, כמה בחירות קצרות כדי שייצא בדיוק כמו שצריך:"
@@ -96,7 +117,8 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     missing,
     say_to_user: [intro + reference, ...choices.map(choiceLine)].join("\n"),
     carmen_next:
-      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. אם המשתמש כבר ענה על חלק מהבחירות בבקשה שלו, השמיטי את השורות האלה. אחרי התשובות קראי שוב לכלי עם style_bible באנגלית שמסכם את המראה, style_approved=true, film_brief בעברית שמסכם קצב, קול, מוזיקה וסיום, reference_urls אם צורפו, ו-engine אם נבחר.",
+      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. אם המשתמש כבר ענה על חלק מהבחירות בבקשה שלו, השמיטי את השורות האלה. התשובות שלו נשמרות לבריף של הפרויקט לבד. אם הוא ענה במילים חופשיות, העבירי אותן ב-brief_answers (נושא → תשובה). " +
+      fromAnswers,
     ...(missing.includes("engine") && input.connected
       ? { engines: engineOptions(input.connected) }
       : {}),
