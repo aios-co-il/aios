@@ -2063,6 +2063,28 @@ export async function executeWorkshopTool(
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
     const estimate = estimateImages([format], batch.length);
     const whole = estimateImages([format], pending.length);
+    // One budget covers the whole film: the pictures and the production that follows them.
+    const filmEngine =
+      (deps.defaultEngine ? await deps.defaultEngine() : null) ?? "mock";
+    const film = productionEstimate(
+      filmEngine,
+      scenes.map((scene) => ({
+        duration_s: Number(scene.duration_s) || 3,
+        voiceover_text: String(scene.voiceover_text ?? ""),
+        lipsync: asRecord(scene.meta).lipsync === true,
+        dialogue: String(asRecord(scene.meta).dialogue ?? ""),
+      })),
+      {
+        withVoice: scenes.some((scene) =>
+          String(scene.voiceover_text ?? "").trim(),
+        ),
+        withMusic: true,
+      },
+    );
+    const projectBudget = Math.max(
+      Number(args.budget_usd) || 0,
+      (whole.usd + film.totalUsd) * 1.2,
+    );
     const gate = await gatePaid(
       supabase,
       tenantId,
@@ -2074,7 +2096,7 @@ export async function executeWorkshopTool(
         count: pending.length,
         usd: whole.usd,
       },
-      args,
+      { ...args, budget_usd: projectBudget },
       deps,
       {
         scenes: pending.length,

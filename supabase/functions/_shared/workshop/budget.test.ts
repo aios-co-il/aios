@@ -110,3 +110,12 @@ test("the proposed budget covers the step with room, or the user's own number", 
   assert.equal(suggestCap(budget, film, 20), 20);
   assert.equal(suggestCap(budget, film, 1), 4);
 });
+
+test("the user's code approves even when Carmen does not repeat the token", () => {
+  const { payload } = requestBudget({}, 10, "turn-1", "tok");
+  const check = checkBudget(payload, film, {
+    turnId: "turn-2",
+    userText: yes,
+  });
+  assert.equal(check.ok, true);
+});

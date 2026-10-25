@@ -122,9 +122,10 @@ export function checkBudget(
   if (remainingUsd(budget) + 0.005 >= quote.usd)
     return { ok: true, payload: withBudget(payload, priced) };
   const short: BudgetRefusal = budget.cap_usd > 0 ? "over_budget" : "no_budget";
+  // The user's own message carrying the request's code is the approval. The token is not
+  // required: Carmen cannot carry a tool result into the next turn, only the conversation.
   const request = budget.request;
-  if (!request || context.token !== request.token)
-    return { ok: false, reason: short };
+  if (!request) return { ok: false, reason: short };
   if (!context.turnId) return { ok: false, reason: "no_turn" };
   if (request.turn_id === context.turnId)
     return { ok: false, reason: "same_turn" };
