@@ -1,7 +1,9 @@
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { check } from "./request.ts";
 
-const MANAGER_ROLES = new Set(["owner", "agency_owner", "admin"]);
+// Only owners manage brain keys; a free-text tenant_users role such as
+// "admin" is not one of them.
+const MANAGER_ROLES = new Set(["owner", "agency_owner"]);
 
 /**
  * Owners and agency owners of this tenant, or super admins. Checked on every

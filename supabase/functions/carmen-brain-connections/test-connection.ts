@@ -34,10 +34,19 @@ export async function testModel(ctx: ActionContext) {
   }
 }
 
-/** Endpoint, model and Vault key of a saved connection. */
+/**
+ * A saved connection's Vault key, with the form's endpoint and model when the
+ * owner is editing them, so the test checks what is about to be saved.
+ */
 async function savedTarget(ctx: ActionContext) {
   const conn = await loadConnection(ctx, "chat_model");
   const apiKey = await connectionSecret(ctx.sb, conn.id);
   if (!apiKey) throw new HttpError(400, "No API key saved");
-  return { baseUrl: conn.base_url ?? "", model: conn.model ?? "", apiKey };
+  return {
+    baseUrl: has(ctx.body, "base_url")
+      ? requireBaseUrl(text(ctx.body, "base_url"))
+      : (conn.base_url ?? ""),
+    model: has(ctx.body, "model") ? requireModel(ctx.body) : (conn.model ?? ""),
+    apiKey,
+  };
 }

@@ -397,6 +397,7 @@ Deno.serve(async (req) => {
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,
       idempotencyKey,
+      brainAllowed: (slug) => brainLevel(accessRow, slug) !== null,
       history: Array.isArray(body.conversation_history)
         ? body.conversation_history
         : [],

@@ -7,7 +7,10 @@ import type {
   BrainProfile,
   ChatMessage,
 } from "../carmen/brain-connections/types.ts";
-import { chatCompletionsUrl } from "../carmen/brain-connections/url.ts";
+import {
+  chatCompletionsUrl,
+  isPrivateHost,
+} from "../carmen/brain-connections/url.ts";
 
 const TIMEOUT_MS = 90_000;
 
@@ -29,10 +32,12 @@ export async function callChatModel(args: {
   messages: ChatMessage[];
   profile: BrainProfile;
 }): Promise<string> {
+  const url = chatCompletionsUrl(args.baseUrl);
+  await assertPublicTarget(url);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const resp = await fetch(chatCompletionsUrl(args.baseUrl), {
+    const resp = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${args.apiKey}`,
@@ -43,7 +48,17 @@ export async function callChatModel(args: {
       },
       body: JSON.stringify(requestBody(args)),
       signal: controller.signal,
+      // A redirect could point at an internal host, so it is never followed.
+      redirect: "manual",
     });
+    if (
+      resp.type === "opaqueredirect" ||
+      (resp.status >= 300 && resp.status < 400)
+    )
+      throw new ModelApiError(
+        400,
+        "Model API redirected. Use the final address as the base URL.",
+      );
     const raw = await resp.text();
     if (!resp.ok)
       throw new ModelApiError(
@@ -58,6 +73,29 @@ export async function callChatModel(args: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Refuses a host that is, or resolves to, a private or loopback address, so a
+ * tenant manager cannot point the server at internal services.
+ */
+export async function assertPublicTarget(url: string): Promise<void> {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, "");
+  if (isPrivateHost(host))
+    throw new ModelApiError(400, "Base URL must be a public host");
+  if (/^[\d.]+$/.test(host) || host.includes(":")) return;
+  const resolveDns = (
+    Deno as { resolveDns?: (q: string, t: string) => Promise<string[]> }
+  ).resolveDns;
+  if (typeof resolveDns !== "function") return;
+  const addrs = (
+    await Promise.all([
+      resolveDns(host, "A").catch(() => [] as string[]),
+      resolveDns(host, "AAAA").catch(() => [] as string[]),
+    ])
+  ).flat();
+  if (addrs.some(isPrivateHost))
+    throw new ModelApiError(400, "Base URL must be a public host");
 }
 
 /** Chat completions body; profile limits only when set. */

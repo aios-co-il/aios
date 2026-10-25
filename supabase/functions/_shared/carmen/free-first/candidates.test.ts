@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { candidatesFromConnections, failureKindFor } from "./candidates.ts";
+import {
+  candidatesFromConnections,
+  failureKindFor,
+  pickableConnections,
+} from "./candidates.ts";
 import { routeCarmenTask } from "./router.ts";
 import { classifyCarmenTask } from "./classifier.ts";
 
@@ -69,4 +73,23 @@ test("HTTP statuses map to failover kinds", () => {
   assert.equal(failureKindFor(401), "authentication");
   assert.equal(failureKindFor(503), "provider_unavailable");
   assert.equal(failureKindFor(400), "invalid_request");
+});
+
+test("only brains shown in the picker and granted to the user are routable", () => {
+  const routes = [
+    { slug: "groq-a", connection_id: "a", active: true },
+    { slug: "groq-b", connection_id: "b", active: false },
+    { slug: "groq-c", connection_id: "c", active: true },
+    { slug: "orphan", connection_id: null, active: true },
+  ];
+  const ids = (allowed: (s: string) => boolean) =>
+    pickableConnections(conns, routes, allowed).map((c) => c.id);
+  assert.deepEqual(
+    ids(() => true),
+    ["a", "c"],
+  );
+  assert.deepEqual(
+    ids((s) => s !== "groq-c"),
+    ["a"],
+  );
 });

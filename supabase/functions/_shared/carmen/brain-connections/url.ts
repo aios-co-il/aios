@@ -33,8 +33,11 @@ export function chatCompletionsUrl(baseUrl: string): string {
   return `${normalizeBaseUrl(baseUrl)}/chat/completions`;
 }
 
-/** Blocks obvious internal targets; the server fetches this URL. */
-function isPrivateHost(host: string): boolean {
+/**
+ * Blocks internal targets: names like localhost and literal private IPs. The
+ * server also checks the addresses a name resolves to (chat-model-api.ts).
+ */
+export function isPrivateHost(host: string): boolean {
   const h = host.toLowerCase().replace(/^\[|\]$/g, "");
   if (
     h === "localhost" ||
@@ -61,6 +64,8 @@ function isPrivateHost(host: string): boolean {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127)
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
   );
 }
