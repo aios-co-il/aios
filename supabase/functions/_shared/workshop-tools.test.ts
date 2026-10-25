@@ -2037,3 +2037,60 @@ test("narration waits for a voice the user heard and chose", async () => {
   assert.equal(saved.video.voice_id, "ZiofZHcEBTn5sRySe5h8");
   assert.equal(saved.workshop_brief.answers["קול קריינות"], "נמרוד");
 });
+
+test("a film cut from the user's own videos goes to production without generated pictures", async () => {
+  const ownClips = [
+    scene("s-1", { clip_asset_id: "own-video-1", status: "clip_ready" }),
+    scene("s-2", { still_asset_id: "own-photo" }),
+  ];
+  const produced = (await executeWorkshopTool(
+    fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": ownClips,
+    }),
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
+  )) as Record<string, any>;
+  assert.equal(produced.missing_stills, undefined);
+
+  const stills = (await executeWorkshopTool(
+    fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": ownClips,
+    }),
+    "tenant-1",
+    "workshop_make_stills",
+    { item_id: "item-1" },
+    undefined,
+    undefined,
+    { generateImage: async () => ({ image_url: "https://x/p.png" }) },
+  )) as Record<string, any>;
+  assert.equal(stills.created, 0);
+  assert.equal(stills.remaining, 0);
+});
+
+test("the closing call to action Carmen gives is kept for the film's end card", async () => {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+    "rpc:produce_video": { status: "running", clips: 1 },
+  });
+  const started = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true, cta_text: "  מחכים לכם   בגפן " },
+    async () => {},
+    null,
+    { defaultEngine: async () => "mock" as const },
+  )) as Record<string, any>;
+  assert.equal(started.success, true);
+  const saved = db.calls.find(
+    (c) =>
+      c.table === "marketing_work_items" &&
+      c.op === "update" &&
+      (c.value as Record<string, any>)?.payload?.cta_text,
+  )?.value as Record<string, any>;
+  assert.equal(saved.payload.cta_text, "מחכים לכם בגפן");
+});

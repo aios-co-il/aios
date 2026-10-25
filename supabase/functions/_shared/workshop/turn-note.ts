@@ -132,6 +132,10 @@ export async function workshopTurnNote(
           "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו.",
         );
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
+      if (/קריאה לפעולה/.test(briefAnswersOf(payload)["סיום"] ?? ""))
+        lines.push(
+          "הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text קצר (עד 6 מילים).",
+        );
     }
     return lines.length > 1 ? lines.join("\n") : null;
   } catch {

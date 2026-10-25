@@ -463,7 +463,7 @@ export const WORKSHOP_TOOLS = [
   {
     name: "workshop_produce_video",
     description:
-      'מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה. עולה כסף ויורד מהתקציב של הפרויקט: כשהשלב נכנס בתקציב שאושר הוא רץ מיד, בלי לשאול. אם אין תקציב או שהשלב חורג ממנו, חוזר needs_budget: הציגי את התקציב המוצע ואת approval_prompt כמו שהוא, ועצרי. אחרי שהמשתמש לחץ "מאשר תקציב" קראי שוב עם approval_token שחזר. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.',
+      'מפיקה את הסרט: מנפישה את הסצנות, מקריינת, מוסיפה מוזיקה ומרכיבה, ברקע, והסרט מופיע בלוח כשהוא מוכן. דורש שלכל סצנה יש תמונה או סרטון של המשתמש. עולה כסף ויורד מהתקציב של הפרויקט: כשהשלב נכנס בתקציב שאושר הוא רץ מיד, בלי לשאול. אם אין תקציב או שהשלב חורג ממנו, חוזר needs_budget: הציגי את התקציב המוצע ואת approval_prompt כמו שהוא, ועצרי. אחרי שהמשתמש לחץ "מאשר תקציב" קראי שוב עם approval_token שחזר. לקוח לא נדרש: בלי לקוח הפרויקט נשמר ללא שיוך, ואפשר לשייך אותו אחר כך עם workshop_assign_client.',
     parameters: {
       type: "object",
       properties: {
@@ -487,6 +487,11 @@ export const WORKSHOP_TOOLS = [
         },
         voice_id: { type: "string" },
         music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
+        cta_text: {
+          type: "string",
+          description:
+            'קריאה לפעולה קצרה לסגיר הסרט (עד 6 מילים, למשל "מחכים לכם בגפן"), כשהסיום שנבחר כולל קריאה לפעולה. מופיעה בסוף הסרט עם הלוגו אם יש.',
+        },
       },
       required: ["item_id"],
     },
@@ -568,6 +573,10 @@ const stringList = (value: unknown): string[] =>
 
 const SCENE_COLUMNS =
   "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, clip_stale, meta";
+
+/** A scene that already has a current clip (the user's own video) needs no picture. */
+const hasOwnClip = (scene: Record<string, any>) =>
+  Boolean(scene.clip_asset_id) && scene.clip_stale !== true;
 
 async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data } = await supabase
@@ -832,7 +841,20 @@ function voiceHelpers(
 ) {
   return {
     voiceSample: deps.voiceSample,
+    userText: deps.userText ?? null,
     addSamplePage: async (title: string, path: string, voiceId: string) => {
+      // One sample page per voice in a project, however often the menu is shown.
+      const { data: existing } = await supabase
+        .from("workshop_artifacts")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("item_id", itemId)
+        .eq("kind", "narration")
+        .eq("meta->>voice_id", voiceId)
+        .eq("meta->>sample", "true")
+        .limit(1)
+        .maybeSingle();
+      if (existing) return;
       await recordArtifact(supabase, {
         tenantId,
         itemId,
@@ -2050,7 +2072,9 @@ export async function executeWorkshopTool(
         : stringList(project.payload[REDO_KEY]),
     );
     const pending = scenes.filter(
-      (scene) => !scene.still_asset_id || redoIds.has(String(scene.id)),
+      (scene) =>
+        (!scene.still_asset_id && !hasOwnClip(scene)) ||
+        redoIds.has(String(scene.id)),
     );
     if (pending.length === 0)
       return { success: true, created: 0, remaining: 0 };
@@ -2288,7 +2312,9 @@ export async function executeWorkshopTool(
     const scenes = await loadScenes(supabase, tenantId, itemId);
     if (scenes.length === 0)
       return { error: "אין סטוריבורד. קודם workshop_storyboard." };
-    const noStill = scenes.filter((scene) => !scene.still_asset_id).length;
+    const noStill = scenes.filter(
+      (scene) => !scene.still_asset_id && !hasOwnClip(scene),
+    ).length;
     if (noStill > 0)
       return {
         error: `לא לכל הסצנות יש תמונה (${noStill} חסרות). קודם workshop_make_stills.`,
@@ -2443,6 +2469,10 @@ export async function executeWorkshopTool(
     if ("stop" in gate) return gate.stop;
 
     const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
+    const ctaText =
+      typeof args.cta_text === "string"
+        ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 60)
+        : "";
     const voiceId =
       typeof args.voice_id === "string" && args.voice_id.trim()
         ? args.voice_id.trim()
@@ -2457,6 +2487,8 @@ export async function executeWorkshopTool(
         spendBudget(
           {
             ...gate.payload,
+            // The render's closing card reads cta_text (render-worker compose/brand.mjs).
+            ...(ctaText ? { cta_text: ctaText } : {}),
             video: {
               ...video,
               scene_engine: engine,
