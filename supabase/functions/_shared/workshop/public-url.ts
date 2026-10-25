@@ -135,9 +135,15 @@ export function parsePublicHttpUrl(raw: string): URL | null {
 
 /** Reads a chunked HTTP/1.1 body (the bytes after the header block). */
 export function decodeChunked(raw: Uint8Array): Uint8Array {
+  return readChunked(raw).body;
+}
+
+/** The decoded chunks, and whether the closing zero-size chunk arrived. */
+function readChunked(raw: Uint8Array): { body: Uint8Array; complete: boolean } {
   const parts: Uint8Array[] = [];
   let at = 0;
   let total = 0;
+  let complete = false;
   const lineEnd = (from: number) => {
     for (let i = from; i < raw.length - 1; i++)
       if (raw[i] === 13 && raw[i + 1] === 10) return i;
@@ -151,9 +157,17 @@ export function decodeChunked(raw: Uint8Array): Uint8Array {
       16,
     );
     if (!Number.isFinite(size) || size < 0) break;
-    if (size === 0) break;
+    if (size === 0) {
+      complete = true;
+      break;
+    }
     const start = end + 2;
-    const chunk = raw.subarray(start, Math.min(start + size, raw.length));
+    if (start + size > raw.length) {
+      parts.push(raw.subarray(start));
+      total += raw.length - start;
+      break;
+    }
+    const chunk = raw.subarray(start, start + size);
     parts.push(chunk);
     total += chunk.length;
     at = start + size + 2;
@@ -164,7 +178,7 @@ export function decodeChunked(raw: Uint8Array): Uint8Array {
     out.set(part, offset);
     offset += part.length;
   }
-  return out;
+  return { body: out, complete };
 }
 
 /** Splits a raw HTTP/1.1 response into status, headers and the decoded body. */
@@ -172,6 +186,8 @@ export function parseHttpResponse(raw: Uint8Array): {
   status: number;
   headers: Headers;
   body: Uint8Array;
+  /** False when a chunked body stopped before its closing chunk. */
+  complete: boolean;
 } | null {
   let split = -1;
   for (let i = 0; i < raw.length - 3; i++) {
@@ -197,8 +213,38 @@ export function parseHttpResponse(raw: Uint8Array): {
       headers.append(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
   }
   const rest = raw.subarray(split + 4);
-  const body = /chunked/i.test(headers.get("transfer-encoding") ?? "")
-    ? decodeChunked(rest)
-    : rest;
-  return { status, headers, body };
+  if (/chunked/i.test(headers.get("transfer-encoding") ?? "")) {
+    const chunked = readChunked(rest);
+    return { status, headers, body: chunked.body, complete: chunked.complete };
+  }
+  return { status, headers, body: rest, complete: true };
+}
+
+/**
+ * Why a fetched body cannot be used, or null when it is whole: larger than allowed, cut off by
+ * the read limit, or shorter than the Content-Length the server announced (the connection
+ * dropped). A partial picture or page is refused rather than passed on as if it were complete.
+ */
+export function bodyProblem(
+  response: { headers: Headers; body: Uint8Array; complete?: boolean },
+  options: { maxBytes: number; capped: boolean },
+): string | null {
+  const chunked = /chunked/i.test(
+    response.headers.get("transfer-encoding") ?? "",
+  );
+  const announced = Number(response.headers.get("content-length"));
+  const hasLength =
+    !chunked &&
+    response.headers.has("content-length") &&
+    Number.isFinite(announced) &&
+    announced >= 0;
+  if (
+    options.capped ||
+    response.body.length > options.maxBytes ||
+    (hasLength && announced > options.maxBytes)
+  )
+    return "הקובץ גדול מדי";
+  if (response.complete === false || (hasLength && response.body.length < announced))
+    return "ההורדה נקטעה באמצע";
+  return null;
 }

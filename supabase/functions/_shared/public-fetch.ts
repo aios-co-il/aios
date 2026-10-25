@@ -6,6 +6,7 @@
  */
 
 import {
+  bodyProblem,
   isBlockedAddress,
   parseHttpResponse,
   parsePublicHttpUrl,
@@ -51,10 +52,35 @@ async function publicTarget(raw: string) {
   return { url, ip: ips[0] };
 }
 
-const timeout = (ms: number, label: string) =>
-  new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(label)), ms),
-  );
+/** Rejects after `ms`; the caller clears it so a finished request leaves no timer behind. */
+function deadline(ms: number, label: string) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms);
+  });
+  return { expired, clear: () => clearTimeout(timer) };
+}
+
+const closeQuietly = (conn: { close(): void } | null | undefined) => {
+  try {
+    conn?.close();
+  } catch {
+    /* already closed */
+  }
+};
+
+/** Awaits `work` until the deadline; a connection that arrives after giving up is closed. */
+async function withinDeadline<T extends { close(): void }>(
+  work: Promise<T>,
+  limit: ReturnType<typeof deadline>,
+): Promise<T> {
+  try {
+    return await Promise.race([work, limit.expired]);
+  } catch (error) {
+    work.then(closeQuietly, () => {});
+    throw error;
+  }
+}
 
 async function pinnedGet(
   target: { url: URL; ip: string },
@@ -65,55 +91,71 @@ async function pinnedGet(
     : target.url.protocol === "https:"
       ? 443
       : 80;
-  const tcp = await Promise.race([
-    Deno.connect({ hostname: target.ip, port }),
-    timeout(options.timeoutMs, "connect timeout"),
-  ]);
-  const conn =
-    target.url.protocol === "https:"
-      ? await Deno.startTls(tcp, {
-          hostname: target.url.hostname,
-          alpnProtocols: ["http/1.1"],
-        })
-      : tcp;
-  const path = `${target.url.pathname || "/"}${target.url.search}`;
-  await conn.write(
-    new TextEncoder().encode(
-      `GET ${path} HTTP/1.1\r\nHost: ${target.url.host}\r\nUser-Agent: Mozilla/5.0 (compatible; AIOS-Carmen/1.0)\r\nAccept: ${options.accept}\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n`,
-    ),
-  );
-  const read = async () => {
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    const buffer = new Uint8Array(16_384);
-    while (total < options.maxBytes + 65_536) {
-      const n = await conn.read(buffer);
-      if (n === null) break;
-      chunks.push(buffer.slice(0, n));
-      total += n;
-    }
-    const raw = new Uint8Array(total);
-    let at = 0;
-    for (const chunk of chunks) {
-      raw.set(chunk, at);
-      at += chunk.length;
-    }
-    return raw;
-  };
+  // One budget for connect, TLS and reading, so a slow handshake cannot stretch the request.
+  const limit = deadline(options.timeoutMs, "timeout");
+  let tcp: Deno.TcpConn | null = null;
+  let conn: Deno.Conn | null = null;
   try {
-    const raw = await Promise.race([
-      read(),
-      timeout(options.timeoutMs, "read timeout"),
+    tcp = await withinDeadline(
+      Deno.connect({ hostname: target.ip, port }),
+      limit,
+    );
+    conn =
+      target.url.protocol === "https:"
+        ? await withinDeadline(
+            Deno.startTls(tcp, {
+              hostname: target.url.hostname,
+              alpnProtocols: ["http/1.1"],
+            }),
+            limit,
+          )
+        : tcp;
+    const path = `${target.url.pathname || "/"}${target.url.search}`;
+    await Promise.race([
+      conn.write(
+        new TextEncoder().encode(
+          `GET ${path} HTTP/1.1\r\nHost: ${target.url.host}\r\nUser-Agent: Mozilla/5.0 (compatible; AIOS-Carmen/1.0)\r\nAccept: ${options.accept}\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n`,
+        ),
+      ),
+      limit.expired,
     ]);
-    return parseHttpResponse(raw);
+    const open = conn;
+    const cap = options.maxBytes + HEADER_ALLOWANCE;
+    const read = async () => {
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      const buffer = new Uint8Array(16_384);
+      let capped = false;
+      while (true) {
+        const n = await open.read(buffer);
+        if (n === null) break;
+        chunks.push(buffer.slice(0, n));
+        total += n;
+        if (total > cap) {
+          capped = true;
+          break;
+        }
+      }
+      const raw = new Uint8Array(total);
+      let at = 0;
+      for (const chunk of chunks) {
+        raw.set(chunk, at);
+        at += chunk.length;
+      }
+      return { raw, capped };
+    };
+    const { raw, capped } = await Promise.race([read(), limit.expired]);
+    const response = parseHttpResponse(raw);
+    return response ? { ...response, capped } : null;
   } finally {
-    try {
-      conn.close();
-    } catch {
-      /* already closed */
-    }
+    limit.clear();
+    closeQuietly(conn);
+    if (conn !== tcp) closeQuietly(tcp);
   }
 }
+
+/** Room for the status line and headers on top of the body limit. */
+const HEADER_ALLOWANCE = 65_536;
 
 /** GET a public http(s) URL. Never throws; failures come back in `error`. */
 export async function fetchPublic(
@@ -140,12 +182,16 @@ export async function fetchPublic(
         continue;
       }
       const ok = response.status >= 200 && response.status < 300;
+      const incomplete = ok
+        ? bodyProblem(response, { maxBytes, capped: response.capped })
+        : null;
+      if (incomplete) return fail(incomplete, target.url.href);
       return {
         ok,
         status: response.status,
         url: target.url.href,
         contentType: response.headers.get("content-type") ?? "",
-        bytes: response.body.slice(0, maxBytes),
+        bytes: response.body,
         error: ok ? undefined : `האתר החזיר ${response.status}`,
       };
     }

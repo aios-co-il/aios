@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  bodyProblem,
   decodeChunked,
   isBlockedAddress,
   parseHttpResponse,
@@ -62,4 +63,30 @@ test("a chunked body is rebuilt, a plain body is passed through", () => {
   assert.equal(new TextDecoder().decode(plain?.body), "body");
   assert.equal(parseHttpResponse(enc.encode("garbage")), null);
   assert.equal(decodeChunked(enc.encode("zz\r\n")).length, 0);
+});
+
+test("a cut-off, oversized or short body is refused instead of passed on", () => {
+  const enc = new TextEncoder();
+  const whole = parseHttpResponse(
+    enc.encode("HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody"),
+  )!;
+  assert.equal(bodyProblem(whole, { maxBytes: 10, capped: false }), null);
+
+  const short = parseHttpResponse(
+    enc.encode("HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\nbody"),
+  )!;
+  assert.equal(bodyProblem(short, { maxBytes: 10, capped: false }), "ההורדה נקטעה באמצע");
+
+  const announcedBig = parseHttpResponse(
+    enc.encode("HTTP/1.1 200 OK\r\nContent-Length: 999\r\n\r\nbody"),
+  )!;
+  assert.equal(bodyProblem(announcedBig, { maxBytes: 10, capped: false }), "הקובץ גדול מדי");
+  assert.equal(bodyProblem(whole, { maxBytes: 10, capped: true }), "הקובץ גדול מדי");
+  assert.equal(bodyProblem(whole, { maxBytes: 3, capped: false }), "הקובץ גדול מדי");
+
+  const chunkedCut = parseHttpResponse(
+    enc.encode("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n9\r\nhel"),
+  )!;
+  assert.equal(chunkedCut.complete, false);
+  assert.equal(bodyProblem(chunkedCut, { maxBytes: 10, capped: false }), "ההורדה נקטעה באמצע");
 });
