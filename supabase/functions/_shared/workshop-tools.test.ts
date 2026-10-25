@@ -5,6 +5,7 @@ import {
   isWorkshopTool,
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
+import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
 
@@ -631,6 +632,14 @@ test("producing needs stills, a client, then one approval with the engine the te
     deps,
   )) as Record<string, any>;
   assert.equal(started.success, true);
+  // A started film is progress: a silent model is not nudged into producing again.
+  assert.equal(started.started, true);
+  assert.equal(
+    shouldNudgeSilentTurn([
+      { tool: "workshop_produce_video", result: started },
+    ]),
+    false,
+  );
   const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
     ?.value as Record<string, any>;
   assert.equal(rpc.p_provider, "elevenlabs");
@@ -1275,6 +1284,208 @@ test("producing while a production already runs does not add a second pending fi
     ),
     false,
   );
+});
+
+const silentFilm = (over: Record<string, unknown> = {}) => [
+  scene("s-1", { duration_s: 5, voiceover_text: "", ...over }),
+  scene("s-2", { duration_s: 5, voiceover_text: "", ...over }),
+  scene("s-3", {
+    duration_s: 8,
+    voiceover_text: "",
+    meta: { lipsync: true, dialogue: "שלום" },
+    ...over,
+  }),
+];
+
+test("a paid engine that can fall back to OpenRouter is quoted at the OpenRouter price", async () => {
+  const ask = async (openrouter: boolean) =>
+    (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": silentFilm({ still_asset_id: "a" }),
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", music: false },
+      async () => {},
+      null,
+      {
+        defaultEngine: async () => "higgsfield" as const,
+        videoConnections: async () => ({ openrouter }),
+      },
+    )) as Record<string, any>;
+  assert.equal((await ask(false)).estimated_usd, 1.8);
+  const quoted = await ask(true);
+  assert.equal(quoted.needs_budget, true);
+  assert.equal(quoted.engine, "higgsfield");
+  // Kling 3 for the silent scenes and Veo 3.1 for the talking one, as the worker would spend.
+  assert.equal(quoted.estimated_usd, 4.04);
+  assert.equal(quoted.step_usd, 4.04);
+});
+
+test("the whole-film budget asked with the stills covers an OpenRouter fallback", async () => {
+  const ask = async (openrouter: boolean) =>
+    (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": silentFilm(),
+      }),
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1" },
+      async () => {},
+      null,
+      {
+        generateImage: async () => ({ image_url: "https://x/1.png" }),
+        defaultEngine: async () => "higgsfield" as const,
+        videoConnections: async () => ({ openrouter }),
+      },
+    )) as Record<string, any>;
+  const alone = await ask(false);
+  const covered = await ask(true);
+  assert.equal(covered.needs_budget, true);
+  // Film $4.19 on OpenRouter instead of $1.95 on Higgsfield, plus the stills, with 20% room.
+  assert.equal(
+    covered.proposed_budget_usd,
+    Math.ceil((alone.step_usd + 4.19) * 1.2),
+  );
+  assert.ok(covered.proposed_budget_usd > alone.proposed_budget_usd);
+});
+
+test("clips that are stale, failed or from the free preview are priced before a paid run", async () => {
+  const ask = async (
+    scenes: Record<string, unknown>[],
+    engine: "openrouter" | "mock",
+    extra: Record<string, unknown> = {},
+  ) =>
+    (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": scenes,
+        ...extra,
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", music: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => engine },
+    )) as Record<string, any>;
+  const clip = (id: string, over: Record<string, unknown> = {}) =>
+    scene(id, {
+      still_asset_id: `still-${id}`,
+      clip_asset_id: `clip-${id}`,
+      voiceover_text: "",
+      ...over,
+    });
+
+  const redo = await ask(
+    [
+      clip("s-1", { clip_stale: true }),
+      clip("s-2", { status: "failed" }),
+      clip("s-3"),
+    ],
+    "openrouter",
+  );
+  assert.equal(redo.needs_budget, true);
+  assert.equal(redo.clip_seconds, 6);
+
+  const preview = await ask([clip("s-1"), clip("s-2")], "openrouter", {
+    "marketing_assets:select": [{ id: "clip-s-1" }],
+  });
+  assert.equal(preview.needs_budget, true);
+  assert.equal(preview.clip_seconds, 3);
+
+  // On the free preview itself a preview clip is finished and costs nothing.
+  const free = await ask([clip("s-1")], "mock", {
+    "marketing_assets:select": [{ id: "clip-s-1" }],
+  });
+  assert.equal(free.needs_budget, undefined);
+});
+
+test("producing again while the film renders neither quotes nor charges the budget", async () => {
+  const base = videoProject()["marketing_work_items:select"] as Record<
+    string,
+    any
+  >;
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      ...base,
+      payload: {
+        ...base.payload,
+        workshop_budget: { cap_usd: 5, spent_usd: 4.5 },
+        video: {
+          ...base.payload.video,
+          production: {
+            status: "running",
+            provider: "openrouter",
+            started_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+          },
+        },
+      },
+    },
+    "marketing_video_scenes:select": silentFilm({ still_asset_id: "a" }),
+    "workshop_artifacts:select": { id: "film-1", kind: "film" },
+  });
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1" },
+    async () => {},
+    null,
+    { defaultEngine: async () => "openrouter" as const },
+  )) as Record<string, any>;
+  assert.equal(result.already_running, true);
+  assert.equal(result.needs_budget, undefined);
+  assert.equal(result.artifact.id, "film-1");
+  assert.equal(
+    db.calls.some((c) => c.table === "rpc:produce_video"),
+    false,
+  );
+  assert.equal(
+    db.calls.some((c) => c.table === "marketing_work_items"),
+    false,
+  );
+});
+
+test("Carmen hears when the free preview made clips the paid engine refused", async () => {
+  const base = videoProject()["marketing_work_items:select"] as Record<
+    string,
+    any
+  >;
+  const started = new Date(Date.now() - 10 * 60_000).toISOString();
+  const state = (await executeWorkshopTool(
+    fakeDb({
+      "marketing_work_items:select": {
+        ...base,
+        payload: {
+          ...base.payload,
+          video: {
+            production: {
+              status: "done",
+              provider: "higgsfield",
+              started_at: started,
+            },
+          },
+        },
+      },
+      "marketing_runs:select": [
+        {
+          kind: "clip",
+          status: "completed",
+          created_at: started,
+          provider: "mock",
+          fallback_from: "higgsfield",
+        },
+      ],
+    }),
+    "tenant-1",
+    "workshop_get_state",
+    { item_id: "item-1" },
+  )) as Record<string, any>;
+  assert.equal(state.production.preview_clips, 1);
+  assert.match(state.production.summary, /במקום Higgsfield/);
 });
 
 const encode = (text: string) => new TextEncoder().encode(text);

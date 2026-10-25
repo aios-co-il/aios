@@ -11,6 +11,7 @@ import {
   lipsyncEstimate,
   musicEstimate,
   productionEstimate,
+  quotedProductionEstimate,
   sceneEngineFor,
   speaksNatively,
   voiceEstimate,
@@ -188,4 +189,40 @@ test("OpenRouter quotes Kling 3 lengths and adds the Veo price for talking scene
   assert.equal(talking.native, true);
   // Veo 3.1 6 s at $0.40 instead of a 5 s Kling clip at $0.084.
   assert.equal(talking.usd, 1.98);
+});
+
+test("a paid engine that can fall back to OpenRouter is quoted at the dearer of the two", () => {
+  const film = [
+    { duration_s: 5, voiceover_text: "" },
+    { duration_s: 5, voiceover_text: "" },
+    { duration_s: 8, voiceover_text: "", lipsync: true, dialogue: "שלום" },
+  ];
+  const options = { withVoice: false, withMusic: true };
+  const higgsfield = productionEstimate("higgsfield", film, options);
+  const openrouter = productionEstimate("openrouter", film, options);
+  assert.ok(openrouter.totalUsd > higgsfield.totalUsd);
+
+  const quoted = quotedProductionEstimate("higgsfield", film, options, {
+    openrouter: true,
+  });
+  assert.equal(quoted.totalUsd, openrouter.totalUsd);
+  assert.equal(quoted.pricedOn, "openrouter");
+  // Without OpenRouter nothing can take over, and the free preview never falls back.
+  assert.equal(
+    quotedProductionEstimate("higgsfield", film, options).totalUsd,
+    higgsfield.totalUsd,
+  );
+  assert.equal(
+    quotedProductionEstimate("mock", film, options, { openrouter: true })
+      .pricedOn,
+    "mock",
+  );
+  // An engine dearer than OpenRouter keeps its own price.
+  const silent = [{ duration_s: 5, voiceover_text: "" }];
+  assert.equal(
+    quotedProductionEstimate("elevenlabs", silent, options, {
+      openrouter: true,
+    }).pricedOn,
+    "elevenlabs",
+  );
 });

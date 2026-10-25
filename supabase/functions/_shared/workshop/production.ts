@@ -4,15 +4,48 @@
  * instead of promising the film or trying again.
  */
 
+import { ENGINE_LABEL, isSceneEngine } from "./video-cost.ts";
+
 export interface RunRow {
   kind: string;
   status: string;
   error?: string | null;
   created_at?: string | null;
+  /** The engine that made the clip, and the one it replaced when it fell back. */
+  provider?: string | null;
+  fallback_from?: string | null;
 }
 
 /** A queued job nobody claimed for this long means no worker is listening to this database. */
 export const STALLED_AFTER_MIN = 3;
+
+/** produce_video's own lock: a production marked running that started within the hour. */
+export function productionRunning(
+  production: Record<string, unknown> | null,
+  now = Date.now(),
+) {
+  if (production?.status !== "running") return false;
+  const started = Date.parse(String(production.started_at ?? ""));
+  return !Number.isFinite(started) || started > now - 60 * 60_000;
+}
+
+/** Clips of this production that the free preview made because the paid engine refused them. */
+function previewFallbacks(
+  runs: RunRow[],
+  production: Record<string, unknown> | null,
+) {
+  if (!production?.provider || production.provider === "mock") return [];
+  const started = Date.parse(String(production.started_at ?? ""));
+  return runs.filter(
+    (run) =>
+      run.kind === "clip" &&
+      run.status === "completed" &&
+      run.provider === "mock" &&
+      Boolean(run.fallback_from) &&
+      (!Number.isFinite(started) ||
+        Date.parse(String(run.created_at ?? "")) >= started),
+  );
+}
 
 export function productionReport(
   runs: RunRow[],
@@ -44,14 +77,19 @@ export function productionReport(
   ].slice(0, 3);
   const status =
     typeof production?.status === "string" ? production.status : "idle";
+  const preview = previewFallbacks(runs, production);
+  const replaced = String(preview[0]?.fallback_from ?? "");
+  const previewNote = preview.length
+    ? ` ${preview.length} סצנות הונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונה) במקום ${isSceneEngine(replaced) ? ENGINE_LABEL[replaced] : replaced}, כי המנוע בתשלום סירב לעבודה (אין קרדיט או שהמפתח נדחה). אמרי זאת למשתמש ואל תציגי את הסרט כאילו נוצר במנוע בתשלום.`
+    : "";
   const summary = stalled
     ? `${queued.length} משימות ממתינות בתור כבר ${Math.round(oldestQueuedMin)} דקות ואף שרת הפקה לא קולט אותן. אמרי למשתמש שהסרט לא יחזור עד ששרת ההפקה (render worker) מחובר לסביבה הזו, ואל תנסי שוב ואל תבטיחי זמן.`
     : status === "failed"
       ? `ההפקה נכשלה: ${production?.error ?? errors[0] ?? "סיבה לא ידועה"}. הסבירי למשתמש והציעי לנסות שוב.`
       : status === "running"
-        ? `ההפקה רצה: ${count("running")} בעבודה, ${queued.length} בתור, ${count("completed")} הושלמו. הסרט יופיע בלוח כשיסתיים.`
+        ? `ההפקה רצה: ${count("running")} בעבודה, ${queued.length} בתור, ${count("completed")} הושלמו. הסרט יופיע בלוח כשיסתיים.${previewNote}`
         : status === "done"
-          ? "ההפקה הסתיימה והסרט בלוח."
+          ? `ההפקה הסתיימה והסרט בלוח.${previewNote}`
           : "אין הפקה פעילה.";
   return {
     status,
@@ -62,6 +100,7 @@ export function productionReport(
     oldest_queued_min: Math.round(oldestQueuedMin),
     stalled,
     errors,
+    preview_clips: preview.length,
     summary,
   };
 }

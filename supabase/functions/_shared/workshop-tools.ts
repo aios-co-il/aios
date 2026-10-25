@@ -34,7 +34,11 @@ import {
   unanswered,
   withBriefAnswers,
 } from "./workshop/brief-answers.ts";
-import { productionReport } from "./workshop/production.ts";
+import {
+  productionReport,
+  productionRunning,
+  type RunRow,
+} from "./workshop/production.ts";
 import {
   ASSET_BUCKET,
   assetForCarmen,
@@ -64,7 +68,7 @@ import {
 import {
   ENGINE_LABEL,
   isSceneEngine,
-  productionEstimate,
+  quotedProductionEstimate,
   type SceneEngine,
   type VideoConnections,
 } from "./workshop/video-cost.ts";
@@ -563,7 +567,7 @@ const stringList = (value: unknown): string[] =>
     : [];
 
 const SCENE_COLUMNS =
-  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, meta";
+  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, clip_stale, meta";
 
 async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data } = await supabase
@@ -573,6 +577,28 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
     .eq("tenant_id", tenantId)
     .order("position");
   return (Array.isArray(data) ? data : []) as Record<string, any>[];
+}
+
+/** Clip assets the free preview made; a paid production makes those scenes again. */
+async function previewClipIds(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  ids: string[],
+) {
+  if (ids.length === 0) return new Set<string>();
+  const { data } = await supabase
+    .from("marketing_assets")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .eq("meta->>provider", "mock")
+    .in("id", ids);
+  return new Set(
+    (Array.isArray(data) ? data : []).map((row: { id: string }) =>
+      String(row.id),
+    ),
+  );
 }
 
 const PAGE_COLUMNS = "id, kind, title, folder, status, url, thumb_url";
@@ -1480,7 +1506,9 @@ export async function executeWorkshopTool(
         .order("created_at"),
       supabase
         .from("marketing_runs")
-        .select("kind, status, error, created_at")
+        .select(
+          "kind, status, error, created_at, provider, fallback_from:output->>fallback_from",
+        )
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
@@ -1502,12 +1530,7 @@ export async function executeWorkshopTool(
             .maybeSingle()
         ).data
       : null;
-    const runs = (Array.isArray(running.data) ? running.data : []) as {
-      kind: string;
-      status: string;
-      error?: string | null;
-      created_at?: string | null;
-    }[];
+    const runs = (Array.isArray(running.data) ? running.data : []) as RunRow[];
     const itemPayload = asRecord(item.data?.payload);
     return {
       ...studio,
@@ -2068,7 +2091,7 @@ export async function executeWorkshopTool(
     // One budget covers the whole film: the pictures and the production that follows them.
     const filmEngine =
       (deps.defaultEngine ? await deps.defaultEngine() : null) ?? "mock";
-    const film = productionEstimate(
+    const film = quotedProductionEstimate(
       filmEngine,
       scenes.map((scene) => ({
         duration_s: Number(scene.duration_s) || 3,
@@ -2082,6 +2105,7 @@ export async function executeWorkshopTool(
         ),
         withMusic: true,
       },
+      deps.videoConnections ? await deps.videoConnections() : {},
     );
     const projectBudget = Math.max(
       Number(args.budget_usd) || 0,
@@ -2271,6 +2295,41 @@ export async function executeWorkshopTool(
         missing_stills: noStill,
       };
 
+    const video = asRecord(project.payload.video);
+    const pendingFilm = () =>
+      supabase
+        .from("workshop_artifacts")
+        .select(PAGE_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .eq("item_id", itemId)
+        .eq("kind", "film")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    const runningReply = (
+      provider: unknown,
+      client: unknown,
+      artifact: unknown,
+    ) => ({
+      success: true,
+      status: "running",
+      already_running: true,
+      engine: isSceneEngine(provider) ? ENGINE_LABEL[provider] : undefined,
+      client_id: client,
+      message:
+        "הפקה כבר רצה לפרויקט הזה ולא הותחלה שנייה. לבדוק את המצב: workshop_get_state (production), ולא להפיק שוב.",
+      ...(artifact ? { artifact } : {}),
+    });
+    // produce_video queues nothing while a production runs: no quote, no second charge.
+    const production = asRecord(video.production);
+    if (productionRunning(production))
+      return runningReply(
+        production.provider,
+        project.client_id,
+        (await pendingFilm())?.data,
+      );
+
     let stageId = project.stage_id;
     let clientId = project.client_id;
     if (!stageId) {
@@ -2298,7 +2357,6 @@ export async function executeWorkshopTool(
       }
     }
 
-    const video = asRecord(project.payload.video);
     let engine: SceneEngine | null = isSceneEngine(args.engine)
       ? args.engine
       : isSceneEngine(video.scene_engine) && video.scene_engine !== "mock"
@@ -2311,8 +2369,25 @@ export async function executeWorkshopTool(
       if (resolved) engine = resolved;
     }
     if (!engine) engine = "mock";
+    // The scenes produce_video queues a clip for: none yet, stale, failed, or (on a paid
+    // engine) made by the free preview.
+    const previewClips =
+      engine === "mock"
+        ? new Set<string>()
+        : await previewClipIds(
+            supabase,
+            tenantId,
+            itemId,
+            scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
+          );
     const costScenes = scenes
-      .filter((scene) => !scene.clip_asset_id)
+      .filter(
+        (scene) =>
+          !scene.clip_asset_id ||
+          scene.clip_stale === true ||
+          scene.status === "failed" ||
+          previewClips.has(String(scene.clip_asset_id)),
+      )
       .map((scene) => ({
         duration_s: Number(scene.duration_s) || 3,
         voiceover_text: String(scene.voiceover_text ?? ""),
@@ -2323,10 +2398,12 @@ export async function executeWorkshopTool(
       String(scene.voiceover_text ?? "").trim(),
     );
     const withMusic = args.music !== false;
-    const estimate = productionEstimate(engine, costScenes, {
-      withVoice,
-      withMusic,
-    });
+    const estimate = quotedProductionEstimate(
+      engine,
+      costScenes,
+      { withVoice, withMusic },
+      deps.videoConnections ? await deps.videoConnections() : {},
+    );
     // Narration needs a voice the user chose after hearing it.
     const chosenVoice =
       (typeof args.voice_id === "string" && args.voice_id.trim()) ||
@@ -2428,29 +2505,9 @@ export async function executeWorkshopTool(
       state.status === "running" &&
       Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&
       Number(state.music ?? 0) === 0;
-    const open = alreadyRunning
-      ? await supabase
-          .from("workshop_artifacts")
-          .select(PAGE_COLUMNS)
-          .eq("tenant_id", tenantId)
-          .eq("item_id", itemId)
-          .eq("kind", "film")
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : null;
+    const open = alreadyRunning ? await pendingFilm() : null;
     if (alreadyRunning && open?.data)
-      return {
-        success: true,
-        status: "running",
-        already_running: true,
-        engine: ENGINE_LABEL[engine],
-        client_id: clientId,
-        message:
-          "הפקה כבר רצה לפרויקט הזה ולא הותחלה שנייה. לבדוק את המצב: workshop_get_state (production), ולא להפיק שוב.",
-        artifact: open.data,
-      };
+      return runningReply(engine, clientId, open.data);
     const artifact = await recordArtifact(supabase, {
       tenantId,
       itemId,
@@ -2461,6 +2518,7 @@ export async function executeWorkshopTool(
     });
     return {
       success: true,
+      started: true,
       status: state.status ?? "running",
       engine: ENGINE_LABEL[engine],
       client_id: clientId,

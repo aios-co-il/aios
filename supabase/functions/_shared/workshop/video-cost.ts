@@ -202,6 +202,25 @@ export function productionEstimate(
   };
 }
 
+/**
+ * The price to approve. The worker moves a clip that a paid engine refuses to OpenRouter when
+ * the tenant has it (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
+ */
+export function quotedProductionEstimate(
+  engine: SceneEngine,
+  scenes: CostScene[],
+  options: { withVoice: boolean; withMusic: boolean },
+  connections: VideoConnections = {},
+) {
+  const own = productionEstimate(engine, scenes, options);
+  if (engine === "mock" || engine === "openrouter" || !connections.openrouter)
+    return { ...own, pricedOn: engine };
+  const fallback = productionEstimate("openrouter", scenes, options);
+  return fallback.totalUsd > own.totalUsd
+    ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
+    : { ...own, pricedOn: engine };
+}
+
 /** Connections outside the LLM integration settings that can make video. */
 export interface VideoConnections {
   /** The tenant connected OpenRouter as a Carmen brain (existence only; no key here). */
