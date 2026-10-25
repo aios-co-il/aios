@@ -56,6 +56,10 @@ import {
   toolsForRole,
   workshopRole,
 } from "../_shared/workshop/roles.ts";
+import {
+  workshopItemIdFrom,
+  workshopProjectKind,
+} from "../_shared/workshop/role-project.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
@@ -13669,22 +13673,11 @@ async function handleRunAgent(
       conversation_id,
       wa_notify,
     } = bodyJson;
-    // In the workshop the server picks the specialist for this message (designer, producer or
-    // video editor) and pins her skin; see _shared/workshop/roles.ts.
-    const workshopRoleForRun =
+    const inWorkshopRequest =
       surface !== "whatsapp" &&
       Array.isArray(requestedTaskSkills) &&
-      requestedTaskSkills.includes(WORKSHOP_SKIN)
-        ? workshopRole(
-            String(command_text ?? ""),
-            parseActiveSkin(bodyJson.active_skin),
-          )
-        : null;
-    const task_skills = workshopRoleForRun
-      ? [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]]
-      : requestedTaskSkills;
-    if (workshopRoleForRun && emit)
-      emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+      requestedTaskSkills.includes(WORKSHOP_SKIN);
+    let task_skills = requestedTaskSkills;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
     const modelOverride =
@@ -13703,6 +13696,24 @@ async function handleRunAgent(
     if (!command_text) throw new Error("Missing command_text");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // In the workshop the server picks the specialist for this message (designer, producer or
+    // video editor) from the message and the open project, and pins her skin; see roles.ts.
+    const workshopRoleForRun = inWorkshopRequest
+      ? workshopRole(
+          String(command_text ?? ""),
+          parseActiveSkin(bodyJson.active_skin),
+          await workshopProjectKind(
+            supabase,
+            tenant_id,
+            workshopItemIdFrom(bodyJson),
+          ),
+        )
+      : null;
+    if (workshopRoleForRun) {
+      task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
+      if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+    }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
     let agent: any;

@@ -50,3 +50,24 @@ test("each role is offered only its own workshop tools, other tools stay", () =>
   );
   assert.equal(ROLE_TOOLS.producer.includes("workshop_make_creative"), false);
 });
+
+test("the open project keeps short replies and picture edits with its specialist", () => {
+  const film = { video: true, edit: false };
+  assert.equal(workshopRole("תמשיכי", "creative_direct", film), "producer");
+  assert.equal(
+    workshopRole("תשני את התמונה בסצנה 2", "creative_direct", film),
+    "producer",
+  );
+  assert.equal(
+    workshopRole("תמשיכי", null, { video: true, edit: true }),
+    "editor",
+  );
+  assert.equal(
+    workshopRole("תכיני גם פוסט לפיד", "video_director", film),
+    "designer",
+  );
+  assert.equal(
+    workshopRole("תמשיכי", "video_director", { video: false, edit: false }),
+    "producer",
+  );
+});

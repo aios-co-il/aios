@@ -7,6 +7,9 @@
 
 export type WorkshopRole = "designer" | "producer" | "editor";
 
+/** The open project: a film or not, and whether it is cut from the user's materials. */
+export type ProjectKind = { video: boolean; edit: boolean };
+
 /** The ai_skills row with the role's instructions. */
 export const ROLE_SKILL: Record<WorkshopRole, string> = {
   designer: "workshop_designer",
@@ -51,11 +54,14 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
 };
 
 const EDITOR =
-  /(מהחומרים|מהחומר|מהקבצים|מהסרטונים|מהתמונות שלי|מהקטעים|שהעליתי|שהעלתי|שצילמתי|לערוך|ערכי|תערכי|עריכה|עריכת|חתכי|לחתוך|footage|\bedit\b|\bcut\b)/i;
+  /(מהחומרים|מהחומר|מהקבצים|מהסרטונים|מהתמונות שלי|מהקטעים|שהעליתי|שהעלתי|שצילמתי|לערוך|ערכי|תערכי|עריכה|עריכת|חתכי|לחתוך|footage|\bedit\b)/i;
 const VIDEO =
   /(סרטון|וידאו|וידיאו|סרט\b|סרט |רילס|ריל\b|טיקטוק|פרומו|תסריט|סטוריבורד|הנפש|ליפ ?סינק|קריינ|\bvideo\b|\breel|\bfilm\b|\bpromo\b|lip ?sync)/i;
-const STATIC =
-  /(פוסט|מודע|באנר|תמונ|סטורי|קריאייטיב|פלייר|קרוסלה|לוגו|גרפיק|עיצוב|\bpost\b|\bbanner\b|\bad\b|\bflyer\b|\bstatic\b)/i;
+/** A new static deliverable: moves to the designer even inside a film project. */
+const STATIC_DELIVERABLE =
+  /(פוסט|מודע|באנר|סטורי|פלייר|קרוסלה|\bpost\b|\bbanner\b|\bflyer\b|\bad\b)/i;
+/** Picture words: the designer's only when the open project is not a film. */
+const STATIC_HINT = /(תמונ|קריאייטיב|לוגו|גרפיק|עיצוב|\bstatic\b|\bimage\b)/i;
 
 /** The role a persona slug (the chat's current skin) stands for, if any. */
 export function roleOfPersona(slug: string | null | undefined) {
@@ -67,21 +73,22 @@ export function roleOfPersona(slug: string | null | undefined) {
 }
 
 /**
- * The role for this message. Editing words win (a film from materials), then film words, then
- * static words. A message with none of them ("כן", "תמשיכי") stays with the current role.
+ * The role for this message. Editing words win (a film from materials), then film words, then a
+ * new static deliverable. Otherwise the open project decides (a film stays with its producer or
+ * editor, so "תשני את התמונה בסצנה 2" does not go to the designer), then the current role.
  */
 export function workshopRole(
   message: string,
   current: string | null | undefined,
+  project: ProjectKind | null = null,
 ): WorkshopRole {
   const text = String(message ?? "");
-  if (
-    EDITOR.test(text) &&
-    (VIDEO.test(text) || /לערוך|עריכ|ערכי|תערכי|edit|cut|footage/i.test(text))
-  )
-    return "editor";
-  if (VIDEO.test(text)) return "producer";
-  if (STATIC.test(text)) return "designer";
+  if (EDITOR.test(text)) return "editor";
+  if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
+  if (STATIC_DELIVERABLE.test(text)) return "designer";
+  if (project?.video) return project.edit ? "editor" : "producer";
+  if (project && STATIC_HINT.test(text)) return "designer";
+  if (STATIC_HINT.test(text) && !roleOfPersona(current)) return "designer";
   return roleOfPersona(current) ?? "designer";
 }
 
