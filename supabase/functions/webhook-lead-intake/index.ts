@@ -11,10 +11,12 @@ import {
 import { unarchiveExistingLead } from "../_shared/unarchive-lead.ts";
 import {
   applyRepeatInboundReopen,
-  givenLeadSource,
-  recordLeadSourceEvent,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
+import {
+  givenLeadSource,
+  recordLeadSourceEvent,
+} from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import { RETURNING_LEAD_TAG } from "./lead-duplicate-match.ts";
 import {

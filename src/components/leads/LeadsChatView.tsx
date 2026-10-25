@@ -67,9 +67,9 @@ import {
 } from "@/lib/leadFields";
 import {
   LeadCreatedAtLines,
-  LeadSourceHistory,
   LeadSourceLines,
 } from "@/components/leads/LeadOriginLines";
+import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
 
 interface LeadsChatViewProps {

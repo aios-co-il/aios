@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyRepeatInboundReopen,
-  givenLeadSource,
   withoutNewLeadOriginColumns,
 } from "./lead-repeat-reopen.ts";
 
@@ -77,14 +76,6 @@ test("repeat inbound keeps the sent source text as is", () => {
   );
   assert.equal(updates.source, "FB");
   assert.equal(updates.first_source, "paid_ads");
-});
-
-test("givenLeadSource returns the trimmed text, or null when none was given", () => {
-  assert.equal(givenLeadSource("FB"), "FB");
-  assert.equal(givenLeadSource("  פייסבוק "), "פייסבוק");
-  assert.equal(givenLeadSource("Other"), null);
-  assert.equal(givenLeadSource("  "), null);
-  assert.equal(givenLeadSource(undefined), null);
 });
 
 test("fallback strip drops reopen columns so pre-migration updates still work", () => {

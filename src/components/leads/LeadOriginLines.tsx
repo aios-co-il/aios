@@ -1,8 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Clock } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   leadArrivalSourceChanged,
@@ -124,50 +122,5 @@ export function LeadSourceLines({
         </div>
       )}
     </>
-  );
-}
-
-/** Every arrival that named a source, newest first, each with its date. */
-export function LeadSourceHistory({ leadId }: { leadId: string }) {
-  const { data: events = [] } = useQuery({
-    queryKey: ["lead-source-events", leadId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lead_source_events")
-        .select("id, source, campaign_name, received_at")
-        .eq("lead_id", leadId)
-        .order("received_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  // One arrival is already shown as the lead's source.
-  if (events.length < 2) return null;
-
-  return (
-    <div className="space-y-1">
-      <div className="text-sm text-muted-foreground">
-        :היסטוריית מקורות הגעה
-      </div>
-      {events.map((event) => (
-        <div
-          key={event.id}
-          className="flex items-center justify-end gap-2 text-sm"
-        >
-          {event.campaign_name && (
-            <span className="text-muted-foreground truncate">
-              {event.campaign_name} ·
-            </span>
-          )}
-          <span className="font-medium">
-            {leadSourceDisplay({ source: event.source })}
-          </span>
-          <span className="text-muted-foreground">
-            {formatLeadDate(event.received_at)}
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }

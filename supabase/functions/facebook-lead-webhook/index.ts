@@ -7,9 +7,9 @@ import {
 import { unarchiveExistingLead } from "../_shared/unarchive-lead.ts";
 import {
   applyRepeatInboundReopen,
-  recordLeadSourceEvent,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
+import { recordLeadSourceEvent } from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import {
   claimFacebookLeadIntake,
