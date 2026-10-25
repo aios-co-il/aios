@@ -15890,6 +15890,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       let pulseDigestShortcut: string | null = null;
       // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
       const sayToUser: string[] = [];
+      // Only the last budget request of a round: an earlier one's code is no longer valid.
+      let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
         for (const tc of msg.tool_calls)
           promotedToolNames.add(tc.function.name);
@@ -16035,11 +16037,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           result.say_to_user.trim()
         ) {
           const say = result.say_to_user.trim();
-          if (!sayToUser.includes(say)) sayToUser.push(say);
+          if (result.needs_budget === true) budgetSay = say;
+          else if (!sayToUser.includes(say)) sayToUser.push(say);
         }
       }
 
       messages.push(...toolResults);
+      if (budgetSay) sayToUser.push(budgetSay);
       if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;

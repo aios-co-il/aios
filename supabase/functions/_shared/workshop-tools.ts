@@ -2344,6 +2344,7 @@ export async function executeWorkshopTool(
       already_running: true,
       engine: isSceneEngine(provider) ? ENGINE_LABEL[provider] : undefined,
       client_id: client,
+      user_message: "הסרט כבר בהפקה, והוא יופיע בלוח כשיהיה מוכן.",
       message:
         "הפקה כבר רצה לפרויקט הזה ולא הותחלה שנייה. לבדוק את המצב: workshop_get_state (production), ולא להפיק שוב.",
       ...(artifact ? { artifact } : {}),
@@ -2502,6 +2503,8 @@ export async function executeWorkshopTool(
       p_item_id: itemId,
       p_aspect: format,
       p_provider: engine,
+      // Free-preview clips are priced in costScenes, so the paid engine may redo them.
+      p_redo_preview: true,
       p_estimate: {
         clips: estimate.clips,
         voice: estimate.voice,
@@ -2552,6 +2555,7 @@ export async function executeWorkshopTool(
     return {
       success: true,
       started: true,
+      user_message: "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.",
       status: state.status ?? "running",
       engine: ENGINE_LABEL[engine],
       client_id: clientId,

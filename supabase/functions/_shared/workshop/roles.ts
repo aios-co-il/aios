@@ -61,7 +61,9 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
 const EDITOR =
   /(מהחומרים|מהחומר|מהקבצים|מהסרטונים|מהתמונות שלי|מהקטעים|שהעליתי|שהעלתי|שצילמתי|לערוך|(?<![א-ת])ו?ערכי(?![א-ת])(?!\s+ה?(?:מותג|חברה|עסק|ליבה))|תערכי|עריכה|עריכת|חתכי|לחתוך|footage|\bedit\b)/i;
 const VIDEO =
-  /(סרטון|וידאו|וידיאו|(?<![א-ת])[הבלמושכ]{0,3}סרט(?:ים|י)?(?![א-ת])|רילס|(?<![א-ת])[הבלמושכ]{0,3}ריל(?![א-ת])|טיקטוק|פרומו|תסריט|סטוריבורד|הנפש|ליפ ?סינק|קריינ|\bvideo\b|\breel|\bfilm\b|\bpromo\b|lip ?sync)/i;
+  /(סרטון|וידאו|וידיאו|רילס|(?<![א-ת])[הבלמושכ]{0,3}ריל(?![א-ת])|טיקטוק|פרומו|תסריט|סטוריבורד|הנפש|ליפ ?סינק|קריינ|\bvideo\b|\breel|\bfilm\b|\bpromo\b|lip ?sync)/i;
+/** "סרט" alone (also "הסרט", "סרטים") is a film unless the message asks for a post or an ad about films. */
+const FILM_NOUN = /(?<![א-ת])[הבלמושכ]{0,3}סרט(?:ים|י)?(?![א-ת])/;
 /** A new static deliverable: moves to the designer even inside a film project. */
 const STATIC_DELIVERABLE =
   /(פוסט|מודע|באנר|(?<!י)סטורי|פלייר|קרוסלה|\bpost\b|\bbanner\b|\bflyer\b|\bad\b)/i;
@@ -91,6 +93,7 @@ export function workshopRole(
   if (EDITOR.test(text)) return "editor";
   if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
   if (STATIC_DELIVERABLE.test(text)) return "designer";
+  if (FILM_NOUN.test(text)) return project?.edit ? "editor" : "producer";
   if (project?.video) return project.edit ? "editor" : "producer";
   if (project && STATIC_HINT.test(text)) return "designer";
   if (STATIC_HINT.test(text) && !roleOfPersona(current)) return "designer";

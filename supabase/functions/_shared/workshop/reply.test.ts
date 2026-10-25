@@ -74,3 +74,19 @@ test("a question or budget request reaches the user even when rounds ran out", (
     "תקציב של $5?\n[[בחירה: לאשר | מאשר תקציב AB12 | לא עכשיו]]",
   );
 });
+
+test("after a film starts, a later status check does not turn the reply into a failure", () => {
+  const reply = fallbackReply([
+    {
+      tool: "workshop_produce_video",
+      result: {
+        started: true,
+        message:
+          "ההפקה התחילה. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state.",
+        user_message: "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.",
+      },
+    },
+    { tool: "workshop_get_state", result: { item: {} } },
+  ]);
+  assert.equal(reply, "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.");
+});

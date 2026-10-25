@@ -106,3 +106,15 @@ test("an edit command without 'את' still goes to the editor, brand values do n
     "editor",
   );
 });
+
+test("a post or an ad about films stays with the designer; a bare film request goes to the producer", () => {
+  for (const text of [
+    "מודעה לסרטים החדשים שלנו",
+    "פוסט לפסטיבל הסרטים",
+    "באנר לקולנוע עם סרטי השבוע",
+    "פוסט על הסרט",
+  ])
+    assert.equal(workshopRole(text, null, null), "designer", text);
+  for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"])
+    assert.equal(workshopRole(text, null, null), "producer", text);
+});

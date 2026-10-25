@@ -33,22 +33,38 @@ export function shouldNudgeSilentTurn(log: ToolLogEntry[]): boolean {
   });
 }
 
+const reportsProgress = (result: Record<string, unknown>) =>
+  result.started === true ||
+  result.already_running === true ||
+  result.needs_budget === true ||
+  result.needs_input === true;
+
+const textOf = (value: unknown) =>
+  typeof value === "string" && value ? value : null;
+
 export function fallbackReply(log: ToolLogEntry[]): string | null {
   const workshop = log.filter((entry) => entry.tool.startsWith("workshop_"));
-  const last = workshop[workshop.length - 1];
-  if (!last) return null;
-  const result = asRecord(last.result);
-  if (typeof result.error === "string" && result.error)
-    return `לא הצלחתי להשלים: ${result.error}`;
+  if (workshop.length === 0) return null;
+  // The latest tool that had something to tell the user; a status check after it says nothing.
+  const telling =
+    [...workshop].reverse().find((entry) => {
+      const result = asRecord(entry.result);
+      return (
+        textOf(result.error) ||
+        textOf(result.say_to_user) ||
+        reportsProgress(result)
+      );
+    }) ?? workshop[workshop.length - 1];
+  const result = asRecord(telling.result);
+  const error = textOf(result.error);
+  if (error) return `לא הצלחתי להשלים: ${error}`;
   // A question or a budget request carries the user's message ready to send.
-  if (typeof result.say_to_user === "string" && result.say_to_user)
-    return result.say_to_user;
-  const reports =
-    result.started === true ||
-    result.already_running === true ||
-    result.needs_budget === true ||
-    result.needs_input === true;
-  if (reports && typeof result.message === "string" && result.message)
-    return result.message;
+  const say = textOf(result.say_to_user);
+  if (say) return say;
+  if (reportsProgress(result)) {
+    // message is written for Carmen; user_message, when there is one, for the user.
+    const text = textOf(result.user_message) ?? textOf(result.message);
+    if (text) return text;
+  }
   return "לא הצלחתי להתקדם בבקשה הזו. כתבי לי 'תמשיכי' ואני אמשיך משם.";
 }
