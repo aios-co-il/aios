@@ -93,3 +93,16 @@ test("brand values and history are not editing or story words", () => {
     "producer",
   );
 });
+
+test("an edit command without 'את' still goes to the editor, brand values do not", () => {
+  for (const text of [
+    "ערכי הסרטון שלי",
+    "ערכי הקטעים לסרטון אחד",
+    "קחי את הקטעים וערכי לסרטון אחד",
+  ])
+    assert.equal(workshopRole(text, null, null), "editor", text);
+  assert.notEqual(
+    workshopRole("סרטון על ערכי המותג שלנו", null, null),
+    "editor",
+  );
+});

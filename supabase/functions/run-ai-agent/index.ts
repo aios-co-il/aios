@@ -71,6 +71,13 @@ import {
 } from "../_shared/workshop/role-project.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+
+/** The approval queue's tools: never offered in the workshop chat (a tap there is not an approval). */
+const WORKSHOP_BLOCKED_TOOLS = new Set([
+  "execute_pending_approval",
+  "reject_pending_approval",
+  "list_pending_approvals",
+]);
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
@@ -14922,7 +14929,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       task_skills.includes(WORKSHOP_SKIN);
     if (!inWorkshop) {
       filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
-    } else if (workshopRoleForRun) {
+    } else {
+      // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
+      // reachable from here, so a tap can never run an unrelated pending approval.
+      filteredTools = filteredTools.filter(
+        (t) => !WORKSHOP_BLOCKED_TOOLS.has(t.name),
+      );
+    }
+    if (inWorkshop && workshopRoleForRun) {
       filteredTools = toolsForRole(
         filteredTools,
         workshopRoleForRun,
@@ -14931,9 +14945,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A skin's tools may be added below; workshop tools only for this run's role.
     const workshopToolAllowed = (name: string) =>
-      !isWorkshopTool(name) ||
-      (inWorkshop &&
-        (!workshopRoleForRun || ROLE_TOOLS[workshopRoleForRun].includes(name)));
+      !(inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(name)) &&
+      (!isWorkshopTool(name) ||
+        (inWorkshop &&
+          (!workshopRoleForRun ||
+            ROLE_TOOLS[workshopRoleForRun].includes(name))));
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15024,8 +15040,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               userText,
               picked,
               {
-                isExplicitApprovalPhrase,
-                isExplicitRejectionPhrase,
+                // In the workshop a yes/no answers the workshop, not the approval queue.
+                isExplicitApprovalPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitApprovalPhrase,
+                isExplicitRejectionPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitRejectionPhrase,
                 extractMeetingUrl,
               },
               fullSchemaNames,
