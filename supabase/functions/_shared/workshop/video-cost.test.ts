@@ -75,6 +75,10 @@ test("the engine follows the keys the tenant has", () => {
     "higgsfield",
   );
   assert.equal(engineFromKeys({ higgsfield_api_key_id: "a" }), "mock");
+  assert.equal(
+    engineFromKeys({ higgsfield_api_key_secret: "id-1:secret-1" }),
+    "higgsfield",
+  );
   assert.equal(engineFromKeys({}), "mock");
 });
 

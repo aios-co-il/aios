@@ -1,5 +1,6 @@
 // Higgsfield image-to-video (PixVerse V6). Auth is `Key id:secret`.
 // The still must be a URL Higgsfield can fetch; the worker signs the private file.
+import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 const BASE = () =>
   (process.env.HIGGSFIELD_API_BASE || "https://api.higgsfield.ai").replace(
     /\/$/,
@@ -34,13 +35,12 @@ export function higgsfieldProvider({
   keySecret,
   fetchImpl = fetch,
 } = {}) {
+  const credential = higgsfieldCredential(keyId, keySecret);
   const auth = () => {
-    if (!keyId || !keySecret)
-      throw new Error(
-        "HF_API_KEY_ID and HF_API_KEY_SECRET are required for Higgsfield",
-      );
+    if (!credential.includes(":"))
+      throw new Error("A Higgsfield key in id:secret form is required");
     return {
-      Authorization: `Key ${keyId}:${keySecret}`,
+      Authorization: `Key ${credential}`,
       "Content-Type": "application/json",
     };
   };

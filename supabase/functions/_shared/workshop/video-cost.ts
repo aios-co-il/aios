@@ -4,6 +4,8 @@
  * two in step.
  */
 
+import { higgsfieldCredential } from "./higgsfield-credential.ts";
+
 export type SceneEngine = "mock" | "kling" | "elevenlabs" | "higgsfield";
 
 export const ENGINE_LABEL: Record<SceneEngine, string> = {
@@ -118,10 +120,15 @@ export function engineFromKeys(settings: Record<string, unknown>): SceneEngine {
     typeof settings[key] === "string" &&
     (settings[key] as string).trim() !== "";
   if (has("elevenlabs_api_key")) return "elevenlabs";
-  if (has("higgsfield_api_key_id") && has("higgsfield_api_key_secret"))
-    return "higgsfield";
+  if (higgsfieldReady(settings)) return "higgsfield";
   return "mock";
 }
+
+const higgsfieldReady = (settings: Record<string, unknown>) =>
+  higgsfieldCredential(
+    settings.higgsfield_api_key_id,
+    settings.higgsfield_api_key_secret,
+  ).includes(":");
 
 const hasKey = (settings: Record<string, unknown>, key: string) =>
   typeof settings[key] === "string" && (settings[key] as string).trim() !== "";
@@ -167,9 +174,7 @@ export async function sceneEngineFor(
   settings: Record<string, unknown>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<SceneEngine> {
-  const higgsfield =
-    hasKey(settings, "higgsfield_api_key_id") &&
-    hasKey(settings, "higgsfield_api_key_secret");
+  const higgsfield = higgsfieldReady(settings);
   const elevenKey = hasKey(settings, "elevenlabs_api_key")
     ? String(settings.elevenlabs_api_key).trim()
     : "";

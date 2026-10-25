@@ -3,6 +3,7 @@
  * reports which providers are connected, never the key values.
  */
 
+import { higgsfieldCredential } from "./higgsfield-credential.ts";
 import { engineFromKeys, ENGINE_LABEL } from "./video-cost.ts";
 
 export type Provider =
@@ -28,9 +29,10 @@ export function connectedProviders(
     google: !!text(settings, "google_api_key"),
     anthropic: !!text(settings, "anthropic_api_key"),
     elevenlabs: !!text(settings, "elevenlabs_api_key"),
-    higgsfield:
-      !!text(settings, "higgsfield_api_key_id") &&
-      !!text(settings, "higgsfield_api_key_secret"),
+    higgsfield: higgsfieldCredential(
+      settings.higgsfield_api_key_id,
+      settings.higgsfield_api_key_secret,
+    ).includes(":"),
   };
 }
 

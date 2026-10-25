@@ -1,3 +1,4 @@
+import { higgsfieldCredential } from "./providers/higgsfield-credential.mjs";
 import { isPaidPlanError } from "./providers/plan.mjs";
 
 const isRejectedKey = (error) => {
@@ -44,7 +45,7 @@ export async function runClipWithFallback({
     const submitted = Boolean(error?.submitted) || Boolean(savedJobId);
     if (name !== "elevenlabs" || submitted || !isPaidPlanError(error))
       throw error;
-    if (keys.higgsfieldKeyId && keys.higgsfieldKeySecret) {
+    if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret)) {
       try {
         log("ElevenLabs plan cannot make video; using higgsfield");
         return await run("higgsfield", name);

@@ -81,6 +81,17 @@ test("a retry resumes the job a fallback already saved instead of submitting aga
   assert.deepEqual(calls, [["higgsfield", "elevenlabs"]]);
 });
 
+test("a full key in the secret field is enough to fall back to Higgsfield", async () => {
+  const { calls, run } = recorder({ elevenlabs: paidPlan() });
+  const result = await runClipWithFallback({
+    name: "elevenlabs",
+    keys: { higgsfieldKeyId: "", higgsfieldKeySecret: "id:secret" },
+    run,
+  });
+  assert.equal(result.provider, "higgsfield");
+  assert.deepEqual(calls[1], ["higgsfield", "elevenlabs"]);
+});
+
 test("a pinned engine other than ElevenLabs never falls back", async () => {
   const error = new Error("Higgsfield 402");
   const { calls, run } = recorder({ higgsfield: error });

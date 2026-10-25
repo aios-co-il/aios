@@ -50,6 +50,7 @@ import {
 } from "../_shared/workshop-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { higgsfieldCredential } from "../_shared/workshop/higgsfield-credential.ts";
 import {
   connectedProviders,
   imageProvidersFor,
@@ -8704,10 +8705,10 @@ async function executeTool(
         google: (stored.google_api_key || "").trim() || undefined,
         elevenlabs: (stored.elevenlabs_api_key || "").trim() || undefined,
         higgsfield:
-          (stored.higgsfield_api_key_id || "").trim() &&
-          (stored.higgsfield_api_key_secret || "").trim()
-            ? `${stored.higgsfield_api_key_id.trim()}:${stored.higgsfield_api_key_secret.trim()}`
-            : undefined,
+          higgsfieldCredential(
+            stored.higgsfield_api_key_id,
+            stored.higgsfield_api_key_secret,
+          ) || undefined,
       };
       if (imageProvidersFor(connected).length === 0) {
         return {

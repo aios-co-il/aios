@@ -21,6 +21,10 @@ test("only providers with a filled key count as connected", () => {
     higgsfield: false,
   });
   assert.equal(connectedProviders({}, { openai: "sk" }).openai, true);
+  assert.equal(
+    connectedProviders({ higgsfield_api_key_secret: "id:secret" }).higgsfield,
+    true,
+  );
 });
 
 test("images work with any one of OpenAI, Google or ElevenLabs, tried in that order", () => {
