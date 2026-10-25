@@ -235,3 +235,21 @@ test("a paid engine that can fall back to OpenRouter is quoted at the dearer of 
     "elevenlabs",
   );
 });
+
+test("a talking scene on an engine that cannot speak is quoted at the OpenRouter Veo fallback", () => {
+  const talking = [
+    { duration_s: 6, voiceover_text: "", lipsync: true, dialogue: "בואו לבקר" },
+  ];
+  const free = quotedProductionEstimate(
+    "mock",
+    talking,
+    { withVoice: true, withMusic: false },
+    { openrouter: true },
+  );
+  assert.ok(free.lipsync.usd >= 6 * 0.4 - 0.01, String(free.lipsync.usd));
+  const without = quotedProductionEstimate("mock", talking, {
+    withVoice: true,
+    withMusic: false,
+  });
+  assert.ok(without.lipsync.usd < free.lipsync.usd);
+});

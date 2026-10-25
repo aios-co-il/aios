@@ -77,8 +77,13 @@ export async function makeAdImage(
     typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1";
   let made: { bytes: Uint8Array; mime: string; provider: string } | undefined;
   // OpenRouter first when there are no references (openrouterImage.ts); the connected
-  // image engines are the fallback.
-  if (openRouterKey && loadedReferences.references.length === 0) {
+  // image engines are the fallback. With references and no other engine, OpenRouter still
+  // makes the picture from the prompt, which carries the project's style bible.
+  const otherEngines = imageProvidersFor(connected).length > 0;
+  if (
+    openRouterKey &&
+    (loadedReferences.references.length === 0 || !otherEngines)
+  ) {
     try {
       const generated = await generateOpenRouterImage({
         apiKey: openRouterKey,

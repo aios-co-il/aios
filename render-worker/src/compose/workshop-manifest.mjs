@@ -224,7 +224,7 @@ export function buildWorkshopManifest(timeline) {
 
   const brand = brandOf(timeline.brand, files);
   const endCard =
-    brand && (brand.logo || brand.ctaText)
+    brand && timeline.brand?.endCard !== false && (brand.logo || brand.ctaText)
       ? { startFrame: scenesEnd, frameCount: END_CARD_FRAMES }
       : null;
   const totalFrames = scenesEnd + (endCard?.frameCount ?? 0);

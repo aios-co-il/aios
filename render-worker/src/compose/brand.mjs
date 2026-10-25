@@ -43,5 +43,7 @@ export function brandFromPayload(payload) {
     ctaText: text(data.cta_text ?? data.cta ?? book.cta, 60),
     ctaUrl: displayUrl(data.client_website ?? book.website),
   };
-  return Object.values(brand).some(Boolean) ? brand : null;
+  if (!Object.values(brand).some(Boolean)) return null;
+  // The user chose an ending without a closing card (workshop brief "סיום: בלי סגיר").
+  return data.end_card === false ? { ...brand, endCard: false } : brand;
 }

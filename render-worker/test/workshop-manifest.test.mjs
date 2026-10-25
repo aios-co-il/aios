@@ -233,3 +233,11 @@ test("a talking clip shorter than its scene is captioned only while it speaks", 
   const words = manifest.captions.flatMap((chunk) => chunk.words);
   assert.ok(words.at(-1).endFrame <= 4 * manifest.fps);
 });
+
+test("an ending without a closing card leaves the end card out", () => {
+  const { manifest } = buildWorkshopManifest({
+    scenes: [scene("a")],
+    brand: { logoPath: "/tmp/logo.png", ctaText: "בואו", endCard: false },
+  });
+  assert.equal(manifest.endCard, null);
+});

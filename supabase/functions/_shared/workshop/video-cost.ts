@@ -206,13 +206,49 @@ export function productionEstimate(
  * The price to approve. The worker moves a clip that a paid engine refuses to OpenRouter when
  * the tenant has it (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
  */
+/**
+ * A talking scene on an engine that cannot speak goes through the worker's lip-sync chain, which
+ * ends at OpenRouter Veo when the tenant has it (render-worker providers/lipsync.mjs): quote that.
+ */
+function withLipsyncFallback(
+  estimate: ReturnType<typeof productionEstimate>,
+  engine: SceneEngine,
+  scenes: CostScene[],
+  connections: VideoConnections,
+) {
+  const talking = lipsyncEstimate(engine, scenes);
+  if (!connections.openrouter || talking.native || talking.scenes === 0)
+    return estimate;
+  const veo = roundUsd(
+    scenes
+      .filter((scene) => talkingLine(scene))
+      .reduce(
+        (sum, scene) =>
+          sum +
+          veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
+        0,
+      ),
+  );
+  if (veo <= estimate.lipsync.usd) return estimate;
+  return {
+    ...estimate,
+    lipsync: { usd: veo, credits: estimate.lipsync.credits },
+    totalUsd: roundUsd(estimate.totalUsd - estimate.lipsync.usd + veo),
+  };
+}
+
 export function quotedProductionEstimate(
   engine: SceneEngine,
   scenes: CostScene[],
   options: { withVoice: boolean; withMusic: boolean },
   connections: VideoConnections = {},
 ) {
-  const own = productionEstimate(engine, scenes, options);
+  const own = withLipsyncFallback(
+    productionEstimate(engine, scenes, options),
+    engine,
+    scenes,
+    connections,
+  );
   if (engine === "mock" || engine === "openrouter" || !connections.openrouter)
     return { ...own, pricedOn: engine };
   const fallback = productionEstimate("openrouter", scenes, options);

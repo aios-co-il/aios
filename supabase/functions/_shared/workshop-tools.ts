@@ -577,6 +577,20 @@ const stringList = (value: unknown): string[] =>
 const SCENE_COLUMNS =
   "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, clip_stale, meta";
 
+/**
+ * The film's closing card follows the ending the user chose (brief "סיום"): none, the logo only,
+ * or the logo with Carmen's call to action. The render reads end_card and cta_text
+ * (render-worker compose/brand.mjs).
+ */
+function endingOf(payload: Record<string, unknown>, ctaText: string) {
+  const ending = briefAnswersOf(payload)["סיום"] ?? "";
+  const next: Record<string, unknown> = { ...payload };
+  next.end_card = !/בלי סגיר/.test(ending);
+  if (/בלי סגיר|לוגו בלבד/.test(ending)) delete next.cta_text;
+  else if (ctaText) next.cta_text = ctaText;
+  return next;
+}
+
 /** A scene that already has a current clip (the user's own video) needs no picture. */
 const hasOwnClip = (scene: Record<string, any>) =>
   Boolean(scene.clip_asset_id) && scene.clip_stale !== true;
@@ -2494,13 +2508,13 @@ export async function executeWorkshopTool(
         itemId,
         spendBudget(
           {
-            ...gate.payload,
-            // The render's closing card reads cta_text (render-worker compose/brand.mjs).
-            ...(ctaText ? { cta_text: ctaText } : {}),
+            ...endingOf(gate.payload, ctaText),
             video: {
               ...video,
               scene_engine: engine,
               sound_engine: "elevenlabs",
+              // The narration is checked against this voice; a new one re-narrates the film.
+              ...(voiceId ? { voice_id: voiceId } : {}),
             },
           },
           "workshop_produce_video",

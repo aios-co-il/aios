@@ -2188,3 +2188,44 @@ test("a redo of the pictures keeps the user's own video scenes", async () => {
     ["made"],
   );
 });
+
+test("the chosen ending decides the closing card, and the narration voice is saved", async () => {
+  const produce = async (ending: string, extra: Record<string, unknown>) => {
+    const base = videoProject() as Record<string, any>;
+    base["marketing_work_items:select"].payload = {
+      ...base["marketing_work_items:select"].payload,
+      cta_text: "ישן",
+      workshop_brief: { asked: true, answers: { סיום: ending } },
+    };
+    const db = fakeDb({
+      ...base,
+      "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+      "rpc:produce_video": { status: "running", clips: 1 },
+    });
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", confirmed: true, ...extra },
+      async () => {},
+      null,
+      { defaultEngine: async () => "mock" as const },
+    );
+    return db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as Record<string, any>).payload)
+      .find((p) => p && "end_card" in p);
+  };
+  const none = await produce("בלי סגיר", { cta_text: "בואו" });
+  assert.equal(none.end_card, false);
+  assert.equal("cta_text" in none, false);
+  const logo = await produce("לוגו בלבד", { cta_text: "בואו" });
+  assert.equal(logo.end_card, true);
+  assert.equal("cta_text" in logo, false);
+  const cta = await produce("לוגו וקריאה לפעולה", {
+    cta_text: "בואו",
+    voice_id: "ZiofZHcEBTn5sRySe5h8",
+  });
+  assert.equal(cta.cta_text, "בואו");
+  assert.equal(cta.video.voice_id, "ZiofZHcEBTn5sRySe5h8");
+});
