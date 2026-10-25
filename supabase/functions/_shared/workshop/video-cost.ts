@@ -122,3 +122,62 @@ export function engineFromKeys(settings: Record<string, unknown>): SceneEngine {
     return "higgsfield";
   return "mock";
 }
+
+const hasKey = (settings: Record<string, unknown>, key: string) =>
+  typeof settings[key] === "string" &&
+  (settings[key] as string).trim() !== "";
+
+/** Image and video generation on ElevenLabs starts at Pro. Starter and free stay on Higgsfield. */
+export function elevenLabsTierAllowsMedia(tier: unknown): boolean {
+  const name = String(tier ?? "").toLowerCase();
+  return (
+    name === "pro" ||
+    name === "creator" ||
+    name === "scale" ||
+    name === "business" ||
+    name === "enterprise"
+  );
+}
+
+/** null means the subscription could not be read, so a Pro account is not dropped on a blip. */
+export async function elevenLabsMediaAllowed(
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean | null> {
+  try {
+    const response = await fetchImpl(
+      "https://api.elevenlabs.io/v1/user/subscription",
+      { headers: { "xi-api-key": apiKey } },
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const tier =
+      (data as { tier?: unknown; subscription?: { tier?: unknown } }).tier ??
+      (data as { subscription?: { tier?: unknown } }).subscription?.tier;
+    return elevenLabsTierAllowsMedia(tier);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Picks a scene engine the account can run. ElevenLabs video needs Pro; a Starter key
+ * uses Higgsfield when it is connected, otherwise the free preview.
+ */
+export async function sceneEngineFor(
+  settings: Record<string, unknown>,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SceneEngine> {
+  const higgsfield =
+    hasKey(settings, "higgsfield_api_key_id") &&
+    hasKey(settings, "higgsfield_api_key_secret");
+  const elevenKey = hasKey(settings, "elevenlabs_api_key")
+    ? String(settings.elevenlabs_api_key).trim()
+    : "";
+  if (elevenKey) {
+    const allowed = await elevenLabsMediaAllowed(elevenKey, fetchImpl);
+    if (allowed !== false) return "elevenlabs";
+    return higgsfield ? "higgsfield" : "mock";
+  }
+  return higgsfield ? "higgsfield" : "mock";
+}

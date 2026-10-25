@@ -48,7 +48,7 @@ import {
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
-import { engineFromKeys } from "../_shared/workshop/video-cost.ts";
+import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import {
   connectedProviders,
   imageProvidersFor,
@@ -5780,7 +5780,7 @@ async function executeTool(
             .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          return engineFromKeys(
+          return sceneEngineFor(
             (data?.settings || {}) as Record<string, unknown>,
           );
         },

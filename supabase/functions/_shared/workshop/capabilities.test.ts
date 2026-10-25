@@ -50,6 +50,12 @@ test("the report says what can be made and what is missing, without key values",
   assert.ok(bare.missing.length >= 3);
 });
 
+test("a Google key is enough for Gemini narration", () => {
+  const report = capabilityReport({ google_api_key: "g" });
+  assert.equal(report.can.narration, true);
+  assert.equal(report.can.music, false);
+});
+
 test("only an ElevenLabs key is enough for pictures, film and sound", () => {
   const report = capabilityReport({ elevenlabs_api_key: "e" });
   assert.deepEqual(report.can.image_providers, ["ElevenLabs"]);

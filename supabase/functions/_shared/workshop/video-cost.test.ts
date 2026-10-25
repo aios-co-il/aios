@@ -10,6 +10,7 @@ import {
   engineFromKeys,
   musicEstimate,
   productionEstimate,
+  sceneEngineFor,
   voiceEstimate,
   type SceneEngine,
 } from "./video-cost.ts";
@@ -75,4 +76,30 @@ test("the engine follows the keys the tenant has", () => {
   );
   assert.equal(engineFromKeys({ higgsfield_api_key_id: "a" }), "mock");
   assert.equal(engineFromKeys({}), "mock");
+});
+
+test("Starter ElevenLabs video moves to Higgsfield", async () => {
+  const fetchImpl = (async () =>
+    new Response(JSON.stringify({ tier: "starter" }), { status: 200 })) as typeof fetch;
+  assert.equal(
+    await sceneEngineFor(
+      {
+        elevenlabs_api_key: "xi",
+        higgsfield_api_key_id: "a",
+        higgsfield_api_key_secret: "b",
+      },
+      fetchImpl,
+    ),
+    "higgsfield",
+  );
+  assert.equal(
+    await sceneEngineFor({ elevenlabs_api_key: "xi" }, fetchImpl),
+    "mock",
+  );
+  const pro = (async () =>
+    new Response(JSON.stringify({ tier: "pro" }), { status: 200 })) as typeof fetch;
+  assert.equal(
+    await sceneEngineFor({ elevenlabs_api_key: "xi" }, pro),
+    "elevenlabs",
+  );
 });

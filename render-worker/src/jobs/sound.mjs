@@ -12,6 +12,8 @@ import {
   composeMusic,
   synthesizeSpeech,
 } from "../providers/elevenlabsSound.mjs";
+import { synthesizeGeminiSpeech } from "../providers/geminiTts.mjs";
+import { isPaidPlanError } from "../providers/plan.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -52,7 +54,7 @@ async function generateOnce({ db, run, path, generate }) {
   if (run.output?.audio_path === path) return run.output.audio_meta ?? {};
   const result = await generate();
   try {
-    await db.upload(BUCKET, path, result.bytes, "audio/mpeg");
+    await db.upload(BUCKET, path, result.bytes, result.contentType || "audio/mpeg");
   } catch (error) {
     throw finalError(
       `audio was generated but could not be stored (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
@@ -72,7 +74,13 @@ async function generateOnce({ db, run, path, generate }) {
 }
 
 /** Speaks the storyboard as one continuous narration, or one scene for an older voice run. */
-export async function generateVoice({ db, run, apiKey, log = console.log }) {
+export async function generateVoice({
+  db,
+  run,
+  apiKey,
+  googleKey = null,
+  log = console.log,
+}) {
   const continuous = run.input?.continuous === true || !run.scene_id;
   const item = await loadRunItem(db, run);
   // The text comes from the scene rows, so the voice matches what the storyboard shows.
@@ -89,23 +97,49 @@ export async function generateVoice({ db, run, apiKey, log = console.log }) {
     item.folder,
     "voice",
     continuous ? "narration" : "music",
-  );
+  ).replace(/\.mp3$/, ".audio");
   const meta = await generateOnce({
     db,
     run,
     path,
     generate: async () => {
-      const speech = await synthesizeSpeech({
-        apiKey,
-        voiceId: run.input?.voice_id || null,
-        text,
-      });
+      if (apiKey) {
+        try {
+          const speech = await synthesizeSpeech({
+            apiKey,
+            voiceId: run.input?.voice_id || null,
+            text,
+          });
+          return {
+            bytes: speech.bytes,
+            contentType: "audio/mpeg",
+            meta: {
+              provider: "elevenlabs",
+              model: SPEECH_MODEL(),
+              voice_id: speech.voiceId,
+              alignment: speech.alignment,
+            },
+          };
+        } catch (error) {
+          if (!isPaidPlanError(error)) throw error;
+          log(`[voice] ${run.id} ElevenLabs plan cannot narrate; using Gemini`);
+        }
+      }
+      if (!googleKey) {
+        throw finalError(
+          "קריינות ElevenLabs דורשת תוכנית Pro, ואין מפתח Google לקריינות Gemini",
+        );
+      }
+      const speech = await synthesizeGeminiSpeech({ apiKey: googleKey, text });
       return {
         bytes: speech.bytes,
-        meta: { voice_id: speech.voiceId, alignment: speech.alignment },
+        contentType: speech.contentType,
+        meta: { provider: "gemini", model: speech.model, voice_id: "Kore" },
       };
     },
   });
+  const provider = meta.provider || "elevenlabs";
+  const model = meta.model || SPEECH_MODEL();
   if (continuous) {
     await db.rpc("attach_video_narration", {
       p_item_id: run.item_id,
@@ -113,8 +147,8 @@ export async function generateVoice({ db, run, apiKey, log = console.log }) {
       p_meta: {
         bucket: BUCKET,
         path,
-        provider: "elevenlabs",
-        model: SPEECH_MODEL(),
+        provider,
+        model,
         voice_id: meta.voice_id ?? null,
         alignment: meta.alignment ?? null,
         continuous: true,
@@ -133,8 +167,8 @@ export async function generateVoice({ db, run, apiKey, log = console.log }) {
       p_meta: {
         bucket: BUCKET,
         path,
-        provider: "elevenlabs",
-        model: SPEECH_MODEL(),
+        provider,
+        model,
         voice_id: meta.voice_id ?? null,
         alignment: meta.alignment ?? null,
         // The storyboard compares this with the scene text to skip unchanged voiceovers.
@@ -145,13 +179,15 @@ export async function generateVoice({ db, run, apiKey, log = console.log }) {
   }
   log(`[voice] ${run.id} stored ${path}`);
   return {
-    output: { path, provider: "elevenlabs", voice_id: meta.voice_id ?? null },
-    provider: "elevenlabs",
+    output: { path, provider, voice_id: meta.voice_id ?? null },
+    provider,
     credits: 0,
-    // ElevenLabs bills characters and returns no price: this scene's share, not the batch total.
+    // ElevenLabs bills characters and returns no price. Gemini TTS on the free tier is 0.
     costUsd:
-      Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
-      10000,
+      provider === "gemini"
+        ? 0
+        : Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
+          10000,
   };
 }
 
@@ -170,9 +206,18 @@ export async function generateMusic({ db, run, apiKey, log = console.log }) {
     db,
     run,
     path,
-    generate: async () => ({
-      bytes: await composeMusic({ apiKey, prompt, musicLengthMs }),
-    }),
+    generate: async () => {
+      try {
+        return { bytes: await composeMusic({ apiKey, prompt, musicLengthMs }) };
+      } catch (error) {
+        if (isPaidPlanError(error)) {
+          throw finalError(
+            "מוזיקת ElevenLabs דורשת תוכנית Pro. הסרט יורכב בלי מיטת מוזיקה",
+          );
+        }
+        throw error;
+      }
+    },
   });
   const existing = await db.select(
     "marketing_assets",

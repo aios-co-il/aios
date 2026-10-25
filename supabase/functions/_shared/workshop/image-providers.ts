@@ -426,16 +426,23 @@ export async function generateStill(
         references,
       );
     } catch (error) {
-      failures.push(
-        `${PROVIDER_LABEL[provider]}: ${
-          error instanceof Error &&
-          (error.name === "TimeoutError" || error.name === "AbortError")
-            ? "לא ענה בזמן"
-            : error instanceof Error
-              ? error.message
-              : String(error)
-        }`,
-      );
+      const message =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError")
+          ? "לא ענה בזמן"
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      failures.push(`${PROVIDER_LABEL[provider]}: ${message}`);
+      // A pinned ElevenLabs choice on Starter still has to produce the picture.
+      if (
+        provider === "elevenlabs" &&
+        /paid_plan_required|תוכנית pro/i.test(message)
+      ) {
+        for (const next of ["google", "higgsfield", "openai"] as const) {
+          if (keys[next] && !available.includes(next)) available.push(next);
+        }
+      }
     }
   }
   throw new Error(

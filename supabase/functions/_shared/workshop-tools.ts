@@ -1871,13 +1871,18 @@ export async function executeWorkshopTool(
     }
 
     const video = asRecord(project.payload.video);
-    const engine: SceneEngine = isSceneEngine(args.engine)
+    let engine: SceneEngine | null = isSceneEngine(args.engine)
       ? args.engine
       : isSceneEngine(video.scene_engine) && video.scene_engine !== "mock"
         ? video.scene_engine
-        : deps.defaultEngine
-          ? await deps.defaultEngine()
-          : "mock";
+        : null;
+    // A remembered ElevenLabs choice is re-checked: Starter cannot animate or narrate,
+    // and defaultEngine then returns Higgsfield or the free preview.
+    if (!engine || engine === "elevenlabs") {
+      const resolved = deps.defaultEngine ? await deps.defaultEngine() : null;
+      if (resolved) engine = resolved;
+    }
+    if (!engine) engine = "mock";
     const costScenes = scenes
       .filter((scene) => !scene.clip_asset_id)
       .map((scene) => ({

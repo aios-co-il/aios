@@ -277,3 +277,19 @@ test("an ElevenLabs refusal says what is wrong with the account, not that it is 
   );
   assert.match(elevenLabsReason(500, "boom"), /^500 boom/);
 });
+
+test("a pinned ElevenLabs Starter plan falls through to Google", async () => {
+  const made = await generateStill(
+    { elevenlabs: "e", google: "g" },
+    "a cat",
+    "1:1",
+    {
+      engine: "elevenlabs",
+      sleep: async () => {},
+      gemini: async () => ({ bytes: png }),
+      fetchImpl: (async () =>
+        json({ detail: { status: "paid_plan_required" } }, 402)) as typeof fetch,
+    },
+  );
+  assert.equal(made.provider, "google");
+});

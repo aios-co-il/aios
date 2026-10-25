@@ -6,6 +6,7 @@ import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
+import { isPaidPlanError } from "./providers/plan.mjs";
 import { runSlots } from "./loop.mjs";
 import { loadTargets } from "./targets.mjs";
 
@@ -22,20 +23,43 @@ const HANDLERS = {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
         ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
-      return generateClip({
-        ...ctx,
-        provider: getVideoProvider(name, keys),
-      });
+      const runWith = (providerName) =>
+        generateClip({
+          ...ctx,
+          provider: getVideoProvider(providerName, keys),
+        });
+      try {
+        return await runWith(name);
+      } catch (error) {
+        // Starter cannot call the ElevenLabs video API. Higgsfield is the paid
+        // fallback; the free preview engine still finishes the film without it.
+        if (
+          name !== "elevenlabs" ||
+          ctx.run.provider_job_id ||
+          !isPaidPlanError(error)
+        )
+          throw error;
+        const fallback =
+          keys.higgsfieldKeyId && keys.higgsfieldKeySecret
+            ? "higgsfield"
+            : "mock";
+        console.log(
+          `[clip] ${ctx.run.id} ElevenLabs plan cannot make video; using ${fallback}`,
+        );
+        return await runWith(fallback);
+      }
     },
     onFailed: failClip,
   },
   voice: {
-    run: async (ctx) =>
-      generateVoice({
+    run: async (ctx) => {
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
+      return generateVoice({
         ...ctx,
-        apiKey: (await resolveMediaKeys(ctx.db, ctx.run.tenant_id))
-          .elevenLabsKey,
-      }),
+        apiKey: keys.elevenLabsKey,
+        googleKey: keys.googleKey,
+      });
+    },
   },
   music: {
     run: async (ctx) =>
@@ -95,6 +119,11 @@ async function resolveMediaKeys(db, tenantId) {
   return {
     elevenLabsKey:
       settings.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY || null,
+    googleKey:
+      settings.google_api_key ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      null,
     higgsfieldKeyId:
       settings.higgsfield_api_key_id || process.env.HF_API_KEY_ID || null,
     higgsfieldKeySecret:

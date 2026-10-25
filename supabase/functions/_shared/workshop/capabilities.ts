@@ -55,8 +55,10 @@ export function capabilityReport(
     missing.push(
       "אין מפתח ליצירת תמונות: צריך אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",
     );
+  if (!connected.elevenlabs && !connected.google)
+    missing.push("בלי ElevenLabs או Google אין קריינות");
   if (!connected.elevenlabs)
-    missing.push("בלי ElevenLabs אין קריינות, מוזיקה והנפשה במנוע ElevenLabs");
+    missing.push("בלי ElevenLabs אין מוזיקה והנפשה במנוע ElevenLabs");
   if (engine === "mock")
     missing.push(
       "אין מנוע וידאו אמיתי (ElevenLabs או Higgsfield): הסרט יופק במנוע בדיקה",
@@ -70,7 +72,7 @@ export function capabilityReport(
       image_providers: images.map((provider) => PROVIDER_LABEL[provider]),
       video: engine !== "mock",
       video_engine: ENGINE_LABEL[engine],
-      narration: connected.elevenlabs,
+      narration: connected.elevenlabs || connected.google,
       music: connected.elevenlabs,
     },
     missing,
