@@ -12,7 +12,14 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
-import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import {
+  brainDenied,
+  internalBrainDenied,
+} from "../_shared/carmen/brain-guard.ts";
+import {
+  type BrainEngine,
+  resolveBrainEngine,
+} from "../_shared/carmen/brain-engine/load.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -639,6 +646,8 @@ interface LLMTarget {
   model: string;
   label: string;
   provider: LLMProvider;
+  /** Set for a connected brain (carmen_brain_connections). */
+  connectionId?: string;
 }
 const LLM_FALLBACK_ORDER = [
   "google/gemini-3-flash-preview",
@@ -681,6 +690,26 @@ async function buildLLMChain(
 // request; Google/Anthropic allow far more. When targeting OpenAI with a larger
 // toolset, drop low-priority niche tools first, then hard-slice as a last resort,
 // so Carmen keeps her full daily toolkit and only sheds rarely-used extras.
+/**
+ * What to tell the user when a connected brain refuses Carmen's request. The
+ * provider's own text is kept short; it never contains the key.
+ */
+function connectedBrainHint(status: number, body: string): string {
+  const tooLarge =
+    status === 413 ||
+    /request too large|tokens per minute|context length|maximum context/i.test(
+      body,
+    );
+  if (tooLarge)
+    return "הבקשה של כרמן (כלים, ידע והיסטוריה) גדולה מהמכסה של המוח הזה. מכסה חינמית קטנה מדי לכרמן; נסו מודל או חשבון עם מכסה גדולה יותר.";
+  if (status === 429) return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
+  if (status === 401 || status === 403)
+    return "המפתח של המוח נדחה. בדקו אותו בהגדרות המוחות.";
+  if (status >= 300 && status < 400)
+    return "כתובת המוח מפנה למקום אחר, וזה לא מותר.";
+  return body.replace(/\s+/g, " ").slice(0, 200);
+}
+
 const OPENAI_MAX_TOOLS = 128;
 const LOW_PRIORITY_TOOLS = new Set([
   "send_message_to_manus",
@@ -13519,6 +13548,7 @@ async function handleRunAgent(
   bodyJson: any,
   surface: Surface,
   emit: Emit,
+  brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
 ): Promise<Response> {
   try {
     const {
@@ -15462,7 +15492,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // If the agent's engine is Manus — delegate the entire conversation to Manus AI
     // and return the result directly (no tool loop needed here).
-    if (!pinSkillsOnly && (model === "manus/manus-1" || model === "manus-1")) {
+    if (
+      !pinSkillsOnly &&
+      !brainEngine &&
+      (model === "manus/manus-1" || model === "manus-1")
+    ) {
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
@@ -15509,11 +15543,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         `[AGENT] pin_skills_only: remapping ${model} → ${isolatedChatModel} for isolated chat`,
       );
     }
-    const llmChain = await buildLLMChain(
-      supabase,
-      agent.tenant_id,
-      isolatedChatModel,
-    );
+    // A picked model brain runs this same loop on its own endpoint and key;
+    // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const llmChain: LLMTarget[] = brainEngine
+      ? [
+          ...brainEngine.targets,
+          ...(brainEngine.fallbackInternal
+            ? await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel)
+            : []),
+        ]
+      : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15521,6 +15560,23 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     console.log(
       `[AGENT] LLM chain: ${llmChain.map((c) => c.label).join(" → ")}`,
     );
+
+    // Models often repeat their mid-loop text ("creating the image…") in the
+    // final answer; the client joins tokens, so send each text once, apart.
+    const emittedTexts = new Set<string>();
+    const emitText = (text: string) => {
+      const key = text.trim();
+      if (!emit || !key || emittedTexts.has(key)) return;
+      // A final answer that opens with text already sent adds only the rest.
+      const prev = [...emittedTexts].find((t) => key.startsWith(t));
+      const fresh = prev ? key.slice(prev.length).trim() : text;
+      emittedTexts.add(key);
+      if (!fresh) return;
+      emit({
+        type: "token",
+        content: emittedTexts.size > 1 ? `\n\n${fresh}` : fresh,
+      });
+    };
 
     // Usage metering: accumulated across rounds, written to agent_action_log
     let usageTokensIn = 0;
@@ -15570,6 +15626,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          // A tenant-set endpoint may not bounce the request (and key) elsewhere.
+          redirect: llm.connectionId ? "manual" : "follow",
         });
         if (res.ok) break;
 
@@ -15584,7 +15642,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
             err,
           );
-        if (outOfCredit && activeIdx < llmChain.length - 1) {
+        // A connected brain may also fail on size, model or auth; any failure
+        // moves on, and the chain holds only what this brain plan allowed.
+        if (
+          (outOfCredit || !!llm.connectionId) &&
+          activeIdx < llmChain.length - 1
+        ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
@@ -15598,6 +15661,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
+        if (llm.connectionId)
+          throw new Error(
+            `${llm.label}: ${res.status} ${connectedBrainHint(res.status, err)}`,
+          );
         if (res.status === 429) throw new Error("מגבלת קצב. נסה שוב.");
         throw new Error(`AI error: ${res.status} ${err}`);
       }
@@ -15623,13 +15690,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
         );
         // Stream the final assistant text in one chunk so AIOS frontends can render progressively.
-        if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+        if (emit && finalOutput) emitText(finalOutput);
         break;
       }
 
       // Mid-loop assistant text (assistant decided to talk while also calling tools) — stream it too.
       if (emit && typeof msg.content === "string" && msg.content.length > 0) {
-        emit({ type: "token", content: msg.content });
+        emitText(msg.content);
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
@@ -16121,6 +16188,27 @@ async function resolveDirectCaller(
   };
 }
 
+/**
+ * The answer when the picked brain may not run as Carmen (not approved for
+ * client data, or not set up): Carmen says why, instead of a bare error.
+ */
+function refusedBrainResponse(message: string, wantStream: boolean): Response {
+  if (!wantStream)
+    return new Response(
+      JSON.stringify({ success: false, output: message, error: message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  const sse = [
+    { type: "token", content: message },
+    { type: "done", success: false, output: message, error: message },
+  ]
+    .map((e) => `data: ${JSON.stringify(e)}\n\n`)
+    .join("");
+  return new Response(sse, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
@@ -16173,16 +16261,26 @@ Deno.serve(async (req) => {
             ? "grok_bot"
             : "internal_chat";
 
+  // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
+  // the route, grant and keys are all read here, never taken from the body.
+  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const engine = await resolveBrainEngine(guardClient, auth, bodyJson);
+  if (engine.kind === "denied") return brainDenied("brain");
+  if (engine.kind === "refused")
+    return refusedBrainResponse(engine.message, wantStream);
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
-  const denied = await internalBrainDenied(
-    createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
-    auth,
-    { tenantId: bodyJson.tenant_id, agentId: bodyJson.agent_id },
-  );
-  if (denied) return denied;
+  // A picked model brain was checked against its own grant above.
+  if (engine.kind === "internal") {
+    const denied = await internalBrainDenied(guardClient, auth, {
+      tenantId: bodyJson.tenant_id,
+      agentId: bodyJson.agent_id,
+    });
+    if (denied) return denied;
+  }
+  const brainEngine = engine.kind === "connections" ? engine : undefined;
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined);
+    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16198,7 +16296,7 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit);
+        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
         let final: any = {};
         try {
           final = await resp.json();

@@ -438,6 +438,8 @@ export const CarmenChatBar = forwardRef<
       history: Array<{ role: string; content: string }>,
       boundConvId: string,
       ctxMeta: SystemFixContextMetadata | null,
+      // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
+      runBrain?: string,
     ) => {
       const {
         data: { session },
@@ -462,6 +464,7 @@ export const CarmenChatBar = forwardRef<
             system_prompt_addon: promptAddon || undefined,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            brain_slug: runBrain || undefined,
           }),
         },
       );
@@ -557,7 +560,7 @@ export const CarmenChatBar = forwardRef<
               role: "assistant",
               content: finalText,
               speaker: "carmen",
-              channel: "internal",
+              channel: runBrain || "internal",
               ...tagChatTurn("typed"),
             },
           ]);
@@ -664,7 +667,13 @@ export const CarmenChatBar = forwardRef<
             prev.includes(boundId!) ? prev : [...prev, boundId!],
           );
         if (routed.stream) {
-          await streamInternal(agentText, history, boundId || "", ctxMeta);
+          await streamInternal(
+            agentText,
+            history,
+            boundId || "",
+            ctxMeta,
+            routed.run_brain,
+          );
           if (mode === "transcribe_only")
             logTranscribeOnlyEvent("text_response", { stream: true });
         } else if (
@@ -813,6 +822,7 @@ export const CarmenChatBar = forwardRef<
           tool: `מוח: ${brain.selected.label} · ${question.slice(0, 60)}`,
         },
       ]);
+      let runBrain: string | undefined;
       try {
         const history = filterMessagesForRoute(messages, brain.selected)
           .filter((m) => m.role === "user" || m.role === "assistant")
@@ -831,6 +841,7 @@ export const CarmenChatBar = forwardRef<
             routed.accepted_message || "נשלח לערוץ. התשובה תופיע בשיחה כשתחזור."
           );
         }
+        runBrain = routed.run_brain;
       } catch (e: any) {
         if (brain.sendPath !== "internal_stream") {
           return `לא הצלחתי לשלוח לערוץ: ${e?.message ?? e}`;
@@ -863,6 +874,7 @@ export const CarmenChatBar = forwardRef<
                 .map((m) => ({ role: m.role, content: m.content ?? "" }))
                 .slice(-24),
               active_skin: getSessionSkin(tenantId) ?? undefined,
+              brain_slug: runBrain,
             }),
             signal: controller.signal,
           },
