@@ -8,9 +8,11 @@ import {
 import {
   clipEstimate,
   engineFromKeys,
+  lipsyncEstimate,
   musicEstimate,
   productionEstimate,
   sceneEngineFor,
+  speaksNatively,
   voiceEstimate,
   type SceneEngine,
 } from "./video-cost.ts";
@@ -63,6 +65,45 @@ test("a production adds clips, the spoken scenes and the music bed", () => {
     withMusic: false,
   });
   assert.equal(silent.totalUsd, 0);
+});
+
+test("a talking scene adds a lip-sync pass on a silent engine and nothing on one that speaks", () => {
+  const talking = [
+    {
+      duration_s: 3,
+      voiceover_text: "קריינות",
+      lipsync: true,
+      dialogue: "שלום",
+    },
+    { duration_s: 4.2, voiceover_text: "כרמן מספרת" },
+  ];
+  const silent = productionEstimate("kling", talking, {
+    withVoice: true,
+    withMusic: false,
+  });
+  // 3 s of lip sync at $0.10 plus its 4-letter line; the talking scene is not narrated.
+  assert.equal(silent.lipsync.usd, 0.3);
+  assert.equal(silent.talkingScenes, 1);
+  assert.equal(silent.voice.usd, voiceEstimate([talking[1]]).usd);
+  assert.equal(
+    silent.totalUsd,
+    Math.round(
+      (silent.clips.usd + silent.voice.usd + silent.lipsync.usd) * 100,
+    ) / 100,
+  );
+  assert.deepEqual(lipsyncEstimate("kling", talking).native, false);
+  const native = productionEstimate("elevenlabs", talking, {
+    withVoice: true,
+    withMusic: false,
+  });
+  assert.equal(native.lipsync.usd, 0);
+  assert.equal(lipsyncEstimate("higgsfield", talking).native, true);
+  assert.equal(
+    productionEstimate("mock", scenes, { withVoice: false, withMusic: false })
+      .lipsync.usd,
+    0,
+  );
+  assert.ok(speaksNatively("elevenlabs") && !speaksNatively("mock"));
 });
 
 test("the engine follows the keys the tenant has", () => {

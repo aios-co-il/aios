@@ -3,6 +3,7 @@
 import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
 import { failClip, generateClip } from "./jobs/clip.mjs";
+import { generateLipsync } from "./jobs/lipsync.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
 import { getVideoProvider } from "./providers/index.mjs";
@@ -55,6 +56,13 @@ const HANDLERS = {
         ...ctx,
         apiKey: (await resolveMediaKeys(ctx.db, ctx.run.tenant_id))
           .elevenLabsKey,
+      }),
+  },
+  lipsync: {
+    run: async (ctx) =>
+      generateLipsync({
+        ...ctx,
+        keys: await resolveMediaKeys(ctx.db, ctx.run.tenant_id),
       }),
   },
   render: {
@@ -121,7 +129,13 @@ async function resolveMediaKeys(db, tenantId) {
   };
 }
 
-const PRODUCTION_KINDS = new Set(["clip", "voice", "music", "render"]);
+const PRODUCTION_KINDS = new Set([
+  "clip",
+  "voice",
+  "music",
+  "lipsync",
+  "render",
+]);
 
 /**
  * One-click production: after each clip, voice, music or render job the project's

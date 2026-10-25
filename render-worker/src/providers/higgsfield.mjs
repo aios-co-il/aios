@@ -6,6 +6,7 @@ const BASE = () =>
     /\/$/,
     "",
   );
+export const higgsfieldBaseUrl = BASE;
 const MODEL = () => process.env.HIGGSFIELD_VIDEO_MODEL || "pixverse/v6";
 const USD_PER_SECOND = () =>
   Number(process.env.HIGGSFIELD_USD_PER_SECOND) || 0.1;
@@ -27,6 +28,25 @@ export function higgsfieldClipBody({
     resolution: "720p",
     generate_audio: generateAudio === true,
     negative_prompt: "text, letters, captions, logo, watermark",
+  };
+}
+
+// Seedance 2.5 image-to-video with native audio, for a scene whose character speaks.
+// Schema (additionalProperties: false): prompt, image_url, duration 4-30, resolution,
+// bitrate_mode, end_image_url, generate_audio.
+// https://docs.higgsfield.ai/docs/models/seedance-2-5/image-to-video
+// Request shape is from the docs; verify Hebrew speech with one paid call.
+const TALKING_MODEL = () =>
+  process.env.HIGGSFIELD_TALKING_MODEL || "bytedance/seedance-2.5";
+
+export function higgsfieldTalkingBody({ prompt, imageUrl, durationS }) {
+  if (!imageUrl) throw new Error("higgsfield needs a public image_url");
+  return {
+    prompt,
+    image_url: imageUrl,
+    duration: Math.min(30, Math.max(4, Math.ceil(Number(durationS) || 5))),
+    resolution: "720p",
+    generate_audio: true,
   };
 }
 
@@ -52,11 +72,18 @@ export function higgsfieldProvider({
       const seconds = higgsfieldClipSeconds(durationS);
       return { credits: 0, usd: +(seconds * USD_PER_SECOND()).toFixed(2) };
     },
+    // A talking scene goes to Seedance 2.5, which generates speech and lip sync with the video.
+    nativeSpeech: true,
+    talkingModel: TALKING_MODEL(),
     async submit(input) {
-      const response = await fetchImpl(`${BASE()}/${MODEL()}/image-to-video`, {
+      const talking = input.talking === true;
+      const model = talking ? TALKING_MODEL() : MODEL();
+      const response = await fetchImpl(`${BASE()}/${model}/image-to-video`, {
         method: "POST",
         headers: auth(),
-        body: JSON.stringify(higgsfieldClipBody(input)),
+        body: JSON.stringify(
+          talking ? higgsfieldTalkingBody(input) : higgsfieldClipBody(input),
+        ),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok)
@@ -65,7 +92,7 @@ export function higgsfieldProvider({
         );
       if (!data.request_id)
         throw new Error("higgsfield submit returned no request_id");
-      return { jobId: data.request_id };
+      return { jobId: data.request_id, model };
     },
     async poll(jobId) {
       const response = await fetchImpl(

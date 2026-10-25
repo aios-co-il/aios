@@ -8,6 +8,7 @@ const BASE = () =>
     /\/$/,
     "",
   );
+export const klingBaseUrl = BASE;
 const MODEL = () => process.env.KLING_MODEL || "kling-v3";
 const MODE = () => process.env.KLING_MODE || "pro";
 // From the manual Carmen ad: ~5,100 credits ≈ $0.85 for a 5 s pro clip.

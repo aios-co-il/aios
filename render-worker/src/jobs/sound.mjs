@@ -5,7 +5,13 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { joinNarration, spokenLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  joinNarration,
+  narrationLine,
+  spokenLine,
+  talkingLine,
+} from "../narration.mjs";
 import {
   MUSIC_MODEL,
   SPEECH_MODEL,
@@ -31,7 +37,7 @@ async function narrationLines(db, run) {
   const rows =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text&order=position.asc`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text,meta&order=position.asc`,
     )) ?? [];
   const wanted = new Set(
     Array.isArray(run.input?.scene_ids) ? run.input.scene_ids : [],
@@ -39,7 +45,8 @@ async function narrationLines(db, run) {
   const lines = {};
   for (const row of rows) {
     if (wanted.size && !wanted.has(row.id)) continue;
-    const text = spokenLine(row.voiceover_text);
+    // A talking scene speaks from its own clip, never inside the narration.
+    const text = narrationLine(row);
     if (text) lines[row.id] = text;
   }
   return { text: joinNarration(Object.values(lines)), lines };
@@ -92,8 +99,13 @@ export async function generateVoice({
   const spoken = continuous ? await narrationLines(db, run) : null;
   const scene = continuous
     ? null
-    : await loadRunScene(db, run, "id,voiceover_text");
-  const text = continuous ? spoken.text : spokenLine(scene.voiceover_text);
+    : await loadRunScene(db, run, "id,voiceover_text,meta");
+  // A talking scene's own line (its dialogue) is what its lip-sync pass needs.
+  const text = continuous
+    ? spoken.text
+    : isTalkingScene(scene)
+      ? talkingLine(scene)
+      : spokenLine(scene.voiceover_text);
   if (!text) throw finalError("voice run: voiceover_text is required");
   const path = assetPath(
     run,

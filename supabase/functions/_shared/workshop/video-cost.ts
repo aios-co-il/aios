@@ -43,6 +43,53 @@ export function sceneClipSeconds(engine: SceneEngine, duration: number) {
 export interface CostScene {
   duration_s: number;
   voiceover_text: string;
+  /** A talking scene (meta.lipsync): the character says `dialogue`, else the voiceover. */
+  lipsync?: boolean;
+  dialogue?: string;
+}
+
+/**
+ * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
+ * Creatify Aurora, Kling lip-sync and Higgsfield Seedance 2.5 all bill by length; the worker
+ * picks the first one the tenant has a key for (render-worker/src/providers/lipsync.mjs).
+ */
+export const LIPSYNC_USD_PER_SECOND = 0.1;
+
+/** Engines whose clip speaks the line itself (Veo 3.1, Seedance 2.5), so no lip-sync pass. */
+export const speaksNatively = (engine: SceneEngine) =>
+  engine === "elevenlabs" || engine === "higgsfield";
+
+const talkingLine = (scene: CostScene) =>
+  scene.lipsync
+    ? String(scene.dialogue ?? "").trim() || scene.voiceover_text.trim()
+    : "";
+
+/**
+ * Talking scenes. On an engine that speaks, the clip already carries the line (no extra).
+ * Otherwise each talking scene pays for its own voice line plus a lip-sync pass.
+ */
+export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
+  const talking = scenes.filter((scene) => talkingLine(scene));
+  if (talking.length === 0 || speaksNatively(engine))
+    return {
+      usd: 0,
+      credits: 0,
+      scenes: talking.length,
+      native: talking.length > 0,
+    };
+  const seconds = talking.reduce(
+    (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
+    0,
+  );
+  const voice = voiceEstimate(
+    talking.map((scene) => ({ ...scene, voiceover_text: talkingLine(scene) })),
+  );
+  return {
+    usd: roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd),
+    credits: 0,
+    scenes: talking.length,
+    native: false,
+  };
 }
 
 export interface Estimate {
@@ -97,7 +144,10 @@ export function productionEstimate(
   options: { withVoice: boolean; withMusic: boolean },
 ) {
   const clips = clipEstimate(engine, scenes);
-  const spoken = scenes.filter((scene) => scene.voiceover_text.trim());
+  // A talking scene is not narrated; its own line is priced with its lip sync.
+  const spoken = scenes.filter(
+    (scene) => !scene.lipsync && scene.voiceover_text.trim(),
+  );
   const voice =
     options.withVoice && spoken.length > 0
       ? voiceEstimate(spoken)
@@ -105,11 +155,15 @@ export function productionEstimate(
   const music = options.withMusic
     ? musicEstimate(scenes)
     : { usd: 0, credits: 0 };
+  const talking = lipsyncEstimate(engine, scenes);
+  const lipsync = { usd: talking.usd, credits: talking.credits };
   return {
     clips: { usd: clips.usd, credits: clips.credits },
     voice,
     music,
-    totalUsd: roundUsd(clips.usd + voice.usd + music.usd),
+    lipsync,
+    talkingScenes: talking.scenes,
+    totalUsd: roundUsd(clips.usd + voice.usd + music.usd + lipsync.usd),
     clipSeconds: clips.seconds,
   };
 }

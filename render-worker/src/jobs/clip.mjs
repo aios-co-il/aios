@@ -6,7 +6,12 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { clipPrompt, getVideoProvider } from "../providers/index.mjs";
+import { talkingLine } from "../narration.mjs";
+import {
+  clipPrompt,
+  getVideoProvider,
+  talkingPrompt,
+} from "../providers/index.mjs";
 
 const BUCKET = "creative-video";
 const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
@@ -56,7 +61,21 @@ export async function generateClip({
   const input = run.input ?? {};
   if (!run.scene_id) throw finalError("clip run: scene_id is required");
   const item = await loadRunItem(db, run);
-  const scene = await loadRunScene(db, run, "id,still_asset_id");
+  const scene = await loadRunScene(
+    db,
+    run,
+    "id,still_asset_id,voiceover_text,meta",
+  );
+  // A talking scene on an engine that speaks (Veo 3.1, Seedance 2.5) is made in one pass:
+  // the line goes in the prompt and the clip carries the speech. Otherwise the clip is silent
+  // and advance_video_production queues a separate lip-sync run for the scene.
+  const line =
+    provider.nativeSpeech && process.env.LIPSYNC_NATIVE !== "0"
+      ? talkingLine(scene)
+      : "";
+  const talking = line
+    ? { line, speaker: String(scene.meta?.speaker ?? "").trim() || null }
+    : null;
   const [still] = scene.still_asset_id
     ? ((await db.select(
         "marketing_assets",
@@ -90,10 +109,13 @@ export async function generateClip({
     ({ jobId } = await provider.submit({
       imageBytes,
       imageUrl,
-      prompt: clipPrompt(input.motion_prompt),
+      prompt: talking
+        ? talkingPrompt(input.motion_prompt, talking)
+        : clipPrompt(input.motion_prompt),
       durationS,
       aspect,
-      generateAudio: input.generate_audio === true,
+      generateAudio: Boolean(talking) || input.generate_audio === true,
+      talking: Boolean(talking),
     }));
     try {
       await db.update("marketing_runs", `id=eq.${run.id}`, {
@@ -122,6 +144,7 @@ export async function generateClip({
       aspect,
       estimate,
       fallbackFrom,
+      talking,
       log,
     });
   } catch (error) {
@@ -150,6 +173,7 @@ async function finishClip({
   aspect,
   estimate,
   fallbackFrom,
+  talking = null,
   log,
 }) {
   const deadline = Date.now() + TIMEOUT_MS();
@@ -173,6 +197,7 @@ async function finishClip({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const path = await clipPath(db, run, item.folder);
+  const model = (talking && provider.talkingModel) || provider.model;
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
     p_scene_id: run.scene_id,
@@ -182,13 +207,22 @@ async function finishClip({
       bucket: BUCKET,
       path,
       provider: provider.name,
-      model: provider.model,
+      model,
       provider_job_id: jobId,
       duration_s: durationS,
       aspect,
       source_still_asset_id: still.id,
       generation_cost: { usd: estimate.usd, credits: estimate.credits },
       ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
+      // The clip speaks the scene's line itself; no lip-sync pass is needed.
+      ...(talking
+        ? {
+            lipsync: true,
+            native_speech: true,
+            dialogue: talking.line,
+            speaker: talking.speaker,
+          }
+        : {}),
     },
     p_run_id: run.id,
   });
@@ -197,8 +231,9 @@ async function finishClip({
     output: {
       path,
       provider: provider.name,
-      model: provider.model,
+      model,
       job_id: jobId,
+      ...(talking ? { lipsync: true } : {}),
       ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
     },
     costUsd: estimate.usd,

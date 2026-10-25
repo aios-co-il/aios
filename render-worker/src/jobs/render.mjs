@@ -11,7 +11,13 @@ import {
   finalError,
   loadRunItem,
 } from "../guard.mjs";
-import { joinNarration, spokenLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  joinNarration,
+  narrationLine,
+  spokenLine,
+  talkingLine,
+} from "../narration.mjs";
 
 const BUCKET = "creative-video";
 
@@ -75,15 +81,12 @@ export async function loadFilmSources(db, run) {
   const scenes =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,voiceover_text,duration_s,clip_asset_id,voice_asset_id,still_asset_id&order=position`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,voiceover_text,duration_s,clip_asset_id,voice_asset_id,still_asset_id,meta&order=position`,
     )) ?? [];
-  // Narration removed from the storyboard leaves its old voice asset linked; drop it.
-  const voiceOf = (scene) =>
-    spokenLine(scene.voiceover_text) ? scene.voice_asset_id : null;
   const assetIds = scenes
     .flatMap((scene) => [
       scene.clip_asset_id,
-      voiceOf(scene),
+      scene.voice_asset_id,
       scene.still_asset_id,
     ])
     .filter(Boolean);
@@ -91,7 +94,7 @@ export async function loadFilmSources(db, run) {
     (assetIds.length
       ? ((await db.select(
           "marketing_assets",
-          `id=in.${inList(assetIds)}&tenant_id=eq.${run.tenant_id}&select=id,url,meta`,
+          `id=in.${inList(assetIds)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
         )) ?? [])
       : []
     ).map((asset) => [asset.id, asset]),
@@ -109,9 +112,12 @@ export async function loadFilmSources(db, run) {
   const scriptRows =
     (await db.select(
       "marketing_video_scenes",
-      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text,clip_asset_id&order=position`,
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text,clip_asset_id,meta&order=position`,
     )) ?? [];
-  const script = joinNarration(scriptRows.map((scene) => scene.voiceover_text));
+  // A talking scene speaks from its own clip. One narration take laid across the film would
+  // talk over it, so a storyboard with a talking scene is narrated scene by scene.
+  const hasTalking = scriptRows.some(isTalkingScene);
+  const script = joinNarration(scriptRows.map(narrationLine));
   const filmed = new Set(
     scenes
       .filter((scene) => assets.get(scene.clip_asset_id)?.url)
@@ -119,30 +125,59 @@ export async function loadFilmSources(db, run) {
   );
   // One take spans the whole storyboard: laid over a film missing a spoken scene it would drift.
   const everySpokenSceneFilmed = scriptRows.every(
-    (scene) => !spokenLine(scene.voiceover_text) || filmed.has(scene.id),
+    (scene) => !narrationLine(scene) || filmed.has(scene.id),
   );
   const narrationPath =
+    !hasTalking &&
     script &&
     everySpokenSceneFilmed &&
     String(narration?.meta?.text ?? "") === script
       ? narration.url
       : null;
+  /** The scene's own voiceover file, only when it speaks exactly this line. */
+  const ownVoice = (scene, line) => {
+    const voice = assets.get(scene.voice_asset_id);
+    return voice?.url &&
+      voice.type === "voiceover" &&
+      String(metaOf(voice).text ?? "") === line
+      ? voice.url
+      : null;
+  };
+  const voicePathOf = (scene, clipTalks) => {
+    // A talking clip carries the line. One that does not (its lip sync failed) still plays
+    // the line as a voiceover.
+    if (clipTalks) return null;
+    if (isTalkingScene(scene)) return ownVoice(scene, talkingLine(scene));
+    // Narration removed from the storyboard leaves its old voice asset linked; drop it.
+    const line = narrationLine(scene);
+    if (!line || narrationPath) return null;
+    if (hasTalking) return ownVoice(scene, line);
+    return assets.get(scene.voice_asset_id)?.url || null;
+  };
   const mapped = scenes
-    .map((scene) => ({
-      id: scene.id,
-      position: scene.position,
-      overlayText: scene.overlay_text,
-      voiceoverText: scene.voiceover_text,
-      durationS: scene.duration_s,
-      clipPath: assets.get(scene.clip_asset_id)?.url || null,
-      clipProvider: metaOf(assets.get(scene.clip_asset_id)).provider || null,
-      stillPath: assets.get(scene.still_asset_id)?.url || null,
-      voicePath: narrationPath ? null : assets.get(voiceOf(scene))?.url || null,
-      voiceAlignment: narrationPath
-        ? null
-        : metaOf(assets.get(voiceOf(scene))).alignment || null,
-      lipsync: metaOf(assets.get(scene.clip_asset_id)).lipsync === true,
-    }))
+    .map((scene) => {
+      const clip = assets.get(scene.clip_asset_id);
+      const clipMeta = metaOf(clip);
+      // A clip that speaks (one-shot talking clip or a lip-sync pass) carries its own line.
+      // The manifest then keeps the camera still, plays the clip audio, ducks the music and
+      // stretches the scene to the probed clip length.
+      const clipTalks = clipMeta.lipsync === true;
+      const voicePath = voicePathOf(scene, clipTalks);
+      const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
+      return {
+        id: scene.id,
+        position: scene.position,
+        overlayText: scene.overlay_text,
+        voiceoverText: narrationLine(scene),
+        durationS: scene.duration_s,
+        clipPath: clip?.url || null,
+        clipProvider: clipMeta.provider || null,
+        stillPath: assets.get(scene.still_asset_id)?.url || null,
+        voicePath,
+        voiceAlignment: voice ? metaOf(voice).alignment || null : null,
+        lipsync: clipTalks,
+      };
+    })
     .filter((scene) => scene.clipPath);
   const missingNarration = mapped.some(
     (scene) =>

@@ -352,6 +352,21 @@ export const WORKSHOP_TOOLS = [
                 description: "מה נאמר בסצנה, בעברית",
               },
               duration_s: { type: "number" },
+              lipsync: {
+                type: "boolean",
+                description:
+                  "true כשדמות מדברת בסצנה מול המצלמה והפה שלה צריך להתאים למילים",
+              },
+              speaker: {
+                type: "string",
+                description:
+                  "מי מדברת בסצנה, באנגלית (למשל young woman in a red coat)",
+              },
+              dialogue: {
+                type: "string",
+                description:
+                  "המשפט שהדמות אומרת, בעברית. בלי זה היא אומרת את voiceover_text",
+              },
             },
             required: ["visual_prompt"],
           },
@@ -521,7 +536,7 @@ const stringList = (value: unknown): string[] =>
     : [];
 
 const SCENE_COLUMNS =
-  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id";
+  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, meta";
 
 async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data } = await supabase
@@ -1805,6 +1820,14 @@ export async function executeWorkshopTool(
       overlay_text: String(scene.overlay_text ?? "").trim(),
       voiceover_text: String(scene.voiceover_text ?? "").trim(),
       duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
+      // Talking scene: saved to meta by save_video_storyboard.
+      ...(scene.lipsync === true
+        ? {
+            lipsync: true,
+            speaker: String(scene.speaker ?? "").trim(),
+            dialogue: String(scene.dialogue ?? "").trim(),
+          }
+        : {}),
     }));
     const saved = await supabase.rpc("save_video_storyboard", {
       p_item_id: itemId,
@@ -2148,6 +2171,8 @@ export async function executeWorkshopTool(
       .map((scene) => ({
         duration_s: Number(scene.duration_s) || 3,
         voiceover_text: String(scene.voiceover_text ?? ""),
+        lipsync: asRecord(scene.meta).lipsync === true,
+        dialogue: String(asRecord(scene.meta).dialogue ?? ""),
       }));
     const withVoice = scenes.some((scene) =>
       String(scene.voiceover_text ?? "").trim(),
@@ -2224,6 +2249,7 @@ export async function executeWorkshopTool(
         clips: estimate.clips,
         voice: estimate.voice,
         music: estimate.music,
+        lipsync: estimate.lipsync,
       },
       p_stage_id: stageId,
       p_with_voice: withVoice,
