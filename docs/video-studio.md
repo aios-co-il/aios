@@ -65,7 +65,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 ## Phase 5 engines and sound
 
 - Each video project stores `payload.video.scene_engine` and `payload.video.sound_engine`. The scene engine defaults to `mock`, the free preview, so opening an old project does not spend money.
-- Scene engines: free preview, Kling, ElevenLabs (`veo-3.1-fast-generate-001` through `POST /v1/flows/video`, the approved still as the first frame), and Higgsfield PixVerse V6 (`POST /pixverse/v6/image-to-video`). The budget dialog uses that engine's estimate.
+- Scene engines: free preview, Kling, OpenRouter (Kling 3 through the tenant's OpenRouter brain key, $0.084/s), ElevenLabs (`veo-3.1-fast-generate-001` through `POST /v1/flows/video`, the approved still as the first frame), and Higgsfield PixVerse V6 (`POST /pixverse/v6/image-to-video`). The budget dialog uses that engine's estimate.
 - Sound: ElevenLabs writes a voiceover per scene (`eleven_v4`, with word timestamps) and one music bed (`music_v2_5`). Higgsfield has no separate voice or music API; choosing it makes the clip itself carry generated audio.
 - Keys live in the tenant LLM integration: `elevenlabs_api_key`, `higgsfield_api_key_id`, `higgsfield_api_key_secret`. Environment variables on the worker override them.
 - Migration `20261016140400_video_studio_engines.sql` records the chosen engine on each clip run and adds `queue_video_sound`. Apply it on Staging before trying the new buttons. Production waits for `מאשר לפרודקשן`.

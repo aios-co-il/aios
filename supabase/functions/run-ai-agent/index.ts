@@ -20,6 +20,10 @@ import {
   type BrainEngine,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import {
+  generateOpenRouterImage,
+  tenantOpenRouterKey,
+} from "../_shared/creative/openrouterImage.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -8566,47 +8570,73 @@ async function executeTool(
     }
 
     case "generate_ad_image": {
-      const imagePrompt = args.prompt;
+      const imagePrompt = `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`;
 
-      const openaiKey = await resolveOpenAIKey();
-      if (!openaiKey) {
-        return {
-          error:
-            "מפתח OpenAI לא מוגדר. יש להגדיר OPENAI_API_KEY בסודות Supabase, או להוסיף מפתח OpenAI בהגדרות האינטגרציות (LLM).",
-          suggestion: "פנה למנהל המערכת להגדרת המפתח.",
-        };
-      }
-
-      const imageRes = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openaiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt: `${imagePrompt}. Professional, high quality, suitable for a social media advertisement.`,
-            n: 1,
-            size: "1024x1024",
-            output_format: "png",
-          }),
-        },
+      // OpenRouter first when the tenant connected an OpenRouter brain; OpenAI
+      // stays the fallback (_shared/creative/openrouterImage.ts).
+      let b64 = "";
+      let mime = "image/png";
+      let imageData: any = {};
+      let content = "";
+      let imageProvider = "openai/gpt-image-1";
+      const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
+        () => "",
       );
-
-      if (!imageRes.ok) {
-        const errText = await imageRes.text();
-        throw new Error(`Image generation error: ${errText}`);
+      if (openRouterKey) {
+        try {
+          const generated = await generateOpenRouterImage({
+            apiKey: openRouterKey,
+            prompt: imagePrompt,
+            aspectRatio:
+              typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1",
+          });
+          b64 = generated.b64;
+          mime = generated.mediaType;
+          imageProvider = `openrouter/${generated.model}`;
+        } catch (e: any) {
+          console.warn(
+            `[generate_ad_image] OpenRouter failed, using OpenAI: ${e?.message ?? e}`,
+          );
+        }
       }
 
-      const imageData = await imageRes.json();
-      const content = imageData.choices?.[0]?.message?.content || "";
-
-      // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-      const b64 = imageData?.data?.[0]?.b64_json || "";
+      if (!b64) {
+        const openaiKey = await resolveOpenAIKey();
+        if (!openaiKey) {
+          return {
+            error:
+              "אין מפתח ליצירת תמונות. חברו מוח OpenRouter בהגדרות המוחות, או הגדירו מפתח OpenAI בהגדרות האינטגרציות (LLM).",
+            suggestion: "פנה למנהל המערכת להגדרת המפתח.",
+          };
+        }
+        const imageRes = await fetch(
+          "https://api.openai.com/v1/images/generations",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openaiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-image-1",
+              prompt: imagePrompt,
+              n: 1,
+              size: "1024x1024",
+              output_format: "png",
+            }),
+          },
+        );
+        if (!imageRes.ok) {
+          const errText = await imageRes.text();
+          throw new Error(`Image generation error: ${errText}`);
+        }
+        imageData = await imageRes.json();
+        content = imageData.choices?.[0]?.message?.content || "";
+        // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
+        b64 = imageData?.data?.[0]?.b64_json || "";
+      }
       const images = b64
-        ? [{ image_url: { url: `data:image/png;base64,${b64}` } }]
+        ? [{ image_url: { url: `data:${mime};base64,${b64}` } }]
         : [];
       let imageUrl = "";
 
@@ -8690,6 +8720,7 @@ async function executeTool(
       return {
         success: true,
         image_url: imageUrl,
+        provider: imageProvider,
         message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
       };
     }
