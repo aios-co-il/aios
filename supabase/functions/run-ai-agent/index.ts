@@ -43,6 +43,7 @@ import {
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
+  WORKSHOP_SKIN,
   WORKSHOP_TOOLS,
   executeWorkshopTool,
   isWorkshopTool,
@@ -767,6 +768,8 @@ const PRIORITY_TOOLS = new Set([
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
   ...NATIVE_DEV_TASK_TOOLS,
+  // Offered only inside the workshop skin, where they are the main tools.
+  ...WORKSHOP_TOOLS.map((tool) => tool.name),
 ]);
 
 function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
@@ -2526,7 +2529,6 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
-  ...WORKSHOP_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -4530,6 +4532,8 @@ const ALL_TOOLS = [
   // CAMPAIGNER MESSAGING
   // ===========================
   // send_message_to_campaigner / send_whatsapp_to_staff / lookup_staff_whatsapp — defined near send_message (CORE/PRIORITY) so the OpenAI 128-tool cap cannot drop them.
+  // Last, so adding them never shifts which earlier tools survive the tool cap.
+  ...WORKSHOP_TOOLS,
 ];
 
 // ===========================
@@ -14900,6 +14904,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
+    // Workshop tools write to the board of the open project; outside the workshop skin
+    // (WhatsApp, other chats) Carmen has no board to show them on.
+    const inWorkshop =
+      surface !== "whatsapp" &&
+      Array.isArray(task_skills) &&
+      task_skills.includes(WORKSHOP_SKIN);
+    if (!inWorkshop) {
+      filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
+    }
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15213,6 +15226,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             skillToolNames.has(t.name) &&
+            (inWorkshop || !isWorkshopTool(t.name)) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15254,6 +15268,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             pinnedTools.has(t.name) &&
+            (inWorkshop || !isWorkshopTool(t.name)) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),

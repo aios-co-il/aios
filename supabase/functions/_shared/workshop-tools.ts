@@ -51,6 +51,9 @@ import { executeCreativeStudioTool } from "./creative-studio-tools.ts";
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
+/** The skin the workshop board pins; the workshop tools are offered only inside it. */
+export const WORKSHOP_SKIN = "carmen_workshop";
+
 export const WORKSHOP_TOOLS = [
   {
     name: "workshop_start_project",
