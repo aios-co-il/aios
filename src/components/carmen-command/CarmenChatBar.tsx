@@ -41,6 +41,7 @@ import { getSessionSkin } from "@/lib/carmenSessionSkin";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
+import { replyShownThisTurn } from "./chatDedupe";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { scrollToAnswerStart } from "./chatScroll";
 import { ChatTopicRail } from "./ChatTopicRail";
@@ -683,7 +684,7 @@ export const CarmenChatBar = forwardRef<
           // The stored reply can arrive over realtime before this response.
           const reply = routed.inline_reply;
           setMessages((prev) =>
-            prev.some((m) => m.role === "assistant" && m.content === reply)
+            replyShownThisTurn(prev, reply)
               ? prev
               : [
                   ...prev,
@@ -1285,9 +1286,7 @@ export const CarmenChatBar = forwardRef<
             if (row.id && prev.some((m) => m.id === row.id)) return prev;
             if (
               row.role === "assistant" &&
-              prev.some(
-                (m) => m.role === "assistant" && m.content === row.content,
-              )
+              replyShownThisTurn(prev, row.content)
             )
               return prev;
             return [

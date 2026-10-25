@@ -7,7 +7,7 @@
 import { classifyCarmenTask } from "../carmen/free-first/classifier.ts";
 import { serviceClient } from "../supabase-clients.ts";
 import { brainStreamResult, internalStreamResult } from "./logic.ts";
-import { logRouting } from "./smart-router-notes.ts";
+import { explainVisionNeedsCarmen, logRouting } from "./smart-router-notes.ts";
 import type { SendContext, SendResult } from "./types.ts";
 
 export async function launchSmartRouter(ctx: SendContext): Promise<SendResult> {
@@ -16,8 +16,11 @@ export async function launchSmartRouter(ctx: SendContext): Promise<SendResult> {
     hasAttachments: !!ctx.attachments?.length,
     containsClientData: true,
   });
-  const internalAllowed = !ctx.brainAllowed || ctx.brainAllowed("internal");
-  if (task.needsVision && internalAllowed) {
+  if (task.needsVision) {
+    if (ctx.brainAllowed && !ctx.brainAllowed("internal")) {
+      await logRouting(sb, ctx, task, "none", "internal_not_allowed");
+      return explainVisionNeedsCarmen(sb, ctx);
+    }
     await logRouting(sb, ctx, task, "carmen", "needs_vision");
     return internalStreamResult(ctx.conversationId);
   }
