@@ -7,6 +7,7 @@ import {
 import { unarchiveExistingLead } from "../_shared/unarchive-lead.ts";
 import {
   applyRepeatInboundReopen,
+  recordLeadSourceEvent,
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
@@ -829,6 +830,13 @@ serve(async (req) => {
                     );
                   }
                 }
+
+                await recordLeadSourceEvent(supabase, {
+                  leadId: existingLead.id,
+                  tenantId: integration.tenant_id,
+                  source: leadRecord.source || "paid_ads",
+                  campaignName: leadRecord.campaign_name,
+                });
 
                 // Apply tag to existing lead if configured
                 if (formMappings.tag_id) {

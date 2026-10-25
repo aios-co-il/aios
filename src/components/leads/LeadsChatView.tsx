@@ -67,6 +67,7 @@ import {
 } from "@/lib/leadFields";
 import {
   LeadCreatedAtLines,
+  LeadSourceHistory,
   LeadSourceLines,
 } from "@/components/leads/LeadOriginLines";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
@@ -1005,6 +1006,7 @@ export function LeadsChatView({
                         <div className="space-y-2 text-sm">
                           <LeadCreatedAtLines lead={selectedLead} />
                           <LeadSourceLines lead={selectedLead} />
+                          <LeadSourceHistory leadId={selectedLead.id} />
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-medium">
                               {selectedLead.campaign_name || "—"}

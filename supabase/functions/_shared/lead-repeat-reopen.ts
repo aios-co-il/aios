@@ -20,10 +20,8 @@ export function applyRepeatInboundReopen(
     updated_at: nowIso,
   };
 
-  // "other" means the sender gave no recognised source, so it must not
-  // overwrite a source the lead already has.
-  const trimmedSource = incoming.source?.trim() || null;
-  const incomingSource = trimmedSource === "other" ? null : trimmedSource;
+  // No source given: keep the one the lead already has.
+  const incomingSource = givenLeadSource(incoming.source);
   const currentSource = existing.source || null;
   const originalSource = existing.first_source || currentSource;
   if (originalSource) updates.first_source = originalSource;
@@ -32,6 +30,38 @@ export function applyRepeatInboundReopen(
   }
 
   return updates;
+}
+
+/** Arrival source exactly as sent; "other" or empty means none was given. */
+export function givenLeadSource(raw: unknown): string | null {
+  const source = raw == null ? "" : String(raw).trim();
+  return source && source.toLowerCase() !== "other" ? source : null;
+}
+
+/**
+ * Add a dated row to the lead's arrival-source history. New leads get their
+ * first row from a database trigger; call this for repeat arrivals.
+ */
+export async function recordLeadSourceEvent(
+  supabase: { from: (table: string) => any },
+  args: {
+    leadId: string;
+    tenantId?: string | null;
+    source: unknown;
+    campaignName?: string | null;
+  },
+): Promise<void> {
+  const source = givenLeadSource(args.source);
+  if (!source) return;
+  const { error } = await supabase.from("lead_source_events").insert({
+    lead_id: args.leadId,
+    tenant_id: args.tenantId ?? null,
+    source,
+    campaign_name: args.campaignName?.trim() || null,
+  });
+  if (error) {
+    console.error("⚠️ Failed to record lead source event:", error.message);
+  }
 }
 
 /** Drop reopen/archive columns so a retry works before those migrations land. */
