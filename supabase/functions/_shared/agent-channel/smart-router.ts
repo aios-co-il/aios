@@ -1,12 +1,14 @@
 /**
  * "נתב חכם": picks a connected chat-model brain per message, free first.
- * Tasks that need tools, approvals or images go to Carmen's own brain, which
- * has them. A paid model never runs on its own; there is no budget ledger yet.
+ * Only pure writing tasks go to a model brain; everything else (tools,
+ * approvals, images, or a message the classifier does not recognise) goes to
+ * Carmen's own brain, which has her tools and data. A paid model never runs on its own; there is no budget ledger yet.
  */
 import { classifyCarmenTask } from "../carmen/free-first/classifier.ts";
 import {
   candidatesFromConnections,
   failureKindFor,
+  needsCarmenBrain,
   pickableConnections,
 } from "../carmen/free-first/candidates.ts";
 import { planSafeFailover } from "../carmen/free-first/failover.ts";
@@ -35,11 +37,7 @@ export async function launchSmartRouter(ctx: SendContext): Promise<SendResult> {
     hasAttachments: !!ctx.attachments?.length,
     containsClientData: true,
   });
-  if (
-    task.needsToolCalling ||
-    task.requiresActionApproval ||
-    task.needsVision
-  ) {
+  if (needsCarmenBrain(task)) {
     // run-ai-agent refuses a user without the internal grant; say so here.
     if (ctx.brainAllowed && !ctx.brainAllowed("internal")) {
       await logRouting(sb, ctx, task, "none", "internal_not_allowed");

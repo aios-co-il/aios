@@ -671,18 +671,24 @@ export const CarmenChatBar = forwardRef<
           routed.inline_reply &&
           streamAppliesToActive(boundId, conversationIdRef.current)
         ) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: routed.inline_reply,
-              speaker: routed.speaker ?? routed.kind,
-              // The route's thread: "נתב חכם" replies keep its slug, spoken by
-              // whichever model it picked.
-              channel: route?.slug ?? routed.kind,
-              ...tagChatTurn("typed"),
-            },
-          ]);
+          // The stored reply can arrive over realtime before this response.
+          const reply = routed.inline_reply;
+          setMessages((prev) =>
+            prev.some((m) => m.role === "assistant" && m.content === reply)
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: reply,
+                    speaker: routed.speaker ?? routed.kind,
+                    // The route's thread: "נתב חכם" replies keep its slug, spoken by
+                    // whichever model it picked.
+                    channel: route?.slug ?? routed.kind,
+                    ...tagChatTurn("typed"),
+                  },
+                ],
+          );
           revealAnswer();
         } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
           setMessages((prev) => [
