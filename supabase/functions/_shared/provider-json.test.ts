@@ -11,6 +11,7 @@ import {
   getObject,
   getPath,
   getString,
+  getText,
   isJsonObject,
   mergeJsonStringParams,
   optNumber,
@@ -61,6 +62,14 @@ test("typed readers return undefined for the wrong type", () => {
   assert.deepEqual(getArray(payload, "obj"), []);
   assert.deepEqual(getObject(payload, "obj"), { k: 1 });
   assert.equal(getObject(payload, "arr"), undefined);
+});
+
+test("getText accepts strings and finite numbers", () => {
+  const payload = { s: "0501", n: 972501, nan: Number.NaN, b: true };
+  assert.equal(getText(payload, "s"), "0501");
+  assert.equal(getText(payload, "n"), "972501");
+  assert.equal(getText(payload, "nan"), undefined);
+  assert.equal(getText(payload, "b"), undefined);
 });
 
 test("errorMessage reads .message like e?.message", () => {

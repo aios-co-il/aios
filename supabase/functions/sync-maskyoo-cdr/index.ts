@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getArray, getPath, getString } from "../_shared/provider-json.ts";
+import { getArray, getPath, getText } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,8 +110,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       // Try match lead/client by phone
-      const cdrAni = getString(r, "cdr_ani");
-      const cdrDdi = getString(r, "cdr_ddi");
+      const cdrAni = getText(r, "cdr_ani");
+      const cdrDdi = getText(r, "cdr_ddi");
       const callerPhone = normalizePhone(cdrAni);
       const calleePhone = normalizePhone(cdrDdi);
       const targetPhone = calleePhone || callerPhone;

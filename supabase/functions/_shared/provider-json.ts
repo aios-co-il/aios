@@ -43,6 +43,13 @@ export function getString(
   return optString(getPath(value, ...keys));
 }
 
+/** A string, or a finite number as text (ids and phones some providers send as numbers). */
+export function getText(value: unknown, ...keys: string[]): string | undefined {
+  const found = getPath(value, ...keys);
+  if (typeof found === "number" && Number.isFinite(found)) return String(found);
+  return optString(found);
+}
+
 export function getNumber(
   value: unknown,
   ...keys: string[]

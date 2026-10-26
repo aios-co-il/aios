@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { jsonString } from "@/lib/jsonFields";
+import { readText } from "@/lib/jsonFields";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -117,8 +117,8 @@ export function CampaignLauncher({
           row.integration_type === "meta_ads";
         const isGoogle = row.integration_type === "google_ads";
         const accountId =
-          jsonString(row.settings, "ad_account_id") ??
-          jsonString(row.settings, "account_id") ??
+          readText(row.settings, "ad_account_id") ??
+          readText(row.settings, "account_id") ??
           row.id;
         accounts.push({
           id: row.id,
