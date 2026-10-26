@@ -67,7 +67,11 @@ import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssig
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import type { Tables } from "@/integrations/supabase/types";
 import { parseClientServices } from "@/lib/clientServices";
-import { invalidEnumMessage } from "@/lib/crmEnums";
+import {
+  toFormStatus,
+  toFormTier,
+  unrepresentableClientFields,
+} from "@/lib/clientFormEnums";
 
 type ClientRow = Tables<"clients">;
 type EditableClient = Pick<ClientRow, "id" | "name"> &
@@ -105,13 +109,6 @@ type DisplayedFinanceExpense = {
   _auto?: boolean;
 };
 
-const FORM_STATUSES = ["active", "paused", "ended", "onboarding"] as const;
-const FORM_TIERS = ["A", "B", "C"] as const;
-
-const toFormStatus = (status: string) =>
-  FORM_STATUSES.find((value) => value === status);
-const toFormTier = (tier: string | null | undefined) =>
-  tier ? FORM_TIERS.find((value) => value === tier) : null;
 const formSchema = z.object({
   name: z.string().min(1, "שם הלקוח נדרש"),
   contact_name: z.string().optional(),
@@ -625,37 +622,14 @@ export function EditClientDialog({
     },
   });
 
-  // A stored tier/status the form can't represent must never be saved as null
-  // or replaced silently: block the submit with the zod enum error, as before.
-  const storedStatus = client.status || "active";
-  const storedStatusError =
-    toFormStatus(storedStatus) === undefined
-      ? invalidEnumMessage(FORM_STATUSES, storedStatus)
-      : null;
-  const storedTierError =
-    client.tier && toFormTier(client.tier) === undefined
-      ? invalidEnumMessage(FORM_TIERS, client.tier)
-      : null;
-
   const flagUnrepresentableStoredValues = (
     values: Partial<z.infer<typeof formSchema>>,
   ) => {
-    let blocked = false;
-    if (storedStatusError && values.status === undefined) {
-      form.setError("status", {
-        type: "invalid_enum_value",
-        message: storedStatusError,
-      });
-      blocked = true;
+    const fields = unrepresentableClientFields(client, values);
+    for (const { field, message } of fields) {
+      form.setError(field, { type: "invalid_enum_value", message });
     }
-    if (storedTierError && values.tier === undefined) {
-      form.setError("tier", {
-        type: "invalid_enum_value",
-        message: storedTierError,
-      });
-      blocked = true;
-    }
-    return blocked;
+    return fields.length > 0;
   };
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
