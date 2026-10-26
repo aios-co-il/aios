@@ -259,6 +259,19 @@ import type {
   ChatCompletionRequest,
   ChatRequestMessage,
 } from "./run-loop-contracts.ts";
+import { crmRecordDay } from "./tool-contracts-crm.ts";
+import type {
+  AdCopyVariant,
+  BatchHealthResult,
+  CampaignStatusSummary,
+  CampaignTableMatch,
+  CrmDataRecord,
+  PulseManualOverride,
+  PulseSnapshotRow,
+  RetentionPulseRow,
+  SyncedCampaignClient,
+  WaNotifyTarget,
+} from "./tool-contracts-crm.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -5757,13 +5770,14 @@ async function executeTool(
   callerRole?: string | null,
   callerManagedAgencyIds?: string[] | null,
   callerPhone?: string | null,
-  waNotify?: any,
+  waNotify?: WaNotifyTarget | null,
   surface?: string | null,
   conversationId?: string | null,
   waChatScope?: WaChatScope | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
+  const db: AgentDatabaseClient = supabase;
   // Coding-agent escalations are identity-allowlisted (David=full, Ana=bugfix-only).
   const devEscalationTier = await loadDevEscalationTierFromDb(supabase, {
     tenantId,
@@ -6039,7 +6053,7 @@ async function executeTool(
         const instruction = `\n\n[הוראת ביצוע אוטומטית לזמן ההפעלה]\nכשמשימה זו רצה, חובה לשלוח עכשיו הודעת WhatsApp תזכורת לטלפון ${callerPhone} עם הטקסט בעברית, בקצרה ובחום:\n"${reminderText}"\nהשתמשי בכלי send_whatsapp_via_gateway (אם יש integrationId זמין) או send_message (אם phone=${callerPhone} שייך ל-lead/client). אם אף כלי לא זמין — השתמשי בכל כלי WhatsApp אחר שיש לך. אסור לסיים את המשימה בלי לשלוח בפועל. אל תיצרי משימת agent חדשה.`;
         finalDescription = (descStr ? descStr : titleStr) + instruction;
       }
-      const taskData: any = {
+      const taskData = {
         agent_id: agentId || args.agent_id,
         tenant_id: tenantId,
         title: args.title,
@@ -6107,7 +6121,7 @@ async function executeTool(
       };
     }
     case "list_my_agent_tasks": {
-      let q = supabase
+      let q = db
         .from("agent_tasks")
         .select(
           "id, title, description, status, schedule_type, scheduled_at, last_run, run_count, result, created_at",
@@ -6132,23 +6146,26 @@ async function executeTool(
           : null;
       return {
         count: data.length,
-        tasks: data.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          schedule_type: t.schedule_type,
-          scheduled_at_israel: fmtIl(t.scheduled_at),
-          last_run_israel: fmtIl(t.last_run),
-          run_count: t.run_count || 0,
-          last_output: t.result?.last_output
-            ? String(t.result.last_output).slice(0, 200)
-            : t.result?.error
-              ? `שגיאה: ${String(t.result.error).slice(0, 200)}`
+        tasks: data.map((t) => {
+          const taskResult = jsonObject(t.result);
+          return {
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            schedule_type: t.schedule_type,
+            scheduled_at_israel: fmtIl(t.scheduled_at),
+            last_run_israel: fmtIl(t.last_run),
+            run_count: t.run_count || 0,
+            last_output: taskResult.last_output
+              ? String(taskResult.last_output).slice(0, 200)
+              : taskResult.error
+                ? `שגיאה: ${String(taskResult.error).slice(0, 200)}`
+                : null,
+            description_preview: t.description
+              ? String(t.description).slice(0, 120)
               : null,
-          description_preview: t.description
-            ? String(t.description).slice(0, 120)
-            : null,
-        })),
+          };
+        }),
       };
     }
     case "recall_recent_action": {
@@ -6163,7 +6180,7 @@ async function executeTool(
       const since = new Date(
         Date.now() - maxHours * 60 * 60 * 1000,
       ).toISOString();
-      let q = supabase
+      let q = db
         .from("carmen_memory_episodes")
         .select(
           "id, topic, topic_tags, summary, importance, ref_date, created_at",
@@ -6188,7 +6205,7 @@ async function executeTool(
           : null;
       return {
         found: data.length > 0,
-        recent_episodes: data.map((e: any) => ({
+        recent_episodes: data.map((e) => ({
           id: e.id,
           topic: e.topic,
           topic_tags: e.topic_tags,
@@ -6235,7 +6252,7 @@ async function executeTool(
       return { episode_id: data.id, recorded: true };
     }
     case "search_tasks": {
-      let query = supabase
+      let query = db
         .from("tasks")
         .select(
           "id, title, status, priority, due_date, due_time, notes, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
@@ -6250,7 +6267,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data.length,
-        tasks: data.map((t: any) => ({
+        tasks: data.map((t) => ({
           ...t,
           client_name: t.clients?.name,
           lead_name: t.leads?.company_name,
@@ -6259,7 +6276,7 @@ async function executeTool(
       };
     }
     case "list_tasks": {
-      let query = supabase
+      let query = db
         .from("tasks")
         .select(
           "id, title, status, priority, due_date, due_time, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
@@ -6277,11 +6294,11 @@ async function executeTool(
           );
         query = query.eq("client_id", args.client_id);
       } else if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links } = await supabase
+        const { data: links } = await db
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
-        const ids = (links || []).map((l: any) => l.client_id);
+        const ids = (links || []).map((l) => l.client_id);
         query =
           ids.length > 0
             ? query.or(`client_id.is.null,client_id.in.(${ids.join(",")})`)
@@ -6291,7 +6308,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data.length,
-        tasks: data.map((t: any) => ({
+        tasks: data.map((t) => ({
           ...t,
           client_name: t.clients?.name,
           lead_name: t.leads?.company_name,
@@ -6324,12 +6341,12 @@ async function executeTool(
       if (args.agency_id) {
         agencyIdsFilter = [args.agency_id];
       } else if (args.agency_name) {
-        const { data: ags } = await supabase
+        const { data: ags } = await db
           .from("agencies")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
           .ilike("name", `%${args.agency_name}%`);
-        agencyIdsFilter = (ags || []).map((a: any) => a.id);
+        agencyIdsFilter = (ags || []).map((a) => a.id);
         if (agencyIdsFilter.length === 0) {
           return {
             count: 0,
@@ -6345,12 +6362,12 @@ async function executeTool(
       if (args.campaigner_id) {
         campaignerIds = [args.campaigner_id];
       } else if (args.campaigner_name) {
-        const { data: camps } = await supabase
+        const { data: camps } = await db
           .from("campaigners")
           .select("id, full_name")
           .in("tenant_id", accessibleTenantIds)
           .ilike("full_name", `%${args.campaigner_name}%`);
-        campaignerIds = (camps || []).map((c: any) => c.id);
+        campaignerIds = (camps || []).map((c) => c.id);
         if (campaignerIds.length === 0) {
           return {
             count: 0,
@@ -6378,13 +6395,13 @@ async function executeTool(
 
       let clientIdsFilter: string[] | null = null;
       if (campaignerIds) {
-        const { data: links, error: linkErr } = await supabase
+        const { data: links, error: linkErr } = await db
           .from("client_team")
           .select("client_id")
           .in("campaigner_id", campaignerIds);
         if (linkErr) throw linkErr;
         clientIdsFilter = Array.from(
-          new Set((links || []).map((l: any) => l.client_id)),
+          new Set((links || []).map((l) => l.client_id)),
         );
         if (clientIdsFilter.length === 0) {
           const who = explicitCampaigner ? "this campaigner" : "you";
@@ -6396,7 +6413,7 @@ async function executeTool(
         }
       }
 
-      let query = supabase
+      let query = db
         .from("clients")
         .select(
           "id, name, contact_name, phone, status, agency_id, agencies(name)",
@@ -6433,8 +6450,7 @@ async function executeTool(
         const broad =
           agencyIdsFilter && agencyIdsFilter.length > 1
             ? broadRaw.filter(
-                (c: any) =>
-                  c.agency_id && agencyIdsFilter.includes(c.agency_id),
+                (c) => c.agency_id && agencyIdsFilter.includes(c.agency_id),
               )
             : broadRaw;
         const scope_note =
@@ -6446,7 +6462,7 @@ async function executeTool(
             : "name_search includes ended/paused clients and Meta/Google report / ad-account name matches.";
         return {
           count: broad.length,
-          clients: broad.slice(0, args.limit || 50).map((c: any) => ({
+          clients: broad.slice(0, args.limit || 50).map((c) => ({
             id: c.id,
             name: c.name,
             contact_name: c.contact_name,
@@ -6462,7 +6478,7 @@ async function executeTool(
       }
       const { data, error } = await query;
       if (error) throw error;
-      const enriched = (data || []).map((c: any) => ({
+      const enriched = (data || []).map((c) => ({
         id: c.id,
         name: c.name,
         contact_name: c.contact_name,
@@ -6593,11 +6609,11 @@ async function executeTool(
       if (args.entity_type === "client") {
         let clientIdsFilter: string[] | null = null;
         if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
-          const { data: links } = await supabase
+          const { data: links } = await db
             .from("client_team")
             .select("client_id")
             .eq("campaigner_id", callerCampaignerId);
-          clientIdsFilter = (links || []).map((l: any) => l.client_id);
+          clientIdsFilter = (links || []).map((l) => l.client_id);
           if (clientIdsFilter.length === 0)
             return {
               count: 0,
@@ -6632,8 +6648,7 @@ async function executeTool(
           managedAgencyIds.length > 0 &&
           !args.agency_id
             ? results.filter(
-                (r: any) =>
-                  r.agency_id && managedAgencyIds.includes(r.agency_id),
+                (r) => r.agency_id && managedAgencyIds.includes(r.agency_id),
               )
             : results;
         return {
@@ -6665,7 +6680,7 @@ async function executeTool(
     }
     case "delegate_to_manus": {
       // Call the existing manus-api edge function
-      const manusBody: any = {
+      const manusBody = {
         action: "create_task",
         tenantId,
         prompt: args.prompt,
@@ -6685,13 +6700,15 @@ async function executeTool(
 
       if (!manusRes.ok) {
         const errText = await manusRes.text();
-        let parsed: any = null;
+        let parsed: unknown = null;
         try {
           parsed = JSON.parse(errText);
         } catch {
           /* ignore */
         }
-        const detail = parsed?.error || errText;
+        const detail =
+          (isObject(parsed) && "error" in parsed ? parsed.error : undefined) ||
+          errText;
         // Distinguish between local config errors and real Manus API errors
         if (
           manusRes.status === 400 &&
@@ -6720,7 +6737,12 @@ async function executeTool(
 
     case "send_message_to_manus": {
       const manusApiUrl = `${SUPABASE_URL}/functions/v1/manus-api`;
-      const msgBody: any = {
+      const msgBody: {
+        action: string;
+        tenantId: string;
+        message: unknown;
+        task_id?: unknown;
+      } = {
         action: "send_message",
         tenantId,
         message: args.message,
@@ -6795,12 +6817,12 @@ async function executeTool(
       }
 
       // Fallback: CRM dynamic tables that hold synced FB insights.
-      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
+      const { data: campaignTables, error: rpcErr } = await db.rpc(
         "find_campaign_tables",
         { p_client_ids: [args.client_id] },
       );
       if (rpcErr) throw rpcErr;
-      const tableIds = (campaignTables || []).map((t: any) => t.table_id);
+      const tableIds = (campaignTables || []).map((t) => t.table_id);
       if (tableIds.length === 0) {
         return {
           count: 0,
@@ -6810,7 +6832,7 @@ async function executeTool(
         };
       }
 
-      const { data: records, error } = await supabase
+      const { data: records, error } = await db
         .from("crm_records")
         .select("data")
         .in("table_id", tableIds)
@@ -6818,11 +6840,16 @@ async function executeTool(
       if (error) throw error;
 
       const rows = (records || [])
-        .map((r: any) => r.data || {})
-        .filter((d: any) => d.date && d.date >= sinceDateStr)
-        .sort((a: any, b: any) => (b.date || "").localeCompare(a.date || ""))
+        .map((r) => jsonObject(r.data))
+        .filter((d) => {
+          const day = crmRecordDay(d);
+          return day !== null && day >= sinceDateStr;
+        })
+        .sort((a, b) =>
+          (crmRecordDay(b) || "").localeCompare(crmRecordDay(a) || ""),
+        )
         .slice(0, 500)
-        .map((d: any) => ({
+        .map((d) => ({
           campaign_id: d.campaign_id ?? null,
           campaign_name: d.campaign_name ?? null,
           date: d.date ?? null,
@@ -6875,7 +6902,7 @@ async function executeTool(
       if (liveList) {
         const search = (args.name_search || "").toString().toLowerCase();
         const campaigns = search
-          ? liveList.filter((c: any) =>
+          ? liveList.filter((c) =>
               String(c.campaign_name || "")
                 .toLowerCase()
                 .includes(search),
@@ -6884,12 +6911,12 @@ async function executeTool(
         return { count: campaigns.length, campaigns, source: "live_meta" };
       }
       // Fallback: CRM dynamic tables that hold synced FB insights with status.
-      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
+      const { data: campaignTables, error: rpcErr } = await db.rpc(
         "find_campaign_tables",
         { p_client_ids: [args.client_id] },
       );
       if (rpcErr) throw rpcErr;
-      const tableIds = (campaignTables || []).map((t: any) => t.table_id);
+      const tableIds = (campaignTables || []).map((t) => t.table_id);
       if (tableIds.length === 0) {
         return {
           count: 0,
@@ -6898,7 +6925,7 @@ async function executeTool(
         };
       }
 
-      const { data: records, error } = await supabase
+      const { data: records, error } = await db
         .from("crm_records")
         .select("data")
         .in("table_id", tableIds)
@@ -6907,9 +6934,9 @@ async function executeTool(
 
       const search = (args.name_search || "").toString().toLowerCase();
       // Dedup by campaign_id, keep row with most recent date
-      const map = new Map<string, any>();
+      const map = new Map<Json, CampaignStatusSummary>();
       for (const r of records || []) {
-        const d = r.data || {};
+        const d = jsonObject(r.data);
         const cid = d.campaign_id;
         if (!cid) continue;
         const name = d.campaign_name || "";
@@ -6919,7 +6946,7 @@ async function executeTool(
           d.campaign_status ??
           d.configured_status ??
           null;
-        const date = d.date || "";
+        const date = crmRecordDay(d) || "";
         const existing = map.get(cid);
         if (!existing || date > (existing.last_date || "")) {
           map.set(cid, {
@@ -7106,21 +7133,21 @@ async function executeTool(
       }
       const summary = summarizeSourceAd(ad, ad.creative);
       // Enrich with campaign/adset names + budgets when available
-      let campaign: any = null;
-      let adset: any = null;
+      let campaign: MetaNode | null = null;
+      let adset: MetaNode | null = null;
       if (ad.campaign_id) {
         const cr = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.campaign_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget&access_token=${token}`,
         );
-        campaign = await cr.json().catch(() => null);
-        if (campaign?.error) campaign = null;
+        const campaignResponse = await readMetaResponse(cr).catch(() => null);
+        campaign = campaignResponse?.error ? null : campaignResponse;
       }
       if (ad.adset_id) {
         const ar = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.adset_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id&access_token=${token}`,
         );
-        adset = await ar.json().catch(() => null);
-        if (adset?.error) adset = null;
+        const adsetResponse = await readMetaResponse(ar).catch(() => null);
+        adset = adsetResponse?.error ? null : adsetResponse;
       }
       return {
         ...summary,
@@ -7160,11 +7187,11 @@ async function executeTool(
     case "duplicate_facebook_ad_variants": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
       if (!args.source_ad_id) return { error: "source_ad_id_required" };
-      let variants: any[];
+      let variants: AdCopyVariant[];
       try {
         variants = normalizeAdCopyVariants(args);
-      } catch (e: any) {
-        return { error: String(e?.message || e) };
+      } catch (e) {
+        return { error: String(errorMessage(e) || e) };
       }
       // Prefetch source summary for the approval card (read-only; no mutation yet).
       const tokenTenant = await resolveClientTenantId(
@@ -7220,14 +7247,14 @@ async function executeTool(
           ? ` + תקציב ₪${toolInput.daily_budget}/יום ברמת ${toolInput.budget_level}`
           : "";
       const title = `שכפול מודעה FB ×${variants.length}: ${source.ad_name || args.source_ad_id}${budgetNote}`;
-      const variant_previews = variants.map((v: any, i: number) => ({
+      const variant_previews = variants.map((v, i) => ({
         i: i + 1,
         name: v.name || `${source.ad_name || "Ad"} · v${i + 1}`,
         primary_text: v.primary_text,
         headline: v.headline,
       }));
       // Avoid approval loops: reuse an existing pending duplicate for the same source ad.
-      const { data: existingPending } = await supabase
+      const { data: existingPending } = await db
         .from("agent_approval_queue")
         .select(
           "id, title, description, tool_name, tool_input, context, created_at",
@@ -7237,12 +7264,16 @@ async function executeTool(
         .eq("tool_name", "fb_duplicate_ad_variants")
         .order("created_at", { ascending: false })
         .limit(5);
-      const reused = (existingPending || []).find(
-        (row: any) =>
-          row?.tool_input?.source_ad_id &&
-          String(row.tool_input.source_ad_id) === String(args.source_ad_id),
-      );
+      const reused = (existingPending || []).find((row) => {
+        const pendingInput = jsonObject(row.tool_input);
+        return (
+          pendingInput.source_ad_id &&
+          String(pendingInput.source_ad_id) === String(args.source_ad_id)
+        );
+      });
       if (reused) {
+        const reusedInput = jsonObject(reused.tool_input);
+        const reusedVariants = reusedInput.variants || variants;
         return {
           pending_approval: true,
           approval_id: reused.id,
@@ -7250,14 +7281,16 @@ async function executeTool(
           action: "fb_duplicate_ad_variants",
           summary: reused.title || title,
           source,
-          variants_count: (reused.tool_input?.variants || variants).length,
+          variants_count:
+            typeof reusedVariants === "string" || Array.isArray(reusedVariants)
+              ? reusedVariants.length
+              : undefined,
           variant_previews:
-            reused.context?.variant_previews || variant_previews,
+            jsonObject(reused.context).variant_previews || variant_previews,
           daily_budget:
-            reused.tool_input?.daily_budget ?? toolInput.daily_budget ?? null,
-          budget_level:
-            reused.tool_input?.budget_level || toolInput.budget_level,
-          new_ads_status: reused.tool_input?.status || toolInput.status,
+            reusedInput.daily_budget ?? toolInput.daily_budget ?? null,
+          budget_level: reusedInput.budget_level || toolInput.budget_level,
+          new_ads_status: reusedInput.status || toolInput.status,
           instruction_for_carmen:
             'כבר יש בקשת אישור פתוחה לאותו שכפול. הציגי את הסיכום הקיים ובקשי "לאשר? (כן/לא)" פעם אחת. אחרי כן — execute_pending_approval עם ה-approval_id הזה. אל תיצרי בקשה חדשה.',
         };
@@ -7293,7 +7326,7 @@ async function executeTool(
         summary: title,
         source,
         variants_count: variants.length,
-        variant_previews: variants.map((v: any, i: number) => ({
+        variant_previews: variants.map((v, i) => ({
           i: i + 1,
           primary_text: v.primary_text,
           headline: v.headline,
@@ -7511,10 +7544,10 @@ async function executeTool(
         ({ data, error } = await loadPulse(PULSE_BASE_COLUMNS));
       }
       if (error) throw error;
-      let rows = data || [];
+      let rows: PulseSnapshotRow[] = data || [];
       if (args.client_name) {
         const needle = String(args.client_name).toLocaleLowerCase("he");
-        rows = rows.filter((row: any) =>
+        rows = rows.filter((row) =>
           String(row.clients?.name || "")
             .toLocaleLowerCase("he")
             .includes(needle),
@@ -7522,14 +7555,14 @@ async function executeTool(
       }
       if (args.agency_name) {
         const needle = String(args.agency_name).toLocaleLowerCase("he");
-        rows = rows.filter((row: any) =>
+        rows = rows.filter((row) =>
           String(row.agencies?.name || "")
             .toLocaleLowerCase("he")
             .includes(needle),
         );
       }
       // One row per client: partner tenants can hold a snapshot for the same client.
-      const freshestByClient = new Map<string, any>();
+      const freshestByClient = new Map<string, PulseSnapshotRow>();
       for (const row of rows) {
         const previous = freshestByClient.get(row.client_id);
         if (
@@ -7539,24 +7572,22 @@ async function executeTool(
           freshestByClient.set(row.client_id, row);
         }
       }
-      let normalizedRows = Array.from(freshestByClient.values()).map(
-        (row: any) => ({
-          ...row,
-          client_name: row.clients?.name || null,
-          agency_name: row.agencies?.name || null,
-          clients: undefined,
-          agencies: undefined,
-        }),
-      );
+      let normalizedRows = Array.from(freshestByClient.values()).map((row) => ({
+        ...row,
+        client_name: row.clients?.name || null,
+        agency_name: row.agencies?.name || null,
+        clients: undefined,
+        agencies: undefined,
+      }));
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links, error: linksError } = await supabase
+        const { data: links, error: linksError } = await db
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
         if (linksError) throw linksError;
         const assignedClientIds = (links || [])
-          .map((link: any) => link.client_id)
+          .map((link) => link.client_id)
           .filter(Boolean);
         normalizedRows = filterPulseRowsByClientIds(
           normalizedRows,
@@ -7564,18 +7595,18 @@ async function executeTool(
         );
       }
       const goalRows = expandSnapshotsToGoalRows(
-        normalizedRows.map((row: any) => ({
+        normalizedRows.map((row) => ({
           ...row,
           client_name: row.client_name,
           agency_name: row.agency_name,
         })),
       );
       const pulseClientIds = normalizedRows
-        .map((row: any) => row.client_id)
+        .map((row) => row.client_id)
         .filter(Boolean);
-      let manualOverrides: any[] = [];
+      let manualOverrides: PulseManualOverride[] = [];
       if (pulseClientIds.length) {
-        const { data: overrideRows } = await supabase
+        const { data: overrideRows } = await db
           .from("campaign_pulse_overrides")
           .select(
             "client_id, algorithm_status, override_status, reason, algorithm_flags, algorithm_metrics, created_at, clients(name)",
@@ -7586,12 +7617,12 @@ async function executeTool(
           .order("created_at", { ascending: false });
         const seen = new Set<string>();
         manualOverrides = (overrideRows || [])
-          .filter((row: any) => {
+          .filter((row) => {
             if (seen.has(row.client_id)) return false;
             seen.add(row.client_id);
             return true;
           })
-          .map((row: any) => ({
+          .map((row) => ({
             client_id: row.client_id,
             client_name: row.clients?.name || null,
             algorithm_status: row.algorithm_status,
@@ -7609,9 +7640,9 @@ async function executeTool(
         // no_data = no campaign report table connected. Stale sync is warning, not no_data.
         no_data: "🟡 אין טבלת קמפיין מחוברת",
       };
-      const fmtNumber = (value: any) =>
+      const fmtNumber = (value: number | null | undefined) =>
         value === null || value === undefined ? "—" : String(value);
-      const fmtDate = (value: any) =>
+      const fmtDate = (value: string | null | undefined) =>
         value
           ? new Date(value).toLocaleDateString("he-IL", {
               timeZone: "Asia/Jerusalem",
@@ -7620,14 +7651,14 @@ async function executeTool(
               year: "numeric",
             })
           : "—";
-      const escapeCell = (value: any) =>
+      const escapeCell = (value: string | null | undefined) =>
         String(value ?? "—")
           .replace(/\|/g, "\\|")
           .replace(/\n/g, " ");
       const tableLines = [
         '| סוכנות | לקוח | יעד | סטטוס | הוצאה 7 ימים | לידים/רכישות | CPL/ROAS | שינוי | שיחת לקוח אחרונה | תועדה ע"י | שינוי במטה | הערה |',
         "|---|---|---|---:|---:|---:|---:|---|---|---|---|",
-        ...goalRows.map((row: any) => {
+        ...goalRows.map((row) => {
           const outcomes = fmtNumber(row.outcomes_7d);
           const efficiencyLabel =
             row.efficiency_kind === "roas"
@@ -7643,7 +7674,7 @@ async function executeTool(
               ? "לא נמצא ב-30 יום"
               : "לא זמין";
           const snapshotRow = normalizedRows.find(
-            (client: any) => client.client_id === row.client_id,
+            (client) => client.client_id === row.client_id,
           );
           const agencyName = snapshotRow?.agency_name;
           return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(fmtDate(snapshotRow?.last_client_call_at))} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
@@ -7724,14 +7755,14 @@ async function executeTool(
       if (args.agency_id) {
         agencyIdsFilter = [args.agency_id];
       } else if (args.agency_name) {
-        const { data: ags } = await supabase
+        const { data: ags } = await db
           .from("agencies")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
           .ilike("name", `%${args.agency_name}%`);
-        agencyIdsFilter = (ags || []).map((a: any) => a.id);
+        agencyIdsFilter = (ags || []).map((a) => a.id);
         agencyNameLabel =
-          (ags || []).map((a: any) => a.name).join(", ") || args.agency_name;
+          (ags || []).map((a) => a.name).join(", ") || args.agency_name;
         if (agencyIdsFilter.length === 0) {
           return {
             scope: { agency_name: args.agency_name },
@@ -7747,18 +7778,20 @@ async function executeTool(
       // agency_tenant_access. A tenant-wide scope here floods the report with the
       // partner tenant's entire client base and scrambles the per-agency grouping.
       const perfSel = "id, name, agency_id, is_ecommerce, agencies(name)";
-      const perfFilters = (q: any) => {
+      const perfClients = (clientTenantId: string) =>
+        db.from("clients").select(perfSel).eq("tenant_id", clientTenantId);
+      const perfFilters = (q: ReturnType<typeof perfClients>) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
         if (agencyIdsFilter) q = q.in("agency_id", agencyIdsFilter);
         return q;
       };
       const { data: perfOwn, error: clientsErr } = await perfFilters(
-        supabase.from("clients").select(perfSel).eq("tenant_id", tenantId),
+        perfClients(tenantId),
       ).order("name");
       if (clientsErr) throw clientsErr;
-      let targetClients: any[] = perfOwn || [];
-      const { data: perfShares } = await supabase
+      let targetClients = perfOwn || [];
+      const { data: perfShares } = await db
         .from("agency_tenant_access")
         .select("source_tenant_id, agency_id")
         .eq("accessing_tenant_id", tenantId);
@@ -7766,13 +7799,11 @@ async function executeTool(
       // OWNS (its own agency's clients parked in a partner tenant) — not the
       // partner's agencies, whose clients belong in the partner's own report.
       const perfShareAgencyIds = [
-        ...new Set(
-          (perfShares || []).map((s: any) => s.agency_id).filter(Boolean),
-        ),
+        ...new Set((perfShares || []).map((s) => s.agency_id).filter(Boolean)),
       ];
       const perfOwnedAgencies = new Set<string>();
       if (perfShareAgencyIds.length > 0) {
-        const { data: ags } = await supabase
+        const { data: ags } = await db
           .from("agencies")
           .select("id")
           .eq("tenant_id", tenantId)
@@ -7788,17 +7819,13 @@ async function executeTool(
           continue;
         if (!perfOwnedAgencies.has(sh.agency_id)) continue;
         const { data: sharedClients } = await perfFilters(
-          supabase
-            .from("clients")
-            .select(perfSel)
-            .eq("tenant_id", sh.source_tenant_id)
-            .eq("agency_id", sh.agency_id),
+          perfClients(sh.source_tenant_id).eq("agency_id", sh.agency_id),
         );
         if (sharedClients?.length)
           targetClients = targetClients.concat(sharedClients);
       }
 
-      const clientIds = (targetClients || []).map((c: any) => c.id);
+      const clientIds = (targetClients || []).map((c) => c.id);
       if (clientIds.length === 0) {
         return {
           scope: { agency_name: agencyNameLabel, total_active_clients: 0 },
@@ -7809,13 +7836,13 @@ async function executeTool(
       }
 
       // 2. Find campaign tables by SCHEMA (spend + campaign_name/id), not by slug
-      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
+      const { data: campaignTables, error: rpcErr } = await db.rpc(
         "find_campaign_tables",
         { p_client_ids: clientIds },
       );
       if (rpcErr) throw rpcErr;
 
-      const tablesByClient = new Map<string, any[]>();
+      const tablesByClient = new Map<string, CampaignTableMatch[]>();
       for (const t of campaignTables || []) {
         const arr = tablesByClient.get(t.client_id) || [];
         arr.push(t);
@@ -7831,8 +7858,8 @@ async function executeTool(
       const d7Str = d7.toISOString().split("T")[0];
       const d30Str = d30.toISOString().split("T")[0];
 
-      const synced_clients: any[] = [];
-      const not_connected_clients: any[] = [];
+      const synced_clients: SyncedCampaignClient[] = [];
+      const not_connected_clients: DisconnectedClient[] = [];
 
       for (const client of targetClients || []) {
         const tables = tablesByClient.get(client.id) || [];
@@ -7845,8 +7872,8 @@ async function executeTool(
           continue;
         }
 
-        const tableIds = tables.map((t: any) => t.table_id);
-        const filteredRecords = await supabase
+        const tableIds = tables.map((t) => t.table_id);
+        const filteredRecords = await db
           .from("crm_records")
           .select("data")
           .in("table_id", tableIds)
@@ -7858,7 +7885,7 @@ async function executeTool(
             ? filteredRecords.data
             : null;
         if (!records) {
-          const fallbackRecords = await supabase
+          const fallbackRecords = await db
             .from("crm_records")
             .select("data")
             .in("table_id", tableIds)
@@ -7868,9 +7895,10 @@ async function executeTool(
         }
 
         // Tables exist = connected. Empty/stale sync is attention, not "not connected".
-        const recentProbe = (records || []).filter(
-          (r: any) => r.data?.date && r.data.date >= d30Str,
-        );
+        const recentProbe = (records || []).filter((r) => {
+          const day = crmRecordDay(r.data);
+          return day !== null && day >= d30Str;
+        });
         if (!records || recentProbe.length === 0) {
           synced_clients.push({
             client_id: client.id,
@@ -7878,9 +7906,7 @@ async function executeTool(
             agency_name: client.agencies?.name ?? null,
             is_ecommerce:
               !!client.is_ecommerce ||
-              tables.some(
-                (t: any) => t.integration_type === "facebook_ecommerce",
-              ),
+              tables.some((t) => t.integration_type === "facebook_ecommerce"),
             spend_7d: 0,
             spend_30d: 0,
             leads_7d: 0,
@@ -7908,17 +7934,21 @@ async function executeTool(
         }
 
         const last30d = recentProbe;
-        const last7d = last30d.filter((r: any) => r.data?.date >= d7Str);
-        const older = last30d.filter((r: any) => r.data?.date < d7Str);
+        const last7d = last30d.filter(
+          (r) => (crmRecordDay(r.data) || "") >= d7Str,
+        );
+        const older = last30d.filter(
+          (r) => (crmRecordDay(r.data) || "") < d7Str,
+        );
 
-        const sumFields = (arr: any[], fields: string[]) =>
-          arr.reduce((s: number, r: any) => {
+        const sumFields = (arr: CrmDataRecord[], fields: string[]) =>
+          arr.reduce((s: number, r) => {
+            const data = jsonObject(r.data);
             const field = fields.find(
               (candidate) =>
-                r.data?.[candidate] !== undefined &&
-                r.data?.[candidate] !== null,
+                data[candidate] !== undefined && data[candidate] !== null,
             );
-            return s + (field ? parseFloat(r.data?.[field]) || 0 : 0);
+            return s + (field ? parseFloat(String(data[field])) || 0 : 0);
           }, 0);
         const spend7 = sumFields(last7d, ["spend", "cost"]);
         const spendOlder = sumFields(older, ["spend", "cost"]);
@@ -7969,8 +7999,11 @@ async function executeTool(
         const profit7 = purchaseValue7 - spend7;
 
         const updatedTimes = last30d
-          .map((r: any) => r.data?.updated_time)
-          .filter((t: any) => t)
+          .map((r) => jsonObject(r.data).updated_time)
+          .filter(
+            (t): t is string | number =>
+              (typeof t === "string" || typeof t === "number") && !!t,
+          )
           .sort()
           .reverse();
         const lastCampaignUpdate = updatedTimes[0] || null;
@@ -7983,14 +8016,14 @@ async function executeTool(
 
         const lastDataDate =
           last30d
-            .map((r: any) => r.data?.date)
+            .map((r) => crmRecordDay(r.data))
             .filter(Boolean)
             .sort()
             .reverse()[0] || null;
 
         const isEcom =
           !!client.is_ecommerce ||
-          tables.some((t: any) => t.integration_type === "facebook_ecommerce");
+          tables.some((t) => t.integration_type === "facebook_ecommerce");
         const ecomAlert = isEcom
           ? roas7 !== null && roas7 < 1
             ? "🔴 ROAS<1 הפסד"
@@ -8046,8 +8079,7 @@ async function executeTool(
       }
 
       synced_clients.sort(
-        (a: any, b: any) =>
-          (b.spend_change_pct || 0) - (a.spend_change_pct || 0),
+        (a, b) => (b.spend_change_pct || 0) - (a.spend_change_pct || 0),
       );
 
       // Try-to-connect pass: for every client we couldn't report from synced data,
@@ -8069,7 +8101,7 @@ async function executeTool(
           : { connected: [], stillNotConnected: [] };
 
       const hasNameMatch = newly_connected_clients.some(
-        (c: any) => c.matched_by === "name",
+        (c) => c.matched_by === "name",
       );
 
       return {
@@ -8123,7 +8155,7 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
+      const updateData = { mood_status: args.mood_status };
       const { error: clientErr } = await supabase
         .from("clients")
         .update(updateData)
@@ -8174,7 +8206,7 @@ async function executeTool(
       };
     }
     case "get_client_retention_scan": {
-      let clientQuery = supabase
+      let clientQuery = db
         .from("clients")
         .select("id, name, mood_status, status")
         .in("tenant_id", accessibleTenantIds)
@@ -8188,30 +8220,30 @@ async function executeTool(
       let activeClients = clientRows || [];
       if (args.client_name) {
         const needle = String(args.client_name).toLocaleLowerCase("he");
-        activeClients = activeClients.filter((client: any) =>
+        activeClients = activeClients.filter((client) =>
           String(client.name || "")
             .toLocaleLowerCase("he")
             .includes(needle),
         );
       }
       if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links, error: linksError } = await supabase
+        const { data: links, error: linksError } = await db
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
         if (linksError) throw linksError;
         const assigned = new Set(
-          (links || []).map((link: any) => link.client_id).filter(Boolean),
+          (links || []).map((link) => link.client_id).filter(Boolean),
         );
-        activeClients = activeClients.filter((client: any) =>
+        activeClients = activeClients.filter((client) =>
           assigned.has(client.id),
         );
       }
       const clientIds = activeClients
-        .map((client: any) => client.id)
+        .map((client) => client.id)
         .filter(Boolean);
       let callKnown = true;
-      let pulseRows: any[] = [];
+      let pulseRows: RetentionPulseRow[] = [];
       if (clientIds.length) {
         const loadPulses = async (columns: string) =>
           await supabase
@@ -8235,13 +8267,13 @@ async function executeTool(
         if (pulseResult.error) throw pulseResult.error;
         pulseRows = pulseResult.data || [];
       }
-      const freshestPulse = new Map<string, any>();
+      const freshestPulse = new Map<string, RetentionPulseRow>();
       for (const row of pulseRows) {
         if (!freshestPulse.has(row.client_id))
           freshestPulse.set(row.client_id, row);
       }
       const scan = buildRetentionScan(
-        activeClients.map((client: any) => {
+        activeClients.map((client) => {
           const pulse = freshestPulse.get(client.id);
           return {
             client_id: client.id,
@@ -8292,7 +8324,7 @@ async function executeTool(
           .maybeSingle();
         batchUserId = ownerRole?.user_id || null;
       }
-      const results: any[] = [];
+      const results: BatchHealthResult[] = [];
       for (const update of updates) {
         const clientId = update?.client_id;
         const mood = update?.mood_status;
@@ -8355,11 +8387,11 @@ async function executeTool(
             success: true,
             mood_status: mood,
           });
-        } catch (err: any) {
+        } catch (err) {
           results.push({
             client_id: clientId,
             success: false,
-            error: err?.message || "update failed",
+            error: errorMessage(err) || "update failed",
           });
         }
       }
