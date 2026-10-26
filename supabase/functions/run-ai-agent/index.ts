@@ -74,6 +74,7 @@ import {
   workshopItemIdFrom,
   workshopProjectKind,
 } from "../_shared/workshop/role-project.ts";
+import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
@@ -5696,6 +5697,8 @@ async function executeTool(
     turnId?: string | null;
     userText?: string | null;
     outOfBand?: boolean;
+    /** The client open in the workshop view (workshop_client_id). */
+    viewClientId?: string | null;
   } = {},
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
@@ -5756,6 +5759,7 @@ async function executeTool(
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
         approvedOutOfBand: approval.outOfBand === true,
+        viewClientId: approval.viewClientId ?? null,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -15991,7 +15995,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId, userText: String(command_text ?? "") },
+              {
+                turnId,
+                userText: String(command_text ?? ""),
+                viewClientId: inWorkshop
+                  ? workshopClientIdFrom(bodyJson)
+                  : null,
+              },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

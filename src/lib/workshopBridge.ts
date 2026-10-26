@@ -8,6 +8,9 @@ export interface WorkshopContext {
   projectId: string | null;
   title: string | null;
   selectedArtifactId: string | null;
+  /** The client in view (?client=<id>); null for all clients or general content. */
+  clientId: string | null;
+  clientName?: string | null;
 }
 
 export interface WorkshopEvent {
@@ -78,7 +81,16 @@ export function workshopRequestParts(ctx: WorkshopContext | null) {
     lines.push(
       `העמוד שהמשתמש בחר בלוח: artifact_id=${ctx.selectedArtifactId}. "את זה" ו"שני את זה" מתייחסים אליו.`,
     );
-  return { taskSkills: [WORKSHOP_SKIN], promptAddon: lines.join("\n") };
+  if (ctx.clientId)
+    lines.push(
+      `הלקוח הפתוח בסדנה: client_id=${ctx.clientId}${ctx.clientName ? ` (${ctx.clientName})` : ""}. פרויקט חדש נפתח עבורו אלא אם ביקשו לקוח אחר.`,
+    );
+  return {
+    taskSkills: [WORKSHOP_SKIN],
+    promptAddon: lines.join("\n"),
+    workshopItemId: ctx.projectId,
+    workshopClientId: ctx.clientId,
+  };
 }
 
 const TOOL_LABELS: Record<string, string> = {

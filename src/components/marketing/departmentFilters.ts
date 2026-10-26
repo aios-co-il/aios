@@ -3,7 +3,20 @@ type WorkItemLike = {
   current_stage_id?: string | null;
 };
 
-const otherDepartments = new Set(["creative", "seo", "campaigns"]);
+const otherDepartments = new Set([
+  "creative",
+  "seo",
+  "campaigns",
+  "social",
+  "web",
+]);
+const nonCreativeDepartments = new Set([
+  "copy",
+  "seo",
+  "campaigns",
+  "social",
+  "web",
+]);
 
 export function isCopyDepartmentItem(
   item: WorkItemLike,
@@ -36,7 +49,8 @@ export function isCreativeDepartmentItem(
 ) {
   const payload = item.payload ?? {};
   const department = payload.department;
-  if (department === "copy") return false;
+  if (typeof department === "string" && nonCreativeDepartments.has(department))
+    return false;
   if (department === "creative") return true;
   if (payload.handoff_from === "copy") return true;
   if (payload.intake_source === "copy_link") return true;

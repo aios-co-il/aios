@@ -31,7 +31,10 @@ import {
   Video,
   ArrowRight,
   Menu,
+  Palette,
 } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DuplicateClientDialog } from "@/components/forms/DuplicateClientDialog";
 import { CreateOrgForClientDialog } from "@/components/clients/CreateOrgForClientDialog";
@@ -186,6 +189,7 @@ export function ClientsChatView({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const queryClient = useQueryClient();
+  const { buildPath } = useTenantPath();
   const { tenantId } = useCurrentTenant();
   const { provision, provisioning } = useProvisionClientChannels();
 
@@ -1219,6 +1223,23 @@ export function ClientsChatView({
                     ) : (
                       <BarChart3 className="h-4 w-4" />
                     )}
+                  </Button>
+
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1"
+                    title="פתח בסדנה"
+                  >
+                    <RouterLink
+                      to={buildPath(
+                        `workshop?client=${encodeURIComponent(selectedClient.id)}`,
+                      )}
+                    >
+                      <Palette className="h-4 w-4" />
+                      פתח בסדנה
+                    </RouterLink>
                   </Button>
 
                   <Button

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   filterCreativeDepartmentItems,
+  isCopyDepartmentItem,
   isCreativeDepartmentItem,
 } from "./departmentFilters.ts";
 
@@ -32,6 +33,24 @@ test("filterCreativeDepartmentItems matches a tenant creative stage", () => {
   expect(
     filterCreativeDepartmentItems(items, ["creative-9"]).map((item) => item.id),
   ).toStrictEqual(["legacy", "tagged"]);
+});
+
+test("items tagged with another department stay out of creative and copy", () => {
+  for (const department of ["copy", "seo", "campaigns", "social", "web"])
+    assert.equal(
+      isCreativeDepartmentItem({
+        payload: { department, variations: [{ id: "v1" }] },
+      }),
+      false,
+      department,
+    );
+  for (const department of ["creative", "seo", "campaigns", "social", "web"])
+    assert.equal(
+      isCopyDepartmentItem({ payload: { department, copy_text: "x" } }),
+      false,
+      department,
+    );
+  assert.equal(isCopyDepartmentItem({ payload: { department: "copy" } }), true);
 });
 
 test("video projects stay in creative without a payload storyboard", () => {
