@@ -10,6 +10,8 @@ import { aiEmbed, aiEmbedBatch } from "./ai.ts";
 import { hasPulseIntent } from "./pulse-request.mjs";
 import { hasRetentionIntent } from "./client-retention.ts";
 import { NATIVE_DEV_TASK_TOOLS } from "./dev-escalation-auth.mjs";
+import type { DbClient } from "./supabase-clients.ts";
+import { errorMessage } from "./error-message.ts";
 
 export function shouldUseTokenOptimize(
   agent: { metadata?: Record<string, unknown> | null },
@@ -73,7 +75,11 @@ export const ROUTER_ACTIVATE_MIN = 90;
 export const FULL_SCHEMA_TOP_K = 8;
 export const RRF_K = 60;
 
-export type ToolDef = { name: string; description?: string; parameters?: any };
+export type ToolDef = {
+  name: string;
+  description?: string;
+  parameters?: unknown;
+};
 
 export interface RoutedToolsResult {
   tools: ToolDef[];
@@ -96,14 +102,14 @@ export function toolSig(s: string): string {
 }
 
 export async function ensureToolEmbeddings(
-  supabase: any,
+  supabase: DbClient,
   toolDefs: ToolDef[],
 ): Promise<void> {
   const { data: existing } = await supabase
     .from("agent_tool_embeddings")
     .select("tool_name, sig");
   const have = new Map<string, string>(
-    (existing || []).map((r: any) => [r.tool_name, r.sig]),
+    (existing || []).map((r) => [r.tool_name, r.sig]),
   );
   const missing = toolDefs.filter(
     (t) => have.get(t.name) !== toolSig(t.description || ""),
@@ -116,7 +122,7 @@ export async function ensureToolEmbeddings(
   const rows = missing.map((t, i) => ({
     tool_name: t.name,
     sig: toolSig(t.description || ""),
-    embedding: vectors[i],
+    embedding: JSON.stringify(vectors[i]),
     updated_at: new Date().toISOString(),
   }));
   await supabase
@@ -169,22 +175,22 @@ export function fuseRankedToolNames(rankedLists: string[][]): string[] {
 }
 
 export async function matchToolNamesSemantic(
-  supabase: any,
+  supabase: DbClient,
   queryText: string,
   matchCount: number,
 ): Promise<string[]> {
   const qvec = await aiEmbed(queryText);
   if (!qvec) return [];
   const { data } = await supabase.rpc("match_agent_tools", {
-    query_embedding: qvec,
+    query_embedding: JSON.stringify(qvec),
     match_count: matchCount,
   });
-  return (data || []).map((r: any) => r.tool_name).filter(Boolean);
+  return (data || []).map((r) => r.tool_name).filter(Boolean);
 }
 
 /** Hybrid semantic + keyword router (single LLM round-trip). */
 export async function hybridMatchToolNames(
-  supabase: any,
+  supabase: DbClient,
   queryText: string,
   toolDefs: ToolDef[],
   matchCount: number,
@@ -318,7 +324,7 @@ function markFullSchema(
 }
 
 export async function selectRelevantToolsForMessage(
-  supabase: any,
+  supabase: DbClient,
   userText: string,
   toolDefs: ToolDef[],
   opts: {
@@ -379,8 +385,8 @@ export async function selectRelevantToolsForMessage(
       `[AGENT] tool router${opts.lazy ? " (lazy+hybrid)" : " (hybrid)"}: ${toolDefs.length} → ${result.length} tools, ${fullSchemaNames.size} full schemas`,
     );
     return { tools: result, fullSchemaNames };
-  } catch (e: any) {
-    console.error("[AGENT] tool router failed, using full set:", e?.message);
+  } catch (e) {
+    console.error("[AGENT] tool router failed, using full set:", errorMessage(e));
     return allFull(toolDefs);
   }
 }
@@ -428,7 +434,7 @@ export function buildToolApiEntries(
 }
 
 export async function searchToolsFromIndex(
-  supabase: any,
+  supabase: DbClient,
   query: string,
   toolDefs: ToolDef[],
   limit = 12,
@@ -448,7 +454,7 @@ export interface MemoryPointerHit {
 
 /** Semantic pointer recall — replaces bulk 80+50 row scans. */
 export async function fetchRelevantMemoryPointers(
-  supabase: any,
+  supabase: DbClient,
   tenantIds: string[],
   queryText: string,
   limit = 8,
@@ -461,22 +467,20 @@ export async function fetchRelevantMemoryPointers(
     const primaryTenant = tenantIds[0];
     const { data, error } = await supabase.rpc("kb_match_pointers", {
       p_tenant_id: primaryTenant,
-      p_query_embedding: vec,
-      p_category: null,
-      p_since_days: null,
+      p_query_embedding: JSON.stringify(vec),
       p_limit: limit,
     });
     if (error || !data?.length) return [];
     return data
-      .map((row: any) => ({
+      .map((row) => ({
         label:
           [row.category, row.subcategory].filter(Boolean).join("/") ||
           "pointer",
         text: [row.title, row.summary].filter(Boolean).join(": "),
       }))
-      .filter((item: MemoryPointerHit) => item.text);
-  } catch (e: any) {
-    console.warn("[AGENT] semantic memory fetch failed:", e?.message);
+      .filter((item) => item.text);
+  } catch (e) {
+    console.warn("[AGENT] semantic memory fetch failed:", errorMessage(e));
     return [];
   }
 }
