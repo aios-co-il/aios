@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { extractRecallDownloads } from "./recall.ts";
 
-test("extractRecallDownloads reads media shortcuts and duration", () => {
+Deno.test("extractRecallDownloads reads media shortcuts and duration", () => {
   const out = extractRecallDownloads({
     recordings: [
       {
@@ -19,7 +18,7 @@ test("extractRecallDownloads reads media shortcuts and duration", () => {
       },
     ],
   });
-  assert.deepEqual(out, {
+  assertEquals(out, {
     videoUrl: "https://v",
     audioUrl: "https://a",
     transcriptUrl: "https://t",
@@ -28,24 +27,27 @@ test("extractRecallDownloads reads media shortcuts and duration", () => {
   });
 });
 
-test("extractRecallDownloads returns nulls for a bot without recordings", () => {
-  const empty = {
-    videoUrl: null,
-    audioUrl: null,
-    transcriptUrl: null,
-    transcriptStatus: null,
-    durationSeconds: null,
-  };
-  assert.deepEqual(extractRecallDownloads({}), empty);
-  assert.deepEqual(extractRecallDownloads({ recordings: "x" }), empty);
-});
+Deno.test(
+  "extractRecallDownloads returns nulls for a bot without recordings",
+  () => {
+    const empty = {
+      videoUrl: null,
+      audioUrl: null,
+      transcriptUrl: null,
+      transcriptStatus: null,
+      durationSeconds: null,
+    };
+    assertEquals(extractRecallDownloads({}), empty);
+    assertEquals(extractRecallDownloads({ recordings: "x" }), empty);
+  },
+);
 
-test("extractRecallDownloads drops non-string urls", () => {
+Deno.test("extractRecallDownloads drops non-string urls", () => {
   const out = extractRecallDownloads({
     recordings: [
       { media_shortcuts: { video_mixed: { data: { download_url: 5 } } } },
     ],
   });
-  assert.equal(out.videoUrl, null);
-  assert.equal(out.durationSeconds, null);
+  assertStrictEquals(out.videoUrl, null);
+  assertStrictEquals(out.durationSeconds, null);
 });

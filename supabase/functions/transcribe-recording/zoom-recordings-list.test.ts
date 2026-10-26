@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { freshZoomRecordingUrls } from "./zoom-recordings-list.ts";
 
 const listData = {
@@ -20,20 +19,29 @@ const listData = {
   ],
 };
 
-test("freshZoomRecordingUrls puts the wanted recording type first, without duplicates", () => {
-  assert.deepEqual(freshZoomRecordingUrls(listData, "42", "AUDIO_ONLY"), [
-    "https://z/a",
-    "https://z/p",
-    "https://z/v",
-  ]);
-  assert.equal(
-    freshZoomRecordingUrls(listData, "u-42", "")?.[0],
-    "https://z/v",
-  );
-});
+Deno.test(
+  "freshZoomRecordingUrls puts the wanted recording type first, without duplicates",
+  () => {
+    assertEquals(freshZoomRecordingUrls(listData, "42", "AUDIO_ONLY"), [
+      "https://z/a",
+      "https://z/p",
+      "https://z/v",
+    ]);
+    assertStrictEquals(
+      freshZoomRecordingUrls(listData, "u-42", "")?.[0],
+      "https://z/v",
+    );
+  },
+);
 
-test("freshZoomRecordingUrls returns null when the meeting is missing", () => {
-  assert.equal(freshZoomRecordingUrls(listData, "7", "audio_only"), null);
-  assert.equal(freshZoomRecordingUrls({}, "42", "audio_only"), null);
-  assert.deepEqual(freshZoomRecordingUrls(listData, "1", "x"), []);
-});
+Deno.test(
+  "freshZoomRecordingUrls returns null when the meeting is missing",
+  () => {
+    assertStrictEquals(
+      freshZoomRecordingUrls(listData, "7", "audio_only"),
+      null,
+    );
+    assertStrictEquals(freshZoomRecordingUrls({}, "42", "audio_only"), null);
+    assertEquals(freshZoomRecordingUrls(listData, "1", "x"), []);
+  },
+);

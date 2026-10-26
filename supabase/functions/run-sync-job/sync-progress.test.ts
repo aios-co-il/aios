@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { readSyncProgress } from "./sync-progress.ts";
 
-test("reads stored counters and results", () => {
+Deno.test("reads stored counters and results", () => {
   const progress = readSyncProgress({
     processed: 4,
     failed: "2",
@@ -12,17 +11,17 @@ test("reads stored counters and results", () => {
       { leadId: "l2", success: false },
     ],
   });
-  assert.equal(progress.processed, 4);
-  assert.equal(progress.failed, 2);
-  assert.equal(progress.conflicts, 0);
-  assert.equal(progress.total, 10);
-  assert.deepEqual(progress.results, [
+  assertStrictEquals(progress.processed, 4);
+  assertStrictEquals(progress.failed, 2);
+  assertStrictEquals(progress.conflicts, 0);
+  assertStrictEquals(progress.total, 10);
+  assertEquals(progress.results, [
     { leadId: "l1", leadName: "A", success: true },
   ]);
 });
 
-test("defaults everything for missing progress", () => {
-  assert.deepEqual(readSyncProgress(null), {
+Deno.test("defaults everything for missing progress", () => {
+  assertEquals(readSyncProgress(null), {
     processed: 0,
     failed: 0,
     conflicts: 0,

@@ -1,8 +1,11 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 import { readFbInsightsPage } from "./fbInsightsPage.ts";
 
-test("readFbInsightsPage keeps Graph rows and the next page url", () => {
+Deno.test("readFbInsightsPage keeps Graph rows and the next page url", () => {
   const page = readFbInsightsPage({
     data: [
       {
@@ -16,24 +19,29 @@ test("readFbInsightsPage keeps Graph rows and the next page url", () => {
     ],
     paging: { next: "https://graph.example/next" },
   });
-  assert.equal(page.next, "https://graph.example/next");
-  assert.equal(page.rows[0].campaign_id, "1");
-  assert.equal(page.rows[0].spend, "1.5");
-  assert.equal(page.rows[0].reach, "");
-  assert.equal(page.rows[0].adset_id, undefined);
-  assert.deepEqual(page.rows[0].actions, [{ action_type: "lead", value: "2" }]);
-  assert.equal(page.rows[0].conversions, undefined);
+  assertStrictEquals(page.next, "https://graph.example/next");
+  assertStrictEquals(page.rows[0].campaign_id, "1");
+  assertStrictEquals(page.rows[0].spend, "1.5");
+  assertStrictEquals(page.rows[0].reach, "");
+  assertStrictEquals(page.rows[0].adset_id, undefined);
+  assertEquals(page.rows[0].actions, [{ action_type: "lead", value: "2" }]);
+  assertStrictEquals(page.rows[0].conversions, undefined);
 });
 
-test("readFbInsightsPage throws the Graph error message", () => {
-  assert.throws(
+Deno.test("readFbInsightsPage throws the Graph error message", () => {
+  assertThrows(
     () => readFbInsightsPage({ error: { message: "bad token" } }),
-    /bad token/,
+    Error,
+    "bad token",
   );
-  assert.throws(() => readFbInsightsPage({ error: { code: 1 } }), /"code":1/);
+  assertThrows(
+    () => readFbInsightsPage({ error: { code: 1 } }),
+    Error,
+    `"code":1`,
+  );
 });
 
-test("readFbInsightsPage tolerates non-object bodies", () => {
-  assert.deepEqual(readFbInsightsPage(null), { rows: [], next: null });
-  assert.deepEqual(readFbInsightsPage({ data: "x" }), { rows: [], next: null });
+Deno.test("readFbInsightsPage tolerates non-object bodies", () => {
+  assertEquals(readFbInsightsPage(null), { rows: [], next: null });
+  assertEquals(readFbInsightsPage({ data: "x" }), { rows: [], next: null });
 });
