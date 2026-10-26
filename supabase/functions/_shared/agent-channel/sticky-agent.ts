@@ -134,8 +134,7 @@ export async function collectOpenChatIds(
     const { data: sessions } = await sb
       .from("agent_channel_sessions")
       .select("external_session_id")
-      .eq("tenant_id", args.tenantId)
-      .eq("provider", args.provider)
+      .match({ tenant_id: args.tenantId, provider: args.provider })
       .not("external_session_id", "is", null)
       .order("last_activity_at", { ascending: false })
       .limit(5);

@@ -99,6 +99,7 @@ export function pickPayloadRealPhone(candidates = [], lidDigits = "") {
  * Explicitly does NOT use "most recent active session" when multiple phones
  * are allowed — that was the Ana→David private-chat bug.
  *
+ * @param {{ lidDigits?: string | null, payloadRealPhone?: string | null, lidAliases?: Record<string, string> | null, waLidMapPhone?: string | null, allowedPhones?: unknown[] }} [args]
  * @returns {{ phone: string|null, reason: string }}
  */
 export function resolveInboundLidToPhone({
