@@ -170,6 +170,9 @@ jobs:
       - name: TypeScript gate regression tests
         run: pnpm test:typecheck
 
+      - name: Carmen chat scope tests
+        run: node --experimental-strip-types --test supabase/functions/_shared/carmen/chat-scope.test.ts supabase/functions/_shared/carmen/chat-scope-sql.test.mjs supabase/functions/_shared/carmen-chat-isolation.test.mjs
+
       - name: Component regression tests
         run: pnpm test:components
 

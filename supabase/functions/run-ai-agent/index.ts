@@ -42,6 +42,15 @@ import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
+import {
+  applyChatScope,
+  chatContactRefusal,
+  chatScopeMeta,
+  chatScopeRefusal,
+  keepVisibleChatRows,
+  resolveChatScope,
+  withChatScopeColumns,
+} from "../_shared/carmen/chat-scope.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -5682,6 +5691,18 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
+  // Chat readers (AIO-231): scope from the verified caller and the WhatsApp
+  // chat of this turn, never from tool arguments (_shared/carmen/chat-scope.ts).
+  const chatScopeFor = () =>
+    resolveChatScope(supabase, {
+      tenantId,
+      accessibleTenantIds,
+      userId: actorUserId,
+      callerRole: callerRole ?? null,
+      callerCampaignerId: callerCampaignerId ?? null,
+      managedAgencyIds,
+      waNotify,
+    });
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
       supabase,
@@ -6414,7 +6435,8 @@ async function executeTool(
           .from("leads")
           .select("phone, company_name, contact_name")
           .eq("id", args.contact_id)
-          .single();
+          .in("tenant_id", accessibleTenantIds)
+          .maybeSingle();
         phone = data?.phone;
         contactName = data?.contact_name || data?.company_name;
       } else {
@@ -6422,7 +6444,8 @@ async function executeTool(
           .from("clients")
           .select("phone, name, contact_name")
           .eq("id", args.contact_id)
-          .single();
+          .in("tenant_id", accessibleTenantIds)
+          .maybeSingle();
         phone = data?.phone;
         contactName = data?.contact_name || data?.name;
       }
@@ -9836,19 +9859,54 @@ async function executeTool(
     }
     // CHAT HISTORY
     case "get_chat_history": {
+      const chatScope = await chatScopeFor();
+      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
+      const contactRefusal = await chatContactRefusal(
+        supabase,
+        chatScope,
+        args.contact_type,
+        args.contact_id,
+        accessibleTenantIds,
+      );
+      if (contactRefusal) return contactRefusal;
       const filterCol =
         args.contact_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id, message_text, direction, sender_name, created_at")
-        .in("tenant_id", accessibleTenantIds)
-        .eq(filterCol, args.contact_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
+      const { data, error } = await applyChatScope(
+        supabase
+          .from("chat_messages")
+          .select(
+            withChatScopeColumns(
+              "id, message_text, direction, sender_name, created_at",
+            ),
+          )
+          .in("tenant_id", accessibleTenantIds)
+          .eq(filterCol, args.contact_id)
+          .order("created_at", { ascending: false })
+          .limit(args.limit || 20),
+        chatScope,
+      );
       if (error) throw error;
-      return { count: data.length, messages: data.reverse() };
+      const visible = await keepVisibleChatRows(
+        supabase,
+        data,
+        chatScope,
+        accessibleTenantIds,
+      );
+      return {
+        count: visible.length,
+        messages: visible.reverse().map((m: any) => ({
+          id: m.id,
+          message_text: m.message_text,
+          direction: m.direction,
+          sender_name: m.sender_name,
+          created_at: m.created_at,
+        })),
+        ...chatScopeMeta(chatScope),
+      };
     }
     case "search_conversation_history": {
+      const chatScope = await chatScopeFor();
+      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
       const rawQuery = String(args.query || "").trim();
       // AND semantics: every token must appear in the message. Up to 4 tokens.
       // No query = browse mode: chronological slice of the window, which then
@@ -9900,7 +9958,9 @@ async function executeTool(
       let q = supabase
         .from("chat_messages")
         .select(
-          "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          withChatScopeColumns(
+            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          ),
         )
         .in("tenant_id", accessibleTenantIds)
         .gte("created_at", since)
@@ -9920,8 +9980,14 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const { data, error } = await q;
+      const { data: scopedRows, error } = await applyChatScope(q, chatScope);
       if (error) throw error;
+      const data = await keepVisibleChatRows(
+        supabase,
+        scopedRows,
+        chatScope,
+        accessibleTenantIds,
+      );
       const fmt = (iso: string) =>
         new Date(iso).toLocaleString("he-IL", {
           timeZone: "Asia/Jerusalem",
@@ -9947,27 +10013,41 @@ async function executeTool(
           in_group: !!m.group_id,
           text: String(m.message_text).slice(0, 400),
         })),
+        ...chatScopeMeta(chatScope),
       };
     }
     case "get_recent_inbound_messages": {
+      const chatScope = await chatScopeFor();
+      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
       const hoursAgo = args.hours || 24;
       const since = new Date(
         Date.now() - hoursAgo * 60 * 60 * 1000,
       ).toISOString();
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(
-          "id, message_text, sender_name, sender_phone, created_at, client_id, lead_id, clients(name), leads(company_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .eq("direction", "inbound")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 30);
+      const { data: scopedRows, error } = await applyChatScope(
+        supabase
+          .from("chat_messages")
+          .select(
+            withChatScopeColumns(
+              "id, message_text, sender_name, sender_phone, created_at, client_id, lead_id, clients(name), leads(company_name)",
+            ),
+          )
+          .in("tenant_id", accessibleTenantIds)
+          .eq("direction", "inbound")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(args.limit || 30),
+        chatScope,
+      );
       if (error) throw error;
+      const data = await keepVisibleChatRows(
+        supabase,
+        scopedRows,
+        chatScope,
+        accessibleTenantIds,
+      );
       return {
         count: data.length,
-        messages: data.map((m: any) => ({
+        messages: data.map(({ connection_user_id: _conn, ...m }: any) => ({
           ...m,
           contact_name:
             m.clients?.name ||
@@ -9975,6 +10055,7 @@ async function executeTool(
             m.sender_name ||
             m.sender_phone,
         })),
+        ...chatScopeMeta(chatScope),
       };
     }
     // FINANCE
@@ -16284,6 +16365,11 @@ Deno.serve(async (req) => {
     delete bodyJson.model_override;
     // Per-automation Carmen instructions are admin config: service-to-service only.
     delete bodyJson.carmen_automation;
+    // The WhatsApp chat and sender phone decide the caller's identity and chat
+    // scope (AIO-231); only Carmen's webhook and automations may set them.
+    delete bodyJson.wa_notify;
+    if (bodyJson.lead_data && typeof bodyJson.lead_data === "object")
+      delete bodyJson.lead_data.phone;
   }
 
   if (bodyJson.direct_tool) {

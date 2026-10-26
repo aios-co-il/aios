@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import {
+  applyChatScope,
+  chatContactRefusal,
+  chatScopeRefusal,
+  keepVisibleChatRows,
+  resolveChatScope,
+  withChatScopeColumns,
+} from "./carmen/chat-scope.ts";
+import { fakeDb } from "./carmen/chat-scope-fake-db.ts";
 
 const carmen = readFileSync(new URL("./carmen.ts", import.meta.url), "utf8");
 const agent = readFileSync(
@@ -9,7 +18,7 @@ const agent = readFileSync(
 );
 
 test("private chats use session_only — never phone-scan chat_messages for background", () => {
-  assert.match(carmen, /export function backgroundChatContextMode\(isGroup/);
+  assert.match(carmen, /export function backgroundChatContextMode\(\s*isGroup/);
   assert.match(carmen, /session_only/);
   assert.match(
     carmen,
@@ -33,4 +42,412 @@ test("search_conversation_history defaults to current wa_notify chat_id", () => 
   assert.match(agent, /browse_all_chats/);
   assert.match(agent, /scopeGroupId/);
   assert.match(agent, /current_chat/);
+});
+
+// ── Chat scope (AIO-231) ────────────────────────────────────────────────────
+
+function caseBody(name) {
+  const start = agent.indexOf(`case "${name}": {`);
+  assert.ok(start > 0, `case ${name} not found`);
+  const end = agent.indexOf("\n    case ", start + 10);
+  return agent.slice(start, end);
+}
+
+test("the three chat readers run through the chat scope wrapper", () => {
+  for (const name of [
+    "get_chat_history",
+    "search_conversation_history",
+    "get_recent_inbound_messages",
+  ]) {
+    const body = caseBody(name);
+    assert.match(body, /await chatScopeFor\(\)/, name);
+    assert.match(body, /chatScope\.mode === "none"/, name);
+    assert.match(body, /applyChatScope\(/, name);
+    assert.match(body, /keepVisibleChatRows\(/, name);
+    assert.match(body, /withChatScopeColumns\(/, name);
+  }
+  assert.match(caseBody("get_chat_history"), /chatContactRefusal\(/);
+  // The scope input comes from the verified caller, not from tool args.
+  const scopeInput = agent.slice(
+    agent.indexOf("const chatScopeFor = () =>"),
+    agent.indexOf("if (isVideoDirectorTool(name))"),
+  );
+  assert.doesNotMatch(scopeInput, /args\./);
+  assert.match(scopeInput, /userId: actorUserId/);
+});
+
+test("send_message looks up the client or lead inside the caller's tenants", () => {
+  const body = caseBody("send_message");
+  const lookups = body.match(/\.in\("tenant_id", accessibleTenantIds\)/g);
+  assert.equal(lookups?.length, 2);
+});
+
+test("only service callers may set the WhatsApp chat and sender phone", () => {
+  const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
+  const guard = serve.slice(
+    serve.indexOf('if (auth.kind !== "service") {'),
+    serve.indexOf("if (bodyJson.direct_tool)"),
+  );
+  assert.match(guard, /delete bodyJson\.wa_notify;/);
+  assert.match(guard, /delete bodyJson\.lead_data\.phone;/);
+});
+
+// A tenant with David (owner) on his private Green API line, an org-wide Green
+// line, Carmen's Manus line, campaigner Dana (client A), campaigner Ronit
+// (client B), an agency owner, a team manager of agency 1, and a client
+// contact who talks to Carmen in client A's group.
+const T = "10000000-0000-4000-8000-000000000001";
+const T2 = "10000000-0000-4000-8000-000000000002";
+const DAVID = "d0000000-0000-4000-8000-00000000000d";
+const DANA = "d0000000-0000-4000-8000-0000000000a1";
+const RONIT = "d0000000-0000-4000-8000-0000000000a2";
+const AG_OWNER = "d0000000-0000-4000-8000-0000000000a3";
+const TEAM_MGR = "d0000000-0000-4000-8000-0000000000a4";
+const ORG_LINE = "d0000000-0000-4000-8000-0000000000f1";
+const MANUS = "d0000000-0000-4000-8000-0000000000e1";
+const DANA_CAMP = "c1000000-0000-4000-8000-0000000000a1";
+const RONIT_CAMP = "c1000000-0000-4000-8000-0000000000a2";
+const AG1 = "a0000000-0000-4000-8000-000000000001";
+const CA = "c0000000-0000-4000-8000-00000000000a";
+const CB = "c0000000-0000-4000-8000-00000000000b";
+const GA = "f0000000-0000-4000-8000-00000000000a";
+const GB = "f0000000-0000-4000-8000-00000000000b";
+const GFAM = "f0000000-0000-4000-8000-0000000000ff";
+const L1 = "b0000000-0000-4000-8000-000000000001";
+const DANA_PHONE = "972501111111";
+const DAVID_PHONE = "972509999999";
+
+const integrations = [
+  { tenant_id: T, user_id: DAVID, connection_visibility: "private" },
+  { tenant_id: T, user_id: ORG_LINE, connection_visibility: "org" },
+  { tenant_id: T, user_id: MANUS, connection_visibility: "private" },
+];
+
+// The get_chat_contacts rule (own + org + explicitly shared; super admin all),
+// as chat_allowed_connection_user_ids returns it. The SQL itself is checked
+// by carmen/chat-scope-sql.test.mjs and supabase/ops/verify_chat_allowed_connections.sql.
+function allowedConnections({ p_tenant_id, p_user_id }) {
+  const owners = new Set([p_user_id]);
+  for (const ti of integrations)
+    if (
+      ti.tenant_id === p_tenant_id &&
+      (ti.user_id === p_user_id || ti.connection_visibility === "org")
+    )
+      owners.add(ti.user_id);
+  return [...owners];
+}
+
+let minute = 0;
+function msg(id, fields) {
+  minute += 1;
+  return {
+    id,
+    tenant_id: T,
+    direction: "inbound",
+    message_text: `תקציב ${id}`,
+    created_at: `2026-10-26T08:${String(minute).padStart(2, "0")}:00Z`,
+    client_id: null,
+    lead_id: null,
+    group_id: null,
+    sender_name: id,
+    ...fields,
+  };
+}
+
+const messages = [
+  msg("a-dm-on-david-green", {
+    client_id: CA,
+    provider: "green_api",
+    connection_user_id: DAVID,
+    sender_phone: "972500000001",
+  }),
+  msg("a-dm-on-org-green", {
+    client_id: CA,
+    provider: "green_api",
+    connection_user_id: ORG_LINE,
+    sender_phone: "972500000001",
+  }),
+  msg("b-dm-on-org-green", {
+    client_id: CB,
+    provider: "green_api",
+    connection_user_id: ORG_LINE,
+    sender_phone: "972500000002",
+  }),
+  msg("a-group-on-manus", {
+    group_id: GA,
+    provider: "manus_wa",
+    connection_user_id: MANUS,
+    sender_phone: "972500000011",
+  }),
+  msg("a-group-on-david-green", {
+    group_id: GA,
+    provider: "green_api",
+    connection_user_id: DAVID,
+    sender_phone: "972500000011",
+  }),
+  msg("b-group-on-manus", {
+    group_id: GB,
+    provider: "manus_wa",
+    connection_user_id: MANUS,
+    sender_phone: "972500000012",
+  }),
+  msg("david-private-dm", {
+    provider: "green_api",
+    connection_user_id: DAVID,
+    sender_phone: "972544444444",
+  }),
+  msg("david-family-group", {
+    group_id: GFAM,
+    provider: "green_api",
+    connection_user_id: DAVID,
+    sender_phone: "972544444445",
+  }),
+  msg("dana-chat-with-carmen", {
+    provider: "manus_wa",
+    connection_user_id: MANUS,
+    sender_phone: DANA_PHONE,
+  }),
+  msg("david-chat-with-carmen", {
+    provider: "manus_wa",
+    connection_user_id: MANUS,
+    sender_phone: DAVID_PHONE,
+  }),
+  msg("lead-dm-on-org-green", {
+    lead_id: L1,
+    provider: "green_api",
+    connection_user_id: ORG_LINE,
+    sender_phone: "972500000021",
+  }),
+  msg("other-tenant", {
+    tenant_id: T2,
+    provider: "manus_wa",
+    connection_user_id: MANUS,
+    sender_phone: "972500000031",
+  }),
+];
+
+function world() {
+  return fakeDb(
+    {
+      chat_messages: messages,
+      whatsapp_groups: [
+        { id: GA, tenant_id: T, group_chat_id: "120363-a@g.us" },
+        { id: GB, tenant_id: T, group_chat_id: "120363-b@g.us" },
+        { id: GFAM, tenant_id: T, group_chat_id: "120363-family@g.us" },
+      ],
+      profiles: [
+        { id: DANA, campaigner_id: DANA_CAMP },
+        { id: RONIT, campaigner_id: RONIT_CAMP },
+        { id: AG_OWNER, campaigner_id: null },
+        { id: TEAM_MGR, campaigner_id: null },
+      ],
+      client_team: [
+        { campaigner_id: DANA_CAMP, client_id: CA, start_date: "2026-01-01" },
+        { campaigner_id: RONIT_CAMP, client_id: CB, start_date: "2026-01-01" },
+      ],
+      clients: [
+        { id: CA, tenant_id: T, agency_id: AG1, whatsapp_group_id: GA },
+        { id: CB, tenant_id: T, agency_id: AG1, whatsapp_group_id: null },
+      ],
+      team_channel_whatsapp_links: [],
+      carmen_client_group_access: [
+        { tenant_id: T, client_id: CB, whatsapp_group_id: GB },
+      ],
+      leads: [{ id: L1, tenant_id: T, agency_id: AG1, sales_person_id: null }],
+    },
+    { chat_allowed_connection_user_ids: allowedConnections },
+  );
+}
+
+const callers = {
+  owner: { userId: DAVID, callerRole: "owner", callerCampaignerId: null },
+  danaInApp: {
+    userId: DANA,
+    callerRole: "campaigner",
+    callerCampaignerId: null,
+  },
+  danaOnWhatsApp: {
+    userId: DANA,
+    callerRole: "campaigner",
+    callerCampaignerId: DANA_CAMP,
+    waNotify: {
+      chat_id: `${DANA_PHONE}@c.us`,
+      is_group: false,
+      connection_user_id: MANUS,
+    },
+  },
+  ronit: { userId: RONIT, callerRole: "campaigner", callerCampaignerId: null },
+  agencyOwner: {
+    userId: AG_OWNER,
+    callerRole: "agency_owner",
+    callerCampaignerId: null,
+  },
+  teamManager: {
+    userId: TEAM_MGR,
+    callerRole: "team_manager",
+    callerCampaignerId: null,
+    managedAgencyIds: [AG1],
+  },
+  groupContact: {
+    userId: null,
+    callerRole: null,
+    callerCampaignerId: null,
+    waNotify: {
+      chat_id: "120363-a@g.us",
+      is_group: true,
+      connection_user_id: MANUS,
+    },
+  },
+  unknownPrivateSender: {
+    userId: null,
+    callerRole: null,
+    callerCampaignerId: null,
+    waNotify: { chat_id: "972507777777@c.us", connection_user_id: MANUS },
+  },
+};
+
+function input(caller) {
+  return {
+    tenantId: T,
+    accessibleTenantIds: [T],
+    managedAgencyIds: [],
+    today: "2026-10-26",
+    ...caller,
+  };
+}
+
+// The same steps run-ai-agent takes in each reader: resolve the scope from
+// the caller, push it into the query, then filter the rows again.
+async function readChats(caller, { contact, keyword } = {}) {
+  const { db } = world();
+  const scope = await resolveChatScope(db, input(caller));
+  if (scope.mode === "none") return { refused: chatScopeRefusal(scope) };
+  if (contact) {
+    const refusal = await chatContactRefusal(
+      db,
+      scope,
+      contact.type,
+      contact.id,
+      [T],
+    );
+    if (refusal) return { refused: refusal };
+  }
+  let q = db
+    .from("chat_messages")
+    .select(withChatScopeColumns("id, message_text, created_at"))
+    .in("tenant_id", [T])
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (contact)
+    q = q.eq(contact.type === "client" ? "client_id" : "lead_id", contact.id);
+  if (keyword) q = q.ilike("message_text", `%${keyword}%`);
+  const { data: pushed } = await applyChatScope(q, scope);
+  const rows = await keepVisibleChatRows(db, pushed, scope, [T]);
+  return {
+    ids: rows.map((r) => r.id).sort(),
+    pushedIds: pushed.map((r) => r.id).sort(),
+  };
+}
+
+const ALL_TENANT_ROWS = messages
+  .filter((m) => m.tenant_id === T)
+  .map((m) => m.id)
+  .sort();
+
+test("matrix: owner keeps today's tenant-wide access", async () => {
+  const { ids } = await readChats(callers.owner, { keyword: "תקציב" });
+  assert.deepEqual(ids, ALL_TENANT_ROWS);
+  const history = await readChats(callers.owner, {
+    contact: { type: "client", id: CB },
+  });
+  assert.deepEqual(history.ids, ["b-dm-on-org-green"]);
+});
+
+test("matrix: campaigner of client A asking about client B gets nothing of B", async () => {
+  const history = await readChats(callers.danaInApp, {
+    contact: { type: "client", id: CB },
+  });
+  assert.equal(history.refused?.error, "access_denied");
+  assert.match(history.refused?.note, /לא משויך אליך/);
+
+  // Widest possible read (keyword over every chat): only A's linked threads,
+  // and A's DMs only from the org-wide line, not David's private line.
+  const all = await readChats(callers.danaInApp, { keyword: "תקציב" });
+  assert.deepEqual(all.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
+  assert.deepEqual(all.pushedIds, all.ids, "the DB filter alone is exact");
+
+  const own = await readChats(callers.danaInApp, {
+    contact: { type: "client", id: CA },
+  });
+  assert.deepEqual(own.ids, ["a-dm-on-org-green"]);
+
+  const onWhatsApp = await readChats(callers.danaOnWhatsApp, {
+    keyword: "תקציב",
+  });
+  assert.deepEqual(onWhatsApp.ids, [
+    "a-dm-on-org-green",
+    "a-group-on-manus",
+    "dana-chat-with-carmen",
+  ]);
+
+  const ronit = await readChats(callers.ronit, { keyword: "תקציב" });
+  assert.deepEqual(ronit.ids, ["b-dm-on-org-green", "b-group-on-manus"]);
+});
+
+test("matrix: a client contact in a group reads only that group on Carmen's line", async () => {
+  const all = await readChats(callers.groupContact, { keyword: "תקציב" });
+  assert.deepEqual(all.ids, ["a-group-on-manus"]);
+  assert.deepEqual(all.pushedIds, all.ids);
+  const otherClient = await readChats(callers.groupContact, {
+    contact: { type: "client", id: CB },
+  });
+  assert.deepEqual(otherClient.ids, []);
+});
+
+test("matrix: David's private DM thread is visible to nobody but the owner", async () => {
+  const privateRows = [
+    "david-private-dm",
+    "david-family-group",
+    "a-dm-on-david-green",
+    "a-group-on-david-green",
+    "david-chat-with-carmen",
+  ];
+  for (const [name, caller] of Object.entries(callers)) {
+    if (name === "owner") continue;
+    const res = await readChats(caller, { keyword: "תקציב" });
+    const seen = [...(res.ids ?? []), ...(res.pushedIds ?? [])];
+    for (const row of privateRows)
+      assert.ok(!seen.includes(row), `${name} must not read ${row}`);
+  }
+});
+
+test("matrix: managers see their linked threads on lines they may read", async () => {
+  const agencyOwner = await readChats(callers.agencyOwner, {
+    keyword: "תקציב",
+  });
+  assert.deepEqual(agencyOwner.ids, [
+    "a-dm-on-org-green",
+    "a-group-on-manus",
+    "b-dm-on-org-green",
+    "b-group-on-manus",
+    "lead-dm-on-org-green",
+  ]);
+  const teamManager = await readChats(callers.teamManager, {
+    keyword: "תקציב",
+  });
+  assert.deepEqual(teamManager.ids, agencyOwner.ids);
+});
+
+test("matrix: unknown private senders and system runs read nothing", async () => {
+  const stranger = await readChats(callers.unknownPrivateSender, {
+    keyword: "תקציב",
+  });
+  assert.equal(stranger.refused?.access_scope, "none");
+  assert.deepEqual(stranger.refused?.messages, []);
+  const system = await readChats({
+    userId: null,
+    callerRole: null,
+    callerCampaignerId: null,
+  });
+  assert.equal(system.refused?.access_scope, "none");
 });
