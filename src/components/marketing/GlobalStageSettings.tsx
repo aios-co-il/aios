@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { cn } from "@/lib/utils";
 import {
   Lightbulb,
@@ -119,7 +120,7 @@ function StageTemplateForm({
   stageType: string;
   track: string;
   tenantId: string;
-  agents: any[];
+  agents: { id: string; name: string }[];
 }) {
   const queryClient = useQueryClient();
   const stageCfg = STAGE_TYPES.find((s) => s.type === stageType)!;
@@ -193,8 +194,12 @@ function StageTemplateForm({
       toast({ title: "ההגדרות נשמרו" });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["stage-template", tenantId] });
-    } catch (e: any) {
-      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "שגיאה",
+        description: errorMessage(e) || undefined,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

@@ -58,7 +58,7 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
     queryFn: async () => {
       const baseQuery = () => {
         let q = supabase
-          .from("ahrefs_reports" as any)
+          .from("ahrefs_reports")
           .select("*")
           .order("received_at", { ascending: false })
           .limit(limit);

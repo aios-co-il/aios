@@ -1,4 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { isApprovalMode } from "@/types/marketing-b21";
+
+type StageTemplate = Tables<"marketing_stage_templates">;
 
 export type MarketingTrack = "campaigns" | "seo_geo" | "social_organic";
 
@@ -111,8 +115,8 @@ export async function ensurePipelineForClient({
         .eq("tenant_id", tenantId)
         .eq("track", track);
 
-      const tplByStageType: Record<string, any> = {};
-      (templates ?? []).forEach((t: any) => {
+      const tplByStageType: Record<string, StageTemplate> = {};
+      (templates ?? []).forEach((t) => {
         tplByStageType[t.stage_type] = t;
       });
 
@@ -125,7 +129,9 @@ export async function ensurePipelineForClient({
             ...s,
             name: tpl?.name ?? s.name,
             agent_id: tpl?.default_agent_id ?? null,
-            approval_mode: tpl?.default_approval_mode ?? "manual",
+            approval_mode: isApprovalMode(tpl?.default_approval_mode)
+              ? tpl.default_approval_mode
+              : "manual",
             configuration: {
               instructions: tpl?.default_instructions ?? "",
               tools: tpl?.default_tools ?? [],
@@ -165,8 +171,8 @@ export async function ensurePipelineForClient({
     .eq("tenant_id", tenantId)
     .eq("track", track);
 
-  const tplByStageType: Record<string, any> = {};
-  (templates ?? []).forEach((t: any) => {
+  const tplByStageType: Record<string, StageTemplate> = {};
+  (templates ?? []).forEach((t) => {
     tplByStageType[t.stage_type] = t;
   });
 
@@ -179,7 +185,9 @@ export async function ensurePipelineForClient({
         ...s,
         name: tpl?.name ?? s.name,
         agent_id: tpl?.default_agent_id ?? null,
-        approval_mode: tpl?.default_approval_mode ?? "manual",
+        approval_mode: isApprovalMode(tpl?.default_approval_mode)
+          ? tpl.default_approval_mode
+          : "manual",
         configuration: {
           instructions: tpl?.default_instructions ?? "",
           tools: tpl?.default_tools ?? [],
