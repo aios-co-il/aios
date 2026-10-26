@@ -15,8 +15,8 @@ import {
   dedupeWooOrdersById,
   filterWooOrdersForRevenue,
   sumWooRevenue,
-  type WooOrderRevenueRow,
 } from "@/lib/wooOrderRevenue";
+import { toWooOrderRows, type WooOrderRow } from "@/lib/wooOrderRows-b18";
 
 /** React-query keys used by DashboardView + WooCommerceDashboard. */
 export const wooDashboardQueryKeys = {
@@ -107,7 +107,7 @@ export function getDynamicTableDateRangeIso(
 }
 
 export type WooReportAttributionData = {
-  orders: any[];
+  orders: WooOrderRow[];
   googlePaid: WooGoogleAttributionSummary;
   bySource: ReturnType<typeof aggregateOrdersByAttribution>;
 };
@@ -120,12 +120,12 @@ async function fetchWooOrdersForColumnInRange(
   column: "date_created" | "date_paid" | "date_completed",
   range: { start: string; end: string },
   select: string,
-): Promise<any[]> {
-  const all: any[] = [];
+): Promise<WooOrderRow[]> {
+  const all: WooOrderRow[] = [];
   for (let page = 0; page < WOO_MAX_PAGES; page++) {
     const from = page * WOO_PAGE_SIZE;
     const { data: orders, error } = await supabase
-      .from("woocommerce_orders" as any)
+      .from("woocommerce_orders")
       .select(select)
       .in("site_id", siteIds)
       .gte(column, range.start)
@@ -134,9 +134,9 @@ async function fetchWooOrdersForColumnInRange(
       .order(column, { ascending: false })
       .range(from, from + WOO_PAGE_SIZE - 1);
     if (error) throw error;
-    const batch = (orders as any[]) || [];
+    const batch = orders || [];
     if (batch.length === 0) break;
-    all.push(...batch);
+    all.push(...toWooOrderRows(batch));
     if (batch.length < WOO_PAGE_SIZE) break;
   }
   return all;
@@ -147,22 +147,22 @@ export async function fetchWooOrdersInRange(
   siteIds: string[],
   range: { start: string; end: string } | null,
   select = "id, total, status, date_created, date_completed, date_paid, attribution",
-): Promise<any[]> {
+): Promise<WooOrderRow[]> {
   if (siteIds.length === 0) return [];
   if (!range) {
-    const all: any[] = [];
+    const all: WooOrderRow[] = [];
     for (let page = 0; page < WOO_MAX_PAGES; page++) {
       const from = page * WOO_PAGE_SIZE;
       const { data: orders, error } = await supabase
-        .from("woocommerce_orders" as any)
+        .from("woocommerce_orders")
         .select(select)
         .in("site_id", siteIds)
         .order("date_created", { ascending: false })
         .range(from, from + WOO_PAGE_SIZE - 1);
       if (error) throw error;
-      const batch = (orders as any[]) || [];
+      const batch = orders || [];
       if (batch.length === 0) break;
-      all.push(...batch);
+      all.push(...toWooOrderRows(batch));
       if (batch.length < WOO_PAGE_SIZE) break;
     }
     return all;
@@ -175,14 +175,14 @@ export async function fetchWooOrdersInRange(
   ]);
 
   const merged = dedupeWooOrdersById([...byCreated, ...byPaid, ...byCompleted]);
-  return filterWooOrdersForRevenue(merged as WooOrderRevenueRow[], range);
+  return filterWooOrdersForRevenue(merged, range);
 }
 
 export async function fetchWooSiteIdsForClient(
   clientId: string,
 ): Promise<string[]> {
   const { data: sites, error } = await supabase
-    .from("social_media_wordpress_sites" as any)
+    .from("social_media_wordpress_sites")
     .select("id")
     .eq("client_id", clientId)
     .eq("woocommerce_enabled", true)
@@ -191,7 +191,7 @@ export async function fetchWooSiteIdsForClient(
     console.error("[fetchWooSiteIdsForClient] query failed:", error);
     throw error;
   }
-  return ((sites as any[]) || []).map((s: any) => s.id);
+  return (sites || []).map((s) => s.id);
 }
 
 /** Fetch WooCommerce orders + attribution summary for a linked client report. */
@@ -214,8 +214,7 @@ export async function fetchWooReportAttribution(
   const siteIds = await fetchWooSiteIdsForClient(clientId);
   if (siteIds.length === 0) return empty;
 
-  const list = await fetchWooOrdersInRange(siteIds, range);
-  const valid = list as WooOrderRevenueRow[];
+  const valid = await fetchWooOrdersInRange(siteIds, range);
 
   return {
     orders: valid,
@@ -248,12 +247,11 @@ export async function fetchWooDashboardSummary(
   const siteIds = await fetchWooSiteIdsForClient(clientId);
   if (siteIds.length === 0) return empty;
 
-  const list = await fetchWooOrdersInRange(
+  const valid = await fetchWooOrdersInRange(
     siteIds,
     range,
     "id, total, status, attribution, date_created, date_completed, date_paid",
   );
-  const valid = list as WooOrderRevenueRow[];
   return {
     revenue: sumWooRevenue(valid),
     orders: valid.length,

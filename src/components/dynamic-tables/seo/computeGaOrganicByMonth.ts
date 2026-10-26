@@ -8,7 +8,9 @@
  *   2. daily_source — derived by month, excluding paid mediums
  *   3. monthly_organic — last fallback (organic only)
  */
-export type GaRecord = { id?: string; data?: any } | { data?: any };
+import { asJsonObject } from "@/types/dashboard-b18";
+
+export type GaRecord = { id?: string; data?: unknown };
 
 export interface GaOrganicMonth {
   month: string; // YYYY-MM
@@ -35,18 +37,20 @@ export function computeGaOrganicByMonth(
 ): GaOrganicMonth[] {
   if (!gaRecords || gaRecords.length === 0) return [];
 
+  const rows = gaRecords.map((r) => asJsonObject(r.data));
+
   // 1. monthly_channel
-  const monthlyChannelRows = gaRecords.filter(
-    (r: any) => r.data?.report_type === "monthly_channel",
+  const monthlyChannelRows = rows.filter(
+    (d) => d.report_type === "monthly_channel",
   );
   if (monthlyChannelRows.length > 0) {
     const monthMap = new Map<string, number>();
-    for (const r of monthlyChannelRows as any[]) {
-      const cg = String(r.data?.channel_group || "");
+    for (const d of monthlyChannelRows) {
+      const cg = String(d.channel_group || "");
       if (isPaidChannel(cg)) continue;
-      const month = r.data?.month as string;
-      if (!month) continue;
-      const sessions = Number(r.data?.sessions) || 0;
+      if (!d.month) continue;
+      const month = String(d.month);
+      const sessions = Number(d.sessions) || 0;
       monthMap.set(month, (monthMap.get(month) || 0) + sessions);
     }
     if (monthMap.size > 0) {
@@ -57,18 +61,16 @@ export function computeGaOrganicByMonth(
   }
 
   // 2. daily_source
-  const dailySourceRows = gaRecords.filter(
-    (r: any) => r.data?.report_type === "daily_source",
-  );
+  const dailySourceRows = rows.filter((d) => d.report_type === "daily_source");
   if (dailySourceRows.length > 0) {
     const monthMap = new Map<string, number>();
-    for (const r of dailySourceRows as any[]) {
-      const sm = String(r.data?.source_medium || "");
+    for (const d of dailySourceRows) {
+      const sm = String(d.source_medium || "");
       if (isPaidMedium(sm)) continue;
-      const date = r.data?.date;
+      const date = d.date;
       if (!date) continue;
       const monthKey = String(date).substring(0, 7);
-      const sessions = Number(r.data?.sessions) || 0;
+      const sessions = Number(d.sessions) || 0;
       monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + sessions);
     }
     if (monthMap.size > 0) {
@@ -79,11 +81,11 @@ export function computeGaOrganicByMonth(
   }
 
   // 3. monthly_organic
-  return (gaRecords as any[])
-    .filter((r: any) => r.data?.report_type === "monthly_organic")
-    .map((r: any) => ({
-      month: r.data.month as string,
-      sessions: Number(r.data.sessions) || 0,
+  return rows
+    .filter((d) => d.report_type === "monthly_organic")
+    .map((d) => ({
+      month: String(d.month ?? ""),
+      sessions: Number(d.sessions) || 0,
     }))
     .sort((a, b) => a.month.localeCompare(b.month));
 }

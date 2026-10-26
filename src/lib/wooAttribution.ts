@@ -222,8 +222,8 @@ export function shouldUseGoogleWooAttributionOverlay(
 /** Summarize Google-attributed WooCommerce orders for Ads dashboard overlays. */
 export function summarizeGoogleAttributedWooOrders(
   orders: Array<{
-    total?: number | string;
-    status?: string;
+    total?: number | string | null;
+    status?: string | null;
     attribution?: WooOrderAttribution | null;
   }>,
 ): WooGoogleAttributionSummary {
@@ -252,8 +252,8 @@ export function summarizeGoogleAttributedWooOrders(
 /** Group valid orders by attribution label for dashboard tables. */
 export function aggregateOrdersByAttribution(
   orders: Array<{
-    total?: number | string;
-    status?: string;
+    total?: number | string | null;
+    status?: string | null;
     attribution?: WooOrderAttribution | null;
   }>,
 ): WooAttributionBreakdownRow[] {

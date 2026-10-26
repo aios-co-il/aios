@@ -104,7 +104,7 @@ export function ShareTableDialog({
       queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
       toast.success("הטאבים בקישור השיתוף עודכנו");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(`שגיאה בעדכון הטאבים: ${err?.message || String(err)}`);
     },
   });
@@ -113,7 +113,7 @@ export function ShareTableDialog({
     queryKey: ["table-shares", tableId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .select("*")
         .eq("table_id", tableId)
         .order("created_at", { ascending: false });
@@ -135,14 +135,14 @@ export function ShareTableDialog({
         fallbackName: tableName,
       });
       const { data, error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .insert({
           table_id: tableId,
           tenant_id: tenantId,
           created_by: user.id,
           allowed_emails: [],
           share_token: readableToken,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
@@ -152,9 +152,9 @@ export function ShareTableDialog({
       queryClient.invalidateQueries({ queryKey: ["table-shares", tableId] });
       toast.success("קישור שיתוף נוצר בהצלחה");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       const msg = err?.message || String(err);
-      if (err?.code === "23505") {
+      if ("code" in err && err.code === "23505") {
         toast.error("הסלאג כבר תפוס — נסה שוב או ערוך הסלאג אחרי יצירה");
       } else if (msg.includes("row-level security") || msg.includes("RLS")) {
         toast.error("אין הרשאה ליצור קישור שיתוף לטבלה הזו");
@@ -173,12 +173,12 @@ export function ShareTableDialog({
       isActive: boolean;
     }) => {
       const { error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .update({
           is_active: isActive,
           allowed_emails: [],
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("id", shareId);
       if (error) throw error;
     },
@@ -197,11 +197,11 @@ export function ShareTableDialog({
       slug: string;
     }) => {
       const { error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .update({
           share_token: slug,
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("id", shareId);
       if (error) throw error;
     },
@@ -211,8 +211,8 @@ export function ShareTableDialog({
       setEditingId(null);
       setEditingValue("");
     },
-    onError: (err: any) => {
-      if (err?.code === "23505") {
+    onError: (err: Error) => {
+      if ("code" in err && err.code === "23505") {
         toast.error("הסלאג הזה כבר תפוס, בחר אחר");
       } else {
         toast.error("שגיאה בעדכון הסלאג");
@@ -223,7 +223,7 @@ export function ShareTableDialog({
   const deleteShareMutation = useMutation({
     mutationFn: async (shareId: string) => {
       const { error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .delete()
         .eq("id", shareId);
       if (error) throw error;
@@ -337,7 +337,7 @@ export function ShareTableDialog({
             </p>
           )}
 
-          {shares.map((share: any) => (
+          {shares.map((share) => (
             <div key={share.id} className="border rounded-lg p-4 space-y-3">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">
