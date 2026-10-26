@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { TablesInsert } from "../_shared/database.types.ts";
+
+type DetectionResultInsert = TablesInsert<"ai_detection_results">;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,8 +110,9 @@ Deno.serve(async (req: Request) => {
     ];
 
     const scanId = `scan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const results: any[] = [];
-    const competitorResults: any[] = [];
+    const results: DetectionResultInsert[] = [];
+    const competitorResults: TablesInsert<"ai_detection_competitor_results">[] =
+      [];
 
     for (const prompt of typedPrompts) {
       for (const platform of platforms) {
@@ -243,7 +247,7 @@ Deno.serve(async (req: Request) => {
       (r) => r.platform === "perplexity",
     );
 
-    const calcScore = (arr: any[]) =>
+    const calcScore = (arr: DetectionResultInsert[]) =>
       arr.length > 0
         ? Math.round(
             (arr.filter((r) => r.is_mentioned).length / arr.length) * 100,

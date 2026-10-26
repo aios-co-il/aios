@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Tables } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +11,53 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
+type GmailTokenRow = Pick<
+  Tables<"gmail_tokens">,
+  "access_token" | "expires_at" | "refresh_token" | "user_id"
+>;
+
+interface GmailHeader {
+  name: string;
+  value?: string;
+}
+
+interface GmailMessagePart {
+  filename: string;
+  mimeType: string;
+  headers?: GmailHeader[];
+  body?: { attachmentId?: string; size?: number };
+  parts?: GmailMessagePart[];
+}
+
+interface GmailAttachment {
+  filename: string;
+  mimeType: string;
+  attachmentId: string;
+  size: number;
+}
+
+interface InvoiceEmailResult {
+  messageId: unknown;
+  subject?: string;
+  from?: string;
+  fromEmail?: string;
+  filename?: string;
+  error?: string;
+  skipped?: boolean;
+  fileUrl?: string | null;
+  invoiceName?: string;
+  invoiceAmount?: number;
+  invoiceDate?: string | null;
+  invoiceMonth?: string;
+  aiExtracted?: boolean;
+  matchedSupplierId?: string | null;
+  matchedSupplierName?: string | null;
+}
+
+async function refreshTokenIfNeeded(
+  supabaseService: SupabaseClient,
+  tokenData: GmailTokenRow,
+) {
   const expiresAt = new Date(tokenData.expires_at);
   if (expiresAt > new Date(Date.now() + 60000)) return tokenData.access_token;
 
@@ -37,16 +87,22 @@ async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
   return tokens.access_token;
 }
 
-function parseEmailHeader(payload: any, headerName: string): string {
+function parseEmailHeader(
+  payload: GmailMessagePart | undefined,
+  headerName: string,
+): string {
   return (
     payload?.headers?.find(
-      (h: any) => h.name.toLowerCase() === headerName.toLowerCase(),
+      (h) => h.name.toLowerCase() === headerName.toLowerCase(),
     )?.value || ""
   );
 }
 
 // Find attachments recursively in MIME parts
-function findAttachments(parts: any[], result: any[] = []): any[] {
+function findAttachments(
+  parts: GmailMessagePart[],
+  result: GmailAttachment[] = [],
+): GmailAttachment[] {
   for (const part of parts || []) {
     if (part.filename && part.body?.attachmentId) {
       result.push({
@@ -106,7 +162,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId);
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const results: any[] = [];
+    const results: InvoiceEmailResult[] = [];
 
     for (const messageId of messageIds) {
       try {
@@ -133,7 +189,7 @@ serve(async (req) => {
         // 2. Find attachments (PDF, images)
         const attachments = findAttachments(msgData.payload?.parts || []);
         const invoiceAttachments = attachments.filter(
-          (a: any) =>
+          (a) =>
             /\.(pdf|png|jpg|jpeg|gif|webp|tiff|bmp)$/i.test(a.filename) ||
             a.mimeType.startsWith("image/") ||
             a.mimeType === "application/pdf",

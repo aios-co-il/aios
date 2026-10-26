@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesInsert } from "../_shared/database.types.ts";
+import { type ChatContact, isChatContact } from "./chat-contact.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
     }
 
     // Get contact first (includes tenant_id)
-    let contact: any;
+    let contact: ChatContact;
     let contactTable: string;
     let contactId: string;
 
@@ -109,7 +111,7 @@ Deno.serve(async (req) => {
         .eq("id", leadId)
         .single();
 
-      if (leadError || !lead) {
+      if (leadError || !lead || !isChatContact(lead)) {
         console.error("Lead fetch error:", leadError);
         return new Response(JSON.stringify({ error: "Lead not found" }), {
           status: 404,
@@ -210,38 +212,32 @@ Deno.serve(async (req) => {
     }
 
     // Send message via ManyChat API
-    let manychatPayload: any;
-    let manychatUrl: string;
-
-    if (template) {
-      // Trigger automation with template
-      manychatUrl = "https://api.manychat.com/fb/sending/sendContent";
-      manychatPayload = {
-        version: 1,
-        subscriber_id: contact.manychat_subscriber_id,
-        trigger_name: template.automation_trigger_name,
-        context: templateVariables || {},
-      };
-    } else {
-      // Send regular message
-      manychatUrl = "https://api.manychat.com/fb/sending/sendContent";
-      manychatPayload = {
-        subscriber_id: contact.manychat_subscriber_id,
-        data: {
-          version: "v2",
-          content: {
-            type: channel,
-            messages: [
-              {
-                type: "text",
-                text: message,
-              },
-            ],
+    const manychatUrl = "https://api.manychat.com/fb/sending/sendContent";
+    const manychatPayload = template
+      ? // Trigger automation with template
+        {
+          version: 1,
+          subscriber_id: contact.manychat_subscriber_id,
+          trigger_name: template.automation_trigger_name,
+          context: templateVariables || {},
+        }
+      : // Send regular message
+        {
+          subscriber_id: contact.manychat_subscriber_id,
+          data: {
+            version: "v2",
+            content: {
+              type: channel,
+              messages: [
+                {
+                  type: "text",
+                  text: message,
+                },
+              ],
+            },
           },
-        },
-        message_tag: "ACCOUNT_UPDATE",
-      };
-    }
+          message_tag: "ACCOUNT_UPDATE",
+        };
 
     const manychatResponse = await fetch(manychatUrl, {
       method: "POST",
@@ -273,7 +269,7 @@ Deno.serve(async (req) => {
     }
 
     // Save message to database
-    const insertData: any = {
+    const insertData: TablesInsert<"chat_messages"> = {
       tenant_id: tenantId,
       direction: "outbound",
       message_text: template

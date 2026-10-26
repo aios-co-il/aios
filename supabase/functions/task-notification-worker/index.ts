@@ -4,6 +4,7 @@ import {
   taskOverdueNotifyAt,
   taskReminderAt,
 } from "./schedule.ts";
+import { unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,7 +86,9 @@ async function invokeNotification(
   if (body?.success === true) {
     const delivered =
       Array.isArray(body.results) &&
-      body.results.some((result: any) => result?.success === true);
+      body.results.some(
+        (result: unknown) => unknownField(result, "success") === true,
+      );
     return { delivered, body };
   }
   throw new Error(

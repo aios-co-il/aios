@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Tables } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,7 +218,7 @@ Deno.serve(async (req) => {
     }
 
     // Find Green API integration
-    let integration: any = null;
+    let integration: Tables<"tenant_integrations"> | null = null;
     const { data: senderIntegration } = await supabaseAdmin
       .from("tenant_integrations")
       .select("*")
@@ -256,7 +258,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const instanceId = integration.settings.instance_id;
+    const instanceId = jsonField(integration.settings, "instance_id");
     const apiToken = integration.api_key;
     const notificationMessage = `🔔 *התראה מצ'אט צוות*\n\n📢 *ערוץ:* ${channelName || "ערוץ"}\n👤 *מאת:* ${senderName || "חבר צוות"}\n\n💬 ${messageContent}\n\n🔗 ${chatLink}`;
 

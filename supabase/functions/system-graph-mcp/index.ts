@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Json } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/json-fields.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -77,14 +79,16 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST")
     return response({ error: "Method not allowed" }, 405);
 
-  let body: any;
+  let body: Json;
   try {
     body = await req.json();
   } catch {
     return rpcError(null, -32700, "Parse error", 400);
   }
 
-  const { id, method, params } = body || {};
+  const id = jsonField(body, "id");
+  const method = jsonField(body, "method");
+  const params = jsonField(body, "params");
   if (method === "initialize") {
     return rpcResult(id, {
       protocolVersion: PROTOCOL_VERSION,
@@ -97,18 +101,24 @@ Deno.serve(async (req: Request) => {
   if (method === "tools/list") return rpcResult(id, { tools });
   if (method !== "tools/call") return rpcError(id, -32601, "Method not found");
 
-  const name = params?.name;
-  const args = params?.arguments || {};
+  const name = jsonField(params, "name");
+  const args = jsonField(params, "arguments") || {};
   const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false },
   });
 
   try {
     if (name === "query_system_graph") {
-      const query = String(args.query || "").trim();
+      const query = String(jsonField(args, "query") || "").trim();
       if (!query) return rpcError(id, -32602, "query is required");
-      const depth = Math.min(3, Math.max(0, Number(args.depth ?? 2)));
-      const limit = Math.min(80, Math.max(1, Number(args.limit ?? 40)));
+      const depth = Math.min(
+        3,
+        Math.max(0, Number(jsonField(args, "depth") ?? 2)),
+      );
+      const limit = Math.min(
+        80,
+        Math.max(1, Number(jsonField(args, "limit") ?? 40)),
+      );
       const { data, error } = await sb.rpc("carmen_query_system_graph", {
         p_query: query,
         p_depth: depth,
