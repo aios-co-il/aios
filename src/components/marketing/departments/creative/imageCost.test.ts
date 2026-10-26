@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   addCost,
   costFromApiUsage,
@@ -13,18 +12,18 @@ import {
 } from "./imageCost.ts";
 
 test("official high square output is 4160 tokens / $0.1664", () => {
-  assert.equal(imageOutputTokens("high", "1024x1024"), 4160);
-  assert.equal(usdFromImageTokens(0, 0, 4160), 0.1664);
+  expect(imageOutputTokens("high", "1024x1024")).toBe(4160);
+  expect(usdFromImageTokens(0, 0, 4160)).toBe(0.1664);
 });
 
 test("official high portrait output is 6240 tokens / $0.25", () => {
-  assert.equal(imageOutputTokens("high", "1024x1536"), 6240);
-  assert.equal(usdFromImageTokens(0, 0, 6240), 0.2496);
+  expect(imageOutputTokens("high", "1024x1536")).toBe(6240);
+  expect(usdFromImageTokens(0, 0, 6240)).toBe(0.2496);
 });
 
 test("medium square matches the published $0.042 ladder", () => {
-  assert.equal(imageOutputTokens("medium", "1024x1024"), 1056);
-  assert.equal(usdFromImageTokens(0, 0, 1056), 0.04224);
+  expect(imageOutputTokens("medium", "1024x1024")).toBe(1056);
+  expect(usdFromImageTokens(0, 0, 1056)).toBe(0.04224);
 });
 
 test("estimate includes prompt tokens and reference image tokens", () => {
@@ -34,13 +33,12 @@ test("estimate includes prompt tokens and reference image tokens", () => {
     size: "1024x1024",
     referenceCount: 1,
   });
-  assert.equal(cost.outputTokens, 4160);
-  assert.equal(cost.imageInTokens, 1440);
-  assert.ok(cost.textTokens > 8);
-  assert.ok(cost.costUsd > 0.1664);
-  assert.equal(cost.source, "official_table");
-  assert.equal(
-    cost.totalTokens,
+  expect(cost.outputTokens).toBe(4160);
+  expect(cost.imageInTokens).toBe(1440);
+  expect(cost.textTokens > 8).toBeTruthy();
+  expect(cost.costUsd > 0.1664).toBeTruthy();
+  expect(cost.source).toBe("official_table");
+  expect(cost.totalTokens).toBe(
     cost.textTokens + cost.imageInTokens + cost.outputTokens,
   );
 });
@@ -56,12 +54,12 @@ test("API usage with details is treated as exact", () => {
     "1024x1024",
     1,
   );
-  assert.ok(cost);
-  assert.equal(cost?.source, "api");
-  assert.equal(cost?.textTokens, 560);
-  assert.equal(cost?.imageInTokens, 1440);
-  assert.equal(cost?.outputTokens, 4160);
-  assert.equal(cost?.costUsd, usdFromImageTokens(560, 1440, 4160));
+  expect(cost).toBeTruthy();
+  expect(cost?.source).toBe("api");
+  expect(cost?.textTokens).toBe(560);
+  expect(cost?.imageInTokens).toBe(1440);
+  expect(cost?.outputTokens).toBe(4160);
+  expect(cost?.costUsd).toBe(usdFromImageTokens(560, 1440, 4160));
 });
 
 test("API usage without details uses input_tokens as text only", () => {
@@ -70,19 +68,19 @@ test("API usage without details uses input_tokens as text only", () => {
     "high",
     "1024x1024",
   );
-  assert.equal(cost?.textTokens, 800);
-  assert.equal(cost?.imageInTokens, 0);
+  expect(cost?.textTokens).toBe(800);
+  expect(cost?.imageInTokens).toBe(0);
 });
 
 test("empty API usage is ignored so the official table can be used", () => {
-  assert.equal(costFromApiUsage({}, "high", "1024x1024"), null);
-  assert.equal(costFromApiUsage(null, "high", "1024x1024"), null);
+  expect(costFromApiUsage({}, "high", "1024x1024")).toBe(null);
+  expect(costFromApiUsage(null, "high", "1024x1024")).toBe(null);
 });
 
 test("Hebrew prompt estimates more tokens than the same Latin length", () => {
-  assert.ok(
+  expect(
     estimateTextTokens("רודוס עכשיו") > estimateTextTokens("Rhodes now"),
-  );
+  ).toBeTruthy();
 });
 
 test("inferred leftover images count as official output only", () => {
@@ -90,10 +88,10 @@ test("inferred leftover images count as official output only", () => {
     emptyCostTotals(),
     inferImageCost("high", "1024x1024"),
   );
-  assert.equal(totals.images, 1);
-  assert.equal(totals.exactImages, 0);
-  assert.equal(totals.estimatedImages, 1);
-  assert.equal(totals.costUsd, 0.1664);
+  expect(totals.images).toBe(1);
+  expect(totals.exactImages).toBe(0);
+  expect(totals.estimatedImages).toBe(1);
+  expect(totals.costUsd).toBe(0.1664);
 });
 
 test("project summary falls back to marketing_runs when no stored image cost exists", () => {
@@ -109,9 +107,9 @@ test("project summary falls back to marketing_runs when no stored image cost exi
       },
     ],
   );
-  assert.equal(totals.images, 1);
-  assert.equal(totals.tokens, 4360);
-  assert.equal(totals.costUsd, 0.18);
+  expect(totals.images).toBe(1);
+  expect(totals.tokens).toBe(4360);
+  expect(totals.costUsd).toBe(0.18);
 });
 
 test("project summary prefers stored costs and fills gaps from the official table", () => {
@@ -120,7 +118,7 @@ test("project summary prefers stored costs and fills gaps from the official tabl
     "high",
     "1024x1024",
   );
-  assert.ok(stored);
+  expect(stored).toBeTruthy();
   const totals = summarizeStoredImageCosts(
     [
       {
@@ -132,7 +130,7 @@ test("project summary prefers stored costs and fills gaps from the official tabl
     ],
     "high",
   );
-  assert.equal(totals.images, 2);
-  assert.equal(totals.exactImages, 1);
-  assert.equal(totals.estimatedImages, 1);
+  expect(totals.images).toBe(2);
+  expect(totals.exactImages).toBe(1);
+  expect(totals.estimatedImages).toBe(1);
 });

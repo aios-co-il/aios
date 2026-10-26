@@ -1,20 +1,19 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
   gaHostsMatch,
   listedPropertyMatchesDomain,
   normalizeGaHost,
 } from "./gaDomain.ts";
 
-test("normalizes a pasted website to a host", () => {
-  assert.equal(
+Deno.test("normalizes a pasted website to a host", () => {
+  assertStrictEquals(
     normalizeGaHost("https://www.ggh-law.co.il/about"),
     "ggh-law.co.il",
   );
 });
 
-test("matches a property account name to the domain", () => {
-  assert.equal(
+Deno.test("matches a property account name to the domain", () => {
+  assertStrictEquals(
     listedPropertyMatchesDomain(
       { name: "Law office", accountName: "ggh-law.co.il" },
       "https://www.ggh-law.co.il/",
@@ -23,15 +22,15 @@ test("matches a property account name to the domain", () => {
   );
 });
 
-test("a display name that is not the domain does not match", () => {
-  assert.equal(
+Deno.test("a display name that is not the domain does not match", () => {
+  assertStrictEquals(
     listedPropertyMatchesDomain(
       { name: "Periodontics Hebrew Website", accountName: "Dr. Weinberg" },
       "periodontics.co.il",
     ),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     gaHostsMatch("https://www.periodontics.co.il", "periodontics.co.il"),
     true,
   );

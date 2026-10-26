@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildWaNotifyFromOrigin,
   isGroupChatId,
@@ -15,88 +13,94 @@ const GROUP_A = "120363425732219862@g.us"; // AfterLead - DMM
 const GROUP_B = "120363421902818314@g.us"; // דוד & דקל & אנה
 const DAVID_PHONE = "972507677613";
 
-test("normalizeCarmenChatId keeps group and private JIDs", () => {
-  assert.equal(normalizeCarmenChatId(GROUP_A), GROUP_A);
-  assert.equal(normalizeCarmenChatId(DAVID_PRIVATE), DAVID_PRIVATE);
-  assert.equal(normalizeCarmenChatId(DAVID_PHONE), DAVID_PRIVATE);
-  assert.equal(normalizeCarmenChatId(""), null);
-  assert.equal(normalizeCarmenChatId(null), null);
+Deno.test("normalizeCarmenChatId keeps group and private JIDs", () => {
+  assertStrictEquals(normalizeCarmenChatId(GROUP_A), GROUP_A);
+  assertStrictEquals(normalizeCarmenChatId(DAVID_PRIVATE), DAVID_PRIVATE);
+  assertStrictEquals(normalizeCarmenChatId(DAVID_PHONE), DAVID_PRIVATE);
+  assertStrictEquals(normalizeCarmenChatId(""), null);
+  assertStrictEquals(normalizeCarmenChatId(null), null);
 });
 
-test("two groups with the same speaker are different sessions", () => {
-  assert.equal(originChatsMatch(GROUP_A, GROUP_B), false);
-  assert.equal(originChatsMatch(GROUP_A, GROUP_A), true);
-  assert.equal(originChatsMatch(GROUP_A, DAVID_PRIVATE), false);
-  assert.equal(isGroupChatId(GROUP_A), true);
-  assert.equal(isGroupChatId(DAVID_PRIVATE), false);
+Deno.test("two groups with the same speaker are different sessions", () => {
+  assertStrictEquals(originChatsMatch(GROUP_A, GROUP_B), false);
+  assertStrictEquals(originChatsMatch(GROUP_A, GROUP_A), true);
+  assertStrictEquals(originChatsMatch(GROUP_A, DAVID_PRIVATE), false);
+  assertStrictEquals(isGroupChatId(GROUP_A), true);
+  assertStrictEquals(isGroupChatId(DAVID_PRIVATE), false);
 });
 
-test("requireOriginChatId refuses phone-only / missing keys", () => {
-  assert.equal(requireOriginChatId(GROUP_A).ok, true);
-  assert.equal(requireOriginChatId("").ok, false);
-  assert.equal(requireOriginChatId(null).ok, false);
+Deno.test("requireOriginChatId refuses phone-only / missing keys", () => {
+  assertStrictEquals(requireOriginChatId(GROUP_A).ok, true);
+  assertStrictEquals(requireOriginChatId("").ok, false);
+  assertStrictEquals(requireOriginChatId(null).ok, false);
   // digits-only is a private chat, not "whatever group this phone was last in"
   const origin = requireOriginChatId(DAVID_PHONE);
-  assert.equal(origin.ok, true);
+  assertStrictEquals(origin.ok, true);
   if (origin.ok) {
-    assert.equal(origin.chatId, DAVID_PRIVATE);
-    assert.equal(origin.isGroup, false);
+    assertStrictEquals(origin.chatId, DAVID_PRIVATE);
+    assertStrictEquals(origin.isGroup, false);
   }
 });
 
-test("reply destination must match JID type", () => {
-  assert.equal(
+Deno.test("reply destination must match JID type", () => {
+  assertStrictEquals(
     replyDestinationIsConsistent({ chatId: GROUP_A, isGroup: true }),
     true,
   );
-  assert.equal(
+  assertStrictEquals(
     replyDestinationIsConsistent({ chatId: GROUP_A, isGroup: false }),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     replyDestinationIsConsistent({ chatId: DAVID_PRIVATE, isGroup: false }),
     true,
   );
-  assert.equal(
+  assertStrictEquals(
     replyDestinationIsConsistent({ chatId: DAVID_PRIVATE, isGroup: true }),
     false,
   );
 });
 
-test("wa_notify is pinned to the originating group, not the speaker phone", () => {
-  const notify = buildWaNotifyFromOrigin({
-    tenantId: "t1",
-    automationId: "auto-groups",
-    connectionUserId: "u1",
-    chatId: GROUP_B,
-    speakerPhone: DAVID_PHONE,
-  });
-  assert.ok(notify);
-  assert.equal(notify.chat_id, GROUP_B);
-  assert.equal(notify.is_group, true);
-  assert.equal(notify.phone_number, DAVID_PHONE);
-  assert.equal(originChatsMatch(notify.chat_id, GROUP_A), false);
-});
+Deno.test(
+  "wa_notify is pinned to the originating group, not the speaker phone",
+  () => {
+    const notify = buildWaNotifyFromOrigin({
+      tenantId: "t1",
+      automationId: "auto-groups",
+      connectionUserId: "u1",
+      chatId: GROUP_B,
+      speakerPhone: DAVID_PHONE,
+    });
+    assert(notify);
+    assertStrictEquals(notify.chat_id, GROUP_B);
+    assertStrictEquals(notify.is_group, true);
+    assertStrictEquals(notify.phone_number, DAVID_PHONE);
+    assertStrictEquals(originChatsMatch(notify.chat_id, GROUP_A), false);
+  },
+);
 
-test("a question in group A cannot restore history from group B", () => {
+Deno.test("a question in group A cannot restore history from group B", () => {
   const askedIn = requireOriginChatId(GROUP_A);
   const otherSession = { chat_id: GROUP_B, phone: DAVID_PHONE };
-  assert.equal(askedIn.ok, true);
-  assert.equal(
+  assertStrictEquals(askedIn.ok, true);
+  assertStrictEquals(
     originChatsMatch(askedIn.ok ? askedIn.chatId : null, otherSession.chat_id),
     false,
   );
 });
 
-test("system automations never take a group JID as the destination", () => {
-  // Pulse / health / coding-agent notify must stay on the configured private chat.
-  assert.equal(isGroupChatId(GROUP_A), true);
-  assert.equal(
-    replyDestinationIsConsistent({ chatId: GROUP_A, isGroup: false }),
-    false,
-  );
-  assert.equal(
-    replyDestinationIsConsistent({ chatId: DAVID_PRIVATE, isGroup: false }),
-    true,
-  );
-});
+Deno.test(
+  "system automations never take a group JID as the destination",
+  () => {
+    // Pulse / health / coding-agent notify must stay on the configured private chat.
+    assertStrictEquals(isGroupChatId(GROUP_A), true);
+    assertStrictEquals(
+      replyDestinationIsConsistent({ chatId: GROUP_A, isGroup: false }),
+      false,
+    );
+    assertStrictEquals(
+      replyDestinationIsConsistent({ chatId: DAVID_PRIVATE, isGroup: false }),
+      true,
+    );
+  },
+);

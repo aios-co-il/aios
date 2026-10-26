@@ -1,5 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
@@ -36,20 +35,18 @@ test("stamp prefills from completed fields, with saved and entity fallbacks", ()
     { company: " Form Company ", id: "123", __stamp_name: "Previous" },
     { name: "Entity", company_id: "456" },
   );
-  assert.equal(actual.name, "Form Company");
-  assert.equal(actual.companyId, "123");
-  assert.equal(
+  expect(actual.name).toBe("Form Company");
+  expect(actual.companyId).toBe("123");
+  expect(
     stamp.getSignatureStamp(
       fields,
       { __stamp_name: "Confirmed" },
       { name: "Entity" },
     ).name,
-    "Confirmed",
-  );
-  assert.equal(
+  ).toBe("Confirmed");
+  expect(
     stamp.getSignatureStamp(fields, {}, { company_id: "456" }).companyId,
-    "456",
-  );
+  ).toBe("456");
 });
 
 test("confirming stamp details preserves signatures on other pages and recipient fields", () => {
@@ -64,47 +61,40 @@ test("confirming stamp details preserves signatures on other pages and recipient
     " Edited ",
     " 789 ",
   );
-  assert.equal(result.company, "Edited");
-  assert.equal(result.id, "789");
-  assert.equal(result.__stamp_name, "Edited");
-  assert.equal(result.page1, "png1");
-  assert.equal(result.page2, "png2");
-  assert.equal(result.otherRecipient, "untouched");
-  assert.equal(original.company, undefined);
+  expect(result.company).toBe("Edited");
+  expect(result.id).toBe("789");
+  expect(result.__stamp_name).toBe("Edited");
+  expect(result.page1).toBe("png1");
+  expect(result.page2).toBe("png2");
+  expect(result.otherRecipient).toBe("untouched");
+  expect(original.company).toBe(undefined);
 });
 
 test("document storage allows the bound tenant and rejects cross-tenant paths", () => {
-  assert.equal(
+  expect(
     storage.signatureStoragePath("tenant-a/contract.pdf", "tenant-a"),
-    "tenant-a/contract.pdf",
-  );
-  assert.equal(
+  ).toBe("tenant-a/contract.pdf");
+  expect(
     storage.signatureStoragePath(
       "https://example.supabase.co/storage/v1/object/sign/signature-documents/tenant-a/contract.pdf?token=test",
       "tenant-a",
     ),
-    "tenant-a/contract.pdf",
-  );
-  assert.throws(
-    () => storage.signatureStoragePath("tenant-b/private.pdf", "tenant-a"),
-    /invalid_document_path/,
-  );
-  assert.throws(
-    () =>
-      storage.signatureStoragePath(
-        "tenant-a/../tenant-b/private.pdf",
-        "tenant-a",
-      ),
-    /invalid_document_path/,
-  );
-  assert.throws(
-    () =>
-      storage.signatureStoragePath(
-        "data:application/pdf;base64,test",
-        "tenant-a",
-      ),
-    /invalid_document_url/,
-  );
+  ).toBe("tenant-a/contract.pdf");
+  expect(() =>
+    storage.signatureStoragePath("tenant-b/private.pdf", "tenant-a"),
+  ).toThrow(/invalid_document_path/);
+  expect(() =>
+    storage.signatureStoragePath(
+      "tenant-a/../tenant-b/private.pdf",
+      "tenant-a",
+    ),
+  ).toThrow(/invalid_document_path/);
+  expect(() =>
+    storage.signatureStoragePath(
+      "data:application/pdf;base64,test",
+      "tenant-a",
+    ),
+  ).toThrow(/invalid_document_url/);
 });
 
 test("service helper refuses a document outside the authorized tenant before any writes", async () => {
@@ -140,14 +130,14 @@ test("service helper refuses a document outside the authorized tenant before any
     "supabase/functions/_shared/signature-automation.ts",
     { Deno: { env: { get: () => undefined } } },
   );
-  await assert.rejects(
+  await expect(
     helpers.prepareSignatureDocumentForSigning(client, {
       documentId: "doc",
       tenantId: "tenant-a",
       createdBy: "user",
     }),
-  );
-  await assert.rejects(
+  ).rejects.toThrow();
+  await expect(
     helpers.cloneSignatureFromTemplate(client, {
       templateDocumentId: "doc",
       tenantId: "tenant-a",
@@ -155,8 +145,8 @@ test("service helper refuses a document outside the authorized tenant before any
       recipientName: "QA",
       recipientEmail: "qa@example.invalid",
     }),
-  );
-  assert.equal(writes, 0);
+  ).rejects.toThrow();
+  expect(writes).toBe(0);
 });
 
 test("submission validation failure is returned without retrying a legacy bypass", async () => {
@@ -195,10 +185,10 @@ test("submission validation failure is returned without retrying a legacy bypass
       }),
     }),
   );
-  assert.equal(response.status, 400);
-  assert.equal(response.headers.get("Content-Type"), "application/json");
-  assert.equal((await response.json()).error, "missing_required_field");
-  assert.equal(calls, 1);
+  expect(response.status).toBe(400);
+  expect(response.headers.get("Content-Type")).toBe("application/json");
+  expect((await response.json()).error).toBe("missing_required_field");
+  expect(calls).toBe(1);
 });
 
 test("the real Functions client receives a signing-link object immediately after preparation", async () => {
@@ -247,7 +237,7 @@ test("the real Functions client receives a signing-link object immediately after
   const response = await client.invoke("send-signature-request", {
     body: { documentId: "doc", sendEmail: false },
   });
-  assert.equal(response.error, null);
-  assert.equal(typeof response.data, "object");
-  assert.equal(response.data.signingLinks[0].url, link.url);
+  expect(response.error).toBe(null);
+  expect(typeof response.data).toBe("object");
+  expect(response.data.signingLinks[0].url).toBe(link.url);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 import {
   describesCompletedClientPhoneCall,
@@ -15,7 +14,7 @@ test("recognizes affirmative client phone-call notes", () => {
     "בוצעה שיחה עם הלקוח, הכל תקין",
     "שיחת טלפון עם הלקוחה בנושא הלידים",
   ]) {
-    assert.equal(describesCompletedClientPhoneCall(content), true, content);
+    expect(describesCompletedClientPhoneCall(content), content).toBe(true);
   }
 });
 
@@ -28,31 +27,25 @@ test("rejects attempted, missing, and non-call contact", () => {
     "שלחתי ללקוח עדכון בוואטסאפ",
     "עדכון שבועי על ביצועי הקמפיין",
   ]) {
-    assert.equal(describesCompletedClientPhoneCall(content), false, content);
+    expect(describesCompletedClientPhoneCall(content), content).toBe(false);
   }
 });
 
 test("promotes only qualifying weekly updates to call", () => {
-  assert.equal(
+  expect(
     resolveClientUpdateType("weekly_update", "דיברתי עם הלקוח על מצב הקמפיין"),
-    "call",
-  );
-  assert.equal(
-    resolveClientUpdateType("weekly_update", "שלחתי סיכום במייל"),
+  ).toBe("call");
+  expect(resolveClientUpdateType("weekly_update", "שלחתי סיכום במייל")).toBe(
     "weekly_update",
   );
-  assert.equal(
-    resolveClientUpdateType("meeting", "דיברתי עם הלקוח"),
-    "meeting",
-  );
+  expect(resolveClientUpdateType("meeting", "דיברתי עם הלקוח")).toBe("meeting");
 });
 
 test("isClientCallUpdate matches call rows and qualifying weekly notes", () => {
-  assert.equal(isClientCallUpdate("call", "כל תוכן"), true);
-  assert.equal(
+  expect(isClientCallUpdate("call", "כל תוכן")).toBe(true);
+  expect(
     isClientCallUpdate("weekly_update", "דיברתי עם הלקוח על מצב הקמפיין"),
-    true,
-  );
-  assert.equal(isClientCallUpdate("weekly_update", "שלחתי סיכום במייל"), false);
-  assert.equal(isClientCallUpdate("email", "דיברתי עם הלקוח"), false);
+  ).toBe(true);
+  expect(isClientCallUpdate("weekly_update", "שלחתי סיכום במייל")).toBe(false);
+  expect(isClientCallUpdate("email", "דיברתי עם הלקוח")).toBe(false);
 });

@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildStaffWhatsappAcceptanceCases,
   formatStaffContact,
@@ -21,30 +19,30 @@ const roster = [
   },
 ];
 
-test("normalize Israeli staff phones to 972…", () => {
-  assert.equal(normalizeStaffPhone("0545612156"), "972545612156");
-  assert.equal(normalizeStaffPhone("972545612156"), "972545612156");
-  assert.equal(normalizeStaffPhone("545612156"), "972545612156");
-  assert.equal(normalizeStaffPhone(""), null);
+Deno.test("normalize Israeli staff phones to 972…", () => {
+  assertStrictEquals(normalizeStaffPhone("0545612156"), "972545612156");
+  assertStrictEquals(normalizeStaffPhone("972545612156"), "972545612156");
+  assertStrictEquals(normalizeStaffPhone("545612156"), "972545612156");
+  assertStrictEquals(normalizeStaffPhone(""), null);
 });
 
-test("select Ana campaigner by id", () => {
+Deno.test("select Ana campaigner by id", () => {
   const { match, reason } = selectStaffMatch(roster, {
     id: ana.id,
     entityType: "campaigner",
   });
-  assert.equal(reason, "id");
-  assert.equal(match?.full_name, "אנה");
-  assert.equal(formatStaffContact(match)?.phone, "972545612156");
+  assertStrictEquals(reason, "id");
+  assertStrictEquals(match?.full_name, "אנה");
+  assertStrictEquals(formatStaffContact(match)?.phone, "972545612156");
 });
 
-test("select staff by Hebrew name", () => {
+Deno.test("select staff by Hebrew name", () => {
   const { match } = selectStaffMatch(roster, { name: "אנה" });
-  assert.equal(match?.id, ana.id);
-  assert.ok(scoreNameMatch("אנה", "אנה") >= 100);
+  assertStrictEquals(match?.id, ana.id);
+  assert(scoreNameMatch("אנה", "אנה") >= 100);
 });
 
-test("ambiguous name returns candidates (no silent pick)", () => {
+Deno.test("ambiguous name returns candidates (no silent pick)", () => {
   const dupes = [
     {
       id: "a",
@@ -60,27 +58,27 @@ test("ambiguous name returns candidates (no silent pick)", () => {
     },
   ];
   const { match, ambiguous, reason } = selectStaffMatch(dupes, { name: "דני" });
-  assert.equal(match, null);
-  assert.equal(reason, "ambiguous_name");
-  assert.equal(ambiguous?.length, 2);
+  assertStrictEquals(match, null);
+  assertStrictEquals(reason, "ambiguous_name");
+  assertStrictEquals(ambiguous?.length, 2);
 });
 
-test("sales_person filter works", () => {
+Deno.test("sales_person filter works", () => {
   const { match } = selectStaffMatch(roster, {
     name: "ישראל",
     entityType: "sales_person",
   });
-  assert.equal(match?.entity_type, "sales_person");
-  assert.equal(formatStaffContact(match)?.phone, "972521112233");
+  assertStrictEquals(match?.entity_type, "sales_person");
+  assertStrictEquals(formatStaffContact(match)?.phone, "972521112233");
 });
 
-test("formatStaffContact never invents a phone", () => {
+Deno.test("formatStaffContact never invents a phone", () => {
   const formatted = formatStaffContact({
     id: "x",
     full_name: "בלי טלפון",
     phone: null,
     entity_type: "campaigner",
   });
-  assert.equal(formatted.has_phone, false);
-  assert.equal(formatted.phone, null);
+  assertStrictEquals(formatted.has_phone, false);
+  assertStrictEquals(formatted.phone, null);
 });

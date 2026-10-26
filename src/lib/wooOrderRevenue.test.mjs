@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 import {
   filterWooOrdersForRevenue,
@@ -9,13 +8,12 @@ import {
 } from "./wooOrderRevenue.ts";
 
 test("woo revenue date prefers date_paid over date_created", () => {
-  assert.equal(
+  expect(
     wooOrderRevenueTimestamp({
       date_created: "2026-08-10T10:00:00Z",
       date_paid: "2026-08-25T12:00:00Z",
     }),
-    "2026-08-25T12:00:00Z",
-  );
+  ).toBe("2026-08-25T12:00:00Z");
 });
 
 test("paid-last-week order counts even if created earlier", () => {
@@ -30,8 +28,8 @@ test("paid-last-week order counts even if created earlier", () => {
     date_created: "2026-08-05T10:00:00Z",
     date_paid: "2026-08-26T08:00:00Z",
   };
-  assert.equal(isWooOrderInRevenueRange(order, range), true);
-  assert.equal(sumWooRevenue(filterWooOrdersForRevenue([order], range)), 500);
+  expect(isWooOrderInRevenueRange(order, range)).toBe(true);
+  expect(sumWooRevenue(filterWooOrdersForRevenue([order], range))).toBe(500);
 });
 
 test("created-last-week but paid later is excluded from last-week revenue", () => {
@@ -46,6 +44,6 @@ test("created-last-week but paid later is excluded from last-week revenue", () =
     date_created: "2026-08-25T10:00:00Z",
     date_paid: "2026-09-01T08:00:00Z",
   };
-  assert.equal(isWooOrderInRevenueRange(order, range), false);
-  assert.equal(sumWooRevenue(filterWooOrdersForRevenue([order], range)), 0);
+  expect(isWooOrderInRevenueRange(order, range)).toBe(false);
+  expect(sumWooRevenue(filterWooOrdersForRevenue([order], range))).toBe(0);
 });

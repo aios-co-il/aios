@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import type { StoryboardFrame } from "./types";
 import {
   buildVideoRenderManifest,
@@ -29,35 +28,29 @@ test("builds contiguous frames in storyboard order and preserves Hebrew", () => 
     [scene("b", 2, 1.5), scene("a", 1, 2)],
     "9:16",
   );
-  assert.equal(manifest.width, 1080);
-  assert.equal(manifest.height, 1920);
-  assert.equal(manifest.totalFrames, 105);
-  assert.deepEqual(
+  expect(manifest.width).toBe(1080);
+  expect(manifest.height).toBe(1920);
+  expect(manifest.totalFrames).toBe(105);
+  expect(
     manifest.scenes.map((s) => [s.id, s.startFrame, s.frameCount]),
-    [
-      ["a", 0, 60],
-      ["b", 60, 45],
-    ],
-  );
-  assert.equal(manifest.scenes[0].overlayText, "שלום עולם");
+  ).toStrictEqual([
+    ["a", 0, 60],
+    ["b", 60, 45],
+  ]);
+  expect(manifest.scenes[0].overlayText).toBe("שלום עולם");
 });
 
 test("rejects missing media, invalid timing and duplicate scene IDs", () => {
-  assert.throws(
-    () => buildVideoRenderManifest([], "1:1"),
+  expect(() => buildVideoRenderManifest([], "1:1")).toThrow(
     VideoRenderValidationError,
   );
-  assert.throws(
-    () => buildVideoRenderManifest([scene("a", 1, NaN)], "1:1"),
+  expect(() => buildVideoRenderManifest([scene("a", 1, NaN)], "1:1")).toThrow(
     VideoRenderValidationError,
   );
-  assert.throws(
-    () => buildVideoRenderManifest([scene("a", 1, 2), scene("a", 2, 2)], "1:1"),
-    VideoRenderValidationError,
-  );
-  assert.throws(
-    () =>
-      buildVideoRenderManifest([{ ...scene("a", 1, 2), imageUrl: "" }], "1:1"),
-    VideoRenderValidationError,
-  );
+  expect(() =>
+    buildVideoRenderManifest([scene("a", 1, 2), scene("a", 2, 2)], "1:1"),
+  ).toThrow(VideoRenderValidationError);
+  expect(() =>
+    buildVideoRenderManifest([{ ...scene("a", 1, 2), imageUrl: "" }], "1:1"),
+  ).toThrow(VideoRenderValidationError);
 });

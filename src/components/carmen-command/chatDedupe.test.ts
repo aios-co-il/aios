@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { replyShownThisTurn } from "./chatDedupe.ts";
 
 test("the same reply in the current turn counts as shown", () => {
@@ -7,7 +6,7 @@ test("the same reply in the current turn counts as shown", () => {
     { role: "user", content: "q" },
     { role: "assistant", content: "Done" },
   ];
-  assert.equal(replyShownThisTurn(msgs, "Done"), true);
+  expect(replyShownThisTurn(msgs, "Done")).toBe(true);
 });
 
 test("a later turn may repeat an earlier answer", () => {
@@ -16,5 +15,5 @@ test("a later turn may repeat an earlier answer", () => {
     { role: "assistant", content: "Done" },
     { role: "user", content: "q2" },
   ];
-  assert.equal(replyShownThisTurn(msgs, "Done"), false);
+  expect(replyShownThisTurn(msgs, "Done")).toBe(false);
 });
