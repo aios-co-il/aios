@@ -35,6 +35,7 @@ import {
   Video,
   AlertTriangle,
   Activity,
+  StickyNote,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -46,6 +47,14 @@ import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveClientUpdateType } from "@/lib/clientUpdateType";
+import {
+  CLIENT_UPDATE_SOURCE_FILTERS,
+  canModifyClientUpdate,
+  matchesClientUpdateSourceFilter,
+  type ClientUpdateSourceFilter,
+} from "@/lib/clientUpdateSource";
+import { useUserRole } from "@/hooks/useUserRole";
+import { ClientUpdateSourceChip } from "@/components/clients/ClientUpdateSourceChip";
 import {
   getClientMoodChanges,
   type ClientMoodStatus,
@@ -100,6 +109,13 @@ const INTERACTION_TYPES = [
   { value: "other", label: "אחר", icon: AlertTriangle },
   { value: "pulse_override", label: "תיקון דופק", icon: Activity },
 ];
+// Types other writers use (Carmen's add_client_update): shown and filterable,
+// not offered in the composer.
+const DISPLAY_UPDATE_TYPES = [
+  ...INTERACTION_TYPES,
+  { value: "note", label: "הערה", icon: StickyNote },
+  { value: "complaint", label: "תלונה", icon: AlertTriangle },
+];
 
 export function ClientUpdatesTab({
   clientId,
@@ -110,6 +126,8 @@ export function ClientUpdatesTab({
   const [updateTypeFilter, setUpdateTypeFilter] =
     useState<UpdateTypeFilter>("all");
   const [moodFilter, setMoodFilter] = useState<MoodFilter>("all");
+  const [sourceFilter, setSourceFilter] =
+    useState<ClientUpdateSourceFilter>("all");
   const [editingTask, setEditingTask] = useState<any>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const [newUpdateType, setNewUpdateType] = useState<string>("weekly_update");
@@ -117,6 +135,8 @@ export function ClientUpdatesTab({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
+  const { isOwner, isAgencyOwner, isSuperAdmin } = useUserRole();
+  const canManageAutomaticEntries = isOwner || isAgencyOwner || isSuperAdmin;
 
   // ── CRM: communication log state ──────────────────────────────────────────
   const [commStatus, setCommStatus] = useState<string>(
@@ -404,6 +424,7 @@ export function ClientUpdatesTab({
       .filter(
         (update) =>
           moodFilter === "all" &&
+          matchesClientUpdateSourceFilter(update.source, sourceFilter) &&
           (updateTypeFilter === "all" ||
             (update.update_type ?? "other") === updateTypeFilter),
       )
@@ -418,6 +439,7 @@ export function ClientUpdatesTab({
       .filter(
         (change) =>
           isInDateRange(change.created_at) &&
+          sourceFilter === "all" &&
           (updateTypeFilter === "all" || updateTypeFilter === "mood_change") &&
           (moodFilter === "all" || change.moodStatus === moodFilter),
       )
@@ -433,7 +455,14 @@ export function ClientUpdatesTab({
         new Date(b.createdAt ?? 0).getTime() -
         new Date(a.createdAt ?? 0).getTime(),
     );
-  }, [communicationLogs, dateFilter, moodFilter, updateTypeFilter, updates]);
+  }, [
+    communicationLogs,
+    dateFilter,
+    moodFilter,
+    sourceFilter,
+    updateTypeFilter,
+    updates,
+  ]);
 
   const isLoading = tasksLoading || updatesLoading || communicationLogsLoading;
 
@@ -579,7 +608,32 @@ export function ClientUpdatesTab({
                         <SelectItem value="mood_change">
                           שינוי מצב לקוח
                         </SelectItem>
-                        {INTERACTION_TYPES.map((option) => (
+                        {DISPLAY_UPDATE_TYPES.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-full sm:w-44">
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      סינון לפי מקור
+                    </Label>
+                    <Select
+                      value={sourceFilter}
+                      onValueChange={(value) =>
+                        setSourceFilter(value as ClientUpdateSourceFilter)
+                      }
+                    >
+                      <SelectTrigger
+                        className="h-8 text-sm bg-card"
+                        aria-label="סינון לפי מקור"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLIENT_UPDATE_SOURCE_FILTERS.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -701,7 +755,18 @@ export function ClientUpdatesTab({
 
                     const update = event.update;
                     const isEditing = editingUpdateId === update.id;
-                    const isOwner = user?.id === update.user_id;
+                    const canModify = canModifyClientUpdate({
+                      source: update.source,
+                      rowUserId: update.user_id,
+                      currentUserId: user?.id,
+                      canManageAutomaticEntries,
+                    });
+                    const typeOption = update.update_type
+                      ? DISPLAY_UPDATE_TYPES.find(
+                          (o) => o.value === update.update_type,
+                        )
+                      : undefined;
+                    const TypeIcon = typeOption?.icon;
 
                     return (
                       <Card
@@ -752,23 +817,24 @@ export function ClientUpdatesTab({
                             </div>
                           ) : (
                             <>
-                              {update.update_type &&
-                                (() => {
-                                  const t = INTERACTION_TYPES.find(
-                                    (o) => o.value === update.update_type,
-                                  );
-                                  if (!t) return null;
-                                  const Icon = t.icon;
-                                  return (
+                              {(typeOption ||
+                                (update.source &&
+                                  update.source !== "human")) && (
+                                <div className="mb-2 flex flex-wrap items-center gap-1">
+                                  {typeOption && TypeIcon && (
                                     <Badge
                                       variant="outline"
-                                      className="mb-2 gap-1 text-xs bg-card"
+                                      className="gap-1 text-xs bg-card"
                                     >
-                                      <Icon className="h-3 w-3" />
-                                      {t.label}
+                                      <TypeIcon className="h-3 w-3" />
+                                      {typeOption.label}
                                     </Badge>
-                                  );
-                                })()}
+                                  )}
+                                  <ClientUpdateSourceChip
+                                    source={update.source}
+                                  />
+                                </div>
+                              )}
                               <p className="text-sm whitespace-pre-wrap">
                                 {update.content}
                               </p>
@@ -790,7 +856,7 @@ export function ClientUpdatesTab({
                                     )}
                                   </span>
                                 </div>
-                                {isOwner && (
+                                {canModify && (
                                   <div className="flex gap-1 shrink-0">
                                     <Button
                                       size="icon"

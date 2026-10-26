@@ -73,18 +73,26 @@ export function PulseClientCallDialog({
           id,
           content,
           update_type,
+          source,
+          counts_as_contact,
           created_at,
           user_id,
           profiles:user_id (full_name, email)
         `,
         )
         .eq("client_id", target.clientId)
-        .in("update_type", ["call", "weekly_update"])
+        .or("update_type.in.(call,weekly_update),counts_as_contact.is.true")
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
+      // Same rule as the pulse (get_latest_client_call_updates).
       return (data ?? []).filter((row: any) =>
-        isClientCallUpdate(row.update_type, row.content ?? ""),
+        isClientCallUpdate(
+          row.update_type,
+          row.content ?? "",
+          row.source,
+          row.counts_as_contact,
+        ),
       );
     },
     enabled: open && !!target?.clientId,

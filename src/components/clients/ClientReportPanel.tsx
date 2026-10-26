@@ -553,15 +553,22 @@ export function ClientReportPanel({
             const {
               data: { user },
             } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
-              content: messageText.trim(),
-              update_type: "weekly_update",
-            } as any);
+            // A system send: shown with the "נשלח מהמערכת" chip and never
+            // counted as client contact, whatever the message says.
+            const { error: logError } = await supabase
+              .from("client_updates")
+              .insert({
+                client_id: clientId,
+                tenant_id: tenantId,
+                user_id: user?.id,
+                content: messageText.trim(),
+                update_type: "weekly_update",
+                source: "system_send",
+              } as any);
+            if (logError)
+              console.warn("Failed to auto-save weekly update:", logError);
             queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
+              queryKey: ["client-updates", clientId],
             });
           } catch (e) {
             console.warn("Failed to auto-save weekly update:", e);
@@ -658,15 +665,22 @@ export function ClientReportPanel({
             const {
               data: { user },
             } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
-              content: messageText.trim(),
-              update_type: "monthly_seo",
-            } as any);
+            // A system send: shown with the "נשלח מהמערכת" chip and never
+            // counted as client contact, whatever the message says.
+            const { error: logError } = await supabase
+              .from("client_updates")
+              .insert({
+                client_id: clientId,
+                tenant_id: tenantId,
+                user_id: user?.id,
+                content: messageText.trim(),
+                update_type: "monthly_seo",
+                source: "system_send",
+              } as any);
+            if (logError)
+              console.warn("Failed to auto-save monthly SEO update:", logError);
             queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
+              queryKey: ["client-updates", clientId],
             });
           } catch (e) {
             console.warn("Failed to auto-save monthly SEO update:", e);

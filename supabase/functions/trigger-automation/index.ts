@@ -7,6 +7,7 @@ import {
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
+import { recordClientCardEntry } from "../_shared/client-card.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -6906,41 +6907,26 @@ async function executeAddClientUpdate(
     tenantSlug,
   );
 
-  // Get a system user ID for the update
-  const { data: ownerRole } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("role", "owner")
-    .limit(1)
-    .maybeSingle();
-
-  const userId = ownerRole?.user_id || data.user_id;
-
-  if (!userId) {
-    throw new Error("לא נמצא משתמש לשמירת העדכון");
-  }
-
-  // Insert update into client_updates table
-  const { data: insertedUpdate, error: insertError } = await supabase
-    .from("client_updates")
-    .insert({
-      client_id: clientId,
-      tenant_id: tenantId,
-      user_id: userId,
+  // record_client_card_entry checks the client is in this tenant, marks the
+  // row as an automation entry (never counted as client contact) and
+  // attributes it to the client's campaigner, else the tenant owner.
+  let entryId: string;
+  try {
+    const entry = await recordClientCardEntry(supabase, {
+      tenantId,
+      clientId,
       content: updateContent,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
+      source: "automation",
+    });
+    entryId = entry.entryId;
+  } catch (insertError: any) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError.message}`);
+    throw new Error(`שגיאה בשמירת עדכון: ${insertError?.message}`);
   }
 
   return {
     success: true,
-    update_id: insertedUpdate.id,
+    update_id: entryId,
     content: updateContent,
   };
 }
