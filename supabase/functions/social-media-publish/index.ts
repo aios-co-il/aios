@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, Tables } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { errorMessage, getString } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +14,22 @@ interface PublishRequest {
   post_id: string;
 }
 
+type SocialChannel = Tables<"social_media_channels">;
+type SocialPost = Tables<"social_media_posts">;
+
+interface WordPressResult {
+  success: boolean;
+  error?: string;
+  wordpress_post_id?: unknown;
+  link?: unknown;
+}
+
+interface LinkedInShareContent {
+  shareCommentary: { text: string };
+  shareMediaCategory: string;
+  media?: { status: string; originalUrl: string; title: { text: string } }[];
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,7 +37,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
   try {
     const { post_id }: PublishRequest = await req.json();
@@ -66,7 +85,7 @@ serve(async (req) => {
     // Publish to each social media channel
     if (postChannels && postChannels.length > 0) {
       for (const pc of postChannels) {
-        const channel = (pc as any).social_media_channels;
+        const channel = pc.social_media_channels;
         if (!channel) continue;
 
         try {
@@ -106,40 +125,44 @@ serve(async (req) => {
             success: true,
             platform_post_id: platformPostId || undefined,
           });
-        } catch (err: any) {
+        } catch (err) {
           console.error(`Error publishing to ${channel.platform}:`, err);
           await supabase
             .from("social_media_post_channels")
-            .update({ status: "failed", error_message: err.message })
+            .update({ status: "failed", error_message: errorMessage(err) })
             .eq("id", pc.id);
 
           results.push({
             channel_id: channel.id,
             success: false,
-            error: err.message,
+            error: errorMessage(err),
           });
         }
       }
     }
 
     // Publish to WordPress if enabled
-    let wpResult = null;
+    let wpResult: WordPressResult | null = null;
     if (post.publish_to_wordpress && post.wordpress_site_url) {
       try {
-        wpResult = await publishToWordPress(supabase, post);
-      } catch (err: any) {
+        wpResult = await publishToWordPress(
+          supabase,
+          post,
+          post.wordpress_site_url,
+        );
+      } catch (err) {
         console.error("Error publishing to WordPress:", err);
-        wpResult = { success: false, error: err.message };
+        wpResult = { success: false, error: errorMessage(err) };
       }
     }
 
     // Determine overall status
     const allSucceeded =
       results.every((r) => r.success) &&
-      (!wpResult || (wpResult as any).success !== false);
+      (!wpResult || wpResult.success !== false);
     const allFailed =
       results.every((r) => !r.success) &&
-      (!wpResult || (wpResult as any).success === false);
+      (!wpResult || wpResult.success === false);
 
     const finalStatus =
       results.length === 0 && !wpResult
@@ -168,10 +191,10 @@ serve(async (req) => {
       JSON.stringify({ success: true, results, wordpress: wpResult }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Publish error:", error);
 
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: errorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -181,8 +204,8 @@ serve(async (req) => {
 // ---- Platform Publishers ----
 
 async function publishToFacebook(
-  channel: any,
-  post: any,
+  channel: SocialChannel,
+  post: SocialPost,
 ): Promise<string | null> {
   if (!channel.access_token || !channel.channel_id) {
     throw new Error("Facebook: missing access_token or page_id");
@@ -195,7 +218,11 @@ async function publishToFacebook(
   };
 
   // If there's an image, use /photos endpoint
-  if (post.post_type === "image" && post.media_urls?.length > 0) {
+  if (
+    post.post_type === "image" &&
+    post.media_urls &&
+    post.media_urls.length > 0
+  ) {
     const photoUrl = `https://graph.facebook.com/v19.0/${channel.channel_id}/photos`;
     const photoBody = {
       url: post.media_urls[0],
@@ -223,8 +250,8 @@ async function publishToFacebook(
 }
 
 async function publishToInstagram(
-  channel: any,
-  post: any,
+  channel: SocialChannel,
+  post: SocialPost,
 ): Promise<string | null> {
   if (!channel.access_token || !channel.channel_id) {
     throw new Error(
@@ -275,28 +302,30 @@ async function publishToInstagram(
 }
 
 async function publishToLinkedIn(
-  channel: any,
-  post: any,
+  channel: SocialChannel,
+  post: SocialPost,
 ): Promise<string | null> {
   if (!channel.access_token) {
     throw new Error("LinkedIn: missing access_token");
   }
 
-  const authorUrn = channel.channel_id || channel.metadata?.person_urn;
+  const authorUrn =
+    channel.channel_id || getString(channel.metadata, "person_urn");
   if (!authorUrn) throw new Error("LinkedIn: missing author URN");
 
-  const body: any = {
+  const shareContent: LinkedInShareContent = {
+    shareCommentary: {
+      text: post.content,
+    },
+    shareMediaCategory: "NONE",
+  };
+  const body = {
     author: authorUrn.startsWith("urn:")
       ? authorUrn
       : `urn:li:person:${authorUrn}`,
     lifecycleState: "PUBLISHED",
     specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: {
-          text: post.content,
-        },
-        shareMediaCategory: "NONE",
-      },
+      "com.linkedin.ugc.ShareContent": shareContent,
     },
     visibility: {
       "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
@@ -305,9 +334,8 @@ async function publishToLinkedIn(
 
   // Add media if present
   if (post.media_urls && post.media_urls.length > 0) {
-    body.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory =
-      "ARTICLE";
-    body.specificContent["com.linkedin.ugc.ShareContent"].media = [
+    shareContent.shareMediaCategory = "ARTICLE";
+    shareContent.media = [
       {
         status: "READY",
         originalUrl: post.media_urls[0],
@@ -336,8 +364,8 @@ async function publishToLinkedIn(
 }
 
 async function publishToYouTube(
-  channel: any,
-  post: any,
+  channel: SocialChannel,
+  post: SocialPost,
 ): Promise<string | null> {
   if (!channel.access_token) {
     throw new Error("YouTube: missing access_token");
@@ -390,13 +418,17 @@ async function publishToYouTube(
 
 // ---- WordPress Publisher ----
 
-async function publishToWordPress(supabase: any, post: any) {
+async function publishToWordPress(
+  supabase: DbClient,
+  post: SocialPost,
+  siteUrl: string,
+): Promise<WordPressResult> {
   // Fetch WordPress site config
   const { data: wpSite } = await supabase
     .from("social_media_wordpress_sites")
     .select("*")
     .eq("tenant_id", post.tenant_id)
-    .eq("site_url", post.wordpress_site_url)
+    .eq("site_url", siteUrl)
     .eq("is_active", true)
     .single();
 
@@ -407,7 +439,7 @@ async function publishToWordPress(supabase: any, post: any) {
   const wpApiUrl = `${wpSite.site_url}/wp-json/wp/v2/posts`;
   const credentials = btoa(`${wpSite.username}:${wpSite.app_password}`);
 
-  const wpBody: Record<string, any> = {
+  const wpBody = {
     title: post.title || "",
     content: post.content,
     status: "publish",

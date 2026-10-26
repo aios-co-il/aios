@@ -4,6 +4,11 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { handleCarmenMessage } from "../_shared/carmen.ts";
 import {
+  getObject,
+  getPath,
+  type JsonObject,
+} from "../_shared/provider-json-b24.ts";
+import {
   type CarmenConnectionRole,
   resolveCarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
@@ -203,14 +208,12 @@ Deno.serve(async (request) => {
           const affectedIntegrations = eventPhone
             ? (wabaIntegrations ?? []).filter(
                 (row) =>
-                  digitsOnly(
-                    (row.settings as Record<string, any> | null)
-                      ?.display_phone_number,
-                  ) === eventPhone,
+                  digitsOnly(getPath(row.settings, "display_phone_number")) ===
+                  eventPhone,
               )
             : (wabaIntegrations ?? []);
           for (const row of affectedIntegrations) {
-            const rowSettings = (row.settings ?? {}) as Record<string, any>;
+            const rowSettings: JsonObject = getObject(row, "settings") ?? {};
             const { error: updateError } = await admin
               .from("tenant_integrations")
               .update({
@@ -251,7 +254,7 @@ Deno.serve(async (request) => {
           );
           continue;
         }
-        const settings = (integration.settings ?? {}) as Record<string, any>;
+        const settings: JsonObject = getObject(integration, "settings") ?? {};
 
         if (field === "smb_app_state_sync") {
           const { error: syncUpdateError } = await admin

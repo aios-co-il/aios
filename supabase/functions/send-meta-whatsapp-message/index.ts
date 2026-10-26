@@ -6,6 +6,14 @@ import {
   renderTemplateText,
 } from "../_shared/meta-whatsapp.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+  isJsonObject,
+  type JsonObject,
+} from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -192,7 +200,7 @@ Deno.serve(async (request) => {
     if (!tokenRow?.access_token)
       return reply({ error: "meta_whatsapp_token_missing" }, 400);
 
-    const settings = (integration.settings ?? {}) as Record<string, any>;
+    const settings: JsonObject = getObject(integration, "settings") ?? {};
     const phoneNumberId = String(
       settings.phone_number_id ?? integration.instance_id ?? "",
     );
@@ -236,18 +244,18 @@ Deno.serve(async (request) => {
       },
     );
     const responseText = await graphResponse.text();
-    let result: any = {};
+    let result: unknown = {};
     try {
       result = responseText ? JSON.parse(responseText) : {};
     } catch {
       result = { raw: responseText };
     }
-    if (!graphResponse.ok || result?.error) {
-      const code = result?.error?.code;
+    if (!graphResponse.ok || getPath(result, "error")) {
+      const code = getPath(result, "error", "code");
       const detail =
-        result?.error?.error_user_msg ||
-        result?.error?.error_data?.details ||
-        result?.error?.message ||
+        getString(result, "error", "error_user_msg") ||
+        getString(result, "error", "error_data", "details") ||
+        getString(result, "error", "message") ||
         null;
       const explained = explainMetaWhatsAppError(code, detail);
       return reply(
@@ -256,13 +264,13 @@ Deno.serve(async (request) => {
           error_label: explained.labelHe,
           ops_hint: explained.opsHintHe,
           retryable: explained.retryable,
-          meta_error: result?.error ?? result,
+          meta_error: getPath(result, "error") ?? result,
         },
         graphResponse.status || 502,
       );
     }
 
-    const messageId = result?.messages?.[0]?.id ?? null;
+    const messageId = getPath(getArray(result, "messages")[0], "id") ?? null;
 
     // Resolved after the send so a failure here can never affect delivery.
     let templateText: string | null = null;
@@ -300,7 +308,7 @@ Deno.serve(async (request) => {
       sender_phone: to,
       sent_by_user_id: userId,
       raw_provider_data: {
-        ...result,
+        ...(isJsonObject(result) ? result : {}),
         idMessage: messageId,
         phone_number_id: phoneNumberId,
         template: template ?? null,
