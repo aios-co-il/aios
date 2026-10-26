@@ -19,7 +19,7 @@ import { Phone, Settings, Save, Loader2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
-import { jsonField } from "@/lib/pageTypeGuards";
+import { jsonField } from "@/lib/typeGuards";
 
 export default function TelephonySettings() {
   const { tenantId } = useCurrentTenant();

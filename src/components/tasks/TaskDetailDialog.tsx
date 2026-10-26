@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { isJsonObject } from "@/lib/typing-b26";
-import { sliderColorStyle } from "@/lib/sliderColor-b26";
+import { isJsonObject } from "@/lib/typeGuards";
+import { sliderColorStyle } from "@/lib/sliderColor";
 import {
   Dialog,
   DialogContent,

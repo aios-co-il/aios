@@ -10,7 +10,7 @@ import { EditSalesPersonDialog } from "@/components/forms/EditSalesPersonDialog"
 import { useToast } from "@/hooks/use-toast";
 import { useAgency } from "@/contexts/AgencyContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { readErrorMessage } from "@/lib/pageTypeGuards";
+import { errorMessage } from "@/lib/typeGuards";
 
 export default function SalesPeople() {
   const { toast } = useToast();
@@ -58,7 +58,7 @@ export default function SalesPeople() {
     } catch (error) {
       toast({
         title: "שגיאה במחיקת איש מכירות",
-        description: readErrorMessage(error),
+        description: errorMessage(error),
         variant: "destructive",
       });
     }

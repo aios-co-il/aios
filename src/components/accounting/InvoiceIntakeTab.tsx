@@ -28,7 +28,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 type Invoice = Tables<"invoice_uploads">;
 

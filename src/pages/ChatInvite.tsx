@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Hash, Loader2, MessageSquare } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
-import { errorMessage, isJsonObject } from "@/lib/typing-b26";
+import { errorMessage, isJsonObject } from "@/lib/typeGuards";
 
 export default function ChatInvite() {
   const { token } = useParams<{ token: string }>();

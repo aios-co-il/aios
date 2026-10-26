@@ -4,8 +4,8 @@ import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables, TablesUpdate } from "@/integrations/supabase/types";
-import { errorMessage, isJsonObject } from "@/lib/typing-b26";
-import { sliderColorStyle } from "@/lib/sliderColor-b26";
+import { errorMessage, isJsonObject } from "@/lib/typeGuards";
+import { sliderColorStyle } from "@/lib/sliderColor";
 import { notifyTaskUpdateAdded } from "@/lib/notifyTaskPeers";
 import { Button } from "@/components/ui/button";
 import {

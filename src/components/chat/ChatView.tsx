@@ -5,7 +5,7 @@ import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   parseChatProviderData,
   type ChatProviderData,
-} from "./providerData-b26";
+} from "./chatProviderData";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle, Ban, Building2, Copy } from "lucide-react";
 import ChatMessageList from "./ChatMessageList";

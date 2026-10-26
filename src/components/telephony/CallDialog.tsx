@@ -25,7 +25,7 @@ import {
   toProvider,
   type Provider,
 } from "@/components/telephony/callProviders";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface CallDialogProps {
   open: boolean;

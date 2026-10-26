@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConvertMessageToTaskDialog } from "./ConvertMessageToTaskDialog";
 import { toast } from "sonner";
-import type { ChatProviderData } from "./providerData-b26";
+import type { ChatProviderData } from "./chatProviderData";
 
 interface Message {
   id: string;

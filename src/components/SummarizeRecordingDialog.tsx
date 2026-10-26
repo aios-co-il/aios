@@ -34,7 +34,7 @@ import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SUMMARY_PROSE_CLASS } from "@/components/recordings/SummaryViewerDialog";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface SummarizableRecording {
   id: string;

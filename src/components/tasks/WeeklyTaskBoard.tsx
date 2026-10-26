@@ -338,13 +338,6 @@ export function WeeklyTaskBoard() {
     task_updates?: { id: string }[];
     task_collaborators?: { id?: string; campaigner_id?: string }[];
   };
-  const isBoardTask = (value: unknown): value is FullTask =>
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    typeof value.id === "string" &&
-    "title" in value &&
-    typeof value.title === "string";
 
   const linkedTaskId = searchParams.get("task");
   useEffect(() => {
@@ -1097,6 +1090,7 @@ export function WeeklyTaskBoard() {
       );
 
       let newTask: { id: string } | null = null;
+      let createdTask: FullTask | null = null;
       if (fanOut) {
         const payloads = assigneeIds.map((campaignerId) => ({
           ...insertData,
@@ -1117,6 +1111,7 @@ export function WeeklyTaskBoard() {
           .single();
         if (error) throw error;
         newTask = created;
+        createdTask = created as FullTask;
 
         const uniqueCollaborators = Array.from(
           new Set(
@@ -1172,26 +1167,16 @@ export function WeeklyTaskBoard() {
         }
       }
 
-      return fanOut ? { fanOutCount: assigneeIds.length, newTask } : newTask;
+      return { fanOutCount: fanOut ? assigneeIds.length : null, createdTask };
     },
-    onSuccess: (result) => {
-      const fanOutCount =
-        result && typeof result === "object" && "fanOutCount" in result
-          ? (result as { fanOutCount: number }).fanOutCount
-          : null;
-      const newTask =
-        result && typeof result === "object" && "newTask" in result
-          ? (result as { newTask: typeof result }).newTask
-          : result;
-
+    onSuccess: ({ fanOutCount, createdTask }) => {
       // Optimistic add so the user sees it immediately even if filters are restrictive
-      if (newTask && typeof newTask === "object" && "id" in newTask) {
-        setLocalTasks((prev) => {
-          if (!isBoardTask(newTask)) return prev;
-          return prev.some((t) => t.id === newTask.id)
+      if (createdTask) {
+        setLocalTasks((prev) =>
+          prev.some((t) => t.id === createdTask.id)
             ? prev
-            : [newTask, ...prev];
-        });
+            : [createdTask, ...prev],
+        );
       }
 
       queryClient.invalidateQueries({ queryKey: ["tasks", tenantId] });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSupplierType } from "./enums-b26";
+import { isSupplierType } from "./supplierType";
 
 describe("isSupplierType", () => {
   it("accepts supplier_type enum values", () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { jsonField } from "@/lib/typeGuards";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -290,7 +291,7 @@ export function ChatTagsManager({
       const message = error?.message || "";
       if (
         message.includes("duplicate") ||
-        ("code" in error && error.code === "23505")
+        jsonField(error, "code") === "23505"
       ) {
         toast.error("תגית עם שם זה כבר קיימת");
       } else {

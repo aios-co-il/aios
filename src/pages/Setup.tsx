@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Shield } from "lucide-react";
-import { readErrorMessage } from "@/lib/pageTypeGuards";
+import { errorMessage } from "@/lib/typeGuards";
 
 export default function Setup() {
   const navigate = useNavigate();
@@ -106,7 +106,7 @@ export default function Setup() {
       }, 1500);
     } catch (error) {
       console.error("Error during setup:", error);
-      toast.error("שגיאה ביצירת הארגון: " + readErrorMessage(error));
+      toast.error("שגיאה ביצירת הארגון: " + errorMessage(error));
     } finally {
       setLoading(false);
     }

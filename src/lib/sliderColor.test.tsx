@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { describe, expect, it } from "vitest";
-import { readSliderColor, sliderColorStyle } from "./sliderColor-b26";
+import { readSliderColor, sliderColorStyle } from "./sliderColor";
 
 describe("slider color CSS variable", () => {
   it("round-trips the --slider-color custom property", () => {

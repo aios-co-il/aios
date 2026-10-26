@@ -53,7 +53,7 @@ import {
   type MicCaptureMode,
 } from "@/lib/carmenTranscribeOnly";
 import type { Json, Tables } from "@/integrations/supabase/types";
-import { errorMessage, isJsonObject } from "@/lib/typing-b26";
+import { errorMessage, isJsonObject } from "@/lib/typeGuards";
 
 function lastAssistantContent(history: Json[]): string {
   for (let i = history.length - 1; i >= 0; i--) {

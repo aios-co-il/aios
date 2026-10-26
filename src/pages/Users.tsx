@@ -61,7 +61,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { isPresent } from "@/lib/pageTypeGuards";
+import { isPresent } from "@/lib/typeGuards";
 
 // Role labels are now dynamic via useTerminology hook
 // Mapping from role key to terminology key

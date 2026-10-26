@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { JsonObject } from "@/lib/typing-b26";
+import type { JsonObject } from "@/lib/typeGuards";
 
 export interface AIOSMessage {
   role: "user" | "assistant";

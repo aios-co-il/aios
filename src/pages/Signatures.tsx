@@ -76,7 +76,7 @@ import {
 } from "@/components/signatures/signatureDocumentMedia";
 import { SignatureOriginalFileLink } from "@/components/signatures/SignatureOriginalFileLink";
 import { SignedSignatureReview } from "@/components/signatures/SignedSignatureReview";
-import { jsonField } from "@/lib/pageTypeGuards";
+import { jsonField } from "@/lib/typeGuards";
 import {
   documentFieldsToJson,
   signaturePositionToJson,

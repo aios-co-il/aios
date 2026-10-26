@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ArrowRight, ChevronRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface UnifiedProvider {
   name: string;

@@ -70,11 +70,28 @@ import {
   type ChatFilter,
 } from "@/components/chat/ChatConnectionSelector";
 
-/** Rows of the get_chat_contacts overload that also returns sender_phone and the WhatsApp avatar. */
-type ChatContactsRpcRows = Extract<
-  Database["public"]["Functions"]["get_chat_contacts"],
-  { Returns: { sender_phone: string }[] }
->["Returns"];
+/**
+ * Row of get_chat_contacts(p_tenant_id, p_connection_user_ids, p_provider).
+ * Nullability follows the SQL function (groups/unknown senders and LEFT JOINs yield NULLs),
+ * which the generated types do not express.
+ */
+type ChatContactsRpcRow = {
+  contact_id: string;
+  contact_type: string;
+  name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  agency_id: string | null;
+  agency_name: string | null;
+  unread_count: number;
+  last_message_at: string | null;
+  is_blocked: boolean;
+  manychat_subscriber_id: string | null;
+  active_chat_provider: Database["public"]["Enums"]["chat_provider"] | null;
+  whatsapp_avatar_url: string | null;
+  sender_phone: string | null;
+};
 
 interface Contact {
   id: string;
@@ -286,7 +303,7 @@ export default function Chat() {
           p_connection_user_ids: connectionUserIds ?? null,
           p_provider: providerFilter ?? null,
         })
-        .overrideTypes<ChatContactsRpcRows, { merge: false }>();
+        .overrideTypes<ChatContactsRpcRow[], { merge: false }>();
 
       if (error) {
         console.error("Error fetching active chats:", error);
@@ -306,7 +323,7 @@ export default function Chat() {
         contact_type: toContactType(contact.contact_type),
         unread_count: contact.unread_count || 0,
         last_message_at: contact.last_message_at,
-        sender_phone: contact.sender_phone,
+        sender_phone: contact.sender_phone ?? undefined,
         is_blocked: contact.is_blocked || false,
         has_messages: true,
         whatsapp_avatar_url: contact.whatsapp_avatar_url,

@@ -47,7 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { jsonField } from "@/lib/pageTypeGuards";
+import { jsonField } from "@/lib/typeGuards";
 
 export type GreenAPISettingsProps = {
   /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */

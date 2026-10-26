@@ -92,8 +92,8 @@ import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
 import {
   isJsonObject,
   jsonField,
-  readErrorMessage,
-} from "@/lib/pageTypeGuards";
+  errorMessage,
+} from "@/lib/typeGuards";
 
 const getPublicOrigin = () => {
   // Use the app's own origin in the browser; fall back to the canonical domain.
@@ -916,7 +916,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       refetchMembers();
       setEditingUser({ ...editingUser, avatar_url: urlData.signedUrl });
     } catch (err) {
-      toast.error("שגיאה בהעלאה: " + readErrorMessage(err));
+      toast.error("שגיאה בהעלאה: " + errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -947,7 +947,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         setEditingUser({ ...editingUser, avatar_url: data.avatar_url });
       }
     } catch (err) {
-      toast.error("שגיאה ביצירת אווטר: " + readErrorMessage(err));
+      toast.error("שגיאה ביצירת אווטר: " + errorMessage(err));
     } finally {
       setGeneratingAi(false);
     }
@@ -996,7 +996,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
     } catch (err) {
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
-      toast.error("שגיאה במחיקה: " + readErrorMessage(err));
+      toast.error("שגיאה במחיקה: " + errorMessage(err));
     }
   };
 
@@ -1897,7 +1897,7 @@ function TeamMessageInput({
             setText((prev) => (prev ? prev + " " + result.text : result.text));
           }
         } catch (err) {
-          toast.error("שגיאה בתמלול: " + readErrorMessage(err));
+          toast.error("שגיאה בתמלול: " + errorMessage(err));
         } finally {
           setIsTranscribing(false);
         }
@@ -1906,7 +1906,7 @@ function TeamMessageInput({
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      toast.error("לא ניתן לגשת למיקרופון: " + readErrorMessage(err));
+      toast.error("לא ניתן לגשת למיקרופון: " + errorMessage(err));
     }
   };
 
@@ -1993,7 +1993,7 @@ function TeamMessageInput({
       toast.error(
         "שגיאה בהעלאת הקובץ: " +
           String(
-            readErrorMessage(err) ||
+            errorMessage(err) ||
               jsonField(err, "statusCode") ||
               JSON.stringify(err),
           ),
@@ -2381,7 +2381,7 @@ function MemberRow({
       setEditing(false);
       onNameUpdated();
     } catch (err) {
-      toast.error("שגיאה בעדכון: " + readErrorMessage(err));
+      toast.error("שגיאה בעדכון: " + errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -2998,7 +2998,7 @@ function ChannelAvatarDialog({
       onUpdated();
       setOpen(false);
     } catch (err) {
-      toast.error("שגיאה בהעלאה: " + readErrorMessage(err));
+      toast.error("שגיאה בהעלאה: " + errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -3021,7 +3021,7 @@ function ChannelAvatarDialog({
       onUpdated();
       setOpen(false);
     } catch (err) {
-      toast.error("שגיאה ביצירת אווטר: " + readErrorMessage(err));
+      toast.error("שגיאה ביצירת אווטר: " + errorMessage(err));
     } finally {
       setGenerating(false);
     }
@@ -3322,7 +3322,7 @@ function EditChannelDialog({
       onDeleted();
       setOpen(false);
     } catch (err) {
-      toast.error("שגיאה במחיקה: " + readErrorMessage(err));
+      toast.error("שגיאה במחיקה: " + errorMessage(err));
     } finally {
       setDeleting(false);
     }

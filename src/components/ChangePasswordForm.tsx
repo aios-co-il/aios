@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 const passwordSchema = z
   .object({

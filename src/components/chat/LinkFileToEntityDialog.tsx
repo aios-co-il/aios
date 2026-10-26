@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { User, Target } from "lucide-react";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface UploadedFile {
   id: string;

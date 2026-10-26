@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseChatProviderData } from "./providerData-b26";
+import { parseChatProviderData } from "./chatProviderData";
 
 describe("parseChatProviderData", () => {
   it("keeps the Green API fields the chat UI reads", () => {

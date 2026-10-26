@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, AlertCircle, Copy, Check } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 export function MFASettings() {
   const [isEnrolled, setIsEnrolled] = useState(false);

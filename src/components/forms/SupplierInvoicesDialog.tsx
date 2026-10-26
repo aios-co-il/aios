@@ -32,7 +32,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface SupplierInvoicesDialogProps {
   supplier: Pick<Tables<"suppliers">, "id" | "name" | "email" | "phone">;

@@ -20,7 +20,7 @@ import { PersonalApiKeyCard } from "@/components/carmen-command/PersonalApiKeyCa
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { CalendarIframeSettings } from "@/components/CalendarIframeSettings";
 import { CalendarSharingSettings } from "@/components/CalendarSharingSettings";
-import { isPresent } from "@/lib/pageTypeGuards";
+import { isPresent } from "@/lib/typeGuards";
 
 export default function MyProfile() {
   const { userId } = useCurrentUser();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { errorMessage, isJsonObject } from "./typing-b26";
+import { errorMessage, isJsonObject, isPresent, jsonField } from "./typeGuards";
 
 describe("errorMessage", () => {
   it("reads the message of Error instances", () => {
@@ -26,5 +26,20 @@ describe("isJsonObject", () => {
     expect(isJsonObject([])).toBe(false);
     expect(isJsonObject(null)).toBe(false);
     expect(isJsonObject("x")).toBe(false);
+  });
+});
+
+describe("jsonField", () => {
+  it("reads a key from objects and ignores other shapes", () => {
+    expect(jsonField({ instance_id: "123" }, "instance_id")).toBe("123");
+    expect(jsonField(["123"], "0")).toBeUndefined();
+    expect(jsonField(null, "instance_id")).toBeUndefined();
+  });
+});
+
+describe("isPresent", () => {
+  it("drops null and undefined", () => {
+    const values = [{ id: "a" }, null, undefined, { id: "b" }];
+    expect(values.filter(isPresent)).toEqual([{ id: "a" }, { id: "b" }]);
   });
 });

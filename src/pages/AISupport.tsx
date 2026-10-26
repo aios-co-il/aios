@@ -31,7 +31,7 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ReactMarkdown from "react-markdown";
 import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface Message {
   role: "user" | "assistant" | "tool_call";

@@ -1,4 +1,4 @@
-import { isJsonObject, type JsonObject } from "@/lib/typing-b26";
+import { isJsonObject, type JsonObject } from "@/lib/typeGuards";
 
 export interface WaQuotedMessage {
   stanzaId?: string;

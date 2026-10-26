@@ -24,7 +24,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
-import { errorMessage } from "@/lib/typing-b26";
+import { errorMessage } from "@/lib/typeGuards";
 
 export type CloneEntityType = "agent" | "automation" | "pipeline";
 

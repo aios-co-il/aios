@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { FolderLink } from "@/components/forms/FolderLinksField";
 import type { Attachment } from "@/components/forms/AttachmentsField";
-import { isJsonObject } from "@/lib/typing-b26";
+import { isJsonObject } from "@/lib/typeGuards";
 
 interface EntityWithFiles {
   folder_links?: unknown;

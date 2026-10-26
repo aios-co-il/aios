@@ -24,7 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import UnifiedProviderPicker from "@/components/unified/UnifiedProviderPicker";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { readErrorMessage } from "@/lib/pageTypeGuards";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface WorkspaceIntegration {
   name: string;
@@ -120,7 +120,7 @@ export default function UnifiedSettings() {
     } catch (error) {
       toast({
         title: "שגיאה בניתוק",
-        description: readErrorMessage(error),
+        description: errorMessage(error),
         variant: "destructive",
       });
     }

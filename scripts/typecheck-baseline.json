@@ -1048,13 +1048,6 @@
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
-      "code": 2352,
-      "message": "Conversion of type '{ fanOutCount: number; newTask: { id: string; }; }' to type '{ newTask: { fanOutCount: number; newTask: { id: string; }; }; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Types of property 'newTask' are incompatible.\n    Type '{ id: string; }' is missing the following properties from type '{ fanOutCount: number; newTask: { id: string; }; }': fanOutCount, newTask",
-      "source": "result as { newTask: typeof result }",
-      "count": 1
-    },
-    {
-      "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2719,
       "message": "Type 'Task | null' is not assignable to type 'Task | null'. Two different types with this name exist, but they are unrelated.\n  Type 'Task' is not assignable to type 'Task'. Two different types with this name exist, but they are unrelated.\n    Types of property 'created_at' are incompatible.\n      Type 'string | null | undefined' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
       "source": "task",

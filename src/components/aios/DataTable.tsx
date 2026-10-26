@@ -1,4 +1,4 @@
-import type { JsonObject } from "@/lib/typing-b26";
+import type { JsonObject } from "@/lib/typeGuards";
 import {
   Table,
   TableBody,

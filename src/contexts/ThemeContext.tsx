@@ -8,7 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "./TenantContext";
 import { useQuery } from "@tanstack/react-query";
-import { isJsonObject } from "@/lib/typing-b26";
+import { isJsonObject } from "@/lib/typeGuards";
 
 export type ColorPalette =
   "default" | "green-gradient" | "blue" | "purple" | "orange";
