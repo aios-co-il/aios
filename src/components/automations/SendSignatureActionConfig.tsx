@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 interface SendSignatureActionConfigProps {
-  tenantId: string;
+  tenantId?: string;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
 }
@@ -24,6 +24,7 @@ export default function SendSignatureActionConfig({
   const { data: templates = [] } = useQuery({
     queryKey: ["signature-templates", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("signature_documents")
         .select("id, title, template_name, document_type")

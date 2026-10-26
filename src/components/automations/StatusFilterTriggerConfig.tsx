@@ -8,7 +8,7 @@ import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
-  tenantId: string;
+  tenantId?: string;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
   onBulkConfigChange?: (updates: Record<string, any>) => void;

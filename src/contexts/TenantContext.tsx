@@ -9,12 +9,14 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface TenantContextType {
   currentTenantId: string | null;
   currentTenantSlug: string | null;
   setCurrentTenantId: (tenantId: string) => void;
-  currentTenant: any;
+  currentTenant:
+    Pick<Tables<"tenants">, "id" | "name" | "slug"> | null | undefined;
   isLoading: boolean;
   isActiveTenantSynced: boolean;
   /** True after user_active_tenant upsert matches currentTenantId (RLS scope). */
@@ -195,16 +197,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { error } = await supabase
-        .from("user_active_tenant")
-        .upsert(
-          {
-            user_id: user.id,
-            tenant_id: currentTenantId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
+      const { error } = await supabase.from("user_active_tenant").upsert(
+        {
+          user_id: user.id,
+          tenant_id: currentTenantId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
 
       if (cancelled) return;
       if (error) {
