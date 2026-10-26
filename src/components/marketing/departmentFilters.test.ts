@@ -1,25 +1,20 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   filterCreativeDepartmentItems,
   isCreativeDepartmentItem,
 } from "./departmentFilters.ts";
 
 test("creative items stay visible even without a loaded stage id", () => {
-  assert.equal(
+  expect(
     isCreativeDepartmentItem({ payload: { department: "creative" } }),
+  ).toBe(true);
+  expect(isCreativeDepartmentItem({ payload: { handoff_from: "copy" } })).toBe(
     true,
   );
-  assert.equal(
-    isCreativeDepartmentItem({ payload: { handoff_from: "copy" } }),
-    true,
-  );
-  assert.equal(
+  expect(
     isCreativeDepartmentItem({ payload: { variations: [{ id: "v1" }] } }),
-    true,
-  );
-  assert.equal(
-    isCreativeDepartmentItem({ payload: { department: "copy" } }),
+  ).toBe(true);
+  expect(isCreativeDepartmentItem({ payload: { department: "copy" } })).toBe(
     false,
   );
 });
@@ -34,27 +29,23 @@ test("filterCreativeDepartmentItems matches a tenant creative stage", () => {
       current_stage_id: "other",
     },
   ];
-  assert.deepEqual(
+  expect(
     filterCreativeDepartmentItems(items, ["creative-9"]).map((item) => item.id),
-    ["legacy", "tagged"],
-  );
+  ).toStrictEqual(["legacy", "tagged"]);
 });
 
 test("video projects stay in creative without a payload storyboard", () => {
-  assert.equal(
-    isCreativeDepartmentItem({ payload: { project_type: "video" } }),
+  expect(isCreativeDepartmentItem({ payload: { project_type: "video" } })).toBe(
     true,
   );
-  assert.equal(
+  expect(
     isCreativeDepartmentItem({
       payload: { project_type: "video", storyboard: [] },
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isCreativeDepartmentItem({
       payload: { project_type: "video", department: "copy" },
     }),
-    false,
-  );
+  ).toBe(false);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildStyleContinuityLock,
   buildStylePlayLock,
@@ -41,14 +40,11 @@ test("missingCopyBlocks skips the approved card and existing live keys", () => {
     ],
     { id: "a", copyKey: "1" },
   );
-  assert.deepEqual(
-    missing.map((block) => block.key),
-    ["2", "3"],
-  );
+  expect(missing.map((block) => block.key)).toStrictEqual(["2", "3"]);
 });
 
 test("integrated type means no caption plate under the lockup", () => {
-  assert.equal(
+  expect(
     isTypePlate({
       id: "1",
       type: "shape",
@@ -58,9 +54,8 @@ test("integrated type means no caption plate under the lockup", () => {
       height: 22,
       fill: "#fff",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isTypePlate({
       id: "2",
       type: "shape",
@@ -70,9 +65,8 @@ test("integrated type means no caption plate under the lockup", () => {
       height: 1.1,
       fill: "#f00",
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     usesIntegratedType({
       compositionId: "flush",
       layers: [
@@ -87,9 +81,8 @@ test("integrated type means no caption plate under the lockup", () => {
         },
       ],
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     usesIntegratedType({
       compositionId: "rail",
       layers: [
@@ -104,8 +97,7 @@ test("integrated type means no caption plate under the lockup", () => {
         },
       ],
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("style continuity lock keeps the campaign look and changes the copy beat", () => {
@@ -113,13 +105,13 @@ test("style continuity lock keeps the campaign look and changes the copy beat", 
     sourceLabel: "וריאציה 3 · מגולל לצ'אט",
     sourceIdea: "עדיין מגלגל בטיקטוק?",
   });
-  assert.match(lock, /CAMPAIGN STYLE LOCK/i);
-  assert.match(lock, /מגולל לצ'אט/);
-  assert.match(lock, /Technique sample/);
-  assert.match(lock, /STYLE ≠ CLONE/);
-  assert.match(lock, /new people/);
-  assert.match(lock, /No caption plates/i);
-  assert.match(lock, /approved still/i);
+  expect(lock).toMatch(/CAMPAIGN STYLE LOCK/i);
+  expect(lock).toMatch(/מגולל לצ'אט/);
+  expect(lock).toMatch(/Technique sample/);
+  expect(lock).toMatch(/STYLE ≠ CLONE/);
+  expect(lock).toMatch(/new people/);
+  expect(lock).toMatch(/No caption plates/i);
+  expect(lock).toMatch(/approved still/i);
 });
 
 test("style continuity without an attached still does not ask the model to copy a picture", () => {
@@ -128,8 +120,8 @@ test("style continuity without an attached still does not ask the model to copy 
     sourceIdea: "עדיין מגלגל בטיקטוק?",
     attachStill: false,
   });
-  assert.match(lock, /No still is attached/i);
-  assert.doesNotMatch(lock, /approved still is attached/i);
+  expect(lock).toMatch(/No still is attached/i);
+  expect(lock).not.toMatch(/approved still is attached/i);
 });
 
 test("style play lock gives each copy a different cast, crop, and marks", () => {
@@ -144,9 +136,9 @@ test("style play lock gives each copy a different cast, crop, and marks", () => 
     copyLabel: "פומו",
     avoidLabels: ["מגולל"],
   });
-  assert.match(a, /STYLE PLAY/);
-  assert.match(a, /not a photocopy/i);
-  assert.match(a, /unique staging/);
-  assert.match(b, /Do not echo these earlier cards: מגולל/);
-  assert.notEqual(a, b);
+  expect(a).toMatch(/STYLE PLAY/);
+  expect(a).toMatch(/not a photocopy/i);
+  expect(a).toMatch(/unique staging/);
+  expect(b).toMatch(/Do not echo these earlier cards: מגולל/);
+  expect(a).not.toBe(b);
 });

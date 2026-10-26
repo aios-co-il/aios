@@ -12,9 +12,7 @@ const testFile = join(
   root,
   "supabase/functions/_shared/client-campaign-shutdown.test.mjs",
 );
-const r = spawnSync(
-  process.execPath,
-  ["--experimental-strip-types", "--test", testFile],
-  { stdio: "inherit" },
-);
+const r = spawnSync("deno", ["test", "-A", "--no-check", testFile], {
+  stdio: "inherit",
+});
 process.exit(r.status ?? 1);

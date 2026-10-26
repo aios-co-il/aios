@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { settingString, tenantBrainOverrides } from "./overrides.ts";
 
 type Row = {
@@ -66,25 +65,28 @@ const rows: Row[] = [
   },
 ];
 
-test("a tenant's built-in keys map to the env names their launchers read", async () => {
-  const { client, filters } = fakeClient(rows, {
-    "c-cursor": "cur-key",
-    "c-other": "leak",
-  });
-  const out = await tenantBrainOverrides(client, T1);
-  assert.deepEqual(out, {
-    CURSOR_API_KEY: "cur-key",
-    CLAUDE_ROUTINE_ID: "trig_123",
-  });
-  assert.deepEqual(filters, [
-    ["tenant_id", T1],
-    ["kind", "builtin"],
-  ]);
-});
+Deno.test(
+  "a tenant's built-in keys map to the env names their launchers read",
+  async () => {
+    const { client, filters } = fakeClient(rows, {
+      "c-cursor": "cur-key",
+      "c-other": "leak",
+    });
+    const out = await tenantBrainOverrides(client, T1);
+    assertEquals(out, {
+      CURSOR_API_KEY: "cur-key",
+      CLAUDE_ROUTINE_ID: "trig_123",
+    });
+    assertEquals(filters, [
+      ["tenant_id", T1],
+      ["kind", "builtin"],
+    ]);
+  },
+);
 
-test("settingString reads only string fields of an object", () => {
-  assert.equal(settingString({ a: " x " }, "a"), "x");
-  assert.equal(settingString({ a: 1 }, "a"), "");
-  assert.equal(settingString(null, "a"), "");
-  assert.equal(settingString(["x"], "0"), "");
+Deno.test("settingString reads only string fields of an object", () => {
+  assertStrictEquals(settingString({ a: " x " }, "a"), "x");
+  assertStrictEquals(settingString({ a: 1 }, "a"), "");
+  assertStrictEquals(settingString(null, "a"), "");
+  assertStrictEquals(settingString(["x"], "0"), "");
 });

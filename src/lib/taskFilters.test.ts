@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   defaultTaskFilters,
   filterTasksByCampaignerBoardFilter,
@@ -17,8 +16,8 @@ import {
 } from "./taskFilters.ts";
 
 test("the tasks board opens on my tasks and tasks I assigned", () => {
-  assert.equal(defaultTaskFilters.campaignerId, "mine_assigned");
-  assert.equal(defaultTaskFilters.openClosed, "open");
+  expect(defaultTaskFilters.campaignerId).toBe("mine_assigned");
+  expect(defaultTaskFilters.openClosed).toBe("open");
 });
 
 test("mine follows the campaigner linked on the user, including owners", () => {
@@ -26,7 +25,7 @@ test("mine follows the campaigner linked on the user, including owners", () => {
     campaignerId: "staff-david",
     userId: "user-david",
   });
-  assert.deepEqual(mine, {
+  expect(mine).toStrictEqual({
     kind: "assigned",
     campaignerId: "staff-david",
     salesPersonId: undefined,
@@ -38,7 +37,7 @@ test("mine uses sales-person when that is the linked staff row", () => {
     salesPersonId: "sales-1",
     userId: "user-1",
   });
-  assert.deepEqual(mine, {
+  expect(mine).toStrictEqual({
     kind: "assigned",
     campaignerId: undefined,
     salesPersonId: "sales-1",
@@ -46,23 +45,23 @@ test("mine uses sales-person when that is the linked staff row", () => {
 });
 
 test("without a staff link, mine falls back to tasks the user created", () => {
-  assert.deepEqual(resolveMineTaskAssignee({ userId: "user-1" }), {
+  expect(resolveMineTaskAssignee({ userId: "user-1" })).toStrictEqual({
     kind: "created_by",
     userId: "user-1",
   });
 });
 
 test("no other filter narrows the board on entry", () => {
-  assert.equal(defaultTaskFilters.taskType, "all");
-  assert.equal(defaultTaskFilters.association, "all");
-  assert.equal(defaultTaskFilters.period, "all");
-  assert.equal(defaultTaskFilters.relatedKind, "all");
+  expect(defaultTaskFilters.taskType).toBe("all");
+  expect(defaultTaskFilters.association).toBe("all");
+  expect(defaultTaskFilters.period).toBe("all");
+  expect(defaultTaskFilters.relatedKind).toBe("all");
 });
 
 test("isMineQueueFilter covers mine and mine_assigned", () => {
-  assert.equal(isMineQueueFilter("mine"), true);
-  assert.equal(isMineQueueFilter("mine_assigned"), true);
-  assert.equal(isMineQueueFilter("all"), false);
+  expect(isMineQueueFilter("mine")).toBe(true);
+  expect(isMineQueueFilter("mine_assigned")).toBe(true);
+  expect(isMineQueueFilter("all")).toBe(false);
 });
 
 test("filterTasksByCampaignerBoardFilter keeps only mine assignments", () => {
@@ -86,23 +85,21 @@ test("filterTasksByCampaignerBoardFilter keeps only mine assignments", () => {
     userId: "user-itay",
     campaignerIds: ["staff-itay"],
   };
-  assert.deepEqual(
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "mine", mine).map(
       (task) => task.id,
     ),
-    ["1"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["1"]);
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "staff-other", mine).map(
       (task) => task.id,
     ),
-    ["2"],
-  );
+  ).toStrictEqual(["2"]);
 });
 
 test("chunkIds splits long id lists for PostgREST .in()", () => {
-  assert.deepEqual(chunkIds(["a", "b", "c"], 2), [["a", "b"], ["c"]]);
-  assert.deepEqual(chunkIds([], 80), []);
+  expect(chunkIds(["a", "b", "c"], 2)).toStrictEqual([["a", "b"], ["c"]]);
+  expect(chunkIds([], 80)).toStrictEqual([]);
 });
 
 test("collaborator_for_me keeps a task in mine without embed rows", () => {
@@ -127,13 +124,12 @@ test("collaborator_for_me keeps a task in mine without embed rows", () => {
     userId: "user-itay",
     campaignerIds: ["staff-itay"],
   };
-  assert.deepEqual(
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "mine", mine).map(
       (task) => task.id,
     ),
-    ["collab"],
-  );
-  assert.equal(taskTouchesCampaigner(rows[0], "staff-itay"), true);
+  ).toStrictEqual(["collab"]);
+  expect(taskTouchesCampaigner(rows[0], "staff-itay")).toBe(true);
 });
 
 test("mine includes tasks where I am a collaborator", () => {
@@ -164,19 +160,17 @@ test("mine includes tasks where I am a collaborator", () => {
     userId: "user-itay",
     campaignerIds: ["staff-itay"],
   };
-  assert.deepEqual(
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "mine", mine).map(
       (task) => task.id,
     ),
-    ["assigned", "collab"],
-  );
-  assert.equal(taskTouchesCampaigner(rows[1], "staff-itay"), true);
-  assert.deepEqual(
+  ).toStrictEqual(["assigned", "collab"]);
+  expect(taskTouchesCampaigner(rows[1], "staff-itay")).toBe(true);
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "staff-itay", mine).map(
       (task) => task.id,
     ),
-    ["assigned", "collab"],
-  );
+  ).toStrictEqual(["assigned", "collab"]);
 });
 
 test("mine_assigned keeps tasks I assigned to someone else", () => {
@@ -206,18 +200,16 @@ test("mine_assigned keeps tasks I assigned to someone else", () => {
     userId: "user-itay",
     campaignerIds: ["staff-itay"],
   };
-  assert.deepEqual(
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "mine", mine).map(
       (task) => task.id,
     ),
-    ["assigned-to-me"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["assigned-to-me"]);
+  expect(
     filterTasksByCampaignerBoardFilter(rows, "mine_assigned", mine).map(
       (task) => task.id,
     ),
-    ["assigned-to-me", "i-assigned"],
-  );
+  ).toStrictEqual(["assigned-to-me", "i-assigned"]);
 });
 
 test("buildMineQueueOrFilter adds created_by for mine_assigned", () => {
@@ -227,9 +219,8 @@ test("buildMineQueueOrFilter adds created_by for mine_assigned", () => {
     userId: "user-1",
     campaignerIds: ["c1"],
   };
-  assert.equal(buildMineQueueOrFilter(identity, "mine"), "campaigner_id.eq.c1");
-  assert.equal(
-    buildMineQueueOrFilter(identity, "mine_assigned"),
+  expect(buildMineQueueOrFilter(identity, "mine")).toBe("campaigner_id.eq.c1");
+  expect(buildMineQueueOrFilter(identity, "mine_assigned")).toBe(
     "campaigner_id.eq.c1,created_by.eq.user-1",
   );
 });
@@ -246,40 +237,38 @@ test("filter preset round-trips campaigner, period, and related entity", () => {
     openClosed: "done",
   });
   const parsed = parseTasksFilterPreset(stored);
-  assert.equal(parsed.campaignerId, "mine");
-  assert.equal(parsed.taskType, "campaign");
-  assert.equal(parsed.period, "month");
-  assert.equal(parsed.relatedKind, "lead");
-  assert.equal(parsed.relatedId, "lead-1");
-  assert.equal(parsed.relatedLabel, "דלתא");
-  assert.equal(parsed.openClosed, "done");
+  expect(parsed.campaignerId).toBe("mine");
+  expect(parsed.taskType).toBe("campaign");
+  expect(parsed.period).toBe("month");
+  expect(parsed.relatedKind).toBe("lead");
+  expect(parsed.relatedId).toBe("lead-1");
+  expect(parsed.relatedLabel).toBe("דלתא");
+  expect(parsed.openClosed).toBe("done");
 });
 
 test("period window uses week/month starts and rolling 3 months / year", () => {
   const now = new Date(2026, 8, 17);
   const week = resolveTaskPeriodStart("week", now);
   const month = resolveTaskPeriodStart("month", now);
-  assert.equal(week?.getDate(), 13);
-  assert.equal(month?.getDate(), 1);
-  assert.equal(month?.getMonth(), 8);
-  assert.equal(resolveTaskPeriodStart("all", now), undefined);
+  expect(week?.getDate()).toBe(13);
+  expect(month?.getDate()).toBe(1);
+  expect(month?.getMonth()).toBe(8);
+  expect(resolveTaskPeriodStart("all", now)).toBe(undefined);
   const three = resolveTaskPeriodStart("quarter", now);
-  assert.equal(three?.getMonth(), 5);
-  assert.equal(
+  expect(three?.getMonth()).toBe(5);
+  expect(
     taskMatchesActivityPeriod(
       { status: "open", created_at: "2026-09-10T10:00:00" },
       month,
     ),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     taskMatchesActivityPeriod(
       { status: "open", created_at: "2026-07-01T10:00:00" },
       month,
     ),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     taskMatchesActivityPeriod(
       {
         status: "done",
@@ -288,9 +277,8 @@ test("period window uses week/month starts and rolling 3 months / year", () => {
       },
       month,
     ),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     taskMatchesActivityPeriod(
       {
         status: "done",
@@ -299,16 +287,15 @@ test("period window uses week/month starts and rolling 3 months / year", () => {
       },
       month,
     ),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("old clientId presets map onto the related-entity filter", () => {
   const fromClient = parseTasksFilterPreset({ clientId: "client-9" });
-  assert.equal(fromClient.relatedKind, "client");
-  assert.equal(fromClient.relatedId, "client-9");
+  expect(fromClient.relatedKind).toBe("client");
+  expect(fromClient.relatedId).toBe("client-9");
   const fromNone = parseTasksFilterPreset({ clientId: "none" });
-  assert.equal(fromNone.relatedKind, "none");
+  expect(fromNone.relatedKind).toBe("none");
 });
 
 test("filterTasksByRelatedEntity matches client, lead, or unassigned", () => {
@@ -317,19 +304,16 @@ test("filterTasksByRelatedEntity matches client, lead, or unassigned", () => {
     { id: "2", client_id: null, lead_id: "l1" },
     { id: "3", client_id: null, lead_id: null },
   ];
-  assert.deepEqual(
+  expect(
     filterTasksByRelatedEntity(rows, "client", "c1").map((task) => task.id),
-    ["1"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["1"]);
+  expect(
     filterTasksByRelatedEntity(rows, "lead", "l1").map((task) => task.id),
-    ["2"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["2"]);
+  expect(
     filterTasksByRelatedEntity(rows, "none").map((task) => task.id),
-    ["3"],
-  );
-  assert.equal(filterTasksByRelatedEntity(rows, "all").length, 3);
+  ).toStrictEqual(["3"]);
+  expect(filterTasksByRelatedEntity(rows, "all").length).toBe(3);
 });
 
 test("filterTasksForBoardUserPreview hides other users' tasks in view-as mode", () => {
@@ -359,10 +343,9 @@ test("filterTasksForBoardUserPreview hides other users' tasks in view-as mode", 
     userId: "user-felix",
     campaignerIds: ["staff-felix"],
   };
-  assert.deepEqual(
+  expect(
     filterTasksForBoardUserPreview(rows, "user-felix", felix).map(
       (task) => task.id,
     ),
-    ["1"],
-  );
+  ).toStrictEqual(["1"]);
 });

@@ -1,7 +1,12 @@
-import assert from "node:assert/strict";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertNotStrictEquals,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { readdirSync, readFileSync } from "node:fs";
-import test from "node:test";
-
 import {
   APPROVAL_DECISION_TOOLS,
   SERVICE_ONLY_RUN_FIELDS,
@@ -32,49 +37,58 @@ const forgedBody = () => ({
   carmen_automation: { instructions: "x" },
 });
 
-test("a user JWT runs as itself, without phone, WhatsApp target or whatsapp surface", () => {
-  const body = bindRunAgentCaller(forgedBody(), {
-    kind: "user",
-    userId: USER,
-  });
-  assert.equal(body.user_id, USER);
-  for (const field of SERVICE_ONLY_RUN_FIELDS)
-    assert.equal(field in body, false, `${field} must be stripped`);
-  assert.equal(body.lead_data, undefined);
-  assert.equal(body.wa_notify, undefined);
-  assert.equal(body.surface, "internal_chat");
-  assert.equal(body.command_text, "כן 4821");
-  assert.equal(body.tenant_id, "t1");
-});
+Deno.test(
+  "a user JWT runs as itself, without phone, WhatsApp target or whatsapp surface",
+  () => {
+    const body = bindRunAgentCaller(forgedBody(), {
+      kind: "user",
+      userId: USER,
+    });
+    assertStrictEquals(body.user_id, USER);
+    for (const field of SERVICE_ONLY_RUN_FIELDS)
+      assertStrictEquals(field in body, false, `${field} must be stripped`);
+    assertStrictEquals(body.lead_data, undefined);
+    assertStrictEquals(body.wa_notify, undefined);
+    assertStrictEquals(body.surface, "internal_chat");
+    assertStrictEquals(body.command_text, "כן 4821");
+    assertStrictEquals(body.tenant_id, "t1");
+  },
+);
 
-test("in-app surfaces are kept for user callers", () => {
+Deno.test("in-app surfaces are kept for user callers", () => {
   for (const surface of ["internal_chat", "aios", "task", undefined]) {
     const body = bindRunAgentCaller(
       { surface },
       { kind: "user", userId: USER },
     );
-    assert.equal(body.surface, surface);
+    assertStrictEquals(body.surface, surface);
   }
 });
 
-test("service callers keep phone, WhatsApp target, surface and user", () => {
-  const body = bindRunAgentCaller(forgedBody(), {
-    kind: "service",
-    userId: null,
-  });
-  assert.deepEqual(body, forgedBody());
-});
+Deno.test(
+  "service callers keep phone, WhatsApp target, surface and user",
+  () => {
+    const body = bindRunAgentCaller(forgedBody(), {
+      kind: "service",
+      userId: null,
+    });
+    assertEquals(body, forgedBody());
+  },
+);
 
-test("an unknown caller kind is treated like a user without identity", () => {
-  const body = bindRunAgentCaller(forgedBody(), {
-    kind: "anon",
-    userId: OWNER,
-  });
-  assert.equal(body.user_id, null);
-  assert.equal(body.lead_data, undefined);
-  assert.equal(body.wa_notify, undefined);
-  assert.equal(body.surface, "internal_chat");
-});
+Deno.test(
+  "an unknown caller kind is treated like a user without identity",
+  () => {
+    const body = bindRunAgentCaller(forgedBody(), {
+      kind: "anon",
+      userId: OWNER,
+    });
+    assertStrictEquals(body.user_id, null);
+    assertStrictEquals(body.lead_data, undefined);
+    assertStrictEquals(body.wa_notify, undefined);
+    assertStrictEquals(body.surface, "internal_chat");
+  },
+);
 
 // ── Source guards: the binding stays in run-ai-agent's entry point ──────────
 
@@ -83,50 +97,55 @@ const agent = readFileSync(
   "utf8",
 );
 
-test("run-ai-agent binds the caller before any use of the body", () => {
+Deno.test("run-ai-agent binds the caller before any use of the body", () => {
   const serveAt = agent.indexOf("Deno.serve(async (req) =>");
-  assert.ok(serveAt > 0, "Deno.serve entry point not found");
+  assert(serveAt > 0, "Deno.serve entry point not found");
   const serve = agent.slice(serveAt);
   const bindAt = serve.indexOf("bindRunAgentCaller(bodyJson, auth);");
-  assert.ok(
-    bindAt > 0,
-    "Deno.serve must call bindRunAgentCaller(bodyJson, auth)",
-  );
-  assert.ok(bindAt > serve.indexOf("await req.json()"));
+  assert(bindAt > 0, "Deno.serve must call bindRunAgentCaller(bodyJson, auth)");
+  assert(bindAt > serve.indexOf("await req.json()"));
   for (const later of [
     "bodyJson.direct_tool",
     "const surface: Surface",
     "resolveBrainEngine(",
     "handleRunAgent(",
   ])
-    assert.ok(
+    assert(
       bindAt < serve.indexOf(later),
       `bindRunAgentCaller must run before ${later}`,
     );
-  assert.match(
+  assertMatch(
     agent,
     /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\.\/_shared\/run-agent-trust\.mjs";/,
   );
 });
 
-test("WhatsApp and automation callers that set these fields use the service key", () => {
-  const carmen = readFileSync(new URL("./carmen.ts", import.meta.url), "utf8");
-  const run = carmen.slice(carmen.indexOf("export async function runCarmenAI"));
-  assert.match(run, /lead_data:/);
-  assert.match(run, /wa_notify:/);
-  assert.match(run, /Authorization: `Bearer \$\{serviceKey\}`/);
-  const automation = readFileSync(
-    new URL("../trigger-automation/index.ts", import.meta.url),
-    "utf8",
-  );
-  const calls = automation.split("fetch(agentUrl, {").slice(1);
-  assert.ok(calls.length >= 1);
-  for (const call of calls)
-    assert.match(
-      call.slice(0, 300),
-      /Authorization: `Bearer \$\{Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)\}`/,
+Deno.test(
+  "WhatsApp and automation callers that set these fields use the service key",
+  () => {
+    const carmen = readFileSync(
+      new URL("./carmen.ts", import.meta.url),
+      "utf8",
     );
-});
+    const run = carmen.slice(
+      carmen.indexOf("export async function runCarmenAI"),
+    );
+    assertMatch(run, /lead_data:/);
+    assertMatch(run, /wa_notify:/);
+    assertMatch(run, /Authorization: `Bearer \$\{serviceKey\}`/);
+    const automation = readFileSync(
+      new URL("../trigger-automation/index.ts", import.meta.url),
+      "utf8",
+    );
+    const calls = automation.split("fetch(agentUrl, {").slice(1);
+    assert(calls.length >= 1);
+    for (const call of calls)
+      assertMatch(
+        call.slice(0, 300),
+        /Authorization: `Bearer \$\{Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)\}`/,
+      );
+  },
+);
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -137,15 +156,18 @@ function walk(dir, out = []) {
   return out;
 }
 
-test("the browser never sends service-only fields or the whatsapp surface", () => {
-  const files = walk(new URL("../../../src/", import.meta.url));
-  assert.ok(files.length > 0);
-  for (const file of files) {
-    const src = readFileSync(file, "utf8");
-    assert.doesNotMatch(src, /\blead_data\b|\bwa_notify\b/, String(file));
-    assert.doesNotMatch(src, /surface:\s*["']whatsapp["']/, String(file));
-  }
-});
+Deno.test(
+  "the browser never sends service-only fields or the whatsapp surface",
+  () => {
+    const files = walk(new URL("../../../src/", import.meta.url));
+    assert(files.length > 0);
+    for (const file of files) {
+      const src = readFileSync(file, "utf8");
+      assertNotMatch(src, /\blead_data\b|\bwa_notify\b/, String(file));
+      assertNotMatch(src, /surface:\s*["']whatsapp["']/, String(file));
+    }
+  },
+);
 
 // ── Automation runs (AIO-241) ────────────────────────────────────────────────
 //
@@ -238,70 +260,79 @@ const forgedPayload = {
   contact_name: "ליד",
 };
 
-test("the approval code in these tests is 1234", () => {
-  assert.equal(approvalShortCode(ownerRow.id), "1234");
+Deno.test("the approval code in these tests is 1234", () => {
+  assertStrictEquals(approvalShortCode(ownerRow.id), "1234");
 });
 
-test("repro: unbound, a payload phone makes the run the owner and 'כן 1234' picks the owner's request", () => {
-  const body = runAiAgentSees(agentActionBody(forgedPayload));
-  assert.deepEqual(resolveRunCaller(body), { userId: OWNER, role: "owner" });
-  const pick = resolveApprovalConfirm([ownerRow], {
-    userId: OWNER,
-    roles: ["owner"],
-    code: "1234",
-    nowMs: NOW,
-  });
-  assert.equal(pick.kind, "match");
-});
+Deno.test(
+  "repro: unbound, a payload phone makes the run the owner and 'כן 1234' picks the owner's request",
+  () => {
+    const body = runAiAgentSees(agentActionBody(forgedPayload));
+    assertEquals(resolveRunCaller(body), { userId: OWNER, role: "owner" });
+    const pick = resolveApprovalConfirm([ownerRow], {
+      userId: OWNER,
+      roles: ["owner"],
+      code: "1234",
+      nowMs: NOW,
+    });
+    assertStrictEquals(pick.kind, "match");
+  },
+);
 
-test("a user-started automation runs as that user, never as the payload's phone", () => {
-  const body = runAiAgentSees(
-    bindAutomationAgentCaller(agentActionBody(forgedPayload), {
-      kind: "user",
-      userId: INVOKER,
-    }),
-  );
-  assert.equal(runCallerPhone(body), null);
-  assert.equal(body.lead_data.phone, undefined);
-  assert.equal(body.lead_data.contact_phone, OWNER_PHONE);
-  assert.equal(body.lead_data.contact_name, "ליד");
-  assert.equal(body.user_id, INVOKER);
-  assert.equal(body.user_name, undefined);
-  assert.equal(body.invoked_by_user, true);
-  assert.equal(body.command_text, "כן 1234");
-  assert.deepEqual(resolveRunCaller(body), {
-    userId: INVOKER,
-    role: "campaigner",
-  });
-});
-
-test("a user-started automation with 'כן 1234' decides no approval", () => {
-  const body = runAiAgentSees(
-    bindAutomationAgentCaller(agentActionBody(forgedPayload), {
-      kind: "user",
-      userId: INVOKER,
-    }),
-  );
-  assert.deepEqual(approvalOutcome(body), {
-    decided: null,
-    blocked: "automation_run",
-  });
-  // Even with approvals open, the invoker may not approve the owner's request.
-  const pick = resolveApprovalConfirm([ownerRow], {
-    ...resolveRunCaller(body),
-    roles: ["campaigner"],
-    code: "1234",
-    nowMs: NOW,
-  });
-  assert.notEqual(pick.kind, "match");
-  for (const tool of APPROVAL_DECISION_TOOLS)
-    assert.equal(
-      automationApprovalRefusal(tool)?.error,
-      "approval_not_allowed_in_automation",
+Deno.test(
+  "a user-started automation runs as that user, never as the payload's phone",
+  () => {
+    const body = runAiAgentSees(
+      bindAutomationAgentCaller(agentActionBody(forgedPayload), {
+        kind: "user",
+        userId: INVOKER,
+      }),
     );
-});
+    assertStrictEquals(runCallerPhone(body), null);
+    assertStrictEquals(body.lead_data.phone, undefined);
+    assertStrictEquals(body.lead_data.contact_phone, OWNER_PHONE);
+    assertStrictEquals(body.lead_data.contact_name, "ליד");
+    assertStrictEquals(body.user_id, INVOKER);
+    assertStrictEquals(body.user_name, undefined);
+    assertStrictEquals(body.invoked_by_user, true);
+    assertStrictEquals(body.command_text, "כן 1234");
+    assertEquals(resolveRunCaller(body), {
+      userId: INVOKER,
+      role: "campaigner",
+    });
+  },
+);
 
-test("a user-started flow agent node loses its WhatsApp target", () => {
+Deno.test(
+  "a user-started automation with 'כן 1234' decides no approval",
+  () => {
+    const body = runAiAgentSees(
+      bindAutomationAgentCaller(agentActionBody(forgedPayload), {
+        kind: "user",
+        userId: INVOKER,
+      }),
+    );
+    assertEquals(approvalOutcome(body), {
+      decided: null,
+      blocked: "automation_run",
+    });
+    // Even with approvals open, the invoker may not approve the owner's request.
+    const pick = resolveApprovalConfirm([ownerRow], {
+      ...resolveRunCaller(body),
+      roles: ["campaigner"],
+      code: "1234",
+      nowMs: NOW,
+    });
+    assertNotStrictEquals(pick.kind, "match");
+    for (const tool of APPROVAL_DECISION_TOOLS)
+      assertStrictEquals(
+        automationApprovalRefusal(tool)?.error,
+        "approval_not_allowed_in_automation",
+      );
+  },
+);
+
+Deno.test("a user-started flow agent node loses its WhatsApp target", () => {
   const body = bindAutomationAgentCaller(
     {
       ...agentActionBody(forgedPayload),
@@ -318,13 +349,13 @@ test("a user-started flow agent node loses its WhatsApp target", () => {
     },
     { kind: "user", userId: INVOKER },
   );
-  assert.equal(body.wa_notify, undefined);
-  assert.equal(body.carmen_automation, undefined);
-  assert.equal(body.surface, "internal_chat");
-  assert.equal(body.automation_id, AUTOMATION);
+  assertStrictEquals(body.wa_notify, undefined);
+  assertStrictEquals(body.carmen_automation, undefined);
+  assertStrictEquals(body.surface, "internal_chat");
+  assertStrictEquals(body.automation_id, AUTOMATION);
 });
 
-test("an automation run with no proven caller has no identity", () => {
+Deno.test("an automation run with no proven caller has no identity", () => {
   for (const caller of [
     null,
     undefined,
@@ -335,106 +366,115 @@ test("an automation run with no proven caller has no identity", () => {
       agentActionBody(forgedPayload),
       caller,
     );
-    assert.equal(body.user_id, null);
-    assert.equal(runCallerPhone(body), null);
-    assert.deepEqual(resolveRunCaller(body), { userId: null, role: null });
+    assertStrictEquals(body.user_id, null);
+    assertStrictEquals(runCallerPhone(body), null);
+    assertEquals(resolveRunCaller(body), { userId: null, role: null });
   }
 });
 
-test("lead_data without a phone, or not an object, is handled", () => {
+Deno.test("lead_data without a phone, or not an object, is handled", () => {
   const noPhone = bindAutomationAgentCaller(
     agentActionBody({ contact_name: "ליד" }),
     { kind: "user", userId: INVOKER },
   );
-  assert.equal("contact_phone" in noPhone.lead_data, false);
-  assert.equal(noPhone.lead_data.contact_name, "ליד");
+  assertStrictEquals("contact_phone" in noPhone.lead_data, false);
+  assertStrictEquals(noPhone.lead_data.contact_name, "ליד");
   const odd = bindAutomationAgentCaller(
     { automation_id: AUTOMATION, lead_data: "0501112222" },
     { kind: "user", userId: INVOKER },
   );
-  assert.equal(odd.lead_data, undefined);
-  assert.equal(bindAutomationAgentCaller(null, { kind: "service" }), null);
-});
-
-test("a provider webhook (service key) keeps its phone identity but cannot decide approvals", () => {
-  const sent = {
-    ...agentActionBody({ ...forgedPayload }),
-    wa_notify: { surface: "whatsapp", chat_id: "972501112222@c.us" },
-  };
-  const body = runAiAgentSees(
-    bindAutomationAgentCaller(structuredClone(sent), { kind: "service" }),
+  assertStrictEquals(odd.lead_data, undefined);
+  assertStrictEquals(
+    bindAutomationAgentCaller(null, { kind: "service" }),
+    null,
   );
-  assert.deepEqual(body, sent);
-  assert.deepEqual(resolveRunCaller(body), { userId: OWNER, role: "owner" });
-  assert.equal(isAutomationRun(body), true);
-  assert.deepEqual(approvalOutcome(body), {
-    decided: null,
-    blocked: "automation_run",
-  });
 });
 
-test("Carmen's WhatsApp session (runCarmenAI) still resolves the sender and approves", () => {
-  // The body runCarmenAI sends from green-api-webhook / manus-wa-webhook.
-  const body = runAiAgentSees({
-    agent_id: "agent-1",
-    command_text: "כן 1234",
-    conversation_history: [],
-    tenant_id: "t1",
-    user_name: "דוד",
-    lead_data: { phone: OWNER_PHONE, channel: "whatsapp_private" },
-    surface: "whatsapp",
-    wa_notify: {
-      surface: "whatsapp",
+Deno.test(
+  "a provider webhook (service key) keeps its phone identity but cannot decide approvals",
+  () => {
+    const sent = {
+      ...agentActionBody({ ...forgedPayload }),
+      wa_notify: { surface: "whatsapp", chat_id: "972501112222@c.us" },
+    };
+    const body = runAiAgentSees(
+      bindAutomationAgentCaller(structuredClone(sent), { kind: "service" }),
+    );
+    assertEquals(body, sent);
+    assertEquals(resolveRunCaller(body), { userId: OWNER, role: "owner" });
+    assertStrictEquals(isAutomationRun(body), true);
+    assertEquals(approvalOutcome(body), {
+      decided: null,
+      blocked: "automation_run",
+    });
+  },
+);
+
+Deno.test(
+  "Carmen's WhatsApp session (runCarmenAI) still resolves the sender and approves",
+  () => {
+    // The body runCarmenAI sends from green-api-webhook / manus-wa-webhook.
+    const body = runAiAgentSees({
+      agent_id: "agent-1",
+      command_text: "כן 1234",
+      conversation_history: [],
       tenant_id: "t1",
-      automation_id: AUTOMATION,
-      connection_user_id: OWNER,
-      chat_id: "972501112222@c.us",
-      phone_number: OWNER_PHONE,
-      is_group: false,
-    },
-    carmen_automation: { carmen_instructions: "x" },
-  });
-  assert.equal(isAutomationRun(body), false);
-  assert.equal(runMayDecideApprovals(body), true);
-  assert.deepEqual(resolveRunCaller(body), { userId: OWNER, role: "owner" });
-  assert.deepEqual(approvalOutcome(body), {
-    decided: ownerRow.id,
-    blocked: "match",
-  });
-});
+      user_name: "דוד",
+      lead_data: { phone: OWNER_PHONE, channel: "whatsapp_private" },
+      surface: "whatsapp",
+      wa_notify: {
+        surface: "whatsapp",
+        tenant_id: "t1",
+        automation_id: AUTOMATION,
+        connection_user_id: OWNER,
+        chat_id: "972501112222@c.us",
+        phone_number: OWNER_PHONE,
+        is_group: false,
+      },
+      carmen_automation: { carmen_instructions: "x" },
+    });
+    assertStrictEquals(isAutomationRun(body), false);
+    assertStrictEquals(runMayDecideApprovals(body), true);
+    assertEquals(resolveRunCaller(body), { userId: OWNER, role: "owner" });
+    assertEquals(approvalOutcome(body), {
+      decided: ownerRow.id,
+      blocked: "match",
+    });
+  },
+);
 
-test("isAutomationRun reads only the top-level automation_id", () => {
-  assert.equal(isAutomationRun({ automation_id: AUTOMATION }), true);
-  assert.equal(isAutomationRun({ automation_id: " " }), false);
-  assert.equal(isAutomationRun({ automation_id: null }), false);
-  assert.equal(isAutomationRun({}), false);
-  assert.equal(isAutomationRun(null), false);
-  assert.equal(
+Deno.test("isAutomationRun reads only the top-level automation_id", () => {
+  assertStrictEquals(isAutomationRun({ automation_id: AUTOMATION }), true);
+  assertStrictEquals(isAutomationRun({ automation_id: " " }), false);
+  assertStrictEquals(isAutomationRun({ automation_id: null }), false);
+  assertStrictEquals(isAutomationRun({}), false);
+  assertStrictEquals(isAutomationRun(null), false);
+  assertStrictEquals(
     isAutomationRun({ wa_notify: { automation_id: AUTOMATION } }),
     false,
   );
 });
 
-test("only approval decisions are refused in an automation run", () => {
-  assert.equal(automationApprovalRefusal("list_pending_approvals"), null);
-  assert.equal(automationApprovalRefusal("fb_update_budget"), null);
-  assert.match(
+Deno.test("only approval decisions are refused in an automation run", () => {
+  assertStrictEquals(automationApprovalRefusal("list_pending_approvals"), null);
+  assertStrictEquals(automationApprovalRefusal("fb_update_budget"), null);
+  assertMatch(
     automationApprovalRefusal("execute_pending_approval").message,
     /לא בוצע כלום/,
   );
 });
 
-test("runCallerPhone reads only lead_data.phone", () => {
-  assert.equal(runCallerPhone({ lead_data: { phone: " " } }), null);
-  assert.equal(
+Deno.test("runCallerPhone reads only lead_data.phone", () => {
+  assertStrictEquals(runCallerPhone({ lead_data: { phone: " " } }), null);
+  assertStrictEquals(
     runCallerPhone({ lead_data: { phone: 972501112222 } }),
     "972501112222",
   );
-  assert.equal(
+  assertStrictEquals(
     runCallerPhone({ lead_data: { contact_phone: OWNER_PHONE } }),
     null,
   );
-  assert.equal(runCallerPhone({}), null);
+  assertStrictEquals(runCallerPhone({}), null);
 });
 
 // ── Source guards (AIO-241) ──────────────────────────────────────────────────
@@ -444,57 +484,60 @@ const automationSrc = readFileSync(
   "utf8",
 );
 
-test("trigger-automation binds every run-ai-agent call to the proven caller", () => {
-  const parts = automationSrc.split("fetch(agentUrl, {");
-  assert.ok(parts.length >= 3, "expected the flow node and the agent action");
-  for (const before of parts.slice(0, -1)) {
-    const tail = before.slice(-2500);
-    assert.match(
-      tail,
-      /bindAutomationAgentCaller\([\s\S]*runCaller,?\s*\)/,
-      "each run-ai-agent call must be preceded by bindAutomationAgentCaller(…, runCaller)",
+Deno.test(
+  "trigger-automation binds every run-ai-agent call to the proven caller",
+  () => {
+    const parts = automationSrc.split("fetch(agentUrl, {");
+    assert(parts.length >= 3, "expected the flow node and the agent action");
+    for (const before of parts.slice(0, -1)) {
+      const tail = before.slice(-2500);
+      assertMatch(
+        tail,
+        /bindAutomationAgentCaller\([\s\S]*runCaller,?\s*\)/,
+        "each run-ai-agent call must be preceded by bindAutomationAgentCaller(…, runCaller)",
+      );
+    }
+    assertMatch(
+      automationSrc,
+      /import \{ bindAutomationAgentCaller \} from "\.\.\/_shared\/run-agent-trust\.mjs";/,
     );
-  }
-  assert.match(
-    automationSrc,
-    /import \{ bindAutomationAgentCaller \} from "\.\.\/_shared\/run-agent-trust\.mjs";/,
-  );
-});
+  },
+);
 
-test("trigger-automation takes the caller from both auth checks", () => {
+Deno.test("trigger-automation takes the caller from both auth checks", () => {
   const declared = automationSrc.indexOf(
     "let runCaller: RunCaller | null = null;",
   );
-  assert.ok(declared > 0);
-  assert.ok(declared < automationSrc.indexOf("authorizeDirectAutomationRun("));
-  assert.equal(
+  assert(declared > 0);
+  assert(declared < automationSrc.indexOf("authorizeDirectAutomationRun("));
+  assertStrictEquals(
     automationSrc.split("runCaller = decision.caller;").length - 1,
     2,
   );
 });
 
-test("runCarmenAI sends no top-level automation_id", () => {
+Deno.test("runCarmenAI sends no top-level automation_id", () => {
   const carmen = readFileSync(new URL("./carmen.ts", import.meta.url), "utf8");
   const run = carmen.slice(carmen.indexOf("export async function runCarmenAI"));
   const start = run.indexOf("const body = JSON.stringify({");
-  assert.ok(start > 0);
+  assert(start > 0);
   const body = run.slice(start, run.indexOf("\n  });", start));
-  assert.doesNotMatch(body, /\bautomation_id\s*:/);
+  assertNotMatch(body, /\bautomation_id\s*:/);
 });
 
-test("run-ai-agent refuses approval decisions in automation runs", () => {
+Deno.test("run-ai-agent refuses approval decisions in automation runs", () => {
   const flow = agent.slice(
     agent.indexOf("// ─── Chat approval flow (AIO-230) ───"),
     agent.indexOf("// Deterministic path: meeting join URL"),
   );
-  assert.ok(flow.length > 0);
-  assert.equal(flow.split("mayDecideApprovals &&").length - 1, 2);
-  assert.match(
+  assert(flow.length > 0);
+  assertStrictEquals(flow.split("mayDecideApprovals &&").length - 1, 2);
+  assertMatch(
     agent,
     /const mayDecideApprovals = runMayDecideApprovals\(bodyJson\);/,
   );
   const guard = agent.indexOf("automationApprovalRefusal(toolName)");
   const loopExec = agent.search(/result = await executeTool\(\s*toolName,/);
-  assert.ok(guard > 0 && loopExec > guard && loopExec - guard < 1500);
-  assert.match(agent, /const callerPhone = runCallerPhone\(bodyJson\);/);
+  assert(guard > 0 && loopExec > guard && loopExec - guard < 1500);
+  assertMatch(agent, /const callerPhone = runCallerPhone\(bodyJson\);/);
 });
