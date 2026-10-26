@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { requireAuth } from "../_shared/security.ts";
+import {
+  authorizeTenantPublisher,
+  publishAccessLookups,
+} from "../_shared/tenant-publish-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +26,16 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // The service role publishes as today; a signed-in user only a post of a
+    // tenant they belong to (AIO-234).
+    const auth = await requireAuth(req);
+    if (!auth) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { post_id }: PublishRequest = await req.json();
 
     if (!post_id) {
@@ -40,6 +55,19 @@ serve(async (req) => {
     if (postError || !post) {
       return new Response(JSON.stringify({ error: "Post not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const access = await authorizeTenantPublisher(
+      auth,
+      post.tenant_id,
+      [],
+      publishAccessLookups(supabase),
+    );
+    if (!access.allowed) {
+      return new Response(JSON.stringify({ error: access.error }), {
+        status: access.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -70,6 +98,11 @@ serve(async (req) => {
         if (!channel) continue;
 
         try {
+          // Never post with another tenant's channel token (AIO-234).
+          if (channel.tenant_id !== post.tenant_id) {
+            throw new Error("Channel belongs to another tenant");
+          }
+
           await supabase
             .from("social_media_post_channels")
             .update({ status: "publishing" })

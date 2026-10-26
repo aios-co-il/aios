@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
+import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
+import {
+  authorizeTenantPublisher,
+  publishAccessLookups,
+} from "../_shared/tenant-publish-access.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -27,20 +32,58 @@ serve(async (req) => {
   try {
     const cronSecret = Deno.env.get("CRON_SECRET");
     const headerSecret = req.headers.get("x-cron-secret");
-    const isCron = cronSecret && headerSecret === cronSecret;
-    if (!isCron) {
-      const auth = await requireAuth(req);
-      if (!auth) return respond({ error: "Unauthorized" }, 401);
-    }
+    const isCron =
+      !!cronSecret &&
+      !!headerSecret &&
+      timingSafeEqualStr(headerSecret, cronSecret);
 
     const {
       entry_id,
       work_item_id,
       dry_run = false,
     } = await req.json().catch(() => ({}));
+
+    // Cron and the service role may sweep every tenant. A signed-in user may
+    // only publish one entry or one work item of a tenant they belong to.
+    let scopeTenantId: string | null = null;
+    if (!isCron) {
+      const auth = await requireAuth(req);
+      if (!auth) return respond({ error: "Unauthorized" }, 401);
+      if (auth.kind === "user") {
+        if (!entry_id && !work_item_id)
+          return respond({ error: "entry_id or work_item_id required" }, 400);
+        const { data: target } = entry_id
+          ? await admin
+              .from("seo_geo_calendar_entries")
+              .select("tenant_id")
+              .eq("id", entry_id)
+              .maybeSingle()
+          : await admin
+              .from("marketing_work_items")
+              .select("tenant_id")
+              .eq("id", work_item_id)
+              .maybeSingle();
+        if (!target)
+          return respond(
+            { error: entry_id ? "Entry not found" : "Work item not found" },
+            404,
+          );
+        const decision = await authorizeTenantPublisher(
+          auth,
+          target.tenant_id,
+          [],
+          publishAccessLookups(admin),
+        );
+        if (!decision.allowed)
+          return respond({ error: decision.error }, decision.status);
+        scopeTenantId = target.tenant_id;
+      }
+    }
+
     const today = new Date().toISOString().slice(0, 10);
 
     let query = admin.from("seo_geo_calendar_entries").select("*");
+    if (scopeTenantId) query = query.eq("tenant_id", scopeTenantId);
     if (entry_id) query = query.eq("id", entry_id);
     else if (work_item_id)
       query = query
@@ -69,6 +112,7 @@ serve(async (req) => {
         .from("seo_geo_programs")
         .select("wordpress_site_id")
         .eq("work_item_id", entry.work_item_id)
+        .eq("tenant_id", entry.tenant_id)
         .maybeSingle();
       if (!program?.wordpress_site_id) {
         results.push({
@@ -83,7 +127,10 @@ serve(async (req) => {
         continue;
       }
       try {
-        const site = await loadWordPressSite(admin, program.wordpress_site_id);
+        const site = await loadWordPressSite(admin, program.wordpress_site_id, {
+          tenantId: entry.tenant_id,
+          clientId: entry.client_id,
+        });
         if (!site) throw new Error("WordPress site not found");
         const post = await publishToWordPress(site, {
           title: entry.title_draft || entry.title,
