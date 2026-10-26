@@ -186,13 +186,6 @@ jobs:
       - name: Edge function tests (Deno)
         run: deno test -A --no-check supabase/functions
 
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.9.6
-
-      - name: Manus webhook payload regression tests
-        run: deno test supabase/functions/manus-wa-webhook/request-handler.test.ts supabase/functions/manus-wa-webhook/payload-normalizer.test.ts
-
       - name: Build frontend
         run: pnpm build
 

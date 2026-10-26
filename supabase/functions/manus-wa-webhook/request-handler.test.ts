@@ -1,8 +1,5 @@
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
-import {
-  assertSpyCalls,
-  spy,
-} from "https://deno.land/std@0.208.0/testing/mock.ts";
+import { assertEquals } from "jsr:@std/assert@1";
+import { assertSpyCalls, spy } from "jsr:@std/testing@1/mock";
 import { createWebhookHandler } from "./request-handler.ts";
 
 function post(body: string): Request {
