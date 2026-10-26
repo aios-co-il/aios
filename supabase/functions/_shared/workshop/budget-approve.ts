@@ -25,9 +25,9 @@ export function approveFromMessage(
     return null;
   return {
     payload: withBudget(payload, {
+      ...budget,
       cap_usd: Math.max(request.cap_usd, budget.cap_usd),
-      spent_usd: budget.spent_usd,
-      unit_usd: budget.unit_usd,
+      request: undefined,
     }),
     capUsd: request.cap_usd,
     tool: request.tool,

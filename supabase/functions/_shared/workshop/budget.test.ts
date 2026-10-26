@@ -4,7 +4,9 @@ import {
   approvalCode,
   budgetOf,
   checkBudget,
+  refundBudget,
   requestBudget,
+  settleProduction,
   spendBudget,
   suggestCap,
   type Quote,
@@ -118,4 +120,82 @@ test("the user's code approves even when Carmen does not repeat the token", () =
     userText: yes,
   });
   assert.equal(check.ok, true);
+});
+
+const filmBudget = () => {
+  const priced = checkBudget(
+    { workshop_budget: { cap_usd: 10, spent_usd: 0, unit_usd: {} } },
+    film,
+    {},
+  );
+  assert.equal(priced.ok, true);
+  if (!priced.ok) throw new Error("budget refused");
+  return spendBudget(priced.payload, "workshop_produce_video", 5);
+};
+
+test("a finished film counts what it really cost, not its quote", () => {
+  const quoted = filmBudget();
+  assert.equal(budgetOf(quoted).spent_usd, 2.5);
+  const dearer = budgetOf(
+    settleProduction(quoted, { usd: 4.2, inFlight: false }),
+  );
+  assert.equal(dearer.spent_usd, 4.2);
+  const cheaper = budgetOf(
+    settleProduction(quoted, { usd: 1.1, inFlight: false }),
+  );
+  assert.equal(cheaper.spent_usd, 1.1);
+});
+
+test("while the film is still running the larger of quote and real charge counts", () => {
+  const quoted = filmBudget();
+  assert.equal(
+    budgetOf(settleProduction(quoted, { usd: 0.4, inFlight: true })).spent_usd,
+    2.5,
+  );
+  assert.equal(
+    budgetOf(settleProduction(quoted, { usd: 3, inFlight: true })).spent_usd,
+    3,
+  );
+});
+
+test("settling twice does not count the film twice", () => {
+  const once = settleProduction(filmBudget(), { usd: 4.2, inFlight: false });
+  const twice = settleProduction(once, { usd: 4.2, inFlight: false });
+  assert.equal(budgetOf(twice).spent_usd, 4.2);
+});
+
+test("pictures that were not made give their reservation back", () => {
+  const still: Quote = {
+    tool: "workshop_make_stills",
+    engine: "google",
+    count: 4,
+    usd: 0.4,
+  };
+  const checked = checkBudget(
+    { workshop_budget: { cap_usd: 5, spent_usd: 0, unit_usd: {} } },
+    still,
+    {},
+  );
+  if (!checked.ok) throw new Error("budget refused");
+  const spent = spendBudget(checked.payload, "workshop_make_stills", 4);
+  assert.equal(budgetOf(spent).spent_usd, 0.4);
+  assert.equal(
+    budgetOf(refundBudget(spent, "workshop_make_stills", 3)).spent_usd,
+    0.1,
+  );
+});
+
+test("approving a budget keeps what was already settled", () => {
+  const settled = settleProduction(filmBudget(), { usd: 4.2, inFlight: false });
+  const { payload } = requestBudget(settled, 20, "turn-1", "tok");
+  const check = checkBudget(
+    payload,
+    { ...film, usd: 10 },
+    { turnId: "turn-2", userText: yes },
+  );
+  assert.equal(check.ok, true);
+  if (!check.ok) return;
+  const budget = budgetOf(check.payload);
+  assert.equal(budget.spent_usd, 4.2);
+  assert.equal(budget.production_usd, 4.2);
 });

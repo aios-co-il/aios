@@ -10,10 +10,12 @@
  */
 
 import { BUDGET_REFUSAL, budgetMessage } from "./workshop/budget-messages.ts";
+import { settleFromRuns } from "./workshop/budget-settle.ts";
 import {
   budgetOf,
   budgetPrompt,
   checkBudget,
+  refundBudget,
   remainingUsd,
   requestBudget,
   requestFresh,
@@ -805,6 +807,7 @@ async function gatePaid(
 ): Promise<
   { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
 > {
+  payload = await settleFromRuns(supabase, tenantId, itemId, payload);
   const check = checkBudget(payload, quote, {
     token: args.approval_token,
     turnId: deps.turnId ?? null,
@@ -850,6 +853,31 @@ async function gatePaid(
       carmen_next: `${BUDGET_REFUSAL[reason]} שלחי את say_to_user כמו שהוא; carmen_next הוא רק בשבילך.`,
     },
   };
+}
+
+/** A picture that was not made is not charged: give its reservation back to the budget. */
+async function refundMissing(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+  tool: "workshop_make_creative" | "workshop_make_stills",
+  missing: number,
+) {
+  if (missing <= 0) return;
+  try {
+    const { data } = await supabase
+      .from("marketing_work_items")
+      .select("payload")
+      .eq("id", itemId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const payload = asRecord(data?.payload);
+    const refunded = refundBudget(payload, tool, missing);
+    if (refunded !== payload)
+      await savePayload(supabase, tenantId, itemId, refunded);
+  } catch {
+    // Keeping the reservation is the safe side of a refund that could not be written.
+  }
 }
 
 /** Board pages for voice samples, and saving the chosen voice on the project. */
@@ -1735,7 +1763,7 @@ export async function executeWorkshopTool(
       })),
     );
     const artifacts: Record<string, any>[] = [];
-    const generate = () =>
+    const generateAll = () =>
       Promise.all(
         formats.map(async (format, index) => {
           try {
@@ -1797,6 +1825,17 @@ export async function executeWorkshopTool(
           }
         }),
       );
+    const generate = async () => {
+      const results = await generateAll();
+      await refundMissing(
+        supabase,
+        tenantId,
+        itemId,
+        "workshop_make_creative",
+        results.filter((result) => !result.image_url).length,
+      );
+      return results;
+    };
     if (deps.background && holders.every(Boolean)) {
       deps.background(generate().catch(() => []));
       return {
@@ -2313,7 +2352,7 @@ export async function executeWorkshopTool(
     const settled = spendBudget(
       { ...payload, [REDO_KEY]: leftToRedo },
       "workshop_make_stills",
-      results.length,
+      created,
     );
     if (leftToRedo.length === 0) delete settled[REDO_KEY];
     await savePayload(supabase, tenantId, itemId, settled);

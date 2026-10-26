@@ -56,6 +56,12 @@ export function budgetOf(payload: Record<string, unknown>): Budget {
     cap_usd: money(raw.cap_usd),
     spent_usd: money(raw.spent_usd),
     unit_usd: asRecord(raw.unit_usd) as Budget["unit_usd"],
+    ...(raw.quoted_usd
+      ? { quoted_usd: asRecord(raw.quoted_usd) as Budget["quoted_usd"] }
+      : {}),
+    ...(raw.production_usd !== undefined
+      ? { production_usd: money(raw.production_usd) }
+      : {}),
     ...(typeof request.token === "string"
       ? { request: request as unknown as BudgetRequest }
       : {}),
@@ -146,9 +152,9 @@ export function checkBudget(
   return {
     ok: true,
     payload: withBudget(payload, {
+      ...priced,
       cap_usd: request.cap_usd,
-      spent_usd: priced.spent_usd,
-      unit_usd: priced.unit_usd,
+      request: undefined,
     }),
   };
 }
@@ -161,9 +167,62 @@ export function spendBudget(
 ): Record<string, unknown> {
   const budget = budgetOf(payload);
   const price = Number(budget.unit_usd[tool]) || 0;
-  const spent = budget.spent_usd + price * Math.max(0, units);
+  const amount = price * Math.max(0, units);
+  return withBudget(payload, {
+    ...budget,
+    spent_usd: Math.round((budget.spent_usd + amount) * 100) / 100,
+    quoted_usd: {
+      ...budget.quoted_usd,
+      [tool]:
+        Math.round((Number(budget.quoted_usd?.[tool] ?? 0) + amount) * 100) /
+        100,
+    },
+  });
+}
+
+/** Gives back what a step reserved for pictures that were not made. */
+export function refundBudget(
+  payload: Record<string, unknown>,
+  tool: PaidTool,
+  units: number,
+): Record<string, unknown> {
+  const budget = budgetOf(payload);
+  const price = Number(budget.unit_usd[tool]) || 0;
+  const amount = Math.min(price * Math.max(0, units), budget.spent_usd);
+  if (amount <= 0) return payload;
+  return withBudget(payload, {
+    ...budget,
+    spent_usd: Math.round((budget.spent_usd - amount) * 100) / 100,
+    quoted_usd: {
+      ...budget.quoted_usd,
+      [tool]: Math.max(
+        0,
+        Math.round((Number(budget.quoted_usd?.[tool] ?? 0) - amount) * 100) /
+          100,
+      ),
+    },
+  });
+}
+
+/**
+ * What the film really cost replaces its quote once the render worker reports charges: while
+ * runs are still in flight the larger of the two counts, and when they are done only the real
+ * charge does. Pictures stay at their quote, they are charged when made.
+ */
+export function settleProduction(
+  payload: Record<string, unknown>,
+  run: { usd: number; inFlight: boolean },
+): Record<string, unknown> {
+  const budget = budgetOf(payload);
+  const quoted = Number(budget.quoted_usd?.workshop_produce_video ?? 0);
+  if (quoted <= 0 && run.usd <= 0) return payload;
+  const real = money(run.usd);
+  const counted = run.inFlight ? Math.max(quoted, real) : real;
+  const before = budget.production_usd ?? quoted;
+  const spent = Math.max(0, budget.spent_usd - before + counted);
   return withBudget(payload, {
     ...budget,
     spent_usd: Math.round(spent * 100) / 100,
+    production_usd: counted,
   });
 }
