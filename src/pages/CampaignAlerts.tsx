@@ -12,6 +12,8 @@ import {
   Megaphone,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { asJsonObject, errorMessageOf } from "@/types/integrations-b22";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +29,7 @@ type Alert = {
   ad_account_id: string | null;
   alert_type: string;
   severity: "info" | "warning" | "critical";
-  details: any;
+  details: Json;
   acknowledged_at: string | null;
   resolved_at: string | null;
   created_at: string;
@@ -39,6 +41,19 @@ type ClientWithIntegration = {
   meta_ads_account_id: string | null;
   google_ads_account_id: string | null;
 };
+
+const ALERT_FILTERS = ["all", "critical", "warning", "info"] as const;
+type AlertFilter = (typeof ALERT_FILTERS)[number];
+
+const isAlertFilter = (value: string): value is AlertFilter =>
+  (ALERT_FILTERS as readonly string[]).includes(value);
+
+function getAlertMessage(details: Json): string | number | null {
+  const message = asJsonObject(details).message;
+  return typeof message === "string" || typeof message === "number"
+    ? message
+    : null;
+}
 
 const severityConfig = {
   critical: {
@@ -74,7 +89,7 @@ export default function CampaignAlerts() {
   const { tenant } = useCurrentTenant();
   const tenantId = tenant?.id;
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">(
+  const [filter, setFilter] = useState<AlertFilter>(
     "all",
   );
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -193,8 +208,8 @@ export default function CampaignAlerts() {
       if (error) throw error;
       toast.success("הסריקה הופעלה");
       setTimeout(() => refetch(), 1500);
-    } catch (e: any) {
-      toast.error("שגיאה בסריקה: " + (e.message || ""));
+    } catch (e) {
+      toast.error("שגיאה בסריקה: " + (errorMessageOf(e) || ""));
     } finally {
       setScanning(false);
     }
@@ -228,7 +243,12 @@ export default function CampaignAlerts() {
       </div>
 
       {/* Filters */}
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+      <Tabs
+        value={filter}
+        onValueChange={(v) => {
+          if (isAlertFilter(v)) setFilter(v);
+        }}
+      >
         <TabsList>
           <TabsTrigger value="all">הכל ({counts.all})</TabsTrigger>
           <TabsTrigger value="critical">
@@ -336,9 +356,9 @@ export default function CampaignAlerts() {
                                   חשבון מודעות: {alert.ad_account_id}
                                 </div>
                               )}
-                              {alert.details?.message && (
+                              {getAlertMessage(alert.details) && (
                                 <p className="text-sm mt-1.5 text-muted-foreground">
-                                  {alert.details.message}
+                                  {getAlertMessage(alert.details)}
                                 </p>
                               )}
                             </div>

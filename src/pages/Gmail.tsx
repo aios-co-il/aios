@@ -55,6 +55,16 @@ import { he } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { ProcessInvoicesDialog } from "@/components/gmail/ProcessInvoicesDialog";
+import { asJsonObject } from "@/types/integrations-b22";
+
+interface GmailSendBody {
+  action: "send";
+  to: string;
+  subject: string;
+  body: string;
+  inReplyTo?: string;
+  threadId?: string;
+}
 
 interface EmailMessage {
   id: string;
@@ -164,7 +174,7 @@ export default function Gmail() {
         .select("email_address")
         .eq("user_id", userId!);
       if (error) throw error;
-      return data.map((b: any) => b.email_address.toLowerCase());
+      return data.map((b) => b.email_address.toLowerCase());
     },
     enabled: !!userId,
   });
@@ -179,7 +189,7 @@ export default function Gmail() {
           .select("label_id")
           .eq("user_id", userId!);
         if (error) throw error;
-        return data.map((l: any) => String(l.label_id)).filter(Boolean);
+        return data.map((l) => String(l.label_id)).filter(Boolean);
       },
       enabled: !!userId,
     },
@@ -202,7 +212,7 @@ export default function Gmail() {
   // Get the selected category's gmail_label_id (if any)
   const selectedCategoryLabelId = useMemo(() => {
     if (!selectedCategory) return null;
-    const cat = categories.find((c: any) => c.id === selectedCategory);
+    const cat = categories.find((c) => c.id === selectedCategory);
     return cat?.gmail_label_id || null;
   }, [selectedCategory, categories]);
 
@@ -239,7 +249,7 @@ export default function Gmail() {
         .eq("user_id", userId!);
       if (error) throw error;
       const map: Record<string, string[]> = {};
-      data.forEach((d: any) => {
+      data.forEach((d) => {
         if (!map[d.message_id]) map[d.message_id] = [];
         map[d.message_id].push(d.category_id);
       });
@@ -253,10 +263,14 @@ export default function Gmail() {
     if (selectedCategoryLabelId) return [selectedCategoryLabelId];
     // Ensure all entries are strictly strings (defensive against cache pollution)
     const normalized = allowedLabels
-      .map((item: any) =>
-        typeof item === "string" ? item : item?.label_id || item?.id || "",
-      )
-      .filter((id: string) => typeof id === "string" && id.trim() !== "");
+      .map((item: unknown) => {
+        if (typeof item === "string") return item;
+        const entry = asJsonObject(item);
+        return entry.label_id || entry.id || "";
+      })
+      .filter(
+        (id): id is string => typeof id === "string" && id.trim() !== "",
+      );
     if (normalized.length > 0) return normalized;
     return undefined;
   }, [selectedCategoryLabelId, allowedLabels]);
@@ -344,7 +358,7 @@ export default function Gmail() {
   // Send message
   const sendMutation = useMutation({
     mutationFn: async () => {
-      const body: any = {
+      const body: GmailSendBody = {
         action: "send",
         to: composeTo,
         subject: composeSubject,
@@ -893,7 +907,7 @@ export default function Gmail() {
           >
             הכל
           </Button>
-          {categories.map((cat: any) => (
+          {categories.map((cat) => (
             <Button
               key={cat.id}
               variant={selectedCategory === cat.id ? "default" : "outline"}
@@ -927,7 +941,7 @@ export default function Gmail() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {categories.map((cat: any) => (
+                  {categories.map((cat) => (
                     <DropdownMenuItem
                       key={cat.id}
                       onClick={() =>
@@ -1183,7 +1197,7 @@ export default function Gmail() {
                           {msgCategories.length > 0 &&
                             msgCategories.map((cId) => {
                               const cat = categories.find(
-                                (c: any) => c.id === cId,
+                                (c) => c.id === cId,
                               );
                               return cat ? (
                                 <span
@@ -1214,7 +1228,7 @@ export default function Gmail() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {categories.map((cat: any) => (
+                                {categories.map((cat) => (
                                   <DropdownMenuItem
                                     key={cat.id}
                                     onClick={() =>

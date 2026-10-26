@@ -1,3 +1,4 @@
+import { asJsonObject } from "@/types/integrations-b22";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import {
@@ -159,24 +160,25 @@ function gscTotals(rows: GscRow[]): SeoShareSearchTotals {
   };
 }
 
-function normalizeKeywordRow(kw: any): SeoShareKeyword | null {
-  const keyword = String(kw?.keyword || "").trim();
+function normalizeKeywordRow(raw: unknown): SeoShareKeyword | null {
+  const kw = asJsonObject(raw);
+  const keyword = String(kw.keyword || "").trim();
   if (!keyword) return null;
-  const positionRaw = kw?.position ?? kw?.best_position;
+  const positionRaw = kw.position ?? kw.best_position;
   const position =
     typeof positionRaw === "number" && Number.isFinite(positionRaw)
       ? positionRaw
       : null;
-  const volumeRaw = kw?.volume ?? kw?.search_volume;
+  const volumeRaw = kw.volume ?? kw.search_volume;
   const volume =
     typeof volumeRaw === "number" && Number.isFinite(volumeRaw)
       ? volumeRaw
       : null;
-  const prevRaw = kw?.position_prev_month;
+  const prevRaw = kw.position_prev_month;
   const prevPosition =
     typeof prevRaw === "number" && Number.isFinite(prevRaw) ? prevRaw : null;
   const url =
-    String(kw?.url || kw?.best_position_url || "").trim() || undefined;
+    String(kw.url || kw.best_position_url || "").trim() || undefined;
   return { keyword, position, volume, prevPosition, url };
 }
 

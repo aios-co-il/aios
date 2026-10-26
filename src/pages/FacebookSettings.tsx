@@ -51,11 +51,28 @@ import { ShareFacebookConnectionSection } from "@/components/forms/ShareFacebook
 import { SharedFacebookConnectionBanner } from "@/components/forms/SharedFacebookConnectionBanner";
 import { ManageIntegrationPermissionsDialog } from "@/components/forms/ManageIntegrationPermissionsDialog";
 import { IntegrationVisibilitySelector } from "@/components/forms/IntegrationVisibilitySelector";
+import { asJsonObject, isJsonObject, readText } from "@/types/integrations-b22";
 
 interface FacebookPage {
   id: string;
   name: string;
   access_token?: string;
+}
+
+function parseFacebookPages(value: unknown): FacebookPage[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((page: unknown) => {
+    if (!isJsonObject(page)) return [];
+    const { id, name, access_token } = page;
+    if (typeof id !== "string" || typeof name !== "string") return [];
+    return [
+      {
+        id,
+        name,
+        ...(typeof access_token === "string" ? { access_token } : {}),
+      },
+    ];
+  });
 }
 
 export default function FacebookSettings() {
@@ -98,19 +115,19 @@ export default function FacebookSettings() {
       return;
     }
     const stillExists = leadAdsList.some(
-      (i: any) => i.id === selectedLeadAdsId,
+      (i) => i.id === selectedLeadAdsId,
     );
     if (!stillExists) {
-      const ownFirst = leadAdsList.find((i: any) => i._isOwn) || leadAdsList[0];
+      const ownFirst = leadAdsList.find((i) => i._isOwn) || leadAdsList[0];
       setSelectedLeadAdsId(ownFirst.id);
     }
   }, [leadAdsList, selectedLeadAdsId]);
 
-  const leadAdsIntegration: any =
-    leadAdsList.find((i: any) => i.id === selectedLeadAdsId) ||
+  const leadAdsIntegration =
+    leadAdsList.find((i) => i.id === selectedLeadAdsId) ||
     leadAdsList[0] ||
     null;
-  const capiIntegration: any = capiList[0] || null;
+  const capiIntegration = capiList[0] || null;
 
   // Fetch agencies for form mapping
   const { data: agencies } = useQuery({
@@ -163,9 +180,9 @@ export default function FacebookSettings() {
   // Initialize pixel ID from existing integration
   useEffect(() => {
     if (capiIntegration?.settings) {
-      const settings = capiIntegration.settings as any;
-      setPixelId(settings.pixel_id || "");
-      setTestEventCode(settings.test_event_code || "");
+      const settings = capiIntegration.settings;
+      setPixelId(readText(settings, "pixel_id") || "");
+      setTestEventCode(readText(settings, "test_event_code") || "");
     }
   }, [capiIntegration]);
 
@@ -326,9 +343,9 @@ export default function FacebookSettings() {
   // Test webhook mutation
   const testWebhookMutation = useMutation({
     mutationFn: async () => {
-      const settings = leadAdsIntegration?.settings as any;
-      const pageId = settings?.page_id;
-      const formMappings = settings?.form_mappings || {};
+      const settings = asJsonObject(leadAdsIntegration?.settings);
+      const pageId = readText(settings, "page_id");
+      const formMappings = asJsonObject(settings.form_mappings);
       const firstFormId = Object.keys(formMappings)[0];
 
       const { data, error } = await supabase.functions.invoke(
@@ -402,17 +419,17 @@ export default function FacebookSettings() {
     toast.success("הועתק ללוח");
   };
 
-  const leadAdsSettings = leadAdsIntegration?.settings as any;
-  const pages = leadAdsSettings?.pages || [];
-  const selectedPageName = leadAdsSettings?.page_name;
+  const leadAdsSettings = leadAdsIntegration?.settings;
+  const pages = parseFacebookPages(asJsonObject(leadAdsSettings).pages);
+  const selectedPageName = readText(leadAdsSettings, "page_name");
 
   // Filter pages based on search query
-  const filteredPages = pages.filter((page: FacebookPage) =>
+  const filteredPages = pages.filter((page) =>
     page.name.toLowerCase().includes(pageSearchQuery.toLowerCase()),
   );
 
   // Check if this integration is shared from another
-  const isSharedConnection = !!(leadAdsIntegration as any)
+  const isSharedConnection = !!leadAdsIntegration
     ?.shared_from_integration_id;
   const isOwnConnection = leadAdsIntegration?.is_active && !isSharedConnection;
 
@@ -470,11 +487,11 @@ export default function FacebookSettings() {
                   <SelectValue placeholder="בחר חיבור" />
                 </SelectTrigger>
                 <SelectContent>
-                  {leadAdsList.map((i: any) => {
-                    const settings = i.settings as any;
+                  {leadAdsList.map((i) => {
+                    const settings = i.settings;
                     const label =
-                      settings?.page_name ||
-                      settings?.fb_user_name ||
+                      readText(settings, "page_name") ||
+                      readText(settings, "fb_user_name") ||
                       `חיבור ${i.id.slice(0, 6)}`;
                     return (
                       <SelectItem key={i.id} value={i.id}>
@@ -493,11 +510,11 @@ export default function FacebookSettings() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const settings = leadAdsIntegration.settings as any;
+                    const settings = leadAdsIntegration.settings;
                     setSharingIntegrationName(
-                      settings?.page_name || "Facebook",
+                      readText(settings, "page_name") || "Facebook",
                     );
-                    setSharingOwnerId(leadAdsIntegration.user_id);
+                    setSharingOwnerId(leadAdsIntegration.user_id ?? null);
                     setSharingIntegrationId(leadAdsIntegration.id);
                   }}
                 >
@@ -785,7 +802,11 @@ export default function FacebookSettings() {
 
                       <div className="flex gap-2 flex-row-reverse">
                         <Select
-                          value={selectedPage || leadAdsSettings?.page_id || ""}
+                          value={
+                            selectedPage ||
+                            readText(leadAdsSettings, "page_id") ||
+                            ""
+                          }
                           onValueChange={setSelectedPage}
                         >
                           <SelectTrigger className="flex-1">
@@ -799,7 +820,7 @@ export default function FacebookSettings() {
                                 לא נמצאו עמודים התואמים לחיפוש
                               </div>
                             ) : (
-                              filteredPages.map((page: FacebookPage) => (
+                              filteredPages.map((page) => (
                                 <SelectItem key={page.id} value={page.id}>
                                   {page.name}
                                 </SelectItem>
@@ -958,7 +979,7 @@ export default function FacebookSettings() {
                 <IntegrationVisibilitySelector
                   integrationId={leadAdsIntegration.id}
                   integrationName={
-                    (leadAdsIntegration.settings as any)?.page_name ||
+                    readText(leadAdsIntegration.settings, "page_name") ||
                     "Facebook Lead Ads"
                   }
                   ownerId={leadAdsIntegration.user_id || null}
@@ -989,7 +1010,7 @@ export default function FacebookSettings() {
               salesPeople={salesPeople || []}
               tags={tags || []}
               sharedFromIntegrationId={
-                (leadAdsIntegration as any)?.shared_from_integration_id
+                leadAdsIntegration?.shared_from_integration_id
               }
             />
           )}
@@ -1029,7 +1050,7 @@ export default function FacebookSettings() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between flex-row-reverse">
                 {capiIntegration?.is_active &&
-                (capiIntegration.settings as any)?.pixel_id ? (
+                readText(capiIntegration.settings, "pixel_id") ? (
                   <Badge
                     variant="default"
                     className="bg-green-500 flex items-center gap-1"
@@ -1059,7 +1080,7 @@ export default function FacebookSettings() {
                   id="pixel-id"
                   value={
                     pixelId ||
-                    (capiIntegration?.settings as any)?.pixel_id ||
+                    readText(capiIntegration?.settings, "pixel_id") ||
                     ""
                   }
                   onChange={(e) => setPixelId(e.target.value)}
@@ -1080,7 +1101,7 @@ export default function FacebookSettings() {
                   id="test-event-code"
                   value={
                     testEventCode ||
-                    (capiIntegration?.settings as any)?.test_event_code ||
+                    readText(capiIntegration?.settings, "test_event_code") ||
                     ""
                   }
                   onChange={(e) => setTestEventCode(e.target.value)}

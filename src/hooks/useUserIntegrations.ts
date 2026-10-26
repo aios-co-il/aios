@@ -5,8 +5,10 @@ import {
   getClientIntegrationSelect,
   toClientIntegration,
   type ClientIntegration,
+  type TenantIntegrationRow,
 } from "@/lib/tenantIntegrationsClient";
 import { isReportTenantScopedIntegration } from "@/lib/reportIntegrationTypes";
+import { isTenantIntegrationRow } from "@/types/integrations-b22";
 
 /**
  * Fetches integrations the current user has access to:
@@ -108,7 +110,7 @@ export function useUserIntegrations(
         (p) => p.integration_id,
       );
 
-      let sharedIntegrations: any[] = [];
+      let sharedIntegrations: TenantIntegrationRow[] = [];
       if (sharedIntegrationIds.length > 0) {
         const { data: shared, error: sharedError } = await supabase
           .from("tenant_integrations")
@@ -119,7 +121,8 @@ export function useUserIntegrations(
           .in("id", sharedIntegrationIds);
 
         if (sharedError) throw sharedError;
-        sharedIntegrations = shared || [];
+        const sharedRows: unknown[] = shared || [];
+        sharedIntegrations = sharedRows.filter(isTenantIntegrationRow);
       }
 
       // 3. Get owner profiles for shared integrations

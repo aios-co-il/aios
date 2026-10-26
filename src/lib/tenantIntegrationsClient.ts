@@ -50,7 +50,17 @@ export type TenantIntegrationRow = {
   [key: string]: unknown;
 };
 
-export type ClientIntegration = Omit<TenantIntegrationRow, "api_key"> & {
+type KnownTenantIntegrationFields = {
+  [K in keyof TenantIntegrationRow as string extends K
+    ? never
+    : number extends K
+      ? never
+      : K]: TenantIntegrationRow[K];
+};
+
+export type ClientIntegration = Omit<KnownTenantIntegrationFields, "api_key"> & {
+  [key: string]: unknown;
+} & {
   has_credential: boolean;
   api_key?: undefined;
   _isOwn?: boolean;
@@ -103,6 +113,9 @@ export function toClientIntegration<T extends TenantIntegrationRow>(
   const { api_key: _discardedApiKey, ...rest } = row;
   const result: ClientIntegration = {
     ...rest,
+    id: row.id,
+    tenant_id: row.tenant_id,
+    integration_type: row.integration_type,
     has_credential,
     settings: sanitizeIntegrationSettings(
       row.settings as Record<string, unknown> | null | undefined,

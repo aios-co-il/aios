@@ -13,6 +13,7 @@ import {
 } from "@/lib/seoMonthlyShareSnapshot";
 import { downloadSeoMonthlySlideshowPdf } from "@/lib/seoMonthlyPdf";
 import { toast } from "sonner";
+import { errorMessageOf } from "@/types/integrations-b22";
 
 type LocationState = {
   fromApp?: boolean;
@@ -97,9 +98,9 @@ export default function SharedSeoMonthly() {
         `seo-${safeName}.pdf`,
       );
       toast.success("ה־PDF הורד (כולל קישורים לחיצים)");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err?.message || "שגיאה ביצוא PDF");
+      toast.error(errorMessageOf(err) || "שגיאה ביצוא PDF");
     } finally {
       setExporting(false);
     }

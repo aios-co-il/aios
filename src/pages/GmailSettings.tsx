@@ -158,7 +158,7 @@ export default function GmailSettings() {
         color: newCategoryColor,
         sort_order: categories.length,
         gmail_label_id: newCategoryLabelId || null,
-      } as any);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -207,7 +207,7 @@ export default function GmailSettings() {
       });
       toast.success("כתובת נחסמה");
     },
-    onError: (e: any) => {
+    onError: (e) => {
       if (e?.message?.includes("duplicate")) toast.error("הכתובת כבר חסומה");
       else toast.error("שגיאה בחסימת כתובת");
     },
@@ -356,7 +356,7 @@ export default function GmailSettings() {
             <p className="text-sm text-muted-foreground">אין קטגוריות עדיין</p>
           ) : (
             <div className="space-y-2">
-              {categories.map((cat: any) => {
+              {categories.map((cat) => {
                 const labelName = cat.gmail_label_id
                   ? availableLabelsList.find((l) => l.id === cat.gmail_label_id)
                       ?.name || cat.gmail_label_id
@@ -430,7 +430,7 @@ export default function GmailSettings() {
             <p className="text-sm text-muted-foreground">אין כתובות חסומות</p>
           ) : (
             <div className="space-y-2">
-              {blockedSenders.map((bs: any) => (
+              {blockedSenders.map((bs) => (
                 <div
                   key={bs.id}
                   className="flex items-center justify-between p-2 rounded border"

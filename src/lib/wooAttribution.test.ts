@@ -7,7 +7,25 @@ import {
   isGooglePaidWooAttribution,
   shouldUseGoogleWooAttributionOverlay,
   summarizeGoogleAttributedWooOrders,
+  type WooOrderAttribution,
 } from "./wooAttribution.ts";
+
+function attribution(
+  fields: Partial<WooOrderAttribution> & { label: string },
+): WooOrderAttribution {
+  return {
+    source_type: null,
+    utm_source: null,
+    utm_medium: null,
+    utm_campaign: null,
+    utm_content: null,
+    utm_term: null,
+    referrer: null,
+    session_entry: null,
+    device_type: null,
+    ...fields,
+  };
+}
 
 test("extractWooOrderAttribution reads WC meta fields", () => {
   const attr = extractWooOrderAttribution([
@@ -39,22 +57,22 @@ test("aggregateOrdersByAttribution groups valid orders by label", () => {
     {
       status: "processing",
       total: 500,
-      attribution: { label: "Facebook ממומן" } as any,
+      attribution: attribution({ label: "Facebook ממומן" }),
     },
     {
       status: "completed",
       total: 300,
-      attribution: { label: "Facebook ממומן" } as any,
+      attribution: attribution({ label: "Facebook ממומן" }),
     },
     {
       status: "processing",
       total: 100,
-      attribution: { label: "ישיר / Direct" } as any,
+      attribution: attribution({ label: "ישיר / Direct" }),
     },
     {
       status: "cancelled",
       total: 999,
-      attribution: { label: "Facebook ממומן" } as any,
+      attribution: attribution({ label: "Facebook ממומן" }),
     },
   ]);
   const fb = rows.find((r) => r.label === "Facebook ממומן");
@@ -133,30 +151,30 @@ test("summarizeGoogleAttributedWooOrders splits paid vs organic Google", () => {
     {
       status: "processing",
       total: 500,
-      attribution: {
+      attribution: attribution({
         label: "Google Ads",
         utm_source: "google",
         utm_medium: "cpc",
-      } as any,
+      }),
     },
     {
       status: "completed",
       total: 150,
-      attribution: {
+      attribution: attribution({
         label: "Google אורגני",
         utm_source: "google",
         utm_medium: "organic",
-      } as any,
+      }),
     },
     {
       status: "processing",
       total: 200,
-      attribution: { label: "Facebook ממומן" } as any,
+      attribution: attribution({ label: "Facebook ממומן" }),
     },
     {
       status: "cancelled",
       total: 999,
-      attribution: { label: "Google ממומן" } as any,
+      attribution: attribution({ label: "Google ממומן" }),
     },
   ]);
   expect(summary.paidOrders).toBe(1);
