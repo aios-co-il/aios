@@ -27,6 +27,12 @@ export interface ClientConnections {
   }>;
 }
 
+function toServiceList(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((s) => typeof s === "string")
+    ? value
+    : null;
+}
+
 export function useClientConnections(clientId: string | null | undefined) {
   const qc = useQueryClient();
 
@@ -51,9 +57,14 @@ export function useClientConnections(clientId: string | null | undefined) {
         .eq("client_id", clientId!);
 
       return {
-        client: (clientRes.data as any) ?? null,
-        socialPages: (pagesRes.data as any) ?? [],
-        wpSites: (wpRes.data as any) ?? [],
+        client: clientRes.data
+          ? {
+              ...clientRes.data,
+              services: toServiceList(clientRes.data.services),
+            }
+          : null,
+        socialPages: pagesRes.data ?? [],
+        wpSites: wpRes.data ?? [],
       };
     },
   });

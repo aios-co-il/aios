@@ -9,12 +9,15 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+
+export type CurrentTenant = Pick<Tables<"tenants">, "id" | "name" | "slug">;
 
 interface TenantContextType {
   currentTenantId: string | null;
   currentTenantSlug: string | null;
   setCurrentTenantId: (tenantId: string) => void;
-  currentTenant: any;
+  currentTenant: CurrentTenant | null | undefined;
   isLoading: boolean;
   isActiveTenantSynced: boolean;
   /** True after user_active_tenant upsert matches currentTenantId (RLS scope). */
@@ -195,7 +198,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("user_active_tenant")
         .upsert(
           {
@@ -252,7 +255,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const { data: activeTenant } = await (supabase as any)
+      const { data: activeTenant } = await supabase
         .from("user_active_tenant")
         .select("tenant_id")
         .eq("user_id", user.id)
@@ -260,17 +263,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       if (activeTenant) {
         const matchingTenant = userTenants.find(
-          (t: any) => t.tenant_id === activeTenant.tenant_id,
+          (t) => t.tenant_id === activeTenant.tenant_id,
         );
         if (matchingTenant) {
-          return matchingTenant as any;
+          return matchingTenant;
         }
       }
 
       const mcTenant = userTenants.find(
-        (t: any) => (t as any)?.tenants?.slug === "marketingcaptain",
+        (t) => t.tenants?.slug === "marketingcaptain",
       );
-      return (mcTenant || userTenants[0]) as any;
+      return mcTenant || userTenants[0];
     },
     staleTime: 1000 * 60 * 5,
     enabled: !tenantSlug,

@@ -17,6 +17,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { thrownMessage } from "@/lib/thrownMessage";
 
 interface ConnectionStatus {
   connected: boolean;
@@ -50,8 +51,8 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
       if (data?.connected && data?.accounts) {
         onConnected?.(data.accounts);
       }
-    } catch (e: any) {
-      setStatus({ connected: false, error: e.message });
+    } catch (e) {
+      setStatus({ connected: false, error: thrownMessage(e) });
     } finally {
       setLoading(false);
     }
@@ -98,8 +99,8 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
         toast.error("הדפדפן חסם את החלון הקופץ. אפשר חלונות קופצים ונסה שוב.");
         setConnecting(false);
       }
-    } catch (e: any) {
-      toast.error(`שגיאה: ${e.message}`);
+    } catch (e) {
+      toast.error(`שגיאה: ${thrownMessage(e)}`);
       setConnecting(false);
     }
   };
@@ -113,8 +114,8 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
       if (error) throw error;
       toast.success("Google Ads נותק");
       setStatus({ connected: false });
-    } catch (e: any) {
-      toast.error(`שגיאה: ${e.message}`);
+    } catch (e) {
+      toast.error(`שגיאה: ${thrownMessage(e)}`);
     } finally {
       setDisconnecting(false);
     }

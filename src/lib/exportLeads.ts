@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import type { Database } from "../integrations/supabase/types.ts";
 import {
   findLeadStatus,
   leadFirstSourceDisplay,
@@ -10,6 +12,7 @@ import {
   applyLeadStageQuery,
   applyResponseStatusFilter,
   type LeadValueFilterMode,
+  type LeadValueFilterQuery,
 } from "./leadStageFilter.ts";
 
 export const LEAD_EXPORT_PAGE_SIZE = 1000;
@@ -92,9 +95,13 @@ export type LeadExportRecord = {
   updates?: LeadExportUpdate[];
 };
 
-type QueryClient = {
-  from: (table: string) => any;
-};
+type QueryClient = SupabaseClient<Database>;
+
+interface LeadExportFilterQuery<Q> extends LeadValueFilterQuery<Q> {
+  eq(column: string, value: string): Q;
+  gte(column: string, value: string): Q;
+  lte(column: string, value: string): Q;
+}
 
 const LEAD_EXPORT_SELECT = `
   id,
@@ -227,10 +234,9 @@ export function leadMatchesTagFilter(
 }
 
 /** Same tenant/agency clause the leads page uses before its security guard. */
-export function applyLeadExportTenantScope(
-  query: any,
-  filters: LeadExportFilters,
-): any {
+export function applyLeadExportTenantScope<
+  Q extends Pick<LeadExportFilterQuery<Q>, "eq" | "or">,
+>(query: Q, filters: LeadExportFilters): Q {
   const tenantId = filters.tenantId;
   const selectedAgency = filters.selectedAgency;
   const agencyIds = filters.agencyIds || [];
@@ -257,7 +263,10 @@ export function leadExportMatchesPageScope(
   return !!(lead.agency_id && filters.userAgencyIds?.includes(lead.agency_id));
 }
 
-function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
+function applyLeadExportFilters<Q extends LeadExportFilterQuery<Q>>(
+  query: Q,
+  filters: LeadExportFilters,
+): Q {
   query = applyLeadExportTenantScope(query, filters);
 
   if (!filters.includeArchived) {
