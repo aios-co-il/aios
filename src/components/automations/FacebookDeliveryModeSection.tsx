@@ -6,6 +6,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Copy, Loader2, Webhook, RefreshCw, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  cfgObject,
+  cfgString,
+  errorMessage,
+  isJsonObject,
+  type JsonObject,
+} from "@/lib/automationStepConfig";
 
 interface Props {
   integrationId?: string;
@@ -23,7 +30,7 @@ export function FacebookDeliveryModeSection({
 }: Props) {
   const { toast } = useToast();
   const [mode, setMode] = useState<"pull" | "webhook">("pull");
-  const [pageSubs, setPageSubs] = useState<Record<string, any>>({});
+  const [pageSubs, setPageSubs] = useState<JsonObject>({});
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
@@ -35,9 +42,9 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = (data?.settings as any) ?? {};
+    const s = cfgObject(data?.settings) ?? {};
     setMode(s.delivery_mode === "webhook" ? "webhook" : "pull");
-    setPageSubs(s.page_subscriptions ?? {});
+    setPageSubs(cfgObject(s.page_subscriptions) ?? {});
     setLoading(false);
   };
 
@@ -53,7 +60,7 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = (data?.settings as any) ?? {};
+    const s = cfgObject(data?.settings) ?? {};
     await supabase
       .from("tenant_integrations")
       .update({ settings: { ...s, delivery_mode: newMode } })
@@ -79,14 +86,14 @@ export function FacebookDeliveryModeSection({
         },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (isJsonObject(data) && data.error) throw new Error(String(data.error));
       toast({ title: "העמוד נרשם ל-Webhook" });
       await loadSettings();
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה ברישום העמוד",
         description:
-          e?.message || "בדוק שה-Access Token כולל pages_manage_metadata",
+          errorMessage(e) || "בדוק שה-Access Token כולל pages_manage_metadata",
         variant: "destructive",
       });
     } finally {
@@ -99,7 +106,8 @@ export function FacebookDeliveryModeSection({
     toast({ title: "הועתק!", description: label });
   };
 
-  const pageStatus = pageId ? pageSubs[pageId] : null;
+  const pageStatus = pageId ? cfgObject(pageSubs[pageId]) : null;
+  const subscribedAt = cfgString(pageStatus?.subscribed_at);
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-3">
@@ -184,10 +192,10 @@ export function FacebookDeliveryModeSection({
                   ? "רשום מחדש את העמוד"
                   : "רשום עמוד ל-Webhook"}
               </Button>
-              {pageStatus?.subscribed_at && (
+              {subscribedAt && (
                 <p className="text-[10px] text-muted-foreground text-right">
                   נרשם:{" "}
-                  {new Date(pageStatus.subscribed_at).toLocaleString("he-IL")}
+                  {new Date(subscribedAt).toLocaleString("he-IL")}
                 </p>
               )}
             </div>

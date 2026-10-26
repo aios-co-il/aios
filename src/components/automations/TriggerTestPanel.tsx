@@ -44,6 +44,18 @@ import {
 import { NodeIconDisplay } from "./nodeIcons";
 import { ACTION_TYPE_LABELS } from "./FlowNode";
 import { cn } from "@/lib/utils";
+import {
+  cfgObject,
+  cfgText,
+  errorMessage,
+  isJsonObject,
+  type JsonObject,
+  type StepConfig,
+} from "@/lib/automationStepConfig";
+import {
+  parseFlowStepResults,
+  type FlowStepResult,
+} from "./automationRunResults";
 
 interface TriggerTestPanelProps {
   open: boolean;
@@ -51,28 +63,64 @@ interface TriggerTestPanelProps {
   automationId: string;
   automationName: string;
   triggerType: string;
-  triggerConfig?: Record<string, any>;
-}
-
-interface StepResult {
-  step_id?: string;
-  action_type?: string;
-  success: boolean;
-  error?: string;
-  output?: any;
+  triggerConfig?: StepConfig;
 }
 
 interface TestResult {
-  success?: boolean;
   error?: string;
-  steps?: StepResult[];
+  steps: FlowStepResult[];
   agent_output?: string;
-  flow?: any;
+  raw: unknown;
+}
+
+interface PickerEntity {
+  id: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  source?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  title?: string | null;
+  description?: string | null;
+}
+
+const PICKER_TEXT_KEYS = [
+  "contact_name",
+  "phone",
+  "email",
+  "source",
+  "status",
+  "notes",
+  "title",
+  "description",
+] as const;
+
+function isPickerEntity(row: unknown): row is PickerEntity {
+  if (!isJsonObject(row) || typeof row.id !== "string") return false;
+  return PICKER_TEXT_KEYS.every((key) => {
+    const value = row[key];
+    return value === undefined || value === null || typeof value === "string";
+  });
+}
+
+function toPickerEntities(rows: readonly unknown[] | undefined): PickerEntity[] {
+  return (rows ?? []).filter(isPickerEntity);
+}
+
+function toTestResult(data: unknown): TestResult {
+  const result = cfgObject(data);
+  return {
+    error: cfgText(result?.error),
+    steps: parseFlowStepResults(result?.steps),
+    agent_output: cfgText(result?.agent_output),
+    raw: data,
+  };
 }
 
 // ─── Helper: build default payload per trigger type ──────────────────────────
 
-function getDefaultPayload(triggerType: string): Record<string, any> {
+function getDefaultPayload(triggerType: string): JsonObject {
   switch (triggerType) {
     case "lead_created":
     case "lead_updated":
@@ -537,7 +585,7 @@ export function TriggerTestPanel({
   const { tenantId } = useCurrentTenant();
   const { toast } = useToast();
 
-  const [payload, setPayload] = useState<Record<string, any>>(() =>
+  const [payload, setPayload] = useState<JsonObject>(() =>
     getDefaultPayload(triggerType),
   );
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -623,7 +671,8 @@ export function TriggerTestPanel({
   const handleFieldChange = (key: string, value: string) => {
     if (key === "_json_payload") {
       try {
-        const parsed = JSON.parse(value);
+        const parsed: unknown = JSON.parse(value);
+        if (!isJsonObject(parsed)) throw new Error("payload must be an object");
         setPayload(parsed);
         setJsonError(null);
       } catch {
@@ -635,10 +684,10 @@ export function TriggerTestPanel({
     }
   };
 
-  const handleSelectEntity = (entity: any) => {
+  const handleSelectEntity = (entity: PickerEntity) => {
     setSelectedEntityId(entity.id);
     // Pre-fill payload from entity
-    const newPayload: Record<string, any> = {
+    const newPayload: JsonObject = {
       ...getDefaultPayload(triggerType),
     };
     if (isLeadTrigger) {
@@ -672,7 +721,7 @@ export function TriggerTestPanel({
     try {
       // Build the final payload
       // trigger-automation reads the test flag from the payload, not the body.
-      const finalPayload: Record<string, any> = { ...payload, test: true };
+      const finalPayload: JsonObject = { ...payload, test: true };
       // Remove internal keys
       delete finalPayload._raw_json;
 
@@ -691,21 +740,24 @@ export function TriggerTestPanel({
 
       if (error) throw error;
 
-      setTestResult(data);
+      const result = toTestResult(data);
+      setTestResult(result);
 
-      const success = data?.success !== false && !data?.error;
+      const dataObject = cfgObject(data);
+      const success = dataObject?.success !== false && !dataObject?.error;
       toast({
         title: success ? "הטריגר הופעל בהצלחה" : "הטריגר נכשל",
         description: success
           ? `האוטומציה "${automationName}" הורצה`
-          : data?.error || "שגיאה לא ידועה",
+          : result.error || "שגיאה לא ידועה",
         variant: success ? "default" : "destructive",
       });
-    } catch (err: any) {
-      setTestResult({ error: err.message });
+    } catch (err) {
+      const message = errorMessage(err);
+      setTestResult({ error: message, steps: [], raw: { error: message } });
       toast({
         title: "שגיאה בהפעלת הטריגר",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -714,12 +766,12 @@ export function TriggerTestPanel({
   };
 
   const triggerLabel = ACTION_TYPE_LABELS[triggerType] || triggerType;
-  const entityList = isLeadTrigger
+  const entityList: PickerEntity[] | undefined = isLeadTrigger
     ? leads
     : isClientTrigger
       ? clients
       : isTaskTrigger
-        ? tasks
+        ? toPickerEntities(tasks)
         : [];
   const canPickEntity =
     (isLeadTrigger || isClientTrigger || isTaskTrigger) && useExistingEntity;
@@ -804,7 +856,7 @@ export function TriggerTestPanel({
               </div>
               <ScrollArea className="h-[160px] rounded-lg border">
                 <div className="p-1 space-y-0.5">
-                  {((entityList as any[]) || []).map((entity: any) => (
+                  {(entityList || []).map((entity) => (
                     <button
                       key={entity.id}
                       className={cn(
@@ -824,7 +876,7 @@ export function TriggerTestPanel({
                       )}
                     </button>
                   ))}
-                  {((entityList as any[]) || []).length === 0 && (
+                  {(entityList || []).length === 0 && (
                     <p className="text-center text-xs text-muted-foreground py-4">
                       לא נמצאו תוצאות
                     </p>
@@ -948,7 +1000,7 @@ export function TriggerTestPanel({
               )}
 
               {/* Step results */}
-              {testResult.steps && testResult.steps.length > 0 && (
+              {testResult.steps.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-muted-foreground">
                     צעדים שהורצו:
@@ -1012,7 +1064,7 @@ export function TriggerTestPanel({
                   className="text-[10px] bg-muted rounded-lg p-3 overflow-auto max-h-[200px] text-left"
                   dir="ltr"
                 >
-                  {JSON.stringify(testResult, null, 2)}
+                  {JSON.stringify(testResult.raw, null, 2)}
                 </pre>
               )}
             </div>

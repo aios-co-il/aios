@@ -19,9 +19,17 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useUserTenants } from "@/hooks/useUserTenants";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Loader2, Search } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+import { errorMessage, isJsonObject } from "@/lib/automationStepConfig";
+
+interface ShareTargetTenant {
+  id: string;
+  name?: string | null;
+  slug?: string | null;
+}
 
 interface ShareAutomationDialogProps {
-  automation: any;
+  automation: Pick<Tables<"automations">, "id" | "name">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -43,7 +51,7 @@ export function ShareAutomationDialog({
   const { data: existingClones } = useQuery({
     queryKey: ["automation-shares", automation?.id],
     queryFn: async () => {
-      if (!automation?.id) return [] as any[];
+      if (!automation?.id) return [];
       const { data, error } = await supabase
         .from("automation_shared_tenants")
         .select("tenant_id")
@@ -55,18 +63,18 @@ export function ShareAutomationDialog({
   });
 
   const clonedTenantIds = useMemo(
-    () => new Set((existingClones || []).map((c: any) => c.tenant_id)),
+    () => new Set((existingClones || []).map((c) => c.tenant_id)),
     [existingClones],
   );
 
   const availableTenants = useMemo(() => {
     const list = (userTenants || []).filter(
-      (t: any) => t.id !== sourceTenantId,
+      (t: ShareTargetTenant) => t.id !== sourceTenantId,
     );
     if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
     return list.filter(
-      (t: any) =>
+      (t: ShareTargetTenant) =>
         (t.name || "").toLowerCase().includes(q) ||
         (t.slug || "").toLowerCase().includes(q),
     );
@@ -99,14 +107,17 @@ export function ShareAutomationDialog({
         },
       );
       if (error) throw error;
-      const results = (data as any)?.results || [];
-      const ok = results.filter((r: any) => r.success).length;
-      const failed = results.filter((r: any) => !r.success);
+      const rawResults = isJsonObject(data) ? data.results : undefined;
+      const results = Array.isArray(rawResults)
+        ? rawResults.filter(isJsonObject)
+        : [];
+      const ok = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success);
       toast({
         title: ok > 0 ? `שותף ל-${ok} ארגונים` : "השיתוף נכשל",
         description:
           failed.length > 0
-            ? `נכשל ב-${failed.length}: ${failed.map((f: any) => f.error).join(", ")}`
+            ? `נכשל ב-${failed.length}: ${failed.map((f) => f.error).join(", ")}`
             : "הארגונים החדשים רואים את האוטומציה כצפייה בלבד (read-only). היא תמשיך לרוץ פעם אחת מהארגון הנוכחי.",
         variant: ok === 0 ? "destructive" : "default",
       });
@@ -114,10 +125,10 @@ export function ShareAutomationDialog({
         setSelected(new Set());
         onOpenChange(false);
       }
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בשכפול",
-        description: e.message,
+        description: errorMessage(e),
         variant: "destructive",
       });
     } finally {
@@ -160,7 +171,7 @@ export function ShareAutomationDialog({
                   אין ארגונים זמינים לשיתוף
                 </p>
               ) : (
-                availableTenants.map((t: any) => {
+                availableTenants.map((t: ShareTargetTenant) => {
                   const alreadyCloned = clonedTenantIds.has(t.id);
                   return (
                     <label

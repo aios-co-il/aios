@@ -12,6 +12,7 @@ import {
   Node,
   BackgroundVariant,
   Panel,
+  MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams, useNavigate } from "react-router-dom";
@@ -37,6 +38,13 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData } from "./FlowNode";
+import { isFlowStepType } from "./flowStepTypes";
+import {
+  cfgStringArray,
+  isJsonObject,
+  parseStepConfig,
+} from "@/lib/automationStepConfig";
+import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
 import { InsertableEdge } from "./InsertableEdge";
 import { StepConfigPanel } from "./StepConfigPanel";
@@ -54,23 +62,6 @@ const edgeTypes = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function normalizeStepConfiguration(config: unknown): Record<string, any> {
-  if (config && typeof config === "object" && !Array.isArray(config)) {
-    return config as Record<string, any>;
-  }
-  if (typeof config === "string") {
-    try {
-      const parsed = JSON.parse(config);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, any>;
-      }
-    } catch {
-      // ignore malformed JSON from legacy/AI-created steps
-    }
-  }
-  return {};
-}
 
 function toRFNode(
   nd: FlowNodeData,
@@ -145,8 +136,8 @@ export default function FlowEditor({
   );
 
   // React Flow state
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // ── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -274,12 +265,12 @@ export default function FlowEditor({
     queryFn: async () => {
       if (!automationId || !tenantId) return [];
       const { data, error } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .select("*")
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data as any[];
+      return data;
     },
     enabled: !!automationId && !!tenantId,
   });
@@ -311,26 +302,26 @@ export default function FlowEditor({
       const dataMap: Record<string, FlowNodeData> = {};
       const edges: Edge[] = [];
 
-      steps.forEach((s: any) => {
-        const configuration = normalizeStepConfiguration(s.configuration);
+      steps.forEach((s) => {
+        const configuration = parseStepConfig(s.configuration);
         const nd: FlowNodeData = {
           id: s.id,
-          step_type: s.step_type,
-          action_type: s.action_type,
-          label: s.label,
+          step_type: isFlowStepType(s.step_type) ? s.step_type : "action",
+          action_type: s.action_type ?? undefined,
+          label: s.label ?? undefined,
           configuration,
           position_x: Number.isFinite(s.position_x) ? s.position_x : 400,
           position_y: Number.isFinite(s.position_y) ? s.position_y : 80,
           sort_order: s.sort_order ?? 0,
           parent_step_id: s.parent_step_id,
           condition_branch: s.condition_branch,
-          switch_branches: configuration.switch_branches,
+          switch_branches: cfgStringArray(configuration.switch_branches),
         };
         dataMap[s.id] = nd;
       });
 
       // Build edges from parent_step_id + condition_branch
-      steps.forEach((s: any) => {
+      steps.forEach((s) => {
         if (!s.parent_step_id) return;
         const parent = dataMap[s.parent_step_id];
         if (!parent) return;
@@ -359,7 +350,7 @@ export default function FlowEditor({
           data: { onInsert: handleInsertBetween },
           animated: false,
           style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-          markerEnd: { type: "arrowclosed" as any },
+          markerEnd: { type: MarkerType.ArrowClosed },
         });
       });
 
@@ -459,7 +450,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
           {
             id: `e-${newId}-${targetId}`,
@@ -471,7 +462,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
         ];
       });
@@ -542,7 +533,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
         ]);
       }
@@ -603,7 +594,7 @@ export default function FlowEditor({
         data: { onInsert: handleInsertBetween },
         animated: false,
         style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-        markerEnd: { type: "arrowclosed" as any },
+        markerEnd: { type: MarkerType.ArrowClosed },
       };
       setRfEdges((eds) => addEdge(edge, eds));
 
@@ -649,6 +640,9 @@ export default function FlowEditor({
       if (!triggerNode?.action_type) {
         throw new Error("בחר סוג טריגר לפני שמירה");
       }
+      if (!isAutomationTrigger(flowTriggerType)) {
+        throw new Error(`סוג טריגר לא נתמך: ${flowTriggerType}`);
+      }
 
       // Sync positions from React Flow
       const rfNodePositions: Record<string, { x: number; y: number }> = {};
@@ -683,7 +677,7 @@ export default function FlowEditor({
           active: automationActive,
           is_flow: true,
           trigger_type: flowTriggerType,
-        } as any)
+        })
         .eq("id", automationId)
         .eq("tenant_id", tenantId)
         .select("id")
@@ -692,7 +686,7 @@ export default function FlowEditor({
 
       // Delete old steps
       const { error: deleteError } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .delete()
         .eq("automation_id", automationId)
         .eq("tenant_id", tenantId);
@@ -701,7 +695,7 @@ export default function FlowEditor({
       // Insert new steps
       if (stepsToInsert.length > 0) {
         const { error } = await supabase
-          .from("automation_flow_steps" as any)
+          .from("automation_flow_steps")
           .insert(stepsToInsert);
         if (error) {
           console.error(
@@ -727,7 +721,7 @@ export default function FlowEditor({
       });
       toast({ title: "הפלוו נשמר בהצלחה!" });
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast({
         title: "שגיאה בשמירה",
         description: err.message,
@@ -742,7 +736,7 @@ export default function FlowEditor({
         throw new Error("Missing automation data");
       const { data, error } = await supabase
         .from("automations")
-        .update({ active: nextActive } as any)
+        .update({ active: nextActive })
         .eq("id", automationId)
         .eq("tenant_id", tenantId)
         .select("id")
@@ -762,7 +756,7 @@ export default function FlowEditor({
       queryClient.invalidateQueries({ queryKey: ["automations", tenantId] });
       toast({ title: nextActive ? "אוטומציה הופעלה" : "אוטומציה הושהתה" });
     },
-    onError: (err: any, _nextActive, context) => {
+    onError: (err, _nextActive, context) => {
       // Roll back the optimistic update
       if (context?.previous !== undefined) {
         setAutomationActive(context.previous);
@@ -998,8 +992,8 @@ export default function FlowEditor({
           <Controls />
           <MiniMap
             nodeColor={(n) => {
-              const nd = (n.data as any)?.nodeData as FlowNodeData | undefined;
-              if (!nd) return "#888";
+              const nd = n.data?.nodeData;
+              if (!isJsonObject(nd)) return "#888";
               const colors: Record<string, string> = {
                 trigger: "#f59e0b",
                 action: "#3b82f6",
@@ -1013,7 +1007,10 @@ export default function FlowEditor({
                 error_branch: "#ef4444",
                 whatsapp_session: "#16a34a",
               };
-              return colors[nd.step_type] || "#888";
+              return (
+                (typeof nd.step_type === "string" && colors[nd.step_type]) ||
+                "#888"
+              );
             }}
           />
         </ReactFlow>

@@ -60,6 +60,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { FlowNodeData } from "./FlowNode";
+import {
+  cfgBool,
+  cfgObject,
+  cfgObjectArray,
+  cfgStringArray,
+  cfgText,
+  cfgTextArray,
+  type StepConfig,
+  type StepConfigBulkChange,
+  type StepConfigChange,
+  type StepConfigValue,
+} from "@/lib/automationStepConfig";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useToast } from "@/hooks/use-toast";
@@ -219,7 +231,7 @@ const LEAD_SOURCE_OPTIONS = [
 // Available fields by trigger type
 function getAvailableFields(
   triggerType: string | undefined,
-  triggerConfig?: Record<string, any>,
+  triggerConfig?: StepConfig,
 ): { key: string; label: string }[] {
   let fields: { key: string; label: string }[] = [];
   switch (triggerType) {
@@ -349,16 +361,16 @@ function getAvailableFields(
     triggerType === "lead_created" &&
     triggerConfig?.lead_source === "facebook_form"
   ) {
-    const fbFields = triggerConfig?.facebook_form_fields as
-      Array<{ key: string; label: string; type?: string }> | undefined;
-    if (fbFields && Array.isArray(fbFields)) {
+    const fbFields = cfgObjectArray(triggerConfig?.facebook_form_fields);
+    if (fbFields) {
       const existingKeys = new Set(fields.map((f) => f.key));
       for (const fbField of fbFields) {
-        const fieldKey = `fb_${fbField.key}`;
+        const key = cfgText(fbField.key);
+        const fieldKey = `fb_${key}`;
         if (!existingKeys.has(fieldKey)) {
           fields.push({
             key: fieldKey,
-            label: `📋 ${fbField.label || fbField.key}`,
+            label: `📋 ${cfgText(fbField.label) || key}`,
           });
         }
       }
@@ -384,11 +396,11 @@ interface FacebookPage {
   access_token?: string;
 }
 
-interface FacebookFormField {
+type FacebookFormField = {
   key: string;
   label: string;
   type?: string;
-}
+};
 
 interface FacebookForm {
   id: string;
@@ -434,7 +446,7 @@ export function StepConfigPanel({
 
   const isLeadCreatedTrigger =
     node.step_type === "trigger" && node.action_type === "lead_created";
-  const leadSource = node.configuration?.lead_source || "any";
+  const leadSource = cfgText(node.configuration?.lead_source) || "any";
 
   const handleActionTypeChange = (value: string) => {
     onUpdate(node.id, {
@@ -447,13 +459,13 @@ export function StepConfigPanel({
     onUpdate(node.id, { label: value });
   };
 
-  const handleConfigChange = (key: string, value: any) => {
+  const handleConfigChange = (key: string, value: StepConfigValue) => {
     onUpdate(node.id, {
       configuration: { ...node.configuration, [key]: value },
     });
   };
 
-  const handleBulkConfigChange = (updates: Record<string, any>) => {
+  const handleBulkConfigChange = (updates: StepConfig) => {
     onUpdate(node.id, {
       configuration: { ...node.configuration, ...updates },
     });
@@ -619,7 +631,9 @@ export function StepConfigPanel({
                   <div className="space-y-2">
                     <Label className="text-right block">Bot Token</Label>
                     <Input
-                      value={node.configuration?.telegram_bot_token || ""}
+                      value={
+                        cfgText(node.configuration?.telegram_bot_token) || ""
+                      }
                       onChange={(e) =>
                         handleConfigChange("telegram_bot_token", e.target.value)
                       }
@@ -633,7 +647,9 @@ export function StepConfigPanel({
                       סנן הפעלה (אופציונלי)
                     </Label>
                     <Input
-                      value={node.configuration?.telegram_keyword || ""}
+                      value={
+                        cfgText(node.configuration?.telegram_keyword) || ""
+                      }
                       onChange={(e) =>
                         handleConfigChange("telegram_keyword", e.target.value)
                       }
@@ -656,7 +672,9 @@ export function StepConfigPanel({
                       סנן בשורת הנושא (אופציונלי)
                     </Label>
                     <Input
-                      value={node.configuration?.email_subject_filter || ""}
+                      value={
+                        cfgText(node.configuration?.email_subject_filter) || ""
+                      }
                       onChange={(e) =>
                         handleConfigChange(
                           "email_subject_filter",
@@ -672,7 +690,9 @@ export function StepConfigPanel({
                       סנן בשולח (אופציונלי)
                     </Label>
                     <Input
-                      value={node.configuration?.email_sender_filter || ""}
+                      value={
+                        cfgText(node.configuration?.email_sender_filter) || ""
+                      }
                       onChange={(e) =>
                         handleConfigChange(
                           "email_sender_filter",
@@ -697,7 +717,7 @@ export function StepConfigPanel({
                   <div className="space-y-2">
                     <Label className="text-right block">Spreadsheet ID</Label>
                     <Input
-                      value={node.configuration?.sheet_id || ""}
+                      value={cfgText(node.configuration?.sheet_id) || ""}
                       onChange={(e) =>
                         handleConfigChange("sheet_id", e.target.value)
                       }
@@ -711,7 +731,7 @@ export function StepConfigPanel({
                       שם הגיליון (Sheet Name)
                     </Label>
                     <Input
-                      value={node.configuration?.sheet_name || ""}
+                      value={cfgText(node.configuration?.sheet_name) || ""}
                       onChange={(e) =>
                         handleConfigChange("sheet_name", e.target.value)
                       }
@@ -734,7 +754,9 @@ export function StepConfigPanel({
                       סנן בכותרת האירוע (אופציונלי)
                     </Label>
                     <Input
-                      value={node.configuration?.calendar_title_filter || ""}
+                      value={
+                        cfgText(node.configuration?.calendar_title_filter) || ""
+                      }
                       onChange={(e) =>
                         handleConfigChange(
                           "calendar_title_filter",
@@ -759,7 +781,9 @@ export function StepConfigPanel({
                     <Label className="text-right block">שעת הפעלה</Label>
                     <Input
                       type="time"
-                      value={node.configuration?.schedule_time || "08:00"}
+                      value={
+                        cfgText(node.configuration?.schedule_time) || "08:00"
+                      }
                       onChange={(e) =>
                         handleConfigChange("schedule_time", e.target.value)
                       }
@@ -779,7 +803,7 @@ export function StepConfigPanel({
                   <div className="space-y-2">
                     <Label className="text-right block">יום בשבוע</Label>
                     <Select
-                      value={node.configuration?.schedule_day || "1"}
+                      value={cfgText(node.configuration?.schedule_day) || "1"}
                       onValueChange={(v) =>
                         handleConfigChange("schedule_day", v)
                       }
@@ -802,7 +826,9 @@ export function StepConfigPanel({
                     <Label className="text-right block">שעת הפעלה</Label>
                     <Input
                       type="time"
-                      value={node.configuration?.schedule_time || "08:00"}
+                      value={
+                        cfgText(node.configuration?.schedule_time) || "08:00"
+                      }
                       onChange={(e) =>
                         handleConfigChange("schedule_time", e.target.value)
                       }
@@ -825,7 +851,9 @@ export function StepConfigPanel({
                       type="number"
                       min={1}
                       max={28}
-                      value={node.configuration?.schedule_day_of_month || 1}
+                      value={
+                        cfgText(node.configuration?.schedule_day_of_month) || 1
+                      }
                       onChange={(e) =>
                         handleConfigChange(
                           "schedule_day_of_month",
@@ -839,7 +867,9 @@ export function StepConfigPanel({
                     <Label className="text-right block">שעת הפעלה</Label>
                     <Input
                       type="time"
-                      value={node.configuration?.schedule_time || "08:00"}
+                      value={
+                        cfgText(node.configuration?.schedule_time) || "08:00"
+                      }
                       onChange={(e) =>
                         handleConfigChange("schedule_time", e.target.value)
                       }
@@ -863,7 +893,7 @@ export function StepConfigPanel({
                     <Input
                       type="number"
                       min={1}
-                      value={node.configuration?.inactive_days || 7}
+                      value={cfgText(node.configuration?.inactive_days) || 7}
                       onChange={(e) =>
                         handleConfigChange(
                           "inactive_days",
@@ -945,7 +975,7 @@ export function StepConfigPanel({
                           dir="ltr"
                           type="password"
                           className="font-mono text-[10px]"
-                          value={node.configuration.webhook_secret}
+                          value={cfgText(node.configuration.webhook_secret)}
                         />
                         <Button
                           type="button"
@@ -953,7 +983,7 @@ export function StepConfigPanel({
                           size="icon"
                           onClick={async () => {
                             await navigator.clipboard.writeText(
-                              node.configuration.webhook_secret,
+                              cfgText(node.configuration.webhook_secret) ?? "",
                             );
                             toast({
                               title: "הועתק",
@@ -1012,7 +1042,7 @@ export function StepConfigPanel({
                       הלקוח שיקבל את הלידים
                     </Label>
                     <Select
-                      value={node.configuration?.client_id || "none"}
+                      value={cfgText(node.configuration?.client_id) || "none"}
                       onValueChange={(value) =>
                         handleConfigChange(
                           "client_id",
@@ -1087,7 +1117,7 @@ export function StepConfigPanel({
                           dir="ltr"
                           type="password"
                           className="font-mono text-[10px]"
-                          value={node.configuration.webhook_secret}
+                          value={cfgText(node.configuration.webhook_secret)}
                         />
                         <Button
                           type="button"
@@ -1095,7 +1125,7 @@ export function StepConfigPanel({
                           size="icon"
                           onClick={async () => {
                             await navigator.clipboard.writeText(
-                              node.configuration.webhook_secret,
+                              cfgText(node.configuration.webhook_secret) ?? "",
                             );
                             toast({
                               title: "הועתק",
@@ -1163,7 +1193,7 @@ export function StepConfigPanel({
                     <Label className="text-right block">סוג אירוע</Label>
                     <Select
                       value={
-                        node.configuration?.stripe_event ||
+                        cfgText(node.configuration?.stripe_event) ||
                         "payment_intent.succeeded"
                       }
                       onValueChange={(v) =>
@@ -1200,7 +1230,7 @@ export function StepConfigPanel({
                   <Input
                     type="number"
                     min={1}
-                    value={node.configuration?.delay_value || ""}
+                    value={cfgText(node.configuration?.delay_value) || ""}
                     onChange={(e) =>
                       handleConfigChange(
                         "delay_value",
@@ -1214,7 +1244,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">יחידה</Label>
                   <Select
-                    value={node.configuration?.delay_unit || "minutes"}
+                    value={cfgText(node.configuration?.delay_unit) || "minutes"}
                     onValueChange={(v) => handleConfigChange("delay_unit", v)}
                   >
                     <SelectTrigger className="text-right">
@@ -1238,7 +1268,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">שדה לבדיקה</Label>
                   <Select
-                    value={node.configuration?.condition_field || ""}
+                    value={cfgText(node.configuration?.condition_field) || ""}
                     onValueChange={(v) =>
                       handleConfigChange("condition_field", v)
                     }
@@ -1264,7 +1294,10 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">אופרטור</Label>
                   <Select
-                    value={node.configuration?.condition_operator || "equals"}
+                    value={
+                      cfgText(node.configuration?.condition_operator) ||
+                      "equals"
+                    }
                     onValueChange={(v) =>
                       handleConfigChange("condition_operator", v)
                     }
@@ -1286,12 +1319,12 @@ export function StepConfigPanel({
                   </Select>
                 </div>
                 {!["is_empty", "is_not_empty"].includes(
-                  node.configuration?.condition_operator || "",
+                  cfgText(node.configuration?.condition_operator) || "",
                 ) && (
                   <div className="space-y-2">
                     <Label className="text-right block">ערך לבדיקה</Label>
                     <Input
-                      value={node.configuration?.condition_value || ""}
+                      value={cfgText(node.configuration?.condition_value) || ""}
                       onChange={(e) =>
                         handleConfigChange("condition_value", e.target.value)
                       }
@@ -1312,7 +1345,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">שדה למיתוג</Label>
                   <Input
-                    value={node.configuration?.switch_field || ""}
+                    value={cfgText(node.configuration?.switch_field) || ""}
                     onChange={(e) =>
                       handleConfigChange("switch_field", e.target.value)
                     }
@@ -1326,7 +1359,9 @@ export function StepConfigPanel({
                   </Label>
                   <Textarea
                     value={(
-                      node.configuration?.switch_branches || ["ברירת מחדל"]
+                      cfgTextArray(node.configuration?.switch_branches) || [
+                        "ברירת מחדל",
+                      ]
                     ).join("\n")}
                     onChange={(e) => {
                       const branches = e.target.value
@@ -1355,7 +1390,7 @@ export function StepConfigPanel({
                   type="number"
                   min={2}
                   max={10}
-                  value={node.configuration?.input_count || 2}
+                  value={cfgText(node.configuration?.input_count) || 2}
                   onChange={(e) =>
                     handleConfigChange(
                       "input_count",
@@ -1378,7 +1413,7 @@ export function StepConfigPanel({
                     שדה לריצה (מערך או רשימה)
                   </Label>
                   <Input
-                    value={node.configuration?.loop_field || ""}
+                    value={cfgText(node.configuration?.loop_field) || ""}
                     onChange={(e) =>
                       handleConfigChange("loop_field", e.target.value)
                     }
@@ -1398,7 +1433,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">קוד JavaScript</Label>
                   <Textarea
-                    value={node.configuration?.code || ""}
+                    value={cfgText(node.configuration?.code) || ""}
                     onChange={(e) => handleConfigChange("code", e.target.value)}
                     placeholder={`// קבל נתונים בתוך $input\n// החזר אובייקט עם שדות חדשים\nconst name = $input.contact_name || 'Unknown';\nreturn { full_greeting: 'Hello ' + name };`}
                     className="text-right font-mono text-xs"
@@ -1459,7 +1494,7 @@ export function StepConfigPanel({
               <div className="space-y-2">
                 <Label className="text-right block">כתובת URL</Label>
                 <Input
-                  value={node.configuration?.url || ""}
+                  value={cfgText(node.configuration?.url) || ""}
                   onChange={(e) => handleConfigChange("url", e.target.value)}
                   placeholder="https://..."
                   dir="ltr"
@@ -1513,7 +1548,7 @@ export function StepConfigPanel({
                     Chat ID (מספר טלגרם של היעד)
                   </Label>
                   <Input
-                    value={node.configuration?.telegram_chat_id || ""}
+                    value={cfgText(node.configuration?.telegram_chat_id) || ""}
                     onChange={(e) =>
                       handleConfigChange("telegram_chat_id", e.target.value)
                     }
@@ -1529,7 +1564,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">תבנית הודעה</Label>
                   <textarea
-                    value={node.configuration?.message_template || ""}
+                    value={cfgText(node.configuration?.message_template) || ""}
                     onChange={(e) =>
                       handleConfigChange("message_template", e.target.value)
                     }
@@ -1571,7 +1606,7 @@ export function StepConfigPanel({
                         type="button"
                         onClick={() => {
                           const current =
-                            node.configuration?.message_template || "";
+                            cfgText(node.configuration?.message_template) || "";
                           handleConfigChange(
                             "message_template",
                             current + `{{${field}}}`,
@@ -1587,7 +1622,9 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">Parse Mode</Label>
                   <Select
-                    value={node.configuration?.telegram_parse_mode || "HTML"}
+                    value={
+                      cfgText(node.configuration?.telegram_parse_mode) || "HTML"
+                    }
                     onValueChange={(v) =>
                       handleConfigChange("telegram_parse_mode", v)
                     }
@@ -1643,7 +1680,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">פרומפט למשימה *</Label>
                   <Textarea
-                    value={node.configuration?.prompt_template || ""}
+                    value={cfgText(node.configuration?.prompt_template) || ""}
                     onChange={(e) =>
                       handleConfigChange("prompt_template", e.target.value)
                     }
@@ -1655,7 +1692,9 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">פרופיל סוכן</Label>
                   <Select
-                    value={node.configuration?.agent_profile || "manus-1.6"}
+                    value={
+                      cfgText(node.configuration?.agent_profile) || "manus-1.6"
+                    }
                     onValueChange={(v) =>
                       handleConfigChange("agent_profile", v)
                     }
@@ -1679,7 +1718,9 @@ export function StepConfigPanel({
                 <div className="flex items-center gap-2 justify-end">
                   <Checkbox
                     id="include_context"
-                    checked={node.configuration?.include_context ?? false}
+                    checked={
+                      cfgBool(node.configuration?.include_context) ?? false
+                    }
                     onCheckedChange={(v) =>
                       handleConfigChange("include_context", !!v)
                     }
@@ -1706,7 +1747,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">הודעה *</Label>
                   <Textarea
-                    value={node.configuration?.message_template || ""}
+                    value={cfgText(node.configuration?.message_template) || ""}
                     onChange={(e) =>
                       handleConfigChange("message_template", e.target.value)
                     }
@@ -1720,7 +1761,7 @@ export function StepConfigPanel({
                     Task ID (אופציונלי)
                   </Label>
                   <Input
-                    value={node.configuration?.task_id || ""}
+                    value={cfgText(node.configuration?.task_id) || ""}
                     onChange={(e) =>
                       handleConfigChange("task_id", e.target.value)
                     }
@@ -1738,7 +1779,7 @@ export function StepConfigPanel({
                 <div className="space-y-2">
                   <Label className="text-right block">סוג ישות</Label>
                   <Select
-                    value={node.configuration?.entity || ""}
+                    value={cfgText(node.configuration?.entity) || ""}
                     onValueChange={(v) => handleConfigChange("entity", v)}
                   >
                     <SelectTrigger className="text-right">
@@ -1855,21 +1896,15 @@ function ManyChatWhatsAppActionConfig({
   onConfigChange,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
-  onConfigChange: (key: string, value: any) => void;
+  onConfigChange: StepConfigChange;
 }) {
   const { buildPath } = useTenantPath();
   const phoneMode =
-    configuration?.phone_mode ||
+    cfgText(configuration?.phone_mode) ||
     (configuration?.phone_field ? "field" : "contact");
-  const customFields: Array<{
-    field_id?: number;
-    field_name?: string;
-    value_template?: string;
-  }> = Array.isArray(configuration?.custom_fields)
-    ? configuration.custom_fields
-    : [];
+  const customFields = cfgObjectArray(configuration?.custom_fields) ?? [];
 
   const { data: tags = [], isLoading: loadingTags } = useQuery({
     queryKey: ["manychat-tags-for-flow", tenantId],
@@ -1971,7 +2006,7 @@ function ManyChatWhatsAppActionConfig({
         </RadioGroup>
         {phoneMode === "field" && (
           <Select
-            value={configuration?.phone_field || ""}
+            value={cfgText(configuration?.phone_field) || ""}
             onValueChange={(v) => onConfigChange("phone_field", v)}
           >
             <SelectTrigger className="text-right">
@@ -2004,7 +2039,7 @@ function ManyChatWhatsAppActionConfig({
               onConfigChange("custom_fields", [...LEAD_ALERT_MANYCHAT_FIELDS]);
               onConfigChange(
                 "manychat_tag_id",
-                configuration?.manychat_tag_id || "93553458",
+                cfgText(configuration?.manychat_tag_id) || "93553458",
               );
               onConfigChange("manychat_flow_ns", LEAD_ALERT_MANYCHAT_FLOW_NS);
               onConfigChange("manychat_delivery", "tag");
@@ -2026,14 +2061,14 @@ function ManyChatWhatsAppActionConfig({
           >
             {customFields.map((field, idx) => (
               <div
-                key={`${field.field_id || field.field_name}-${idx}`}
+                key={`${cfgText(field.field_id) || cfgText(field.field_name)}-${idx}`}
                 className="flex justify-between gap-2"
               >
                 <span className="text-muted-foreground truncate">
-                  {field.value_template}
+                  {cfgText(field.value_template)}
                 </span>
                 <span className="font-medium shrink-0">
-                  {field.field_name || field.field_id}
+                  {cfgText(field.field_name) || cfgText(field.field_id)}
                 </span>
               </div>
             ))}
@@ -2048,7 +2083,7 @@ function ManyChatWhatsAppActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">הערת טקסט (אופציונלי / ישן)</Label>
         <Textarea
-          value={configuration?.message_template || ""}
+          value={cfgText(configuration?.message_template) || ""}
           onChange={(e) => onConfigChange("message_template", e.target.value)}
           placeholder="לא נשלח ישירות — השליחה דרך Flow ב-ManyChat"
           className="text-right"
@@ -2067,14 +2102,14 @@ function MetaWhatsAppActionConfig({
   onConfigChange,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
-  onConfigChange: (key: string, value: any) => void;
+  onConfigChange: StepConfigChange;
 }) {
   const { buildPath } = useTenantPath();
   const sendMode =
     configuration?.send_mode === "template" ? "template" : "text";
-  const phoneMode = configuration?.phone_mode || "field";
+  const phoneMode = cfgText(configuration?.phone_mode) || "field";
 
   const { data: integrations = [], isLoading } = useQuery({
     queryKey: ["meta-whatsapp-integrations-for-flow", tenantId],
@@ -2112,7 +2147,7 @@ function MetaWhatsAppActionConfig({
   });
 
   const selectedIntegrationId =
-    configuration?.meta_whatsapp_integration_id || "";
+    cfgText(configuration?.meta_whatsapp_integration_id) || "";
 
   const { data: templates = [], isFetching: loadingTemplates } = useQuery({
     queryKey: [
@@ -2135,14 +2170,14 @@ function MetaWhatsAppActionConfig({
         },
       );
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      const rows = Array.isArray(data?.templates)
-        ? data.templates
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
+      const payload = cfgObject(data);
+      if (payload?.error) throw new Error(String(payload.error));
+      const rows =
+        cfgObjectArray(payload?.templates) ??
+        cfgObjectArray(payload?.data) ??
+        [];
       return rows.filter(
-        (row: any) => String(row?.status || "").toUpperCase() === "APPROVED",
+        (row) => String(row.status || "").toUpperCase() === "APPROVED",
       );
     },
   });
@@ -2161,8 +2196,9 @@ function MetaWhatsAppActionConfig({
   const phoneFields = availableFields.filter(
     (field) => field.key === "phone" || field.key.includes("phone"),
   );
-  const variables: string[] = Array.isArray(configuration?.template_variables)
-    ? configuration.template_variables
+  const rawVariables = configuration?.template_variables;
+  const variables: string[] = Array.isArray(rawVariables)
+    ? rawVariables.map((item) => cfgText(item) ?? "")
     : [];
 
   return (
@@ -2210,9 +2246,9 @@ function MetaWhatsAppActionConfig({
               <SelectValue placeholder="בחרו מספר" />
             </SelectTrigger>
             <SelectContent>
-              {integrations.map((row: any) => (
+              {integrations.map((row) => (
                 <SelectItem key={row.id} value={row.id}>
-                  {row.settings?.display_phone_number ||
+                  {cfgText(cfgObject(row.settings)?.display_phone_number) ||
                     row.display_name ||
                     row.id}
                 </SelectItem>
@@ -2252,7 +2288,7 @@ function MetaWhatsAppActionConfig({
         <div className="space-y-2">
           <Label className="block text-right">תוכן ההודעה</Label>
           <Textarea
-            value={configuration?.message_template || ""}
+            value={cfgText(configuration?.message_template) || ""}
             onChange={(event) =>
               onConfigChange("message_template", event.target.value)
             }
@@ -2271,7 +2307,7 @@ function MetaWhatsAppActionConfig({
                 onClick={() =>
                   onConfigChange(
                     "message_template",
-                    `${configuration?.message_template || ""}{{${field.key}}}`,
+                    `${cfgText(configuration?.message_template) || ""}{{${field.key}}}`,
                   )
                 }
               >
@@ -2288,12 +2324,10 @@ function MetaWhatsAppActionConfig({
               <p className="text-xs text-muted-foreground">טוען תבניות...</p>
             ) : (
               <Select
-                value={configuration?.template_name || ""}
+                value={cfgText(configuration?.template_name) || ""}
                 onValueChange={(value) => {
                   onConfigChange("template_name", value);
-                  const selected = templates.find(
-                    (row: any) => row.name === value,
-                  );
+                  const selected = templates.find((row) => row.name === value);
                   if (selected?.language)
                     onConfigChange("template_language", selected.language);
                 }}
@@ -2306,15 +2340,20 @@ function MetaWhatsAppActionConfig({
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((row: any) => (
-                    <SelectItem
-                      key={`${row.name}-${row.language || "he"}`}
-                      value={row.name}
-                    >
-                      {row.name}
-                      {row.language ? ` (${row.language})` : ""}
-                    </SelectItem>
-                  ))}
+                  {templates.map((row) => {
+                    const name = cfgText(row.name);
+                    if (!name) return null;
+                    const language = cfgText(row.language);
+                    return (
+                      <SelectItem
+                        key={`${name}-${language || "he"}`}
+                        value={name}
+                      >
+                        {name}
+                        {language ? ` (${language})` : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             )}
@@ -2322,7 +2361,7 @@ function MetaWhatsAppActionConfig({
           <div className="space-y-2">
             <Label className="block text-right">שפת התבנית</Label>
             <Input
-              value={configuration?.template_language || "he"}
+              value={cfgText(configuration?.template_language) || "he"}
               onChange={(event) =>
                 onConfigChange("template_language", event.target.value)
               }
@@ -2395,7 +2434,7 @@ function MetaWhatsAppActionConfig({
 
       {phoneMode === "manual" ? (
         <Input
-          value={configuration?.manual_phone || ""}
+          value={cfgText(configuration?.manual_phone) || ""}
           onChange={(event) =>
             onConfigChange("manual_phone", event.target.value)
           }
@@ -2404,7 +2443,7 @@ function MetaWhatsAppActionConfig({
         />
       ) : (
         <Select
-          value={configuration?.phone_field || "phone"}
+          value={cfgText(configuration?.phone_field) || "phone"}
           onValueChange={(value) => onConfigChange("phone_field", value)}
         >
           <SelectTrigger dir="rtl">
@@ -2434,9 +2473,9 @@ function GreenAPIActionConfig({
   providerFilter,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
-  onConfigChange: (key: string, value: any) => void;
+  onConfigChange: StepConfigChange;
   providerFilter?: "green_api" | "manus_wa";
 }) {
   const [cursorPos, setCursorPos] = useState<number | null>(null);
@@ -2468,7 +2507,7 @@ function GreenAPIActionConfig({
 
   const insertVariable = (fieldKey: string) => {
     const variable = `{{${fieldKey}}}`;
-    const currentValue = configuration?.message_template || "";
+    const currentValue = cfgText(configuration?.message_template) || "";
     const pos = cursorPos ?? currentValue.length;
     const newValue =
       currentValue.slice(0, pos) + variable + currentValue.slice(pos);
@@ -2478,15 +2517,14 @@ function GreenAPIActionConfig({
   const greenApiMode =
     providerFilter === "manus_wa"
       ? "tenant"
-      : configuration?.green_api_mode || "tenant";
-  const phoneMode = configuration?.phone_mode || "field";
+      : cfgText(configuration?.green_api_mode) || "tenant";
+  const phoneMode = cfgText(configuration?.phone_mode) || "field";
   const isManus = providerFilter === "manus_wa";
 
   // Provider selection (Green API vs Manus). Locked when invoked via legacy send_manus_message action.
   const selectedProvider: "green_api" | "manus_wa" =
     providerFilter ||
-    (configuration?.wa_provider as "green_api" | "manus_wa") ||
-    "green_api";
+    (configuration?.wa_provider === "manus_wa" ? "manus_wa" : "green_api");
 
   // Filter integrations by selected provider
   const filteredIntegrations = useMemo(
@@ -2586,7 +2624,7 @@ function GreenAPIActionConfig({
             </div>
           ) : filteredIntegrations && filteredIntegrations.length > 0 ? (
             <Select
-              value={configuration?.green_api_integration_id || ""}
+              value={cfgText(configuration?.green_api_integration_id) || ""}
               onValueChange={(v) =>
                 onConfigChange("green_api_integration_id", v)
               }
@@ -2596,18 +2634,14 @@ function GreenAPIActionConfig({
               </SelectTrigger>
               <SelectContent>
                 {filteredIntegrations.map((integration) => {
-                  const settings = integration.settings as Record<
-                    string,
-                    any
-                  > | null;
+                  const settings = cfgObject(integration.settings);
                   const providerLabel =
                     integration.integration_type === "manus_wa"
                       ? "Manus WA"
                       : "Green API";
                   const name =
-                    (integration as any).display_name ||
-                    settings?.instance_name ||
-                    settings?.connection_name ||
+                    cfgText(settings?.instance_name) ||
+                    cfgText(settings?.connection_name) ||
                     providerLabel;
                   return (
                     <SelectItem key={integration.id} value={integration.id}>
@@ -2637,7 +2671,7 @@ function GreenAPIActionConfig({
           <div className="space-y-2">
             <Label className="text-right block text-xs">Instance ID</Label>
             <Input
-              value={configuration?.external_instance_id || ""}
+              value={cfgText(configuration?.external_instance_id) || ""}
               onChange={(e) =>
                 onConfigChange("external_instance_id", e.target.value)
               }
@@ -2649,7 +2683,7 @@ function GreenAPIActionConfig({
           <div className="space-y-2">
             <Label className="text-right block text-xs">API Token</Label>
             <Input
-              value={configuration?.external_api_token || ""}
+              value={cfgText(configuration?.external_api_token) || ""}
               onChange={(e) =>
                 onConfigChange("external_api_token", e.target.value)
               }
@@ -2688,7 +2722,7 @@ function GreenAPIActionConfig({
         <Label className="text-right block">תבנית הודעה</Label>
         <Textarea
           ref={textareaRef}
-          value={configuration?.message_template || ""}
+          value={cfgText(configuration?.message_template) || ""}
           onChange={(e) => onConfigChange("message_template", e.target.value)}
           onSelect={(e) =>
             setCursorPos((e.target as HTMLTextAreaElement).selectionStart)
@@ -2771,7 +2805,7 @@ function GreenAPIActionConfig({
       <div className="space-y-2 border-t pt-3">
         <Label className="text-right block">קישור מדיה (אופציונלי)</Label>
         <RadioGroup
-          value={configuration?.media_type || "none"}
+          value={cfgText(configuration?.media_type) || "none"}
           onValueChange={(v) => onConfigChange("media_type", v)}
           className="flex gap-4 justify-end"
           dir="rtl"
@@ -2800,7 +2834,7 @@ function GreenAPIActionConfig({
           configuration?.media_type === "file") && (
           <div className="space-y-2">
             <Input
-              value={configuration?.media_url || ""}
+              value={cfgText(configuration?.media_url) || ""}
               onChange={(e) => onConfigChange("media_url", e.target.value)}
               placeholder="https://youtube.com/watch?v=... או קישור לקובץ"
               dir="ltr"
@@ -2817,7 +2851,7 @@ function GreenAPIActionConfig({
                   שם קובץ (אופציונלי)
                 </Label>
                 <Input
-                  value={configuration?.media_filename || ""}
+                  value={cfgText(configuration?.media_filename) || ""}
                   onChange={(e) =>
                     onConfigChange("media_filename", e.target.value)
                   }
@@ -2892,8 +2926,8 @@ function AgentStepConfig({
   availableFields,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
   availableFields: { key: string; label: string }[];
 }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -2907,20 +2941,18 @@ function AgentStepConfig({
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return data;
     },
     enabled: !!tenantId,
   });
 
-  const selectedAgent = agents?.find(
-    (a: any) => a.id === configuration?.agent_id,
-  );
+  const selectedAgent = agents?.find((a) => a.id === configuration?.agent_id);
 
   // Skin catalog (ai_skills): global skins + this tenant's overrides. Pinning a
   // skin on the node forces that persona for this step (campaigner/seo/...).
@@ -2928,7 +2960,7 @@ function AgentStepConfig({
     queryKey: ["ai-skins", tenantId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_skills" as any)
+        .from("ai_skills")
         .select("slug,name,scope")
         .eq("is_active", true)
         .or(
@@ -2938,11 +2970,17 @@ function AgentStepConfig({
         );
       if (error) return [];
       // De-dupe by slug, tenant override wins.
-      const bySlug = new Map<string, any>();
-      for (const row of (data as any[]) || []) {
-        if (!row.slug) continue;
-        const existing = bySlug.get(row.slug);
-        if (!existing || row.scope === "tenant") bySlug.set(row.slug, row);
+      const bySlug = new Map<
+        string,
+        { slug: string; name: string; scope: string }
+      >();
+      for (const row of data || []) {
+        const slug = row.slug;
+        if (!slug) continue;
+        const existing = bySlug.get(slug);
+        if (!existing || row.scope === "tenant") {
+          bySlug.set(slug, { slug, name: row.name, scope: row.scope });
+        }
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -2951,9 +2989,7 @@ function AgentStepConfig({
     enabled: true,
   });
 
-  const pinnedSkins: string[] = Array.isArray(configuration?.skin_slugs)
-    ? configuration.skin_slugs
-    : [];
+  const pinnedSkins: string[] = cfgStringArray(configuration?.skin_slugs) ?? [];
   const toggleSkin = (slug: string) => {
     const next = pinnedSkins.includes(slug)
       ? pinnedSkins.filter((s) => s !== slug)
@@ -2963,7 +2999,7 @@ function AgentStepConfig({
 
   const insertVariableToInstruction = (fieldKey: string) => {
     const variable = `{{${fieldKey}}}`;
-    const currentValue = configuration?.step_instruction || "";
+    const currentValue = cfgText(configuration?.step_instruction) || "";
     const textarea = instructionRef.current;
     const pos = textarea?.selectionStart ?? currentValue.length;
     const newValue =
@@ -2995,14 +3031,14 @@ function AgentStepConfig({
           </div>
         ) : agents && agents.length > 0 ? (
           <Select
-            value={configuration?.agent_id || ""}
+            value={cfgText(configuration?.agent_id) || ""}
             onValueChange={(v) => onConfigChange("agent_id", v)}
           >
             <SelectTrigger className="text-right">
               <SelectValue placeholder="בחר סוכן..." />
             </SelectTrigger>
             <SelectContent>
-              {agents.map((agent: any) => (
+              {agents.map((agent) => (
                 <SelectItem key={agent.id} value={agent.id}>
                   <div className="flex items-center gap-2">
                     <Bot className="h-3.5 w-3.5 text-orange-500" />
@@ -3066,7 +3102,7 @@ function AgentStepConfig({
             סקין אחר.
           </p>
           <div className="flex flex-wrap gap-1.5 justify-end">
-            {skins.map((skin: any) => {
+            {skins.map((skin) => {
               const active = pinnedSkins.includes(skin.slug);
               return (
                 <Button
@@ -3094,7 +3130,7 @@ function AgentStepConfig({
           </Label>
           <Textarea
             ref={instructionRef}
-            value={configuration?.step_instruction || ""}
+            value={cfgText(configuration?.step_instruction) || ""}
             onChange={(e) => onConfigChange("step_instruction", e.target.value)}
             placeholder="מה הסוכן צריך לעשות? למשל: פרמט את הטלפון {{phone}} לפורמט +972..."
             className="text-right min-h-[100px]"
@@ -3200,7 +3236,7 @@ function AgentStepConfig({
           <div className="space-y-2 border-t pt-3">
             <Label className="text-right block">פורמט תשובה צפוי</Label>
             <Select
-              value={configuration?.output_format || "text"}
+              value={cfgText(configuration?.output_format) || "text"}
               onValueChange={(v) => onConfigChange("output_format", v)}
             >
               <SelectTrigger className="text-right">
@@ -3265,7 +3301,7 @@ function CreateAgentDialog({
     mutationFn: async () => {
       if (!tenantId || !name.trim()) throw new Error("שם הסוכן הוא שדה חובה");
       const { data, error } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .insert({
           tenant_id: tenantId,
           name: name.trim(),
@@ -3277,7 +3313,7 @@ function CreateAgentDialog({
         .select("id")
         .single();
       if (error) throw error;
-      return (data as any).id as string;
+      return data.id;
     },
     onSuccess: (agentId) => {
       setName("");
@@ -3394,8 +3430,8 @@ function CarmenSessionConfig({
   onConfigChange,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
 }) {
   // Fetch ALL active agents for this tenant
   const { data: allAgents } = useQuery({
@@ -3512,7 +3548,7 @@ function CarmenSessionConfig({
     const hasIntegrationId = configuration?.carmen_integration_id;
     if (!hasIntegrationId) {
       const manusConn = waConnections.find(
-        (c: any) => c.integration_type === "manus_wa",
+        (c) => c.integration_type === "manus_wa",
       );
       if (manusConn) {
         onConfigChange("carmen_integration_id", manusConn.id);
@@ -3520,20 +3556,20 @@ function CarmenSessionConfig({
     }
   }, [waConnections]);
 
-  const scopeMode = configuration?.carmen_scope_mode || "all";
+  const scopeMode = cfgText(configuration?.carmen_scope_mode) || "all";
   const selectedCarmenConnection = waConnections?.find(
     (c) => c.id === configuration?.carmen_integration_id,
   );
 
   // Helper label for connection
-  const getConnectionLabel = (c: any) => {
-    const settings = c.settings as any;
+  const getConnectionLabel = (c: NonNullable<typeof waConnections>[number]) => {
+    const settings = cfgObject(c.settings);
     const displayName =
       c.display_name ||
-      settings?.display_name ||
-      settings?.phone_number ||
-      settings?.display_phone_number ||
-      settings?.instance_id ||
+      cfgText(settings?.display_name) ||
+      cfgText(settings?.phone_number) ||
+      cfgText(settings?.display_phone_number) ||
+      cfgText(settings?.instance_id) ||
       c.instance_id;
     const providerLabel =
       c.integration_type === "manus_wa"
@@ -3565,14 +3601,14 @@ function CarmenSessionConfig({
         <Label className="text-right block font-semibold">סוכן AI</Label>
         {allAgents && allAgents.length > 0 ? (
           <Select
-            value={configuration?.agent_id || ""}
+            value={cfgText(configuration?.agent_id) || ""}
             onValueChange={(v) => onConfigChange("agent_id", v)}
           >
             <SelectTrigger className="text-right">
               <SelectValue placeholder="בחר סוכן..." />
             </SelectTrigger>
             <SelectContent>
-              {allAgents.map((agent: any) => (
+              {allAgents.map((agent) => (
                 <SelectItem key={agent.id} value={agent.id}>
                   {agent.name}
                 </SelectItem>
@@ -3594,7 +3630,7 @@ function CarmenSessionConfig({
             Array.isArray(configuration?.trigger_keywords) &&
             configuration.trigger_keywords.length
               ? configuration.trigger_keywords.join(", ")
-              : configuration?.trigger_keyword || "כרמן"
+              : cfgText(configuration?.trigger_keyword) || "כרמן"
           }
           onChange={(e) => {
             const list = e.target.value
@@ -3620,7 +3656,7 @@ function CarmenSessionConfig({
           הנחיות לשיחות של האוטומציה הזו
         </Label>
         <Textarea
-          value={configuration?.carmen_instructions || ""}
+          value={cfgText(configuration?.carmen_instructions) || ""}
           onChange={(e) =>
             onConfigChange("carmen_instructions", e.target.value.slice(0, 2000))
           }
@@ -3638,7 +3674,7 @@ function CarmenSessionConfig({
       <div className="space-y-2">
         <Label className="text-right block font-semibold">מילת סיום שיחה</Label>
         <Input
-          value={configuration?.end_keyword || "סיימנו"}
+          value={cfgText(configuration?.end_keyword) || "סיימנו"}
           onChange={(e) => onConfigChange("end_keyword", e.target.value)}
           placeholder="סיימנו"
           className="text-right"
@@ -3659,7 +3695,7 @@ function CarmenSessionConfig({
             type="number"
             min={0}
             max={1440}
-            value={configuration?.session_timeout_minutes ?? 60}
+            value={cfgText(configuration?.session_timeout_minutes) ?? 60}
             onChange={(e) =>
               onConfigChange(
                 "session_timeout_minutes",
@@ -3746,12 +3782,16 @@ function CarmenSessionConfig({
         {/* קבוצות ספציפיות (Multi-select) */}
         {scopeMode === "specific_group" &&
           (() => {
+            const allowedGroupIds =
+              cfgTextArray(configuration?.carmen_allowed_group_ids) ?? [];
+            const singleGroupId = cfgText(
+              configuration?.carmen_allowed_group_id,
+            );
             const selectedIds: string[] =
-              configuration?.carmen_allowed_group_ids &&
-              configuration.carmen_allowed_group_ids.length > 0
-                ? configuration.carmen_allowed_group_ids
-                : configuration?.carmen_allowed_group_id
-                  ? [configuration.carmen_allowed_group_id]
+              allowedGroupIds.length > 0
+                ? allowedGroupIds
+                : singleGroupId
+                  ? [singleGroupId]
                   : [];
             const toggleGroup = (gid: string) => {
               const next = selectedIds.includes(gid)
@@ -3761,7 +3801,7 @@ function CarmenSessionConfig({
             };
             const groupNameById = (gid: string) => {
               const g = (groups || []).find(
-                (g: any) => (g.group_chat_id || g.id) === gid,
+                (g) => (g.group_chat_id || g.id) === gid,
               );
               return g?.group_name || gid;
             };
@@ -3800,7 +3840,7 @@ function CarmenSessionConfig({
                         {(() => {
                           const q = groupSearch.trim().toLowerCase();
                           const filtered = (groups || []).filter(
-                            (g: any) =>
+                            (g) =>
                               !q ||
                               (g.group_name || "").toLowerCase().includes(q),
                           );
@@ -3813,7 +3853,7 @@ function CarmenSessionConfig({
                               </p>
                             );
                           }
-                          return filtered.map((g: any) => {
+                          return filtered.map((g) => {
                             const gid = g.group_chat_id || g.id;
                             const checked = selectedIds.includes(gid);
                             return (
@@ -3872,7 +3912,7 @@ function CarmenSessionConfig({
             <Label className="text-right block">מספרי טלפון מורשים</Label>
             {(() => {
               const phones: string[] =
-                configuration?.carmen_allowed_phones || [];
+                cfgTextArray(configuration?.carmen_allowed_phones) ?? [];
               const updatePhones = (next: string[]) =>
                 onConfigChange("carmen_allowed_phones", next);
               const addFromInput = () => {
@@ -3965,7 +4005,7 @@ function CarmenSessionConfig({
           </Label>
           {waConnections && waConnections.length > 0 ? (
             <Select
-              value={configuration?.carmen_integration_id || "all"}
+              value={cfgText(configuration?.carmen_integration_id) || "all"}
               onValueChange={(v) =>
                 onConfigChange("carmen_integration_id", v === "all" ? "" : v)
               }
@@ -3977,7 +4017,7 @@ function CarmenSessionConfig({
                 <SelectItem value="all">
                   כל החיבורים (Green API + מאנוס)
                 </SelectItem>
-                {waConnections.map((c: any) => (
+                {waConnections.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {getConnectionLabel(c)}
                   </SelectItem>
@@ -4038,10 +4078,10 @@ function WhatsAppTriggerConfig({
   onConfigChange,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
 }) {
-  const sourceFilter = configuration?.source_filter || "all";
+  const sourceFilter = cfgText(configuration?.source_filter) || "all";
 
   // Fetch WhatsApp groups
   const { data: groups } = useQuery({
@@ -4126,7 +4166,7 @@ function WhatsAppTriggerConfig({
         <div className="space-y-2">
           <Label className="text-right block">בחר קבוצה</Label>
           <Select
-            value={configuration?.group_id || ""}
+            value={cfgText(configuration?.group_id) || ""}
             onValueChange={(v) => onConfigChange("group_id", v)}
           >
             <SelectTrigger className="text-right">
@@ -4150,7 +4190,7 @@ function WhatsAppTriggerConfig({
           <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
             {(groups || []).map((g) => {
               const selectedIds: string[] =
-                configuration?.selected_group_ids || [];
+                cfgTextArray(configuration?.selected_group_ids) ?? [];
               const isSelected = selectedIds.includes(g.id);
               return (
                 <label
@@ -4176,9 +4216,11 @@ function WhatsAppTriggerConfig({
               </p>
             )}
           </div>
-          {(configuration?.selected_group_ids?.length || 0) > 0 && (
+          {(cfgTextArray(configuration?.selected_group_ids)?.length || 0) >
+            0 && (
             <p className="text-xs text-muted-foreground text-right">
-              {configuration.selected_group_ids.length} קבוצות נבחרו
+              {cfgTextArray(configuration.selected_group_ids)?.length} קבוצות
+              נבחרו
             </p>
           )}
         </div>
@@ -4191,7 +4233,7 @@ function WhatsAppTriggerConfig({
           <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
             {(groups || []).map((g) => {
               const excludedIds: string[] =
-                configuration?.excluded_group_ids || [];
+                cfgTextArray(configuration?.excluded_group_ids) ?? [];
               const isExcluded = excludedIds.includes(g.id);
               return (
                 <label
@@ -4217,9 +4259,11 @@ function WhatsAppTriggerConfig({
               </p>
             )}
           </div>
-          {(configuration?.excluded_group_ids?.length || 0) > 0 && (
+          {(cfgTextArray(configuration?.excluded_group_ids)?.length || 0) >
+            0 && (
             <p className="text-xs text-muted-foreground text-right">
-              {configuration.excluded_group_ids.length} קבוצות מוחרגות
+              {cfgTextArray(configuration.excluded_group_ids)?.length} קבוצות
+              מוחרגות
             </p>
           )}
         </div>
@@ -4230,7 +4274,7 @@ function WhatsAppTriggerConfig({
         <div className="space-y-2">
           <Label className="text-right block">בחר טאג</Label>
           <Select
-            value={configuration?.tag_id || ""}
+            value={cfgText(configuration?.tag_id) || ""}
             onValueChange={(v) => onConfigChange("tag_id", v)}
           >
             <SelectTrigger className="text-right">
@@ -4264,7 +4308,9 @@ function WhatsAppTriggerConfig({
           <textarea
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm text-right resize-y font-mono"
             placeholder={"972501234567\n972521234567\n972541234567"}
-            value={(configuration?.allowed_phones || []).join("\n")}
+            value={(cfgTextArray(configuration?.allowed_phones) ?? []).join(
+              "\n",
+            )}
             onChange={(e) => {
               const phones = e.target.value
                 .split("\n")
@@ -4273,10 +4319,10 @@ function WhatsAppTriggerConfig({
               onConfigChange("allowed_phones", phones);
             }}
           />
-          {(configuration?.allowed_phones || []).length > 0 && (
+          {(cfgTextArray(configuration?.allowed_phones) ?? []).length > 0 && (
             <p className="text-xs text-green-600 text-right font-medium">
-              ✓ {(configuration?.allowed_phones || []).length} מספרים מוגדרים —
-              האוטומציה תגיב רק להם
+              ✓ {(cfgTextArray(configuration?.allowed_phones) ?? []).length}{" "}
+              מספרים מוגדרים — האוטומציה תגיב רק להם
             </p>
           )}
         </div>
@@ -4286,7 +4332,7 @@ function WhatsAppTriggerConfig({
       <div className="space-y-2">
         <Label className="text-right block">מילות מפתח (אופציונלי)</Label>
         <Input
-          value={configuration?.keyword || ""}
+          value={cfgText(configuration?.keyword) || ""}
           onChange={(e) => onConfigChange("keyword", e.target.value)}
           placeholder="מילה1, מילה2, מילה3..."
           className="text-right"
@@ -4301,7 +4347,7 @@ function WhatsAppTriggerConfig({
         <div className="space-y-2">
           <Label className="text-right block">חיבור Green API</Label>
           <Select
-            value={configuration?.connection_user_id || "all"}
+            value={cfgText(configuration?.connection_user_id) || "all"}
             onValueChange={(v) =>
               onConfigChange("connection_user_id", v === "all" ? "" : v)
             }
@@ -4313,7 +4359,7 @@ function WhatsAppTriggerConfig({
               <SelectItem value="all">כל החיבורים</SelectItem>
               {greenApiIntegrations.map((int) => (
                 <SelectItem key={int.id} value={int.user_id}>
-                  {(int.settings as any)?.display_name ||
+                  {cfgText(cfgObject(int.settings)?.display_name) ||
                     `חיבור ${int.instance_id}`}
                 </SelectItem>
               ))}
@@ -4334,9 +4380,9 @@ function LeadSourceConfig({
 }: {
   tenantId: string | undefined;
   leadSource: string;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
-  onBulkConfigChange: (updates: Record<string, any>) => void;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
+  onBulkConfigChange: StepConfigBulkChange;
 }) {
   const { toast } = useToast();
   const [showFbDialog, setShowFbDialog] = useState(false);
@@ -4372,6 +4418,9 @@ function LeadSourceConfig({
 
   const pulledLead =
     pulledLeads.length > 0 ? pulledLeads[pulledLeadIndex]?.fields : null;
+  const formFieldKeys = (
+    cfgObjectArray(configuration?.facebook_form_fields) ?? []
+  ).map((field) => cfgText(field.key));
 
   const handlePullLead = async () => {
     if (
@@ -4542,83 +4591,77 @@ function LeadSourceConfig({
           <div className="text-right space-y-1">
             <p className="text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">עמוד:</span>{" "}
-              {configuration?.facebook_page_name ||
-                configuration?.facebook_page_id}
+              {cfgText(configuration?.facebook_page_name) ||
+                cfgText(configuration?.facebook_page_id)}
             </p>
             <p className="text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">טופס:</span>{" "}
-              {configuration?.facebook_form_name ||
-                configuration?.facebook_form_id}
+              {cfgText(configuration?.facebook_form_name) ||
+                cfgText(configuration?.facebook_form_id)}
             </p>
           </div>
 
-          {configuration?.facebook_form_fields &&
-            Array.isArray(configuration.facebook_form_fields) &&
-            configuration.facebook_form_fields.length > 0 && (
-              <div className="pt-2 border-t border-border/50">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-between gap-2 text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ClipboardCopy className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>שדות הטופס למיפוי</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {configuration.facebook_form_fields.length}
-                        </Badge>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-0" align="start" dir="rtl">
-                    <div className="px-3 py-2 border-b border-border bg-muted/50">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        לחץ על שדה כדי להעתיק
-                      </p>
+          {formFieldKeys.length > 0 && (
+            <div className="pt-2 border-t border-border/50">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ClipboardCopy className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>שדות הטופס למיפוי</span>
                     </div>
-                    <ScrollArea className="max-h-48">
-                      <div className="p-1">
-                        {configuration.facebook_form_fields.map(
-                          (f: FacebookFormField) => (
-                            <button
-                              key={f.key}
-                              type="button"
-                              className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs hover:bg-accent transition-colors group"
-                              onClick={() => {
-                                navigator.clipboard.writeText(
-                                  `{{fb_${f.key}}}`,
-                                );
-                                toast({
-                                  title: "הועתק!",
-                                  description: `{{fb_${f.key}}}`,
-                                });
-                              }}
-                            >
-                              <code className="font-mono text-[11px] text-foreground">{`{{fb_${f.key}}}`}</code>
-                              <Copy className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 py-0"
+                      >
+                        {formFieldKeys.length}
+                      </Badge>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-0" align="start" dir="rtl">
+                  <div className="px-3 py-2 border-b border-border bg-muted/50">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      לחץ על שדה כדי להעתיק
+                    </p>
+                  </div>
+                  <ScrollArea className="max-h-48">
+                    <div className="p-1">
+                      {formFieldKeys.map((fieldKey, index) => (
+                        <button
+                          key={fieldKey ?? index}
+                          type="button"
+                          className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs hover:bg-accent transition-colors group"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`{{fb_${fieldKey}}}`);
+                            toast({
+                              title: "הועתק!",
+                              description: `{{fb_${fieldKey}}}`,
+                            });
+                          }}
+                        >
+                          <code className="font-mono text-[11px] text-foreground">{`{{fb_${fieldKey}}}`}</code>
+                          <Copy className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
 
           {/* Delivery mode: Pull (default) vs Webhook */}
           <FacebookDeliveryModeSection
-            integrationId={configuration?.facebook_integration_id}
-            pageId={configuration?.facebook_page_id}
-            pageName={configuration?.facebook_page_name}
+            integrationId={cfgText(configuration?.facebook_integration_id)}
+            pageId={cfgText(configuration?.facebook_page_id)}
+            pageName={cfgText(configuration?.facebook_page_name)}
             tenantId={tenantId}
           />
 
@@ -4629,7 +4672,7 @@ function LeadSourceConfig({
             </Label>
             <Input
               type="date"
-              value={configuration?.sync_since_date || ""}
+              value={cfgText(configuration?.sync_since_date) || ""}
               onChange={(e) =>
                 onConfigChange("sync_since_date", e.target.value || null)
               }
@@ -4753,7 +4796,7 @@ function LeadSourceConfig({
         <div className="space-y-2">
           <Label className="block text-right">הלקוח שיקבל לידים מהטופס</Label>
           <Select
-            value={configuration?.client_id || "none"}
+            value={cfgText(configuration?.client_id) || "none"}
             onValueChange={(value) =>
               onConfigChange("client_id", value === "none" ? null : value)
             }
@@ -4826,7 +4869,7 @@ function FacebookFormSelectionDialog({
   open: boolean;
   onClose: () => void;
   tenantId: string | undefined;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   onSave: (selected: {
     integrationId: string;
     pageId: string;
@@ -4837,22 +4880,24 @@ function FacebookFormSelectionDialog({
   }) => void;
 }) {
   const [selectedIntegrationId, setSelectedIntegrationId] = useState(
-    configuration?.facebook_integration_id || "",
+    cfgText(configuration?.facebook_integration_id) || "",
   );
   const [selectedPageId, setSelectedPageId] = useState(
-    configuration?.facebook_page_id || "",
+    cfgText(configuration?.facebook_page_id) || "",
   );
   const [selectedFormId, setSelectedFormId] = useState(
-    configuration?.facebook_form_id || "",
+    cfgText(configuration?.facebook_form_id) || "",
   );
   const [pageSearchQuery, setPageSearchQuery] = useState("");
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedIntegrationId(configuration?.facebook_integration_id || "");
-      setSelectedPageId(configuration?.facebook_page_id || "");
-      setSelectedFormId(configuration?.facebook_form_id || "");
+      setSelectedIntegrationId(
+        cfgText(configuration?.facebook_integration_id) || "",
+      );
+      setSelectedPageId(cfgText(configuration?.facebook_page_id) || "");
+      setSelectedFormId(cfgText(configuration?.facebook_form_id) || "");
       setPageSearchQuery("");
     }
   }, [open, configuration]);
@@ -4988,12 +5033,10 @@ function FacebookFormSelectionDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {fbIntegrations.map((integration) => {
-                    const settings = integration.settings as Record<
-                      string,
-                      any
-                    > | null;
                     const name =
-                      settings?.connection_name || "Facebook Lead Ads";
+                      cfgText(
+                        cfgObject(integration.settings)?.connection_name,
+                      ) || "Facebook Lead Ads";
                     return (
                       <SelectItem key={integration.id} value={integration.id}>
                         {name}
@@ -5163,9 +5206,9 @@ function CreateTaskActionConfig({
   onConfigChange,
 }: {
   tenantId: string | undefined;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
-  onConfigChange: (key: string, value: any) => void;
+  onConfigChange: StepConfigChange;
 }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
@@ -5207,14 +5250,14 @@ function CreateTaskActionConfig({
     const variable = `{{${fieldKey}}}`;
     if (activeField === "title") {
       const el = titleRef.current;
-      const currentValue = configuration?.task_title_template || "";
+      const currentValue = cfgText(configuration?.task_title_template) || "";
       const pos = el?.selectionStart ?? currentValue.length;
       const newValue =
         currentValue.slice(0, pos) + variable + currentValue.slice(pos);
       onConfigChange("task_title_template", newValue);
     } else {
       const el = notesRef.current;
-      const currentValue = configuration?.task_notes_template || "";
+      const currentValue = cfgText(configuration?.task_notes_template) || "";
       const pos = el?.selectionStart ?? currentValue.length;
       const newValue =
         currentValue.slice(0, pos) + variable + currentValue.slice(pos);
@@ -5269,7 +5312,7 @@ function CreateTaskActionConfig({
         <Label className="text-right block">כותרת משימה</Label>
         <Input
           ref={titleRef}
-          value={configuration?.task_title_template || ""}
+          value={cfgText(configuration?.task_title_template) || ""}
           onChange={(e) =>
             onConfigChange("task_title_template", e.target.value)
           }
@@ -5283,7 +5326,7 @@ function CreateTaskActionConfig({
         <Label className="text-right block">הערות</Label>
         <Textarea
           ref={notesRef}
-          value={configuration?.task_notes_template || ""}
+          value={cfgText(configuration?.task_notes_template) || ""}
           onChange={(e) =>
             onConfigChange("task_notes_template", e.target.value)
           }
@@ -5296,7 +5339,7 @@ function CreateTaskActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">עדיפות (1-10)</Label>
         <Select
-          value={String(configuration?.task_priority || "")}
+          value={String(cfgText(configuration?.task_priority) || "")}
           onValueChange={(v) => onConfigChange("task_priority", Number(v))}
         >
           <SelectTrigger className="text-right">
@@ -5317,7 +5360,7 @@ function CreateTaskActionConfig({
         <Input
           type="number"
           min={0}
-          value={configuration?.task_due_days ?? ""}
+          value={cfgText(configuration?.task_due_days) ?? ""}
           onChange={(e) =>
             onConfigChange(
               "task_due_days",
@@ -5332,7 +5375,7 @@ function CreateTaskActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">סוכנות ברירת מחדל</Label>
         <Select
-          value={configuration?.default_agency_id || ""}
+          value={cfgText(configuration?.default_agency_id) || ""}
           onValueChange={(v) => onConfigChange("default_agency_id", v)}
         >
           <SelectTrigger className="text-right">
@@ -5351,7 +5394,7 @@ function CreateTaskActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">קמפיינר ברירת מחדל</Label>
         <Select
-          value={configuration?.default_campaigner_id || ""}
+          value={cfgText(configuration?.default_campaigner_id) || ""}
           onValueChange={(v) => onConfigChange("default_campaigner_id", v)}
         >
           <SelectTrigger className="text-right">

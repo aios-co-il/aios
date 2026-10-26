@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Bot, User } from "lucide-react";
+import {
+  cfgObject,
+  cfgText,
+  errorMessage,
+} from "@/lib/automationStepConfig";
+import { parseFlowStepResults } from "./automationRunResults";
 
 interface ManualTriggerDialogProps {
   open: boolean;
@@ -46,20 +52,20 @@ export function ManualTriggerDialog({
     queryKey: ["automation-flow-steps-agent", automationId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .select("*")
         .eq("automation_id", automationId);
       if (error) throw error;
-      return data as any[];
+      return data;
     },
     enabled: open && !!automationId,
   });
 
   // Find agent step and its agent_id
   const agentStep = flowSteps?.find(
-    (s: any) => s.step_type === "agent" || s.action_type === "agent",
+    (s) => s.step_type === "agent" || s.action_type === "agent",
   );
-  const agentId = agentStep?.configuration?.agent_id;
+  const agentId = cfgObject(agentStep?.configuration)?.agent_id;
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -110,22 +116,27 @@ export function ManualTriggerDialog({
       if (error) throw error;
 
       // Extract agent output from flow results
-      const result = data?.results?.[0];
-      const flowResponse = result?.response || result;
+      const results = cfgObject(data)?.results;
+      const result = Array.isArray(results) ? cfgObject(results[0]) : undefined;
+      const flowResponse = cfgObject(result?.response) || result;
+      const agentOutput = cfgText(flowResponse?.agent_output);
+      const flowSteps = Array.isArray(flowResponse?.steps)
+        ? parseFlowStepResults(flowResponse.steps)
+        : undefined;
 
-      if (flowResponse?.flow && flowResponse?.agent_output) {
+      if (flowResponse?.flow && agentOutput) {
         // Flow with agent - show agent output
         const stepsInfo =
-          flowResponse.steps
-            ?.filter((s: any) => s.action_type !== "agent")
-            ?.map((s: any) =>
+          flowSteps
+            ?.filter((s) => s.action_type !== "agent")
+            ?.map((s) =>
               s.success
                 ? `✅ ${s.action_type}`
                 : `❌ ${s.action_type}: ${s.error}`,
             )
             ?.join("\n") || "";
 
-        const agentContent = flowResponse.agent_output;
+        const agentContent = agentOutput;
         const fullContent = stepsInfo
           ? `${agentContent}\n\n---\n${stepsInfo}`
           : agentContent;
@@ -141,8 +152,8 @@ export function ManualTriggerDialog({
       } else if (flowResponse?.flow) {
         // Flow without agent
         const stepsInfo =
-          flowResponse.steps
-            ?.map((s: any) =>
+          flowSteps
+            ?.map((s) =>
               s.success
                 ? `✅ ${s.action_type}`
                 : `❌ ${s.action_type}: ${s.error}`,
@@ -163,22 +174,24 @@ export function ManualTriggerDialog({
           ...prev,
           {
             role: "agent",
-            content: flowResponse?.output || "האוטומציה הופעלה בהצלחה.",
+            content:
+              cfgText(flowResponse?.output) || "האוטומציה הופעלה בהצלחה.",
             timestamp: new Date(),
           },
         ]);
       }
-    } catch (err: any) {
+    } catch (err) {
+      const message = errorMessage(err);
       toast({
         title: "שגיאה בהפעלת הסוכן",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
       setMessages((prev) => [
         ...prev,
         {
           role: "agent",
-          content: `❌ שגיאה: ${err.message}`,
+          content: `❌ שגיאה: ${message}`,
           timestamp: new Date(),
         },
       ]);

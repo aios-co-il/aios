@@ -15,6 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
+import type { Json } from "@/integrations/supabase/types";
+import {
+  cfgText,
+  isJsonObject,
+  type StepConfig,
+} from "@/lib/automationStepConfig";
 
 export type EmailRecipient =
   | { type: "email_field"; field: string }
@@ -275,19 +281,32 @@ function ContactLookupEditor({
     queryKey: ["email-recipient-contacts", tenantId, value.entity],
     queryFn: async () => {
       if (!tenantId) return [];
-      const table = value.entity === "lead" ? "leads" : "clients";
-      const nameField = value.entity === "lead" ? "contact_name" : "name";
+      if (value.entity === "lead") {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id, email, contact_name")
+          .eq("tenant_id", tenantId)
+          .not("email", "is", null)
+          .order("contact_name")
+          .limit(500);
+        if (error) throw error;
+        return (data || []).map((r) => ({
+          id: r.id,
+          name: r.contact_name || "ללא שם",
+          email: r.email,
+        }));
+      }
       const { data, error } = await supabase
-        .from(table)
-        .select(`id, email, ${nameField}`)
+        .from("clients")
+        .select("id, email, name")
         .eq("tenant_id", tenantId)
         .not("email", "is", null)
-        .order(nameField)
+        .order("name")
         .limit(500);
       if (error) throw error;
-      return (data || []).map((r: any) => ({
+      return (data || []).map((r) => ({
         id: r.id,
-        name: r[nameField] || "ללא שם",
+        name: r.name || "ללא שם",
         email: r.email,
       }));
     },
@@ -362,17 +381,36 @@ function ContactLookupEditor({
   );
 }
 
+function isEmailRecipient(value: Json): value is EmailRecipient {
+  if (!isJsonObject(value)) return false;
+  switch (value.type) {
+    case "email_field":
+      return typeof value.field === "string";
+    case "email_manual":
+      return typeof value.email === "string";
+    case "contact_lookup":
+      return (
+        (value.entity === "lead" || value.entity === "client") &&
+        typeof value.id === "string"
+      );
+    default:
+      return false;
+  }
+}
+
 export function migrateLegacyEmailRecipients(
-  cfg: Record<string, any>,
+  cfg: StepConfig,
 ): EmailRecipient[] {
   if (Array.isArray(cfg?.email_recipients) && cfg.email_recipients.length > 0) {
-    return cfg.email_recipients as EmailRecipient[];
+    return cfg.email_recipients.filter(isEmailRecipient);
   }
-  if (cfg?.to_email) {
-    return [{ type: "email_manual", email: cfg.to_email }];
+  const toEmail = cfgText(cfg?.to_email);
+  if (toEmail) {
+    return [{ type: "email_manual", email: toEmail }];
   }
-  if (cfg?.email_field) {
-    return [{ type: "email_field", field: cfg.email_field }];
+  const emailField = cfgText(cfg?.email_field);
+  if (emailField) {
+    return [{ type: "email_field", field: emailField }];
   }
   return [{ type: "email_field", field: "email" }];
 }

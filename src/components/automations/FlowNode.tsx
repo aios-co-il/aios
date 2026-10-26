@@ -20,24 +20,20 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getNodeIconConfig, NodeIconDisplay } from "./nodeIcons";
 import { MAILING_ACTION_LABELS } from "./mailingActions";
+import {
+  cfgString,
+  cfgStringArray,
+  cfgText,
+  type StepConfig,
+} from "@/lib/automationStepConfig";
+import type { FlowStepType } from "./flowStepTypes";
 
 export interface FlowNodeData {
   id: string;
-  step_type:
-    | "trigger"
-    | "action"
-    | "condition"
-    | "switch"
-    | "delay"
-    | "agent"
-    | "whatsapp_session"
-    | "merge"
-    | "loop"
-    | "code"
-    | "error_branch";
+  step_type: FlowStepType;
   action_type?: string;
   label?: string;
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   position_x: number;
   position_y: number;
   sort_order: number;
@@ -252,7 +248,14 @@ export const FlowNodeRF = memo(function FlowNodeRF({
     : ["ברירת מחדל"];
 
   const isMerge = nodeData.step_type === "merge";
-  const mergeInputCount = nodeData.configuration?.input_count || 2;
+  const config = nodeData.configuration;
+  const mergeInputCount = Number(config?.input_count) || 2;
+  const delayValue = cfgText(config?.delay_value);
+  const loopField = cfgText(config?.loop_field);
+  const code = cfgString(config?.code);
+  const skinSlugs = cfgStringArray(config?.skin_slugs) ?? [];
+  const messagePreview =
+    config?.message_template || config?.template_name || config?.message;
 
   // Carmen image for agent nodes
   const carmenImageUrl =
@@ -409,25 +412,25 @@ export const FlowNodeRF = memo(function FlowNodeRF({
         )}
 
         {nodeData.step_type === "delay" &&
-          nodeData.configuration?.delay_value && (
+          delayValue && (
             <p className="text-xs text-muted-foreground">
-              {nodeData.configuration.delay_value}{" "}
-              {nodeData.configuration.delay_unit || "דקות"}
+              {delayValue}{" "}
+              {cfgText(config.delay_unit) || "דקות"}
             </p>
           )}
 
         {nodeData.step_type === "loop" && (
           <p className="text-xs text-muted-foreground">
-            {nodeData.configuration?.loop_field
-              ? `על: {{${nodeData.configuration.loop_field}}}`
+            {loopField
+              ? `על: {{${loopField}}}`
               : "הגדר שדה לולאה"}
           </p>
         )}
 
         {nodeData.step_type === "code" && (
           <p className="text-xs text-muted-foreground font-mono truncate">
-            {nodeData.configuration?.code
-              ? nodeData.configuration.code.substring(0, 40) + "..."
+            {code
+              ? code.substring(0, 40) + "..."
               : "// כתוב קוד JavaScript"}
           </p>
         )}
@@ -440,12 +443,9 @@ export const FlowNodeRF = memo(function FlowNodeRF({
 
         {/* Agent skin badges */}
         {(nodeData.step_type === "agent" || nodeData.action_type === "agent") &&
-          Array.isArray(nodeData.configuration?.skin_slugs) &&
-          nodeData.configuration.skin_slugs.length > 0 && (
+          skinSlugs.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-0.5">
-              {nodeData.configuration.skin_slugs
-                .slice(0, 3)
-                .map((s: string) => (
+              {skinSlugs.slice(0, 3).map((s) => (
                   <span
                     key={s}
                     className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 rounded px-1 font-medium"
@@ -461,24 +461,18 @@ export const FlowNodeRF = memo(function FlowNodeRF({
           nodeData.action_type === "send_greenapi_message" ||
           nodeData.action_type === "send_meta_whatsapp_message" ||
           nodeData.action_type === "send_manus_message") &&
-          (nodeData.configuration?.message_template ||
-            nodeData.configuration?.template_name ||
-            nodeData.configuration?.message) && (
+          messagePreview && (
             <p className="text-xs text-muted-foreground truncate">
-              {String(
-                nodeData.configuration.message_template ||
-                  nodeData.configuration.template_name ||
-                  nodeData.configuration.message,
-              ).substring(0, 50)}
+              {String(messagePreview).substring(0, 50)}
             </p>
           )}
 
         {/* Scheduled time preview */}
         {nodeData.action_type === "scheduled_daily" &&
-          nodeData.configuration?.hour !== undefined && (
+          config?.hour !== undefined && (
             <p className="text-xs text-muted-foreground">
-              {String(nodeData.configuration.hour).padStart(2, "0")}:
-              {String(nodeData.configuration.minute ?? 0).padStart(2, "0")} בכל
+              {String(config.hour).padStart(2, "0")}:
+              {String(config.minute ?? 0).padStart(2, "0")} בכל
               יום
             </p>
           )}

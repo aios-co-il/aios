@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { type StepConfig } from "@/lib/automationStepConfig";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Copy, Braces } from "lucide-react";
@@ -11,7 +12,7 @@ import {
 } from "@/lib/emailWebhookMapping";
 
 interface Props {
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
   triggerType?: string;
   automationId?: string;
