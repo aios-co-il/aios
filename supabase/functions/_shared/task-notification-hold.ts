@@ -109,10 +109,10 @@ export type ShabbatHoldResult =
 async function taskTenantIds(
   supabase: any,
   taskId: string,
-): Promise<string[] | null> {
+): Promise<{ tenantIds: string[]; agencyId: string | null } | null> {
   const { data: task, error } = await supabase
     .from("tasks")
-    .select("tenant_id, client_id")
+    .select("tenant_id, client_id, agency_id")
     .eq("id", taskId)
     .maybeSingle();
   if (error) throw error;
@@ -127,9 +127,33 @@ async function taskTenantIds(
     if (clientError) throw clientError;
     clientTenantId = client?.tenant_id || null;
   }
-  return [
-    ...new Set([clientTenantId, task.tenant_id].filter(Boolean)),
-  ] as string[];
+  return {
+    tenantIds: [
+      ...new Set([clientTenantId, task.tenant_id].filter(Boolean)),
+    ] as string[],
+    agencyId: task.agency_id || null,
+  };
+}
+
+/**
+ * A tenant that sees the task through a shared agency (agency_tenant_access,
+ * the same grant the "Shared-agency cross-tenant task view" policy uses).
+ */
+async function tenantSharesTaskAgency(
+  supabase: any,
+  tenantId: string,
+  agencyId: string | null,
+): Promise<boolean> {
+  if (!agencyId) return false;
+  const { data, error } = await supabase
+    .from("agency_tenant_access")
+    .select("id")
+    .eq("accessing_tenant_id", tenantId)
+    .eq("agency_id", agencyId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
 }
 
 /**
@@ -173,20 +197,33 @@ export async function holdTaskNotificationForShabbat(
       body: { error: decision.error, queued: false },
     };
   }
-  const tenantIds = await taskTenantIds(supabase, peer.task_id);
-  if (!tenantIds?.length) {
+  const task = await taskTenantIds(supabase, peer.task_id);
+  const tenantIds = task?.tenantIds ?? [];
+  if (!task || !tenantIds.length) {
     return {
       status: 202,
       body: { ...response, queued: false, not_queued: "task_not_found" },
     };
   }
-  if (bodyTenantId && !tenantIds.includes(bodyTenantId)) {
+  // A member of a tenant that shares the task's agency works on it like its own
+  // (weekday notifications go out with that tenant), so hold it the same way.
+  const sharedAgencyTenant =
+    !!bodyTenantId &&
+    !tenantIds.includes(bodyTenantId) &&
+    (await tenantSharesTaskAgency(supabase, bodyTenantId, task.agencyId));
+  if (
+    bodyTenantId &&
+    !tenantIds.includes(bodyTenantId) &&
+    !sharedAgencyTenant
+  ) {
     return {
       status: 403,
       body: { error: "Task does not belong to this tenant", queued: false },
     };
   }
-  const tenantId = tenantIds.find((id) => id === bodyTenantId) ?? tenantIds[0];
+  const tenantId = sharedAgencyTenant
+    ? bodyTenantId
+    : (tenantIds.find((id) => id === bodyTenantId) ?? tenantIds[0]);
 
   const { error } = await supabase.from("task_notification_holds").insert({
     ...peer,

@@ -14,7 +14,7 @@ import {
  * tasks/clients rows the tenant check reads.
  */
 function fakeHolds(
-  tables: { tasks?: any[]; clients?: any[] } = {
+  tables: { tasks?: any[]; clients?: any[]; agency_tenant_access?: any[] } = {
     tasks: [{ id: "task-1", tenant_id: "t1", client_id: null }],
   },
 ) {
@@ -24,7 +24,7 @@ function fakeHolds(
     const source =
       table === "task_notification_holds"
         ? rows
-        : (tables[table as "tasks" | "clients"] ?? []);
+        : (tables[table as "tasks" | "clients" | "agency_tenant_access"] ?? []);
     const filters: Array<(row: any) => boolean> = [];
     let patch: any = null;
     let limit = Infinity;
@@ -335,5 +335,55 @@ test("a peer notification for a task that does not exist is not queued", async (
   const result = await hold(supabase, update, SATURDAY);
   assert.equal(result?.status, 202);
   assert.equal(result?.body.queued, false);
+  assert.equal(supabase.rows.length, 0);
+});
+
+test("a tenant sharing the task's agency is held and delivered on Sunday, not dropped", async () => {
+  // Tenant t-shared sees agency ag-1's tasks through agency_tenant_access, the
+  // grant behind the shared-agency task policy; the app sends its own tenant.
+  const supabase = fakeHolds({
+    tasks: [
+      { id: "task-1", tenant_id: "t1", client_id: null, agency_id: "ag-1" },
+    ],
+    agency_tenant_access: [
+      { id: "ata-1", accessing_tenant_id: "t-shared", agency_id: "ag-1" },
+    ],
+  });
+  const held = await hold(
+    supabase,
+    { ...update, tenant_id: "t-shared" },
+    SATURDAY,
+    { authorizeTenant: authorizedFor("t-shared") },
+  );
+  assert.equal(held?.status, 202);
+  assert.equal(supabase.rows.length, 1);
+  assert.equal(supabase.rows[0].request_body.tenant_id, "t-shared");
+
+  const delivered: any[] = [];
+  await releaseHeldTaskNotifications(
+    supabase,
+    async (body) => delivered.push(body),
+    SUNDAY_0830,
+  );
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].tenant_id, "t-shared");
+});
+
+test("a tenant with access to another agency is still refused", async () => {
+  const supabase = fakeHolds({
+    tasks: [
+      { id: "task-1", tenant_id: "t1", client_id: null, agency_id: "ag-1" },
+    ],
+    agency_tenant_access: [
+      { id: "ata-1", accessing_tenant_id: "t2", agency_id: "ag-other" },
+    ],
+  });
+  const refused = await hold(
+    supabase,
+    { ...update, tenant_id: "t2" },
+    SATURDAY,
+    { authorizeTenant: authorizedFor("t2") },
+  );
+  assert.equal(refused?.status, 403);
   assert.equal(supabase.rows.length, 0);
 });
