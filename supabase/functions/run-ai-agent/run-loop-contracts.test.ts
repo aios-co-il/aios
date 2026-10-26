@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readWaNotifyTarget } from "./wa-notify.ts";
 import {
   firstChoiceMessage,
   isChatCompletionMessage,
@@ -25,7 +26,15 @@ test("request body keeps typed fields and treats wrongly typed values as absent"
     conversation_history: [{ role: "user", content: "hi" }],
     pin_skills_only: true,
     stream: "yes",
-    wa_notify: { chat_id: "972@c.us", surface: "whatsapp" },
+    wa_notify: {
+      surface: "whatsapp",
+      tenant_id: "tenant-1",
+      automation_id: null,
+      connection_user_id: "u1",
+      chat_id: "972@c.us",
+      phone_number: null,
+      is_group: false,
+    },
     carmen_automation: ["not", "an", "object"],
     context_metadata: { source: "command_center_sidebar" },
   });
@@ -43,10 +52,8 @@ test("request body keeps typed fields and treats wrongly typed values as absent"
   ]);
   assert.equal(body.pin_skills_only, true);
   assert.equal(body.stream, undefined);
-  assert.deepEqual(body.wa_notify, {
-    chat_id: "972@c.us",
-    surface: "whatsapp",
-  });
+  assert.equal(body.wa_notify?.chat_id, "972@c.us");
+  assert.equal(body.wa_notify?.is_group, false);
   assert.equal(body.carmen_automation, undefined);
   assert.deepEqual(body.context_metadata, { source: "command_center_sidebar" });
   assert.equal(body.direct_tool, undefined);
@@ -160,4 +167,22 @@ test("tool results serialize for jsonb exactly as JSON.stringify would", () => {
     c: [1, null],
   });
   assert.equal(toJson(new Date(0)), "1970-01-01T00:00:00.000Z");
+});
+
+test("readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones", () => {
+  const target = {
+    surface: "whatsapp",
+    tenant_id: "t1",
+    automation_id: null,
+    connection_user_id: "u1",
+    chat_id: "123@g.us",
+    phone_number: null,
+    is_group: true,
+  };
+  assert.deepEqual(readWaNotifyTarget(target), target);
+  assert.equal(readWaNotifyTarget(undefined), undefined);
+  assert.equal(readWaNotifyTarget(null), null);
+  assert.equal(readWaNotifyTarget({ ...target, surface: "email" }), null);
+  assert.equal(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
+  assert.equal(readWaNotifyTarget(["x"]), null);
 });
