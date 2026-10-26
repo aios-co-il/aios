@@ -1,4 +1,9 @@
-import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   collectWebhookMessages,
   dropUnresolvedTemplateLines,
@@ -145,56 +150,59 @@ Deno.test("inboundButtonPayload reads quick-reply and interactive ids", () => {
   );
 });
 
-test("collectWebhookMessages reads live, echo and history messages and skips malformed ones", () => {
-  const items = collectWebhookMessages(
-    {
-      metadata: { display_phone_number: "+972 50-000-0000" },
-      messages: [{ id: "m1", from: "972501111111" }, null, "bad"],
-      message_echoes: [{ id: "m2", to: "972502222222" }],
-      history: [
-        {
-          threads: [
-            {
-              id: "972503333333",
-              messages: [
-                { id: "m3", from: "972500000000" },
-                { id: "m4", from: "972503333333" },
-              ],
-            },
-          ],
-        },
+Deno.test(
+  "collectWebhookMessages reads live, echo and history messages and skips malformed ones",
+  () => {
+    const items = collectWebhookMessages(
+      {
+        metadata: { display_phone_number: "+972 50-000-0000" },
+        messages: [{ id: "m1", from: "972501111111" }, null, "bad"],
+        message_echoes: [{ id: "m2", to: "972502222222" }],
+        history: [
+          {
+            threads: [
+              {
+                id: "972503333333",
+                messages: [
+                  { id: "m3", from: "972500000000" },
+                  { id: "m4", from: "972503333333" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      "history",
+    );
+    assertEquals(
+      items.map((item) => [
+        item.message.id,
+        item.direction,
+        item.peerPhone,
+        item.source,
+      ]),
+      [
+        ["m1", "inbound", "972501111111", "history"],
+        ["m2", "outbound", "972502222222", "echo"],
+        ["m3", "outbound", "972503333333", "history"],
+        ["m4", "inbound", "972503333333", "history"],
       ],
-    },
-    "history",
-  );
-  assert.deepEqual(
-    items.map((item) => [
-      item.message.id,
-      item.direction,
-      item.peerPhone,
-      item.source,
-    ]),
-    [
-      ["m1", "inbound", "972501111111", "history"],
-      ["m2", "outbound", "972502222222", "echo"],
-      ["m3", "outbound", "972503333333", "history"],
-      ["m4", "inbound", "972503333333", "history"],
-    ],
-  );
-  assert.deepEqual(collectWebhookMessages(null, "messages"), []);
-});
+    );
+    assertEquals(collectWebhookMessages(null, "messages"), []);
+  },
+);
 
-test("messageText narrows nested provider fields", () => {
-  assert.equal(messageText({ type: "text", text: { body: "hi" } }), "hi");
-  assert.equal(messageText({ type: "text", text: "raw" }), "");
-  assert.equal(
+Deno.test("messageText narrows nested provider fields", () => {
+  assertStrictEquals(messageText({ type: "text", text: { body: "hi" } }), "hi");
+  assertStrictEquals(messageText({ type: "text", text: "raw" }), "");
+  assertStrictEquals(
     messageText({
       type: "interactive",
       interactive: { list_reply: { title: "L" } },
     }),
     "L",
   );
-  assert.equal(
+  assertStrictEquals(
     messageText({ type: "image", image: { caption: "cap" } }),
     "cap",
   );

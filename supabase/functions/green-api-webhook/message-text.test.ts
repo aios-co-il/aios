@@ -1,48 +1,47 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { extractMessageText } from "./message-text.ts";
 
-test("text messages read the nested or flat text", () => {
-  assert.equal(
+Deno.test("text messages read the nested or flat text", () => {
+  assertStrictEquals(
     extractMessageText(
       { textMessageData: { textMessage: "hi" } },
       "textMessage",
     ),
     "hi",
   );
-  assert.equal(
+  assertStrictEquals(
     extractMessageText({ textMessage: "flat" }, "textMessage"),
     "flat",
   );
-  assert.equal(
+  assertStrictEquals(
     extractMessageText(
       { extendedTextMessage: { text: "link" } },
       "extendedTextMessage",
     ),
     "link",
   );
-  assert.equal(extractMessageText(null, "textMessage"), "");
+  assertStrictEquals(extractMessageText(null, "textMessage"), "");
 });
 
-test("media messages use the caption or a placeholder", () => {
-  assert.equal(
+Deno.test("media messages use the caption or a placeholder", () => {
+  assertStrictEquals(
     extractMessageText({ fileMessageData: { caption: "cap" } }, "imageMessage"),
     "cap",
   );
-  assert.equal(extractMessageText({}, "imageMessage"), "[תמונה]");
-  assert.equal(extractMessageText({ caption: "v" }, "videoMessage"), "v");
-  assert.equal(
+  assertStrictEquals(extractMessageText({}, "imageMessage"), "[תמונה]");
+  assertStrictEquals(extractMessageText({ caption: "v" }, "videoMessage"), "v");
+  assertStrictEquals(
     extractMessageText(
       { fileMessageData: { fileName: "a.pdf" } },
       "documentMessage",
     ),
     "[מסמך: a.pdf]",
   );
-  assert.equal(extractMessageText({}, "documentMessage"), "[מסמך: קובץ]");
+  assertStrictEquals(extractMessageText({}, "documentMessage"), "[מסמך: קובץ]");
 });
 
-test("contact messages include the vCard phone", () => {
-  assert.equal(
+Deno.test("contact messages include the vCard phone", () => {
+  assertStrictEquals(
     extractMessageText(
       {
         contactMessageData: {
@@ -54,8 +53,8 @@ test("contact messages include the vCard phone", () => {
     ),
     "[איש קשר: Dana - +972501234567]",
   );
-  assert.equal(extractMessageText({}, "contactMessage"), "[איש קשר]");
-  assert.equal(
+  assertStrictEquals(extractMessageText({}, "contactMessage"), "[איש קשר]");
+  assertStrictEquals(
     extractMessageText(
       { contactsArrayMessageData: { contacts: [{ displayName: "A" }, {}] } },
       "contactsArrayMessage",
@@ -64,24 +63,24 @@ test("contact messages include the vCard phone", () => {
   );
 });
 
-test("other types fall back to labelled placeholders", () => {
-  assert.equal(
+Deno.test("other types fall back to labelled placeholders", () => {
+  assertStrictEquals(
     extractMessageText(
       { locationMessageData: { nameLocation: "TLV" } },
       "locationMessage",
     ),
     "[מיקום: TLV]",
   );
-  assert.equal(
+  assertStrictEquals(
     extractMessageText({ listMessage: { title: "T" } }, "listMessage"),
     "T",
   );
-  assert.equal(
+  assertStrictEquals(
     extractMessageText(
       { reactionMessage: { reaction: "❤" } },
       "reactionMessage",
     ),
     "[תגובה: ❤]",
   );
-  assert.equal(extractMessageText({}, "pollMessage"), "[pollMessage]");
+  assertStrictEquals(extractMessageText({}, "pollMessage"), "[pollMessage]");
 });

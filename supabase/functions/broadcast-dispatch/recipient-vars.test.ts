@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertNotStrictEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { providerMessageId, recipientVars } from "./recipient-vars.ts";
 
 const row = {
@@ -10,35 +9,35 @@ const row = {
   vars: null,
 };
 
-test("recipientVars falls back to the recipient columns", () => {
+Deno.test("recipientVars falls back to the recipient columns", () => {
   const vars = recipientVars(row);
-  assert.equal(vars.contact_name, "Dana Levi");
-  assert.equal(vars.email, "dana@example.com");
-  assert.equal(vars.phone, "0501234567");
+  assertStrictEquals(vars.contact_name, "Dana Levi");
+  assertStrictEquals(vars.email, "dana@example.com");
+  assertStrictEquals(vars.phone, "0501234567");
 });
 
-test("recipientVars hides the phone of WhatsApp groups", () => {
-  assert.notEqual(
+Deno.test("recipientVars hides the phone of WhatsApp groups", () => {
+  assertNotStrictEquals(
     recipientVars({ ...row, entity_type: "wa_group" }).phone,
     "0501234567",
   );
 });
 
-test("recipientVars lets stored vars win and stringifies them", () => {
+Deno.test("recipientVars lets stored vars win and stringifies them", () => {
   const vars = recipientVars({
     ...row,
     vars: { contact_name: "Dana", visits: 3, missing: null, ok: true },
   });
-  assert.equal(vars.contact_name, "Dana");
-  assert.equal(vars.visits, "3");
-  assert.equal(vars.missing, "");
-  assert.equal(vars.ok, "true");
+  assertStrictEquals(vars.contact_name, "Dana");
+  assertStrictEquals(vars.visits, "3");
+  assertStrictEquals(vars.missing, "");
+  assertStrictEquals(vars.ok, "true");
 });
 
-test("providerMessageId reads a non-empty id as text", () => {
-  assert.equal(providerMessageId({ id: "m1" }, "id"), "m1");
-  assert.equal(providerMessageId({ idMessage: 42 }, "idMessage"), "42");
-  assert.equal(providerMessageId({ id: "" }, "id"), undefined);
-  assert.equal(providerMessageId(null, "id"), undefined);
-  assert.equal(providerMessageId(["m1"], "0"), undefined);
+Deno.test("providerMessageId reads a non-empty id as text", () => {
+  assertStrictEquals(providerMessageId({ id: "m1" }, "id"), "m1");
+  assertStrictEquals(providerMessageId({ idMessage: 42 }, "idMessage"), "42");
+  assertStrictEquals(providerMessageId({ id: "" }, "id"), undefined);
+  assertStrictEquals(providerMessageId(null, "id"), undefined);
+  assertStrictEquals(providerMessageId(["m1"], "0"), undefined);
 });

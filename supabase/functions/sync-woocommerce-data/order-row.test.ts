@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { mapOrderRow } from "./order-row.ts";
 
 const order = {
@@ -22,29 +21,29 @@ const order = {
   ],
 };
 
-test("mapOrderRow maps the order columns", () => {
+Deno.test("mapOrderRow maps the order columns", () => {
   const row = mapOrderRow("t1", "s1", order);
-  assert.equal(row.tenant_id, "t1");
-  assert.equal(row.site_id, "s1");
-  assert.equal(row.woo_order_id, 501);
-  assert.equal(row.order_number, "1001");
-  assert.equal(row.total, 120.5);
-  assert.equal(row.total_tax, 20.5);
-  assert.equal(row.discount_total, 0);
-  assert.equal(row.customer_id, null);
-  assert.equal(row.customer_email, "a@b.co");
-  assert.equal(row.customer_last_name, null);
-  assert.deepEqual(row.shipping, {});
-  assert.deepEqual(row.line_items, [{ id: 1 }]);
-  assert.equal(row.date_paid, null);
-  assert.equal(row.attribution?.utm_source, "facebook");
+  assertStrictEquals(row.tenant_id, "t1");
+  assertStrictEquals(row.site_id, "s1");
+  assertStrictEquals(row.woo_order_id, 501);
+  assertStrictEquals(row.order_number, "1001");
+  assertStrictEquals(row.total, 120.5);
+  assertStrictEquals(row.total_tax, 20.5);
+  assertStrictEquals(row.discount_total, 0);
+  assertStrictEquals(row.customer_id, null);
+  assertStrictEquals(row.customer_email, "a@b.co");
+  assertStrictEquals(row.customer_last_name, null);
+  assertEquals(row.shipping, {});
+  assertEquals(row.line_items, [{ id: 1 }]);
+  assertStrictEquals(row.date_paid, null);
+  assertStrictEquals(row.attribution?.utm_source, "facebook");
 });
 
-test("mapOrderRow falls back to the id and empty values", () => {
+Deno.test("mapOrderRow falls back to the id and empty values", () => {
   const row = mapOrderRow("t1", "s1", { id: 9 });
-  assert.equal(row.order_number, "9");
-  assert.equal(row.total, 0);
-  assert.deepEqual(row.billing, {});
-  assert.deepEqual(row.line_items, []);
-  assert.equal(row.attribution, null);
+  assertStrictEquals(row.order_number, "9");
+  assertStrictEquals(row.total, 0);
+  assertEquals(row.billing, {});
+  assertEquals(row.line_items, []);
+  assertStrictEquals(row.attribution, null);
 });

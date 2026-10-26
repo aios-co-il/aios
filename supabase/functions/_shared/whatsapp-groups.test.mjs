@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { createClient } from "@supabase/supabase-js";
 import {
   propagateWhatsappGroupInviteLink,
@@ -29,36 +28,42 @@ function recordingClient(selectRows = []) {
   return { client, requests };
 }
 
-test("propagate sends the same eq/neq filters as before", async () => {
+Deno.test("propagate sends the same eq/neq filters as before", async () => {
   const { client, requests } = recordingClient();
   await propagateWhatsappGroupInviteLink(client, GROUP, ` ${LINK} `);
-  assert.equal(requests.length, 1);
+  assertStrictEquals(requests.length, 1);
   const [patch] = requests;
-  assert.equal(patch.method, "PATCH");
-  assert.equal(patch.path, "/rest/v1/whatsapp_groups");
-  assert.equal(patch.params.get("group_chat_id"), `eq.${GROUP}`);
-  assert.equal(patch.params.get("invite_link"), `neq.${LINK}`);
+  assertStrictEquals(patch.method, "PATCH");
+  assertStrictEquals(patch.path, "/rest/v1/whatsapp_groups");
+  assertStrictEquals(patch.params.get("group_chat_id"), `eq.${GROUP}`);
+  assertStrictEquals(patch.params.get("invite_link"), `neq.${LINK}`);
 });
 
-test("propagate skips empty links", async () => {
+Deno.test("propagate skips empty links", async () => {
   const { client, requests } = recordingClient();
   await propagateWhatsappGroupInviteLink(client, GROUP, "  ");
-  assert.equal(requests.length, 0);
+  assertStrictEquals(requests.length, 0);
 });
 
-test("resolve copies a sibling link and propagates it", async () => {
+Deno.test("resolve copies a sibling link and propagates it", async () => {
   const { client, requests } = recordingClient([{ invite_link: ` ${LINK} ` }]);
-  assert.equal(await resolveWhatsappGroupInviteLink(client, GROUP, null), LINK);
+  assertStrictEquals(
+    await resolveWhatsappGroupInviteLink(client, GROUP, null),
+    LINK,
+  );
   const [select, patch] = requests;
-  assert.equal(select.method, "GET");
-  assert.equal(select.params.get("group_chat_id"), `eq.${GROUP}`);
-  assert.equal(select.params.get("invite_link"), "not.is.null");
-  assert.equal(select.params.get("limit"), "1");
-  assert.equal(patch.params.get("invite_link"), `neq.${LINK}`);
+  assertStrictEquals(select.method, "GET");
+  assertStrictEquals(select.params.get("group_chat_id"), `eq.${GROUP}`);
+  assertStrictEquals(select.params.get("invite_link"), "not.is.null");
+  assertStrictEquals(select.params.get("limit"), "1");
+  assertStrictEquals(patch.params.get("invite_link"), `neq.${LINK}`);
 });
 
-test("resolve prefers the cached link", async () => {
+Deno.test("resolve prefers the cached link", async () => {
   const { client, requests } = recordingClient();
-  assert.equal(await resolveWhatsappGroupInviteLink(client, GROUP, LINK), LINK);
-  assert.equal(requests.length, 0);
+  assertStrictEquals(
+    await resolveWhatsappGroupInviteLink(client, GROUP, LINK),
+    LINK,
+  );
+  assertStrictEquals(requests.length, 0);
 });

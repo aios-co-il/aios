@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { isSyncJobStatus, parseSyncProgress } from "./manyChatSyncProgress.ts";
 
 test("parseSyncProgress keeps well-formed progress", () => {
@@ -11,9 +10,9 @@ test("parseSyncProgress keeps well-formed progress", () => {
     total: 6,
     results: [{ leadId: "l1", success: true, leadName: "Dana" }],
   });
-  assert.equal(progress.processed, 3);
-  assert.equal(progress.total, 6);
-  assert.deepEqual(progress.results, [
+  expect(progress.processed).toBe(3);
+  expect(progress.total).toBe(6);
+  expect(progress.results).toStrictEqual([
     {
       leadId: "l1",
       success: true,
@@ -34,16 +33,15 @@ test("parseSyncProgress defaults null and malformed input", () => {
     total: 0,
     results: [],
   };
-  assert.deepEqual(parseSyncProgress(null), empty);
-  assert.deepEqual(parseSyncProgress("x"), empty);
-  assert.deepEqual(
+  expect(parseSyncProgress(null)).toStrictEqual(empty);
+  expect(parseSyncProgress("x")).toStrictEqual(empty);
+  expect(
     parseSyncProgress({ processed: "5", results: [{ leadId: 1 }, null] }),
-    empty,
-  );
+  ).toStrictEqual(empty);
 });
 
 test("isSyncJobStatus accepts only known statuses", () => {
-  assert.equal(isSyncJobStatus("running"), true);
-  assert.equal(isSyncJobStatus("done"), false);
-  assert.equal(isSyncJobStatus(undefined), false);
+  expect(isSyncJobStatus("running")).toBe(true);
+  expect(isSyncJobStatus("done")).toBe(false);
+  expect(isSyncJobStatus(undefined)).toBe(false);
 });
