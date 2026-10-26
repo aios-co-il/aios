@@ -9,6 +9,8 @@ interface CarmenSessionVideoCardProps {
   videoCard: ReturnType<typeof useDraggableCard>;
   faceState: CarmenFaceState;
   onClose?: () => void;
+  /** Hide the "open full page" button when Carmen is already full page. */
+  showExpand?: boolean;
 }
 
 /** Draggable Carmen portrait card shown during a work session. */
@@ -16,6 +18,7 @@ export function CarmenSessionVideoCard({
   videoCard,
   faceState,
   onClose,
+  showExpand = true,
 }: CarmenSessionVideoCardProps) {
   const navigate = useNavigate();
   const { buildPath, isReady } = useTenantPath();
@@ -29,19 +32,21 @@ export function CarmenSessionVideoCard({
       style={videoCard.style}
       {...videoCard.handlers}
     >
-      <button
-        type="button"
-        title="פתח במסך מלא — הגדרות וכלים"
-        aria-label={`פתח את ${identity.name} במסך מלא — הגדרות וכלים`}
-        disabled={!isReady}
-        onClick={() => {
-          navigate(buildPath("command-center"));
-          onClose?.();
-        }}
-        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-slate-950/60 text-white backdrop-blur-sm transition-colors hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 disabled:opacity-40"
-      >
-        <Maximize2 className="h-4 w-4" />
-      </button>
+      {showExpand && (
+        <button
+          type="button"
+          title="פתח במסך מלא — הגדרות וכלים"
+          aria-label={`פתח את ${identity.name} במסך מלא — הגדרות וכלים`}
+          disabled={!isReady}
+          onClick={() => {
+            navigate(buildPath("command-center"));
+            onClose?.();
+          }}
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-slate-950/60 text-white backdrop-blur-sm transition-colors hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 disabled:opacity-40"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
       <img
         key={identity.image}
         src={identity.image}

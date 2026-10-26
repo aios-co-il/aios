@@ -6,7 +6,7 @@
 //
 // Run: deno test supabase/functions/manus-wa-webhook/index.test.ts
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "jsr:@std/assert@1";
 
 // ===== Guard logic mirrored from index.ts =====
 // These functions replicate the exact conditions added in the fixes so tests

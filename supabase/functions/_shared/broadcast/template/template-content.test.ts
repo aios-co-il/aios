@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals } from "jsr:@std/assert@1";
 import { templateContent } from "./template-content.ts";
 
 const baseTemplate = {
@@ -11,8 +10,8 @@ const baseTemplate = {
   media_url: "https://x/m.png",
 };
 
-test("templateContent keeps the email fields of an email template", () => {
-  assert.deepEqual(templateContent({ ...baseTemplate, channel: "email" }), {
+Deno.test("templateContent keeps the email fields of an email template", () => {
+  assertEquals(templateContent({ ...baseTemplate, channel: "email" }), {
     channel: "email",
     subject: "S",
     bodyText: "T",
@@ -22,8 +21,8 @@ test("templateContent keeps the email fields of an email template", () => {
   });
 });
 
-test("templateContent keeps text and media for WhatsApp", () => {
-  assert.deepEqual(templateContent({ ...baseTemplate, channel: "whatsapp" }), {
+Deno.test("templateContent keeps text and media for WhatsApp", () => {
+  assertEquals(templateContent({ ...baseTemplate, channel: "whatsapp" }), {
     channel: "whatsapp",
     bodyText: "T",
     mediaUrl: "https://x/m.png",

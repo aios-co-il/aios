@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 import {
   aggregatePulseMetricsFromRecords,
@@ -23,41 +22,38 @@ import {
 } from "./pulseDashboard.ts";
 
 test("maps pulse statuses to traffic lights", () => {
-  assert.equal(pulseStatusToOverall("healthy"), "green");
-  assert.equal(pulseStatusToOverall("warning"), "yellow");
-  assert.equal(pulseStatusToOverall("no_data"), "yellow");
-  assert.equal(pulseStatusToOverall("critical"), "red");
+  expect(pulseStatusToOverall("healthy")).toBe("green");
+  expect(pulseStatusToOverall("warning")).toBe("yellow");
+  expect(pulseStatusToOverall("no_data")).toBe("yellow");
+  expect(pulseStatusToOverall("critical")).toBe("red");
 });
 
 test("detects campaign services", () => {
-  assert.equal(clientHasCampaignService(["seo"]), false);
-  assert.equal(clientHasCampaignService(["ppc_meta", "seo"]), true);
-  assert.equal(clientHasCampaignService(["ppc_google"]), true);
+  expect(clientHasCampaignService(["seo"])).toBe(false);
+  expect(clientHasCampaignService(["ppc_meta", "seo"])).toBe(true);
+  expect(clientHasCampaignService(["ppc_google"])).toBe(true);
 });
 
 test("formats change and share URLs", () => {
-  assert.equal(formatPulseChange(12.5), "+12.5%");
-  assert.equal(formatPulseChange(-3), "-3%");
-  assert.equal(
-    buildPulseDashboardUrl("https://aios.co.il", "marketingcaptain"),
+  expect(formatPulseChange(12.5)).toBe("+12.5%");
+  expect(formatPulseChange(-3)).toBe("-3%");
+  expect(buildPulseDashboardUrl("https://aios.co.il", "marketingcaptain")).toBe(
     "https://aios.co.il/t/marketingcaptain/dmm-dashboard",
   );
-  assert.equal(
+  expect(
     buildPulseDashboardUrl("https://aios.co.il/", "marketingcaptain", "abc"),
-    "https://aios.co.il/t/marketingcaptain/dmm-dashboard?agency=abc",
-  );
+  ).toBe("https://aios.co.il/t/marketingcaptain/dmm-dashboard?agency=abc");
 });
 
 test("filters call-freshness flags from pulse notes column", () => {
-  assert.deepEqual(
+  expect(
     filterPulseCallFlags([
       "CPL עלה ב-30%",
       "לא תועדה שיחה טלפונית עם הלקוח",
       "קמפיין נעצר",
       "לא תועדה שיחה טלפונית עם הלקוח ב-14 הימים האחרונים",
     ]),
-    ["CPL עלה ב-30%", "קמפיין נעצר"],
-  );
+  ).toStrictEqual(["CPL עלה ב-30%", "קמפיין נעצר"]);
 });
 
 test("recalculates pulse status after a fresh client call is logged", () => {
@@ -90,10 +86,10 @@ test("recalculates pulse status after a fresh client call is logged", () => {
   };
 
   const next = applyClientCallToPulseSnapshot(base, now, "דוד");
-  assert.equal(next.status, "healthy");
-  assert.equal(next.lead_goal_status, "healthy");
-  assert.deepEqual(next.flags, []);
-  assert.equal(next.last_client_call_by, "דוד");
+  expect(next.status).toBe("healthy");
+  expect(next.lead_goal_status).toBe("healthy");
+  expect(next.flags).toStrictEqual([]);
+  expect(next.last_client_call_by).toBe("דוד");
 });
 
 test("keeps warning status when other flags remain after call is logged", () => {
@@ -126,8 +122,8 @@ test("keeps warning status when other flags remain after call is logged", () => 
   };
 
   const next = applyClientCallToPulseSnapshot(base, now, "דוד");
-  assert.equal(next.status, "warning");
-  assert.deepEqual(next.flags, ["CPL עלה ב-30%"]);
+  expect(next.status).toBe("warning");
+  expect(next.flags).toStrictEqual(["CPL עלה ב-30%"]);
 });
 
 test("last_week bounds are previous Sun–Sat (Jerusalem calendar)", () => {
@@ -136,12 +132,12 @@ test("last_week bounds are previous Sun–Sat (Jerusalem calendar)", () => {
     "last_week",
     new Date("2026-08-05T12:00:00+03:00"),
   );
-  assert.equal(bounds.startDate, "2026-07-26");
-  assert.equal(bounds.endDate, "2026-08-01");
-  assert.equal(bounds.prevStartDate, "2026-07-19");
-  assert.equal(bounds.prevEndDate, "2026-07-25");
-  assert.equal(bounds.label, "שבוע שעבר");
-  assert.equal(pulseSpendColumnLabel("last_week"), "הוצאה שבוע שעבר");
+  expect(bounds.startDate).toBe("2026-07-26");
+  expect(bounds.endDate).toBe("2026-08-01");
+  expect(bounds.prevStartDate).toBe("2026-07-19");
+  expect(bounds.prevEndDate).toBe("2026-07-25");
+  expect(bounds.label).toBe("שבוע שעבר");
+  expect(pulseSpendColumnLabel("last_week")).toBe("הוצאה שבוע שעבר");
 });
 
 test("this_week bounds start on Sunday through today", () => {
@@ -149,8 +145,8 @@ test("this_week bounds start on Sunday through today", () => {
     "this_week",
     new Date("2026-08-05T12:00:00+03:00"),
   );
-  assert.equal(bounds.startDate, "2026-08-02");
-  assert.equal(bounds.endDate, "2026-08-05");
+  expect(bounds.startDate).toBe("2026-08-02");
+  expect(bounds.endDate).toBe("2026-08-05");
 });
 
 test("aggregates period metrics and CPL change vs prior window", () => {
@@ -164,12 +160,12 @@ test("aggregates period metrics and CPL change vs prior window", () => {
     { data: { date: "2026-07-20", spend: 100, leads: 2 } }, // prior week CPL 50
   ];
   const metrics = aggregatePulseMetricsFromRecords(records, bounds, false);
-  assert.equal(metrics.spend_7d, 300);
-  assert.equal(metrics.leads_7d, 5);
-  assert.equal(metrics.cpl_7d, 60);
+  expect(metrics.spend_7d).toBe(300);
+  expect(metrics.leads_7d).toBe(5);
+  expect(metrics.cpl_7d).toBe(60);
   // current CPL 60 vs prior 50 → +20%
-  assert.equal(metrics.cpl_change_pct, 20);
-  assert.equal(metrics.data_fresh_through, "2026-07-30");
+  expect(metrics.cpl_change_pct).toBe(20);
+  expect(metrics.data_fresh_through).toBe("2026-07-30");
 });
 
 test("applyPeriodMetricsToSnapshot keeps meta fields", () => {
@@ -205,9 +201,9 @@ test("applyPeriodMetricsToSnapshot keeps meta fields", () => {
     data_fresh_through: "2026-08-01",
     record_count: 2,
   });
-  assert.equal(next.spend_7d, 99);
-  assert.equal(next.last_meta_change_actor, "David");
-  assert.equal(next.status, "healthy");
+  expect(next.spend_7d).toBe(99);
+  expect(next.last_meta_change_actor).toBe("David");
+  expect(next.status).toBe("healthy");
 });
 
 test("expands pulse rows per platform when Meta and Google tables exist", () => {
@@ -271,13 +267,12 @@ test("expands pulse rows per platform when Meta and Google tables exist", () => 
     records,
     bounds,
   });
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((row) => row.platformLabel).sort(), [
+  expect(rows.length).toBe(2);
+  expect(rows.map((row) => row.platformLabel).sort()).toStrictEqual([
     "Google",
     "Meta",
   ]);
-  assert.equal(
-    platformGoalLabel(rows[0]),
+  expect(platformGoalLabel(rows[0])).toBe(
     rows[0].platformLabel +
       " · " +
       (rows[0].goal === "ecommerce" ? "איקומרס" : "לידים"),
@@ -298,11 +293,10 @@ test("prefers stored snapshot breakdown and only rebuilds clients without it", (
     { id: "t1", client_id: "c1", integration_type: "facebook_insights" },
     { id: "t2", client_id: "c2", integration_type: "google_ads" },
   ];
-  assert.deepEqual(
-    collectCampaignBreakdownFromSnapshots(snapshots),
+  expect(collectCampaignBreakdownFromSnapshots(snapshots)).toStrictEqual(
     snapshots[0].campaign_breakdown,
   );
-  assert.deepEqual(pulseClientsNeedingRecordBuild({ snapshots, tables }), [
+  expect(pulseClientsNeedingRecordBuild({ snapshots, tables })).toStrictEqual([
     "c2",
   ]);
   const paused = rehydrateCampaignBreakdownRows(
@@ -332,9 +326,9 @@ test("prefers stored snapshot breakdown and only rebuilds clients without it", (
       },
     ],
   );
-  assert.equal(paused[0].delivery_status, "paused");
-  assert.equal(paused[0].status, "healthy");
-  assert.deepEqual(pulseFallbackTableIds(tables, ["c2"]), ["t2"]);
+  expect(paused[0].delivery_status).toBe("paused");
+  expect(paused[0].status).toBe("healthy");
+  expect(pulseFallbackTableIds(tables, ["c2"])).toStrictEqual(["t2"]);
 });
 
 test("rolls per-campaign rows into one client card per platform and goal", () => {
@@ -425,20 +419,19 @@ test("rolls per-campaign rows into one client card per platform and goal", () =>
     campaignRows,
     snapshotsByClient: snapshots,
   });
-  assert.equal(rollups.length, 2);
+  expect(rollups.length).toBe(2);
   const metaLeads = rollups.find(
     (row) => row.platform === "meta" && row.goal === "leads",
   );
-  assert.equal(metaLeads.campaigns.length, 2);
-  assert.equal(metaLeads.status, "critical");
-  assert.equal(metaLeads.spend_7d, 150);
-  assert.equal(metaLeads.last_campaign_change_at, "2026-09-13T10:00:00.000Z");
-  assert.equal(metaLeads.last_client_call_at, "2026-09-15T12:00:00.000Z");
+  expect(metaLeads.campaigns.length).toBe(2);
+  expect(metaLeads.status).toBe("critical");
+  expect(metaLeads.spend_7d).toBe(150);
+  expect(metaLeads.last_campaign_change_at).toBe("2026-09-13T10:00:00.000Z");
+  expect(metaLeads.last_client_call_at).toBe("2026-09-15T12:00:00.000Z");
   const googleEngagement = rollups.find(
     (row) => row.platform === "google" && row.goal === "engagement",
   );
-  assert.equal(
-    googleEngagement.last_campaign_change_at,
+  expect(googleEngagement.last_campaign_change_at).toBe(
     "2026-09-11T07:00:00.000Z",
   );
 });
@@ -481,12 +474,11 @@ test("rollup: paused-unknown critical does not flash red before Meta hints land"
     },
   ];
 
-  assert.equal(
+  expect(
     rollupStatusFromCampaigns(beforeHints, { deliveryHintsPending: true })
       .status,
-    "warning",
-  );
-  assert.equal(rollupStatusFromCampaigns(beforeHints).status, "warning");
+  ).toBe("warning");
+  expect(rollupStatusFromCampaigns(beforeHints).status).toBe("warning");
 
   const afterHints = [
     { ...beforeHints[0], delivery_status: "active" },
@@ -498,5 +490,5 @@ test("rollup: paused-unknown critical does not flash red before Meta hints land"
       status_reason: "קמפיין מושהה — אין הוצאה פעילה שדורשת טיפול",
     },
   ];
-  assert.equal(rollupStatusFromCampaigns(afterHints).status, "healthy");
+  expect(rollupStatusFromCampaigns(afterHints).status).toBe("healthy");
 });
