@@ -41,6 +41,7 @@ import { getSessionSkin } from "@/lib/carmenSessionSkin";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
+import { replyShownThisTurn } from "./chatDedupe";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { scrollToAnswerStart } from "./chatScroll";
 import { ChatTopicRail } from "./ChatTopicRail";
@@ -438,7 +439,11 @@ export const CarmenChatBar = forwardRef<
       history: Array<{ role: string; content: string }>,
       boundConvId: string,
       ctxMeta: SystemFixContextMetadata | null,
+      // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
+      runBrain?: string,
     ) => {
+      // The reply belongs to the brain that started it, even if the picker changes.
+      const persistSlug = runBrain ?? brain.selected?.slug;
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -462,6 +467,7 @@ export const CarmenChatBar = forwardRef<
             system_prompt_addon: promptAddon || undefined,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            brain_slug: runBrain || undefined,
           }),
         },
       );
@@ -538,6 +544,9 @@ export const CarmenChatBar = forwardRef<
               }
             } else if (parsed.type === "done") {
               gotDone = true;
+              // A brain that failed before writing anything explains why here.
+              if (!answer && typeof parsed.error === "string" && parsed.error)
+                answer = `⚠️ ${parsed.error}`;
             }
           } catch {
             /* partial line */
@@ -557,14 +566,19 @@ export const CarmenChatBar = forwardRef<
               role: "assistant",
               content: finalText,
               speaker: "carmen",
-              channel: "internal",
+              channel: runBrain || "internal",
               ...tagChatTurn("typed"),
             },
           ]);
           setStreamingText("");
         }
         if (boundId) {
-          brain.persistAssistant(boundId, finalText, crypto.randomUUID());
+          brain.persistAssistant(
+            boundId,
+            finalText,
+            crypto.randomUUID(),
+            persistSlug,
+          );
           delete streamBufRef.current[boundId];
         }
       } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
@@ -664,23 +678,37 @@ export const CarmenChatBar = forwardRef<
             prev.includes(boundId!) ? prev : [...prev, boundId!],
           );
         if (routed.stream) {
-          await streamInternal(agentText, history, boundId || "", ctxMeta);
+          await streamInternal(
+            agentText,
+            history,
+            boundId || "",
+            ctxMeta,
+            routed.run_brain,
+          );
           if (mode === "transcribe_only")
             logTranscribeOnlyEvent("text_response", { stream: true });
         } else if (
           routed.inline_reply &&
           streamAppliesToActive(boundId, conversationIdRef.current)
         ) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: routed.inline_reply,
-              speaker: routed.kind,
-              channel: routed.kind,
-              ...tagChatTurn("typed"),
-            },
-          ]);
+          // The stored reply can arrive over realtime before this response.
+          const reply = routed.inline_reply;
+          setMessages((prev) =>
+            replyShownThisTurn(prev, reply)
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: reply,
+                    speaker: routed.speaker ?? routed.kind,
+                    // The route's thread: "נתב חכם" replies keep its slug, spoken by
+                    // whichever model it picked.
+                    channel: route?.slug ?? routed.kind,
+                    ...tagChatTurn("typed"),
+                  },
+                ],
+          );
           revealAnswer();
         } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
           setMessages((prev) => [
@@ -805,6 +833,7 @@ export const CarmenChatBar = forwardRef<
           tool: `מוח: ${brain.selected.label} · ${question.slice(0, 60)}`,
         },
       ]);
+      let runBrain: string | undefined;
       try {
         const history = filterMessagesForRoute(messages, brain.selected)
           .filter((m) => m.role === "user" || m.role === "assistant")
@@ -823,6 +852,7 @@ export const CarmenChatBar = forwardRef<
             routed.accepted_message || "נשלח לערוץ. התשובה תופיע בשיחה כשתחזור."
           );
         }
+        runBrain = routed.run_brain;
       } catch (e: any) {
         if (brain.sendPath !== "internal_stream") {
           return `לא הצלחתי לשלוח לערוץ: ${e?.message ?? e}`;
@@ -855,6 +885,7 @@ export const CarmenChatBar = forwardRef<
                 .map((m) => ({ role: m.role, content: m.content ?? "" }))
                 .slice(-24),
               active_skin: getSessionSkin(tenantId) ?? undefined,
+              brain_slug: runBrain,
             }),
             signal: controller.signal,
           },
@@ -1265,9 +1296,7 @@ export const CarmenChatBar = forwardRef<
             if (row.id && prev.some((m) => m.id === row.id)) return prev;
             if (
               row.role === "assistant" &&
-              prev.some(
-                (m) => m.role === "assistant" && m.content === row.content,
-              )
+              replyShownThisTurn(prev, row.content)
             )
               return prev;
             return [

@@ -70,11 +70,12 @@ export async function ensureDefaultRoutes(
   tenantId: string,
   agentId: string | null,
 ): Promise<BrainRouteRow[]> {
+  // Seed only slugs the tenant never had: a route hidden from the picker
+  // (active = false, Carmen settings → מוחות) must stay hidden.
   const { data: existing } = await sb
     .from("agent_brain_routes")
     .select("*")
-    .eq("tenant_id", tenantId)
-    .eq("active", true);
+    .eq("tenant_id", tenantId);
   const have = new Set((existing || []).map((r: { slug: string }) => r.slug));
   const missing = DEFAULT_BRAIN_ROUTE_SEEDS.filter(
     (seed) => !have.has(seed.slug),
@@ -88,7 +89,7 @@ export async function ensureDefaultRoutes(
       route_type: seed.route_type,
       provider: seed.provider,
       config: seed.config,
-      active: true,
+      active: seed.active ?? true,
     }));
     const { error } = await sb
       .from("agent_brain_routes")
@@ -126,7 +127,9 @@ export async function ensureDefaultRoutes(
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("active", true);
-  return (all || existing || []) as BrainRouteRow[];
+  return (all ||
+    (existing || []).filter((r: { active: boolean }) => r.active) ||
+    []) as BrainRouteRow[];
 }
 
 export async function loadRoute(
