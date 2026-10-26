@@ -20,7 +20,11 @@ import {
 export function WorkshopDepartmentCard({ item }: { item: WorkshopListRow }) {
   const { buildPath } = useTenantPath();
   const dept = projectDepartment(item);
-  const screen = departmentScreen(dept);
+  // The campaigns screen is not open yet; a creative handed off to it is still shown in Creative.
+  const screen =
+    dept === "campaigns" && item.has_creative
+      ? "creative"
+      : departmentScreen(dept);
   const updated = new Date(item.updated_at);
   const rows: Array<[string, string]> = [
     ["מחלקה", departmentLabel(dept)],

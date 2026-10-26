@@ -36,7 +36,7 @@ test("filterCreativeDepartmentItems matches a tenant creative stage", () => {
 });
 
 test("items tagged with another department stay out of creative and copy", () => {
-  for (const department of ["copy", "seo", "campaigns", "social", "web"])
+  for (const department of ["copy", "seo", "social", "web"])
     assert.equal(
       isCreativeDepartmentItem({
         payload: { department, variations: [{ id: "v1" }] },
@@ -51,6 +51,23 @@ test("items tagged with another department stay out of creative and copy", () =>
       department,
     );
   assert.equal(isCopyDepartmentItem({ payload: { department: "copy" } }), true);
+});
+
+test("a creative handed off to campaigns stays in creative", () => {
+  assert.equal(
+    isCreativeDepartmentItem({
+      payload: {
+        department: "campaigns",
+        creative_approved: true,
+        variations: [{ id: "v1" }],
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    isCreativeDepartmentItem({ payload: { department: "campaigns" } }),
+    false,
+  );
 });
 
 test("video projects stay in creative without a payload storyboard", () => {

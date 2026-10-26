@@ -117,22 +117,26 @@ export function WorkshopClientCard({
               ? `${ranks.data.projects} פרויקטים · ${ranks.data.keywords} ביטויים`
               : EMPTY}
           </Block>
-          <Block title="קליקים מ-Search Console (28 ימים)">
+          <Block
+            title={
+              gsc.data
+                ? `קליקים מ-Search Console, ${shortDate(gsc.data.start)}–${shortDate(gsc.data.end)}`
+                : "קליקים מ-Search Console"
+            }
+          >
             {gsc.data ? (
               <>
                 {gsc.data.clicks.toLocaleString("he-IL")}
                 <span className="text-xs text-muted-foreground">
                   {" "}
-                  ({shortDate(gsc.data.start)}–{shortDate(gsc.data.end)})
+                  (28 ימים, לפי ביטויים)
                 </span>
               </>
             ) : (
               EMPTY
             )}
           </Block>
-          <Block title="קישורי PBN שפורסמו החודש">
-            {pbn.data != null ? pbn.data : EMPTY}
-          </Block>
+          <Block title="קישורי PBN שפורסמו החודש">{pbn.data ?? EMPTY}</Block>
         </div>
 
         <div className="mt-5">

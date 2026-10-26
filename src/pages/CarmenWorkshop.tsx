@@ -48,7 +48,12 @@ export default function CarmenWorkshop() {
   const access = useCommandCenterAccess();
   const [searchParams, setSearchParams] = useSearchParams();
   // ?client= all | general | <uuid> (the marketing convention); ?project=<uuid>.
-  const clientFilter = parseClientFilter(searchParams.get("client"));
+  const parsedClient = parseClientFilter(searchParams.get("client"));
+  // ClientSelector and the list rows compare ids exactly, and Postgres returns them in lower case.
+  const clientFilter =
+    parsedClient && UUID.test(parsedClient)
+      ? parsedClient.toLowerCase()
+      : parsedClient;
   const clientParam = clientFilterToParam(clientFilter) ?? "all";
   const viewClientId =
     clientFilter &&
@@ -59,7 +64,7 @@ export default function CarmenWorkshop() {
   const byClient = clientFilter === ALL_CLIENTS_FILTER;
   const projectParam = searchParams.get("project");
   const projectId =
-    projectParam && UUID.test(projectParam) ? projectParam : null;
+    projectParam && UUID.test(projectParam) ? projectParam.toLowerCase() : null;
   const [blank, setBlank] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(() => !!viewClientId);
   const [artifactId, setArtifactId] = useState<string | null>(null);
@@ -149,6 +154,50 @@ export default function CarmenWorkshop() {
         ? null
         : defaultProject(rows);
   const board = selected?.has_board ? selected : null;
+
+  // The open project is not in this filter's list: Carmen started it for another client, or with
+  // no client, or moved it. Follow it to its own client, the way the header assign control does,
+  // so the board and Carmen's context stay on it. Checked once per list fetch.
+  const followedFetch = useRef<string | null>(null);
+  const [following, setFollowing] = useState<string | null>(null);
+  useEffect(() => {
+    if (!tenantId || !projectId || !projects.isSuccess || projects.isFetching)
+      return;
+    if (rows.some((row) => row.id === projectId)) return;
+    const fetchKey = `${projectId}:${clientParam}:${projects.dataUpdatedAt}`;
+    if (followedFetch.current === fetchKey) return;
+    followedFetch.current = fetchKey;
+    setFollowing(projectId);
+    void (async () => {
+      const { data } = await supabase
+        .from("marketing_work_items")
+        .select("client_id")
+        .eq("id", projectId)
+        .eq("tenant_id", tenantId)
+        .neq("status", "archived")
+        .maybeSingle();
+      setFollowing((current) => (current === projectId ? null : current));
+      if (!data || openProjectId.current !== projectId) return;
+      const target = clientFilterToParam(data.client_id ?? null) ?? "all";
+      if (target === clientParam) return;
+      updateParams(
+        (params) => {
+          params.set("client", target);
+          params.set("project", projectId);
+        },
+        { replace: true },
+      );
+    })();
+  }, [
+    tenantId,
+    projectId,
+    clientParam,
+    rows,
+    projects.isSuccess,
+    projects.isFetching,
+    projects.dataUpdatedAt,
+    updateParams,
+  ]);
 
   const assign = useMutation({
     mutationFn: async ({
@@ -248,8 +297,13 @@ export default function CarmenWorkshop() {
     );
   };
 
+  // A project in the URL that this list lacks is still being looked up: not the client card yet.
+  const resolvingProject =
+    !!projectId &&
+    !selected &&
+    (projects.isLoading || projects.isFetching || following === projectId);
   const showClientCard =
-    !blank && !selected && !!viewClientId && !(projectId && projects.isLoading);
+    !blank && !selected && !!viewClientId && !resolvingProject;
 
   return (
     <div
@@ -303,6 +357,7 @@ export default function CarmenWorkshop() {
           <ClientSelector
             tenantId={tenantId}
             value={clientFilter}
+            valueLabel={viewClientId ? (viewClientName ?? "לקוח") : null}
             onChange={selectClient}
             allowGeneral
             allowAllClients
@@ -350,7 +405,10 @@ export default function CarmenWorkshop() {
           ) : (
             <WorkshopFeed
               artifacts={artifacts.data ?? []}
-              loading={artifacts.isLoading || (projects.isLoading && !blank)}
+              loading={
+                artifacts.isLoading ||
+                (!blank && (projects.isLoading || resolvingProject))
+              }
               hasProject={!!board}
               selectedId={artifactId}
               onSelect={setArtifactId}

@@ -10,13 +10,9 @@ const otherDepartments = new Set([
   "social",
   "web",
 ]);
-const nonCreativeDepartments = new Set([
-  "copy",
-  "seo",
-  "campaigns",
-  "social",
-  "web",
-]);
+// Not "campaigns": the Creative handoff tags an approved creative with it and keeps its
+// variations, and Creative stays the screen that shows it until a campaigns screen exists.
+const nonCreativeDepartments = new Set(["copy", "seo", "social", "web"]);
 
 export function isCopyDepartmentItem(
   item: WorkItemLike,

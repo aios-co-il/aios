@@ -65,7 +65,7 @@ export function useWorkshopClientCard(clientId: string) {
       .eq("client_id", clientId);
     if (error) throw error;
     const ids = (data ?? []).map((row) => row.id as string);
-    if (ids.length === 0) return { projects: 0, keywords: 0 };
+    if (ids.length === 0) return null;
     const keywords = await supabase
       .from("rank_tracking_keywords")
       .select("id", { count: "exact", head: true })
@@ -74,7 +74,8 @@ export function useWorkshopClientCard(clientId: string) {
     return { projects: ids.length, keywords: keywords.count ?? 0 };
   });
 
-  // The latest 28-day window kept per site (period prev_month); its dates are shown with it.
+  // No snapshot covers the last 28 days: prev_month is the 28 days that ended 30 days ago, summed
+  // over its top 1000 queries (anonymised queries are not in it). The card shows its dates.
   const gsc = useBlock("gsc-clicks", clientId, async () => {
     const { data, error } = await supabase
       .from("gsc_keyword_snapshots")
@@ -103,7 +104,7 @@ export function useWorkshopClientCard(clientId: string) {
       .eq("status", "published")
       .gte("published_at", startOfMonth(new Date()).toISOString());
     if (error) throw error;
-    return count ?? 0;
+    return count || null;
   });
 
   return { client, sites, seoReport, ranks, gsc, pbn };
