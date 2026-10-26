@@ -9,9 +9,29 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   test: {
-    environment: "happy-dom",
-    setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
     clearMocks: true,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "frontend",
+          environment: "happy-dom",
+          setupFiles: ["./src/test/setup.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          include: [
+            "render-worker/test/**/*.test.mjs",
+            "scripts/**/*.test.mjs",
+            ".github/scripts/**/*.test.mjs",
+          ],
+        },
+      },
+    ],
   },
 });
