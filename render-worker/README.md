@@ -49,7 +49,7 @@ Give the Droplet at least 4 vCPUs. Films are assembled with ffmpeg; no Remotion 
 ## Test
 
 ```bash
-node --test test/*.test.mjs   # the ffmpeg test needs ffmpeg on PATH and skips otherwise
+pnpm --dir .. test:components   # from the repo root; the ffmpeg test needs ffmpeg on PATH and skips otherwise
 ```
 
 ## Safety rules the worker enforces
