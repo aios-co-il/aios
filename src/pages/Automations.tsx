@@ -71,6 +71,8 @@ type FlowStepTemplate = Omit<
   "automation_id" | "tenant_id" | "id"
 >;
 
+const CAMPAIGN_PULSE_TRIGGER = "scheduled_daily";
+
 const TRIGGER_LABELS: Record<string, string> = {
   carmen_whatsapp_session: "שיחת כרמן ב-WhatsApp",
   task_assigned: "משימה שוייכה",
@@ -503,10 +505,10 @@ export default function Automations() {
         (agentsList || []).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
         (agentsList || [])[0];
       if (!carmen) throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
-      const campaignPulseTrigger: string = "scheduled_daily";
-      if (!isAutomationTrigger(campaignPulseTrigger)) {
+      // Pre-existing bug: scheduled_daily is not an automation_trigger enum value, so this always fails.
+      if (!isAutomationTrigger(CAMPAIGN_PULSE_TRIGGER)) {
         throw new Error(
-          `Unsupported automation trigger: ${campaignPulseTrigger}`,
+          `Unsupported automation trigger: ${CAMPAIGN_PULSE_TRIGGER}`,
         );
       }
 
@@ -517,7 +519,7 @@ export default function Automations() {
           description:
             "סריקת בוקר יומית: קמפיינרית → SEO → אנליסטית → דוח. תבנית כבויה לעריכה.",
           tenant_id: tenantId,
-          trigger_type: campaignPulseTrigger,
+          trigger_type: CAMPAIGN_PULSE_TRIGGER,
           action_type: "notification",
           configuration: { hour: 8, minute: 0 },
           is_flow: true,

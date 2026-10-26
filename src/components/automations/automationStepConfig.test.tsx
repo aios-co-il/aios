@@ -3,15 +3,21 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import {
+  cfgNumeric,
   cfgStringArray,
   cfgText,
   errorMessage,
   parseStepConfig,
 } from "@/lib/automationStepConfig";
-import { isAutomationTrigger } from "@/lib/automationTriggers";
-import { isFlowStepType } from "./flowStepTypes";
+import {
+  FORM_TRIGGER_OPTIONS,
+  FORM_TRIGGER_VALUES,
+  isAutomationTrigger,
+} from "@/lib/automationTriggers";
+import { flowStepRowToNodeData } from "./flowStepRow";
 import { migrateLegacyRecipients } from "./RecipientsListEditor";
 import { migrateLegacyEmailRecipients } from "./EmailRecipientsListEditor";
+import { toStoredRecipients } from "@/lib/storedRecipients";
 
 describe("parseStepConfig", () => {
   it("returns objects as-is, keeping unknown keys", () => {
@@ -36,6 +42,14 @@ describe("config accessors", () => {
     expect(cfgText(null)).toBeUndefined();
   });
 
+  it("cfgNumeric keeps numbers and numeric strings", () => {
+    expect(cfgNumeric(7)).toBe(7);
+    expect(cfgNumeric("7")).toBe(7);
+    expect(cfgNumeric("")).toBeUndefined();
+    expect(cfgNumeric("abc")).toBeUndefined();
+    expect(cfgNumeric(null)).toBeUndefined();
+  });
+
   it("cfgStringArray keeps string entries", () => {
     expect(cfgStringArray(["a", 1, "b"])).toEqual(["a", "b"]);
     expect(cfgStringArray("a")).toBeUndefined();
@@ -52,11 +66,6 @@ describe("config accessors", () => {
 });
 
 describe("step/trigger guards", () => {
-  it("recognises flow step types", () => {
-    expect(isFlowStepType("condition")).toBe(true);
-    expect(isFlowStepType("bogus")).toBe(false);
-  });
-
   it("recognises DB automation_trigger enum values", () => {
     expect(isAutomationTrigger("lead_created")).toBe(true);
     expect(isAutomationTrigger("scheduled_daily")).toBe(false);
@@ -64,20 +73,65 @@ describe("step/trigger guards", () => {
   });
 });
 
+describe("form trigger list", () => {
+  it("labels every selectable trigger", () => {
+    expect(FORM_TRIGGER_OPTIONS.map((o) => o.value)).toEqual([
+      ...FORM_TRIGGER_VALUES,
+    ]);
+    expect(FORM_TRIGGER_OPTIONS.every((o) => o.label.length > 0)).toBe(true);
+  });
+});
+
+describe("flowStepRowToNodeData", () => {
+  it("keeps an unknown step_type so saving does not rewrite it", () => {
+    const node = flowStepRowToNodeData({
+      id: "s1",
+      automation_id: "a1",
+      tenant_id: "t1",
+      step_type: "future_step",
+      action_type: null,
+      label: null,
+      configuration: { switch_branches: ["a", 1] },
+      position_x: 10,
+      position_y: 20,
+      sort_order: 2,
+      parent_step_id: null,
+      condition_branch: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    expect(node.step_type).toBe("future_step");
+    expect(node.switch_branches).toEqual(["a"]);
+    expect(node.position_x).toBe(10);
+  });
+});
+
 describe("migrateLegacyRecipients", () => {
-  it("keeps valid stored recipients and drops malformed entries", () => {
-    expect(
-      migrateLegacyRecipients({
-        recipients: [
-          { type: "phone_manual", phone: "0501234567" },
-          { type: "contact_lookup", entity: "lead", id: "l1" },
-          { type: "phone_manual" },
-          "junk",
-        ],
-      }),
-    ).toEqual([
+  it("coerces numeric ids and keeps unsupported entries for round-trip", () => {
+    const stored = [
       { type: "phone_manual", phone: "0501234567" },
-      { type: "contact_lookup", entity: "lead", id: "l1" },
+      { type: "phone_manual", phone: 972501234567 },
+      { type: "contact_lookup", entity: "lead", id: 42 },
+      { type: "phone_manual" },
+      { type: "future_type", target: "x" },
+      "junk",
+    ];
+    const entries = migrateLegacyRecipients({ recipients: stored });
+    expect(entries).toEqual([
+      { type: "phone_manual", phone: "0501234567" },
+      { type: "phone_manual", phone: "972501234567" },
+      { type: "contact_lookup", entity: "lead", id: "42" },
+      { type: "unsupported", raw: { type: "phone_manual" } },
+      { type: "unsupported", raw: { type: "future_type", target: "x" } },
+      { type: "unsupported", raw: "junk" },
+    ]);
+    expect(toStoredRecipients(entries)).toEqual([
+      { type: "phone_manual", phone: "0501234567" },
+      { type: "phone_manual", phone: "972501234567" },
+      { type: "contact_lookup", entity: "lead", id: "42" },
+      { type: "phone_manual" },
+      { type: "future_type", target: "x" },
+      "junk",
     ]);
   });
 
@@ -95,12 +149,24 @@ describe("migrateLegacyRecipients", () => {
 });
 
 describe("migrateLegacyEmailRecipients", () => {
-  it("keeps valid stored recipients and migrates legacy keys", () => {
-    expect(
-      migrateLegacyEmailRecipients({
-        email_recipients: [{ type: "email_manual", email: "a@b.co" }, 3],
-      }),
-    ).toEqual([{ type: "email_manual", email: "a@b.co" }]);
+  it("keeps stored recipients (unsupported ones verbatim) and migrates legacy keys", () => {
+    const entries = migrateLegacyEmailRecipients({
+      email_recipients: [
+        { type: "email_manual", email: "a@b.co" },
+        { type: "contact_lookup", entity: "client", id: 7 },
+        3,
+      ],
+    });
+    expect(entries).toEqual([
+      { type: "email_manual", email: "a@b.co" },
+      { type: "contact_lookup", entity: "client", id: "7" },
+      { type: "unsupported", raw: 3 },
+    ]);
+    expect(toStoredRecipients(entries)).toEqual([
+      { type: "email_manual", email: "a@b.co" },
+      { type: "contact_lookup", entity: "client", id: "7" },
+      3,
+    ]);
     expect(migrateLegacyEmailRecipients({ to_email: "x@y.co" })).toEqual([
       { type: "email_manual", email: "x@y.co" },
     ]);

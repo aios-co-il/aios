@@ -19,11 +19,11 @@ import {
   AlertTriangle,
   SplitSquareHorizontal,
 } from "lucide-react";
-import { FlowNodeData } from "./FlowNode";
+import type { FlowStepType } from "./flowStepTypes";
 import { WhatsAppIcon } from "./nodeIcons";
 
 interface AddStepMenuProps {
-  onAdd: (stepType: FlowNodeData["step_type"]) => void;
+  onAdd: (stepType: FlowStepType) => void;
   label?: string;
 }
 

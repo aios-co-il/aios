@@ -39,12 +39,16 @@ import {
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
 import type { Tables } from "@/integrations/supabase/types";
 import {
-  cfgNumber,
+  cfgNumeric,
   cfgObject,
   cfgText,
   type JsonObject,
 } from "@/lib/automationStepConfig";
-import { isAutomationTrigger } from "@/lib/automationTriggers";
+import {
+  FORM_TRIGGER_OPTIONS,
+  FORM_TRIGGER_VALUES,
+  isAutomationTrigger,
+} from "@/lib/automationTriggers";
 import {
   integrationInstanceSuffix,
   parseConditionsObject,
@@ -65,23 +69,7 @@ import {
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
 
-const triggerTypeSchema = z.enum([
-  "task_assigned",
-  "task_collaborator_added",
-  "task_update_added",
-  "task_status_changed",
-  "lead_status_changed",
-  "lead_created",
-  "client_created",
-  "client_status_changed",
-  "onboarding_status_changed",
-  "meeting_created",
-  "task_calendar_created",
-  "task_overdue",
-  "inbound_webhook_task",
-  "inbound_webhook_lead",
-  "report_alert_triggered",
-]);
+const triggerTypeSchema = z.enum(FORM_TRIGGER_VALUES);
 
 const formSchema = z
   .object({
@@ -164,24 +152,6 @@ const LEAD_DATE_FIELDS = [
 
 const TASK_DATE_FIELDS = [{ value: "due_date", label: "תאריך יעד" }];
 
-const EDIT_TRIGGER_OPTIONS = [
-  { value: "task_assigned", label: "משימה שוייכה" },
-  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
-  { value: "task_update_added", label: "עדכון נוסף למשימה" },
-  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
-  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
-  { value: "lead_created", label: "ליד נוצר" },
-  { value: "client_created", label: "לקוח נוצר" },
-  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
-  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
-  { value: "meeting_created", label: "נוצרה פגישה" },
-  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
-  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
-  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
-  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
-  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
-];
-
 interface EditAutomationDialogProps {
   automation: Tables<"automations">;
   open: boolean;
@@ -259,8 +229,8 @@ export function EditAutomationDialog({
       task_title_template:
         cfgText(config?.task_title_template) || "{{company_name}} - משימה חדשה",
       task_notes_template: cfgText(config?.task_notes_template) || "",
-      task_priority: cfgNumber(config?.task_priority) || 5,
-      task_due_days: cfgNumber(config?.task_due_days) || 0,
+      task_priority: cfgNumeric(config?.task_priority) || 5,
+      task_due_days: cfgNumeric(config?.task_due_days) || 0,
     },
   });
 
@@ -536,7 +506,7 @@ export function EditAutomationDialog({
                   <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
                   <FormControl>
                     <TriggerTypeMultiSelect
-                      options={EDIT_TRIGGER_OPTIONS}
+                      options={FORM_TRIGGER_OPTIONS}
                       value={field.value || []}
                       onChange={(next) => {
                         field.onChange(next);

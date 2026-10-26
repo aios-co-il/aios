@@ -21,6 +21,7 @@ import {
   EmailRecipientsListEditor,
   migrateLegacyEmailRecipients,
 } from "./EmailRecipientsListEditor";
+import { toStoredRecipients } from "@/lib/storedRecipients";
 import { EmailWebhookMappingPanel } from "./EmailWebhookMappingPanel";
 
 interface Props {
@@ -280,7 +281,9 @@ export function EmailActionConfig({
         tenantId={tenantId}
         availableFields={availableFields}
         value={migrateLegacyEmailRecipients(configuration || {})}
-        onChange={(next) => onConfigChange("email_recipients", next)}
+        onChange={(next) =>
+          onConfigChange("email_recipients", toStoredRecipients(next))
+        }
       />
 
       <div className="space-y-2">

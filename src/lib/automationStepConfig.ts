@@ -39,6 +39,13 @@ export function cfgNumber(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
+export function cfgNumeric(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function cfgBool(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }

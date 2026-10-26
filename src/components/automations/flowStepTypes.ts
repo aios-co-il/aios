@@ -14,6 +14,4 @@ const FLOW_STEP_TYPES = [
 
 export type FlowStepType = (typeof FLOW_STEP_TYPES)[number];
 
-export function isFlowStepType(value: string): value is FlowStepType {
-  return (FLOW_STEP_TYPES as readonly string[]).includes(value);
-}
+export type StoredFlowStepType = FlowStepType | (string & {});

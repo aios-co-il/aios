@@ -15,12 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
-import type { Json } from "@/integrations/supabase/types";
 import {
+  cfgString,
   cfgText,
-  isJsonObject,
+  type JsonObject,
   type StepConfig,
 } from "@/lib/automationStepConfig";
+import {
+  idText,
+  parseStoredRecipients,
+  type UnsupportedRecipient,
+} from "@/lib/storedRecipients";
+import { UnsupportedRecipientRow } from "./UnsupportedRecipientRow";
 
 export type Recipient =
   | { type: "phone_field"; field: string }
@@ -29,6 +35,8 @@ export type Recipient =
   | { type: "group_manual"; group_id: string }
   | { type: "contact_lookup"; entity: "lead" | "client"; id: string }
   | { type: "group_lookup"; group_id: string };
+
+export type RecipientEntry = Recipient | UnsupportedRecipient;
 
 const TYPE_LABELS: Record<Recipient["type"], string> = {
   phone_field: "טלפון – שדה דינמי",
@@ -59,8 +67,8 @@ function defaultForType(type: Recipient["type"]): Recipient {
 interface Props {
   tenantId: string | undefined;
   availableFields: { key: string; label: string }[];
-  value: Recipient[];
-  onChange: (next: Recipient[]) => void;
+  value: RecipientEntry[];
+  onChange: (next: RecipientEntry[]) => void;
 }
 
 export function RecipientsListEditor({
@@ -69,7 +77,8 @@ export function RecipientsListEditor({
   value,
   onChange,
 }: Props) {
-  const recipients = value.length > 0 ? value : [defaultForType("phone_field")];
+  const recipients: RecipientEntry[] =
+    value.length > 0 ? value : [defaultForType("phone_field")];
 
   const updateAt = (idx: number, next: Recipient) => {
     const copy = [...recipients];
@@ -88,17 +97,26 @@ export function RecipientsListEditor({
     <div className="space-y-3">
       <Label className="text-right block">יעדי שליחה</Label>
       <div className="space-y-2">
-        {recipients.map((r, idx) => (
-          <RecipientRow
-            key={idx}
-            tenantId={tenantId}
-            availableFields={availableFields}
-            value={r}
-            onChange={(next) => updateAt(idx, next)}
-            onRemove={() => removeAt(idx)}
-            canRemove={recipients.length > 1}
-          />
-        ))}
+        {recipients.map((r, idx) =>
+          r.type === "unsupported" ? (
+            <UnsupportedRecipientRow
+              key={idx}
+              raw={r.raw}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ) : (
+            <RecipientRow
+              key={idx}
+              tenantId={tenantId}
+              availableFields={availableFields}
+              value={r}
+              onChange={(next) => updateAt(idx, next)}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ),
+        )}
       </div>
       <Button
         type="button"
@@ -503,30 +521,40 @@ function GroupLookupEditor({
 }
 
 // Legacy → recipients[] migration helper
-function isRecipient(value: Json): value is Recipient {
-  if (!isJsonObject(value)) return false;
+function parseRecipient(value: JsonObject): Recipient | undefined {
   switch (value.type) {
     case "phone_field":
-    case "group_field":
-      return typeof value.field === "string";
-    case "phone_manual":
-      return typeof value.phone === "string";
+    case "group_field": {
+      const field = cfgString(value.field);
+      return field === undefined ? undefined : { type: value.type, field };
+    }
+    case "phone_manual": {
+      const phone = idText(value.phone);
+      return phone === undefined ? undefined : { type: value.type, phone };
+    }
     case "group_manual":
-    case "group_lookup":
-      return typeof value.group_id === "string";
-    case "contact_lookup":
-      return (
-        (value.entity === "lead" || value.entity === "client") &&
-        typeof value.id === "string"
-      );
+    case "group_lookup": {
+      const groupId = idText(value.group_id);
+      return groupId === undefined
+        ? undefined
+        : { type: value.type, group_id: groupId };
+    }
+    case "contact_lookup": {
+      const id = idText(value.id);
+      const entity = value.entity;
+      if (id === undefined || (entity !== "lead" && entity !== "client")) {
+        return undefined;
+      }
+      return { type: value.type, entity, id };
+    }
     default:
-      return false;
+      return undefined;
   }
 }
 
-export function migrateLegacyRecipients(cfg: StepConfig): Recipient[] {
+export function migrateLegacyRecipients(cfg: StepConfig): RecipientEntry[] {
   if (Array.isArray(cfg?.recipients) && cfg.recipients.length > 0) {
-    return cfg.recipients.filter(isRecipient);
+    return parseStoredRecipients(cfg.recipients, parseRecipient);
   }
   const mode = cfg?.phone_mode;
   const manualPhone = cfgText(cfg?.manual_phone);

@@ -38,12 +38,8 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData } from "./FlowNode";
-import { isFlowStepType } from "./flowStepTypes";
-import {
-  cfgStringArray,
-  isJsonObject,
-  parseStepConfig,
-} from "@/lib/automationStepConfig";
+import { isJsonObject } from "@/lib/automationStepConfig";
+import { flowStepRowToNodeData } from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
 import { InsertableEdge } from "./InsertableEdge";
@@ -303,21 +299,7 @@ export default function FlowEditor({
       const edges: Edge[] = [];
 
       steps.forEach((s) => {
-        const configuration = parseStepConfig(s.configuration);
-        const nd: FlowNodeData = {
-          id: s.id,
-          step_type: isFlowStepType(s.step_type) ? s.step_type : "action",
-          action_type: s.action_type ?? undefined,
-          label: s.label ?? undefined,
-          configuration,
-          position_x: Number.isFinite(s.position_x) ? s.position_x : 400,
-          position_y: Number.isFinite(s.position_y) ? s.position_y : 80,
-          sort_order: s.sort_order ?? 0,
-          parent_step_id: s.parent_step_id,
-          condition_branch: s.condition_branch,
-          switch_branches: cfgStringArray(configuration.switch_branches),
-        };
-        dataMap[s.id] = nd;
+        dataMap[s.id] = flowStepRowToNodeData(s);
       });
 
       // Build edges from parent_step_id + condition_branch

@@ -69,9 +69,9 @@ export function triggerFilterSource(conditions: Json | null | undefined) {
   return {
     filter_statuses: c.filter_statuses,
     new_statuses: c.new_statuses,
-    filter_status: cfgString(c.filter_status),
+    filter_status: cfgText(c.filter_status),
     filter_status_kind: cfgString(c.filter_status_kind),
-    new_status: cfgString(c.new_status),
+    new_status: cfgText(c.new_status),
     status_kind: cfgString(c.status_kind),
   };
 }

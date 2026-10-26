@@ -26,11 +26,11 @@ import {
   cfgText,
   type StepConfig,
 } from "@/lib/automationStepConfig";
-import type { FlowStepType } from "./flowStepTypes";
+import type { StoredFlowStepType } from "./flowStepTypes";
 
 export interface FlowNodeData {
   id: string;
-  step_type: FlowStepType;
+  step_type: StoredFlowStepType;
   action_type?: string;
   label?: string;
   configuration: StepConfig;

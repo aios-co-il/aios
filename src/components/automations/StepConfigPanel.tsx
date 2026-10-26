@@ -79,6 +79,7 @@ import {
   RecipientsListEditor,
   migrateLegacyRecipients,
 } from "./RecipientsListEditor";
+import { toStoredRecipients } from "@/lib/storedRecipients";
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
 import MailingActionConfig from "./MailingActionConfig";
@@ -2703,7 +2704,7 @@ function GreenAPIActionConfig({
         value={migrateLegacyRecipients(configuration || {})}
         onChange={(next) => {
           // Save new recipients list and clear legacy single-recipient fields
-          onConfigChange("recipients", next);
+          onConfigChange("recipients", toStoredRecipients(next));
           if (configuration?.phone_mode)
             onConfigChange("phone_mode", undefined);
           if (configuration?.phone_field)

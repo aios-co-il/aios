@@ -42,7 +42,11 @@ import {
 } from "@/components/automations/StatusStageSelect";
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
 import type { JsonObject } from "@/lib/automationStepConfig";
-import { isAutomationTrigger } from "@/lib/automationTriggers";
+import {
+  FORM_TRIGGER_OPTIONS,
+  FORM_TRIGGER_VALUES,
+  isAutomationTrigger,
+} from "@/lib/automationTriggers";
 import {
   integrationInstanceSuffix,
   parseConditionsObject,
@@ -56,25 +60,7 @@ import {
   scopesForTriggers,
 } from "../../../supabase/functions/_shared/automation-status.ts";
 
-const triggerTypeSchema = z.enum([
-  "task_assigned",
-  "task_collaborator_added",
-  "task_update_added",
-  "task_status_changed",
-  "lead_status_changed",
-  "lead_created",
-  "client_created",
-  "client_status_changed",
-  "onboarding_status_changed",
-  "meeting_created",
-  "meeting_day_after",
-  "meeting_same_day",
-  "task_calendar_created",
-  "task_overdue",
-  "inbound_webhook_task",
-  "inbound_webhook_lead",
-  "report_alert_triggered",
-]);
+const triggerTypeSchema = z.enum(FORM_TRIGGER_VALUES);
 
 const formSchema = z
   .object({
@@ -147,26 +133,6 @@ const formSchema = z
   );
 
 type FormValues = z.infer<typeof formSchema>;
-
-const TRIGGER_OPTIONS = [
-  { value: "task_assigned", label: "משימה שוייכה" },
-  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
-  { value: "task_update_added", label: "עדכון נוסף למשימה" },
-  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
-  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
-  { value: "lead_created", label: "ליד נוצר" },
-  { value: "client_created", label: "לקוח נוצר" },
-  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
-  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
-  { value: "meeting_created", label: "נוצרה פגישה" },
-  { value: "meeting_day_after", label: "יום לאחר קביעת פגישה" },
-  { value: "meeting_same_day", label: "ביום הפגישה" },
-  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
-  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
-  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
-  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
-  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
-];
 
 const LEAD_DATE_FIELDS = [
   { value: "won_date", label: "תאריך נסגר" },
@@ -524,7 +490,7 @@ export function AddAutomationForm() {
                   <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
                   <FormControl>
                     <TriggerTypeMultiSelect
-                      options={TRIGGER_OPTIONS}
+                      options={FORM_TRIGGER_OPTIONS}
                       value={field.value || []}
                       onChange={(next) => {
                         field.onChange(next);
