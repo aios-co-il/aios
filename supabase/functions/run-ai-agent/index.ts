@@ -72,12 +72,6 @@ import {
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
-/** The approval queue's tools: never offered in the workshop chat (a tap there is not an approval). */
-const WORKSHOP_BLOCKED_TOOLS = new Set([
-  "execute_pending_approval",
-  "reject_pending_approval",
-  "list_pending_approvals",
-]);
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
@@ -227,6 +221,13 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+
+/** The approval queue's tools: never offered in the workshop chat (a tap there is not an approval). */
+const WORKSHOP_BLOCKED_TOOLS = new Set([
+  "execute_pending_approval",
+  "reject_pending_approval",
+  "list_pending_approvals",
+]);
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
