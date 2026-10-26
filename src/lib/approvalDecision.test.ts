@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   approvalEndpoint,
   approvalOutcome,
@@ -10,78 +9,72 @@ const carmenRow = { id: "a1", run_id: null };
 const runRow = { id: "b2", run_id: "r9" };
 
 test("Carmen approvals go to carmen-approval-execute, run steps to resume-agent-run", () => {
-  assert.equal(approvalEndpoint(carmenRow), "carmen-approval-execute");
-  assert.equal(approvalEndpoint(runRow), "resume-agent-run");
+  expect(approvalEndpoint(carmenRow)).toBe("carmen-approval-execute");
+  expect(approvalEndpoint(runRow)).toBe("resume-agent-run");
 });
 
 test("request bodies never carry a browser-chosen approver", () => {
-  assert.deepEqual(approvalRequestBody(carmenRow, "approve"), {
+  expect(approvalRequestBody(carmenRow, "approve")).toStrictEqual({
     approval_id: "a1",
   });
-  assert.deepEqual(approvalRequestBody(carmenRow, "reject"), {
+  expect(approvalRequestBody(carmenRow, "reject")).toStrictEqual({
     approval_id: "a1",
     decision: "reject",
   });
-  assert.deepEqual(approvalRequestBody(runRow, "approve"), {
+  expect(approvalRequestBody(runRow, "approve")).toStrictEqual({
     approval_id: "b2",
     decision: "approved",
   });
-  assert.deepEqual(approvalRequestBody(runRow, "reject"), {
+  expect(approvalRequestBody(runRow, "reject")).toStrictEqual({
     approval_id: "b2",
     decision: "rejected",
   });
 });
 
 test("the user sees the real execution result", () => {
-  assert.deepEqual(approvalOutcome("approve", { success: true }), {
+  expect(approvalOutcome("approve", { success: true })).toStrictEqual({
     ok: true,
     message: "אושר ובוצע",
   });
-  assert.equal(
+  expect(
     approvalOutcome("approve", { success: true, already_executed: true })
       .message,
-    "הבקשה כבר בוצעה קודם",
-  );
+  ).toBe("הבקשה כבר בוצעה קודם");
   const failed = approvalOutcome("approve", {
     success: false,
     result: { error: "Invalid OAuth access token" },
   });
-  assert.equal(failed.ok, false);
-  assert.match(failed.message, /Invalid OAuth access token/);
-  assert.equal(
+  expect(failed.ok).toBe(false);
+  expect(failed.message).toMatch(/Invalid OAuth access token/);
+  expect(
     approvalOutcome("approve", { error: "approver_role_required" }).message,
-    "הפעולה הזו דורשת אישור של בעלים או מנהל/ת סוכנות",
-  );
-  assert.equal(
-    approvalOutcome("approve", { error: "expired" }).message,
+  ).toBe("הפעולה הזו דורשת אישור של בעלים או מנהל/ת סוכנות");
+  expect(approvalOutcome("approve", { error: "expired" }).message).toBe(
     "פג תוקף הבקשה, ולכן היא לא בוצעה",
   );
-  assert.equal(approvalOutcome("approve", null).ok, false);
+  expect(approvalOutcome("approve", null).ok).toBe(false);
 });
 
 test("resume-agent-run results are read from executionResult", () => {
-  assert.equal(
+  expect(
     approvalOutcome("approve", { ok: true, executionResult: { ok: true } }).ok,
-    true,
-  );
+  ).toBe(true);
   const failed = approvalOutcome("approve", {
     ok: true,
     executionResult: { ok: false, error: "handler crashed" },
   });
-  assert.equal(failed.ok, false);
-  assert.match(failed.message, /handler crashed/);
+  expect(failed.ok).toBe(false);
+  expect(failed.message).toMatch(/handler crashed/);
 });
 
 test("reject outcomes", () => {
-  assert.deepEqual(
+  expect(
     approvalOutcome("reject", { success: true, rejected: true }),
-    {
-      ok: true,
-      message: "הבקשה נדחתה",
-    },
-  );
-  assert.equal(
-    approvalOutcome("reject", { error: "not_pending" }).message,
+  ).toStrictEqual({
+    ok: true,
+    message: "הבקשה נדחתה",
+  });
+  expect(approvalOutcome("reject", { error: "not_pending" }).message).toBe(
     "הבקשה כבר טופלה",
   );
 });
