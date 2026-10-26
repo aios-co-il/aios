@@ -58,8 +58,7 @@ export async function workshopMakeStills(ctx: ToolContext) {
       (!scene.still_asset_id && !hasOwnClip(scene)) ||
       redoIds.has(String(scene.id)),
   );
-  if (pending.length === 0)
-    return { success: true, created: 0, remaining: 0 };
+  if (pending.length === 0) return { success: true, created: 0, remaining: 0 };
   const running = await supabase
     .from("workshop_artifacts")
     .select("id")
@@ -68,10 +67,7 @@ export async function workshopMakeStills(ctx: ToolContext) {
     .eq("status", "pending")
     .eq("kind", "scene_still")
     .eq("meta->>placeholder", "true")
-    .gte(
-      "created_at",
-      new Date(Date.now() - RUNNING_WINDOW_MS).toISOString(),
-    );
+    .gte("created_at", new Date(Date.now() - RUNNING_WINDOW_MS).toISOString());
   if (Array.isArray(running.data) && running.data.length > 0)
     return {
       success: true,

@@ -44,8 +44,7 @@ export async function workshopStartProject(ctx: ToolContext) {
       ));
     } catch (error) {
       return {
-        error:
-          error instanceof Error ? error.message : "פתיחת הפייפליין נכשלה",
+        error: error instanceof Error ? error.message : "פתיחת הפייפליין נכשלה",
       };
     }
   }

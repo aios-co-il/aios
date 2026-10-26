@@ -2,7 +2,11 @@ import { spendBudget } from "../budget.ts";
 import { estimateImages, imageFormatsFrom } from "../defaults.ts";
 import { gatePaid, refundMissing } from "../gate.ts";
 import { lookOf, stillPrompt } from "../look.ts";
-import { failedPatch, openPlaceholders, settlePlaceholder } from "../placeholders.ts";
+import {
+  failedPatch,
+  openPlaceholders,
+  settlePlaceholder,
+} from "../placeholders.ts";
 import {
   briefProject,
   loadProject,
@@ -40,10 +44,7 @@ export async function workshopMakeCreative(ctx: ToolContext) {
     return {
       error: "prompt נדרש: תיאור הוויזואל באנגלית (נושא, סגנון, תאורה)",
     };
-  if (
-    project.payload.project_type === "video" &&
-    args.formats === undefined
-  ) {
+  if (project.payload.project_type === "video" && args.formats === undefined) {
     const scenes = await loadScenes(supabase, tenantId, itemId);
     if (scenes.some((scene) => !scene.still_asset_id))
       return {
@@ -104,10 +105,7 @@ export async function workshopMakeCreative(ctx: ToolContext) {
     .eq("status", "pending")
     .eq("kind", "image")
     .eq("meta->>placeholder", "true")
-    .gte(
-      "created_at",
-      new Date(Date.now() - RUNNING_WINDOW_MS).toISOString(),
-    );
+    .gte("created_at", new Date(Date.now() - RUNNING_WINDOW_MS).toISOString());
   if (Array.isArray(running.data) && running.data.length > 0)
     return {
       success: true,

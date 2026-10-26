@@ -7,10 +7,7 @@ export async function workshopAddAssets(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
   if (!itemId) return { error: "item_id נדרש" };
-  const requested = (Array.isArray(args.assets) ? args.assets : []).slice(
-    0,
-    8,
-  );
+  const requested = (Array.isArray(args.assets) ? args.assets : []).slice(0, 8);
   if (requested.length === 0) return { error: "assets נדרש" };
   const loaded = await loadProject(
     supabase,

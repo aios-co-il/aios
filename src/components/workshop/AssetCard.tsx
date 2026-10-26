@@ -1,7 +1,19 @@
-import { ExternalLink, FileText, Globe, Link2, Paperclip, Star, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  Globe,
+  Link2,
+  Paperclip,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { hostLabel } from "../../../supabase/functions/_shared/workshop/assets.ts";
-import { MAX_USER_REFERENCES, canBeReference, type WorkshopAsset } from "./workshopAssets";
+import {
+  MAX_USER_REFERENCES,
+  canBeReference,
+  type WorkshopAsset,
+} from "./workshopAssets";
 
 export function AssetCard({
   asset,

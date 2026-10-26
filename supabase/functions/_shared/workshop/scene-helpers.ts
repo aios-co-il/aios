@@ -56,7 +56,11 @@ export const STORY_CHANGE =
 export const hasOwnClip = (scene: Record<string, any>) =>
   Boolean(scene.clip_asset_id) && scene.clip_stale !== true;
 
-export async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
+export async function loadScenes(
+  supabase: Db,
+  tenantId: string,
+  itemId: string,
+) {
   const { data } = await supabase
     .from("marketing_video_scenes")
     .select(SCENE_COLUMNS)

@@ -114,10 +114,7 @@ export async function workshopInspectSite(ctx: ToolContext) {
       nextPayload.logo_url = report.logo;
     applied = true;
   }
-  if (
-    applied ||
-    nextPayload.client_website !== project.payload.client_website
-  )
+  if (applied || nextPayload.client_website !== project.payload.client_website)
     await savePayload(supabase, tenantId, itemId, nextPayload);
   return {
     success: true,

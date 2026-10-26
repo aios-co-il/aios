@@ -15928,9 +15928,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 toolPoolBeforeRouting,
                 typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
               )
-            ).filter(
-              (tool) => !isBlockedInWorkshop(tool.name, inWorkshop),
-            );
+            ).filter((tool) => !isBlockedInWorkshop(tool.name, inWorkshop));
             expandAgentTools(discovered);
             result = {
               success: true,

@@ -1,5 +1,10 @@
 import { buildEditScenes } from "../edit-tool.ts";
-import { briefProject, loadAssets, loadProject, savePayload } from "../project-io.ts";
+import {
+  briefProject,
+  loadAssets,
+  loadProject,
+  savePayload,
+} from "../project-io.ts";
 import { recordArtifact } from "../record.ts";
 import { loadScenes } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
