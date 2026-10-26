@@ -1,3 +1,12 @@
+import {
+  ELEVENLABS_VIDEO_USD_PER_SECOND,
+  HIGGSFIELD_USD_PER_SECOND,
+  KLING_CREDITS_PER_5S,
+  KLING_USD_PER_5S,
+  MUSIC_USD_PER_MINUTE,
+  OPENROUTER_USD_PER_SECOND,
+  VOICE_USD_PER_1000_CHARS,
+} from "../../../../../supabase/functions/_shared/workshop/clip-prices.ts";
 import type { StoryboardFrame } from "./types";
 
 /** Scene animation engine stored on the video project (`payload.video.scene_engine`). */
@@ -39,16 +48,6 @@ export const SOUND_ENGINE_LABEL: Record<SoundEngine, string> = {
   elevenlabs: "ElevenLabs — קריינות ומוזיקה",
   higgsfield: "Higgsfield — סאונד בתוך הקליפ",
 };
-
-/** Planning rates until the first paid run records the real invoice. */
-const KLING_USD_PER_5S = 0.85;
-const KLING_CREDITS_PER_5S = 5100;
-const ELEVENLABS_VIDEO_USD_PER_SECOND = 0.15;
-const HIGGSFIELD_USD_PER_SECOND = 0.1;
-/** OpenRouter kwaivgi/kling-v3.0-std, 720p without audio. */
-const OPENROUTER_USD_PER_SECOND = 0.084;
-const ELEVENLABS_VOICE_USD_PER_1000_CHARS = 0.12;
-const ELEVENLABS_MUSIC_USD_PER_MINUTE = 0.5;
 
 const roundUsd = (value: number) => Math.round(value * 100) / 100;
 
@@ -193,7 +192,7 @@ export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
       (sum, frame) => sum + (Number(frame.duration) || 0),
       0,
     ),
-    usd: roundUsd((characters / 1000) * ELEVENLABS_VOICE_USD_PER_1000_CHARS),
+    usd: roundUsd((characters / 1000) * VOICE_USD_PER_1000_CHARS),
     credits: 0,
     label: "ElevenLabs קריינות",
   };
@@ -207,7 +206,7 @@ export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   return {
     count: 1,
     seconds,
-    usd: roundUsd((seconds / 60) * ELEVENLABS_MUSIC_USD_PER_MINUTE),
+    usd: roundUsd((seconds / 60) * MUSIC_USD_PER_MINUTE),
     credits: 0,
     label: "ElevenLabs מוזיקה",
   };

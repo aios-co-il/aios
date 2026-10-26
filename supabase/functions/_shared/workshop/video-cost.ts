@@ -1,9 +1,18 @@
 /**
- * Planning prices for a film production, shown to the user before any spend. These mirror
- * src/components/marketing/departments/creative/videoEngines.ts; video-cost.test.ts keeps the
- * two in step.
+ * Planning prices for a film production, shown to the user before any spend. The per-unit
+ * rates come from clip-prices.ts, which the video page's estimate (videoEngines.ts) shares;
+ * video-cost.test.ts keeps the two estimates in step.
  */
 
+import {
+  ELEVENLABS_VIDEO_USD_PER_SECOND,
+  HIGGSFIELD_USD_PER_SECOND,
+  KLING_CREDITS_PER_5S,
+  KLING_USD_PER_5S,
+  MUSIC_USD_PER_MINUTE,
+  OPENROUTER_USD_PER_SECOND,
+  VOICE_USD_PER_1000_CHARS,
+} from "./clip-prices.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
 
 export type SceneEngine =
@@ -17,15 +26,8 @@ export const ENGINE_LABEL: Record<SceneEngine, string> = {
   openrouter: "OpenRouter (Kling 3)",
 };
 
-const KLING_USD_PER_5S = 0.85;
-const KLING_CREDITS_PER_5S = 5100;
-const ELEVENLABS_VIDEO_USD_PER_SECOND = 0.15;
-const HIGGSFIELD_USD_PER_SECOND = 0.1;
-/** OpenRouter kwaivgi/kling-v3.0-std (720p, no audio); Veo 3.1 for a talking scene. */
-const OPENROUTER_USD_PER_SECOND = 0.084;
+/** Veo 3.1 for a talking scene. */
 const OPENROUTER_TALKING_USD_PER_SECOND = 0.4;
-const VOICE_USD_PER_1000_CHARS = 0.12;
-const MUSIC_USD_PER_MINUTE = 0.5;
 
 const roundUsd = (value: number) => Math.round(value * 100) / 100;
 
