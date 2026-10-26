@@ -75,8 +75,16 @@ const OUTSIDE_TOOLS = [
 const WORKSHOP_BLOCKED_TOOLS = new Set([...APPROVAL_TOOLS, ...OUTSIDE_TOOLS]);
 const APPROVAL_TOOL_SET = new Set(APPROVAL_TOOLS);
 
+/**
+ * Tenant connector tools (mcp_<Connector>__*): Gmail, WordPress, Meta Ads, SQL and others can
+ * send, publish or change things, and none of them goes through the workshop's approval.
+ */
+const MCP_TOOL_PREFIX = "mcp_";
+
 export const isBlockedInWorkshop = (toolName: string, inWorkshop: boolean) =>
-  inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(toolName);
+  inWorkshop &&
+  (WORKSHOP_BLOCKED_TOOLS.has(toolName) ||
+    toolName.startsWith(MCP_TOOL_PREFIX));
 
 /** The tool result Carmen gets when she calls a blocked tool from the workshop. */
 export function workshopBlockedResult(toolName: string) {

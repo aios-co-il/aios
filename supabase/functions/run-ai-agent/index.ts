@@ -15123,7 +15123,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // 4b. Load MCP tools for this tenant + agent (Phase 3)
     const mcpExecutors = new Map<string, (args: any) => Promise<any>>();
     try {
-      if (!pinSkillsOnly) {
+      // The workshop loads no connector tools: they send, publish or change things outside
+      // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
+      if (!pinSkillsOnly && !inWorkshop) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
           []) as string[];
         const mcp = await loadMcpTools(

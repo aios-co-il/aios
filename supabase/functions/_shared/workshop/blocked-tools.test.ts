@@ -75,6 +75,23 @@ test("workshop, read and helper tools stay allowed in the workshop", () => {
   }
 });
 
+test("connector (mcp_) tools are blocked inside the workshop only", () => {
+  for (const name of [
+    "mcp_Gmail__send_message",
+    "mcp_WordPress__create_post",
+    "mcp_Meta_Ads__update_campaign",
+    "mcp_Supabase__execute_sql",
+    "mcp_Claude__run_task",
+  ]) {
+    assert.equal(isBlockedInWorkshop(name, true), true, name);
+    assert.equal(isBlockedInWorkshop(name, false), false, name);
+  }
+  assert.match(
+    workshopBlockedResult("mcp_Gmail__send_message").message,
+    /לא שולחים הודעות/,
+  );
+});
+
 test("a blocked call explains itself in Hebrew", () => {
   assert.equal(
     workshopBlockedResult("execute_pending_approval").error,
