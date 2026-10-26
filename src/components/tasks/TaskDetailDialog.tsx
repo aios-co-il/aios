@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
+import { isJsonObject } from "@/lib/typing-b26";
+import { sliderColorStyle } from "@/lib/sliderColor-b26";
 import {
   Dialog,
   DialogContent,
@@ -144,6 +147,19 @@ interface Task {
   recurrence_monthday?: number | null;
 }
 
+function toTaskAttachments(value: unknown): TaskAttachment[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isJsonObject).map((item) => ({
+    ...item,
+    name: typeof item.name === "string" ? item.name : "",
+    path: typeof item.path === "string" ? item.path : "",
+    type: typeof item.type === "string" ? item.type : "",
+    size: typeof item.size === "number" ? item.size : undefined,
+    uploaded_at:
+      typeof item.uploaded_at === "string" ? item.uploaded_at : undefined,
+  }));
+}
+
 interface TaskDetailDialogProps {
   task: Task | null;
   open: boolean;
@@ -275,17 +291,17 @@ export function TaskDetailDialog({
           reminderAt ? format(reminderAt, "yyyy-MM-dd'T'HH:mm") : "",
         );
         setAttachments(
-          Array.isArray((t as any).attachments) ? (t as any).attachments : [],
+          toTaskAttachments("attachments" in t ? t.attachments : undefined),
         );
-        setGoogleCalendarEventId((t as any).google_calendar_event_id || null);
-        const knownCreatorName = (t as any).creator_name || "";
+        setGoogleCalendarEventId(t.google_calendar_event_id || null);
+        const knownCreatorName = ("creator_name" in t && t.creator_name) || "";
         if (knownCreatorName) {
           setCreatorName(knownCreatorName);
-        } else if ((t as any).created_by) {
+        } else if (t.created_by) {
           const { data: creator } = await supabase
             .from("profiles")
             .select("full_name")
-            .eq("id", (t as any).created_by)
+            .eq("id", t.created_by)
             .maybeSingle();
           setCreatorName(creator?.full_name || "");
         } else {
@@ -438,7 +454,7 @@ export function TaskDetailDialog({
         ? recurrence.time || dueTime
         : dueTime;
       const nextDueTime = effectiveDueTime ? effectiveDueTime + ":00" : null;
-      const updatePayload: Record<string, unknown> = {
+      const updatePayload: TablesUpdate<"tasks"> = {
         title,
         notes,
         priority,
@@ -456,7 +472,7 @@ export function TaskDetailDialog({
           selfReminderAt
             ? new Date(selfReminderAt).toISOString()
             : null,
-        attachments: attachments as any,
+        attachments: attachments.map((attachment) => ({ ...attachment })),
       };
       if (recurrence.frequency) {
         updatePayload.recurrence_frequency = recurrence.frequency;
@@ -482,7 +498,7 @@ export function TaskDetailDialog({
       }
       const { error } = await supabase
         .from("tasks")
-        .update(updatePayload as any)
+        .update(updatePayload)
         .eq("id", task!.id);
       if (error) throw error;
 
@@ -613,7 +629,7 @@ export function TaskDetailDialog({
   const persistRecurrence = useMutation({
     mutationFn: async (next: TaskRecurrenceValue) => {
       if (!task?.id) return;
-      const payload: Record<string, unknown> = {
+      const payload: TablesUpdate<"tasks"> = {
         recurrence_interval: 1,
       };
       if (next.frequency) {
@@ -642,7 +658,7 @@ export function TaskDetailDialog({
       }
       const { error } = await supabase
         .from("tasks")
-        .update(payload as any)
+        .update(payload)
         .eq("id", task.id);
       if (error) throw error;
     },
@@ -701,7 +717,7 @@ export function TaskDetailDialog({
       setNewUpdate("");
       toast.success("עדכון נוסף");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Error adding task update:", error);
       toast.error("שגיאה בהוספת עדכון: " + (error?.message || ""));
     },
@@ -1359,9 +1375,7 @@ export function TaskDetailDialog({
                 max={10}
                 step={1}
                 className="py-2"
-                style={{
-                  ["--slider-color" as any]: priorityBarColor(priority),
-                }}
+                style={sliderColorStyle(priorityBarColor(priority))}
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
                 {PRIORITY_BAR_LABELS.map((label) => (

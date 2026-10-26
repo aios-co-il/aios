@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Popover,
@@ -22,7 +23,7 @@ interface ChatTag {
 
 interface ChatTagSelectorProps {
   contactId: string;
-  contactType: "client" | "lead" | "group" | "unknown";
+  contactType: "client" | "lead" | "group" | "unknown" | "telegram";
   senderPhone?: string;
   /** Pre-fetched tag IDs to avoid N+1 queries - pass this from parent when available */
   initialTagIds?: string[];
@@ -129,7 +130,7 @@ export function ChatTagSelector({
         if (error) throw error;
       } else {
         // Add tag
-        const insertData: any = {
+        const insertData: TablesInsert<"chat_contact_tags"> = {
           tag_id: tagId,
           user_id: user.id,
           tenant_id: tenantId,
@@ -282,7 +283,7 @@ export function ChatTagSelector({
 
 interface ContactTagBadgesProps {
   contactId: string;
-  contactType: "client" | "lead" | "group" | "unknown";
+  contactType: "client" | "lead" | "group" | "unknown" | "telegram";
   senderPhone?: string;
   allTags: ChatTag[];
   contactTagIds: string[];

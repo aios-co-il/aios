@@ -1,3 +1,4 @@
+import type { JsonObject } from "@/lib/typing-b26";
 import {
   Table,
   TableBody,
@@ -9,7 +10,7 @@ import {
 
 interface DataTableProps {
   columns: string[];
-  data: Record<string, any>[];
+  data: JsonObject[];
 }
 
 export function DataTable({ columns, data }: DataTableProps) {

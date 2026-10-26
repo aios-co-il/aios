@@ -25,6 +25,7 @@ import {
   toProvider,
   type Provider,
 } from "@/components/telephony/callProviders";
+import { errorMessage } from "@/lib/typing-b26";
 
 interface CallDialogProps {
   open: boolean;
@@ -143,8 +144,8 @@ export function CallDialog({
         // Simulate progression for now (will be replaced by realtime)
         setTimeout(() => setCallStatus("ringing"), 1500);
       }
-    } catch (err: any) {
-      toast.error("שגיאה ביזום שיחה", { description: err.message });
+    } catch (err) {
+      toast.error("שגיאה ביזום שיחה", { description: errorMessage(err) });
       setCallStatus("failed");
     } finally {
       setIsLoading(false);

@@ -1,4 +1,9 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  lazy,
+  type ComponentProps,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
 import { isChunkLoadError } from "./chunkErrors";
 
 const RETRY_KEY = "aios-lazy-chunk-reload";
@@ -7,43 +12,45 @@ const RETRY_KEY = "aios-lazy-chunk-reload";
  * lazy() that reloads once on a stale-chunk miss instead of throwing into
  * the full-page error boundary.
  */
-export function lazyWithRetry<T extends ComponentType<any>>(
+export function lazyWithRetry<T extends ComponentType<ComponentProps<T>>>(
   factory: () => Promise<{ default: T }>,
-): LazyExoticComponent<T> {
-  return lazy(async () => {
-    try {
-      const mod = await factory();
+): LazyExoticComponent<ComponentType<ComponentProps<T>>> {
+  return lazy(
+    async (): Promise<{ default: ComponentType<ComponentProps<T>> }> => {
       try {
-        sessionStorage.removeItem(RETRY_KEY);
-      } catch {
-        // ignore
-      }
-      return mod;
-    } catch (error) {
-      if (!isChunkLoadError(error)) throw error;
-
-      let alreadyReloaded = false;
-      try {
-        alreadyReloaded = sessionStorage.getItem(RETRY_KEY) === "1";
-      } catch {
-        // ignore
-      }
-
-      if (!alreadyReloaded) {
+        const mod = await factory();
         try {
-          sessionStorage.setItem(RETRY_KEY, "1");
+          sessionStorage.removeItem(RETRY_KEY);
         } catch {
           // ignore
         }
-        window.location.reload();
-        return {
-          default: function ChunkReloadPlaceholder() {
-            return null;
-          },
-        };
-      }
+        return mod;
+      } catch (error) {
+        if (!isChunkLoadError(error)) throw error;
 
-      throw error;
-    }
-  });
+        let alreadyReloaded = false;
+        try {
+          alreadyReloaded = sessionStorage.getItem(RETRY_KEY) === "1";
+        } catch {
+          // ignore
+        }
+
+        if (!alreadyReloaded) {
+          try {
+            sessionStorage.setItem(RETRY_KEY, "1");
+          } catch {
+            // ignore
+          }
+          window.location.reload();
+          return {
+            default: function ChunkReloadPlaceholder() {
+              return null;
+            },
+          };
+        }
+
+        throw error;
+      }
+    },
+  );
 }

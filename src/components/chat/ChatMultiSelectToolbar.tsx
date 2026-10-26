@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -61,7 +62,7 @@ export function ChatMultiSelectToolbar({
 
       const inserts = selectedContacts
         .map((contact) => {
-          const base: any = {
+          const base: TablesInsert<"chat_contact_tags"> = {
             tag_id: tagId,
             user_id: user.id,
             tenant_id: tenantId,
@@ -189,7 +190,7 @@ export function ChatMultiSelectToolbar({
 
       // Also upsert to manually_read_contacts
       for (const contact of selectedContacts) {
-        const base: any = {
+        const base: TablesInsert<"manually_read_contacts"> = {
           user_id: user.id,
           tenant_id: tenantId,
           marked_at: now,
@@ -264,7 +265,7 @@ export function ChatMultiSelectToolbar({
               </div>
             ) : (
               <div className="space-y-1">
-                {allTags.map((tag: any) => (
+                {allTags.map((tag) => (
                   <div
                     key={tag.id}
                     className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"
@@ -297,7 +298,7 @@ export function ChatMultiSelectToolbar({
               </div>
             ) : (
               <div className="space-y-1">
-                {allTags.map((tag: any) => (
+                {allTags.map((tag) => (
                   <div
                     key={tag.id}
                     className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"

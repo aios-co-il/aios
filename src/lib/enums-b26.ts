@@ -1,0 +1,8 @@
+import { Constants, type Database } from "@/integrations/supabase/types";
+
+type Enums = Database["public"]["Enums"];
+export type SupplierType = Enums["supplier_type"];
+
+export function isSupplierType(value: unknown): value is SupplierType {
+  return Constants.public.Enums.supplier_type.some((t) => t === value);
+}

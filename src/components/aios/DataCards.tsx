@@ -1,7 +1,8 @@
+import type { JsonObject } from "@/lib/typing-b26";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface DataCardsProps {
-  data: Record<string, any>[];
+  data: JsonObject[];
 }
 
 export function DataCards({ data }: DataCardsProps) {

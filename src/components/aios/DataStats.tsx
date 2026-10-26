@@ -1,7 +1,8 @@
+import type { JsonObject } from "@/lib/typing-b26";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface DataStatsProps {
-  data: Record<string, any>[];
+  data: JsonObject[];
 }
 
 export function DataStats({ data }: DataStatsProps) {
@@ -22,7 +23,7 @@ export function DataStats({ data }: DataStatsProps) {
               {stat.value != null ? String(stat.value) : "0"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {stat.label || stat.title || `מדד ${i + 1}`}
+              {String(stat.label || stat.title || `מדד ${i + 1}`)}
             </p>
           </CardContent>
         </Card>

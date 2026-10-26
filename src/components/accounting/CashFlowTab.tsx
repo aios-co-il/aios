@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,54 @@ const monthLabel = (key: string) =>
   format(parse(key, "yyyy-MM", new Date()), "MMMM yyyy", { locale: he });
 
 const UNASSIGNED = "__unassigned__";
+const SUPPLIER_SLOTS = [1, 2, 3] as const;
+
+type CashFlowClient = Pick<
+  Tables<"clients">,
+  "id" | "name" | "agency_id" | "retainer" | "monthly_fixed_expense" | "status"
+>;
+type CashFlowSupplier = Pick<
+  Tables<"suppliers">,
+  | "id"
+  | "name"
+  | "payment_1"
+  | "agency_id_1"
+  | "payment_2"
+  | "agency_id_2"
+  | "payment_3"
+  | "agency_id_3"
+>;
+type CashFlowOneTimeIncome = Pick<
+  Tables<"one_time_incomes">,
+  "id" | "client_id" | "product_name" | "amount" | "payment_month" | "is_paid"
+>;
+type CashFlowIncomePayment = Pick<
+  Tables<"income_payments">,
+  "id" | "client_id" | "amount" | "payment_month" | "received_at"
+>;
+type CashFlowExpensePayment = Pick<
+  Tables<"expense_payments">,
+  "id" | "expense_type" | "expense_id" | "amount" | "payment_month" | "paid_at"
+>;
+
+interface DrillContentProps {
+  agencyId: string;
+  selectedMonth: string;
+  clients: CashFlowClient[];
+  suppliers: CashFlowSupplier[];
+  oneTimeIncomes: CashFlowOneTimeIncome[];
+  incomePayments: CashFlowIncomePayment[];
+  expensePayments: CashFlowExpensePayment[];
+  onMarkIncome: (payload: { clientId: string; amount: number }) => void;
+  onUnmarkIncome: (id: string) => void;
+  onMarkExpense: (payload: {
+    expenseType: string;
+    expenseId: string;
+    amount: number;
+    name: string;
+  }) => void;
+  onUnmarkExpense: (id: string) => void;
+}
 
 export function CashFlowTab() {
   const { tenantId } = useCurrentTenant();
@@ -244,10 +293,11 @@ export function CashFlowTab() {
         );
       });
     // Expected expense: suppliers' 3 slots
-    (suppliers || []).forEach((s: any) => {
-      [1, 2, 3].forEach((i) => {
-        const amt = Number(s[`payment_${i}`] || 0);
-        if (amt > 0) ensure(s[`agency_id_${i}`] || null).expectedExpense += amt;
+    (suppliers || []).forEach((s) => {
+      SUPPLIER_SLOTS.forEach((i) => {
+        const amt = Number(s[`payment_${i}` as const] || 0);
+        if (amt > 0)
+          ensure(s[`agency_id_${i}` as const] || null).expectedExpense += amt;
       });
     });
 
@@ -258,19 +308,19 @@ export function CashFlowTab() {
     });
 
     // Actual expense — attribute by source
-    (expensePayments || []).forEach((p: any) => {
+    (expensePayments || []).forEach((p) => {
       let agencyId: string | null = null;
       if (
         p.expense_type === "supplier_payment" ||
         p.expense_type === "supplier"
       ) {
-        const s: any = supplierById[p.expense_id];
+        const s = supplierById[p.expense_id];
         if (s) {
           // pick the slot whose amount matches
-          const slot = [1, 2, 3].find(
-            (i) => Number(s[`payment_${i}`] || 0) === Number(p.amount),
+          const slot = SUPPLIER_SLOTS.find(
+            (i) => Number(s[`payment_${i}` as const] || 0) === Number(p.amount),
           );
-          agencyId = slot ? s[`agency_id_${slot}`] : s.agency_id_1;
+          agencyId = slot ? s[`agency_id_${slot}` as const] : s.agency_id_1;
         }
       } else {
         const c = clientById[p.expense_id];
@@ -337,10 +387,11 @@ export function CashFlowTab() {
           e.income += Number(c.retainer || 0);
           e.expense += Number(c.monthly_fixed_expense || 0);
         });
-      (suppliers || []).forEach((s: any) => {
-        [1, 2, 3].forEach((i) => {
-          const amt = Number(s[`payment_${i}`] || 0);
-          if (amt > 0) ensure(s[`agency_id_${i}`] || null).expense += amt;
+      (suppliers || []).forEach((s) => {
+        SUPPLIER_SLOTS.forEach((i) => {
+          const amt = Number(s[`payment_${i}` as const] || 0);
+          if (amt > 0)
+            ensure(s[`agency_id_${i}` as const] || null).expense += amt;
         });
       });
       (oneTimeIncomes || [])
@@ -377,18 +428,18 @@ export function CashFlowTab() {
       const d = p.received_at ? new Date(p.received_at).getDate() : 1;
       actualDelta[Math.min(d, days)] += Number(p.amount || 0);
     });
-    (expensePayments || []).forEach((p: any) => {
+    (expensePayments || []).forEach((p) => {
       let agencyId: string | null = null;
       if (
         p.expense_type === "supplier_payment" ||
         p.expense_type === "supplier"
       ) {
-        const s: any = supplierById[p.expense_id];
+        const s = supplierById[p.expense_id];
         if (s) {
-          const slot = [1, 2, 3].find(
-            (i) => Number(s[`payment_${i}`] || 0) === Number(p.amount),
+          const slot = SUPPLIER_SLOTS.find(
+            (i) => Number(s[`payment_${i}` as const] || 0) === Number(p.amount),
           );
-          agencyId = slot ? s[`agency_id_${slot}`] : s.agency_id_1;
+          agencyId = slot ? s[`agency_id_${slot}` as const] : s.agency_id_1;
         }
       } else {
         const c = clientById[p.expense_id];
@@ -408,10 +459,10 @@ export function CashFlowTab() {
         expectedIncome += Number(c.retainer || 0);
         expectedExpense += Number(c.monthly_fixed_expense || 0);
       });
-    (suppliers || []).forEach((s: any) => {
-      [1, 2, 3].forEach((i) => {
-        const amt = Number(s[`payment_${i}`] || 0);
-        if (amt > 0 && matchAgency(s[`agency_id_${i}`] || null))
+    (suppliers || []).forEach((s) => {
+      SUPPLIER_SLOTS.forEach((i) => {
+        const amt = Number(s[`payment_${i}` as const] || 0);
+        if (amt > 0 && matchAgency(s[`agency_id_${i}` as const] || null))
           expectedExpense += amt;
       });
     });
@@ -430,7 +481,7 @@ export function CashFlowTab() {
 
     let actualBal = 0;
     let expectedBal = 0;
-    const rows: any[] = [];
+    const rows: { day: number; actual: number; expected: number }[] = [];
     for (let d = 1; d <= days; d++) {
       actualBal += actualDelta[d];
       expectedBal += expectedDelta[d];
@@ -474,7 +525,7 @@ export function CashFlowTab() {
       qc.invalidateQueries({ queryKey: ["cf-income-payments", tenantId] });
       toast.success("נרשם כנגבה");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const unmarkIncome = useMutation({
@@ -516,7 +567,7 @@ export function CashFlowTab() {
       qc.invalidateQueries({ queryKey: ["cf-expense-payments", tenantId] });
       toast.success("נרשם כשולם");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const unmarkExpense = useMutation({
@@ -898,7 +949,7 @@ export function CashFlowTab() {
                 <XAxis dataKey="day" />
                 <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
-                  formatter={(v: any) => fmt(Number(v))}
+                  formatter={(v) => fmt(Number(v))}
                   labelFormatter={(l) => `יום ${l}`}
                 />
                 <Legend />
@@ -1001,26 +1052,29 @@ function DrillContent({
   onUnmarkIncome,
   onMarkExpense,
   onUnmarkExpense,
-}: any) {
+}: DrillContentProps) {
   const agencyClients = clients.filter(
-    (c: any) => c.agency_id === agencyId && c.status === "active",
+    (c) => c.agency_id === agencyId && c.status === "active",
   );
-  const monthOneTime = oneTimeIncomes.filter((o: any) => {
-    const c = clients.find((cl: any) => cl.id === o.client_id);
+  const monthOneTime = oneTimeIncomes.filter((o) => {
+    const c = clients.find((cl) => cl.id === o.client_id);
     return o.payment_month === selectedMonth && c?.agency_id === agencyId;
   });
-  const monthExpenseSlots: { supplier: any; slot: number; amount: number }[] =
-    [];
-  suppliers.forEach((s: any) => {
-    [1, 2, 3].forEach((i) => {
+  const monthExpenseSlots: {
+    supplier: CashFlowSupplier;
+    slot: number;
+    amount: number;
+  }[] = [];
+  suppliers.forEach((s) => {
+    SUPPLIER_SLOTS.forEach((i) => {
       if (
-        s[`agency_id_${i}`] === agencyId &&
-        Number(s[`payment_${i}`] || 0) > 0
+        s[`agency_id_${i}` as const] === agencyId &&
+        Number(s[`payment_${i}` as const] || 0) > 0
       ) {
         monthExpenseSlots.push({
           supplier: s,
           slot: i,
-          amount: Number(s[`payment_${i}`]),
+          amount: Number(s[`payment_${i}` as const]),
         });
       }
     });
@@ -1028,11 +1082,11 @@ function DrillContent({
 
   const findIncomePayment = (clientId: string, amount: number) =>
     incomePayments.find(
-      (p: any) => p.client_id === clientId && Number(p.amount) === amount,
+      (p) => p.client_id === clientId && Number(p.amount) === amount,
     );
   const findExpensePayment = (expenseId: string, amount: number) =>
     expensePayments.find(
-      (p: any) => p.expense_id === expenseId && Number(p.amount) === amount,
+      (p) => p.expense_id === expenseId && Number(p.amount) === amount,
     );
 
   return (
@@ -1051,8 +1105,8 @@ function DrillContent({
           </TableHeader>
           <TableBody>
             {agencyClients
-              .filter((c: any) => Number(c.retainer || 0) > 0)
-              .map((c: any) => {
+              .filter((c) => Number(c.retainer || 0) > 0)
+              .map((c) => {
                 const paid = findIncomePayment(c.id, Number(c.retainer));
                 return (
                   <TableRow key={`r-${c.id}`}>
@@ -1077,8 +1131,8 @@ function DrillContent({
                   </TableRow>
                 );
               })}
-            {monthOneTime.map((o: any) => {
-              const c = clients.find((cl: any) => cl.id === o.client_id);
+            {monthOneTime.map((o) => {
+              const c = clients.find((cl) => cl.id === o.client_id);
               const paid = findIncomePayment(o.client_id, Number(o.amount));
               return (
                 <TableRow key={`o-${o.id}`}>
@@ -1123,8 +1177,8 @@ function DrillContent({
           </TableHeader>
           <TableBody>
             {agencyClients
-              .filter((c: any) => Number(c.monthly_fixed_expense || 0) > 0)
-              .map((c: any) => {
+              .filter((c) => Number(c.monthly_fixed_expense || 0) > 0)
+              .map((c) => {
                 const paid = findExpensePayment(
                   c.id,
                   Number(c.monthly_fixed_expense),

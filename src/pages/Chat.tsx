@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useUserAgencies } from "@/hooks/useUserAgencies";
@@ -88,6 +89,30 @@ interface Contact {
   telegram_chat_id?: string;
 }
 
+const CONTACT_TYPES = [
+  "client",
+  "lead",
+  "group",
+  "unknown",
+  "telegram",
+] as const;
+
+const toContactType = (value: string): Contact["contact_type"] =>
+  CONTACT_TYPES.find((type) => type === value) ?? "unknown";
+
+const CONTACT_FILTERS = [
+  "all",
+  "clients",
+  "leads",
+  "groups",
+  "unknown",
+  "telegram",
+] as const;
+type ContactFilter = (typeof CONTACT_FILTERS)[number];
+
+const isContactFilter = (value: string): value is ContactFilter =>
+  CONTACT_FILTERS.some((filter) => filter === value);
+
 type SelectedContact = {
   id: string;
   type: "client" | "lead" | "group" | "unknown" | "telegram";
@@ -116,9 +141,7 @@ export default function Chat() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
-  const [contactFilter, setContactFilter] = useState<
-    "all" | "clients" | "leads" | "groups" | "unknown" | "telegram"
-  >("all");
+  const [contactFilter, setContactFilter] = useState<ContactFilter>("all");
   const [chatFilter, setChatFilter] = useState<ChatFilter>({ kind: "all" });
   const [showTodayOnly, setShowTodayOnly] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -126,11 +149,11 @@ export default function Chat() {
     useState<SelectedContact | null>(
       clientId ? { id: clientId, type: "client" } : null,
     );
-  const [editingContact, setEditingContact] = useState<{
-    id: string;
-    type: "client" | "lead";
-    data: any;
-  } | null>(null);
+  const [editingContact, setEditingContact] = useState<
+    | { id: string; type: "client"; data: Tables<"clients"> }
+    | { id: string; type: "lead"; data: Tables<"leads"> }
+    | null
+  >(null);
   const [showClearHistoryDialog, setShowClearHistoryDialog] = useState(false);
 
   // Multi-select state
@@ -254,14 +277,14 @@ export default function Chat() {
         p_tenant_id: tenantId,
         p_connection_user_ids: connectionUserIds ?? null,
         p_provider: providerFilter ?? null,
-      } as any);
+      });
 
       if (error) {
         console.error("Error fetching active chats:", error);
         throw error;
       }
 
-      return (data || []).map((contact: any) => ({
+      return (data || []).map((contact): Contact => ({
         id: contact.contact_id,
         name: contact.name,
         contact_name: contact.contact_name,
@@ -271,7 +294,7 @@ export default function Chat() {
         agency_name: contact.agency_name,
         manychat_subscriber_id: contact.manychat_subscriber_id,
         active_chat_provider: contact.active_chat_provider,
-        contact_type: contact.contact_type,
+        contact_type: toContactType(contact.contact_type),
         unread_count: contact.unread_count || 0,
         last_message_at: contact.last_message_at,
         sender_phone: contact.sender_phone,
@@ -326,7 +349,7 @@ export default function Chat() {
 
       if (error) throw error;
 
-      return (data || []).map((contact: any) => ({
+      return (data || []).map((contact): Contact => ({
         id: contact.contact_id,
         name: contact.name,
         contact_name: contact.contact_name,
@@ -336,7 +359,7 @@ export default function Chat() {
         agency_name: contact.agency_name,
         manychat_subscriber_id: contact.manychat_subscriber_id,
         active_chat_provider: contact.active_chat_provider,
-        contact_type: contact.contact_type,
+        contact_type: toContactType(contact.contact_type),
         unread_count: contact.unread_count || 0,
         last_message_at: contact.last_message_at,
         sender_phone: contact.phone,
@@ -371,10 +394,19 @@ export default function Chat() {
       // Group by chat_id to get unique contacts.
       // Names live on inbound messages (sender_name/sender_username may be null on outbound),
       // so iterate ordered by created_at desc but upgrade the name when we find a better one.
-      const chatMap = new Map<string, any>();
+      const chatMap = new Map<
+        string,
+        {
+          chat_id: string;
+          name: string;
+          last_message_at: string;
+          unread_count: number;
+        }
+      >();
       for (const msg of data) {
         const chatIdStr = String(msg.chat_id);
         const existing = chatMap.get(chatIdStr);
+        const senderName = msg.sender_name || msg.sender_username;
         if (!existing) {
           chatMap.set(chatIdStr, {
             chat_id: chatIdStr,
@@ -384,9 +416,9 @@ export default function Chat() {
           });
         } else if (
           (existing.name === chatIdStr || !existing.name) &&
-          (msg.sender_name || msg.sender_username)
+          senderName
         ) {
-          existing.name = msg.sender_name || msg.sender_username;
+          existing.name = senderName;
         }
       }
 
@@ -402,7 +434,7 @@ export default function Chat() {
 
     // Add Telegram contacts
     if (!debouncedSearch && telegramContacts && telegramContacts.length > 0) {
-      const normalizedTelegram = telegramContacts.map((tc: any) => ({
+      const normalizedTelegram = telegramContacts.map((tc) => ({
         id: `telegram-${tc.chat_id}`,
         name: tc.name,
         contact_name: null,
@@ -811,7 +843,9 @@ export default function Chat() {
               <PopoverContent align="end" className="w-64 space-y-3">
                 <Select
                   value={contactFilter || "all"}
-                  onValueChange={(value: any) => setContactFilter(value)}
+                  onValueChange={(value) => {
+                    if (isContactFilter(value)) setContactFilter(value);
+                  }}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -850,7 +884,7 @@ export default function Chat() {
                     </SelectTrigger>
                     <SelectContent className="bg-background z-50">
                       <SelectItem value="all">כל התגיות</SelectItem>
-                      {allTags.map((tag: any) => (
+                      {allTags.map((tag) => (
                         <SelectItem key={tag.id} value={tag.id}>
                           <div className="flex items-center gap-2">
                             <div
@@ -949,7 +983,7 @@ export default function Chat() {
                             type: contact.contact_type,
                             senderPhone: contact.sender_phone,
                             name: contact.name,
-                            telegramChatId: (contact as any).telegram_chat_id,
+                            telegramChatId: contact.telegram_chat_id,
                             activeChatProvider: contact.active_chat_provider,
                           });
                         }

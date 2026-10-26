@@ -3,6 +3,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables, TablesUpdate } from "@/integrations/supabase/types";
+import { errorMessage, isJsonObject } from "@/lib/typing-b26";
+import { sliderColorStyle } from "@/lib/sliderColor-b26";
 import { notifyTaskUpdateAdded } from "@/lib/notifyTaskPeers";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,12 +121,40 @@ const formSchema = z
     },
   );
 
+type TaskAttachment = {
+  name: string;
+  path: string;
+  type: string;
+  size: number;
+};
+type AttachmentRef = { name: string; path: string; type?: string };
+
+interface CalendarEventTimes {
+  start?: { dateTime?: string };
+  end?: { dateTime?: string };
+}
+
+function isRecurrenceFrequency(
+  value: string | null,
+): value is RecurrenceFrequency {
+  return value === "daily" || value === "weekly" || value === "monthly";
+}
+
+function toAttachmentRef(value: Json): AttachmentRef | null {
+  if (!isJsonObject(value) || typeof value.path !== "string") return null;
+  return {
+    path: value.path,
+    name: typeof value.name === "string" ? value.name : "",
+    type: typeof value.type === "string" ? value.type : undefined,
+  };
+}
+
 // Component to handle async signed URL loading
 function AttachmentPreview({
   file,
   onImageClick,
 }: {
-  file: any;
+  file: AttachmentRef;
   onImageClick?: (url: string, name: string) => void;
 }) {
   const [signedUrl, setSignedUrl] = useState<string>("");
@@ -183,7 +214,7 @@ function AttachmentPreview({
 }
 
 interface EditTaskDialogProps {
-  task: any;
+  task: Tables<"tasks">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -213,7 +244,9 @@ export default function EditTaskDialog({
   const [meetingLocation, setMeetingLocation] = useState("");
   const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventTimes[]>(
+    [],
+  );
   const [calendarError, setCalendarError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
@@ -275,7 +308,9 @@ export default function EditTaskDialog({
       client_id: task.client_id || "",
       due_date: task.due_date || "",
       due_time: task.due_time ? String(task.due_time).substring(0, 5) : "",
-      recurrence_frequency: task.recurrence_frequency || null,
+      recurrence_frequency: isRecurrenceFrequency(task.recurrence_frequency)
+        ? task.recurrence_frequency
+        : null,
       recurrence_weekday: task.recurrence_weekday ?? null,
       recurrence_monthday: task.recurrence_monthday ?? null,
       status: task.status || "open",
@@ -299,7 +334,7 @@ export default function EditTaskDialog({
         agencyId = selectedClient.agency_id;
       }
 
-      const updateData: Record<string, unknown> = {
+      const updateData: TablesUpdate<"tasks"> = {
         title: values.title,
         notes: values.notes || null,
         campaigner_id: values.campaigner_id || null,
@@ -331,7 +366,7 @@ export default function EditTaskDialog({
 
       const { data, error } = await supabase
         .from("tasks")
-        .update(updateData as any)
+        .update(updateData)
         .eq("id", task.id)
         .select();
 
@@ -371,9 +406,7 @@ export default function EditTaskDialog({
     },
   });
 
-  const uploadFiles = async (
-    files: File[],
-  ): Promise<{ name: string; path: string; type: string; size: number }[]> => {
+  const uploadFiles = async (files: File[]): Promise<TaskAttachment[]> => {
     const uploadPromises = files.map(async (file) => {
       const fileExt = file.name.split(".").pop();
       const fileName = `${userId}/${task.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -401,7 +434,7 @@ export default function EditTaskDialog({
       attachments,
     }: {
       content: string;
-      attachments: any[];
+      attachments: TaskAttachment[];
     }) => {
       const { error } = await supabase.from("task_updates").insert({
         task_id: task.id,
@@ -482,8 +515,8 @@ export default function EditTaskDialog({
         content: newUpdate,
         attachments,
       });
-    } catch (error: any) {
-      toast.error(`שגיאה בהעלאת קבצים: ${error.message}`);
+    } catch (error) {
+      toast.error(`שגיאה בהעלאת קבצים: ${errorMessage(error)}`);
     } finally {
       setIsUploading(false);
     }
@@ -651,9 +684,9 @@ export default function EditTaskDialog({
       if (data?.events) {
         setCalendarEvents(data.events);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching calendar events:", err);
-      setCalendarError(err.message || "שגיאה בטעינת היומן");
+      setCalendarError(errorMessage(err) || "שגיאה בטעינת היומן");
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -846,9 +879,9 @@ export default function EditTaskDialog({
       setMeetingTime("10:00");
       setMeetingSubject("");
       setMeetingLocation("");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Meeting scheduling error:", error);
-      toast.error(`שגיאה בקביעת פגישה: ${error.message}`);
+      toast.error(`שגיאה בקביעת פגישה: ${errorMessage(error)}`);
     } finally {
       setIsSchedulingMeeting(false);
     }
@@ -1295,7 +1328,7 @@ export default function EditTaskDialog({
 
                     {/* Updates List */}
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {taskUpdates?.map((update: any) => (
+                      {taskUpdates?.map((update) => (
                         <Card key={update.id} className="p-3">
                           {editingUpdateId === update.id ? (
                             <div className="space-y-2">
@@ -1355,17 +1388,19 @@ export default function EditTaskDialog({
                                   Array.isArray(update.attachments) &&
                                   update.attachments.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                      {update.attachments.map(
-                                        (file: any, idx: number) => (
+                                      {update.attachments.map((file, idx) => {
+                                        const attachment =
+                                          toAttachmentRef(file);
+                                        return attachment ? (
                                           <AttachmentPreview
                                             key={idx}
-                                            file={file}
+                                            file={attachment}
                                             onImageClick={(url, name) =>
                                               setLightboxImage({ url, name })
                                             }
                                           />
-                                        ),
-                                      )}
+                                        ) : null;
+                                      })}
                                     </div>
                                   )}
                               </div>
@@ -1596,11 +1631,9 @@ export default function EditTaskDialog({
                               </span>
                             </div>
                             <div
-                              style={{
-                                ["--slider-color" as any]: getPriorityColor(
-                                  field.value,
-                                ),
-                              }}
+                              style={sliderColorStyle(
+                                getPriorityColor(field.value),
+                              )}
                             >
                               <Slider
                                 value={[field.value]}
@@ -1611,11 +1644,9 @@ export default function EditTaskDialog({
                                 max={10}
                                 step={1}
                                 className="cursor-pointer [&_[role=slider]]:border-[var(--slider-color)] [&_.bg-primary]:bg-[var(--slider-color)]"
-                                style={{
-                                  ["--slider-color" as any]: getPriorityColor(
-                                    field.value,
-                                  ),
-                                }}
+                                style={sliderColorStyle(
+                                  getPriorityColor(field.value),
+                                )}
                               />
                             </div>
                           </div>

@@ -15,31 +15,31 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-export interface ColumnConfig {
+export interface ColumnConfig<Row = unknown> {
   id: string;
   label: string;
   width: number;
   minWidth?: number;
   sticky?: boolean;
-  render: (row: any) => ReactNode;
+  render: (row: Row) => ReactNode;
 }
 
-interface ResizableTableProps {
-  columns: ColumnConfig[];
-  data: any[];
-  onColumnsChange?: (columns: ColumnConfig[]) => void;
+interface ResizableTableProps<Row> {
+  columns: ColumnConfig<Row>[];
+  data: Row[];
+  onColumnsChange?: (columns: ColumnConfig<Row>[]) => void;
   checkboxColumn?: {
     checked: boolean[];
     onCheckedChange: (index: number, checked: boolean) => void;
     onSelectAll: (checked: boolean) => void;
   };
-  getRowClassName?: (row: any, rowIndex: number) => string;
-  getStickyCellClassName?: (row: any, rowIndex: number) => string;
+  getRowClassName?: (row: Row, rowIndex: number) => string;
+  getStickyCellClassName?: (row: Row, rowIndex: number) => string;
   /** When set, resized widths are restored on the next CRM visit. */
   columnWidthStorageKey?: string;
 }
 
-export function ResizableTable({
+export function ResizableTable<Row>({
   columns: initialColumns,
   data,
   onColumnsChange,
@@ -47,8 +47,8 @@ export function ResizableTable({
   getRowClassName,
   getStickyCellClassName,
   columnWidthStorageKey,
-}: ResizableTableProps) {
-  const [columns, setColumns] = useState<ColumnConfig[]>(() => {
+}: ResizableTableProps<Row>) {
+  const [columns, setColumns] = useState<ColumnConfig<Row>[]>(() => {
     if (!columnWidthStorageKey || typeof window === "undefined")
       return initialColumns;
     return applyLeadTableColumnWidths(
@@ -90,7 +90,7 @@ export function ResizableTable({
   }, [initialColumns, columnWidthStorageKey]);
 
   const updateColumn = useCallback(
-    (columnId: string, updates: Partial<ColumnConfig>) => {
+    (columnId: string, updates: Partial<ColumnConfig<Row>>) => {
       setColumns((prev) => {
         const newColumns = prev.map((col) =>
           col.id === columnId ? { ...col, ...updates } : col,

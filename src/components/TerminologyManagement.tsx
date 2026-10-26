@@ -107,8 +107,9 @@ export default function TerminologyManagement({
   const { data: termsData, isLoading } = useQuery({
     queryKey: ["terminology", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
-        .from("tenant_terminology" as any)
+        .from("tenant_terminology")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("term_key");
@@ -119,9 +120,7 @@ export default function TerminologyManagement({
     enabled: !!tenantId,
   });
 
-  const allTerms: TerminologyItem[] = Array.isArray(termsData)
-    ? (termsData as any[])
-    : [];
+  const allTerms: TerminologyItem[] = Array.isArray(termsData) ? termsData : [];
 
   // Filter terms by category
   const categoryKeys = CATEGORY_KEYS[category];
@@ -138,7 +137,7 @@ export default function TerminologyManagement({
       plural: string;
     }) => {
       const { error } = await supabase
-        .from("tenant_terminology" as any)
+        .from("tenant_terminology")
         .update({ singular, plural })
         .eq("id", id);
 
@@ -160,7 +159,7 @@ export default function TerminologyManagement({
       if (!term) return;
 
       const { error } = await supabase
-        .from("tenant_terminology" as any)
+        .from("tenant_terminology")
         .update({
           singular: term.original_singular,
           plural: term.original_plural,
@@ -196,16 +195,14 @@ export default function TerminologyManagement({
         plural: term.plural,
       }));
 
-      const { error } = await supabase
-        .from("terminology_presets" as any)
-        .insert({
-          name,
-          description,
-          is_public: isPublic,
-          created_by_tenant_id: tenantId,
-          created_by_user_id: userId,
-          terms,
-        });
+      const { error } = await supabase.from("terminology_presets").insert({
+        name,
+        description,
+        is_public: isPublic,
+        created_by_tenant_id: tenantId,
+        created_by_user_id: userId,
+        terms,
+      });
 
       if (error) throw error;
     },
