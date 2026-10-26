@@ -5,6 +5,7 @@ import test from "node:test";
 import { jerusalemHour } from "./calendarTimeZone.ts";
 import {
   STAFF_ALERT_INTEGRATION_TYPES,
+  STAFF_ALERT_NO_PRIMARY_LINE_HE,
   logStaffAlertOutcome,
   sendStaffAlert,
   staffAlertToolResult,
@@ -77,8 +78,42 @@ test("staff alert sends only through send-manus-wa-message on a Manus line", asy
   const typeFilter = lineQuery.filters.find(
     ([op, col]) => op === "in" && col === "integration_type",
   );
-  assert.deepEqual(typeFilter[2], ["manus_wa", "manuswa"]);
-  assert.deepEqual(STAFF_ALERT_INTEGRATION_TYPES, ["manus_wa", "manuswa"]);
+  // send-manus-wa-message only accepts manus_wa rows, so no alias.
+  assert.deepEqual(typeFilter[2], ["manus_wa"]);
+  assert.deepEqual(STAFF_ALERT_INTEGRATION_TYPES, ["manus_wa"]);
+  assert.match(lineQuery.columns, /\bsettings\b/);
+});
+
+test("staff alert skips a newer secondary Manus line and sends from Carmen's line", async () => {
+  for (const role of ["secondary", "none"]) {
+    const { run, fetch } = send({
+      integrations: [
+        line("manus-carmen", { created_at: "2026-01-01" }),
+        line("manus-owner", {
+          created_at: "2026-06-01",
+          settings: { carmen_role: role },
+        }),
+      ],
+    });
+    const result = await run;
+    assert.equal(result.status, "sent", role);
+    assert.equal(result.integrationId, "manus-carmen", role);
+    assert.equal(fetch.calls.length, 1, role);
+    assert.equal(fetch.calls[0].body.integrationId, "manus-carmen", role);
+  }
+});
+
+test("only a secondary Manus line → no_line and nothing is sent", async () => {
+  const { run, fetch } = send({
+    integrations: [
+      line("manus-owner", { settings: { carmen_role: "secondary" } }),
+    ],
+  });
+  const result = await run;
+  assert.equal(result.status, "no_line");
+  assert.equal(result.sent, false);
+  assert.equal(result.error, STAFF_ALERT_NO_PRIMARY_LINE_HE);
+  assert.equal(fetch.calls.length, 0);
 });
 
 test("a tenant with only a Green API line gets no_line and nothing is sent", async () => {
@@ -219,6 +254,9 @@ test("agent-heartbeat sends no WhatsApp and uses the Israel hour", async () => {
   assert.doesNotMatch(heartbeat, /daily_digest_sent/);
   assert.doesNotMatch(heartbeat, /getUTCHours\(\)\s*\+\s*3/);
   assert.match(heartbeat, /jerusalemHour\(now\)/);
+  // Overdue cutoff and summary date are Israel dates, not UTC ones.
+  assert.doesNotMatch(heartbeat, /toISOString\(\)\.split\("T"\)/);
+  assert.match(heartbeat, /\.lt\("due_date", jerusalemYmd\(now\)\)/);
   // task_updates has no tenant_id and user_id is a profiles uuid.
   assert.doesNotMatch(heartbeat, /user_id:\s*"system"/);
 });

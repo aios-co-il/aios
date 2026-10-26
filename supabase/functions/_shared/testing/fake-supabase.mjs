@@ -3,6 +3,8 @@
  * Supports select/insert with eq, neq, in, order, limit, maybeSingle, single
  * and await. Every query is recorded in `queries` so tests can assert what
  * was asked (for example, which integration types were requested).
+ * A plain column list in select() is honoured: rows come back with only those
+ * columns, so code that forgets to select a column it reads fails its test.
  */
 export function fakeSupabase(tables = {}, { rpc = {}, users = {} } = {}) {
   const queries = [];
@@ -30,7 +32,17 @@ export function fakeSupabase(tables = {}, { rpc = {}, users = {} } = {}) {
         });
       }
       if (q.limit != null) out = out.slice(0, q.limit);
-      return out;
+      return out.map(project);
+    };
+    const project = (row) => {
+      const cols = q.columns;
+      if (typeof cols !== "string" || cols.trim() === "*" || /[()]/.test(cols))
+        return row;
+      const picked = {};
+      for (const col of cols.split(",").map((c) => c.trim())) {
+        if (col && col in row) picked[col] = row[col];
+      }
+      return picked;
     };
     const builder = {
       select(columns) {

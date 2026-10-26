@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { jerusalemHour } from "../_shared/calendarTimeZone.ts";
+import { jerusalemHour, jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         )
         .eq("tenant_id", tenantId)
         .in("status", ["open", "in_progress"])
-        .lt("due_date", now.toISOString().split("T")[0])
+        .lt("due_date", jerusalemYmd(now))
         .is("overdue_notified_at", null)
         .limit(50);
 
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
       // 6. Summary for heartbeat_logs
       const summaryLines = [
-        `סקירת Heartbeat - ${now.toISOString().split("T")[0]}`,
+        `סקירת Heartbeat - ${jerusalemYmd(now)}`,
         `משימות שנסקרו: ${tasksReviewed}`,
         `משימות באיחור: ${overdueTasks?.length || 0}`,
         `משימות חסומות (סוכן): ${staleTasks?.length || 0}`,

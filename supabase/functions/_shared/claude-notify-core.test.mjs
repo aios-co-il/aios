@@ -77,10 +77,14 @@ test("auth: a wrong token or an empty service key never matches", () => {
 
 // ── Transport selection ──────────────────────────────────────────────────────
 
-const greenStep = (automation_id, created_at = "2026-01-01") => ({
+const greenStep = (
+  automation_id,
+  created_at = "2026-01-01",
+  green_api_integration_id = "green-1",
+) => ({
   automation_id,
   action_type: "send_green_api_message",
-  configuration: { green_api_integration_id: "green-1" },
+  configuration: { green_api_integration_id },
   created_at,
 });
 const manusStep = (
@@ -93,13 +97,29 @@ const manusStep = (
   configuration: integration_id ? { integration_id } : {},
   created_at,
 });
-const manusLine = (id, is_active = true, user_id = null) => ({
+const manusLine = (id, is_active = true, user_id = null, extra = {}) => ({
   id,
   tenant_id: TENANT,
   user_id,
   integration_type: "manus_wa",
   is_active,
   created_at: "2026-01-01",
+  settings: { instance_id: `inst-${id}` },
+  ...extra,
+});
+const greenLine = (id = "green-1", extra = {}) => ({
+  id,
+  tenant_id: TENANT,
+  user_id: null,
+  integration_type: "green_api",
+  is_active: true,
+  created_at: "2025-06-01",
+  settings: { instance_id: `inst-${id}` },
+  ...extra,
+});
+const withRole = (row, carmen_role) => ({
+  ...row,
+  settings: { ...(row.settings || {}), carmen_role },
 });
 
 test("transport: Manus step wins even when the bridge automation's first step is Green", () => {
@@ -116,18 +136,20 @@ test("transport: Manus step wins even when the bridge automation's first step is
   assert.equal(plan.manusIntegrationActive, true);
 });
 
-test("transport: another active Carmen automation's Manus step beats a Green bridge", () => {
+test("transport: another active Carmen automation's Manus step on a primary line beats a Green bridge", () => {
   const plan = selectNotifyTransport({
     tenantId: TENANT,
     bridgeAutomationId: "auto-green",
     activeAutomationIds: ["auto-green", "auto-manus"],
     steps: [greenStep("auto-green"), manusStep("auto-manus", null)],
-    integrations: [manusLine("manus-1")],
+    integrations: [greenLine(), manusLine("manus-1")],
   });
   assert.equal(plan.transport, "manus");
   assert.equal(plan.automationId, "auto-manus");
-  // No explicit integration on the step → the tenant's active Manus line.
+  // No line on the step, no trigger pin, no session line → the tenant's
+  // primary Manus line (a Manus row with no carmen_role is primary).
   assert.equal(plan.integrationId, "manus-1");
+  assert.equal(plan.integrationRole, "primary");
 });
 
 test("transport: Green is only a labelled fallback when no active Manus step exists", () => {
@@ -136,10 +158,11 @@ test("transport: Green is only a labelled fallback when no active Manus step exi
     bridgeAutomationId: "auto-1",
     activeAutomationIds: ["auto-1"],
     steps: [manusStep("auto-1", "manus-1"), greenStep("auto-1")],
-    integrations: [manusLine("manus-1", false)],
+    integrations: [manusLine("manus-1", false), greenLine()],
   });
   assert.equal(inactive.transport, "green_fallback");
   assert.equal(inactive.functionName, "send-green-api-message");
+  assert.equal(inactive.integrationId, "green-1");
   assert.equal(inactive.manusIntegrationActive, false);
   assert.equal(inactive.reason, "manus_integration_inactive");
 
@@ -148,10 +171,170 @@ test("transport: Green is only a labelled fallback when no active Manus step exi
     bridgeAutomationId: "auto-1",
     activeAutomationIds: ["auto-1"],
     steps: [greenStep("auto-1")],
-    integrations: [],
+    integrations: [greenLine()],
   });
   assert.equal(noManus.transport, "green_fallback");
   assert.equal(noManus.reason, "no_carmen_manus_step");
+});
+
+// ── Connection roles: a secondary line never sends system notifications ────
+
+test("transport: a secondary Manus line never beats Carmen's primary Green line", () => {
+  // Bridge automation on Carmen's Green line (marked primary) plus a second
+  // active Carmen automation on the owner's personal Manus phone (secondary).
+  for (const personalStep of [
+    manusStep("auto-personal", "manus-owner"),
+    // Same automation pinned through its Carmen trigger instead of the step.
+    manusStep("auto-personal", null),
+  ]) {
+    const plan = selectNotifyTransport({
+      tenantId: TENANT,
+      bridgeAutomationId: "auto-bridge",
+      activeAutomationIds: ["auto-bridge", "auto-personal"],
+      steps: [
+        greenStep("auto-bridge", "2026-01-01", "green-carmen"),
+        personalStep,
+      ],
+      integrations: [
+        withRole(greenLine("green-carmen"), "primary"),
+        withRole(manusLine("manus-owner"), "secondary"),
+      ],
+      triggerPins: { "auto-personal": "manus-owner" },
+    });
+    assert.equal(plan.transport, "green_fallback");
+    assert.equal(plan.integrationId, "green-carmen");
+    assert.equal(plan.integrationRole, "primary");
+    assert.equal(plan.reason, "manus_line_not_primary");
+    assert.deepEqual(plan.skipped, [
+      {
+        automationId: "auto-personal",
+        integrationId: "manus-owner",
+        role: "secondary",
+        reason: "not_primary",
+      },
+    ]);
+  }
+});
+
+test("transport: a step with no line skips the owner's older secondary Manus line", () => {
+  const plan = selectNotifyTransport({
+    tenantId: TENANT,
+    bridgeAutomationId: "auto-1",
+    activeAutomationIds: ["auto-1"],
+    steps: [
+      {
+        ...manusStep("auto-1", null),
+        configuration: { green_api_integration_id: "" },
+      },
+    ],
+    integrations: [
+      withRole(
+        manusLine("manus-owner", true, null, { created_at: "2025-01-01" }),
+        "secondary",
+      ),
+      manusLine("manus-carmen", true, null, { created_at: "2026-01-01" }),
+    ],
+  });
+  assert.equal(plan.transport, "manus");
+  assert.equal(plan.integrationId, "manus-carmen");
+  assert.equal(plan.integrationRole, "primary");
+});
+
+test("transport: a step with no line follows the Carmen trigger pin, then the session's line", () => {
+  const lines = [
+    manusLine("manus-old", true, "user-old", { created_at: "2025-01-01" }),
+    manusLine("manus-carmen", true, "user-carmen", {
+      created_at: "2026-01-01",
+    }),
+  ];
+  const base = {
+    tenantId: TENANT,
+    bridgeAutomationId: "auto-1",
+    activeAutomationIds: ["auto-1"],
+    steps: [manusStep("auto-1", null)],
+    integrations: lines,
+  };
+  assert.equal(
+    selectNotifyTransport({
+      ...base,
+      triggerPins: { "auto-1": "manus-carmen" },
+      connectionUserIds: { "auto-1": "user-old" },
+    }).integrationId,
+    "manus-carmen",
+  );
+  assert.equal(
+    selectNotifyTransport({
+      ...base,
+      connectionUserIds: { "auto-1": "user-carmen" },
+    }).integrationId,
+    "manus-carmen",
+  );
+  // A pin to a secondary line is skipped in favour of a primary one.
+  const pinnedSecondary = selectNotifyTransport({
+    ...base,
+    integrations: [withRole(lines[0], "secondary"), lines[1]],
+    triggerPins: { "auto-1": "manus-old" },
+    connectionUserIds: { "auto-1": "user-old" },
+  });
+  assert.equal(pinnedSecondary.integrationId, "manus-carmen");
+});
+
+test("transport: a step that names a secondary or 'none' line is skipped, never redirected", () => {
+  for (const role of ["secondary", "none"]) {
+    const plan = selectNotifyTransport({
+      tenantId: TENANT,
+      bridgeAutomationId: "auto-1",
+      activeAutomationIds: ["auto-1"],
+      steps: [manusStep("auto-1", "manus-owner")],
+      integrations: [withRole(manusLine("manus-owner"), role)],
+    });
+    assert.equal(plan.transport, "none", role);
+    assert.equal(plan.functionName, null, role);
+    assert.equal(plan.reason, "manus_line_not_primary", role);
+  }
+});
+
+test("transport: Green is refused when it is not primary (tenant has an active Manus line)", () => {
+  const plan = selectNotifyTransport({
+    tenantId: TENANT,
+    bridgeAutomationId: "auto-1",
+    activeAutomationIds: ["auto-1"],
+    steps: [greenStep("auto-1")],
+    integrations: [greenLine(), manusLine("manus-1")],
+  });
+  assert.equal(plan.transport, "none");
+  assert.equal(plan.reason, "green_line_not_primary");
+  assert.equal(plan.skipped[0].role, "secondary");
+});
+
+test("transport: step line fields are read in Carmen's reply order; 'manuswa' rows are not sendable", () => {
+  const plan = selectNotifyTransport({
+    tenantId: TENANT,
+    bridgeAutomationId: "auto-1",
+    activeAutomationIds: ["auto-1"],
+    steps: [
+      {
+        ...manusStep("auto-1", null),
+        configuration: {
+          green_api_integration_id: "manus-carmen",
+          integration_id: "manus-other",
+        },
+      },
+    ],
+    integrations: [manusLine("manus-carmen"), manusLine("manus-other")],
+  });
+  assert.equal(plan.integrationId, "manus-carmen");
+
+  const alias = selectNotifyTransport({
+    tenantId: TENANT,
+    bridgeAutomationId: "auto-1",
+    activeAutomationIds: ["auto-1"],
+    steps: [manusStep("auto-1", null)],
+    integrations: [
+      { ...manusLine("manus-alias"), integration_type: "manuswa" },
+    ],
+  });
+  assert.equal(alias.transport, "none");
 });
 
 test("transport: an inactive non-bridge automation's Manus step is ignored", () => {
@@ -168,7 +351,7 @@ test("transport: an inactive non-bridge automation's Manus step is ignored", () 
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
-function tenantTables({ steps, integrations, sessions } = {}) {
+function tenantTables({ steps, integrations, sessions, trigger = {} } = {}) {
   return {
     tenant_heartbeat_settings: [
       {
@@ -195,6 +378,7 @@ function tenantTables({ steps, integrations, sessions } = {}) {
         automation_id: "auto-1",
         step_type: "trigger",
         action_type: "carmen_whatsapp_session",
+        configuration: trigger,
       },
       ...(steps ?? [manusStep("auto-1", "manus-1")]).map((s) => ({
         ...s,
@@ -269,14 +453,80 @@ test("handler: bearer and service-role callers send through Carmen's Manus line"
 
 test("handler: a Green send is reported as green_fallback with a warning", async () => {
   const { handle, fetch, warnings } = handler({
-    tables: tenantTables({ steps: [greenStep("auto-1")], integrations: [] }),
+    tables: tenantTables({
+      steps: [greenStep("auto-1")],
+      integrations: [greenLine()],
+    }),
   });
   const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
   assert.equal(out.transport, "green_fallback");
   assert.equal(out.sent, true);
   assert.match(fetch.calls[0].url, /send-green-api-message$/);
+  assert.equal(fetch.calls[0].body.integrationId, "green-1");
   assert.equal(warnings.length, 1);
   assert.match(String(warnings[0][0]), /green_fallback/);
+});
+
+test("handler: reads carmen_role from the DB and never sends from a secondary line", async () => {
+  // Carmen's line is pinned on the trigger; the owner's personal Manus phone
+  // is older and marked secondary in settings.
+  const integrations = [
+    withRole(
+      manusLine("manus-owner", true, "owner-user", {
+        created_at: "2025-01-01",
+      }),
+      "secondary",
+    ),
+    manusLine("manus-carmen", true, "carmen-user", {
+      created_at: "2026-01-01",
+    }),
+  ];
+  const { handle, fetch } = handler({
+    tables: tenantTables({ steps: [manusStep("auto-1", null)], integrations }),
+  });
+  const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
+  assert.equal(out.sent, true);
+  assert.equal(out.integration_id, "manus-carmen");
+  assert.equal(fetch.calls[0].body.integrationId, "manus-carmen");
+
+  // Only the secondary line: refused, nothing sent.
+  const onlySecondary = handler({
+    tables: tenantTables({
+      steps: [manusStep("auto-1", null)],
+      integrations: [integrations[0]],
+    }),
+  });
+  const refused = await (
+    await onlySecondary.handle(post(notifyBody, SERVICE_KEY))
+  ).json();
+  assert.equal(refused.sent, false);
+  assert.equal(refused.status, "no_transport");
+  assert.equal(refused.transport, "none");
+  assert.equal(onlySecondary.fetch.calls.length, 0);
+});
+
+test("handler: a step with no line uses the trigger pin, then the session's connection line", async () => {
+  const integrations = [
+    manusLine("manus-other", true, "other-user", { created_at: "2025-01-01" }),
+    manusLine("manus-carmen", true, DAVID_USER, { created_at: "2026-01-01" }),
+  ];
+  // The session's connection user (DAVID_USER) owns manus-carmen.
+  const viaSession = handler({
+    tables: tenantTables({ steps: [manusStep("auto-1", null)], integrations }),
+  });
+  await viaSession.handle(post(notifyBody, SERVICE_KEY));
+  assert.equal(viaSession.fetch.calls[0].body.integrationId, "manus-carmen");
+
+  // The trigger pin wins over the session's line.
+  const viaPin = handler({
+    tables: tenantTables({
+      steps: [manusStep("auto-1", null)],
+      integrations,
+      trigger: { carmen_integration_id: "manus-other" },
+    }),
+  });
+  await viaPin.handle(post(notifyBody, SERVICE_KEY));
+  assert.equal(viaPin.fetch.calls[0].body.integrationId, "manus-other");
 });
 
 test("handler: returns the real send result instead of ok", async () => {
@@ -307,11 +557,11 @@ test("handler: returns the real send result instead of ok", async () => {
   }
 });
 
-test("handler: ping reports the step per tenant and sends nothing", async () => {
+test("handler: ping reports the step and line role per tenant and sends nothing", async () => {
   const { handle, fetch } = handler({
     tables: tenantTables({
       steps: [greenStep("auto-1"), manusStep("auto-1", "manus-1")],
-      integrations: [manusLine("manus-1", false)],
+      integrations: [manusLine("manus-1", false), greenLine()],
     }),
   });
   const res = await handle(post({ ping: true }, SERVICE_KEY));
@@ -326,8 +576,19 @@ test("handler: ping reports the step per tenant and sends nothing", async () => 
       step_type: "send_green_api_message",
       automation_id: "auto-1",
       integration_id: "green-1",
+      integration_role: "primary",
+      integration_primary: true,
       manus_integration_active: false,
       active_manus_integrations: 0,
+      primary_manus_integrations: 0,
+      skipped_lines: [
+        {
+          automation_id: "auto-1",
+          integration_id: "manus-1",
+          role: "primary",
+          reason: "inactive",
+        },
+      ],
       recipient_source: "campaign_pulse_phone",
       sender_resolved: true,
       reason: "manus_integration_inactive",
@@ -335,6 +596,34 @@ test("handler: ping reports the step per tenant and sends nothing", async () => 
   ]);
   assert.equal(fetch.calls.length, 0);
   assert.equal((await handle(post({ ping: true }))).status, 401);
+});
+
+test("handler: ping shows a secondary-only tenant as refused, with the skipped line's role", async () => {
+  const { handle, fetch } = handler({
+    tables: tenantTables({
+      steps: [manusStep("auto-1", "manus-owner")],
+      integrations: [withRole(manusLine("manus-owner"), "secondary")],
+    }),
+  });
+  const out = await (
+    await handle(post({ ping: true, tenant_id: TENANT }, SERVICE_KEY))
+  ).json();
+  const [tenant] = out.tenants;
+  assert.equal(tenant.transport, "none");
+  assert.equal(tenant.integration_role, null);
+  assert.equal(tenant.integration_primary, false);
+  assert.equal(tenant.active_manus_integrations, 1);
+  assert.equal(tenant.primary_manus_integrations, 0);
+  assert.deepEqual(tenant.skipped_lines, [
+    {
+      automation_id: "auto-1",
+      integration_id: "manus-owner",
+      role: "secondary",
+      reason: "not_primary",
+    },
+  ]);
+  assert.equal(tenant.reason, "manus_line_not_primary");
+  assert.equal(fetch.calls.length, 0);
 });
 
 test("claude-notify edge function only wires env into the shared handler", async () => {

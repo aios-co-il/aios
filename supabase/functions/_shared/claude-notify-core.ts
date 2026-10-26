@@ -8,15 +8,18 @@
  * service-role key. When CLAUDE_MCP_BEARER is unset, only the service-role key
  * is accepted (it used to accept anyone).
  *
- * Transport: Carmen alerts leave from her own Manus line. The tenant's Carmen
- * send_manus_message step is preferred whenever its manus_wa integration is
- * active. A Green API step (David's operator phone) is used only when the
- * tenant has no active Manus step, and the response labels it
- * transport:"green_fallback" with a console.warn, so it is never silent.
+ * Transport: Carmen alerts leave from her own line, and only from a PRIMARY
+ * Carmen connection (a secondary one, such as the owner's personal phone,
+ * never sends system notifications). The tenant's Carmen send_manus_message
+ * step is preferred whenever it resolves to an active, primary manus_wa line.
+ * A Green API step (David's operator phone) is used only when no Manus step
+ * does, and the response labels it transport:"green_fallback" with a
+ * console.warn, so it is never silent. See claude-notify-transport.ts.
  *
  * Body: { tenant_id, message, chat_id? }  → { sent, status, transport, error, … }
  *       { ping: true, tenant_id? }        → per tenant: step type it would use,
- *                                            Manus integration status; sends nothing.
+ *                                            line role, Manus integration status;
+ *                                            sends nothing.
  */
 
 import {
@@ -30,17 +33,21 @@ import { isServiceKey, timingSafeEqualStr } from "./timing-safe-equal.ts";
 import { readWaSendResponse, type WaSendStatus } from "./wa-send-result.ts";
 import {
   CARMEN_TRIGGER_ACTION,
+  GREEN_INTEGRATION_TYPES,
   isManusIntegration,
   MANUS_INTEGRATION_TYPES,
   NOTIFY_SEND_ACTIONS,
+  notifyLineRole,
   selectNotifyTransport,
   stepIntegrationId,
+  tenantHasActiveManus,
   type NotifyIntegrationRow,
   type NotifyStepRow,
   type NotifyTransportPlan,
 } from "./claude-notify-transport.ts";
 
 const PING_TENANT_LIMIT = 200;
+const PING_CONCURRENCY = 8;
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -80,6 +87,7 @@ export type TenantNotifyPlan = {
   transport: NotifyTransportPlan;
   senderUserId: string | null;
   activeManusIntegrations: number;
+  primaryManusIntegrations: number;
 };
 
 function unique<T>(values: (T | null | undefined)[]): T[] {
@@ -93,7 +101,7 @@ async function loadCarmenSendSetup(
 ) {
   const { data: triggers } = await sb
     .from("automation_flow_steps")
-    .select("automation_id")
+    .select("automation_id, configuration")
     .eq("tenant_id", tenantId)
     .eq("step_type", "trigger")
     .eq("action_type", CARMEN_TRIGGER_ACTION);
@@ -101,10 +109,18 @@ async function loadCarmenSendSetup(
     ...(triggers || []).map((t: any) => t.automation_id),
     bridgeAutomationId,
   ]);
+  // Carmen trigger pin (carmen_integration_id) per automation.
+  const triggerPins: Record<string, string | null> = {};
+  for (const t of triggers || []) {
+    const pin = t?.configuration?.carmen_integration_id;
+    if (pin && !triggerPins[t.automation_id])
+      triggerPins[t.automation_id] = String(pin);
+  }
 
+  // settings carries carmen_role: only primary lines may send notifications.
   const integrationCols =
-    "id, tenant_id, user_id, integration_type, is_active, created_at";
-  const [{ data: automations }, { data: steps }, { data: tenantManus }] =
+    "id, tenant_id, user_id, integration_type, is_active, created_at, settings";
+  const [{ data: automations }, { data: steps }, { data: tenantLines }] =
     await Promise.all([
       ids.length
         ? sb.from("automations").select("id, active").in("id", ids)
@@ -122,13 +138,17 @@ async function loadCarmenSendSetup(
         .from("tenant_integrations")
         .select(integrationCols)
         .eq("tenant_id", tenantId)
-        .in("integration_type", MANUS_INTEGRATION_TYPES),
+        .in("integration_type", [
+          ...MANUS_INTEGRATION_TYPES,
+          ...GREEN_INTEGRATION_TYPES,
+        ]),
     ]);
 
-  const known = new Set((tenantManus || []).map((r: any) => r.id));
-  const referenced = unique<string>(
-    ((steps || []) as NotifyStepRow[]).map(stepIntegrationId),
-  ).filter((id) => !known.has(id));
+  const known = new Set((tenantLines || []).map((r: any) => r.id));
+  const referenced = unique<string>([
+    ...((steps || []) as NotifyStepRow[]).map(stepIntegrationId),
+    ...Object.values(triggerPins),
+  ]).filter((id) => !known.has(id));
   const { data: referencedRows } = referenced.length
     ? await sb
         .from("tenant_integrations")
@@ -142,9 +162,10 @@ async function loadCarmenSendSetup(
       .map((a: any) => a.id as string),
     steps: (steps || []) as NotifyStepRow[],
     integrations: [
-      ...(tenantManus || []),
+      ...(tenantLines || []),
       ...(referencedRows || []),
     ] as NotifyIntegrationRow[],
+    triggerPins,
   };
 }
 
@@ -213,9 +234,19 @@ export async function planTenantNotify(
     tenantId,
     bridge?.automation_id ?? null,
   );
+  // The connection each automation last spoke on: the bridge session's for
+  // the bridge automation, else that automation's latest session.
+  const connectionUserIds: Record<string, string> = {};
+  if (bridge?.automation_id && bridge.connection_user_id)
+    connectionUserIds[bridge.automation_id] = bridge.connection_user_id;
+  for (const s of sessions) {
+    if (s.automation_id && s.connection_user_id)
+      connectionUserIds[s.automation_id] ??= s.connection_user_id;
+  }
   const transport = selectNotifyTransport({
     tenantId,
     bridgeAutomationId: bridge?.automation_id ?? null,
+    connectionUserIds,
     ...setup,
   });
 
@@ -232,14 +263,19 @@ export async function planTenantNotify(
           : null) ||
         null;
 
+  const activeManus = setup.integrations.filter(
+    (r) => r.tenant_id === tenantId && isManusIntegration(r) && r.is_active,
+  );
+  const hasActiveManus = tenantHasActiveManus(tenantId, setup.integrations);
   return {
     tenantId,
     target,
     delivery,
     transport,
     senderUserId,
-    activeManusIntegrations: setup.integrations.filter(
-      (r) => r.tenant_id === tenantId && isManusIntegration(r) && r.is_active,
+    activeManusIntegrations: activeManus.length,
+    primaryManusIntegrations: activeManus.filter(
+      (r) => notifyLineRole(r, hasActiveManus) === "primary",
     ).length,
   };
 }
@@ -271,8 +307,17 @@ export function pingReport(plan: TenantNotifyPlan) {
     step_type: plan.transport.actionType,
     automation_id: plan.transport.automationId,
     integration_id: plan.transport.integrationId,
+    integration_role: plan.transport.integrationRole,
+    integration_primary: plan.transport.integrationRole === "primary",
     manus_integration_active: plan.transport.manusIntegrationActive,
     active_manus_integrations: plan.activeManusIntegrations,
+    primary_manus_integrations: plan.primaryManusIntegrations,
+    skipped_lines: plan.transport.skipped.map((s) => ({
+      automation_id: s.automationId,
+      integration_id: s.integrationId,
+      role: s.role,
+      reason: s.reason,
+    })),
     recipient_source: plan.target.source,
     sender_resolved: !!plan.senderUserId,
     reason: plan.transport.reason,
@@ -335,8 +380,12 @@ export function createClaudeNotifyHandler(deps: ClaudeNotifyDeps) {
     if (body?.ping === true) {
       const tenantIds = tenantId ? [tenantId] : await listNotifyTenants(sb);
       const tenants = [];
-      for (const id of tenantIds) {
-        tenants.push(pingReport(await planTenantNotify(sb, id, null)));
+      for (let i = 0; i < tenantIds.length; i += PING_CONCURRENCY) {
+        const batch = tenantIds.slice(i, i + PING_CONCURRENCY);
+        const plans = await Promise.all(
+          batch.map((id) => planTenantNotify(sb, id, null)),
+        );
+        tenants.push(...plans.map(pingReport));
       }
       return json({
         ok: true,
@@ -381,7 +430,7 @@ export function createClaudeNotifyHandler(deps: ClaudeNotifyDeps) {
     if (!transport.functionName) {
       return refuse(
         "no_transport",
-        `no Carmen WhatsApp send step for this tenant (${transport.reason})`,
+        `no Carmen WhatsApp send step on a primary Carmen line for this tenant (${transport.reason})`,
       );
     }
     if (!plan.senderUserId) {
@@ -392,7 +441,7 @@ export function createClaudeNotifyHandler(deps: ClaudeNotifyDeps) {
     }
     if (transport.transport === "green_fallback") {
       logger.warn(
-        "[claude-notify] green_fallback: tenant has no active Carmen Manus step; sending from the Green API line",
+        "[claude-notify] green_fallback: no Carmen Manus step resolves to an active primary line; sending from the Green API line",
         {
           tenantId,
           automationId: transport.automationId,

@@ -6,10 +6,12 @@
 // never a cross-tenant owner who merely has the newest session, never a group
 // chat. Always 1:1.
 //
-// Transport: Carmen's own Manus line. The tenant's Carmen send_manus_message
-// step is used whenever its manus_wa integration is active; a Green API step
-// (David's operator phone) is only a labelled fallback (transport:
-// "green_fallback" + console.warn) for tenants with no active Manus step.
+// Transport: Carmen's own line, and only a PRIMARY Carmen connection (a
+// secondary one, e.g. the owner's personal phone, never sends system
+// notifications). The tenant's Carmen send_manus_message step is used whenever
+// it resolves to an active, primary manus_wa line; a Green API step (David's
+// operator phone) is only a labelled fallback (transport: "green_fallback" +
+// console.warn) when no Manus step does.
 // The response carries the real send result: { sent, status, transport, error }.
 //
 // Auth (fails closed): Authorization: Bearer must be CLAUDE_MCP_BEARER (same
@@ -18,8 +20,9 @@
 // service-role key is accepted.
 //
 // Body: { tenant_id, message, chat_id? } or { ping: true, tenant_id? }.
-// Ping reports, per tenant, which step type a send would use and whether the
-// Manus integration is active. It sends nothing.
+// Ping reports, per tenant, which step type and line a send would use, the
+// line's Carmen role and whether the Manus integration is active. It sends
+// nothing.
 //
 // Logic lives in ../_shared/claude-notify-core.ts (unit tested).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
