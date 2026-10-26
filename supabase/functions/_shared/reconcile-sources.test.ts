@@ -245,7 +245,63 @@ Deno.test(
       ReconcileSourceError,
     );
     assertStrictEquals(err.kind, "rate_limit");
+    // 80004 throttles one ad account, not the app: only this table stops.
+    assertStrictEquals(err.scope, "account");
     assertEquals(sleeps, [2000, 4000]);
+  },
+);
+
+Deno.test(
+  "Meta: an app-level rate limit stops the platform; every request has a timeout",
+  async () => {
+    const limited = {
+      match: /\/act_1234\?/,
+      status: 400,
+      body: {
+        error: { code: 4, message: "Application request limit reached" },
+      },
+    };
+    const rec = replay([limited, limited, limited]);
+    const source = createMetaSource({
+      getToken: () => Promise.resolve(TOKEN),
+      budget: new CallBudget(50),
+      fetch: rec.fetchFn,
+      sleep,
+    });
+    const err = await assertRejects(
+      () => source.account(metaTable),
+      ReconcileSourceError,
+    );
+    assertStrictEquals(err.scope, "platform");
+    assert(rec.calls.every((c) => c.init?.signal instanceof AbortSignal));
+  },
+);
+
+Deno.test(
+  "Meta: an account without a time zone falls back to UTC and says so",
+  async () => {
+    const rec = replay([
+      {
+        match: /\/act_1234\?/,
+        body: { account_id: "1234", name: "No zone", currency: "ILS" },
+      },
+      { match: /\/campaigns\?/, body: { data: [] } },
+      { match: /\/adsets\?/, body: { data: [] } },
+      { match: /\/insights\?/, body: { data: [] } },
+    ]);
+    const r = await reconcileTable({
+      table: { ...metaTable, last_sync_at: null },
+      source: createMetaSource({
+        getToken: () => Promise.resolve(TOKEN),
+        budget: new CallBudget(50),
+        fetch: rec.fetchFn,
+        sleep,
+      }),
+      readAios: () => Promise.resolve([]),
+      now: new Date("2026-10-26T01:30:00Z"),
+    });
+    assertStrictEquals(r.summary.timezone, "UTC");
+    assertStrictEquals(r.summary.timezone_fallback, true);
   },
 );
 

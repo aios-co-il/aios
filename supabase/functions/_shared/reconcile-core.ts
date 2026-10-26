@@ -106,13 +106,25 @@ export interface PlatformSource {
 export type SourceErrorKind =
   "auth" | "rate_limit" | "platform" | "config" | "budget";
 
+/**
+ * How far a rate limit reaches: "account" throttles (Meta's per-ad-account
+ * 80000-range codes) stop only that table; anything else stops the platform.
+ */
+export type RateLimitScope = "account" | "platform";
+
 /** A platform failure with a kind the worker can act on. Messages are redacted. */
 export class ReconcileSourceError extends Error {
   readonly kind: SourceErrorKind;
-  constructor(kind: SourceErrorKind, message: string) {
+  readonly scope: RateLimitScope;
+  constructor(
+    kind: SourceErrorKind,
+    message: string,
+    scope: RateLimitScope = "platform",
+  ) {
     super(redactSecrets(message));
     this.name = "ReconcileSourceError";
     this.kind = kind;
+    this.scope = scope;
   }
 }
 
@@ -259,6 +271,14 @@ export function tableLastSyncAt(table: ReconcileTable): string | null {
  * The nightly run starts before the morning sync, so without this every active
  * campaign would show yesterday's partial day as a mismatch. Older days are
  * always compared, so a stalled sync still shows up as missing days.
+ *
+ * Known sync gap, reported on purpose: the scheduled Meta insights sync
+ * (cron-sync-facebook-insights) plans its window by Jerusalem date. For an
+ * account far behind Jerusalem (America/*) the morning run stores that
+ * account's yesterday while it is still running and the afternoon run starts
+ * from the next day, so the day stays partial until the 3-day lookback
+ * re-fetches it. Those stored rows really are short, so they show up as spend
+ * mismatches until the sync plans by the account's own zone.
  */
 export function pendingDates(
   window: ReconcileWindow,
@@ -637,6 +657,8 @@ export type TableReconcileResult = {
   summary: Record<string, unknown>;
   /** Kind of failure, when status is failed. */
   error_kind?: SourceErrorKind | "aios_read";
+  /** For a rate_limit failure: whether it stops only this account or the platform. */
+  rate_limit_scope?: RateLimitScope;
   /** Platform rows of the compared days (for callers that need totals). */
   platform_rows?: CampaignDayRow[];
   aios_rows?: CampaignDayRow[];
@@ -662,6 +684,12 @@ function errorResult(
     window_end: window?.end || null,
     findings: [],
     error_kind: kind,
+    ...(kind === "rate_limit"
+      ? {
+          rate_limit_scope:
+            error instanceof ReconcileSourceError ? error.scope : "platform",
+        }
+      : {}),
     summary: {
       ...base,
       error_kind: kind,
@@ -739,7 +767,26 @@ export async function reconcileTable(input: {
     currency: account.currency,
     pending_dates: pending,
     compared_dates: compared.length,
+    requested_window: { start: window.start, end: window.end },
   });
+  // Every day still waits for a sync (e.g. days=1 before the morning sync, or
+  // a stalled sync): nothing can be compared, so this is not a match.
+  if (!compared.length) {
+    return {
+      status: "skipped",
+      platform,
+      window_start: null,
+      window_end: null,
+      findings: [],
+      summary: { ...base, skipped_reason: "not_yet_synced" },
+    };
+  }
+  // The run's window is the days actually compared, so "checked 19.10–24.10"
+  // never names a pending day that was held back.
+  const comparedWindow = {
+    start: compared[0],
+    end: compared[compared.length - 1],
+  };
 
   let platformRows: CampaignDayRow[];
   try {
@@ -776,8 +823,8 @@ export async function reconcileTable(input: {
   return {
     status: cmp.findings.length ? "mismatch" : "ok",
     platform,
-    window_start: window.start,
-    window_end: window.end,
+    window_start: comparedWindow.start,
+    window_end: comparedWindow.end,
     findings,
     summary: {
       ...base,

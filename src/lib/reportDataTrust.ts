@@ -28,7 +28,7 @@ export type DataTrust = {
 
 const PLATFORM_LABEL: Record<string, string> = {
   meta: "מטא",
-  google: "גוגל אדס",
+  google: "Google Ads",
 };
 
 function shortDate(ymd: string | null): string {
@@ -67,9 +67,15 @@ export function reportDataTrust(
   }
   const summary = (run.summary || {}) as { findings_total?: unknown };
   const total = Number(summary.findings_total) || 0;
+  const found =
+    total === 1
+      ? "נמצא פער אחד"
+      : total > 1
+        ? `נמצאו ${total} פערים`
+        : "נמצאו פערים";
   return {
     tone: "gaps",
     label: "נמצאו פערים מול הפלטפורמה",
-    title: `בבדיקה מול ${platform}${range} נמצאו ${total || "כמה"} פערים`,
+    title: `בבדיקה מול ${platform}${range} ${found}`,
   };
 }

@@ -3,7 +3,8 @@
  * verify_report_vs_meta (live, Meta tables) keeps its old answer shape but now
  * compares day by day in the ad account's time zone, covers results and revenue
  * as well as spend, counts rows without entity_level as campaign rows, and has
- * no table cap (a deadline lists whatever was not reached instead).
+ * no table cap (a deadline, the call budget or a Meta rate limit lists whatever
+ * was not reached instead).
  */
 import {
   CallBudget,
@@ -142,6 +143,20 @@ export function toVerifyResult(
 ): Record<string, unknown> {
   const client = table.client_name || table.client_id;
   const summary = result.summary || {};
+  if (
+    result.status === "skipped" &&
+    summary.skipped_reason === "not_yet_synced"
+  ) {
+    // Nothing was compared: say so instead of calling it a match.
+    return {
+      client,
+      agency: table.agency_name,
+      timezone: summary.timezone,
+      ok: false,
+      not_compared: true,
+      not_yet_synced: (summary.pending_dates as string[]) || [],
+    };
+  }
   if (result.status === "failed" || result.status === "skipped") {
     const reason = String(summary.error || summary.skipped_reason || "");
     return {
@@ -194,6 +209,14 @@ export function toVerifyResult(
   };
 }
 
+/**
+ * Meta requests one chat question may spend: about 40 tables at 4 calls each,
+ * the scale the tool had before. Every call shares the tenant's tokens with the
+ * scheduled syncs, so the check stays small and stops at Meta's first rate limit.
+ */
+export const VERIFY_CALL_BUDGET = 160;
+export const VERIFY_CONCURRENCY = 2;
+
 /** verify_report_vs_meta: live check of the scoped Meta report tables. */
 export async function verifyReportVsMeta(input: {
   db: Db;
@@ -202,28 +225,31 @@ export async function verifyReportVsMeta(input: {
   now: Date;
   fallbackTenantIds?: string[];
   fetch?: FetchLike;
+  sleep?: (ms: number) => Promise<void>;
   budget?: CallBudget;
   concurrency?: number;
   deadlineMs?: number;
 }): Promise<Record<string, unknown>> {
-  const budget = input.budget || new CallBudget(600);
+  const budget = input.budget || new CallBudget(VERIFY_CALL_BUDGET);
   const deadline = Date.now() + (input.deadlineMs ?? 75_000);
   const source = createMetaSource({
     getToken: (t) => resolveMetaToken(input.db, t, input.fallbackTenantIds),
     budget,
     fetch: input.fetch,
+    sleep: input.sleep,
   });
   const results: Array<Record<string, unknown>> = new Array(
     input.tables.length,
   );
   const notChecked: string[] = [];
+  let rateLimited = false;
   let next = 0;
   const worker = async () => {
     for (;;) {
       const i = next++;
       if (i >= input.tables.length) return;
       const table = input.tables[i];
-      if (Date.now() >= deadline || budget.remaining < 4) {
+      if (rateLimited || Date.now() >= deadline || budget.remaining < 4) {
         notChecked.push(String(table.client_name || table.client_id));
         continue;
       }
@@ -237,6 +263,12 @@ export async function verifyReportVsMeta(input: {
           maxFindings: 1000,
           keepRows: true,
         });
+        // Meta refused the app or token: asking for more tables only burns quota.
+        if (
+          result.error_kind === "rate_limit" &&
+          result.rate_limit_scope !== "account"
+        )
+          rateLimited = true;
         results[i] = toVerifyResult(table, result);
       } catch {
         notChecked.push(String(table.client_name || table.client_id));
@@ -245,11 +277,18 @@ export async function verifyReportVsMeta(input: {
   };
   await Promise.all(
     Array.from(
-      { length: Math.min(input.concurrency ?? 4, input.tables.length) },
+      {
+        length: Math.min(
+          input.concurrency ?? VERIFY_CONCURRENCY,
+          input.tables.length,
+        ),
+      },
       worker,
     ),
   );
-  const checked = results.filter(Boolean);
+  const done = results.filter(Boolean);
+  const notSynced = done.filter((r) => r.not_compared);
+  const checked = done.filter((r) => !r.not_compared);
   const problems = checked.filter((r) => r.error || !r.ok);
   const periods = [
     ...new Set(checked.map((r) => r.period).filter(Boolean)),
@@ -265,10 +304,22 @@ export async function verifyReportVsMeta(input: {
     ok_count: checked.length - problems.length,
     ok_clients: checked.filter((r) => !r.error && r.ok).map((r) => r.client),
     problems,
+    ...(notSynced.length
+      ? {
+          not_yet_synced: notSynced.map((r) => ({
+            client: r.client,
+            dates: r.not_yet_synced,
+          })),
+          not_yet_synced_note:
+            "לימים האלה עוד אין נתונים מסונכרנים ב-AIOS, אז אין מה להשוות — זה לא אומר שהדוח תואם",
+        }
+      : {}),
     ...(notChecked.length
       ? {
           not_checked: notChecked,
-          note: "לא הספקתי לבדוק את כל הדוחות בזמן — הבדיקה הלילית שומרת תוצאות לכולם (get_reconciliation_status)",
+          note: rateLimited
+            ? "מטא הגבילה את קצב הבקשות, אז עצרתי ולא בדקתי את כל הדוחות — הבדיקה הלילית שומרת תוצאות לכולם (get_reconciliation_status)"
+            : "לא הספקתי לבדוק את כל הדוחות בזמן — הבדיקה הלילית שומרת תוצאות לכולם (get_reconciliation_status)",
         }
       : {}),
   };

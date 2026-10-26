@@ -1,9 +1,16 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   getReconciliationStatus,
+  nextMetaConnectionTenant,
   readAiosCampaignRows,
+  resolveMetaToken,
   saveReconcileRun,
 } from "./reconcile-db.ts";
+import { memoryDb } from "./reconcile-memory-db.ts";
 
 type Call = { method: string; args: unknown[] };
 
@@ -172,7 +179,7 @@ Deno.test(
       started_at,
       finished_at: started_at,
       window_start: "2026-10-19",
-      window_end: "2026-10-25",
+      window_end: "2026-10-24",
       summary:
         status === "mismatch"
           ? {
@@ -184,15 +191,16 @@ Deno.test(
       crm_tables: { name: `table ${table_id}` },
       clients: { name: "Client" },
     });
-    const { db } = fakeDb({
-      rows: [
+    const db = memoryDb({
+      reconcile_runs: [
         run("3", "t1", "ok", "2026-10-26T01:31:00Z"),
         run("2", "t2", "mismatch", "2026-10-26T01:30:30Z"),
         run("1", "t1", "mismatch", "2026-10-25T01:30:00Z"),
       ],
     });
     const status = await getReconciliationStatus(db, {
-      tenantIds: ["tenant-1"],
+      tenantId: "tenant-1",
+      callerRole: "owner",
       sinceIso: "2026-10-23T00:00:00Z",
     });
     assertStrictEquals(status.checked, 2);
@@ -208,5 +216,198 @@ Deno.test(
     assertEquals(status.items[0].top_findings, [
       { kind: "mismatch", campaign: "A" },
     ]);
+  },
+);
+
+// Tenant A shares agency X with tenant B (agency_tenant_access). B also has
+// agency Y, which A has no access to, and B's own account-level check.
+function sharedTenantsDb() {
+  const run = (
+    id: string,
+    tenant_id: string,
+    client_id: string | null,
+    table_id: string | null,
+  ) => ({
+    id,
+    tenant_id,
+    client_id,
+    table_id,
+    platform: "meta",
+    status: "mismatch",
+    started_at: "2026-10-26T01:30:00Z",
+    finished_at: "2026-10-26T01:30:05Z",
+    window_start: table_id ? "2026-10-19" : null,
+    window_end: table_id ? "2026-10-24" : null,
+    summary: {
+      findings_total: 1,
+      top_findings: [{ kind: "mismatch", campaign: `campaign of ${id}` }],
+    },
+    crm_tables: table_id ? { name: table_id } : null,
+    clients: client_id ? { name: client_id } : null,
+  });
+  return memoryDb({
+    agency_tenant_access: [
+      {
+        accessing_tenant_id: "tenant-A",
+        source_tenant_id: "tenant-B",
+        agency_id: "agency-X",
+      },
+    ],
+    clients: [
+      { id: "client-a", tenant_id: "tenant-A", agency_id: "agency-A" },
+      { id: "client-bx", tenant_id: "tenant-B", agency_id: "agency-X" },
+      { id: "client-by", tenant_id: "tenant-B", agency_id: "agency-Y" },
+    ],
+    reconcile_runs: [
+      run("a-table", "tenant-A", "client-a", "table-a"),
+      run("a-accounts", "tenant-A", null, null),
+      run("bx-table", "tenant-B", "client-bx", "table-bx"),
+      run("by-table", "tenant-B", "client-by", "table-by"),
+      run("b-accounts", "tenant-B", null, null),
+    ],
+  });
+}
+
+const SINCE = "2026-10-23T00:00:00Z";
+const ids = (status: {
+  items: Array<{ table_id: string | null; client_id: string | null }>;
+}) => status.items.map((i) => i.table_id || `accounts:${i.client_id}`).sort();
+
+Deno.test(
+  "status scope: a manager sees own tables and the shared agency's clients only",
+  async () => {
+    const status = await getReconciliationStatus(sharedTenantsDb(), {
+      tenantId: "tenant-A",
+      callerRole: "agency_manager",
+      sinceIso: SINCE,
+    });
+    // Not B's other agency, not B's account-level run, and A's own
+    // account-level run is for owners only.
+    assertEquals(ids(status), ["table-a", "table-bx"]);
+  },
+);
+
+Deno.test(
+  "status scope: an owner also sees the own tenant's unmapped-account run, never the source tenant's",
+  async () => {
+    const status = await getReconciliationStatus(sharedTenantsDb(), {
+      tenantId: "tenant-A",
+      callerRole: "owner",
+      sinceIso: SINCE,
+    });
+    assertEquals(ids(status), ["accounts:null", "table-a", "table-bx"]);
+    const accounts = status.items.find((i) => !i.table_id);
+    assertEquals(accounts?.top_findings, [
+      { kind: "mismatch", campaign: "campaign of a-accounts" },
+    ]);
+  },
+);
+
+Deno.test(
+  "status scope: a client of a non-shared agency in the source tenant is refused",
+  async () => {
+    const db = sharedTenantsDb();
+    await assertRejects(
+      () =>
+        getReconciliationStatus(db, {
+          tenantId: "tenant-A",
+          callerRole: "owner",
+          clientId: "client-by",
+          sinceIso: SINCE,
+        }),
+      Error,
+      "מחוץ להרשאה",
+    );
+    const shared = await getReconciliationStatus(db, {
+      tenantId: "tenant-A",
+      callerRole: "agency_manager",
+      clientId: "client-bx",
+      sinceIso: SINCE,
+    });
+    assertEquals(ids(shared), ["table-bx"]);
+  },
+);
+
+Deno.test(
+  "Meta token: the table's own tenant only, never an agency source tenant's",
+  async () => {
+    const db = memoryDb({
+      agency_tenant_access: [
+        { accessing_tenant_id: "tenant-A", source_tenant_id: "tenant-B" },
+      ],
+      tenant_integrations: [
+        {
+          id: "b-conn",
+          tenant_id: "tenant-B",
+          integration_type: "facebook",
+          is_active: true,
+          connection_visibility: "org",
+          api_key: "token-of-B",
+          updated_at: "2026-10-25T00:00:00Z",
+        },
+      ],
+    });
+    const table = {
+      id: "t1",
+      tenant_id: "tenant-A",
+      client_id: "c1",
+      integration_type: "facebook_insights",
+      integration_settings: { ad_account_id: "act_1" },
+    };
+    // Same as sync-facebook-insights: no token on tenant A means no token.
+    assertStrictEquals(await resolveMetaToken(db, table), null);
+    // Carmen's live check may still pass the caller's tenant explicitly.
+    assertStrictEquals(
+      await resolveMetaToken(db, table, ["tenant-B"]),
+      "token-of-B",
+    );
+  },
+);
+
+Deno.test(
+  "unmapped accounts: tenants one at a time, org-level connections only, no page cap",
+  async () => {
+    const conn = (
+      id: string,
+      tenant_id: string,
+      extra: Record<string, unknown> = {},
+    ) => ({
+      id,
+      tenant_id,
+      integration_type: "facebook",
+      is_active: true,
+      api_key: `token-${id}`,
+      user_id: "user-1",
+      connection_visibility: "org",
+      ...extra,
+    });
+    const rows = [
+      conn("c1", "tenant-1"),
+      conn("c2", "tenant-1", {
+        user_id: null,
+        connection_visibility: "private",
+      }),
+      // A staff member's personal token: never listed to the owners.
+      conn("c3", "tenant-1", { connection_visibility: "private" }),
+      // Same token twice in one tenant is one connection.
+      conn("c4", "tenant-1", { api_key: "token-c1" }),
+      conn("c5", "tenant-2", { is_active: false }),
+      conn("c6", "tenant-3", { api_key: null }),
+    ];
+    // More connections than any single page: all of tenant-4's are returned.
+    for (let i = 0; i < 1005; i++)
+      rows.push(conn(`d${String(i).padStart(4, "0")}`, "tenant-4"));
+    const db = memoryDb({ tenant_integrations: rows });
+
+    const first = await nextMetaConnectionTenant(db, null);
+    assertStrictEquals(first?.tenant_id, "tenant-1");
+    assertEquals(
+      first?.connections.map((c) => c.id),
+      ["c1", "c2"],
+    );
+    const second = await nextMetaConnectionTenant(db, "tenant-1");
+    assertStrictEquals(second?.tenant_id, "tenant-4");
+    assertStrictEquals(second?.connections.length, 1005);
+    assertStrictEquals(await nextMetaConnectionTenant(db, "tenant-4"), null);
   },
 );

@@ -37,8 +37,16 @@ test("a run with gaps says so, with the count in the tooltip", () => {
   expect(trust?.tone).toBe("gaps");
   expect(trust?.label).toBe("נמצאו פערים מול הפלטפורמה");
   expect(trust?.title).toBe(
-    "בבדיקה מול גוגל אדס לימים 19.10–25.10 נמצאו 4 פערים",
+    "בבדיקה מול Google Ads לימים 19.10–25.10 נמצאו 4 פערים",
   );
+});
+
+test("a single gap reads in the singular", () => {
+  const trust = reportDataTrust(
+    run({ status: "mismatch", summary: { findings_total: 1 } }),
+    now,
+  );
+  expect(trust?.title).toBe("בבדיקה מול מטא לימים 19.10–25.10 נמצא פער אחד");
 });
 
 test("nothing is shown without a recent, completed comparison", () => {

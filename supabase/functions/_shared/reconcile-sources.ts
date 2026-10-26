@@ -30,6 +30,11 @@ const defaultSleep: Sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export const RATE_LIMIT_RETRIES = 2;
 export const BACKOFF_BASE_MS = 2000;
+/** One hung platform request must not hold the worker until its wall clock. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+/** Abort signal for one platform request. */
+export const requestTimeout = () => AbortSignal.timeout(REQUEST_TIMEOUT_MS);
 
 // ── Meta ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +44,8 @@ const META_RATE_LIMIT_CODES = new Set([
   80014,
 ]);
 const META_AUTH_CODES = new Set([102, 190, 463, 467]);
+/** Business-use-case throttles: they limit one ad account, not the app or token. */
+const isMetaAccountThrottle = (code: number) => code >= 80000 && code <= 80014;
 
 /** Classify a Graph API error body / HTTP status. */
 export function classifyMetaError(
@@ -80,15 +87,16 @@ async function metaGetJson(
   for (let attempt = 0; ; attempt++) {
     opts.budget.take();
     let res: Response;
+    let body: any;
     try {
-      res = await doFetch(url);
+      res = await doFetch(url, { signal: requestTimeout() });
+      body = await res.json().catch(() => null);
     } catch (err) {
       throw new ReconcileSourceError(
         "platform",
         `Meta request failed: ${err instanceof Error ? err.message : err}`,
       );
     }
-    const body: any = await res.json().catch(() => null);
     if (res.ok && body && !body.error) return body;
     const kind = classifyMetaError(res.status, body?.error || null);
     if (kind === "rate_limit" && attempt < RATE_LIMIT_RETRIES) {
@@ -98,6 +106,9 @@ async function metaGetJson(
     throw new ReconcileSourceError(
       kind,
       `Meta ${res.status}: ${body?.error?.message || "request failed"}`,
+      kind === "rate_limit" && isMetaAccountThrottle(Number(body?.error?.code))
+        ? "account"
+        : "platform",
     );
   }
 }
@@ -171,7 +182,9 @@ export function createMetaSource(opts: MetaSourceOptions): PlatformSource {
         account_id: act,
         name: body.name || null,
         currency: body.currency || null,
-        timezone: body.timezone_name || "UTC",
+        // Empty when Meta does not say: the window then falls back to UTC and
+        // records timezone_fallback instead of passing UTC off as the account's.
+        timezone: body.timezone_name || "",
       } satisfies AccountInfo;
     },
     async campaignDays(table, window, account) {
@@ -360,6 +373,7 @@ export function createGoogleSource(opts: GoogleSourceOptions): PlatformSource {
     for (let attempt = 0; ; attempt++) {
       opts.budget.take();
       let res: Response;
+      let text: string;
       try {
         res = await doFetch(
           `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
@@ -372,15 +386,16 @@ export function createGoogleSource(opts: GoogleSourceOptions): PlatformSource {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ query }),
+            signal: requestTimeout(),
           },
         );
+        text = await res.text();
       } catch (err) {
         throw new ReconcileSourceError(
           "platform",
           `Google Ads request failed: ${err instanceof Error ? err.message : err}`,
         );
       }
-      const text = await res.text();
       let body: any = null;
       try {
         body = JSON.parse(text);
@@ -430,7 +445,7 @@ export function createGoogleSource(opts: GoogleSourceOptions): PlatformSource {
         account_id: customerId,
         name: c.descriptiveName || null,
         currency: c.currencyCode || null,
-        timezone: c.timeZone || "UTC",
+        timezone: c.timeZone || "",
       };
     },
     async campaignDays(table, window, account) {

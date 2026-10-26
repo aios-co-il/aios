@@ -14,7 +14,11 @@ import {
   ReconcileSourceError,
   type RunStatus,
 } from "./reconcile-core.ts";
-import { type GoogleAuth, googleCustomerId } from "./reconcile-sources.ts";
+import {
+  type GoogleAuth,
+  googleCustomerId,
+  requestTimeout,
+} from "./reconcile-sources.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -150,9 +154,11 @@ async function withSharedKey(
 }
 
 /**
- * The Meta token a table syncs with (same order as sync-facebook-insights: the
- * connection pinned on the table, then an org/private one on its tenant, then any
- * active one), then agency source tenants, then `fallbackTenantIds`.
+ * The Meta token a table syncs with, in the same order as sync-facebook-insights:
+ * the connection pinned on the table, then an org/private one on its tenant, then
+ * any active one on its tenant. The sync never borrows another tenant's token,
+ * so the nightly worker does not either; only Carmen's on-demand check passes
+ * `fallbackTenantIds` (the caller's own tenant, as before).
  */
 export async function resolveMetaToken(
   db: Db,
@@ -190,10 +196,9 @@ export async function resolveMetaToken(
     (await newest(table.tenant_id, ["org", "private"])) ||
     (await newest(table.tenant_id));
   if (own) return own;
-  const extra = [
-    ...(await agencySourceTenants(db, table.tenant_id)),
-    ...fallbackTenantIds,
-  ].filter((id, i, all) => id !== table.tenant_id && all.indexOf(id) === i);
+  const extra = fallbackTenantIds.filter(
+    (id, i, all) => id !== table.tenant_id && all.indexOf(id) === i,
+  );
   for (const tenantId of extra) {
     const key = await newest(tenantId);
     if (key) return key;
@@ -285,6 +290,7 @@ export async function resolveGoogleAuth(
           refresh_token: String(s.refresh_token),
           grant_type: "refresh_token",
         }),
+        signal: requestTimeout(),
       });
       body = await res.json().catch(() => null);
       ok = res.ok && !!body?.access_token;
@@ -427,31 +433,66 @@ export async function listMappedMetaAccounts(db: Db): Promise<Set<string>> {
   return mapped;
 }
 
-export type MetaConnection = { id: string; tenant_id: string; token: string };
+export type TenantMetaConnections = {
+  tenant_id: string;
+  connections: Array<{ id: string; token: string }>;
+};
 
-/** Active Meta connections that hold their own token, one per distinct token. */
-export async function listMetaConnections(
-  db: Db,
-  afterId: string | null,
-): Promise<MetaConnection[]> {
-  let q = db
+/**
+ * Org-level Meta connections only (connection_visibility 'org', or no owning
+ * user). A staff member's private token can reach ad accounts of other
+ * businesses they work for; those must never be listed to this tenant's owners.
+ */
+const ORG_CONNECTION_FILTER = "user_id.is.null,connection_visibility.eq.org";
+
+const metaConnectionQuery = (db: Db, columns: string) =>
+  db
     .from("tenant_integrations")
-    .select("id, tenant_id, api_key")
+    .select(columns)
     .in("integration_type", META_TYPES)
     .eq("is_active", true)
     .not("api_key", "is", null)
-    .in("connection_visibility", ["org", "private"]);
-  if (afterId) q = q.gt("id", afterId);
-  const { data, error } = await q.order("id", { ascending: true }).limit(200);
+    .or(ORG_CONNECTION_FILTER);
+
+/**
+ * The next tenant (in tenant_id order, after `afterTenantId`) with org-level
+ * Meta connections holding their own token, with all of those connections (one
+ * per distinct token). The unmapped-accounts check walks tenants one at a time,
+ * so a tenant's run always covers every one of its connections and there is no
+ * page cap that silently ends the walk. Null once there are no more tenants.
+ */
+export async function nextMetaConnectionTenant(
+  db: Db,
+  afterTenantId: string | null,
+): Promise<TenantMetaConnections | null> {
+  let q = metaConnectionQuery(db, "tenant_id");
+  if (afterTenantId) q = q.gt("tenant_id", afterTenantId);
+  const { data: next, error } = await q
+    .order("tenant_id", { ascending: true })
+    .limit(1);
   if (error) throw new Error(`tenant_integrations: ${error.message}`);
+  const tenantId = next?.[0]?.tenant_id as string | undefined;
+  if (!tenantId) return null;
+
   const seen = new Set<string>();
-  const out: MetaConnection[] = [];
-  for (const row of data || []) {
-    if (!row.api_key || seen.has(row.api_key)) continue;
-    seen.add(row.api_key);
-    out.push({ id: row.id, tenant_id: row.tenant_id, token: row.api_key });
+  const connections: TenantMetaConnections["connections"] = [];
+  for (let from = 0; ; from += CRM_RECORDS_PAGE_SIZE) {
+    const { data, error: rowsErr } = await metaConnectionQuery(
+      db,
+      "id, api_key",
+    )
+      .eq("tenant_id", tenantId)
+      .order("id", { ascending: true })
+      .range(from, from + CRM_RECORDS_PAGE_SIZE - 1);
+    if (rowsErr) throw new Error(`tenant_integrations: ${rowsErr.message}`);
+    for (const row of data || []) {
+      if (!row.api_key || seen.has(row.api_key)) continue;
+      seen.add(row.api_key);
+      connections.push({ id: row.id, token: row.api_key });
+    }
+    if ((data || []).length < CRM_RECORDS_PAGE_SIZE) break;
   }
-  return out;
+  return { tenant_id: tenantId, connections };
 }
 
 // ── Status for Carmen and the report page ──────────────────────────────────
@@ -459,31 +500,157 @@ export async function listMetaConnections(
 const STATUS_RUN_COLUMNS =
   "id, tenant_id, client_id, table_id, platform, status, started_at, finished_at, window_start, window_end, summary, crm_tables(name), clients(name)";
 
+/** Roles that may see tenant-level rows (unmapped ad accounts), as RLS allows. */
+const TENANT_LEVEL_ROLES = ["owner", "super_admin"];
+
+export type ReconcileStatusScope = {
+  /** The caller's own tenant: every table run in it is in scope. */
+  ownTenantId: string;
+  /** Tenant-level runs (table_id NULL) of the own tenant: owners and super admins only. */
+  includeTenantLevel: boolean;
+  /** Clients of the agencies other tenants share with this one (agency_tenant_access). */
+  sharedClientIds: string[];
+};
+
+/**
+ * What get_reconciliation_status may show, mirroring the reconcile_runs read
+ * policy (which follows crm_tables): all report tables of the caller's tenant,
+ * and in a source tenant only the clients of the agency it shares, never that
+ * tenant's other agencies or its tenant-level rows.
+ */
+export async function reconcileStatusScope(
+  db: Db,
+  opts: { tenantId: string; callerRole?: string | null },
+): Promise<ReconcileStatusScope> {
+  const { data: shares, error } = await db
+    .from("agency_tenant_access")
+    .select("source_tenant_id, agency_id")
+    .eq("accessing_tenant_id", opts.tenantId);
+  if (error) throw new Error(`agency_tenant_access: ${error.message}`);
+  const agenciesBySource = new Map<string, Set<string>>();
+  for (const share of shares || []) {
+    const source = share?.source_tenant_id as string | null;
+    const agency = share?.agency_id as string | null;
+    if (!source || !agency || source === opts.tenantId) continue;
+    const set = agenciesBySource.get(source) || new Set<string>();
+    set.add(agency);
+    agenciesBySource.set(source, set);
+  }
+  const sharedClientIds: string[] = [];
+  for (const [source, agencies] of agenciesBySource) {
+    for (let from = 0; ; from += CRM_RECORDS_PAGE_SIZE) {
+      const { data, error: clientsErr } = await db
+        .from("clients")
+        .select("id")
+        .eq("tenant_id", source)
+        .in("agency_id", [...agencies])
+        .order("id", { ascending: true })
+        .range(from, from + CRM_RECORDS_PAGE_SIZE - 1);
+      if (clientsErr) throw new Error(`clients: ${clientsErr.message}`);
+      for (const c of data || []) if (c?.id) sharedClientIds.push(c.id);
+      if ((data || []).length < CRM_RECORDS_PAGE_SIZE) break;
+    }
+  }
+  return {
+    ownTenantId: opts.tenantId,
+    includeTenantLevel: TENANT_LEVEL_ROLES.includes(String(opts.callerRole)),
+    sharedClientIds,
+  };
+}
+
+/** True when `clientId` is the caller's own tenant's client or a shared-agency client. */
+async function clientInScope(
+  db: Db,
+  scope: ReconcileStatusScope,
+  clientId: string,
+): Promise<boolean> {
+  if (scope.sharedClientIds.includes(clientId)) return true;
+  const { data } = await db
+    .from("clients")
+    .select("id")
+    .eq("id", clientId)
+    .eq("tenant_id", scope.ownTenantId)
+    .maybeSingle();
+  return !!data;
+}
+
+const STATUS_RUN_LIMIT = 2000;
+const CLIENT_ID_CHUNK = 150;
+
+/** Runs since `sinceIso` the scope allows, newest first. */
+async function scopedRuns(
+  db: Db,
+  scope: ReconcileStatusScope,
+  clientId: string | null,
+  sinceIso: string,
+): Promise<Array<Record<string, any>>> {
+  const base = () =>
+    db
+      .from("reconcile_runs")
+      .select(STATUS_RUN_COLUMNS)
+      .gte("started_at", sinceIso);
+  const run = async (q: any) => {
+    const { data, error } = await q
+      .order("started_at", { ascending: false })
+      .limit(STATUS_RUN_LIMIT);
+    if (error) throw new Error(`reconcile_runs: ${error.message}`);
+    return (data || []) as Array<Record<string, any>>;
+  };
+  let runs: Array<Record<string, any>>;
+  if (clientId) {
+    runs = await run(
+      base().eq("client_id", clientId).not("table_id", "is", null),
+    );
+  } else {
+    let own = base().eq("tenant_id", scope.ownTenantId);
+    if (!scope.includeTenantLevel) own = own.not("table_id", "is", null);
+    runs = await run(own);
+    for (let i = 0; i < scope.sharedClientIds.length; i += CLIENT_ID_CHUNK) {
+      runs = runs.concat(
+        await run(
+          base()
+            .in(
+              "client_id",
+              scope.sharedClientIds.slice(i, i + CLIENT_ID_CHUNK),
+            )
+            .not("table_id", "is", null),
+        ),
+      );
+    }
+  }
+  const seen = new Set<string>();
+  return runs
+    .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
+}
+
 /**
  * Latest run per table (and per tenant for the unmapped-accounts check) since
- * `sinceIso`. The top findings come from the run summary (top_findings), so one
- * query answers it.
+ * `sinceIso`, limited to what the caller may see (see reconcileStatusScope).
+ * The top findings come from the run summary (top_findings), so one query per
+ * scope part answers it. Callers use a service-role client, so this scoping is
+ * the access check.
  */
 export async function getReconciliationStatus(
   db: Db,
   opts: {
-    tenantIds: string[];
+    tenantId: string;
+    callerRole?: string | null;
     clientId?: string | null;
     sinceIso: string;
   },
 ) {
-  let q = db
-    .from("reconcile_runs")
-    .select(STATUS_RUN_COLUMNS)
-    .in("tenant_id", opts.tenantIds)
-    .gte("started_at", opts.sinceIso);
-  if (opts.clientId) q = q.eq("client_id", opts.clientId);
-  const { data: runs, error } = await q
-    .order("started_at", { ascending: false })
-    .limit(2000);
-  if (error) throw new Error(`reconcile_runs: ${error.message}`);
+  const scope = await reconcileStatusScope(db, opts);
+  if (opts.clientId && !(await clientInScope(db, scope, opts.clientId)))
+    throw new Error("הלקוח לא נמצא או מחוץ להרשאה שלך");
+  const runs = await scopedRuns(
+    db,
+    scope,
+    opts.clientId || null,
+    opts.sinceIso,
+  );
   const latest = new Map<string, Record<string, any>>();
-  for (const run of runs || []) {
+  for (const run of runs) {
     const key = run.table_id || `tenant:${run.tenant_id}:${run.platform}`;
     if (!latest.has(key)) latest.set(key, run);
   }

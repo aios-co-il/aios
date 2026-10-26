@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   CallBudget,
   type CampaignDayRow,
@@ -11,11 +16,14 @@ import {
 } from "./reconcile-core.ts";
 import {
   insideRefreshWindow,
+  type MetaAccountWithSpend,
   type ReconcileStore,
+  resyncAllowedAt,
   runReconcileChunk,
   runUnmappedAccountsCheck,
   type RunnerTable,
   type StoredRun,
+  type TenantConnections,
 } from "./reconcile-runner.ts";
 
 const NOW = new Date("2026-10-26T01:30:00Z");
@@ -171,19 +179,61 @@ Deno.test(
       { cursor: null, maxTables: 5 },
     );
     assertStrictEquals(calls, 1);
+    // b is passed over without a stored run, so its previous result stays the latest.
     assertEquals(
       saved.map((s) => [
         s.run.table_id,
         s.run.status,
-        s.run.summary.skipped_reason ?? s.run.summary.error_kind,
+        s.run.summary.error_kind,
       ]),
       [
         ["a", "failed", "rate_limit"],
+        ["c", "ok", undefined],
+      ],
+    );
+    assertEquals(
+      r.processed.map((p) => [p.table_id, p.status, p.skipped_reason]),
+      [
+        ["a", "failed", undefined],
         ["b", "skipped", "platform_rate_limited"],
         ["c", "ok", undefined],
       ],
     );
     assertStrictEquals(r.done, true);
+  },
+);
+
+Deno.test(
+  "a per-ad-account throttle fails only that table, not the platform",
+  async () => {
+    const tables = [table("a"), table("b")];
+    const fixture = createFixtureSource(
+      { b: { account, rows: [] } },
+      "staging",
+    );
+    const meta: PlatformSource = {
+      name: "meta",
+      account: (t) =>
+        t.id === "a"
+          ? Promise.reject(
+              new ReconcileSourceError(
+                "rate_limit",
+                "Meta 400: ad account has too many API calls",
+                "account",
+              ),
+            )
+          : fixture.account(t),
+      campaignDays: fixture.campaignDays,
+    };
+    const { store, saved } = memoryStore(tables, {});
+    await runReconcileChunk(deps(store, meta), { cursor: null, maxTables: 5 });
+    assertEquals(
+      saved.map((s) => [s.run.table_id, s.run.status]),
+      [
+        ["a", "failed"],
+        ["b", "ok"],
+      ],
+    );
   },
 );
 
@@ -262,12 +312,15 @@ Deno.test(
           w: { start: string; end: string },
         ) => {
           resyncs.push([t.id, w.start, w.end]);
-          return Promise.resolve({ ok: true });
+          return Promise.resolve({ queued: true });
         },
       }),
       { cursor: null, maxTables: 5 },
     );
-    assertEquals(resyncs, [["a", "2026-10-19", "2026-10-25"]]);
+    // Compared days are 19–24 (25 waits for the morning sync). The resync runs
+    // through Jerusalem's today, because the sync clears every row from the
+    // start date onwards before it inserts.
+    assertEquals(resyncs, [["a", "2026-10-19", "2026-10-26"]]);
     assertEquals(
       saved.map((s) => [
         s.run.table_id,
@@ -281,7 +334,11 @@ Deno.test(
         ["c", "mismatch", false, false],
       ],
     );
-    assertStrictEquals(r.processed[0].resync?.ok, true);
+    assertStrictEquals(r.processed[0].resync?.queued, true);
+    assertEquals(
+      [saved[0].run.window_start, saved[0].run.window_end],
+      ["2026-10-19", "2026-10-24"],
+    );
     assertEquals(saved[0].run.summary.top_findings, [
       {
         kind: "mismatch",
@@ -292,6 +349,46 @@ Deno.test(
         platform: 500,
       },
     ]);
+  },
+);
+
+Deno.test(
+  "auto-resync: never for Meta insights tables, whose sync ignores the window",
+  async () => {
+    const t = table("a", "facebook_insights", {
+      integration_settings: { reconcile_autoresync: true },
+    });
+    const source = createFixtureSource(
+      { a: { account, rows: [day("1", 500)] } },
+      "staging",
+    );
+    const { store, saved } = memoryStore([t], { a: [day("1", 100)] });
+    let calls = 0;
+    await runReconcileChunk(
+      deps(store, source, new CallBudget(100), {
+        triggerResync: () => {
+          calls += 1;
+          return Promise.resolve({ queued: true });
+        },
+      }),
+      { cursor: null, maxTables: 5 },
+    );
+    assertStrictEquals(calls, 0);
+    assertEquals(saved[0].run.summary.resync, {
+      skipped: "sync_ignores_window",
+    });
+  },
+);
+
+Deno.test(
+  "auto-resync keeps half an hour clear of the next refresh window",
+  () => {
+    assert(resyncAllowedAt(new Date("2026-10-26T01:30:00Z")));
+    assert(resyncAllowedAt(new Date("2026-10-26T01:59:00Z")));
+    assertFalse(resyncAllowedAt(new Date("2026-10-26T02:10:00Z")));
+    assertFalse(resyncAllowedAt(new Date("2026-10-26T03:00:00Z")));
+    assertFalse(resyncAllowedAt(new Date("2026-10-26T11:05:00Z")));
+    assert(resyncAllowedAt(new Date("2026-10-26T14:00:00Z")));
   },
 );
 
@@ -318,51 +415,80 @@ Deno.test("refresh windows cover the morning and afternoon syncs", () => {
   );
 });
 
+const acct = (
+  account_id: string,
+  spend_7d: number,
+  name = account_id,
+): MetaAccountWithSpend => ({ account_id, name, currency: "ILS", spend_7d });
+
+/** nextTenant over a fixed list, in tenant order. */
+const tenantWalk = (groups: TenantConnections[]) => (after: string | null) =>
+  Promise.resolve(
+    groups
+      .filter((g) => !after || g.tenant_id > after)
+      .sort((a, b) => a.tenant_id.localeCompare(b.tenant_id))[0] || null,
+  );
+
+function unmappedDeps(
+  groups: TenantConnections[],
+  accountsByToken: Record<string, MetaAccountWithSpend[] | Error>,
+  budget: CallBudget,
+  saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }>,
+  cursor: string | null = null,
+) {
+  return {
+    cursor,
+    nextTenant: tenantWalk(groups),
+    mapped: new Set(["act_1"]),
+    listAccounts: (token: string) => {
+      budget.take();
+      const answer = accountsByToken[token];
+      return answer instanceof Error
+        ? Promise.reject(answer)
+        : Promise.resolve(answer || []);
+    },
+    saveRun: (run: StoredRun, findings: ReconcileFinding[]) => {
+      saved.push({ run, findings });
+      return Promise.resolve("x");
+    },
+    budget,
+    now: () => NOW,
+    deadline: Date.now() + 60_000,
+  };
+}
+
 Deno.test(
   "unmapped accounts: spend above the floor and not mapped anywhere",
   async () => {
     const saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }> = [];
-    const r = await runUnmappedAccountsCheck({
-      connections: [
-        { id: "i1", tenant_id: "tenant-1", token: "t1" },
-        { id: "i2", tenant_id: "tenant-1", token: "t2" },
-        { id: "i3", tenant_id: "tenant-2", token: "t3" },
-      ],
-      mapped: new Set(["act_1"]),
-      listAccounts: (token) =>
-        token === "t3"
-          ? Promise.reject(
-              new ReconcileSourceError("auth", "Meta 400: expired"),
-            )
-          : Promise.resolve([
-              {
-                account_id: "act_1",
-                name: "Mapped",
-                currency: "ILS",
-                spend_7d: 900,
-              },
-              {
-                account_id: "act_2",
-                name: "Orphan",
-                currency: "ILS",
-                spend_7d: 450,
-              },
-              {
-                account_id: "act_3",
-                name: "Tiny",
-                currency: "ILS",
-                spend_7d: 12,
-              },
-            ]),
-      saveRun: (run, findings) => {
-        saved.push({ run, findings });
-        return Promise.resolve("x");
-      },
-      budget: new CallBudget(10),
-      now: () => NOW,
-      deadline: Date.now() + 60_000,
-    });
+    const accounts = [
+      acct("act_1", 900, "Mapped"),
+      acct("act_2", 450, "Orphan"),
+      acct("act_3", 12, "Tiny"),
+    ];
+    const r = await runUnmappedAccountsCheck(
+      unmappedDeps(
+        [
+          {
+            tenant_id: "tenant-1",
+            connections: [
+              { id: "i1", token: "t1" },
+              { id: "i2", token: "t2" },
+            ],
+          },
+          { tenant_id: "tenant-2", connections: [{ id: "i3", token: "t3" }] },
+        ],
+        {
+          t1: accounts,
+          t2: accounts,
+          t3: new ReconcileSourceError("auth", "Meta 400: expired"),
+        },
+        new CallBudget(10),
+        saved,
+      ),
+    );
     assertStrictEquals(r.done, true);
+    assertStrictEquals(r.next_cursor, null);
     assertEquals(
       saved.map((s) => [
         s.run.tenant_id,
@@ -375,5 +501,125 @@ Deno.test(
       ],
     );
     assertStrictEquals(saved[0].run.table_id, null);
+  },
+);
+
+Deno.test(
+  "unmapped accounts: a tenant split across calls is checked whole, never 'ok' from half",
+  async () => {
+    // tenant-2's first connection sees an unmapped account; its second sees
+    // only mapped ones. The first call runs out of budget between them.
+    const groups: TenantConnections[] = [
+      { tenant_id: "tenant-1", connections: [{ id: "a", token: "ta" }] },
+      {
+        tenant_id: "tenant-2",
+        connections: [
+          { id: "c1", token: "t1" },
+          { id: "c2", token: "t2" },
+        ],
+      },
+    ];
+    const accounts = {
+      ta: [acct("act_1", 300)],
+      t1: [acct("act_9", 500)],
+      t2: [acct("act_1", 800)],
+    };
+    const saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }> = [];
+    const first = await runUnmappedAccountsCheck(
+      unmappedDeps(groups, accounts, new CallBudget(2), saved),
+    );
+    // tenant-1 done; tenant-2 was cut short, so nothing is stored for it yet.
+    assertStrictEquals(first.done, false);
+    assertStrictEquals(first.next_cursor, "tenant-1");
+    assertEquals(
+      saved.map((s) => [s.run.tenant_id, s.run.status]),
+      [["tenant-1", "ok"]],
+    );
+
+    const second = await runUnmappedAccountsCheck(
+      unmappedDeps(
+        groups,
+        accounts,
+        new CallBudget(10),
+        saved,
+        first.next_cursor,
+      ),
+    );
+    assertStrictEquals(second.done, true);
+    const tenant2 = saved.filter((s) => s.run.tenant_id === "tenant-2");
+    assertStrictEquals(tenant2.length, 1);
+    assertStrictEquals(tenant2[0].run.status, "mismatch");
+    assertEquals(
+      tenant2[0].findings.map((f) => f.details.account_id),
+      ["act_9"],
+    );
+    assertStrictEquals(tenant2[0].run.summary.incomplete, undefined);
+  },
+);
+
+Deno.test(
+  "unmapped accounts: a tenant too big for one call is stored flagged incomplete and the walk moves on",
+  async () => {
+    const groups: TenantConnections[] = [
+      {
+        tenant_id: "tenant-1",
+        connections: [
+          { id: "c1", token: "t1" },
+          { id: "c2", token: "t2" },
+        ],
+      },
+      { tenant_id: "tenant-2", connections: [{ id: "c3", token: "t3" }] },
+    ];
+    const accounts = { t1: [acct("act_1", 50)], t2: [], t3: [] };
+    const saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }> = [];
+    const first = await runUnmappedAccountsCheck(
+      unmappedDeps(groups, accounts, new CallBudget(1), saved),
+    );
+    assertStrictEquals(first.next_cursor, "tenant-1");
+    assertEquals(
+      saved.map((s) => [
+        s.run.tenant_id,
+        s.run.status,
+        s.run.summary.incomplete,
+      ]),
+      [["tenant-1", "skipped", true]],
+    );
+    const second = await runUnmappedAccountsCheck(
+      unmappedDeps(
+        groups,
+        accounts,
+        new CallBudget(5),
+        saved,
+        first.next_cursor,
+      ),
+    );
+    assertStrictEquals(second.done, true);
+    assertEquals(
+      saved.map((s) => s.run.tenant_id),
+      ["tenant-1", "tenant-2"],
+    );
+  },
+);
+
+Deno.test(
+  "unmapped accounts: the walk only ends when no tenant is left",
+  async () => {
+    const groups: TenantConnections[] = Array.from({ length: 250 }, (_, i) => ({
+      tenant_id: `tenant-${String(i).padStart(3, "0")}`,
+      connections: [{ id: `c${i}`, token: `t${i}` }],
+    }));
+    const saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }> = [];
+    let cursor: string | null = null;
+    let calls = 0;
+    for (;;) {
+      calls += 1;
+      const r = await runUnmappedAccountsCheck(
+        unmappedDeps(groups, {}, new CallBudget(60), saved, cursor),
+      );
+      if (r.done) break;
+      cursor = r.next_cursor;
+    }
+    assertStrictEquals(saved.length, 250);
+    assertStrictEquals(calls, 5);
   },
 );

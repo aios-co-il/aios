@@ -333,10 +333,60 @@ Deno.test(
       now,
     });
     assertStrictEquals(r.status, "ok");
-    assertEquals([r.window_start, r.window_end], ["2026-10-19", "2026-10-25"]);
+    // The run's window is what was compared; the held-back day is listed apart.
+    assertEquals([r.window_start, r.window_end], ["2026-10-19", "2026-10-24"]);
+    assertEquals(r.summary.requested_window, {
+      start: "2026-10-19",
+      end: "2026-10-25",
+    });
     assertEquals(r.summary.pending_dates, ["2026-10-25"]);
     assertStrictEquals(r.summary.compared_dates, 6);
     assertStrictEquals(r.summary.currency, "ILS");
+  },
+);
+
+Deno.test(
+  "reconcileTable: when every day still waits for a sync, nothing is called a match",
+  async () => {
+    // "Check yesterday's report against Meta" at 01:30 UTC, before the morning
+    // sync: the last sync (11:45 UTC on the 26th) ran before the 26th ended.
+    let platformReads = 0;
+    let aiosReads = 0;
+    const source = createFixtureSource(
+      {
+        "t-meta": {
+          account: {
+            account_id: "act_1",
+            timezone: "Asia/Jerusalem",
+            currency: "ILS",
+          },
+          rows: [],
+        },
+      },
+      "staging",
+    );
+    const r = await reconcileTable({
+      table: { ...metaTable, last_sync_at: "2026-10-26T11:45:00Z" },
+      source: {
+        ...source,
+        campaignDays: (...args) => {
+          platformReads += 1;
+          return source.campaignDays(...args);
+        },
+      },
+      readAios: () => {
+        aiosReads += 1;
+        return Promise.resolve([]);
+      },
+      now: new Date("2026-10-27T01:30:00Z"),
+      days: 1,
+    });
+    assertStrictEquals(r.status, "skipped");
+    assertStrictEquals(r.summary.skipped_reason, "not_yet_synced");
+    assertEquals(r.summary.pending_dates, ["2026-10-26"]);
+    assertStrictEquals(r.summary.compared_dates, 0);
+    assertEquals([r.window_start, r.window_end], [null, null]);
+    assertEquals([platformReads, aiosReads], [0, 0]);
   },
 );
 

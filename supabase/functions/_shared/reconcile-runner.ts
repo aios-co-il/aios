@@ -7,9 +7,11 @@
  *
  * Report-only: it stores runs and findings and never sends anything. The
  * optional auto-resync (crm_tables.integration_settings.reconcile_autoresync,
- * off by default) asks the table's own sync function to re-fetch the window
- * once, outside the morning/afternoon refresh windows.
+ * off by default; Google Ads and Meta ecommerce tables only) asks the table's
+ * own sync function to re-fetch the window once, well clear of the
+ * morning/afternoon refresh windows.
  */
+import { jerusalemToday } from "./report-sync-window.ts";
 import {
   type AiosReader,
   type CallBudget,
@@ -69,19 +71,59 @@ export function insideRefreshWindow(now: Date): boolean {
   );
 }
 
+/**
+ * A resync must also finish before the next refresh window, or it races the
+ * scheduled sync's delete + insert on the same table.
+ */
+export const RESYNC_LEAD_MS = 30 * 60_000;
+
+export function resyncAllowedAt(now: Date): boolean {
+  return (
+    !insideRefreshWindow(now) &&
+    !insideRefreshWindow(new Date(now.getTime() + RESYNC_LEAD_MS))
+  );
+}
+
+/**
+ * Syncs that honor a start_date/end_date window and update_last_sync=false.
+ * sync-facebook-insights ignores both (it re-syncs 120+ days at every level and
+ * moves last_sync_at), so those tables are never auto-resynced.
+ */
+export const RESYNC_INTEGRATION_TYPES = ["google_ads", "facebook_ecommerce"];
+
+/**
+ * The window a resync asks for. The syncs delete every stored row from the
+ * start date onwards before inserting what they fetched, so the window must run
+ * through today (the scheduled syncs end on Jerusalem's today) or today's rows
+ * would disappear until the next scheduled sync.
+ */
+export function resyncWindow(
+  compared: { start: string; end: string },
+  now: Date,
+): { start: string; end: string } {
+  const today = jerusalemToday(now);
+  return {
+    start: compared.start,
+    end: today > compared.end ? today : compared.end,
+  };
+}
+
 /** Calls one table needs at minimum: Meta = account + campaigns + adsets + insights. */
 const MIN_CALLS: Record<ReconcilePlatform, number> = { meta: 4, google: 3 };
 
+/** Queues the table's own sync for the window; `queued` says nothing about its outcome. */
 export type ResyncTrigger = (
   table: ReconcileTable,
   window: { start: string; end: string },
-) => Promise<{ ok: boolean; status?: number; error?: string }>;
+) => Promise<{ queued: boolean; error?: string }>;
 
 export type ProcessedTable = {
   table_id: string;
   status: RunStatus;
   findings: number;
   error_kind?: string;
+  /** Set when the table was passed over and its previous result kept. */
+  skipped_reason?: string;
   run_id?: string;
   save_error?: string;
   resync?: Record<string, unknown>;
@@ -124,20 +166,6 @@ export function runRecord(
       ...result.summary,
       top_findings: result.findings.slice(0, 5).map(compactFinding),
     },
-  };
-}
-
-function skippedResult(
-  table: ReconcileTable,
-  reason: string,
-): TableReconcileResult {
-  return {
-    status: "skipped",
-    platform: platformFor(table.integration_type),
-    window_start: null,
-    window_end: null,
-    findings: [],
-    summary: { skipped_reason: reason },
   };
 }
 
@@ -195,41 +223,55 @@ export async function runReconcileChunk(
     let result: TableReconcileResult;
     if (platform && rateLimited.has(platform)) {
       // The platform already refused this call; asking again only burns quota.
-      result = skippedResult(table, "platform_rate_limited");
-    } else {
-      try {
-        result = await reconcileTable({
-          table,
-          source: deps.sourceFor(table),
-          readAios: store.readAios,
-          now: startedAt,
-          tolerance: RECONCILE_TOLERANCE,
-          maxFindings: MAX_FINDINGS_PER_TABLE,
-        });
-      } catch (err) {
-        const isBudget =
-          err instanceof ReconcileSourceError && err.kind === "budget";
-        if (isBudget && processed.length > 0) {
-          // Retry this table on the next call with a fresh budget.
-          stopped = "budget";
-          break;
-        }
-        result = {
-          status: "failed",
-          platform,
-          window_start: null,
-          window_end: null,
-          findings: [],
-          error_kind: isBudget ? "budget" : "platform",
-          summary: {
-            platform,
-            error_kind: isBudget ? "budget" : "internal",
-            error: redactSecrets(err instanceof Error ? err.message : err),
-          },
-        };
-      }
+      // No run is stored, so the table keeps its previous result (and trust
+      // line) instead of a "skipped" row that hides it.
+      processed.push({
+        table_id: table.id,
+        status: "skipped",
+        findings: 0,
+        skipped_reason: "platform_rate_limited",
+      });
+      cursor = table.id;
+      considered += 1;
+      continue;
     }
-    if (result.error_kind === "rate_limit" && platform)
+    try {
+      result = await reconcileTable({
+        table,
+        source: deps.sourceFor(table),
+        readAios: store.readAios,
+        now: startedAt,
+        tolerance: RECONCILE_TOLERANCE,
+        maxFindings: MAX_FINDINGS_PER_TABLE,
+      });
+    } catch (err) {
+      const isBudget =
+        err instanceof ReconcileSourceError && err.kind === "budget";
+      if (isBudget && processed.length > 0) {
+        // Retry this table on the next call with a fresh budget.
+        stopped = "budget";
+        break;
+      }
+      result = {
+        status: "failed",
+        platform,
+        window_start: null,
+        window_end: null,
+        findings: [],
+        error_kind: isBudget ? "budget" : "platform",
+        summary: {
+          platform,
+          error_kind: isBudget ? "budget" : "internal",
+          error: redactSecrets(err instanceof Error ? err.message : err),
+        },
+      };
+    }
+    // A per-ad-account throttle fails only this table.
+    if (
+      result.error_kind === "rate_limit" &&
+      result.rate_limit_scope !== "account" &&
+      platform
+    )
       rateLimited.add(platform);
 
     const entry: ProcessedTable = {
@@ -249,23 +291,27 @@ export async function runReconcileChunk(
         result.window_start &&
         result.window_end;
       if (wantsResync && !persisting) {
-        if (insideRefreshWindow(startedAt)) {
+        if (!RESYNC_INTEGRATION_TYPES.includes(table.integration_type)) {
+          result.summary.resync = { skipped: "sync_ignores_window" };
+        } else if (!resyncAllowedAt(startedAt)) {
           result.summary.resync = { skipped: "refresh_window" };
         } else {
-          const window = {
-            start: result.window_start as string,
-            end: result.window_end as string,
-          };
+          const window = resyncWindow(
+            {
+              start: result.window_start as string,
+              end: result.window_end as string,
+            },
+            startedAt,
+          );
           const r = await deps.triggerResync!(table, window).catch((err) => ({
-            ok: false,
+            queued: false,
             error: redactSecrets(err instanceof Error ? err.message : err),
           }));
           result.summary.resync = {
             requested_at: deps.now().toISOString(),
             window,
-            ok: r.ok,
-            ...("status" in r && r.status ? { status: r.status } : {}),
-            ...("error" in r && r.error ? { error: r.error } : {}),
+            queued: r.queued,
+            ...(r.error ? { error: r.error } : {}),
           };
         }
         entry.resync = result.summary.resync as Record<string, unknown>;
@@ -309,12 +355,27 @@ export type MetaAccountWithSpend = {
   spend_7d: number;
 };
 
+export type TenantConnections = {
+  tenant_id: string;
+  connections: Array<{ id: string; token: string }>;
+};
+
 /**
  * Meta ad accounts with spend over the last 7 complete days that are not mapped
- * to any report table or client. One run per connection's tenant.
+ * to any report table or client: one run per tenant, covering every one of the
+ * tenant's connections.
+ *
+ * Tenants are walked one at a time after `cursor` (the last tenant fully
+ * checked). When the call runs out of budget or time inside a tenant, nothing
+ * is saved for it and the next call starts that tenant again, so a run never
+ * reports "ok" from half of a tenant's connections. Only a tenant too big for a
+ * whole call on its own is saved partial (flagged incomplete) so the walk moves on.
  */
 export async function runUnmappedAccountsCheck(deps: {
-  connections: Array<{ id: string; tenant_id: string; token: string }>;
+  cursor: string | null;
+  nextTenant: (
+    afterTenantId: string | null,
+  ) => Promise<TenantConnections | null>;
   mapped: Set<string>;
   listAccounts: (token: string) => Promise<MetaAccountWithSpend[]>;
   saveRun: (run: StoredRun, findings: ReconcileFinding[]) => Promise<string>;
@@ -324,93 +385,94 @@ export async function runUnmappedAccountsCheck(deps: {
   minSpend?: number;
 }): Promise<{ next_cursor: string | null; done: boolean; tenants: number }> {
   const minSpend = deps.minSpend ?? RECONCILE_TOLERANCE.money;
-  const byTenant = new Map<
-    string,
-    {
-      findings: ReconcileFinding[];
-      errors: string[];
-      accounts: number;
-      startedAt: Date;
-    }
-  >();
-  const reported = new Set<string>();
-  let cursor: string | null = null;
-  let done = true;
-  for (const conn of deps.connections) {
-    if (Date.now() >= deps.deadline || deps.budget.remaining < 1) {
-      done = false;
-      break;
-    }
-    const bucket = byTenant.get(conn.tenant_id) || {
-      findings: [],
-      errors: [],
-      accounts: 0,
-      startedAt: deps.now(),
-    };
-    byTenant.set(conn.tenant_id, bucket);
-    try {
-      const accounts = await deps.listAccounts(conn.token);
-      bucket.accounts += accounts.length;
-      for (const acct of accounts) {
-        if (deps.mapped.has(acct.account_id)) continue;
-        if (acct.spend_7d <= minSpend) continue;
-        const key = `${conn.tenant_id}:${acct.account_id}`;
-        if (reported.has(key)) continue;
-        reported.add(key);
-        bucket.findings.push({
-          kind: "unmapped_account",
-          campaign_id: null,
-          date: null,
-          metric: "spend",
-          aios_value: 0,
-          platform_value: Math.round(acct.spend_7d * 100) / 100,
-          details: {
-            account_id: acct.account_id,
-            account_name: acct.name,
-            currency: acct.currency,
-            connection_id: conn.id,
-          },
-        });
-      }
-    } catch (err) {
-      if (err instanceof ReconcileSourceError && err.kind === "budget") {
-        done = false;
+  const outOfRoom = () =>
+    Date.now() >= deps.deadline || deps.budget.remaining < 1;
+  let cursor = deps.cursor;
+  let tenants = 0;
+
+  for (;;) {
+    if (outOfRoom()) return { next_cursor: cursor, done: false, tenants };
+    const group = await deps.nextTenant(cursor);
+    if (!group) return { next_cursor: null, done: true, tenants };
+
+    const startedAt = deps.now();
+    const findings: ReconcileFinding[] = [];
+    const errors: string[] = [];
+    const reported = new Set<string>();
+    let accountsSeen = 0;
+    let complete = true;
+    for (const conn of group.connections) {
+      if (outOfRoom()) {
+        complete = false;
         break;
       }
-      bucket.errors.push(
-        redactSecrets(err instanceof Error ? err.message : err),
-      );
+      try {
+        const accounts = await deps.listAccounts(conn.token);
+        accountsSeen += accounts.length;
+        for (const acct of accounts) {
+          if (deps.mapped.has(acct.account_id)) continue;
+          if (acct.spend_7d <= minSpend) continue;
+          if (reported.has(acct.account_id)) continue;
+          reported.add(acct.account_id);
+          findings.push({
+            kind: "unmapped_account",
+            campaign_id: null,
+            date: null,
+            metric: "spend",
+            aios_value: 0,
+            platform_value: Math.round(acct.spend_7d * 100) / 100,
+            details: {
+              account_id: acct.account_id,
+              account_name: acct.name,
+              currency: acct.currency,
+              connection_id: conn.id,
+            },
+          });
+        }
+      } catch (err) {
+        if (err instanceof ReconcileSourceError && err.kind === "budget") {
+          complete = false;
+          break;
+        }
+        errors.push(redactSecrets(err instanceof Error ? err.message : err));
+      }
     }
-    cursor = conn.id;
-  }
 
-  for (const [tenantId, bucket] of byTenant) {
-    const status: RunStatus = bucket.findings.length
+    // Retry the tenant from scratch on the next call rather than store half of it.
+    if (!complete && tenants > 0)
+      return { next_cursor: cursor, done: false, tenants };
+
+    const status: RunStatus = findings.length
       ? "mismatch"
-      : bucket.errors.length && !bucket.accounts
-        ? "failed"
-        : "ok";
-    const findings = bucket.findings
+      : !complete
+        ? "skipped"
+        : errors.length && !accountsSeen
+          ? "failed"
+          : "ok";
+    const kept = findings
       .sort((a, b) => (b.platform_value ?? 0) - (a.platform_value ?? 0))
       .slice(0, MAX_FINDINGS_PER_TABLE);
     await deps.saveRun(
       {
-        tenant_id: tenantId,
+        tenant_id: group.tenant_id,
         table_id: null,
         client_id: null,
         platform: "meta",
-        started_at: bucket.startedAt.toISOString(),
+        started_at: startedAt.toISOString(),
         finished_at: deps.now().toISOString(),
         status,
         window_start: null,
         window_end: null,
         summary: {
           check: "unmapped_accounts",
-          accounts_seen: bucket.accounts,
-          counts: { unmapped_account: bucket.findings.length },
-          findings_total: bucket.findings.length,
-          errors: bucket.errors.length ? bucket.errors.slice(0, 3) : undefined,
-          top_findings: findings.slice(0, 5).map((f) => ({
+          connections: group.connections.length,
+          accounts_seen: accountsSeen,
+          counts: { unmapped_account: findings.length },
+          findings_total: findings.length,
+          incomplete: complete ? undefined : true,
+          skipped_reason: status === "skipped" ? "incomplete" : undefined,
+          errors: errors.length ? errors.slice(0, 3) : undefined,
+          top_findings: kept.slice(0, 5).map((f) => ({
             kind: f.kind,
             campaign: f.details.account_name || f.details.account_id,
             date: null,
@@ -420,12 +482,10 @@ export async function runUnmappedAccountsCheck(deps: {
           })),
         },
       },
-      findings,
+      kept,
     );
+    tenants += 1;
+    cursor = group.tenant_id;
+    if (!complete) return { next_cursor: cursor, done: false, tenants };
   }
-  return {
-    next_cursor: done ? null : cursor,
-    done,
-    tenants: byTenant.size,
-  };
 }

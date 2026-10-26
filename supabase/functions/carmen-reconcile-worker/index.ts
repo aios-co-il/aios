@@ -14,7 +14,11 @@
  *   tenant_id, client_id, table_ids   on-demand scope (no chaining, no accounts phase)
  *   max_tables        tables per call (default 6, max 25)
  *   api_call_budget   platform requests per call (default 60, max 300)
- *   source: "fixture" + fixtures      canned platform data, non-production only
+ *   source: "fixture" + fixtures      canned platform data, non-production only;
+ *                     needs table_ids, so it never overwrites other tables' results
+ *
+ * In the "tables" phase `cursor` is a crm_tables.id; in the "accounts" phase it
+ * is the last tenant whose Meta connections were fully checked.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
@@ -29,9 +33,9 @@ import {
 } from "../_shared/reconcile-core.ts";
 import {
   listMappedMetaAccounts,
-  listMetaConnections,
   listReconcileTables,
   latestRunForTable,
+  nextMetaConnectionTenant,
   pruneReconcileRuns,
   readAiosCampaignRows,
   resolveGoogleAuth,
@@ -73,10 +77,11 @@ const clampInt = (
   return Math.min(Math.max(n, min), max);
 };
 
+// sync-facebook-insights is left out on purpose: it ignores the window (see
+// RESYNC_INTEGRATION_TYPES in reconcile-runner.ts).
 const SYNC_FUNCTION: Record<string, string> = {
   google_ads: "sync-google-ads-data",
   facebook_ecommerce: "sync-facebook-ecommerce",
-  facebook_insights: "sync-facebook-insights",
 };
 
 Deno.serve(async (req) => {
@@ -116,6 +121,10 @@ Deno.serve(async (req) => {
 
   if (useFixture && !isNonProductionAppEnv(appEnv))
     return json({ error: "fixture source is not allowed in production" }, 400);
+  // Canned data stands in for one table's platform side only; across every
+  // table it would write "skipped" over that night's real results.
+  if (useFixture && !tableIds?.length)
+    return json({ error: "fixture source needs table_ids" }, 400);
 
   const google = {
     developerToken: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? "",
@@ -166,7 +175,7 @@ Deno.serve(async (req) => {
     ? undefined
     : async (table, window) => {
         const fn = SYNC_FUNCTION[table.integration_type];
-        if (!fn) return { ok: false, error: "no sync function" };
+        if (!fn) return { queued: false, error: "no sync function" };
         const task = fetch(`${supabaseUrl}/functions/v1/${fn}`, {
           method: "POST",
           headers: {
@@ -195,7 +204,8 @@ Deno.serve(async (req) => {
           }
         ).EdgeRuntime;
         if (runtime?.waitUntil) runtime.waitUntil(task);
-        return { ok: true };
+        // Fire-and-forget: only the request is known, not the sync's outcome.
+        return { queued: true };
       };
 
   try {
@@ -227,13 +237,10 @@ Deno.serve(async (req) => {
       else if (!scoped && !useFixture)
         next = { phase: "accounts", cursor: null };
     } else {
-      const connections = await listMetaConnections(
-        db,
-        body.cursor ? String(body.cursor) : null,
-      );
       const mapped = await listMappedMetaAccounts(db);
       const check = await runUnmappedAccountsCheck({
-        connections,
+        cursor: body.cursor ? String(body.cursor) : null,
+        nextTenant: (after) => nextMetaConnectionTenant(db, after),
         mapped,
         listAccounts: (token) => listMetaAccountsWithSpend({ token, budget }),
         saveRun: (run, findings) => saveReconcileRun(db, run, findings),
