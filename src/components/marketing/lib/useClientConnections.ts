@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { parseClientServices } from "@/lib/clientServices";
 
 export interface ClientConnections {
   client: {
@@ -25,12 +26,6 @@ export interface ClientConnections {
     site_url: string;
     site_name: string | null;
   }>;
-}
-
-function toServiceList(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((s) => typeof s === "string")
-    ? value
-    : null;
 }
 
 export function useClientConnections(clientId: string | null | undefined) {
@@ -60,7 +55,7 @@ export function useClientConnections(clientId: string | null | undefined) {
         client: clientRes.data
           ? {
               ...clientRes.data,
-              services: toServiceList(clientRes.data.services),
+              services: parseClientServices(clientRes.data.services),
             }
           : null,
         socialPages: pagesRes.data ?? [],
