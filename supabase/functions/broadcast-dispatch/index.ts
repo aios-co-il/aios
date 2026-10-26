@@ -16,11 +16,12 @@ import {
 import type { Tables } from "../_shared/database.types.ts";
 import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
+import { renderTemplate } from "../_shared/broadcast/template/template-vars.ts";
 import {
-  buildTemplateVars,
-  renderTemplate,
-  type TemplateVars,
-} from "../_shared/broadcast/template/template-vars.ts";
+  providerMessageId,
+  recipientVars,
+  type RecipientRow,
+} from "./recipient-vars.ts";
 import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
@@ -48,29 +49,6 @@ function jitter(minS: number, maxS: number, seed: number): number {
 }
 
 type BroadcastRow = Tables<"broadcasts">;
-type RecipientRow = Tables<"broadcast_recipients">;
-
-// Merge fields come from the recipient's vars snapshot; older rows (before
-// vars existed) fall back to name / phone / email columns.
-function recipientVars(r: RecipientRow): TemplateVars {
-  const base = buildTemplateVars({
-    contact_name: r.contact_name,
-    email: r.email,
-    phone: r.entity_type === "wa_group" ? null : r.phone,
-  });
-  const stored: TemplateVars =
-    r.vars && typeof r.vars === "object"
-      ? Object.fromEntries(
-          Object.entries(r.vars).map(([key, value]) => [key, String(value)]),
-        )
-      : {};
-  return { ...base, ...stored };
-}
-
-const providerMessageId = (json: unknown, key: string) => {
-  const id = asRecord(json)[key];
-  return id ? String(id) : undefined;
-};
 
 async function invokeEdgeFn(name: string, payload: object) {
   const res = await fetch(`${SB_URL}/functions/v1/${name}`, {
