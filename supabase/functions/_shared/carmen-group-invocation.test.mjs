@@ -1,117 +1,145 @@
-import assert from "node:assert/strict";
+import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 import { groupMessageInvokesCarmen } from "./carmen.ts";
 
-test("requires Carmen in every group message", () => {
-  assert.equal(groupMessageInvokesCarmen("קארמן, תבדקי את הדוח"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן מה מצב הקמפיין?"), true);
-  assert.equal(groupMessageInvokesCarmen("קרמן תעני בבקשה"), true);
-  assert.equal(groupMessageInvokesCarmen("מה מצב הקמפיין?"), false);
+Deno.test("requires Carmen in every group message", () => {
+  assertStrictEquals(groupMessageInvokesCarmen("קארמן, תבדקי את הדוח"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן מה מצב הקמפיין?"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("קרמן תעני בבקשה"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("מה מצב הקמפיין?"), false);
 });
 
-test("does not accept a partial-word match", () => {
-  assert.equal(groupMessageInvokesCarmen("הכרמנית החדשה נראית טוב"), false);
-  assert.equal(groupMessageInvokesCarmen("דיברנו על הקמפיין"), false);
+Deno.test("does not accept a partial-word match", () => {
+  assertStrictEquals(
+    groupMessageInvokesCarmen("הכרמנית החדשה נראית טוב"),
+    false,
+  );
+  assertStrictEquals(groupMessageInvokesCarmen("דיברנו על הקמפיין"), false);
 });
 
-test("accepts voice transcript prefix", () => {
-  assert.equal(groupMessageInvokesCarmen("🎤 קארמן מה נשמע?"), true);
+Deno.test("accepts voice transcript prefix", () => {
+  assertStrictEquals(groupMessageInvokesCarmen("🎤 קארמן מה נשמע?"), true);
 });
 
-test("third person / talking ABOUT Carmen does NOT trigger", () => {
-  assert.equal(
+Deno.test("third person / talking ABOUT Carmen does NOT trigger", () => {
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן אמורה להגיב רק כשמדברים איתה לא עליה"),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן שלחה בדיקת דופק בקבוצה עם דניאל"),
     false,
   );
-  assert.equal(groupMessageInvokesCarmen("למה כרמן שלחה את זה עכשיו"), false);
-  assert.equal(groupMessageInvokesCarmen("דיברנו על כרמן אתמול בערב"), false);
-  assert.equal(groupMessageInvokesCarmen("כרמן צריכה לבדוק את זה מחר"), false);
-  assert.equal(
+  assertStrictEquals(
+    groupMessageInvokesCarmen("למה כרמן שלחה את זה עכשיו"),
+    false,
+  );
+  assertStrictEquals(
+    groupMessageInvokesCarmen("דיברנו על כרמן אתמול בערב"),
+    false,
+  );
+  assertStrictEquals(
+    groupMessageInvokesCarmen("כרמן צריכה לבדוק את זה מחר"),
+    false,
+  );
+  assertStrictEquals(
     groupMessageInvokesCarmen("אמרנו שכרמן אמורה לא להגיב סתם"),
     false,
   );
 });
 
-test("direct ask / imperative DOES trigger", () => {
-  assert.equal(
+Deno.test("direct ask / imperative DOES trigger", () => {
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן תבקשי מקרסר לבדוק את הראוטינג"),
     true,
   );
-  assert.equal(groupMessageInvokesCarmen("כרמן תצטרפי"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן, תצטרפי בבקשה"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן תבדקי דופק"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן?"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן תצטרפי"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן, תצטרפי בבקשה"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן תבדקי דופק"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן?"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן"), true);
 });
 
-test("meeting join addressed to Carmen still triggers", () => {
-  assert.equal(
+Deno.test("meeting join addressed to Carmen still triggers", () => {
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן תצטרפי https://zoom.us/j/123456789"),
     true,
   );
-  assert.equal(
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן https://meet.google.com/abc-defg-hij"),
     true,
   );
   // Talking about a meeting without asking her → silent
-  assert.equal(
+  assertStrictEquals(
     groupMessageInvokesCarmen("כרמן אמורה להצטרף לשיחה https://zoom.us/j/999"),
     false,
   );
 });
 
-test("uncertain mid-sentence mention stays silent", () => {
-  assert.equal(
+Deno.test("uncertain mid-sentence mention stays silent", () => {
+  assertStrictEquals(
     groupMessageInvokesCarmen("דניאל ואני חיכינו לכרמן עם העדכון"),
     false,
   );
-  assert.equal(groupMessageInvokesCarmen("תגיד לכרמן שתשלח דוח"), false);
+  assertStrictEquals(groupMessageInvokesCarmen("תגיד לכרמן שתשלח דוח"), false);
 });
 
-test("Manus group identity reads senderLid and semantically deduplicates retries", () => {
-  const webhookSource = readFileSync(
-    new URL("../manus-wa-webhook/index.ts", import.meta.url),
-    "utf8",
+Deno.test(
+  "Manus group identity reads senderLid and semantically deduplicates retries",
+  () => {
+    const webhookSource = readFileSync(
+      new URL("../manus-wa-webhook/index.ts", import.meta.url),
+      "utf8",
+    );
+    assertMatch(
+      webhookSource,
+      /payload\.author,\s*payload\.participant,\s*payload\.senderLid,\s*key\.participant/,
+    );
+    assertMatch(
+      webhookSource,
+      /authorCandidates\.find\(\(c\) => c\.endsWith\(["']@c\.us["']\)\)/,
+    );
+    assertMatch(webhookSource, /isUnresolvedGroupAuthor/);
+    assertMatch(webhookSource, /provider:\s*["']carmen_group_turn["']/);
+    assertMatch(webhookSource, /dedup:\s*["']group_fingerprint["']/);
+  },
+);
+
+Deno.test("greeting before her name addresses Carmen", () => {
+  assertStrictEquals(groupMessageInvokesCarmen("היי כרמן, זאת אנה"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("בוקר טוב כרמן"), true);
+  assertStrictEquals(
+    groupMessageInvokesCarmen("היי, דיברתי עם כרמן אתמול"),
+    false,
   );
-  assert.match(
-    webhookSource,
-    /payload\.author,\s*payload\.participant,\s*payload\.senderLid,\s*key\.participant/,
+  assertStrictEquals(
+    groupMessageInvokesCarmen("היי, כרמן לא ענתה לי אתמול"),
+    false,
   );
-  assert.match(
-    webhookSource,
-    /authorCandidates\.find\(\(c\) => c\.endsWith\(["']@c\.us["']\)\)/,
-  );
-  assert.match(webhookSource, /isUnresolvedGroupAuthor/);
-  assert.match(webhookSource, /provider:\s*["']carmen_group_turn["']/);
-  assert.match(webhookSource, /dedup:\s*["']group_fingerprint["']/);
 });
 
-test("greeting before her name addresses Carmen", () => {
-  assert.equal(groupMessageInvokesCarmen("היי כרמן, זאת אנה"), true);
-  assert.equal(groupMessageInvokesCarmen("בוקר טוב כרמן"), true);
-  assert.equal(groupMessageInvokesCarmen("היי, דיברתי עם כרמן אתמול"), false);
-  assert.equal(groupMessageInvokesCarmen("היי, כרמן לא ענתה לי אתמול"), false);
-});
-
-test("opening with her name and asking her counts", () => {
-  assert.equal(
+Deno.test("opening with her name and asking her counts", () => {
+  assertStrictEquals(
     groupMessageInvokesCarmen(
       "כרמן על כל שאלה את עונה פעמיים או שזה בגלל ששאלתי פעמיים?",
     ),
     true,
   );
-  assert.equal(groupMessageInvokesCarmen("כרמן זה נראה לך הגיוני"), true);
-  assert.equal(groupMessageInvokesCarmen("כרמן בדוח של אתמול"), false);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן זה נראה לך הגיוני"), true);
+  assertStrictEquals(groupMessageInvokesCarmen("כרמן בדוח של אתמול"), false);
 });
 
-test("reporting about her with an object marker stays silent", () => {
-  assert.equal(groupMessageInvokesCarmen("כרמן בדקה את הדוח של אתמול"), false);
-  assert.equal(groupMessageInvokesCarmen("כרמן קיבלה ממך את הקובץ"), false);
-  assert.equal(groupMessageInvokesCarmen("כרמן סיימה את הקמפיין?"), false);
+Deno.test("reporting about her with an object marker stays silent", () => {
+  assertStrictEquals(
+    groupMessageInvokesCarmen("כרמן בדקה את הדוח של אתמול"),
+    false,
+  );
+  assertStrictEquals(
+    groupMessageInvokesCarmen("כרמן קיבלה ממך את הקובץ"),
+    false,
+  );
+  assertStrictEquals(
+    groupMessageInvokesCarmen("כרמן סיימה את הקמפיין?"),
+    false,
+  );
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { sendCarmenReplyViaActionStep } from "./carmen.ts";
 
 // Minimal stand-in for the PostgREST builder: every filter returns `this`, and the
@@ -54,7 +53,7 @@ const baseArgs = {
   message: "שלום",
 };
 
-test("a Meta action step never sends to a group", async () => {
+Deno.test("a Meta action step never sends to a group", async () => {
   await withStubbedRuntime(async (calls) => {
     const sent = await sendCarmenReplyViaActionStep({
       ...baseArgs,
@@ -68,56 +67,60 @@ test("a Meta action step never sends to a group", async () => {
       isGroup: true,
     });
 
-    assert.equal(sent, false);
-    assert.deepEqual(calls, []);
+    assertStrictEquals(sent, false);
+    assertEquals(calls, []);
   });
 });
 
-test("a Meta action step dispatches a 1:1 reply to send-meta-whatsapp-message", async () => {
-  await withStubbedRuntime(async (calls) => {
-    const sent = await sendCarmenReplyViaActionStep({
-      ...baseArgs,
-      supabase: stubSupabase([
-        {
-          action_type: "send_meta_whatsapp_message",
-          configuration: { meta_whatsapp_integration_id: "meta-1" },
-        },
-      ]),
-      chatId: "972507677613",
-      isGroup: false,
-    });
+Deno.test(
+  "a Meta action step dispatches a 1:1 reply to send-meta-whatsapp-message",
+  async () => {
+    await withStubbedRuntime(async (calls) => {
+      const sent = await sendCarmenReplyViaActionStep({
+        ...baseArgs,
+        supabase: stubSupabase([
+          {
+            action_type: "send_meta_whatsapp_message",
+            configuration: { meta_whatsapp_integration_id: "meta-1" },
+          },
+        ]),
+        chatId: "972507677613",
+        isGroup: false,
+      });
 
-    assert.equal(sent, true);
-    assert.equal(calls.length, 1);
-    assert.ok(
-      calls[0].url.endsWith("/functions/v1/send-meta-whatsapp-message"),
-    );
-    assert.deepEqual(calls[0].body, {
-      tenantId: "tenant-1",
-      senderUserId: "user-1",
-      message: "שלום",
-      integrationId: "meta-1",
-      phoneNumber: "972507677613",
+      assertStrictEquals(sent, true);
+      assertStrictEquals(calls.length, 1);
+      assert(calls[0].url.endsWith("/functions/v1/send-meta-whatsapp-message"));
+      assertEquals(calls[0].body, {
+        tenantId: "tenant-1",
+        senderUserId: "user-1",
+        message: "שלום",
+        integrationId: "meta-1",
+        phoneNumber: "972507677613",
+      });
     });
-  });
-});
+  },
+);
 
-test("a Manus action step still routes to send-manus-wa-message", async () => {
-  await withStubbedRuntime(async (calls) => {
-    const sent = await sendCarmenReplyViaActionStep({
-      ...baseArgs,
-      supabase: stubSupabase([
-        {
-          action_type: "send_manus_message",
-          configuration: { integration_id: "manus-1" },
-        },
-      ]),
-      chatId: "972507677613",
-      isGroup: false,
+Deno.test(
+  "a Manus action step still routes to send-manus-wa-message",
+  async () => {
+    await withStubbedRuntime(async (calls) => {
+      const sent = await sendCarmenReplyViaActionStep({
+        ...baseArgs,
+        supabase: stubSupabase([
+          {
+            action_type: "send_manus_message",
+            configuration: { integration_id: "manus-1" },
+          },
+        ]),
+        chatId: "972507677613",
+        isGroup: false,
+      });
+
+      assertStrictEquals(sent, true);
+      assert(calls[0].url.endsWith("/functions/v1/send-manus-wa-message"));
+      assertStrictEquals(calls[0].body.integrationId, "manus-1");
     });
-
-    assert.equal(sent, true);
-    assert.ok(calls[0].url.endsWith("/functions/v1/send-manus-wa-message"));
-    assert.equal(calls[0].body.integrationId, "manus-1");
-  });
-});
+  },
+);
