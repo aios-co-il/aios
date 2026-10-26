@@ -2,9 +2,16 @@ import {
   assertEquals,
   assertRejects,
   assertStrictEquals,
+  assertThrows,
 } from "jsr:@std/assert@1";
 import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
+import {
+  automationStepArg,
+  isParallelTaskArg,
+  nestedErrorMessage,
+  readField,
+} from "./tool-contracts-admin.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 import { readImageGenerationPayload } from "./image-generation-payload.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
@@ -173,5 +180,54 @@ Deno.test(
     });
     assertEquals(readMetaLeadQuestionInput("EMAIL"), {});
     assertEquals(readMetaLeadQuestionInput(null), {});
+  },
+);
+
+Deno.test(
+  "readField and nestedErrorMessage mirror optional chaining on provider JSON",
+  () => {
+    assertStrictEquals(readField({ id: "1" }, "id"), "1");
+    for (const value of [null, undefined, "text", 3, [], ["x"]]) {
+      assertStrictEquals(readField(value, "id"), undefined);
+    }
+    assertStrictEquals(
+      nestedErrorMessage({ error: { message: "denied" } }),
+      "denied",
+    );
+    assertStrictEquals(nestedErrorMessage({ error: "denied" }), undefined);
+    assertStrictEquals(nestedErrorMessage({}), undefined);
+    assertStrictEquals(nestedErrorMessage(null), undefined);
+  },
+);
+
+Deno.test(
+  "delegate_parallel keeps only entries with a truthy title and prompt",
+  () => {
+    const tasks: unknown[] = [
+      { title: "a", prompt: "b", task_skills: ["x"] },
+      { title: "", prompt: "b" },
+      { title: "a" },
+      null,
+      "task",
+      ["a", "b"],
+    ];
+    assertEquals(tasks.filter(isParallelTaskArg), [tasks[0]]);
+  },
+);
+
+Deno.test(
+  "automation steps read LLM fields and still reject null entries",
+  () => {
+    assertEquals(automationStepArg({ type: "agent", config: { a: 1 } }), {
+      type: "agent",
+      skin: undefined,
+      instruction: undefined,
+      action_type: undefined,
+      config: { a: 1 },
+      label: undefined,
+    });
+    assertStrictEquals(automationStepArg("step").type, undefined);
+    assertThrows(() => automationStepArg(null), TypeError);
+    assertThrows(() => automationStepArg(undefined), TypeError);
   },
 );
