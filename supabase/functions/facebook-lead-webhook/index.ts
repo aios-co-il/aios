@@ -3,6 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { TablesUpdate } from "../_shared/database.types.ts";
 import { asJsonObject, asObject } from "../_shared/lead-json.ts";
 import {
+  nonEmptyStringOrNull,
+  salesPersonIdsOf,
+} from "../_shared/lead-form-mapping.ts";
+import {
   buildLeadRoutingPayload,
   resolveLeadClient,
 } from "../_shared/lead-routing.ts";
@@ -39,16 +43,6 @@ interface FacebookLeadRecord {
   agency_id?: string | null;
   client_id?: string | null;
   sales_person_id?: string | null;
-}
-
-const nonEmptyStringOrNull = (value: unknown): string | null =>
-  typeof value === "string" && value ? value : null;
-
-/** sales_person_ids, or the legacy single sales_person_id, as ids. */
-function salesPersonIdsOf(formMapping: { [key: string]: unknown }): string[] {
-  const ids = formMapping.sales_person_ids || formMapping.sales_person_id;
-  const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
-  return list.filter((id): id is string => typeof id === "string");
 }
 
 // Normalize phone for comparison

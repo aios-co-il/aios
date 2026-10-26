@@ -1,0 +1,127 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { buildLeadNotes, extractLeads, firstText } from "./parse-leads.ts";
+
+test("firstText returns the first truthy value as text", () => {
+  assert.equal(firstText(undefined, "", "Dana"), "Dana");
+  assert.equal(firstText(0, 1234567), "1234567");
+  assert.equal(firstText(null, undefined), "");
+  assert.equal(firstText({ name: "x" }, "later"), "");
+});
+
+const metaWebhook = {
+  object: "page",
+  entry: [
+    {
+      id: "PAGE_1",
+      time: 1729900000,
+      changes: [
+        {
+          field: "leadgen",
+          value: {
+            leadgen_id: 1234567890123456,
+            form_id: 444555666,
+            ad_id: "120200000000001",
+            page_id: "PAGE_1",
+            created_time: 1729900000,
+          },
+        },
+        { field: "feed", value: { item: "post" } },
+      ],
+    },
+    {
+      id: "PAGE_2",
+      changes: [{ field: "leadgen", value: { leadgen_id: "77" } }],
+    },
+  ],
+};
+
+test("extractLeads reads Meta direct webhooks across entry[].changes[]", () => {
+  const leads = extractLeads(metaWebhook);
+  assert.deepEqual(
+    leads.map(({ leadgen_id, form_name, campaign_name }) => ({
+      leadgen_id,
+      form_name,
+      campaign_name,
+    })),
+    [
+      {
+        leadgen_id: "1234567890123456",
+        form_name: "444555666",
+        campaign_name: "120200000000001",
+      },
+      { leadgen_id: "77", form_name: undefined, campaign_name: undefined },
+    ],
+  );
+  assert.equal(leads[0].raw, metaWebhook.entry[0].changes[0].value);
+});
+
+test("extractLeads tolerates entries without a changes list", () => {
+  assert.deepEqual(extractLeads({ entry: [{ id: "P" }, null] }), []);
+});
+
+test("extractLeads reads a Unified.to single lead", () => {
+  const [lead] = extractLeads({
+    id: "u1",
+    name: "Dana Levi",
+    emails: [{ email: "dana@example.com" }],
+    telephones: [{ telephone: "050-1234567" }],
+    company_name: "Levi Ltd",
+  });
+  assert.equal(lead.name, "Dana Levi");
+  assert.equal(lead.contact_name, "Dana Levi");
+  assert.equal(lead.email, "dana@example.com");
+  assert.equal(lead.phone, "050-1234567");
+  assert.equal(lead.company_name, "Levi Ltd");
+});
+
+const genericItem = {
+  full_name: "Avi Cohen",
+  Email: "avi@example.com",
+  phone_number: 972501234567,
+  form_id: 987,
+  campaign_id: "c-1",
+  ad_name: "Spring",
+  id: "lead-9",
+};
+
+const expectedGeneric = {
+  name: "Avi Cohen",
+  contact_name: "Avi Cohen",
+  full_name: "Avi Cohen",
+  email: "avi@example.com",
+  phone: "972501234567",
+  company_name: "",
+  form_name: "987",
+  campaign_name: "c-1",
+  ad_name: "Spring",
+  leadgen_id: "lead-9",
+};
+
+const genericShapes: Array<[string, unknown]> = [
+  ["a top-level array", [genericItem]],
+  ["a Make.com data array", { data: [genericItem] }],
+  ["a single lead object", { ...genericItem, email: "avi@example.com" }],
+  ["a lead wrapped in `lead`", { lead: genericItem }],
+];
+
+for (const [name, body] of genericShapes) {
+  test(`extractLeads parses ${name}`, () => {
+    const [lead] = extractLeads(body);
+    const { raw: _raw, ...fields } = lead;
+    assert.deepEqual(fields, expectedGeneric);
+  });
+}
+
+test("extractLeads ignores bodies without a known shape", () => {
+  assert.deepEqual(extractLeads({ hello: "world" }), []);
+  assert.deepEqual(extractLeads(null), []);
+  assert.deepEqual(extractLeads("text"), []);
+});
+
+test("buildLeadNotes lists the known Meta identifiers", () => {
+  assert.equal(
+    buildLeadNotes({ form_name: "987", leadgen_id: "1234567890123456" }),
+    "מקור: Meta Lead Ads\nטופס: 987\nleadgen_id: 1234567890123456",
+  );
+});
