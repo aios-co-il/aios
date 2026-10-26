@@ -123,17 +123,30 @@ const DEFAULT_EXCEPTION_CHECK_LINE = `${RECOMMENDED_CHECK_LABEL} לאמת יעד
 // A number, or a date/time/range compared whole, so "2026-10-20T08:00" in the
 // evidence does not make "20" or "8" look like known numbers.
 const NUMBER_TOKEN = /\d+(?:(?:[.,:/-]|T)\d+)*/g;
+// A number followed by "ימים"/"הימים" names a window length ("3 ימים",
+// "ב־7 הימים"). It becomes its own token, so a window label never licenses
+// the same digit as a value ("פי 3", "ירידה של 7%").
+const DAY_UNIT_AFTER = /\s*ה?(?:ימים|יום)(?![\p{L}\p{N}])/uy;
+const DAYS_SUFFIX = " ימים";
+
+function normalizeNumberToken(token: string): string {
+  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(token)) {
+    return String(Number(token.replaceAll(",", ""))); // 1,200 → 1200
+  }
+  if (/^\d+(?:[.,]\d+)?$/.test(token)) {
+    return String(Number(token.replace(",", "."))); // 52.0 → 52, 3,5 → 3.5
+  }
+  return token;
+}
 
 function numberTokens(text: string): string[] {
-  return (text.match(NUMBER_TOKEN) || []).map((token) => {
-    if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(token)) {
-      return String(Number(token.replaceAll(",", ""))); // 1,200 → 1200
-    }
-    if (/^\d+(?:[.,]\d+)?$/.test(token)) {
-      return String(Number(token.replace(",", "."))); // 52.0 → 52, 3,5 → 3.5
-    }
-    return token;
-  });
+  const tokens: string[] = [];
+  for (const match of text.matchAll(NUMBER_TOKEN)) {
+    const token = normalizeNumberToken(match[0]);
+    DAY_UNIT_AFTER.lastIndex = (match.index ?? 0) + match[0].length;
+    tokens.push(DAY_UNIT_AFTER.test(text) ? `${token}${DAYS_SUFFIX}` : token);
+  }
+  return tokens;
 }
 
 function evidenceValueTokens(value: unknown, out: string[]): void {
@@ -148,11 +161,18 @@ function evidenceValueTokens(value: unknown, out: string[]): void {
   }
 }
 
-/** Every number the deterministic message and evidence values already show. */
+/**
+ * Numbers the model may repeat: the values code computed for this alert
+ * (evidence: target, efficiency, trends, dates) and the window lengths the
+ * message names ("3 ימים", "ב־7 הימים"). Other digits in the message, such
+ * as a window label or a client or campaign name, license nothing.
+ */
 function deterministicNumbers(
   candidate: PulseInstantAlertCandidate,
 ): Set<string> {
-  const tokens = numberTokens(candidate.message);
+  const tokens = numberTokens(candidate.message).filter((token) =>
+    token.endsWith(DAYS_SUFFIX),
+  );
   evidenceValueTokens(candidate.evidence || {}, tokens);
   return new Set(tokens);
 }
@@ -161,10 +181,22 @@ type WordingLine =
   | { ok: true; text: string }
   | { ok: false; reason: "missing" | "invented_number" | "invalid_text" };
 
+// Leading bullets and colons the model may add; a dash counts as a bullet
+// only before a space, so "-30%" keeps its minus sign.
+const LEADING_MARKS = String.raw`(?:[•:\s]|[-–—](?=\s))*`;
+const REPEATED_LABEL = new RegExp(
+  `^${LEADING_MARKS}(?:(?:סיכום כרמן|סיכום|בדיקה מומלצת)\\s*:)?${LEADING_MARKS}`,
+);
+// Anything WhatsApp may turn into a link, a bare domain ("aios-login.co.il")
+// included: model text is checked, but a link could still come from a
+// campaign name that tries to instruct the model.
+const LINK_LIKE = /https?:\/\/|www\.|[\p{L}\p{N}-]+\.[a-z]{2,}(?![a-z0-9])/iu;
+
 /**
  * One model line, made safe for WhatsApp: a single line without markdown or
  * direction-control characters, at most PULSE_WORDING_MAX_CHARS long, and
  * without any number the deterministic evidence does not already contain.
+ * The checks run on the text as it will be shown, after any shortening.
  */
 export function sanitizePulseWordingLine(
   raw: unknown,
@@ -180,23 +212,23 @@ export function sanitizePulseWordingLine(
     .replace(/\s+/g, " ")
     .trim()
     // The message adds its own labels; drop one the model repeated.
-    .replace(/^[-•:\s]*(?:(?:סיכום כרמן|סיכום|בדיקה מומלצת)\s*:)?[-•:\s]*/, "")
+    .replace(REPEATED_LABEL, "")
     .trim();
   if (!text) return { ok: false, reason: "missing" };
-  if (/https?:\/\/|www\./i.test(text))
-    return { ok: false, reason: "invalid_text" };
-  // Digits from other scripts cannot be checked against the evidence.
-  if (/(?![0-9])\p{Nd}/u.test(text))
-    return { ok: false, reason: "invented_number" };
-  if (numberTokens(text).some((token) => !allowedNumbers.has(token))) {
-    return { ok: false, reason: "invented_number" };
-  }
   if (text.length > PULSE_WORDING_MAX_CHARS) {
     const cut = text.slice(0, PULSE_WORDING_MAX_CHARS - 1);
     const lastSpace = cut.lastIndexOf(" ");
     const kept =
       lastSpace > PULSE_WORDING_MAX_CHARS / 2 ? cut.slice(0, lastSpace) : cut;
     text = `${kept.trim()}…`;
+  }
+  if (LINK_LIKE.test(text)) return { ok: false, reason: "invalid_text" };
+  // Numerals outside ASCII digits (Arabic-Indic, superscript, circled, Roman)
+  // cannot be checked against the evidence.
+  if (/(?![0-9])\p{N}/u.test(text))
+    return { ok: false, reason: "invented_number" };
+  if (numberTokens(text).some((token) => !allowedNumbers.has(token))) {
+    return { ok: false, reason: "invented_number" };
   }
   return { ok: true, text };
 }

@@ -26,7 +26,8 @@ type AlertInput = {
 };
 
 // KPI exceptions are owned by campaign-pulse-snapshot so they share its
-// target-aware filter, AI verification and campaign-level dedupe. This monitor
+// deterministic target-aware filter and campaign-level dedupe (the model only
+// adds wording there; it never decides whether an alert is sent). This monitor
 // sends only platform-operational failures.
 const NOTIFY_TYPES = new Set([
   "campaign_stopped",

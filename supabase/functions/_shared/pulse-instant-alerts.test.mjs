@@ -824,6 +824,131 @@ Deno.test("wording lines are single, plain and capped", () => {
 });
 
 Deno.test(
+  "window labels and names do not license a number the evidence lacks",
+  () => {
+    // No target and spend without results: 3 and 7 appear only as window
+    // lengths ("3 ימים:", "ב־7 הימים") and 2 only in the campaign name.
+    const [candidate] = evaluatePulseInstantAlerts(
+      [
+        exceptionSnapshot({
+          campaign_key: "meta:id:789",
+          campaign_name: "Leads 2",
+          goal: "leads",
+          status_reason: "קיימת הוצאה ללא תוצאות ב־7 הימים המלאים האחרונים",
+          alert_eligible: true,
+          target_kind: null,
+          target_value: null,
+          efficiency_3d: null,
+          efficiency_7d: null,
+          trend_3d_pct: null,
+          trend_7d_pct: null,
+          data_fresh_through: "2026-10-27",
+          last_change_at: null,
+        }),
+      ],
+      [],
+      NO_CONTACT_OFF,
+      WEDNESDAY.getTime(),
+    );
+    assertMatch(candidate.message, /3 ימים: חסר · 7 ימים: חסר/);
+    for (const summary of [
+      "העלות גבוהה פי 3 מהיעד",
+      "ירידה של 3%",
+      "ירידה של 7% בלידים",
+      "העלות גבוהה פי 2",
+    ]) {
+      const worded = applyPulseExceptionWording(candidate, { summary });
+      assertStrictEquals(worded.message, candidate.message, summary);
+      assertEquals(
+        worded.ai_wording,
+        { applied: false, error: "invented_number" },
+        summary,
+      );
+    }
+    // The same digits as window lengths are fine.
+    const windowed = applyPulseExceptionWording(candidate, {
+      summary: "ב־7 הימים האחרונים הייתה הוצאה בלי אף ליד",
+    });
+    assertEquals(windowed.ai_wording, { applied: true });
+    assertMatch(
+      windowed.message,
+      /\nסיכום כרמן: ב־7 הימים האחרונים הייתה הוצאה בלי אף ליד\n/,
+    );
+  },
+);
+
+Deno.test("wording checks run on the shortened text that is shown", () => {
+  const allowed = new Set(["1234"]);
+  // No space between 120 and 239, so the cut falls inside "1234".
+  const split = sanitizePulseWordingLine(
+    `הקמפיין ${"א".repeat(PULSE_WORDING_MAX_CHARS - 12)}1234 ומעבר`,
+    allowed,
+  );
+  assertEquals(split, { ok: false, reason: "invented_number" });
+  // A link that only survives in the dropped tail is not shown, so the
+  // shown part passes; one that reaches the shown part is rejected.
+  const tail = sanitizePulseWordingLine(
+    `${"מילה ".repeat(60)}https://x.example`,
+    allowed,
+  );
+  assert(tail.ok);
+  assertNotMatch(tail.text, /https|example/);
+  assertEquals(
+    sanitizePulseWordingLine(
+      `${"מילה ".repeat(10)}1234 ראו https://x.example`,
+      allowed,
+    ),
+    { ok: false, reason: "invalid_text" },
+  );
+});
+
+Deno.test("wording rejects other numerals and bare domains", () => {
+  const allowed = new Set(["30", "52.5"]);
+  for (const text of ["עלייה של ²⁵", "שלב ① בבדיקה", "פרק Ⅻ", "חצי ½ מהיעד"]) {
+    assertEquals(
+      sanitizePulseWordingLine(text, allowed),
+      { ok: false, reason: "invented_number" },
+      text,
+    );
+  }
+  for (const text of [
+    "להיכנס ל־aios-login.co.il ולאשר",
+    "לשלוח ל־wa.me/972500000000",
+    "לבדוק ב-Example.COM",
+  ]) {
+    assertEquals(
+      sanitizePulseWordingLine(text, allowed),
+      { ok: false, reason: "invalid_text" },
+      text,
+    );
+  }
+  assertEquals(sanitizePulseWordingLine("CPL 52.5 מעל יעד 30.", allowed), {
+    ok: true,
+    text: "CPL 52.5 מעל יעד 30.",
+  });
+});
+
+Deno.test("a leading minus sign is kept; only a bullet dash is dropped", () => {
+  const allowed = new Set(["30"]);
+  assertEquals(sanitizePulseWordingLine("-30% בהמרות", allowed), {
+    ok: true,
+    text: "-30% בהמרות",
+  });
+  assertEquals(sanitizePulseWordingLine("סיכום כרמן: -30% בהמרות", allowed), {
+    ok: true,
+    text: "-30% בהמרות",
+  });
+  assertEquals(sanitizePulseWordingLine("- -30% בהמרות", allowed), {
+    ok: true,
+    text: "-30% בהמרות",
+  });
+  assertEquals(
+    sanitizePulseWordingLine("• בדיקה מומלצת: - לבדוק את הפיקסל", allowed),
+    { ok: true, text: "לבדוק את הפיקסל" },
+  );
+});
+
+Deno.test(
   "a failed wording call does not stop the next alert of the same run",
   async () => {
     const second = {
