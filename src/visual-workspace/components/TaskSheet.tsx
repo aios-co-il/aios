@@ -11,6 +11,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import type { Tables } from "@/integrations/supabase/types";
+
+type TaskDetails = Tables<"tasks"> & { description?: string | null };
+
+type TaskUpdate = Tables<"task_updates"> & {
+  update_text?: string | null;
+  note?: string | null;
+};
 
 interface Props {
   taskId: string | null;
@@ -19,13 +27,13 @@ interface Props {
 
 export function TaskSheet({ taskId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
-  const [task, setTask] = useState<any>(null);
-  const [updates, setUpdates] = useState<any[]>([]);
+  const [task, setTask] = useState<TaskDetails | null>(null);
+  const [updates, setUpdates] = useState<TaskUpdate[]>([]);
 
   useEffect(() => {
     if (!taskId) return;
     setLoading(true);
-    const sb = supabase as any;
+    const sb = supabase;
     Promise.all([
       sb.from("tasks").select("*").eq("id", taskId).maybeSingle(),
       sb
@@ -34,7 +42,7 @@ export function TaskSheet({ taskId, onClose }: Props) {
         .eq("task_id", taskId)
         .order("created_at", { ascending: false })
         .limit(10),
-    ]).then(([t, u]: any) => {
+    ]).then(([t, u]) => {
       setTask(t.data);
       setUpdates(u.data ?? []);
       setLoading(false);
@@ -88,7 +96,7 @@ export function TaskSheet({ taskId, onClose }: Props) {
                   <p className="text-xs text-slate-400">אין עדכונים</p>
                 ) : (
                   <div className="space-y-1">
-                    {updates.map((u: any) => (
+                    {updates.map((u) => (
                       <div
                         key={u.id}
                         className="rounded-lg bg-slate-50 px-3 py-2 text-xs"

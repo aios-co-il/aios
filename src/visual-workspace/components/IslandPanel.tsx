@@ -16,6 +16,18 @@ import { ISLAND_TOKENS } from "../utils/glassTokens";
 import type { IslandSummary } from "../types/visualWorkspaceTypes";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  readIslandAgents,
+  readIslandItems,
+  toAgentRole,
+  type IslandAgent,
+  type IslandItem,
+} from "../utils/islandRows-b19";
+
+type IslandTask = Pick<Tables<"tasks">, "id" | "title" | "status">;
+
+type RowsQuery = PromiseLike<{ data: unknown[] | null }>;
 
 interface Props {
   island: IslandSummary | null;
@@ -26,14 +38,14 @@ interface Props {
 export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
   const { tenantId } = useCurrentTenant();
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [items, setItems] = useState<IslandItem[]>([]);
+  const [tasks, setTasks] = useState<IslandTask[]>([]);
+  const [agents, setAgents] = useState<IslandAgent[]>([]);
 
   useEffect(() => {
     if (!island || !tenantId) return;
     setLoading(true);
-    const sb = supabase as any;
+    const sb = supabase;
     (async () => {
       const fetchTasks = sb
         .from("tasks")
@@ -42,13 +54,13 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
         .in("status", ["open", "in_progress"])
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
-      const fetchAgents = sb
+      const fetchAgents: RowsQuery = sb
         .from("ai_agents")
         .select("id,name,role,model,active")
         .eq("tenant_id", tenantId)
         .limit(10);
 
-      let itemsQ: any = null;
+      let itemsQ: RowsQuery | null = null;
       switch (island.id) {
         case "marketing":
           itemsQ = sb
@@ -127,9 +139,9 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
         fetchTasks,
         fetchAgents,
       ]);
-      setItems(it?.data ?? []);
+      setItems(readIslandItems(it?.data ?? []));
       setTasks(tsk?.data ?? []);
-      setAgents(ag?.data ?? []);
+      setAgents(readIslandAgents(ag?.data ?? []));
       setLoading(false);
     })();
   }, [island, tenantId]);
@@ -226,7 +238,7 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {items.map((it: any) => (
+                  {items.map((it) => (
                     <div
                       key={it.id}
                       onClick={() => {
@@ -265,7 +277,7 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {tasks.map((t: any) => (
+                  {tasks.map((t) => (
                     <div
                       key={t.id}
                       onClick={() => onOpenSheet("task", t.id)}
@@ -284,14 +296,14 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
 
           <TabsContent value="agents" className="mt-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {agents.map((a: any) => (
+              {agents.map((a) => (
                 <div
                   key={a.id}
                   onClick={() => onOpenSheet("agent", a.id)}
                   className="rounded-2xl bg-white/70 border border-white/80 p-3 text-center hover:bg-white cursor-pointer transition"
                 >
                   <AgentAvatar
-                    role={(a.role as any) || "ceo"}
+                    role={toAgentRole(a.role)}
                     state={a.active ? "idle" : "waiting"}
                     size={48}
                     className="mx-auto"
