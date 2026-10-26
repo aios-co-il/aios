@@ -24,7 +24,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(body: any, status = 200) {
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       .select("id, user_id")
       .eq("id", integration_id)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) integ = data;
   }
   if (!integ) {
     const { data } = await sb
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) integ = data;
   }
   if (!integ)
     return json({ error: "no active manus_wa integration for tenant" }, 404);

@@ -1,6 +1,10 @@
 // Carmen Google Ads Tools — pause/resume/update_budget at campaign level via Google Ads API v23.
 // Per project memory: Google Ads API v23, micros costs, MCC-aware.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { type JsonObject, thrownMessage } from "../_shared/json-narrow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,17 +15,19 @@ const corsHeaders = {
 
 const GADS_API = "https://googleads.googleapis.com/v23";
 
-async function getGadsAuth(
-  supabase: any,
-  tenant_id: string,
-): Promise<{
+type GadsAuth = {
   access_token?: string;
   developer_token?: string;
   login_customer_id?: string;
   refresh_token?: string;
   client_id?: string;
   client_secret?: string;
-} | null> {
+};
+
+async function getGadsAuth(
+  supabase: SupabaseClient,
+  tenant_id: string,
+): Promise<GadsAuth | null> {
   const { data } = await supabase
     .from("tenant_integrations")
     .select("api_key, additional_config")
@@ -42,7 +48,7 @@ async function getGadsAuth(
   };
 }
 
-async function exchangeAccessToken(auth: any): Promise<string | null> {
+async function exchangeAccessToken(auth: GadsAuth): Promise<string | null> {
   if (!auth?.refresh_token || !auth?.client_id || !auth?.client_secret)
     return null;
   const body = new URLSearchParams({
@@ -59,13 +65,13 @@ async function exchangeAccessToken(auth: any): Promise<string | null> {
   return j.access_token || null;
 }
 
-function err(message: string, status = 400, extra: any = {}) {
+function err(message: string, status = 400, extra: JsonObject = {}) {
   return new Response(JSON.stringify({ error: message, ...extra }), {
     status,
     headers: corsHeaders,
   });
 }
-function ok(payload: any) {
+function ok(payload: JsonObject) {
   return new Response(JSON.stringify({ success: true, ...payload }), {
     status: 200,
     headers: corsHeaders,
@@ -74,7 +80,7 @@ function ok(payload: any) {
 
 async function gadsMutate(
   customer_id: string,
-  body: any,
+  body: unknown,
   headers: Record<string, string>,
 ) {
   const r = await fetch(
@@ -131,7 +137,7 @@ Deno.serve(async (req) => {
 
     const cleanCustomer = String(customer_id).replace(/-/g, "");
 
-    let result: any = {};
+    let result: JsonObject = {};
     switch (action) {
       case "pause":
       case "resume": {
@@ -218,8 +224,8 @@ Deno.serve(async (req) => {
       );
 
     return ok({ action, ...result });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[carmen-google-tools]", e);
-    return err(String(e?.message || e), 500);
+    return err(String(thrownMessage(e) || e), 500);
   }
 });

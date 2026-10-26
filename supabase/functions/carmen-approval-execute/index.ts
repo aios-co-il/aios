@@ -2,6 +2,8 @@
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by campaign-scheduler-cron.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Json, Tables } from "../_shared/database.types.ts";
+import { jsonObject, thrownMessage } from "../_shared/json-narrow.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 
 const corsHeaders = {
@@ -41,7 +43,24 @@ const TOOL_TO_FUNCTION: Record<string, { fn: string; action?: string }> = {
   gads_update_budget: { fn: "carmen-google-tools", action: "update_budget" },
 };
 
-async function invokeEdgeFn(name: string, payload: any) {
+type AgentRef = Pick<Tables<"ai_agents">, "id" | "name">;
+
+type FlowStepRow = {
+  id: string;
+  automation_id: Json | undefined;
+  tenant_id: string;
+  step_type: string;
+  action_type: string | null;
+  configuration: Json;
+  position_x: number;
+  position_y: number;
+  sort_order: number;
+  parent_step_id: string | null;
+  condition_branch: null;
+  label: Json | undefined;
+};
+
+async function invokeEdgeFn(name: string, payload: unknown) {
   const r = await fetch(`${SB_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -53,6 +72,10 @@ async function invokeEdgeFn(name: string, payload: any) {
   });
   const json = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, json };
+}
+
+function agentRefs(agents: AgentRef[] | null): AgentRef[] {
+  return agents || [];
 }
 
 Deno.serve(async (req) => {
@@ -99,7 +122,7 @@ Deno.serve(async (req) => {
 
     // Special handling: schedule_campaign_toggle inserts into campaign_schedules instead of running FB/Google
     if (row.tool_name === "schedule_campaign_toggle") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       const { data: schedRow, error: schedErr } = await supabase
         .from("campaign_schedules")
         .insert({
@@ -144,7 +167,7 @@ Deno.serve(async (req) => {
 
     // Carmen authoring: build a (disabled) flow automation from the approved spec.
     if (row.tool_name === "create_automation") {
-      const spec = (row.tool_input as any) || {};
+      const spec = jsonObject(row.tool_input);
       const steps = Array.isArray(spec.steps) ? spec.steps : [];
       if (!spec.name || !spec.trigger_type || steps.length === 0) {
         await supabase
@@ -167,9 +190,8 @@ Deno.serve(async (req) => {
         .eq("tenant_id", row.tenant_id)
         .eq("active", true);
       const carmen =
-        ((agents as any[]) || []).find((a) =>
-          /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agents as any[]) || [])[0];
+        agentRefs(agents).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+        agentRefs(agents)[0];
 
       const { data: automation, error: aErr } = await supabase
         .from("automations")
@@ -204,7 +226,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const stepRows: any[] = [];
+      const stepRows: FlowStepRow[] = [];
       const trigId = crypto.randomUUID();
       stepRows.push({
         id: trigId,
@@ -223,7 +245,7 @@ Deno.serve(async (req) => {
       let parent = trigId,
         sort = 0,
         y = 60;
-      for (const s of steps.slice(0, 20)) {
+      for (const s of steps.slice(0, 20).map(jsonObject)) {
         sort++;
         y += 130;
         const id = crypto.randomUUID();
@@ -286,7 +308,7 @@ Deno.serve(async (req) => {
 
     // ── Broadcast actions ──────────────────────────────────────────────────────
     if (row.tool_name === "send_broadcast_now") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       if (!inp.broadcast_id) {
         await supabase
           .from("agent_approval_queue")
@@ -353,7 +375,7 @@ Deno.serve(async (req) => {
     }
 
     if (row.tool_name === "schedule_broadcast") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       if (!inp.broadcast_id || !inp.scheduled_at) {
         await supabase
           .from("agent_approval_queue")
@@ -396,7 +418,7 @@ Deno.serve(async (req) => {
     }
 
     if (row.tool_name === "cancel_broadcast") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       if (!inp.broadcast_id) {
         await supabase
           .from("agent_approval_queue")
@@ -436,7 +458,7 @@ Deno.serve(async (req) => {
 
     // Legacy Meta: toggle_facebook_campaign → carmen-fb-tools pause/resume
     if (row.tool_name === "toggle_facebook_campaign") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       const entity_id = inp.campaign_id || inp.entity_id;
       const status = String(inp.status || "").toUpperCase();
       if (!entity_id || !["ACTIVE", "PAUSED"].includes(status)) {
@@ -478,7 +500,7 @@ Deno.serve(async (req) => {
 
     // Legacy Meta: duplicate_facebook_campaign → fb-campaign-control
     if (row.tool_name === "duplicate_facebook_campaign") {
-      const inp = (row.tool_input as any) || {};
+      const inp = jsonObject(row.tool_input);
       if (!inp.campaign_id) {
         await supabase
           .from("agent_approval_queue")
@@ -522,8 +544,8 @@ Deno.serve(async (req) => {
       row.tool_name === "delete_automation" ||
       row.tool_name === "edit_automation"
     ) {
-      const inp = (row.tool_input as any) || {};
-      let result: any = null;
+      const inp = jsonObject(row.tool_input);
+      let result: Json = null;
       let failed = false;
       try {
         if (!inp.automation_id) throw new Error("automation_id required");
@@ -582,10 +604,10 @@ Deno.serve(async (req) => {
               .eq("tenant_id", row.tenant_id)
               .eq("active", true);
             const carmen =
-              ((agents as any[]) || []).find((a) =>
+              agentRefs(agents).find((a) =>
                 /כרמן|carmen/i.test(a.name || ""),
-              ) || ((agents as any[]) || [])[0];
-            const stepRows: any[] = [];
+              ) || agentRefs(agents)[0];
+            const stepRows: FlowStepRow[] = [];
             const trigId = crypto.randomUUID();
             const triggerType =
               inp.trigger_type || auto.trigger_type || "manual_command";
@@ -606,7 +628,7 @@ Deno.serve(async (req) => {
             let parent = trigId,
               sort = 0,
               y = 60;
-            for (const s of inp.steps.slice(0, 20)) {
+            for (const s of inp.steps.slice(0, 20).map(jsonObject)) {
               sort++;
               y += 130;
               const id = crypto.randomUUID();
@@ -659,9 +681,9 @@ Deno.serve(async (req) => {
             steps_replaced: stepsReplaced,
           };
         }
-      } catch (e: any) {
+      } catch (e) {
         failed = true;
-        result = { error: String(e?.message || e) };
+        result = { error: String(thrownMessage(e) || e) };
       }
       await supabase
         .from("agent_approval_queue")
@@ -690,8 +712,8 @@ Deno.serve(async (req) => {
       "update_client_retainer",
     ]);
     if (accountingTools.has(row.tool_name)) {
-      const inp = (row.tool_input as any) || {};
-      let result: any = null;
+      const inp = jsonObject(row.tool_input);
+      let result: Json = null;
       let failed = false;
       try {
         if (row.tool_name === "create_one_time_income") {
@@ -794,9 +816,9 @@ Deno.serve(async (req) => {
           if (error) throw error;
           result = { updated: true, ...data };
         }
-      } catch (e: any) {
+      } catch (e) {
         failed = true;
-        result = { error: String(e?.message || e) };
+        result = { error: String(thrownMessage(e) || e) };
       }
       await supabase
         .from("agent_approval_queue")
@@ -838,7 +860,7 @@ Deno.serve(async (req) => {
       );
 
     // Normalize legacy update_facebook_budget → carmen-fb-tools entity_id
-    const rawInput = (row.tool_input as any) || {};
+    const rawInput = jsonObject(row.tool_input);
     const normalizedInput =
       row.tool_name === "update_facebook_budget"
         ? { ...rawInput, entity_id: rawInput.entity_id || rawInput.campaign_id }
@@ -868,11 +890,14 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: r.ok, result: r.json, approval_id }),
       { status: r.ok ? 200 : 400, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[carmen-approval-execute]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({ error: String(thrownMessage(e) || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

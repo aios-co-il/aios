@@ -1,7 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   buildHealthWhatsAppDigest,
   buildPulseDashboardAbsoluteUrl,
+  type CampaignTableLike,
   isSyncStale,
   pickFreshestTablePerPlatform,
 } from "../_shared/campaign-pulse.ts";
@@ -56,7 +60,10 @@ const CAMPAIGN_TABLE_TYPES = [
   "google_ads",
 ];
 
-function campaignServices(client: any): Set<string> {
+type HealthClient = { id: string; services: unknown };
+type HealthTable = CampaignTableLike & { client_id: string | null };
+
+function campaignServices(client: HealthClient): Set<string> {
   return new Set(
     (Array.isArray(client?.services) ? client.services : [])
       .map((service: unknown) => String(service))
@@ -66,7 +73,10 @@ function campaignServices(client: any): Set<string> {
   );
 }
 
-function platformTables(tables: any[], platform: "meta" | "google"): any[] {
+function platformTables(
+  tables: HealthTable[],
+  platform: "meta" | "google",
+): HealthTable[] {
   return tables.filter((table) =>
     platform === "google"
       ? table.integration_type === "google_ads"
@@ -75,7 +85,7 @@ function platformTables(tables: any[], platform: "meta" | "google"): any[] {
   );
 }
 
-function isAccountConnected(table: any): boolean {
+function isAccountConnected(table: CampaignTableLike): boolean {
   const settings = table.integration_settings || {};
   if (table.integration_type === "google_ads") {
     return !!(settings.customer_id || settings.ad_account_id);
@@ -88,7 +98,7 @@ function isAccountConnected(table: any): boolean {
 }
 
 async function buildTenantHealthDigest(
-  supabase: any,
+  supabase: SupabaseClient,
   tenantId: string,
   checks: CheckRow[],
 ): Promise<string> {
@@ -106,8 +116,10 @@ async function buildTenantHealthDigest(
   ]);
   const agencyIds = Array.from(
     new Set([
-      ...(ownedAgencies || []).map((agency: any) => agency.id),
-      ...(sharedAgencies || []).map((agency: any) => agency.agency_id),
+      ...(ownedAgencies || []).map((agency: { id: string }) => agency.id),
+      ...(sharedAgencies || []).map(
+        (agency: { agency_id: string }) => agency.agency_id,
+      ),
     ]),
   );
   const { data: allClients } = await supabase
@@ -119,10 +131,11 @@ async function buildTenantHealthDigest(
     )
     .eq("status", "active")
     .order("name");
-  const clients = (allClients || []).filter(
-    (client: any) => campaignServices(client).size > 0,
+  const clientRows: HealthClient[] = allClients || [];
+  const clients = clientRows.filter(
+    (client) => campaignServices(client).size > 0,
   );
-  const clientIds = clients.map((client: any) => client.id);
+  const clientIds = clients.map((client) => client.id);
   const { data: allTables } = clientIds.length
     ? await supabase
         .from("crm_tables")
@@ -132,13 +145,14 @@ async function buildTenantHealthDigest(
         .in("client_id", clientIds)
         .in("integration_type", CAMPAIGN_TABLE_TYPES)
     : { data: [] };
+  const tableRows: HealthTable[] = allTables || [];
 
   let issueCount = 0;
   let activeConnections = 0;
   for (const client of clients) {
     const services = campaignServices(client);
-    const clientTables = (allTables || []).filter(
-      (table: any) => table.client_id === client.id,
+    const clientTables = tableRows.filter(
+      (table) => table.client_id === client.id,
     );
     for (const platform of ["meta", "google"] as const) {
       const expected =
@@ -150,7 +164,7 @@ async function buildTenantHealthDigest(
       // Existing tables that were explicitly switched off represent a paused
       // campaign and are excluded from both the health and performance reports.
       const active = configured.filter(
-        (table: any) => table.campaign_active !== false,
+        (table) => table.campaign_active !== false,
       );
       if (configured.length > 0 && active.length === 0) continue;
       // Missing report tables are shown on the Pulse Dashboard only — never WA.
