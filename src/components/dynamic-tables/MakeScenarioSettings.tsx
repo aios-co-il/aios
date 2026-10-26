@@ -1,3 +1,9 @@
+import {
+  asJsonObject,
+  jsonObjects,
+  readString,
+  readText,
+} from "@/lib/dynamic-tables-b17";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,10 +52,15 @@ interface MakeScenarioSettingsProps {
     id: string;
     name: string;
     tenant_id: string;
-    integration_settings: any;
+    integration_settings: unknown;
   } | null;
   onSync: () => void;
   isSyncing: boolean;
+}
+
+interface MakeScenario {
+  id: string;
+  name: string;
 }
 
 const scheduleOptions = [
@@ -122,15 +133,24 @@ export function MakeScenarioSettings({
   isSyncing,
 }: MakeScenarioSettingsProps) {
   const queryClient = useQueryClient();
-  const settings = table?.integration_settings || {};
+  const settings = asJsonObject(table?.integration_settings);
+  const lastSyncAtValue = settings.last_sync_at;
+  const lastSyncAt =
+    typeof lastSyncAtValue === "number"
+      ? lastSyncAtValue
+      : readString(settings, "last_sync_at");
 
-  const [scenarioId, setScenarioId] = useState(settings.make_scenario_id || "");
-  const [syncSchedule, setSyncSchedule] = useState(
-    settings.sync_schedule || "manual",
+  const [scenarioId, setScenarioId] = useState(
+    readText(settings, "make_scenario_id") || "",
   );
-  const [webhookUrl, setWebhookUrl] = useState(settings.make_webhook_url || "");
+  const [syncSchedule, setSyncSchedule] = useState(
+    readText(settings, "sync_schedule") || "manual",
+  );
+  const [webhookUrl, setWebhookUrl] = useState(
+    readText(settings, "make_webhook_url") || "",
+  );
   const [syncDateRange, setSyncDateRange] = useState(
-    settings.default_sync_range || "last_30_days",
+    readText(settings, "default_sync_range") || "last_30_days",
   );
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(
     undefined,
@@ -185,7 +205,7 @@ export function MakeScenarioSettings({
   // Fetch scenarios from Make.com
   const { data: scenarios = [], isLoading: loadingScenarios } = useQuery({
     queryKey: ["make-scenarios", table?.tenant_id],
-    queryFn: async () => {
+    queryFn: async (): Promise<MakeScenario[]> => {
       if (!makeApiSettings?.api_token || !makeApiSettings?.team_id) return [];
 
       const { data, error } = await supabase.functions.invoke("make-api", {
@@ -202,7 +222,10 @@ export function MakeScenarioSettings({
         return [];
       }
 
-      return data?.scenarios || [];
+      return jsonObjects(data?.scenarios).map((s) => ({
+        id: String(s.id),
+        name: readText(s, "name") ?? "",
+      }));
     },
     enabled: !!makeApiSettings?.api_token && !!makeApiSettings?.team_id,
   });
@@ -234,7 +257,7 @@ export function MakeScenarioSettings({
       toast.success("ההגדרות נשמרו בהצלחה");
       setHasChanges(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בשמירת ההגדרות: " + error.message);
     },
   });
@@ -289,7 +312,7 @@ export function MakeScenarioSettings({
         });
       }, 5000);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בהפעלת הסנכרון: " + error.message);
     },
   });
@@ -325,7 +348,7 @@ export function MakeScenarioSettings({
         });
       }, 5000);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בהרצת הסנריו: " + error.message);
     },
   });
@@ -343,13 +366,13 @@ export function MakeScenarioSettings({
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">חיבור Make.com:</span>
           <span className="font-medium">
-            {settings.make_connection_name || "לא מוגדר"}
+            {readText(settings, "make_connection_name") || "לא מוגדר"}
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Customer ID:</span>
           <span className="font-mono text-sm">
-            {settings.customer_id || "לא מוגדר"}
+            {readText(settings, "customer_id") || "לא מוגדר"}
           </span>
         </div>
       </div>
@@ -373,7 +396,7 @@ export function MakeScenarioSettings({
                   className="flex-1 justify-between"
                 >
                   {scenarioId
-                    ? scenarios.find((s: any) => String(s.id) === scenarioId)
+                    ? scenarios.find((s) => String(s.id) === scenarioId)
                         ?.name || `סנריו #${scenarioId}`
                     : "בחר סנריו מ-Make.com"}
                   <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -391,13 +414,13 @@ export function MakeScenarioSettings({
                     <CommandGroup>
                       {scenarios
                         .filter(
-                          (scenario: any) =>
+                          (scenario) =>
                             scenario.name
                               .toLowerCase()
                               .includes(scenarioSearch.toLowerCase()) ||
                             String(scenario.id).includes(scenarioSearch),
                         )
-                        .map((scenario: any) => (
+                        .map((scenario) => (
                           <CommandItem
                             key={scenario.id}
                             value={`${scenario.name} ${scenario.id}`}
@@ -611,13 +634,11 @@ export function MakeScenarioSettings({
       )}
 
       {/* Sync Status */}
-      {table?.integration_settings?.last_sync_at && (
+      {lastSyncAt && (
         <div className="flex items-center justify-between text-sm p-3 bg-muted/50 rounded-lg">
           <span className="text-muted-foreground">סנכרון אחרון:</span>
           <span className="font-medium">
-            {new Date(table.integration_settings.last_sync_at).toLocaleString(
-              "he-IL",
-            )}
+            {new Date(lastSyncAt).toLocaleString("he-IL")}
           </span>
         </div>
       )}

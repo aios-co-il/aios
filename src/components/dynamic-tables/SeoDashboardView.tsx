@@ -1,3 +1,16 @@
+import type { Json } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  errorMessage,
+  isJsonObject,
+  readDateInput,
+  readField,
+  readString,
+  readText,
+  type DynamicRecord,
+  type JsonObject,
+} from "@/lib/dynamic-tables-b17";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +62,19 @@ import {
 
 const NO_EXTRA_GSC: GscKeywordData[] = [];
 
+type ComparisonRow = AhrefsKeyword | JsonObject;
+
+interface ComparisonMaps {
+  threeMonth: Map<string, ComparisonRow>;
+  yearly: Map<string, ComparisonRow>;
+}
+
+interface AhrefsSnapshotResponse {
+  error?: string;
+  tracked_count?: number;
+  keywords_count?: number;
+}
+
 interface SeoDashboardViewProps {
   tenantId: string;
   clientId: string;
@@ -59,7 +85,7 @@ interface SeoDashboardViewProps {
    */
   accessibleTenantIds?: string[];
   /** CRM records from the linked Google Analytics table */
-  gaRecords?: any[];
+  gaRecords?: DynamicRecord[];
   /** GSC site URL persisted on the SEO crm_table — used as source of truth on first load. */
   initialGscSiteUrl?: string;
   /** GSC OAuth connection persisted on the SEO crm_table. */
@@ -110,22 +136,23 @@ export function SeoDashboardView({
   const handleFetchSnapshot = useCallback(async () => {
     setIsFetchingSnapshot(true);
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "fetch-ahrefs-snapshot",
-        {
-          body: {
-            clientId,
-            ...(expectedDomain ? { domain: expectedDomain } : {}),
-            ...(ahrefsProjectId ? { projectId: ahrefsProjectId } : {}),
-            ...(ahrefsMode ? { mode: ahrefsMode } : {}),
-            ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
+      const { data, error } =
+        await supabase.functions.invoke<AhrefsSnapshotResponse>(
+          "fetch-ahrefs-snapshot",
+          {
+            body: {
+              clientId,
+              ...(expectedDomain ? { domain: expectedDomain } : {}),
+              ...(ahrefsProjectId ? { projectId: ahrefsProjectId } : {}),
+              ...(ahrefsMode ? { mode: ahrefsMode } : {}),
+              ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
+            },
           },
-        },
-      );
+        );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const tracked = (data as any)?.tracked_count ?? 0;
-      const organic = (data as any)?.keywords_count ?? 0;
+      if (data?.error) throw new Error(data.error);
+      const tracked = data?.tracked_count ?? 0;
+      const organic = data?.keywords_count ?? 0;
       toast.success(
         tracked > 0
           ? `הדוח נטען מ-Ahrefs (${organic} אורגניות, ${tracked} במעקב)`
@@ -134,10 +161,11 @@ export function SeoDashboardView({
             : "הדוח נטען בהצלחה מ-Ahrefs",
       );
       await queryClient.invalidateQueries({ queryKey: ["ahrefs-reports"] });
-    } catch (err: any) {
+    } catch (err) {
       console.error("fetch-ahrefs-snapshot failed:", err);
       toast.error(
-        err?.message || "שליפת הדוח נכשלה. ודא שהוגדר דומיין ושיש מפתח Ahrefs.",
+        errorMessage(err) ||
+          "שליפת הדוח נכשלה. ודא שהוגדר דומיין ושיש מפתח Ahrefs.",
       );
     } finally {
       setIsFetchingSnapshot(false);
@@ -156,13 +184,11 @@ export function SeoDashboardView({
     useState<GscMultiPeriodData | null>(null);
   const { comparisonData, resetComparisonData } = useAhrefsEnrichment();
   const [hasAutoEnriched, setHasAutoEnriched] = useState(false);
-  const [cachedComparison, setCachedComparison] = useState<{
-    threeMonth: Map<string, any>;
-    yearly: Map<string, any>;
-  } | null>(null);
+  const [cachedComparison, setCachedComparison] =
+    useState<ComparisonMaps | null>(null);
 
   // Effective comparison data: API data takes priority, then cached DB data
-  const effectiveComparison = useMemo(() => {
+  const effectiveComparison = useMemo((): ComparisonMaps => {
     if (comparisonData.threeMonth.size > 0 || comparisonData.yearly.size > 0) {
       return comparisonData;
     }
@@ -260,9 +286,9 @@ export function SeoDashboardView({
   const firstReportDomain = useMemo(() => {
     if (expectedDomain) return expectedDomain;
     const r = (Array.isArray(ownDomainReports) ? ownDomainReports : []).find(
-      (x: any) => x?.domain,
+      (x) => x?.domain,
     );
-    return r?.domain as string | undefined;
+    return r?.domain;
   }, [ownDomainReports, expectedDomain]);
 
   const resolvedGsc = useResolvedGscIntegration({
@@ -292,17 +318,21 @@ export function SeoDashboardView({
     setSelectedReportId(null);
   }, [clientId]);
 
-  const reportData = selectedReport?.report_data as any;
+  const reportData = useMemo(
+    () => asJsonObject(selectedReport?.report_data),
+    [selectedReport?.report_data],
+  );
 
-  const snapshot = reportData?.snapshot || {};
-  const snapshotPrevMonth =
-    reportData?.snapshot_prev_month || reportData?.snapshot_prev || {};
-  const snapshotCampaignStart = reportData?.snapshot_campaign_start || {};
+  const snapshot = asJsonObject(reportData.snapshot);
+  const snapshotPrevMonth = asJsonObject(
+    reportData.snapshot_prev_month || reportData.snapshot_prev,
+  );
+  const snapshotCampaignStart = asJsonObject(
+    reportData.snapshot_campaign_start,
+  );
   const campaignStartDate =
-    reportData?.campaign_start_date || snapshotCampaignStart?.date;
-  const trafficHistory = Array.isArray(reportData?.traffic_history)
-    ? reportData.traffic_history
-    : [];
+    readDateInput(reportData, "campaign_start_date") ||
+    readDateInput(snapshotCampaignStart, "date");
 
   // Monthly NON-PAID sessions for the chart — derived via the shared helper so
   // the public SharedTable produces identical numbers from the same gaRecords.
@@ -379,7 +409,8 @@ export function SeoDashboardView({
       : null;
 
   // Normalize keyword fields from various source formats
-  function normalizeKeyword(kw: any): any {
+  function normalizeKeyword(keyword: Json) {
+    const kw = asJsonObject(keyword);
     return {
       keyword: kw.keyword || "",
       position: kw.position ?? kw.best_position ?? null,
@@ -397,17 +428,16 @@ export function SeoDashboardView({
   }
 
   // Build lookup map for prev month positions
-  function buildPrevMonthMap(report: any): Map<string, number | null> {
-    const rd = report?.report_data as any;
-    if (!rd) return new Map();
-    const map = new Map<string, number | null>();
-    const organic = Array.isArray(rd.organic_keywords)
-      ? rd.organic_keywords
-      : [];
-    const tracked = Array.isArray(rd.tracked_keywords)
-      ? rd.tracked_keywords
-      : [];
-    for (const kw of [...tracked, ...organic]) {
+  function buildPrevMonthMap(
+    report: { report_data?: unknown } | null,
+  ): Map<string, Json> {
+    if (!report?.report_data) return new Map();
+    const rd = asJsonObject(report.report_data);
+    const map = new Map<string, Json>();
+    const organic = asJsonArray(rd.organic_keywords);
+    const tracked = asJsonArray(rd.tracked_keywords);
+    for (const keyword of [...tracked, ...organic]) {
+      const kw = asJsonObject(keyword);
       const name = String(kw.keyword || "").toLowerCase();
       if (!map.has(name)) {
         map.set(name, kw.position ?? kw.best_position ?? null);
@@ -423,19 +453,13 @@ export function SeoDashboardView({
 
   // Normalize and enrich keywords with comparison data
   const rawOrganic = useMemo(() => {
-    const organic = Array.isArray(reportData?.organic_keywords)
-      ? reportData.organic_keywords
-      : [];
+    const organic = asJsonArray(reportData.organic_keywords);
     if (organic.length > 0) return organic;
     // Rank-tracker-only reports (dentiq): mirror tracked phrases for the organic table.
-    const tracked = Array.isArray(reportData?.tracked_keywords)
-      ? reportData.tracked_keywords
-      : [];
+    const tracked = asJsonArray(reportData.tracked_keywords);
     return tracked.length > 0 ? tracked : [];
-  }, [reportData?.organic_keywords, reportData?.tracked_keywords]);
-  const rawTracked = Array.isArray(reportData?.tracked_keywords)
-    ? reportData.tracked_keywords
-    : [];
+  }, [reportData.organic_keywords, reportData.tracked_keywords]);
+  const rawTracked = asJsonArray(reportData.tracked_keywords);
 
   // Build GSC lookup map (current period — used for clicks/impressions/CTR enrichment)
   const gscMap = useMemo(() => {
@@ -473,7 +497,7 @@ export function SeoDashboardView({
     gscThreeMonthMap.size > 0 ||
     gscYearlyMap.size > 0;
 
-  function enrichKeyword(kw: any, effComparison: typeof comparisonData): any {
+  function enrichKeyword(kw: Json, effComparison: ComparisonMaps) {
     const normalized = normalizeKeyword(kw);
     const kwLower = String(normalized.keyword).toLowerCase().trim();
     // Use inline data first, fallback to cross-report comparison
@@ -485,13 +509,13 @@ export function SeoDashboardView({
     const apiYear = effComparison.yearly.get(kwLower);
 
     // 3-month position comparison
-    let pos3m: number | null = null;
+    let pos3m: Json = null;
     if (api3m?.best_position_prev != null) {
       pos3m = api3m.best_position_prev;
     }
 
     // Yearly position comparison
-    let posYear: number | null = null;
+    let posYear: Json = null;
     if (apiYear?.best_position_prev != null) {
       posYear = apiYear.best_position_prev;
     }
@@ -572,19 +596,19 @@ export function SeoDashboardView({
     const existingNames = new Set<string>();
     for (const kw of rawOrganic)
       existingNames.add(
-        String(kw.keyword || "")
+        String(readField(kw, "keyword") || "")
           .toLowerCase()
           .trim(),
       );
     for (const kw of rawTracked)
       existingNames.add(
-        String(kw.keyword || "")
+        String(readField(kw, "keyword") || "")
           .toLowerCase()
           .trim(),
       );
 
     // Merge from both 3-month and yearly comparison maps
-    const comparisonOnly = new Map<string, AhrefsKeyword>();
+    const comparisonOnly = new Map<string, ComparisonRow>();
     for (const [name, kw] of effectiveComparison.threeMonth) {
       if (!existingNames.has(name)) comparisonOnly.set(name, kw);
     }
@@ -668,10 +692,7 @@ export function SeoDashboardView({
           .trim(),
       );
     }
-    const gscMetrics: Record<
-      string,
-      { volume: number | null; kd: number | null; cpc: number | null }
-    > = (reportData?.gsc_keyword_metrics as any) || {};
+    const gscMetrics = asJsonObject(reportData.gsc_keyword_metrics);
     return keywordGscRows
       .filter(
         (g) => g.keyword && !ahrefsNames.has(g.keyword.toLowerCase().trim()),
@@ -686,9 +707,9 @@ export function SeoDashboardView({
           keyword: g.keyword,
           position: g.position ?? null,
           traffic: null,
-          volume: metrics?.volume ?? null,
-          kd: metrics?.kd ?? null,
-          cpc: metrics?.cpc ?? null,
+          volume: readField(metrics, "volume") ?? null,
+          kd: readField(metrics, "kd") ?? null,
+          cpc: readField(metrics, "cpc") ?? null,
           url: null,
           position_prev_month: prev,
           position_3month: m3,
@@ -714,7 +735,7 @@ export function SeoDashboardView({
     reportData,
   ]);
 
-  const domain = reportData?.domain || selectedReport?.domain;
+  const domain = readText(reportData, "domain") || selectedReport?.domain;
 
   // Load cached comparison data from the DB only — never auto-fetch (saves API credits)
   useEffect(() => {
@@ -723,19 +744,26 @@ export function SeoDashboardView({
     setCachedComparison(null);
 
     if (!selectedReport) return;
-    const cached = (selectedReport as any).comparison_data;
-    if (cached && cached.threeMonth && cached.yearly) {
-      const threeMonthMap = new Map<string, any>(
-        Object.entries(cached.threeMonth),
-      );
-      const yearlyMap = new Map<string, any>(Object.entries(cached.yearly));
-      setCachedComparison({ threeMonth: threeMonthMap, yearly: yearlyMap });
+    const cached = readField(selectedReport, "comparison_data");
+    if (isJsonObject(cached) && cached.threeMonth && cached.yearly) {
+      const toMap = (value: Json) =>
+        new Map<string, ComparisonRow>(
+          Object.entries(asJsonObject(value)).map(([k, v]) => [
+            k,
+            asJsonObject(v),
+          ]),
+        );
+      setCachedComparison({
+        threeMonth: toMap(cached.threeMonth),
+        yearly: toMap(cached.yearly),
+      });
     }
   }, [selectedReport?.id]);
 
   const handleManualSync = useCallback(async () => {
     const projectId =
-      (selectedReport as any)?.metadata?.ahrefs_project_id || ahrefsProjectId;
+      readField(selectedReport?.metadata, "ahrefs_project_id") ||
+      ahrefsProjectId;
     if (!projectId) {
       toast.info("כדי למשוך ביטויים במעקב צריך לבחור פרויקט מ-Ahrefs");
       setPickerOpen(true);
@@ -750,28 +778,29 @@ export function SeoDashboardView({
             .filter((k) => k.length > 0),
         ),
       );
-      const { data, error } = await supabase.functions.invoke(
-        "fetch-ahrefs-snapshot",
-        {
-          body: {
-            clientId,
-            domain,
-            projectId,
-            ...(ahrefsMode ? { mode: ahrefsMode } : {}),
-            ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
-            gsc_keywords: gscKws,
+      const { data, error } =
+        await supabase.functions.invoke<AhrefsSnapshotResponse>(
+          "fetch-ahrefs-snapshot",
+          {
+            body: {
+              clientId,
+              domain,
+              projectId,
+              ...(ahrefsMode ? { mode: ahrefsMode } : {}),
+              ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
+              gsc_keywords: gscKws,
+            },
           },
-        },
-      );
+        );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (data?.error) throw new Error(data.error);
       toast.success(
-        `הדוח סונכרן (${(data as any)?.keywords_count ?? 0} אורגניים, ${(data as any)?.tracked_count ?? 0} במעקב)`,
+        `הדוח סונכרן (${data?.keywords_count ?? 0} אורגניים, ${data?.tracked_count ?? 0} במעקב)`,
       );
       await queryClient.invalidateQueries({ queryKey: ["ahrefs-reports"] });
-    } catch (err: any) {
+    } catch (err) {
       console.error("fetch-ahrefs-snapshot failed:", err);
-      toast.error(err?.message || "סנכרון Ahrefs נכשל");
+      toast.error(errorMessage(err) || "סנכרון Ahrefs נכשל");
     } finally {
       setIsFetchingSnapshot(false);
     }
@@ -814,7 +843,7 @@ export function SeoDashboardView({
           לא ניתן לטעון את הדוחות. ייתכן שיש בעיית הרשאה או חיבור.
         </p>
         <p className="text-xs text-muted-foreground mb-4">
-          {(reportsError as any)?.message || String(reportsError)}
+          {reportsError?.message || String(reportsError)}
         </p>
         <Button
           onClick={() =>
@@ -878,10 +907,12 @@ export function SeoDashboardView({
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Globe className="h-5 w-5 text-primary shrink-0" />
           <span className="font-semibold text-base sm:text-lg break-words">
-            {reportData?.domain || selectedReport?.domain}
+            {readText(reportData, "domain") || selectedReport?.domain}
           </span>
-          {reportData?.project_name && (
-            <Badge variant="outline">{reportData.project_name}</Badge>
+          {readText(reportData, "project_name") && (
+            <Badge variant="outline">
+              {readText(reportData, "project_name")}
+            </Badge>
           )}
           <Button
             variant="outline"
@@ -995,7 +1026,11 @@ export function SeoDashboardView({
         tenantId={tenantId}
         tenantIds={accessibleTenantIds}
         clientId={clientId}
-        domain={expectedDomain || reportData?.domain || selectedReport?.domain}
+        domain={
+          expectedDomain ||
+          readText(reportData, "domain") ||
+          selectedReport?.domain
+        }
         keywords={[]}
         onDataLoaded={handleGscDataLoaded}
         onMultiPeriodLoaded={handleGscMultiPeriodLoaded}
@@ -1025,23 +1060,32 @@ export function SeoDashboardView({
       />
 
       {/* HTML content fallback */}
-      {reportData?.html && (
+      {readString(reportData, "html") && (
         <Card>
           <CardContent className="p-4">
             <div
               className="prose prose-sm dark:prose-invert max-w-none text-right"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(reportData.html || "", {
-                  FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],
-                  FORBID_ATTR: [
-                    "onerror",
-                    "onload",
-                    "onclick",
-                    "onmouseover",
-                    "onfocus",
-                    "onblur",
-                  ],
-                }),
+                __html: DOMPurify.sanitize(
+                  readString(reportData, "html") || "",
+                  {
+                    FORBID_TAGS: [
+                      "script",
+                      "style",
+                      "iframe",
+                      "object",
+                      "embed",
+                    ],
+                    FORBID_ATTR: [
+                      "onerror",
+                      "onload",
+                      "onclick",
+                      "onmouseover",
+                      "onfocus",
+                      "onblur",
+                    ],
+                  },
+                ),
               }}
             />
           </CardContent>

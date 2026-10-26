@@ -234,7 +234,7 @@ export function MaskyooCallsCard({
         toast({ title: "סונכרן בהצלחה" });
       }
     },
-    onError: (e: any) =>
+    onError: (e) =>
       toast({
         title: "שגיאה בסנכרון",
         description: e.message,
@@ -490,7 +490,7 @@ function ManualEditDialog({
       toast({ title: "נשמר" });
       onOpenChange(false);
     },
-    onError: (e: any) =>
+    onError: (e) =>
       toast({
         title: "שגיאה בשמירה",
         description: e.message,

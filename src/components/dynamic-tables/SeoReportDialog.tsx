@@ -1,3 +1,13 @@
+import type { Json } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  errorMessage,
+  readDateInput,
+  readField,
+  readString,
+  readText,
+} from "@/lib/dynamic-tables-b17";
 import { useState, useMemo, useEffect } from "react";
 import DOMPurify from "dompurify";
 import { useNavigate } from "react-router-dom";
@@ -59,6 +69,27 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
+
+function gaPropertyOption(p: Json): { id: string; name: string } {
+  const id = String(
+    typeof p === "string"
+      ? p
+      : readField(p, "propertyId") ||
+          readField(p, "id") ||
+          readField(p, "property_id") ||
+          "",
+  );
+  const name =
+    typeof p === "string"
+      ? p
+      : readText(p, "displayName") || readText(p, "name") || id;
+  return { id, name };
+}
+
+function localeText(value: Json | undefined): string | undefined {
+  if (value == null) return undefined;
+  return typeof value === "number" ? value.toLocaleString() : String(value);
+}
 
 interface SeoReportDialogProps {
   open: boolean;
@@ -208,10 +239,10 @@ export function SeoReportDialog({
       queryClient.invalidateQueries({
         queryKey: ["crm-tables", currentTenantId],
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה ביצירת דוח מ-Ahrefs",
-        description: err?.message || "נסה שוב מאוחר יותר",
+        description: errorMessage(err) || "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
     } finally {
@@ -242,10 +273,10 @@ export function SeoReportDialog({
       if (sharedRes.error) throw sharedRes.error;
 
       const sharedAgencyIds = (sharedRes.data || [])
-        .map((r: any) => r.agency_id)
-        .filter(Boolean);
+        .map((r) => r.agency_id)
+        .filter((id): id is string => !!id);
 
-      let sharedClients: any[] = [];
+      let sharedClients: NonNullable<typeof ownRes.data> = [];
       if (sharedAgencyIds.length > 0) {
         const { data, error } = await supabase
           .from("clients")
@@ -256,8 +287,8 @@ export function SeoReportDialog({
       }
 
       // Merge & dedupe by id
-      const map = new Map<string, any>();
-      [...(ownRes.data || []), ...sharedClients].forEach((c: any) =>
+      const map = new Map<string, (typeof sharedClients)[number]>();
+      [...(ownRes.data || []), ...sharedClients].forEach((c) =>
         map.set(c.id, c),
       );
       let result = Array.from(map.values()).sort((a, b) =>
@@ -332,7 +363,7 @@ export function SeoReportDialog({
   // Available domains for the selected client
   const availableDomains = useMemo(() => {
     const set = new Set<string>();
-    reports.forEach((r: any) => {
+    reports.forEach((r) => {
       if (r.domain) set.add(r.domain);
     });
     return Array.from(set);
@@ -376,26 +407,26 @@ export function SeoReportDialog({
   // Selected GSC integration object + its available sites
   const selectedGscIntegration = useMemo(
     () =>
-      (gscIntegrations || []).find(
-        (i: any) => i.id === selectedGscIntegrationId,
-      ),
+      (gscIntegrations || []).find((i) => i.id === selectedGscIntegrationId),
     [gscIntegrations, selectedGscIntegrationId],
   );
   const gscAvailableSites = useMemo(() => {
-    const list = (selectedGscIntegration as any)?.settings?.available_sites;
-    return Array.isArray(list) ? list : [];
+    const list = readField(selectedGscIntegration?.settings, "available_sites");
+    return asJsonArray(list).map((s) => ({
+      siteUrl: readText(s, "siteUrl") ?? "",
+      permissionLevel: readField(s, "permissionLevel"),
+    }));
   }, [selectedGscIntegration]);
 
   const selectedGaIntegration = useMemo(
-    () =>
-      (gaIntegrations || []).find((i: any) => i.id === selectedGaIntegrationId),
+    () => (gaIntegrations || []).find((i) => i.id === selectedGaIntegrationId),
     [gaIntegrations, selectedGaIntegrationId],
   );
   const gaAvailableProperties = useMemo(() => {
-    const s = (selectedGaIntegration as any)?.settings || {};
+    const s = asJsonObject(selectedGaIntegration?.settings);
     const list =
       s.available_properties || s.available_property_ids || s.properties;
-    return Array.isArray(list) ? list : [];
+    return asJsonArray(list).map(gaPropertyOption);
   }, [selectedGaIntegration]);
 
   // Reset the new-report form whenever the client changes / dialog reopens
@@ -439,8 +470,8 @@ export function SeoReportDialog({
         .replace(/\/+$/, "")
         .toLowerCase();
     const match = d
-      ? gscAvailableSites.find((s: any) => {
-          const n = norm(String(s?.siteUrl || ""));
+      ? gscAvailableSites.find((s) => {
+          const n = norm(String(s.siteUrl || ""));
           return n === d || n.includes(d) || d.includes(n);
         })
       : null;
@@ -456,73 +487,72 @@ export function SeoReportDialog({
       setSelectedGaProperty("");
       return;
     }
-    const first = gaAvailableProperties[0];
-    const id =
-      typeof first === "string"
-        ? first
-        : first?.propertyId || first?.id || first?.property_id || "";
-    setSelectedGaProperty(String(id || ""));
+    setSelectedGaProperty(gaAvailableProperties[0].id);
   }, [selectedGaIntegrationId, gaAvailableProperties]);
 
   // Pick the latest report matching the selected domain
   const latestReport = useMemo(() => {
     if (!reports.length) return null;
     if (selectedDomain) {
-      return (
-        reports.find((r: any) => r.domain === selectedDomain) || reports[0]
-      );
+      return reports.find((r) => r.domain === selectedDomain) || reports[0];
     }
     return reports[0];
   }, [reports, selectedDomain]);
-  const reportData = (latestReport as any)?.report_data;
+  const reportData = asJsonObject(latestReport?.report_data);
 
-  const snapshot = reportData?.snapshot || {};
-  const trafficHistory = Array.isArray(reportData?.traffic_history)
-    ? reportData.traffic_history
-    : [];
-  const organicKeywords = Array.isArray(reportData?.organic_keywords)
-    ? reportData.organic_keywords
-    : [];
+  const snapshot = asJsonObject(reportData.snapshot);
+  const trafficHistory = asJsonArray(reportData.traffic_history);
+  const organicKeywords = asJsonArray(reportData.organic_keywords).map(
+    asJsonObject,
+  );
 
   const snapshotMetrics = [
-    { label: "דירוג דומיין (DR)", value: snapshot.dr, icon: "🏆" },
+    { label: "דירוג דומיין (DR)", value: readText(snapshot, "dr"), icon: "🏆" },
     {
       label: "תנועה אורגנית",
-      value: snapshot.org_traffic?.toLocaleString(),
+      value: localeText(snapshot.org_traffic),
       icon: "📈",
     },
     {
       label: "מילות מפתח (Top 3)",
-      value: snapshot.org_keywords_top3,
+      value: readText(snapshot, "org_keywords_top3"),
       icon: "🥇",
     },
     {
       label: "מילות מפתח (Top 10)",
-      value: snapshot.org_keywords_top10,
+      value: readText(snapshot, "org_keywords_top10"),
       icon: "🔟",
     },
     {
       label: "סה״כ מילות מפתח",
-      value: snapshot.org_keywords_total,
+      value: readText(snapshot, "org_keywords_total"),
       icon: "🔑",
     },
-    { label: "דומיינים מפנים", value: snapshot.referring_domains, icon: "🔗" },
+    {
+      label: "דומיינים מפנים",
+      value: readText(snapshot, "referring_domains"),
+      icon: "🔗",
+    },
     {
       label: "קישורים נכנסים (פעילים)",
-      value: snapshot.backlinks_live?.toLocaleString(),
+      value: localeText(snapshot.backlinks_live),
       icon: "🌐",
     },
     {
       label: "קישורים נכנסים (כולל)",
-      value: snapshot.backlinks_all_time?.toLocaleString(),
+      value: localeText(snapshot.backlinks_all_time),
       icon: "📊",
     },
   ].filter((m) => m.value !== undefined && m.value !== null);
 
-  const chartData = trafficHistory.map((item: any) => ({
-    date: item.date ? format(new Date(item.date), "MM/yy") : "",
-    traffic: item.traffic || 0,
-  }));
+  const chartData = trafficHistory.map((entry) => {
+    const item = asJsonObject(entry);
+    const date = readDateInput(item, "date");
+    return {
+      date: date ? format(new Date(date), "MM/yy") : "",
+      traffic: item.traffic || 0,
+    };
+  });
 
   const selectedClientObj = clients.find((c) => c.id === selectedClient);
 
@@ -531,7 +561,10 @@ export function SeoReportDialog({
     setIsCreatingTable(true);
     try {
       const domain =
-        selectedDomain || reportData?.domain || latestReport?.domain || "";
+        selectedDomain ||
+        readText(reportData, "domain") ||
+        latestReport?.domain ||
+        "";
       const clientName = selectedClientObj?.name || "";
       const domainMatchesName =
         domain &&
@@ -579,10 +612,10 @@ export function SeoReportDialog({
       if (tenantSlug) {
         navigate(`/t/${tenantSlug}/table/${slug}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה ביצירת הטבלה",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -693,10 +726,10 @@ export function SeoReportDialog({
       onOpenChange(false);
       const tenantSlug = currentTenant?.slug || "";
       if (tenantSlug) navigate(`/t/${tenantSlug}/table/${slug}`);
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה ביצירת דוח SEO",
-        description: err?.message || "נסה שוב מאוחר יותר",
+        description: errorMessage(err) || "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
     } finally {
@@ -825,9 +858,11 @@ export function SeoReportDialog({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">ללא</SelectItem>
-                          {gscIntegrations.map((i: any) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              {i.settings?.google_email || i.name || "GSC"}{" "}
+                          {gscIntegrations.map((i) => (
+                            <SelectItem key={String(i.id)} value={String(i.id)}>
+                              {readText(i.settings, "google_email") ||
+                                readText(i, "name") ||
+                                "GSC"}{" "}
                               {i._isOwn ? "" : "· משותף"}
                             </SelectItem>
                           ))}
@@ -848,7 +883,7 @@ export function SeoReportDialog({
                               <SelectValue placeholder="בחר site" />
                             </SelectTrigger>
                             <SelectContent>
-                              {gscAvailableSites.map((s: any) => (
+                              {gscAvailableSites.map((s) => (
                                 <SelectItem
                                   key={s.siteUrl}
                                   value={s.siteUrl}
@@ -885,9 +920,11 @@ export function SeoReportDialog({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">ללא</SelectItem>
-                          {gaIntegrations.map((i: any) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              {i.settings?.google_email || i.name || "GA"}{" "}
+                          {gaIntegrations.map((i) => (
+                            <SelectItem key={String(i.id)} value={String(i.id)}>
+                              {readText(i.settings, "google_email") ||
+                                readText(i, "name") ||
+                                "GA"}{" "}
                               {i._isOwn ? "" : "· משותף"}
                             </SelectItem>
                           ))}
@@ -909,19 +946,7 @@ export function SeoReportDialog({
                             </SelectTrigger>
                             <SelectContent>
                               {gaAvailableProperties.map(
-                                (p: any, idx: number) => {
-                                  const id = String(
-                                    typeof p === "string"
-                                      ? p
-                                      : p.propertyId ||
-                                          p.id ||
-                                          p.property_id ||
-                                          "",
-                                  );
-                                  const name =
-                                    typeof p === "string"
-                                      ? p
-                                      : p.displayName || p.name || id;
+                                ({ id, name }, idx: number) => {
                                   return (
                                     <SelectItem key={id || idx} value={id}>
                                       {name}
@@ -970,12 +995,13 @@ export function SeoReportDialog({
                         </select>
                       ) : (
                         <span className="font-semibold text-lg">
-                          {reportData?.domain || latestReport?.domain}
+                          {readText(reportData, "domain") ||
+                            latestReport?.domain}
                         </span>
                       )}
-                      {reportData?.project_name && (
+                      {readText(reportData, "project_name") && (
                         <Badge variant="outline">
-                          {reportData.project_name}
+                          {readText(reportData, "project_name")}
                         </Badge>
                       )}
                     </div>
@@ -1107,11 +1133,11 @@ export function SeoReportDialog({
                             <tbody>
                               {organicKeywords
                                 .slice(0, 20)
-                                .map((kw: any, idx: number) => {
+                                .map((kw, idx: number) => {
                                   const posChange =
                                     kw.position_prev_month != null
-                                      ? kw.position_prev_month -
-                                        (kw.position || 0)
+                                      ? Number(kw.position_prev_month) -
+                                        Number(kw.position || 0)
                                       : null;
                                   return (
                                     <tr
@@ -1126,7 +1152,7 @@ export function SeoReportDialog({
                                           variant="secondary"
                                           className="font-mono"
                                         >
-                                          {kw.position ?? "-"}
+                                          {readText(kw, "position") ?? "-"}
                                         </Badge>
                                       </td>
                                       <td className="p-3 text-center">
@@ -1161,15 +1187,15 @@ export function SeoReportDialog({
                                       <td className="p-3 text-center">
                                         <Badge
                                           variant={
-                                            kw.kd <= 20
+                                            Number(kw.kd) <= 20
                                               ? "default"
-                                              : kw.kd <= 50
+                                              : Number(kw.kd) <= 50
                                                 ? "secondary"
                                                 : "destructive"
                                           }
                                           className="text-xs"
                                         >
-                                          {kw.kd ?? "-"}
+                                          {readText(kw, "kd") ?? "-"}
                                         </Badge>
                                       </td>
                                     </tr>
@@ -1188,29 +1214,32 @@ export function SeoReportDialog({
                   )}
 
                   {/* HTML content fallback */}
-                  {reportData?.html && (
+                  {readString(reportData, "html") && (
                     <Card>
                       <CardContent className="p-4">
                         <div
                           className="prose prose-sm dark:prose-invert max-w-none text-right"
                           dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(reportData.html || "", {
-                              FORBID_TAGS: [
-                                "script",
-                                "style",
-                                "iframe",
-                                "object",
-                                "embed",
-                              ],
-                              FORBID_ATTR: [
-                                "onerror",
-                                "onload",
-                                "onclick",
-                                "onmouseover",
-                                "onfocus",
-                                "onblur",
-                              ],
-                            }),
+                            __html: DOMPurify.sanitize(
+                              readString(reportData, "html") || "",
+                              {
+                                FORBID_TAGS: [
+                                  "script",
+                                  "style",
+                                  "iframe",
+                                  "object",
+                                  "embed",
+                                ],
+                                FORBID_ATTR: [
+                                  "onerror",
+                                  "onload",
+                                  "onclick",
+                                  "onmouseover",
+                                  "onfocus",
+                                  "onblur",
+                                ],
+                              },
+                            ),
                           }}
                         />
                       </CardContent>

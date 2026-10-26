@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/dynamic-tables-b17";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -125,16 +126,15 @@ export function SendReportDialog({
     queryKey: ["table-share-link", tableId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .select("share_token, is_active")
         .eq("table_id", tableId)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const shareData = data as any;
-      if (shareData?.share_token) {
-        return `https://aios.co.il/shared/table/${shareData.share_token}`;
+      if (data?.share_token) {
+        return `https://aios.co.il/shared/table/${data.share_token}`;
       }
       return null;
     },
@@ -355,9 +355,9 @@ export function SendReportDialog({
       }
 
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending report:", error);
-      toast.error("שגיאה בשליחת הדוח: " + error.message);
+      toast.error("שגיאה בשליחת הדוח: " + errorMessage(error));
     } finally {
       setIsSending(false);
     }

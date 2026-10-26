@@ -1,3 +1,4 @@
+import { readField } from "@/lib/dynamic-tables-b17";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,10 +69,10 @@ export function LinkTableToClientDialog({
         .eq("accessing_tenant_id", tenantId);
 
       const sharedAgencyIds = (sharedAccess || [])
-        .map((s: any) => s.agency_id)
-        .filter(Boolean);
+        .map((s) => s.agency_id)
+        .filter((id): id is string => !!id);
 
-      let sharedClients: any[] = [];
+      let sharedClients: NonNullable<typeof ownClients> = [];
       if (sharedAgencyIds.length > 0) {
         const { data: sc } = await supabase
           .from("clients")
@@ -81,7 +82,7 @@ export function LinkTableToClientDialog({
       }
 
       // Merge & dedupe
-      const map = new Map<string, any>();
+      const map = new Map<string, (typeof sharedClients)[number]>();
       for (const c of [...(ownClients || []), ...sharedClients]) {
         if (!map.has(c.id)) map.set(c.id, c);
       }
@@ -107,8 +108,16 @@ export function LinkTableToClientDialog({
       if (error) {
         let message = error.message;
         try {
-          const details = await (error as any).context?.json();
-          if (details?.error) message = details.error;
+          const context: unknown = error.context;
+          const details: unknown =
+            typeof context === "object" &&
+            context !== null &&
+            "json" in context &&
+            typeof context.json === "function"
+              ? await context.json()
+              : undefined;
+          const detailError = readField(details, "error");
+          if (detailError) message = String(detailError);
         } catch {
           /* keep generic message */
         }
@@ -178,7 +187,7 @@ export function LinkTableToClientDialog({
                     לא נמצאו לקוחות
                   </div>
                 )}
-                {filteredClients.map((client: any) => (
+                {filteredClients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.name}
                     {client.agencies?.name && (

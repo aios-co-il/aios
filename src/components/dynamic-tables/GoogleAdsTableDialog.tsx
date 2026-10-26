@@ -161,7 +161,7 @@ export function GoogleAdsTableDialog({
         Date.now().toString(36);
 
       const selectedAcc = accounts.find((acc) => acc.id === selectedAccount);
-      const integrationSettings: Record<string, any> = {
+      const integrationSettings = {
         date_range: dateRange,
         sync_frequency: "daily",
         data_source: dataSource,
@@ -225,7 +225,7 @@ export function GoogleAdsTableDialog({
       handleClose();
       navigate(buildPath(`/table/${data.slug}`));
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה ביצירת הטבלה: " + error.message);
     },
   });
@@ -371,7 +371,7 @@ export function GoogleAdsTableDialog({
               ) : accountsError ? (
                 <Alert variant="destructive">
                   <AlertDescription>
-                    שגיאה בטעינת חשבונות: {(accountsError as any)?.message}
+                    שגיאה בטעינת חשבונות: {accountsError.message}
                   </AlertDescription>
                 </Alert>
               ) : accounts.length === 0 ? (

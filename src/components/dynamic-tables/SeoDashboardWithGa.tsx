@@ -1,3 +1,9 @@
+import {
+  asJsonObject,
+  readField,
+  readString,
+  toLangFilter,
+} from "@/lib/dynamic-tables-b17";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +45,7 @@ export function SeoDashboardWithGa({
       return (
         data?.find(
           (t) =>
-            (t.integration_settings as any)?.clientId === clientId ||
+            readField(t.integration_settings, "clientId") === clientId ||
             t.client_id === clientId,
         ) || null
       );
@@ -83,8 +89,10 @@ export function SeoDashboardWithGa({
   });
 
   const linkedGaTableId = useMemo(() => {
-    const fromSettings = (seoTable?.integration_settings as any)
-      ?.linkedGaTableId as string | undefined;
+    const fromSettings = readString(
+      seoTable?.integration_settings,
+      "linkedGaTableId",
+    );
     const candidates = gaTableByClient?.id
       ? [{ id: gaTableByClient.id, client_id: clientId }]
       : [];
@@ -106,7 +114,10 @@ export function SeoDashboardWithGa({
         .eq("table_id", linkedGaTableId)
         .limit(5000);
       if (error) return [];
-      return data || [];
+      return (data || []).map((r) => ({
+        id: r.id,
+        data: asJsonObject(r.data),
+      }));
     },
     enabled: !!linkedGaTableId,
     staleTime: 5 * 60 * 1000,
@@ -119,14 +130,15 @@ export function SeoDashboardWithGa({
     >,
     clientGscSiteUrl,
   });
-  const savedLangFilter = ((seoTable?.integration_settings as any)
-    ?.linkedGscLangFilter || "all") as "all" | "he" | "en";
+  const savedLangFilter = toLangFilter(
+    readField(seoTable?.integration_settings, "linkedGscLangFilter"),
+  );
 
   const persistGscSiteUrl = async (siteUrl: string) => {
     if (!seoTable?.id || !siteUrl || siteUrl === savedGscSiteUrl) return;
     try {
       const newSettings = {
-        ...((seoTable.integration_settings as any) || {}),
+        ...asJsonObject(seoTable.integration_settings),
         linkedGscSiteUrl: siteUrl,
       };
       await supabase
@@ -145,7 +157,7 @@ export function SeoDashboardWithGa({
     if (!seoTable?.id || lang === savedLangFilter) return;
     try {
       const newSettings = {
-        ...((seoTable.integration_settings as any) || {}),
+        ...asJsonObject(seoTable.integration_settings),
         linkedGscLangFilter: lang,
       };
       await supabase

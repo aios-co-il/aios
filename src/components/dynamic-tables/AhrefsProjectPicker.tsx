@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Globe, Search, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/dynamic-tables-b17";
 
 interface AhrefsProject {
   project_id: string;
@@ -23,6 +24,13 @@ interface AhrefsProject {
   keyword_count: number;
   mode?: string;
   protocol?: string;
+}
+
+interface AhrefsFunctionResponse {
+  error?: string;
+  projects?: AhrefsProject[];
+  keywords_count?: number;
+  tracked_count?: number;
 }
 
 interface AhrefsProjectPickerProps {
@@ -44,12 +52,13 @@ export function AhrefsProjectPicker({
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["ahrefs-projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
-        "list-ahrefs-projects",
-      );
+      const { data, error } =
+        await supabase.functions.invoke<AhrefsFunctionResponse>(
+          "list-ahrefs-projects",
+        );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      return (data as any)?.projects as AhrefsProject[];
+      if (data?.error) throw new Error(data.error);
+      return data?.projects;
     },
     enabled: open,
     staleTime: 5 * 60 * 1000,
@@ -69,30 +78,31 @@ export function AhrefsProjectPicker({
   const handleSync = async (project: AhrefsProject) => {
     setSyncingId(project.project_id);
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "fetch-ahrefs-snapshot",
-        {
-          body: {
-            clientId,
-            domain: project.domain,
-            mode: project.mode,
-            protocol: project.protocol,
-            projectId: project.project_id,
+      const { data, error } =
+        await supabase.functions.invoke<AhrefsFunctionResponse>(
+          "fetch-ahrefs-snapshot",
+          {
+            body: {
+              clientId,
+              domain: project.domain,
+              mode: project.mode,
+              protocol: project.protocol,
+              projectId: project.project_id,
+            },
           },
-        },
-      );
+        );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const organic = (data as any)?.keywords_count ?? 0;
-      const tracked = (data as any)?.tracked_count ?? 0;
+      if (data?.error) throw new Error(data.error);
+      const organic = data?.keywords_count ?? 0;
+      const tracked = data?.tracked_count ?? 0;
       toast.success(
         `הדוח של ${project.project_name} נטען בהצלחה (${organic} אורגניים, ${tracked} במעקב)`,
       );
       onSyncComplete?.();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error("sync from project picker failed:", err);
-      toast.error(err?.message || "סנכרון נכשל");
+      toast.error(errorMessage(err) || "סנכרון נכשל");
     } finally {
       setSyncingId(null);
     }

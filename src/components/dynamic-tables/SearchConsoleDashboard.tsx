@@ -1,3 +1,4 @@
+import { isJsonObject } from "@/lib/dynamic-tables-b17";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -308,13 +309,16 @@ export function SearchConsoleDashboard({
     Papa.parse(file, {
       complete: (results) => {
         const keywords: string[] = [];
-        results.data.forEach((row: any) => {
-          const keyword =
-            row["keyword"] ||
-            row["ביטוי"] ||
-            row["query"] ||
-            row["מילת מפתח"] ||
-            (Array.isArray(row) ? row[0] : Object.values(row)[0]);
+        results.data.forEach((row) => {
+          const keyword: unknown = Array.isArray(row)
+            ? row[0]
+            : isJsonObject(row)
+              ? row["keyword"] ||
+                row["ביטוי"] ||
+                row["query"] ||
+                row["מילת מפתח"] ||
+                Object.values(row)[0]
+              : undefined;
           if (keyword && typeof keyword === "string" && keyword.trim()) {
             keywords.push(keyword.trim());
           }

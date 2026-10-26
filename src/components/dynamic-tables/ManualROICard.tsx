@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/dynamic-tables-b17";
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ interface ManualROICardProps {
   /**
    * Full integration_settings object (so we don't overwrite other keys on save).
    */
-  integrationSettings?: Record<string, any> | null;
+  integrationSettings?: unknown;
   /**
    * Optional custom save function. When provided (e.g. shared-link viewers
    * who don't have a Supabase session), it's called instead of the default
@@ -91,8 +92,8 @@ export function ManualROICard({
         });
         if (error) throw error;
       }
-    } catch (e: any) {
-      toast.error("שגיאה בשמירת נתוני ROI: " + (e?.message || ""));
+    } catch (e) {
+      toast.error("שגיאה בשמירת נתוני ROI: " + (errorMessage(e) || ""));
     } finally {
       setSaving(false);
     }

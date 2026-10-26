@@ -31,7 +31,12 @@ import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
 } from "./ReportEmailSenderSelect";
-import { syncReportTables, waitForSnapshotReady } from "@/lib/reportSync";
+import {
+  syncReportTables,
+  waitForSnapshotReady,
+  type SyncableReportTable,
+} from "@/lib/reportSync";
+import { errorMessage } from "@/lib/dynamic-tables-b17";
 import { downloadReportPdf } from "@/lib/reportPdf";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 
@@ -151,8 +156,10 @@ export function ClientDashboardPanel({
           { method: "GET" },
         );
         if (response.error) throw response.error;
-        const allTables = Array.isArray(response.data) ? response.data : [];
-        return allTables.filter((table: any) => table.client_id === clientId);
+        const allTables: SyncableReportTable[] = Array.isArray(response.data)
+          ? response.data
+          : [];
+        return allTables.filter((table) => table.client_id === clientId);
       },
       enabled: !!clientId && !!tenantId,
     });
@@ -182,15 +189,19 @@ export function ClientDashboardPanel({
           "role_on_account, campaigners:campaigner_id (id, full_name, email, active)",
         )
         .eq("client_id", clientId);
-      return (data || [])
-        .filter((t: any) => t.campaigners && t.campaigners.active !== false)
-        .map((t: any) => ({
-          role_on_account: t.role_on_account,
-          campaigners: {
-            full_name: t.campaigners.full_name,
-            email: t.campaigners.email || "",
-          },
-        }));
+      return (data || []).flatMap((t) =>
+        t.campaigners && t.campaigners.active !== false
+          ? [
+              {
+                role_on_account: t.role_on_account,
+                campaigners: {
+                  full_name: t.campaigners.full_name,
+                  email: t.campaigners.email || "",
+                },
+              },
+            ]
+          : [],
+      );
     },
     enabled: !!clientId,
   });
@@ -205,9 +216,8 @@ export function ClientDashboardPanel({
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const shareData = data as any;
-      if (shareData?.share_token && shareData.is_active) {
-        return shareData.share_token as string;
+      if (data?.share_token && data.is_active) {
+        return data.share_token;
       }
       return null;
     },
@@ -244,19 +254,19 @@ export function ClientDashboardPanel({
         .limit(1)
         .maybeSingle();
 
-      const existingRow = existing as any;
+      const existingRow = existing;
       if (existingRow?.share_token) {
         if (!existingRow.is_active) {
           await supabase
             .from("dashboard_shares")
-            .update({ is_active: true } as any)
+            .update({ is_active: true })
             .eq("dashboard_id", dashboard.id)
             .eq("share_token", existingRow.share_token);
         }
         queryClient.invalidateQueries({
           queryKey: ["dashboard-share-link", dashboard.id],
         });
-        return existingRow.share_token as string;
+        return existingRow.share_token;
       }
 
       // Shares must live on the dashboard's home tenant (DMM for DMM-MC),
@@ -266,7 +276,7 @@ export function ClientDashboardPanel({
         .select("tenant_id")
         .eq("id", dashboard.id)
         .maybeSingle();
-      const shareTenantId = (dashRow as any)?.tenant_id || tenantId;
+      const shareTenantId = dashRow?.tenant_id || tenantId;
 
       const newToken = generateReadableToken(dashboard.name);
       const { data, error } = await supabase
@@ -277,11 +287,11 @@ export function ClientDashboardPanel({
           created_by: user.id,
           allowed_emails: [],
           share_token: newToken,
-        } as any)
+        })
         .select("share_token")
         .single();
       if (error) throw error;
-      const token = (data as any)?.share_token;
+      const token = data?.share_token;
       if (!token) return null;
       queryClient.invalidateQueries({
         queryKey: ["dashboard-share-link", dashboard.id],
@@ -330,9 +340,9 @@ export function ClientDashboardPanel({
         });
         if (showFeedback && failures.length === 0)
           toast.success("נתוני הדשבורד סונכרנו");
-      } catch (error: any) {
+      } catch (error) {
         console.error("Dashboard refresh error:", error);
-        toast.error(error?.message || "סנכרון הדשבורד נכשל");
+        toast.error(errorMessage(error) || "סנכרון הדשבורד נכשל");
       } finally {
         setIsSyncing(false);
       }
@@ -457,9 +467,9 @@ export function ClientDashboardPanel({
       setScreenshotBlob(blob);
       toast.success(`צילום הדשבורד נוצר (${sizeMB.toFixed(1)}MB)`);
       return blob;
-    } catch (err: any) {
+    } catch (err) {
       console.error("Dashboard screenshot error:", err);
-      toast.error(`שגיאה בצילום: ${err?.message || "לא ידוע"}`);
+      toast.error(`שגיאה בצילום: ${errorMessage(err) || "לא ידוע"}`);
       return null;
     } finally {
       setIsCapturing(false);
@@ -660,9 +670,9 @@ export function ClientDashboardPanel({
         });
       if (deliveryLogError)
         console.warn("Failed to log dashboard delivery:", deliveryLogError);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Send error:", e);
-      toast.error(`שגיאה בשליחה: ${e?.message || "לא ידוע"}`);
+      toast.error(`שגיאה בשליחה: ${errorMessage(e) || "לא ידוע"}`);
     } finally {
       setIsSending(false);
     }
