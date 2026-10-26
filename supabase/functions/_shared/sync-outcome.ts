@@ -6,7 +6,8 @@
  * also records `last_sync_attempt_at` and `last_sync_outcome`, so a run that came
  * back empty or failed no longer looks like a fresh sync. Both are stored on the
  * crm_tables columns and mirrored in `integration_settings`, the same way
- * `last_sync_at` is: readers that only load the settings still see them.
+ * `last_sync_at` is: readers that only load the settings still see them. The
+ * mirror leaves out the (redacted) error text, which stays on the column.
  *
  * Pure helpers only: the database writes live in ads-sync-write.ts and the
  * readers (is the latest run a problem?) in sync-freshness.ts.
@@ -34,6 +35,39 @@ export type SyncOutcome = {
 export type SyncProblem = "empty" | "failed";
 
 const ERROR_MAX_CHARS = 300;
+const REDACTED = "[redacted]";
+
+/**
+ * Credential-shaped text an upstream error can carry. Meta puts the access token in
+ * the request URL (first page and every `paging.next`), and Deno's transport errors
+ * print that URL in full ("error sending request for url (https://…?access_token=…)").
+ * Each pattern skips text it already redacted, so redacting twice changes nothing.
+ */
+const SECRET_REDACTIONS: Array<[RegExp, string]> = [
+  // access_token=…, "refresh_token": "…" and friends, in a query string or JSON.
+  [
+    /\b(access_token|refresh_token|client_secret|appsecret_proof|fb_exchange_token|developer_token|api_key|apikey|webhook_secret)("?\s*[:=]\s*"?)(?!\[redacted\])[^&\s"',;)}\]]+/gi,
+    `$1$2${REDACTED}`,
+  ],
+  // Any other query string on a URL.
+  [
+    /(https?:\/\/[^\s?#"'<>()]+)\?(?!\[redacted\])[^\s"'<>)]*/gi,
+    `$1?${REDACTED}`,
+  ],
+  [/\b(Bearer\s+)(?!\[redacted\])[\w.~+/=-]+/gi, `$1${REDACTED}`],
+  // Bare Meta (EAA…) and Google (ya29.…) access tokens.
+  [/\bEAA[A-Za-z0-9]{20,}/g, REDACTED],
+  [/\bya29\.[\w.-]+/g, REDACTED],
+];
+
+/** Upstream error text with credentials removed; safe to store or return. */
+export function redactSyncError(text: unknown): string {
+  let redacted = String(text ?? "");
+  for (const [pattern, replacement] of SECRET_REDACTIONS) {
+    redacted = redacted.replace(pattern, replacement);
+  }
+  return redacted;
+}
 
 export function isWriteSuccess(status: SyncOutcomeStatus): boolean {
   return status === "ok" || status === "partial";
@@ -53,10 +87,27 @@ export function buildSyncOutcome(input: {
     at: input.at || new Date().toISOString(),
   };
   if (input.levelsOk) outcome.levels_ok = [...input.levelsOk];
+  // Redact before truncating: a cut could otherwise keep part of a token.
   if (input.error)
-    outcome.error = String(input.error).slice(0, ERROR_MAX_CHARS);
+    outcome.error = redactSyncError(input.error).slice(0, ERROR_MAX_CHARS);
   if (input.source) outcome.source = input.source;
   return outcome;
+}
+
+/**
+ * The outcome as mirrored in `integration_settings`, without `error`: the public
+ * share-link endpoints return the settings verbatim. The error text stays on the
+ * crm_tables.last_sync_outcome column only.
+ */
+export function settingsMirrorOutcome(outcome: SyncOutcome): SyncOutcome {
+  const mirror: SyncOutcome = {
+    status: outcome.status,
+    rows: outcome.rows,
+    at: outcome.at,
+  };
+  if (outcome.levels_ok) mirror.levels_ok = [...outcome.levels_ok];
+  if (outcome.source) mirror.source = outcome.source;
+  return mirror;
 }
 
 export type LevelWritePlan = {
@@ -109,7 +160,9 @@ export function planLevelWrite(input: {
     };
   }
   if (rows === 0) {
-    return failed.length
+    // A campaign level fetched cleanly with no rows already proves there was no
+    // delivery, so a failed lower level changes nothing: empty, not failed.
+    return failed.length && !levels.includes("campaign")
       ? { write: false, status: "failed", levelsOk, rows: 0, error: errorText }
       : { write: false, status: "empty", levelsOk, rows: 0 };
   }

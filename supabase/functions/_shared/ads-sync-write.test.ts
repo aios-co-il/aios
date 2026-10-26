@@ -64,17 +64,18 @@ async function runMetaSync(db: FakeDb, catchup = false, window = WINDOW) {
   return { outcome, table };
 }
 
-const spendByKey = (db: FakeDb) =>
-  Object.fromEntries(
-    db.tables.crm_records.map((row) => {
+/** Every stored row as `date:level=spend`, sorted: a duplicate row shows up twice. */
+const storedRows = (db: FakeDb) =>
+  db.tables.crm_records
+    .map((row) => {
       const data = row.data as {
         date: string;
         entity_level?: string;
         spend: number;
       };
-      return [`${data.date}:${data.entity_level || "none"}`, data.spend];
-    }),
-  );
+      return `${data.date}:${data.entity_level || "none"}=${data.spend}`;
+    })
+    .sort();
 
 test("a failed campaign-level fetch keeps every stored row and is recorded as failed", async () => {
   stubGraph({
@@ -83,7 +84,7 @@ test("a failed campaign-level fetch keeps every stored row and is recorded as fa
     ad: [[insight("ad", "2026-10-25", "21")]],
   });
   const db = storedTable();
-  const before = spendByKey(db);
+  const before = storedRows(db);
   const { outcome, table } = await runMetaSync(db);
 
   assert.equal(outcome.status, "failed");
@@ -92,7 +93,7 @@ test("a failed campaign-level fetch keeps every stored row and is recorded as fa
     db.calls.some((call) => call.op === "delete"),
     false,
   );
-  assert.deepEqual(spendByKey(db), before);
+  assert.deepEqual(storedRows(db), before);
   assert.equal(table.last_sync_at, PREVIOUS_SYNC);
   const settings = table.integration_settings as Record<string, unknown>;
   assert.equal(settings.last_sync_at, PREVIOUS_SYNC);
@@ -122,14 +123,14 @@ test("a failed ad-level fetch replaces campaign and ad set rows but keeps stored
 
   assert.equal(outcome.status, "partial");
   assert.deepEqual(outcome.levels_ok, ["campaign", "adset"]);
-  assert.deepEqual(spendByKey(db), {
-    "2026-06-01:campaign": 10,
-    "2026-10-23:campaign": 11,
-    "2026-10-25:ad": 15, // kept: its level failed
-    "2026-10-24:campaign": 30, // replaced the legacy level-less row
-    "2026-10-25:campaign": 31,
-    "2026-10-25:adset": 32,
-  });
+  assert.deepEqual(storedRows(db), [
+    "2026-06-01:campaign=10",
+    "2026-10-23:campaign=11",
+    "2026-10-24:campaign=30", // replaced the legacy level-less row
+    "2026-10-25:ad=15", // kept: its level failed
+    "2026-10-25:adset=32",
+    "2026-10-25:campaign=31",
+  ]);
   assert.equal(table.last_sync_at, RUN_AT);
   assert.equal(syncOutcomeProblem(table), null);
   assert.equal(
@@ -142,11 +143,11 @@ test("a failed ad-level fetch replaces campaign and ad set rows but keeps stored
 test("an empty fetch keeps stored rows, marks the run empty and leaves last_sync_at", async () => {
   stubGraph({ campaign: [[]], adset: [[]], ad: [[]] });
   const db = storedTable();
-  const before = spendByKey(db);
+  const before = storedRows(db);
   const { outcome, table } = await runMetaSync(db);
 
   assert.equal(outcome.status, "empty");
-  assert.deepEqual(spendByKey(db), before);
+  assert.deepEqual(storedRows(db), before);
   assert.equal(table.last_sync_at, PREVIOUS_SYNC);
   assert.equal(
     (table.integration_settings as Record<string, unknown>)
@@ -161,13 +162,13 @@ test("an empty fetch over days with nothing stored is a clean no-delivery sync",
   // e.g. the Sunday-morning window over Shabbat, or today before the first impression.
   stubGraph({ campaign: [[]], adset: [[]], ad: [[]] });
   const db = storedTable();
-  const before = spendByKey(db);
+  const before = storedRows(db);
   const today = { startDate: "2026-10-26", endDate: "2026-10-26" };
   const { outcome, table } = await runMetaSync(db, false, today);
 
   assert.equal(outcome.status, "ok");
   assert.equal(outcome.rows, 0);
-  assert.deepEqual(spendByKey(db), before);
+  assert.deepEqual(storedRows(db), before);
   assert.equal(
     db.calls.some((call) => call.op === "delete"),
     false,

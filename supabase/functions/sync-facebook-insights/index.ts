@@ -16,7 +16,11 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
-import { buildSyncOutcome, isWriteSuccess } from "../_shared/sync-outcome.ts";
+import {
+  buildSyncOutcome,
+  isWriteSuccess,
+  redactSyncError,
+} from "../_shared/sync-outcome.ts";
 import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
 
 const SOURCE = "sync-facebook-insights";
@@ -507,9 +511,13 @@ Deno.serve(async (req) => {
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
     ).catch(() => {});
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Upstream errors can print the request URL, Meta access token included.
+    return new Response(
+      JSON.stringify({ error: redactSyncError(error?.message ?? error) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

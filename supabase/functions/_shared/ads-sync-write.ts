@@ -15,6 +15,8 @@ import {
   finalizeSyncOutcome,
   isWriteSuccess,
   planLevelWrite,
+  redactSyncError,
+  settingsMirrorOutcome,
   type AdsLevel,
   type LevelWritePlan,
   type SyncOutcome,
@@ -176,6 +178,8 @@ export async function writeAdsWindow(
  * - `last_sync_attempt_at` / `last_sync_outcome` are recorded on every run (column
  *   + settings mirror). A catch-up chunk records only a failure: the refresh run
  *   that follows owns the outcome.
+ * - The error text goes to the column only, redacted: the settings mirror has no
+ *   `error`, because the public share-link endpoints return the settings verbatim.
  * - `settingsPatch` is merged into the latest settings, not the copy the run
  *   started with, so concurrent edits (currency etc.) survive.
  */
@@ -190,7 +194,9 @@ export async function saveSyncRun(
     log?: (message: string) => void;
   },
 ): Promise<{ lastSyncAt: string | null; recorded: boolean }> {
-  const { outcome } = opts;
+  const outcome: SyncOutcome = opts.outcome.error
+    ? { ...opts.outcome, error: redactSyncError(opts.outcome.error) }
+    : opts.outcome;
   const log = opts.log || ((message: string) => console.error(message));
   const stamp = isWriteSuccess(outcome.status) && !opts.catchup;
   const record = !opts.catchup || outcome.status === "failed";
@@ -198,7 +204,7 @@ export async function saveSyncRun(
   if (stamp) patch.last_sync_at = outcome.at;
   if (record) {
     patch.last_sync_attempt_at = outcome.at;
-    patch.last_sync_outcome = outcome;
+    patch.last_sync_outcome = settingsMirrorOutcome(outcome);
   }
 
   if (Object.keys(patch).length > 0) {
