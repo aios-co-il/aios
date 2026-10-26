@@ -61,14 +61,16 @@ const resolveLabeledRefs = ({
   directorRefUrls: string[];
   logoUrl?: string;
 }): StaticRef[] => {
-  const labeled =
+  const labeled: StaticRef[] =
     refs.length > 0
       ? [...refs]
       : [
-          editTargetUrl ? { url: editTargetUrl, kind: "edit" as const } : null,
+          ...(editTargetUrl
+            ? [{ url: editTargetUrl, kind: "edit" as const }]
+            : []),
           ...directorRefUrls.map((url) => ({ url, kind: "director" as const })),
           ...talentUrls.map((url) => ({ url, kind: "style" as const })),
-        ].filter((item): item is StaticRef => !!item);
+        ];
   if (
     logoUrl &&
     !labeled.some((item) => item.kind === "logo" || item.url === logoUrl)

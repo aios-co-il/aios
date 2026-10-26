@@ -1,7 +1,8 @@
 import type { StoryboardFrame } from "./types";
 
 /** Scene animation engine stored on the video project (`payload.video.scene_engine`). */
-export type SceneEngine = "mock" | "kling" | "elevenlabs" | "higgsfield";
+export type SceneEngine =
+  "mock" | "kling" | "elevenlabs" | "higgsfield" | "openrouter";
 
 /**
  * Sound engine. ElevenLabs writes a separate voiceover and music bed.
@@ -22,6 +23,7 @@ const SCENE_ENGINES: SceneEngine[] = [
   "kling",
   "elevenlabs",
   "higgsfield",
+  "openrouter",
 ];
 const SOUND_ENGINES: SoundEngine[] = ["elevenlabs", "higgsfield"];
 
@@ -30,6 +32,7 @@ export const SCENE_ENGINE_LABEL: Record<SceneEngine, string> = {
   kling: "Kling",
   elevenlabs: "ElevenLabs",
   higgsfield: "Higgsfield",
+  openrouter: "OpenRouter (Kling 3)",
 };
 
 export const SOUND_ENGINE_LABEL: Record<SoundEngine, string> = {
@@ -42,6 +45,8 @@ const KLING_USD_PER_5S = 0.85;
 const KLING_CREDITS_PER_5S = 5100;
 const ELEVENLABS_VIDEO_USD_PER_SECOND = 0.15;
 const HIGGSFIELD_USD_PER_SECOND = 0.1;
+/** OpenRouter kwaivgi/kling-v3.0-std, 720p without audio. */
+const OPENROUTER_USD_PER_SECOND = 0.084;
 const ELEVENLABS_VOICE_USD_PER_1000_CHARS = 0.12;
 const ELEVENLABS_MUSIC_USD_PER_MINUTE = 0.5;
 
@@ -90,11 +95,16 @@ export const elevenLabsClipSeconds = (duration: number) => {
   return 8;
 };
 
-/** Kling and the free preview render a 5 s or 10 s clip. Higgsfield uses the scene length. */
+/**
+ * Kling and the free preview render a 5 s or 10 s clip. Higgsfield uses the
+ * scene length; OpenRouter (Kling 3) too, from 3 to 15 s.
+ */
 export const sceneClipSeconds = (engine: SceneEngine, duration: number) => {
   if (engine === "elevenlabs") return elevenLabsClipSeconds(duration);
   if (engine === "higgsfield")
     return Math.min(15, Math.max(1, Math.ceil(Number(duration) || 5)));
+  if (engine === "openrouter")
+    return Math.min(15, Math.max(3, Math.ceil(Number(duration) || 5)));
   return Number(duration) > 5 ? 10 : 5;
 };
 
@@ -132,7 +142,9 @@ export function sceneEstimate(
   const rate =
     engine === "elevenlabs"
       ? ELEVENLABS_VIDEO_USD_PER_SECOND
-      : HIGGSFIELD_USD_PER_SECOND;
+      : engine === "openrouter"
+        ? OPENROUTER_USD_PER_SECOND
+        : HIGGSFIELD_USD_PER_SECOND;
   return {
     count: frames.length,
     seconds,
