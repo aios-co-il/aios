@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,18 +30,20 @@ export function CarmenWhatsAppAccess(props: Props) {
   ];
   const { data: identity, isLoading } = useQuery({
     queryKey,
-    enabled: !!tenantId && !!props.entityId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("carmen_whatsapp_identities")
-        .select("id, status, verified_at")
-        .eq("tenant_id", tenantId!)
-        .eq("entity_type", props.entityType)
-        .eq("entity_id", props.entityId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    enabled: !!props.entityId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("carmen_whatsapp_identities")
+            .select("id, status, verified_at")
+            .eq("tenant_id", tenantId)
+            .eq("entity_type", props.entityType)
+            .eq("entity_id", props.entityId)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        }
+      : skipToken,
   });
   const approved = identity?.status === "approved";
   const mutation = useMutation({

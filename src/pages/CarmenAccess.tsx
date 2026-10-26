@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
@@ -33,20 +38,23 @@ export default function CarmenAccess() {
 
   const { data: agent, isLoading: loadingAgent } = useQuery({
     queryKey: ["carmen-access-agent", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents")
-        .select(
-          "id,name,active,disabled_tools,disabled_skins,disabled_integrations",
-        )
-        .eq("tenant_id", tenantId!)
-        .eq("active", true);
-      const list = data || [];
-      return (
-        list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
-      );
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("ai_agents")
+            .select(
+              "id,name,active,disabled_tools,disabled_skins,disabled_integrations",
+            )
+            .eq("tenant_id", tenantId)
+            .eq("active", true);
+          const list = data || [];
+          return (
+            list.find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+            list[0] ||
+            null
+          );
+        }
+      : skipToken,
   });
 
   useEffect(() => {
@@ -87,14 +95,15 @@ export default function CarmenAccess() {
 
   const { data: integrations } = useQuery({
     queryKey: ["carmen-access-integrations", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agent_mcp_connections")
-        .select("id,name,state")
-        .eq("tenant_id", tenantId!);
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("agent_mcp_connections")
+            .select("id,name,state")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const toolGroups = useMemo(() => {

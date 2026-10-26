@@ -1,6 +1,11 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
@@ -69,16 +74,18 @@ export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
 
   const { data: integrations } = useQuery({
     queryKey: ["agent-access-integrations", agent.id, tenantId],
-    queryFn: async () => {
-      // Load both: connections scoped to this agent AND tenant-wide connections (agent_id = null)
-      const { data } = await supabase
-        .from("agent_mcp_connections")
-        .select("id,name,state,agent_id")
-        .eq("tenant_id", tenantId!)
-        .or(`agent_id.eq.${agent.id},agent_id.is.null`);
-      return data || [];
-    },
-    enabled: !!agent.id && !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          // Load both: connections scoped to this agent AND tenant-wide connections (agent_id = null)
+          const { data } = await supabase
+            .from("agent_mcp_connections")
+            .select("id,name,state,agent_id")
+            .eq("tenant_id", tenantId)
+            .or(`agent_id.eq.${agent.id},agent_id.is.null`);
+          return data || [];
+        }
+      : skipToken,
+    enabled: !!agent.id,
   });
 
   const toolGroups = useMemo(() => {

@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -33,16 +38,17 @@ export default function AgentHub() {
 
   const { data: agents = [] } = useQuery({
     queryKey: ["ai-agents", tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .order("created_at");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("ai_agents")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .order("created_at");
+          if (error) throw error;
+          return data ?? [];
+        }
+      : skipToken,
   });
 
   useEffect(() => {

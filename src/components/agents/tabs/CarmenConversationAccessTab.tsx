@@ -273,7 +273,7 @@ export function CarmenConversationAccessTab({
           await supabase
             .from("carmen_whatsapp_identities")
             .update(withoutNote)
-            .eq("id", (existing as unknown as { id: string }).id);
+            .eq("id", existing.id);
         }
       }
     }
@@ -439,6 +439,7 @@ export function CarmenConversationAccessTab({
     for (const row of clientRows) {
       if (!row.client_id || !row.whatsapp_group_id) continue;
       if (!manusGroupIdSet.has(row.whatsapp_group_id)) continue;
+      if (!tenantId) throw new Error("חסר tenant");
       const payload = {
         tenant_id: tenantId,
         client_id: row.client_id,
@@ -451,10 +452,10 @@ export function CarmenConversationAccessTab({
       };
       const write = row.id
         ? supabase
-            .from("carmen_client_group_access" as any)
+            .from("carmen_client_group_access")
             .update(payload)
             .eq("id", row.id)
-        : supabase.from("carmen_client_group_access" as any).upsert(payload, {
+        : supabase.from("carmen_client_group_access").upsert(payload, {
             onConflict: "tenant_id,client_id,whatsapp_group_id",
           });
       const { error } = await write;
@@ -462,14 +463,12 @@ export function CarmenConversationAccessTab({
         const { agency_id: _agency, ...withoutAgency } = payload;
         const retry = row.id
           ? supabase
-              .from("carmen_client_group_access" as any)
+              .from("carmen_client_group_access")
               .update(withoutAgency)
               .eq("id", row.id)
-          : supabase
-              .from("carmen_client_group_access" as any)
-              .upsert(withoutAgency, {
-                onConflict: "tenant_id,client_id,whatsapp_group_id",
-              });
+          : supabase.from("carmen_client_group_access").upsert(withoutAgency, {
+              onConflict: "tenant_id,client_id,whatsapp_group_id",
+            });
         const { error: retryError } = await retry;
         if (retryError) throw retryError;
       } else if (error) throw error;
@@ -503,9 +502,9 @@ export function CarmenConversationAccessTab({
     mutationFn: async () => {
       if (!tenantId) throw new Error("חסר tenant");
       const selectedGroups = (manusGroups || []).filter(
-        (group: any) => openMemberGroups || groupIds.includes(group.id),
+        (group) => openMemberGroups || groupIds.includes(group.id),
       );
-      const missing = selectedGroups.filter((group: any) => {
+      const missing = selectedGroups.filter((group) => {
         const link = clientRows.find(
           (row) => row.whatsapp_group_id === group.id,
         );
@@ -513,7 +512,7 @@ export function CarmenConversationAccessTab({
       });
       if (missing.length > 0) {
         throw new Error(
-          `שייכי לקוח וסוכנות: ${missing.map((group: any) => group.group_name).join(", ")}`,
+          `שייכי לקוח וסוכנות: ${missing.map((group) => group.group_name).join(", ")}`,
         );
       }
       await persistPolicy({
