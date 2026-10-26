@@ -4,11 +4,7 @@ import {
   jerusalemToday,
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
-import {
-  asRecord,
-  errorMessage,
-  optString,
-} from "../_shared/provider-json-b23.ts";
+import { asRecord, errorMessage, optString } from "../_shared/provider-json.ts";
 
 type CrmTableRow = {
   id: string;

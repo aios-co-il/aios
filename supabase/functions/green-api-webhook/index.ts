@@ -8,7 +8,7 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
 import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
-import { getArray, getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getArray, getPath, getString } from "../_shared/provider-json.ts";
 import {
   handleCarmenMessage,
   fetchKnownEntityNames,

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 const TELEGRAM_API = "https://api.telegram.org";
 const MAX_RUNTIME_MS = 55_000;

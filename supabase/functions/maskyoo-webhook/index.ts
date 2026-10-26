@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizePhone } from "../_shared/telephony/phone.ts";
 import type { TablesInsert } from "../_shared/database.types.ts";
-import { mergeJsonStringParams } from "../_shared/provider-json-b24.ts";
+import { mergeJsonStringParams } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

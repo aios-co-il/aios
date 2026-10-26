@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { asArray, asRecord, asRecords } from "../_shared/provider-json-b23.ts";
+import { asArray, asRecord, asRecords } from "../_shared/provider-json.ts";
 
 const targetDomainOf = (table: Record<string, unknown>) =>
   asRecord(table.integration_settings).targetDomain;

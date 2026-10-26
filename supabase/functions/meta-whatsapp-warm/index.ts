@@ -23,7 +23,7 @@ import {
   LEAD_OPTIN_BUTTON_PAYLOAD,
   LEAD_OPTIN_TEMPLATE_NAME,
 } from "../_shared/meta-whatsapp.ts";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;

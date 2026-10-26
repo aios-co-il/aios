@@ -5,7 +5,7 @@ import { resolveOpenAIKey } from "../_shared/ai.ts";
 import { buildSkillsBlockBySlug } from "../_shared/skills/registry.ts";
 import { formatApprovedConceptsFromPayload } from "../_shared/copy-concepts.ts";
 import type { Tables } from "../_shared/database.types.ts";
-import { getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getPath, getString } from "../_shared/provider-json.ts";
 
 type StageAgent = Pick<
   Tables<"ai_agents">,

@@ -7,7 +7,7 @@ import {
   getObject,
   getPath,
   type JsonObject,
-} from "../_shared/provider-json-b24.ts";
+} from "../_shared/provider-json.ts";
 import {
   type CarmenConnectionRole,
   resolveCarmenConnectionRole,

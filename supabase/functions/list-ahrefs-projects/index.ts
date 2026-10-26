@@ -1,6 +1,6 @@
 // List all Ahrefs projects (Rank Tracker) available for the connected API key.
 // This endpoint is FREE and does not consume API credits.
-import { getArray, getPath } from "../_shared/provider-json-b24.ts";
+import { getArray, getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

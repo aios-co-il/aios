@@ -6,9 +6,9 @@ import { mergeTrackedKeywordRows } from "../_shared/gscPosition.ts";
 import {
   asRecord,
   asRecords,
-  isRecord,
+  isJsonObject,
   optString,
-} from "../_shared/provider-json-b23.ts";
+} from "../_shared/provider-json.ts";
 
 type OrganicRow = {
   keyword: unknown;
@@ -330,7 +330,7 @@ Deno.serve(async (req) => {
       const addRows = (rows: unknown[], source: string, device?: string) => {
         for (const row of rows) {
           if (
-            !isRecord(row) ||
+            !isJsonObject(row) ||
             typeof row.keyword !== "string" ||
             !row.keyword.trim()
           )

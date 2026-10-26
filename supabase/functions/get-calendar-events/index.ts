@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { asRecord, asRecords } from "../_shared/provider-json-b23.ts";
+import { asRecord, asRecords } from "../_shared/provider-json.ts";
 
 const eventStart = (event: Record<string, unknown>) => {
   const start = asRecord(event.start);

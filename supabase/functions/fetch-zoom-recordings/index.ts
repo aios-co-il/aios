@@ -1,9 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  asRecords,
-  optNumber,
-  optString,
-} from "../_shared/provider-json-b23.ts";
+import { asRecords, optNumber, optString } from "../_shared/provider-json.ts";
 import {
   chooseCalendarRecordingMatch,
   loadCalendarMatchContext,

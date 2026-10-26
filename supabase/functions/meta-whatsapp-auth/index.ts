@@ -11,7 +11,7 @@ import {
   getString,
   isJsonObject,
   type JsonObject,
-} from "../_shared/provider-json-b24.ts";
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

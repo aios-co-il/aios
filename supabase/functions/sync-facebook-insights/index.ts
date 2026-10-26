@@ -17,7 +17,7 @@ import {
   getPath,
   getString,
   isJsonObject,
-} from "../_shared/provider-json-b24.ts";
+} from "../_shared/provider-json.ts";
 
 interface AdsetRow {
   id?: string;

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  asArray,
+  asRecord,
+  asRecords,
   errorMessage,
+  errorText,
   getArray,
   getNumber,
   getObject,
@@ -9,13 +13,33 @@ import {
   getString,
   isJsonObject,
   mergeJsonStringParams,
-} from "./provider-json-b24.ts";
+  optNumber,
+  optString,
+} from "./provider-json.ts";
 
 test("isJsonObject accepts plain objects only", () => {
   assert.equal(isJsonObject({ a: 1 }), true);
+  assert.equal(isJsonObject(new Error("x")), true);
   assert.equal(isJsonObject([]), false);
   assert.equal(isJsonObject(null), false);
   assert.equal(isJsonObject("x"), false);
+});
+
+test("asRecord / asArray / asRecords fall back to empty values", () => {
+  assert.deepEqual(asRecord(null), {});
+  assert.deepEqual(asRecord([1]), {});
+  assert.deepEqual(asArray({ length: 1 }), []);
+  assert.deepEqual(asRecords([{ id: "1" }, null, "x", [2], { id: "2" }]), [
+    { id: "1" },
+    { id: "2" },
+  ]);
+});
+
+test("optString / optNumber keep only the matching primitive", () => {
+  assert.equal(optString("a"), "a");
+  assert.equal(optString(1), undefined);
+  assert.equal(optNumber(2), 2);
+  assert.equal(optNumber("2"), undefined);
 });
 
 test("getPath walks nested objects and stops at other shapes", () => {
@@ -39,10 +63,19 @@ test("typed readers return undefined for the wrong type", () => {
   assert.equal(getObject(payload, "arr"), undefined);
 });
 
-test("errorMessage reads Error and error-like messages", () => {
+test("errorMessage reads .message like e?.message", () => {
   assert.equal(errorMessage(new Error("boom")), "boom");
-  assert.equal(errorMessage({ message: "pg failed" }), "pg failed");
-  assert.equal(errorMessage("plain"), "plain");
+  assert.equal(errorMessage({ message: "postgrest" }), "postgrest");
+  assert.equal(errorMessage("plain"), undefined);
+  assert.equal(errorMessage(null), undefined);
+  assert.equal(errorMessage({ code: 1 }), undefined);
+});
+
+test("errorText falls back to the stringified value", () => {
+  assert.equal(errorText(new Error("boom")), "boom");
+  assert.equal(errorText({ message: "pg failed" }), "pg failed");
+  assert.equal(errorText("plain"), "plain");
+  assert.equal(errorText(null), "null");
 });
 
 test("mergeJsonStringParams stringifies values and drops nulls", () => {

@@ -1,7 +1,7 @@
 /** CRM WhatsApp send for meeting reminders. Keep pick order in sync with src/lib/crmWhatsappRoute.ts. */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { asRecord, asRecords, optString } from "./provider-json-b23.ts";
+import { asRecord, asRecords, optString } from "./provider-json.ts";
 import { type IntegrationRow, integrationRows } from "./crm-whatsapp-rows.ts";
 
 type AdminClient = SupabaseClient;

@@ -1,4 +1,4 @@
-import { asArray, asRecord, asRecords } from "./provider-json-b23.ts";
+import { asArray, asRecord, asRecords } from "./provider-json.ts";
 
 export const DEFAULT_META_GRAPH_VERSION = "v25.0";
 

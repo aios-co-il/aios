@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serviceClient } from "../_shared/supabase-clients.ts";
-import { getArray, getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getArray, getPath, getString } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

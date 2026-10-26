@@ -3,7 +3,7 @@
  * same group_chat_id) when operators sync the same phone into MC and DMM.
  * Invite links fetched via one tenant's Green API should propagate to siblings.
  */
-import { asRecords, optString, type QueryResult } from "./provider-json-b23.ts";
+import { asRecords, optString, type QueryResult } from "./provider-json.ts";
 
 interface GroupsFilter extends PromiseLike<QueryResult> {
   match(filter: { group_chat_id: string }): GroupsFilter;

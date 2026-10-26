@@ -14,7 +14,7 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import type { Tables } from "../_shared/database.types.ts";
-import { asRecord, errorMessage } from "../_shared/provider-json-b23.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
 import {
   buildTemplateVars,

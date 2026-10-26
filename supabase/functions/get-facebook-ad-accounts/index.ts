@@ -3,9 +3,9 @@ import {
   asRecord,
   asRecords,
   errorMessage,
-  isRecord,
+  isJsonObject,
   optString,
-} from "../_shared/provider-json-b23.ts";
+} from "../_shared/provider-json.ts";
 
 type FacebookIntegration = {
   id: string;
@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("Error in get-facebook-ad-accounts", {
-      name: (isRecord(error) && error.name) || "Error",
+      name: (isJsonObject(error) && error.name) || "Error",
       message: errorMessage(error) || "Unknown error",
     });
     return jsonResponse(

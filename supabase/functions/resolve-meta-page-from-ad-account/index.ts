@@ -25,7 +25,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database, TablesInsert } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 interface ResolvedPageResult {
   page_id: string;

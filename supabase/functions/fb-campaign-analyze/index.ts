@@ -9,8 +9,8 @@ import {
   asRecord,
   asRecords,
   errorMessage,
-  isRecord,
-} from "../_shared/provider-json-b23.ts";
+  isJsonObject,
+} from "../_shared/provider-json.ts";
 
 type AdMetrics = {
   spend: number;
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         `https://graph.facebook.com/v21.0/${campaign_id}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
       );
       const first = asArray(asRecord(await r.json()).data)[0];
-      return isRecord(first) ? first : null;
+      return isJsonObject(first) ? first : null;
     };
     const [today, last7, last30] = await Promise.all([
       fetchInsights("today"),

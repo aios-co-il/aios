@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
 import type { TablesInsert } from "../_shared/database.types.ts";
-import { getObject, getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getObject, getPath, getString } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -1,7 +1,7 @@
 // Shared helper to fire integration_disconnected / ad_account_blocked triggers
 // with throttle (default 6h per tenant+provider+account+alert_type) and rich payload.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { errorMessage } from "./provider-json-b23.ts";
+import { errorMessage } from "./provider-json.ts";
 
 export type AlertType = "disconnected" | "blocked" | "reconnected";
 

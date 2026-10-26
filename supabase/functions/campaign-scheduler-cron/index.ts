@@ -1,7 +1,7 @@
 // Campaign Scheduler Cron — picks campaign_schedules rows whose next_run_at has arrived
 // and executes pause/resume via carmen-fb-tools / carmen-google-tools.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { errorMessage } from "../_shared/provider-json-b23.ts";
+import { errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

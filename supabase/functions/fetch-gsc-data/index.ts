@@ -3,7 +3,7 @@
 // shows an "edge function" error (404 on the OPTIONS preflight).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { asArray, asRecord } from "../_shared/provider-json-b23.ts";
+import { asArray, asRecord } from "../_shared/provider-json.ts";
 import {
   GSC_PERIOD_DEFINITIONS,
   fetchGscKeywordsFromApi,

@@ -7,7 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { fieldKeyFromHeader } from "../_shared/broadcast/template/template-vars.ts";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 interface SheetListMember {
   entity_type: "manual";

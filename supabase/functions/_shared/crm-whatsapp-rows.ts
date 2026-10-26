@@ -1,4 +1,4 @@
-import { asRecords, optString } from "./provider-json-b23.ts";
+import { asRecords, optString } from "./provider-json.ts";
 
 export type IntegrationRow = {
   id: string;

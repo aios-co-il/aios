@@ -11,7 +11,7 @@ import {
   asRecords,
   errorMessage,
   optString,
-} from "../_shared/provider-json-b23.ts";
+} from "../_shared/provider-json.ts";
 
 type GaProperty = {
   id: unknown;

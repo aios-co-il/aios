@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
-import { asRecord, errorMessage } from "../_shared/provider-json-b23.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,

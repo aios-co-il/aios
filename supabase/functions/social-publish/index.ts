@@ -2,7 +2,7 @@
 // Body: { tenant_id, page_id (UUID of social_pages row), post_type, caption?, media_url?, link? }
 // post_type: 'post' | 'photo' | 'video' | 'reel' | 'story' | 'link'
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

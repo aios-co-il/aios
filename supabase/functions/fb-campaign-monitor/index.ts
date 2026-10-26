@@ -8,9 +8,9 @@ import {
   asArray,
   asRecord,
   errorMessage,
-  isRecord,
+  isJsonObject,
   optString,
-} from "../_shared/provider-json-b23.ts";
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -286,7 +286,7 @@ async function scanAccount(
 
   const rawCampaigns = asArray(asRecord(campJson).data);
   stats.campaigns_scanned += rawCampaigns.length;
-  const campaigns = rawCampaigns.filter(isRecord).map(toCampaign);
+  const campaigns = rawCampaigns.filter(isJsonObject).map(toCampaign);
   // Parallel per-campaign in chunks to limit concurrency
   const chunkSize = 8;
   for (let i = 0; i < campaigns.length; i += chunkSize) {
@@ -297,7 +297,7 @@ async function scanAccount(
     );
   }
 
-  for (const ad of asArray(asRecord(adsJ).data).filter(isRecord)) {
+  for (const ad of asArray(asRecord(adsJ).data).filter(isJsonObject)) {
     const campaign = asRecord(ad.campaign);
     const campaignId = optString(campaign.id) || optString(ad.id);
     if (

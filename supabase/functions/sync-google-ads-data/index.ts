@@ -17,7 +17,7 @@ import {
   getPath,
   getString,
   isJsonObject,
-} from "../_shared/provider-json-b24.ts";
+} from "../_shared/provider-json.ts";
 
 type IntegrationSettings = { [key: string]: Json | undefined };
 

@@ -2,7 +2,7 @@
 // re-invoking import-broadcast-list-sheet with each list's stored source_config.
 // Schedule via pg_cron (e.g. hourly).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { asRecord, errorMessage } from "../_shared/provider-json-b23.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

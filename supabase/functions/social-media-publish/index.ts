@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { errorMessage, getString } from "../_shared/provider-json-b24.ts";
+import { errorText, getString } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,13 +129,13 @@ serve(async (req) => {
           console.error(`Error publishing to ${channel.platform}:`, err);
           await supabase
             .from("social_media_post_channels")
-            .update({ status: "failed", error_message: errorMessage(err) })
+            .update({ status: "failed", error_message: errorText(err) })
             .eq("id", pc.id);
 
           results.push({
             channel_id: channel.id,
             success: false,
-            error: errorMessage(err),
+            error: errorText(err),
           });
         }
       }
@@ -152,7 +152,7 @@ serve(async (req) => {
         );
       } catch (err) {
         console.error("Error publishing to WordPress:", err);
-        wpResult = { success: false, error: errorMessage(err) };
+        wpResult = { success: false, error: errorText(err) };
       }
     }
 
@@ -194,7 +194,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Publish error:", error);
 
-    return new Response(JSON.stringify({ error: errorMessage(error) }), {
+    return new Response(JSON.stringify({ error: errorText(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

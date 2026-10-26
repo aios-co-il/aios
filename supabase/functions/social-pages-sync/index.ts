@@ -1,7 +1,7 @@
 // Syncs connected Facebook Pages (and their IG business accounts) into social_pages table.
 // Stores per-page access tokens for content publishing.
 import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
-import { getPath } from "../_shared/provider-json-b24.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

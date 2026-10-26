@@ -18,7 +18,7 @@ import type {
   TablesUpdate,
 } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getPath, getString } from "../_shared/provider-json.ts";
 import { calendarEventCancelledTaskUpdates } from "../_shared/calendar-task-sync.ts";
 
 const corsHeaders = {

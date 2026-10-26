@@ -13,7 +13,7 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import type { Database, TablesUpdate } from "../_shared/database.types.ts";
-import { getPath, getString } from "../_shared/provider-json-b24.ts";
+import { getPath, getString } from "../_shared/provider-json.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
