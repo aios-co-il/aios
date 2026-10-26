@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   CURSOR_CREATIVE_SPEND_MESSAGE,
   isCursorCreativeSpendError,
@@ -7,55 +6,47 @@ import {
 } from "./cursorCreativeUnavailable.ts";
 
 test("missing edge function falls back to local generation", () => {
-  assert.equal(
+  expect(
     isCursorCreativeUnavailable(new Error("Requested function was not found")),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isCursorCreativeUnavailable(
       new Error("Failed to send a request to the Edge Function"),
     ),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("live agent errors do not silently fall back to local generation", () => {
-  assert.equal(isCursorCreativeUnavailable(new Error("unauthorized")), false);
-  assert.equal(
+  expect(isCursorCreativeUnavailable(new Error("unauthorized"))).toBe(false);
+  expect(
     isCursorCreativeUnavailable(new Error("CURSOR_API_KEY is not configured")),
-    false,
-  );
-  assert.equal(isCursorCreativeUnavailable(new Error("item not found")), false);
-  assert.equal(
+  ).toBe(false);
+  expect(isCursorCreativeUnavailable(new Error("item not found"))).toBe(false);
+  expect(
     isCursorCreativeUnavailable(
       new Error("Cursor agent create 401: invalid key"),
     ),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     isCursorCreativeUnavailable(new Error("אייג׳נט הקריאייטיב נכשל")),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("Cloud Agent spend is distinct from a missing function", () => {
-  assert.equal(
-    isCursorCreativeSpendError(new Error("no credits remaining")),
+  expect(isCursorCreativeSpendError(new Error("no credits remaining"))).toBe(
     true,
   );
-  assert.equal(
-    isCursorCreativeSpendError(new Error("Enable on-demand usage")),
+  expect(isCursorCreativeSpendError(new Error("Enable on-demand usage"))).toBe(
     true,
   );
-  assert.equal(
+  expect(
     isCursorCreativeSpendError(
       new Error("Cursor agent create 402: payment required"),
     ),
-    true,
-  );
-  assert.equal(isCursorCreativeSpendError(new Error("נגמרו הקרדיטים")), true);
-  assert.equal(isCursorCreativeSpendError(new Error("unauthorized")), false);
-  assert.match(CURSOR_CREATIVE_SPEND_MESSAGE, /Pro\+/);
-  assert.match(CURSOR_CREATIVE_SPEND_MESSAGE, /dashboard\/spending/);
-  assert.match(CURSOR_CREATIVE_SPEND_MESSAGE, /קריאייטיב דיירקט/);
+  ).toBe(true);
+  expect(isCursorCreativeSpendError(new Error("נגמרו הקרדיטים"))).toBe(true);
+  expect(isCursorCreativeSpendError(new Error("unauthorized"))).toBe(false);
+  expect(CURSOR_CREATIVE_SPEND_MESSAGE).toMatch(/Pro\+/);
+  expect(CURSOR_CREATIVE_SPEND_MESSAGE).toMatch(/dashboard\/spending/);
+  expect(CURSOR_CREATIVE_SPEND_MESSAGE).toMatch(/קריאייטיב דיירקט/);
 });

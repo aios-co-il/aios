@@ -1,5 +1,10 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { readFileSync } from "node:fs";
 import {
   applyChatScope,
@@ -17,88 +22,105 @@ const agent = readFileSync(
   "utf8",
 );
 
-test("private chats use session_only — never phone-scan chat_messages for background", () => {
-  assert.match(carmen, /export function backgroundChatContextMode\(\s*isGroup/);
-  assert.match(carmen, /session_only/);
-  assert.match(
-    carmen,
-    /skip private background history — session chat_id only/,
-  );
-  // Private branch must not ilike sender_phone inside fetchRecentChatContext.
-  const fnStart = carmen.indexOf(
-    "export async function fetchRecentChatContext",
-  );
-  const fnEnd = carmen.indexOf("export function excludeCurrentTurnFromContext");
-  const fn = carmen.slice(fnStart, fnEnd);
-  assert.doesNotMatch(fn, /ilike\('sender_phone'/);
-  assert.match(fn, /group_id/);
+Deno.test(
+  "private chats use session_only — never phone-scan chat_messages for background",
+  () => {
+    assertMatch(
+      carmen,
+      /export function backgroundChatContextMode\(\s*isGroup/,
+    );
+    assertMatch(carmen, /session_only/);
+    assertMatch(
+      carmen,
+      /skip private background history — session chat_id only/,
+    );
+    // Private branch must not ilike sender_phone inside fetchRecentChatContext.
+    const fnStart = carmen.indexOf(
+      "export async function fetchRecentChatContext",
+    );
+    const fnEnd = carmen.indexOf(
+      "export function excludeCurrentTurnFromContext",
+    );
+    const fn = carmen.slice(fnStart, fnEnd);
+    assertNotMatch(fn, /ilike\('sender_phone'/);
+    assertMatch(fn, /group_id/);
+  },
+);
+
+Deno.test("isolation note is injected on Carmen turns", () => {
+  assertMatch(carmen, /\[בידוד שיחה\] chat_id=/);
 });
 
-test("isolation note is injected on Carmen turns", () => {
-  assert.match(carmen, /\[בידוד שיחה\] chat_id=/);
-});
-
-test("search_conversation_history defaults to current wa_notify chat_id", () => {
-  assert.match(agent, /browse_all_chats/);
-  assert.match(agent, /scopeGroupId/);
-  assert.match(agent, /current_chat/);
-});
+Deno.test(
+  "search_conversation_history defaults to current wa_notify chat_id",
+  () => {
+    assertMatch(agent, /browse_all_chats/);
+    assertMatch(agent, /scopeGroupId/);
+    assertMatch(agent, /current_chat/);
+  },
+);
 
 // ── Chat scope (AIO-231) ────────────────────────────────────────────────────
 
 function caseBody(name) {
   const start = agent.indexOf(`case "${name}": {`);
-  assert.ok(start > 0, `case ${name} not found`);
+  assert(start > 0, `case ${name} not found`);
   const end = agent.indexOf("\n    case ", start + 10);
   return agent.slice(start, end);
 }
 
-test("the three chat readers run through the chat scope wrapper", () => {
+Deno.test("the three chat readers run through the chat scope wrapper", () => {
   for (const name of [
     "get_chat_history",
     "search_conversation_history",
     "get_recent_inbound_messages",
   ]) {
     const body = caseBody(name);
-    assert.match(body, /await chatScopeFor\(\)/, name);
-    assert.match(body, /chatScope\.mode === "none"/, name);
-    assert.match(body, /applyChatScope\(/, name);
-    assert.match(body, /keepVisibleChatRows\(/, name);
-    assert.match(body, /withChatScopeColumns\(/, name);
+    assertMatch(body, /await chatScopeFor\(\)/, name);
+    assertMatch(body, /chatScope\.mode === "none"/, name);
+    assertMatch(body, /applyChatScope\(/, name);
+    assertMatch(body, /keepVisibleChatRows\(/, name);
+    assertMatch(body, /withChatScopeColumns\(/, name);
   }
-  assert.match(caseBody("get_chat_history"), /chatContactRefusal\(/);
+  assertMatch(caseBody("get_chat_history"), /chatContactRefusal\(/);
   // The scope input comes from the verified caller, not from tool args.
   const scopeInput = agent.slice(
     agent.indexOf("const chatScopeFor = () =>"),
     agent.indexOf("if (isVideoDirectorTool(name))"),
   );
-  assert.doesNotMatch(scopeInput, /args\./);
-  assert.match(scopeInput, /userId: actorUserId/);
+  assertNotMatch(scopeInput, /args\./);
+  assertMatch(scopeInput, /userId: actorUserId/);
   // callerRole is the highest role across all tenants; the scope reads the
   // role in this tenant itself.
-  assert.doesNotMatch(scopeInput, /callerRole|managedAgencyIds/);
+  assertNotMatch(scopeInput, /callerRole|managedAgencyIds/);
 });
 
-test("get_recent_inbound_messages keeps its old output shape", () => {
-  assert.match(
+Deno.test("get_recent_inbound_messages keeps its old output shape", () => {
+  assertMatch(
     caseBody("get_recent_inbound_messages"),
     /connection_user_id: _conn,\s*provider: _provider,\s*group_id: _group,/,
   );
 });
 
-test("send_message looks up the client or lead inside the caller's tenants", () => {
-  const body = caseBody("send_message");
-  const lookups = body.match(/\.in\("tenant_id", accessibleTenantIds\)/g);
-  assert.equal(lookups?.length, 2);
-});
+Deno.test(
+  "send_message looks up the client or lead inside the caller's tenants",
+  () => {
+    const body = caseBody("send_message");
+    const lookups = body.match(/\.in\("tenant_id", accessibleTenantIds\)/g);
+    assertStrictEquals(lookups?.length, 2);
+  },
+);
 
-test("only service callers may set the WhatsApp chat and sender phone", () => {
-  // bindRunAgentCaller strips lead_data and wa_notify from non-service requests
-  // (run-agent-trust.test.mjs covers the helper itself).
-  const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
-  const guard = serve.slice(0, serve.indexOf("if (bodyJson.direct_tool)"));
-  assert.match(guard, /bindRunAgentCaller\(bodyJson, auth\);/);
-});
+Deno.test(
+  "only service callers may set the WhatsApp chat and sender phone",
+  () => {
+    // bindRunAgentCaller strips lead_data and wa_notify from non-service requests
+    // (run-agent-trust.test.mjs covers the helper itself).
+    const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
+    const guard = serve.slice(0, serve.indexOf("if (bodyJson.direct_tool)"));
+    assertMatch(guard, /bindRunAgentCaller\(bodyJson, auth\);/);
+  },
+);
 
 // A tenant with David (owner) on his private Green API line, an org-wide Green
 // line, Carmen's Manus line, campaigner Dana (client A), campaigner Ronit
@@ -382,116 +404,134 @@ const ALL_TENANT_ROWS = messages
   .map((m) => m.id)
   .sort();
 
-test("matrix: owner keeps today's tenant-wide access", async () => {
+Deno.test("matrix: owner keeps today's tenant-wide access", async () => {
   const { ids } = await readChats(callers.owner, { keyword: "תקציב" });
-  assert.deepEqual(ids, ALL_TENANT_ROWS);
+  assertEquals(ids, ALL_TENANT_ROWS);
   const history = await readChats(callers.owner, {
     contact: { type: "client", id: CB },
   });
-  assert.deepEqual(history.ids, ["b-dm-on-org-green"]);
+  assertEquals(history.ids, ["b-dm-on-org-green"]);
 });
 
-test("matrix: campaigner of client A asking about client B gets nothing of B", async () => {
-  const history = await readChats(callers.danaInApp, {
-    contact: { type: "client", id: CB },
-  });
-  assert.equal(history.refused?.error, "access_denied");
-  assert.match(history.refused?.note, /לא משויך אליך/);
+Deno.test(
+  "matrix: campaigner of client A asking about client B gets nothing of B",
+  async () => {
+    const history = await readChats(callers.danaInApp, {
+      contact: { type: "client", id: CB },
+    });
+    assertStrictEquals(history.refused?.error, "access_denied");
+    assertMatch(history.refused?.note, /לא משויך אליך/);
 
-  // Widest possible read (keyword over every chat): only A's linked threads,
-  // and A's DMs only from the org-wide line, not David's private line.
-  const all = await readChats(callers.danaInApp, { keyword: "תקציב" });
-  assert.deepEqual(all.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
-  assert.deepEqual(all.pushedIds, all.ids, "the DB filter alone is exact");
+    // Widest possible read (keyword over every chat): only A's linked threads,
+    // and A's DMs only from the org-wide line, not David's private line.
+    const all = await readChats(callers.danaInApp, { keyword: "תקציב" });
+    assertEquals(all.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
+    assertEquals(all.pushedIds, all.ids, "the DB filter alone is exact");
 
-  const own = await readChats(callers.danaInApp, {
-    contact: { type: "client", id: CA },
-  });
-  assert.deepEqual(own.ids, ["a-dm-on-org-green"]);
+    const own = await readChats(callers.danaInApp, {
+      contact: { type: "client", id: CA },
+    });
+    assertEquals(own.ids, ["a-dm-on-org-green"]);
 
-  const onWhatsApp = await readChats(callers.danaOnWhatsApp, {
-    keyword: "תקציב",
-  });
-  assert.deepEqual(onWhatsApp.ids, [
-    "a-dm-on-org-green",
-    "a-group-on-manus",
-    "dana-chat-with-carmen",
-  ]);
+    const onWhatsApp = await readChats(callers.danaOnWhatsApp, {
+      keyword: "תקציב",
+    });
+    assertEquals(onWhatsApp.ids, [
+      "a-dm-on-org-green",
+      "a-group-on-manus",
+      "dana-chat-with-carmen",
+    ]);
 
-  const ronit = await readChats(callers.ronit, { keyword: "תקציב" });
-  assert.deepEqual(ronit.ids, ["b-dm-on-org-green", "b-group-on-manus"]);
-});
+    const ronit = await readChats(callers.ronit, { keyword: "תקציב" });
+    assertEquals(ronit.ids, ["b-dm-on-org-green", "b-group-on-manus"]);
+  },
+);
 
-test("matrix: owner of another tenant, campaigner here, gets staff scope only", async () => {
-  const inApp = await readChats(callers.ownerElsewhereInApp, {
-    keyword: "תקציב",
-  });
-  assert.equal(inApp.mode, "staff");
-  assert.deepEqual(inApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
-  assert.deepEqual(inApp.pushedIds, inApp.ids);
+Deno.test(
+  "matrix: owner of another tenant, campaigner here, gets staff scope only",
+  async () => {
+    const inApp = await readChats(callers.ownerElsewhereInApp, {
+      keyword: "תקציב",
+    });
+    assertStrictEquals(inApp.mode, "staff");
+    assertEquals(inApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
+    assertEquals(inApp.pushedIds, inApp.ids);
 
-  const askAboutB = await readChats(callers.ownerElsewhereInApp, {
-    contact: { type: "client", id: CB },
-  });
-  assert.equal(askAboutB.refused?.error, "access_denied");
+    const askAboutB = await readChats(callers.ownerElsewhereInApp, {
+      contact: { type: "client", id: CB },
+    });
+    assertStrictEquals(askAboutB.refused?.error, "access_denied");
 
-  const onWhatsApp = await readChats(callers.ownerElsewhereOnWhatsApp, {
-    keyword: "תקציב",
-  });
-  assert.equal(onWhatsApp.mode, "staff");
-  assert.deepEqual(onWhatsApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
-});
+    const onWhatsApp = await readChats(callers.ownerElsewhereOnWhatsApp, {
+      keyword: "תקציב",
+    });
+    assertStrictEquals(onWhatsApp.mode, "staff");
+    assertEquals(onWhatsApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
+  },
+);
 
-test("matrix: a client contact in a group reads only that group on Carmen's line", async () => {
-  const all = await readChats(callers.groupContact, { keyword: "תקציב" });
-  assert.deepEqual(all.ids, ["a-group-on-manus"]);
-  assert.deepEqual(all.pushedIds, all.ids);
-  const otherClient = await readChats(callers.groupContact, {
-    contact: { type: "client", id: CB },
-  });
-  assert.deepEqual(otherClient.ids, []);
-});
+Deno.test(
+  "matrix: a client contact in a group reads only that group on Carmen's line",
+  async () => {
+    const all = await readChats(callers.groupContact, { keyword: "תקציב" });
+    assertEquals(all.ids, ["a-group-on-manus"]);
+    assertEquals(all.pushedIds, all.ids);
+    const otherClient = await readChats(callers.groupContact, {
+      contact: { type: "client", id: CB },
+    });
+    assertEquals(otherClient.ids, []);
+  },
+);
 
-test("matrix: David's private DM thread is visible to nobody but the owner", async () => {
-  const privateRows = [
-    "david-private-dm",
-    "david-family-group",
-    "a-dm-on-david-green",
-    "a-group-on-david-green",
-    "david-chat-with-carmen",
-  ];
-  for (const [name, caller] of Object.entries(callers)) {
-    if (name === "owner") continue;
-    const res = await readChats(caller, { keyword: "תקציב" });
-    const seen = [...(res.ids ?? []), ...(res.pushedIds ?? [])];
-    for (const row of privateRows)
-      assert.ok(!seen.includes(row), `${name} must not read ${row}`);
-  }
-});
+Deno.test(
+  "matrix: David's private DM thread is visible to nobody but the owner",
+  async () => {
+    const privateRows = [
+      "david-private-dm",
+      "david-family-group",
+      "a-dm-on-david-green",
+      "a-group-on-david-green",
+      "david-chat-with-carmen",
+    ];
+    for (const [name, caller] of Object.entries(callers)) {
+      if (name === "owner") continue;
+      const res = await readChats(caller, { keyword: "תקציב" });
+      const seen = [...(res.ids ?? []), ...(res.pushedIds ?? [])];
+      for (const row of privateRows)
+        assert(!seen.includes(row), `${name} must not read ${row}`);
+    }
+  },
+);
 
-test("matrix: managers see their linked threads on lines they may read", async () => {
-  const agencyOwner = await readChats(callers.agencyOwner, {
-    keyword: "תקציב",
-  });
-  assert.deepEqual(agencyOwner.ids, [
-    "a-dm-on-org-green",
-    "a-group-on-manus",
-    "b-dm-on-org-green",
-    "b-group-on-manus",
-    "lead-dm-on-org-green",
-  ]);
-  const teamManager = await readChats(callers.teamManager, {
-    keyword: "תקציב",
-  });
-  assert.deepEqual(teamManager.ids, agencyOwner.ids);
-});
+Deno.test(
+  "matrix: managers see their linked threads on lines they may read",
+  async () => {
+    const agencyOwner = await readChats(callers.agencyOwner, {
+      keyword: "תקציב",
+    });
+    assertEquals(agencyOwner.ids, [
+      "a-dm-on-org-green",
+      "a-group-on-manus",
+      "b-dm-on-org-green",
+      "b-group-on-manus",
+      "lead-dm-on-org-green",
+    ]);
+    const teamManager = await readChats(callers.teamManager, {
+      keyword: "תקציב",
+    });
+    assertEquals(teamManager.ids, agencyOwner.ids);
+  },
+);
 
-test("matrix: unknown private senders and system runs read nothing", async () => {
-  const stranger = await readChats(callers.unknownPrivateSender, {
-    keyword: "תקציב",
-  });
-  assert.equal(stranger.refused?.access_scope, "none");
-  assert.deepEqual(stranger.refused?.messages, []);
-  const system = await readChats({ userId: null, callerCampaignerId: null });
-  assert.equal(system.refused?.access_scope, "none");
-});
+Deno.test(
+  "matrix: unknown private senders and system runs read nothing",
+  async () => {
+    const stranger = await readChats(callers.unknownPrivateSender, {
+      keyword: "תקציב",
+    });
+    assertStrictEquals(stranger.refused?.access_scope, "none");
+    assertEquals(stranger.refused?.messages, []);
+    const system = await readChats({ userId: null, callerCampaignerId: null });
+    assertStrictEquals(system.refused?.access_scope, "none");
+  },
+);

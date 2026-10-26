@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   acceptedMessageFor,
   canAdvanceToReview,
@@ -23,9 +26,9 @@ function base(): ParliamentState {
   };
 }
 
-test("parliament MVP seats default to cursor+grok+codex", () => {
-  assert.deepEqual(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
-  assert.deepEqual(
+Deno.test("parliament MVP seats default to cursor+grok+codex", () => {
+  assertEquals(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
+  assertEquals(
     parliamentSeatsFromConfig({
       seats: ["cursor", "grok", "codex", "claude", "extra"],
     }),
@@ -33,39 +36,48 @@ test("parliament MVP seats default to cursor+grok+codex", () => {
   );
 });
 
-test("partial failure does not block synthesis", () => {
+Deno.test("partial failure does not block synthesis", () => {
   let state = recordParliamentAnswer(base(), "cursor", "ship it", 1);
   state = markParliamentFailed(state, "grok", "timeout");
-  assert.equal(canAdvanceToReview(state), true);
+  assertStrictEquals(canAdvanceToReview(state), true);
   state = { ...state, status: "round2", round: 2 };
   state = recordParliamentAnswer(state, "cursor", "still ship it", 2);
-  assert.equal(canSynthesize(state), true);
+  assertStrictEquals(canSynthesize(state), true);
 });
 
-test("reused Cursor Direct copy says the chat was already open", () => {
-  assert.match(
+Deno.test("reused Cursor Direct copy says the chat was already open", () => {
+  assertMatch(
     acceptedMessageFor("cursor", "https://cursor.com/agents/bc-1", {
       reused: true,
     }),
     /שכבר פתוח/,
   );
-  assert.match(
+  assertMatch(
     acceptedMessageFor("codex", "https://chatgpt.com/c/abc", { reused: true }),
     /ChatGPT Workspace/,
   );
 });
 
-test("direct channels require a callback; internal streams", () => {
-  assert.equal(capabilitiesForProvider("internal").streaming_reply, true);
-  assert.equal(capabilitiesForProvider("internal").callback_required, false);
-  assert.equal(capabilitiesForProvider("cursor").callback_required, true);
-  assert.equal(capabilitiesForProvider("codex").callback_required, true);
-  assert.equal(capabilitiesForProvider("chatgpt").callback_required, true);
+Deno.test("direct channels require a callback; internal streams", () => {
+  assertStrictEquals(capabilitiesForProvider("internal").streaming_reply, true);
+  assertStrictEquals(
+    capabilitiesForProvider("internal").callback_required,
+    false,
+  );
+  assertStrictEquals(capabilitiesForProvider("cursor").callback_required, true);
+  assertStrictEquals(capabilitiesForProvider("codex").callback_required, true);
+  assertStrictEquals(
+    capabilitiesForProvider("chatgpt").callback_required,
+    true,
+  );
 });
 
-test("resolveCallbackOrigin prefers session codex over stated chatgpt", () => {
-  assert.equal(resolveCallbackOrigin("chatgpt", "codex"), "codex");
-  assert.equal(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
-  assert.equal(resolveCallbackOrigin(undefined, "codex"), "codex");
-  assert.equal(resolveCallbackOrigin(null, null), "internal");
-});
+Deno.test(
+  "resolveCallbackOrigin prefers session codex over stated chatgpt",
+  () => {
+    assertStrictEquals(resolveCallbackOrigin("chatgpt", "codex"), "codex");
+    assertStrictEquals(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
+    assertStrictEquals(resolveCallbackOrigin(undefined, "codex"), "codex");
+    assertStrictEquals(resolveCallbackOrigin(null, null), "internal");
+  },
+);

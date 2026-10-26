@@ -1,5 +1,5 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
 import { BrainRouteSelector } from "./BrainRouteSelector";
@@ -17,6 +17,9 @@ interface CommandCenterSidecarProps {
   onClose?: () => void;
   className?: string;
   session?: boolean;
+  /** Carmen opened as a full page instead of the side column. */
+  page?: boolean;
+  headerActions?: ReactNode;
 }
 
 /**
@@ -26,6 +29,8 @@ export function CommandCenterSidecar({
   onClose,
   className,
   session = false,
+  page = false,
+  headerActions,
 }: CommandCenterSidecarProps) {
   const identity = useCarmenIdentity();
   const contextMetadata = useSystemFixContext();
@@ -52,6 +57,8 @@ export function CommandCenterSidecar({
         path={contextMetadata.path}
         onToggleHistory={() => chatRef.current?.toggleHistory()}
         onClose={onClose}
+        actions={headerActions}
+        subtitle={page ? "מסך מלא" : undefined}
       />
 
       {session && (
@@ -59,6 +66,7 @@ export function CommandCenterSidecar({
           videoCard={videoCard}
           faceState={faceState}
           onClose={onClose}
+          showExpand={!page}
         />
       )}
       {brain.noBrainAccess && (
@@ -66,7 +74,9 @@ export function CommandCenterSidecar({
           אין לך הרשאה לאף מוח של כרמן. אפשר לבקש גישה ממנהל המערכת.
         </p>
       )}
-      <div className="carmen-session-chat flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+      <div
+        className={`carmen-session-chat flex min-h-0 flex-1 flex-col overflow-hidden p-2${page ? " mx-auto w-full max-w-4xl" : ""}`}
+      >
         <CarmenChatBar
           ref={chatRef}
           tenantId={tenantId}
