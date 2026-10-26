@@ -25,3 +25,23 @@ drop trigger if exists workshop_protect_budget on public.marketing_work_items;
 create trigger workshop_protect_budget
   before update of payload on public.marketing_work_items
   for each row execute function public.workshop_protect_budget();
+
+create or replace function public.workshop_strip_budget_on_insert()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', auth.role(), '') in ('authenticated', 'anon')
+     and (new.payload ? 'workshop_budget') then
+    new.payload := new.payload - 'workshop_budget';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists workshop_strip_budget_on_insert on public.marketing_work_items;
+create trigger workshop_strip_budget_on_insert
+  before insert on public.marketing_work_items
+  for each row execute function public.workshop_strip_budget_on_insert();
