@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 interface SendSignatureActionConfigProps {
-  tenantId: string;
+  tenantId?: string;
   configuration: StepConfig;
   onConfigChange: StepConfigChange;
 }
@@ -25,6 +29,7 @@ export default function SendSignatureActionConfig({
   const { data: templates = [] } = useQuery({
     queryKey: ["signature-templates", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("signature_documents")
         .select("id, title, template_name, document_type")

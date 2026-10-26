@@ -1,5 +1,10 @@
 import { Label } from "@/components/ui/label";
-import { cfgString, type StepConfig, type StepConfigBulkChange, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgString,
+  type StepConfig,
+  type StepConfigBulkChange,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import {
   decodeStatusSelection,
   encodeStoredTriggerFilters,
@@ -9,7 +14,7 @@ import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
-  tenantId: string;
+  tenantId?: string;
   configuration: StepConfig;
   onConfigChange: StepConfigChange;
   onBulkConfigChange?: StepConfigBulkChange;

@@ -1,5 +1,9 @@
 import { Label } from "@/components/ui/label";
-import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import { Input } from "@/components/ui/input";
 import { useMailingActionOptions } from "@/components/automations/useMailingActionOptions";
 import {
@@ -15,7 +19,7 @@ import {
 import { listKind } from "@/lib/broadcastListKind";
 
 interface Props {
-  tenantId: string;
+  tenantId?: string;
   actionType: string;
   configuration: StepConfig;
   onConfigChange: StepConfigChange;
