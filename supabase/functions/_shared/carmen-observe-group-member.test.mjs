@@ -1,26 +1,25 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
   normalizeObservedPhone,
   pickCandidateStatus,
 } from "./carmen-observe-group-member.mjs";
 
-test("normalizeObservedPhone drops group JID digits", () => {
-  assert.equal(
+Deno.test("normalizeObservedPhone drops group JID digits", () => {
+  assertStrictEquals(
     normalizeObservedPhone("120363420913931305", "120363420913931305@g.us"),
     null,
   );
 });
 
-test("normalizeObservedPhone keeps real mobile", () => {
-  assert.equal(
+Deno.test("normalizeObservedPhone keeps real mobile", () => {
+  assertStrictEquals(
     normalizeObservedPhone("972546656303@c.us", "120363420913931305@g.us"),
     "972546656303",
   );
 });
 
-test("pickCandidateStatus links known staff", () => {
-  assert.equal(
+Deno.test("pickCandidateStatus links known staff", () => {
+  assertStrictEquals(
     pickCandidateStatus({
       phone: "972546656303",
       matchedIdentity: { id: "1" },
@@ -28,7 +27,7 @@ test("pickCandidateStatus links known staff", () => {
     }),
     "approved",
   );
-  assert.equal(
+  assertStrictEquals(
     pickCandidateStatus({
       phone: "972599999999",
       matchedIdentity: null,
@@ -36,7 +35,7 @@ test("pickCandidateStatus links known staff", () => {
     }),
     "awaiting_approval",
   );
-  assert.equal(
+  assertStrictEquals(
     pickCandidateStatus({
       phone: null,
       matchedIdentity: null,

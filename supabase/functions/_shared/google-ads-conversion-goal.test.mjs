@@ -1,25 +1,23 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
   conversionCategorySide,
   googleCampaignConversionGoal,
 } from "./google-ads-conversion-goal.mjs";
 
-test("conversion categories map to a pulse side", () => {
-  assert.equal(conversionCategorySide("PURCHASE"), "ecommerce");
-  assert.equal(conversionCategorySide("SUBMIT_LEAD_FORM"), "leads");
-  assert.equal(conversionCategorySide("PHONE_CALL_LEAD"), "leads");
-  assert.equal(conversionCategorySide("PAGE_VIEW"), null);
-  assert.equal(conversionCategorySide("ADD_TO_CART"), null);
+Deno.test("conversion categories map to a pulse side", () => {
+  assertStrictEquals(conversionCategorySide("PURCHASE"), "ecommerce");
+  assertStrictEquals(conversionCategorySide("SUBMIT_LEAD_FORM"), "leads");
+  assertStrictEquals(conversionCategorySide("PHONE_CALL_LEAD"), "leads");
+  assertStrictEquals(conversionCategorySide("PAGE_VIEW"), null);
+  assertStrictEquals(conversionCategorySide("ADD_TO_CART"), null);
 });
 
-test("bidding on one side decides even with no conversions", () => {
-  assert.equal(
+Deno.test("bidding on one side decides even with no conversions", () => {
+  assertStrictEquals(
     googleCampaignConversionGoal({ biddableCategories: ["PURCHASE"] }),
     "ecommerce",
   );
-  assert.equal(
+  assertStrictEquals(
     googleCampaignConversionGoal({
       biddableCategories: ["SUBMIT_LEAD_FORM", "CONTACT", "PAGE_VIEW"],
       purchaseConversions: 4,
@@ -28,9 +26,9 @@ test("bidding on one side decides even with no conversions", () => {
   );
 });
 
-test("bidding on both sides lets actual conversions decide", () => {
+Deno.test("bidding on both sides lets actual conversions decide", () => {
   const biddableCategories = ["PURCHASE", "SUBMIT_LEAD_FORM"];
-  assert.equal(
+  assertStrictEquals(
     googleCampaignConversionGoal({
       biddableCategories,
       purchaseConversions: 5,
@@ -38,7 +36,7 @@ test("bidding on both sides lets actual conversions decide", () => {
     }),
     "ecommerce",
   );
-  assert.equal(
+  assertStrictEquals(
     googleCampaignConversionGoal({
       biddableCategories,
       purchaseConversions: 1,
@@ -46,9 +44,15 @@ test("bidding on both sides lets actual conversions decide", () => {
     }),
     "leads",
   );
-  assert.equal(googleCampaignConversionGoal({ biddableCategories }), null);
+  assertStrictEquals(
+    googleCampaignConversionGoal({ biddableCategories }),
+    null,
+  );
 });
 
-test("no goals and no conversions leaves the campaign to the report type", () => {
-  assert.equal(googleCampaignConversionGoal({}), null);
-});
+Deno.test(
+  "no goals and no conversions leaves the campaign to the report type",
+  () => {
+    assertStrictEquals(googleCampaignConversionGoal({}), null);
+  },
+);

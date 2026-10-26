@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   filterEntityAssignmentOptions,
   toggleEntityAssignmentId,
@@ -12,27 +11,24 @@ const options = [
 ];
 
 test("search matches Hebrew/English names and descriptions", () => {
-  assert.deepEqual(
+  expect(
     filterEntityAssignmentOptions(options, "ארבע").map((item) => item.id),
-    ["1"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["1"]);
+  expect(
     filterEntityAssignmentOptions(options, "bever").map((item) => item.id),
-    ["2"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["2"]);
+  expect(
     filterEntityAssignmentOptions(options, "example.com").map(
       (item) => item.id,
     ),
-    ["3"],
-  );
+  ).toStrictEqual(["3"]);
 });
 
 test("single assignment replaces the previous choice", () => {
-  assert.deepEqual(toggleEntityAssignmentId(["1"], "2", false), ["2"]);
+  expect(toggleEntityAssignmentId(["1"], "2", false)).toStrictEqual(["2"]);
 });
 
 test("multiple assignment toggles members independently", () => {
-  assert.deepEqual(toggleEntityAssignmentId(["1"], "2", true), ["1", "2"]);
-  assert.deepEqual(toggleEntityAssignmentId(["1", "2"], "1", true), ["2"]);
+  expect(toggleEntityAssignmentId(["1"], "2", true)).toStrictEqual(["1", "2"]);
+  expect(toggleEntityAssignmentId(["1", "2"], "1", true)).toStrictEqual(["2"]);
 });

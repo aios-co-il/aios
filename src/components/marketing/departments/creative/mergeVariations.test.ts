@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { mergeCreativeVariations } from "./mergeVariations.ts";
 import type { CreativeVariation } from "./types.ts";
 
@@ -20,9 +19,9 @@ test("mergeCreativeVariations keeps a live reject when the incoming snapshot is 
   const live = [variation({ rejected: true, rejectNote: "לא זה" })];
   const incoming = [variation({ name: "stale" })];
   const merged = mergeCreativeVariations(live, incoming);
-  assert.equal(merged[0].rejected, true);
-  assert.equal(merged[0].rejectNote, "לא זה");
-  assert.equal(merged[0].name, "stale");
+  expect(merged[0].rejected).toBe(true);
+  expect(merged[0].rejectNote).toBe("לא זה");
+  expect(merged[0].name).toBe("stale");
 });
 
 test("mergeCreativeVariations keeps a variation Cursor completed that the local write did not know", () => {
@@ -34,9 +33,9 @@ test("mergeCreativeVariations keeps a variation Cursor completed that the local 
     variation({ id: "a", rejected: true, rejectNote: "רג׳קט" }),
   ];
   const merged = mergeCreativeVariations(live, incoming);
-  assert.equal(merged.map((row) => row.id).join(","), "a,b");
-  assert.equal(merged[0].rejected, true);
-  assert.equal(merged[1].name, "from agent");
+  expect(merged.map((row) => row.id).join(",")).toBe("a,b");
+  expect(merged[0].rejected).toBe(true);
+  expect(merged[1].name).toBe("from agent");
 });
 
 test("mergeCreativeVariations can un-reject when the incoming write says so", () => {
@@ -44,7 +43,7 @@ test("mergeCreativeVariations can un-reject when the incoming write says so", ()
   const incoming = [
     variation({ rejected: false, imageUrl: "https://img/new.png" }),
   ];
-  assert.equal(mergeCreativeVariations(live, incoming)[0].rejected, false);
+  expect(mergeCreativeVariations(live, incoming)[0].rejected).toBe(false);
 });
 
 test("mergeCreativeVariations honors dropIds so a deleted still does not come back from live", () => {
@@ -54,5 +53,5 @@ test("mergeCreativeVariations honors dropIds so a deleted still does not come ba
   ];
   const incoming = [variation({ id: "keep", name: "Keep" })];
   const merged = mergeCreativeVariations(live, incoming, { dropIds: ["gone"] });
-  assert.equal(merged.map((row) => row.id).join(","), "keep");
+  expect(merged.map((row) => row.id).join(",")).toBe("keep");
 });

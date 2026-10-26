@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { planSafeFailover } from "./failover.ts";
 import type { RoutingDecision } from "./types.ts";
 
@@ -11,8 +10,8 @@ const decision: RoutingDecision = {
   fallbackIds: ["nvidia", "gemini"],
   requiresActionApproval: false,
 };
-test("quota error uses alternate model for pure LLM calls", () => {
-  assert.deepEqual(
+Deno.test("quota error uses alternate model for pure LLM calls", () => {
+  assertEquals(
     planSafeFailover(decision, "quota", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -21,8 +20,8 @@ test("quota error uses alternate model for pure LLM calls", () => {
     { kind: "retry_model", modelId: "nvidia", reason: "quota" },
   );
 });
-test("an attempted fallback is skipped", () => {
-  assert.equal(
+Deno.test("an attempted fallback is skipped", () => {
+  assertStrictEquals(
     planSafeFailover(decision, "rate_limit", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -31,8 +30,8 @@ test("an attempted fallback is skipped", () => {
     "retry_model",
   );
 });
-test("no tool calls are replayed after side effects", () => {
-  assert.equal(
+Deno.test("no tool calls are replayed after side effects", () => {
+  assertStrictEquals(
     planSafeFailover(decision, "timeout", {
       completedToolCalls: 1,
       inferenceOnly: true,
@@ -41,8 +40,8 @@ test("no tool calls are replayed after side effects", () => {
     "resume_from_checkpoint",
   );
 });
-test("a tool error does not retry model", () => {
-  assert.equal(
+Deno.test("a tool error does not retry model", () => {
+  assertStrictEquals(
     planSafeFailover(decision, "tool_execution", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -51,8 +50,8 @@ test("a tool error does not retry model", () => {
     "stop",
   );
 });
-test("authentication and invalid request never cascade", () => {
-  assert.equal(
+Deno.test("authentication and invalid request never cascade", () => {
+  assertStrictEquals(
     planSafeFailover(decision, "authentication", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -60,7 +59,7 @@ test("authentication and invalid request never cascade", () => {
     }).kind,
     "stop",
   );
-  assert.equal(
+  assertStrictEquals(
     planSafeFailover(decision, "invalid_request", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -69,8 +68,8 @@ test("authentication and invalid request never cascade", () => {
     "stop",
   );
 });
-test("approval-required decision cannot be bypassed via failover", () => {
-  assert.equal(
+Deno.test("approval-required decision cannot be bypassed via failover", () => {
+  assertStrictEquals(
     planSafeFailover({ ...decision, status: "approval_required" }, "quota", {
       completedToolCalls: 0,
       inferenceOnly: true,
@@ -79,8 +78,8 @@ test("approval-required decision cannot be bypassed via failover", () => {
     "stop",
   );
 });
-test("retry budget caps repeated attempts", () => {
-  assert.equal(
+Deno.test("retry budget caps repeated attempts", () => {
+  assertStrictEquals(
     planSafeFailover(decision, "timeout", {
       completedToolCalls: 0,
       inferenceOnly: true,
