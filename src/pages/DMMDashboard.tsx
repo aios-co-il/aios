@@ -63,10 +63,12 @@ import {
   type PulseAttentionClientContext,
   type PulseAttentionRow,
 } from "@/lib/pulseAttentionMatrix";
+import { listCampaignsWithoutTarget } from "@/lib/pulseTargets";
 import {
-  buildPulseTargetPatch,
-  listCampaignsWithoutTarget,
-} from "@/lib/pulseTargets";
+  pulseTargetSaveKey,
+  savePulseTargetToTables,
+  type PulseTargetStore,
+} from "@/lib/pulseTargetSave";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -822,28 +824,19 @@ export function CampaignPulseDashboard({
     [missingTargetGroups],
   );
 
-  /** The table that holds a platform target (the attention matrix's choice). */
-  function platformTargetTableId(
+  /** Every report table of the client × platform: a platform target goes to all. */
+  function platformTableIds(
     clientId: string,
     platform: "meta" | "google",
-    goal: PulseCampaignGoal,
-  ): string | null {
-    const tables = (tablesByClient.get(clientId) ?? []).filter((table) =>
-      platform === "google"
-        ? table.integration_type === "google_ads"
-        : table.integration_type === "facebook_insights" ||
-          table.integration_type === "facebook_ecommerce",
-    );
-    if (!tables.length) return null;
-    if (platform === "meta") {
-      const preferred = tables.find((table) =>
-        goal === "ecommerce"
-          ? table.integration_type === "facebook_ecommerce"
-          : table.integration_type === "facebook_insights",
-      );
-      return (preferred ?? tables[0]).id;
-    }
-    return tables[0].id;
+  ): string[] {
+    return (tablesByClient.get(clientId) ?? [])
+      .filter((table) =>
+        platform === "google"
+          ? table.integration_type === "google_ads"
+          : table.integration_type === "facebook_insights" ||
+            table.integration_type === "facebook_ecommerce",
+      )
+      .map((table) => table.id);
   }
 
   function openTargetEditorFromAttention(row: PulseAttentionRow) {
@@ -852,7 +845,7 @@ export function CampaignPulseDashboard({
       clientName: row.clientName,
       platform: row.platform,
       primaryGoal: row.primaryGoal,
-      platformTableId: row.tableId,
+      platformTableIds: platformTableIds(row.clientId, row.platform),
       baselineEfficiency7d: row.baselineEfficiency7d,
     });
   }
@@ -867,7 +860,7 @@ export function CampaignPulseDashboard({
       clientName: clientMetaById.get(clientId)?.name ?? "לקוח",
       platform,
       primaryGoal: goal,
-      platformTableId: platformTargetTableId(clientId, platform, goal),
+      platformTableIds: platformTableIds(clientId, platform),
     });
   }
 
@@ -885,39 +878,16 @@ export function CampaignPulseDashboard({
 
   /** Saves an approved target (platform or one campaign) on the table settings. */
   async function savePulseTarget(input: PulseTargetSaveInput) {
-    const slot = input.campaignId || input.campaignName || null;
-    const key = slot ? `${input.tableId}:${slot}` : input.tableId;
-    setSavingTargetKey(key);
+    setSavingTargetKey(pulseTargetSaveKey(input));
     try {
-      // Patch the stored settings, not the cached copy: syncs write
-      // integration_settings too (last_sync_at and more).
-      const { data: current, error: readError } = await supabase
-        .from("crm_tables")
-        .select("integration_settings")
-        .eq("id", input.tableId)
-        .maybeSingle();
-      if (readError) throw readError;
-      if (!current) throw new Error("הטבלה לא נמצאה");
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const nextSettings = buildPulseTargetPatch(
-        (current.integration_settings ?? {}) as Record<string, unknown>,
-        {
-          goal: input.goal,
-          kind: input.kind,
-          value: input.value,
-          source: "approved",
-          campaignId: input.campaignId ?? null,
-          campaignName: input.campaignName ?? null,
-          setBy: user?.id ?? null,
-        },
+      await savePulseTargetToTables(
+        supabase as unknown as PulseTargetStore,
+        input,
+        user?.id ?? null,
       );
-      const { error } = await supabase
-        .from("crm_tables")
-        .update({ integration_settings: nextSettings as any })
-        .eq("id", input.tableId);
-      if (error) throw error;
       toast.success(input.value === null ? "היעד הוסר" : "היעד נשמר");
       await refetchPulseTables();
       refetchPulseRecords();

@@ -25,31 +25,29 @@ import type {
   PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
 import {
+  campaignRowTarget,
   pulseTargetKindLabel,
   pulseTargetKindsForGoal,
   pulseTargetSourceLabel,
-  resolvePulseTarget,
+  resolvePulseTargetAcross,
   type PulseTarget,
   type PulseTargetKind,
 } from "@/lib/pulseTargets";
+import {
+  pulseTargetSaveKey,
+  type PulseTargetSaveInput,
+} from "@/lib/pulseTargetSave";
+
+export type { PulseTargetSaveInput };
 
 export type PulseTargetEditorContext = {
   clientId: string;
   clientName: string;
   platform: "meta" | "google";
   primaryGoal: PulseCampaignGoal;
-  /** Table that holds the platform-level target (null when none is known). */
-  platformTableId: string | null;
+  /** Every report table of this client × platform; a platform target goes to all. */
+  platformTableIds: string[];
   baselineEfficiency7d?: number | null;
-};
-
-export type PulseTargetSaveInput = {
-  tableId: string;
-  goal: PulseCampaignGoal;
-  kind: PulseTargetKind;
-  value: number | null;
-  campaignId?: string | null;
-  campaignName?: string | null;
 };
 
 type PulseTargetEditorDialogProps = {
@@ -59,7 +57,7 @@ type PulseTargetEditorDialogProps = {
   /** Campaigns of this client × platform with spend in the last 7 days. */
   campaigns: PulseCampaignGoalRow[];
   tableSettingsById: Map<string, Record<string, unknown>>;
-  /** `${tableId}` (platform) or `${tableId}:${campaign}` while a save runs. */
+  /** pulseTargetSaveKey of the row being saved, while a save runs. */
   savingKey: string | null;
   onSave: (input: PulseTargetSaveInput) => Promise<void>;
 };
@@ -101,6 +99,16 @@ function SourceBadge({ target }: { target: PulseTarget | null }) {
   );
 }
 
+/** Where an inherited target comes from; it cannot be edited or removed here. */
+function inheritedFrom(
+  target: PulseTarget | null,
+  ownScope: PulseTarget["scope"],
+): string | null {
+  if (!target || target.scope === ownScope) return null;
+  if (target.scope === "platform") return "מהפלטפורמה";
+  return "מהגדרות הדוח";
+}
+
 function TargetRow({
   title,
   subtitle,
@@ -114,8 +122,8 @@ function TargetRow({
   subtitle?: string;
   goal: PulseCampaignGoal;
   target: PulseTarget | null;
-  /** The target shown comes from the platform, not from this campaign. */
-  inherited: boolean;
+  /** Where the shown target comes from when it is not this row's own (else null). */
+  inherited: string | null;
   saving: boolean;
   onSave: (kind: PulseTargetKind, value: number | null) => Promise<void>;
 }) {
@@ -142,7 +150,7 @@ function TargetRow({
             <span>
               {pulseTargetKindLabel(target.kind)}{" "}
               {formatTarget(target.kind, target.value)}
-              {inherited ? " (מהפלטפורמה)" : ""}
+              {inherited ? ` (${inherited})` : ""}
             </span>
           ) : null}
           <SourceBadge target={target} />
@@ -225,14 +233,22 @@ export function PulseTargetEditorDialog({
   }, [open, context?.clientId, context?.platform]);
 
   const platformGoal = context?.primaryGoal ?? "leads";
-  const platformTarget = useMemo(() => {
-    if (!context?.platformTableId) return null;
-    return resolvePulseTarget(
-      tableSettingsById.get(context.platformTableId) ?? {},
-      platformGoal,
-      null,
-    );
-  }, [context?.platformTableId, platformGoal, tableSettingsById]);
+  const platformTableIds = useMemo(
+    () => context?.platformTableIds ?? [],
+    [context?.platformTableIds],
+  );
+  // The pulse reads a platform target from any of the platform's tables.
+  const platformTarget = useMemo(
+    () =>
+      resolvePulseTargetAcross(
+        platformTableIds.map((tableId) => ({
+          tableId,
+          settings: tableSettingsById.get(tableId) ?? {},
+        })),
+        platformGoal,
+      ),
+    [platformTableIds, platformGoal, tableSettingsById],
+  );
 
   const campaignRows = useMemo(
     () =>
@@ -240,12 +256,17 @@ export function PulseTargetEditorDialog({
         .filter((row) => EDITABLE_GOALS.has(row.goal))
         .sort((a, b) => (b.spend_7d || 0) - (a.spend_7d || 0))
         .map((row) => {
-          const target = resolvePulseTarget(
-            tableSettingsById.get(row.table_id) ?? {},
-            row.goal,
-            { campaignId: row.campaign_id, campaignName: row.campaign_name },
+          const { target, tableId, campaignId } = campaignRowTarget(
+            row,
+            tableSettingsById,
           );
-          return { row, target, inherited: target?.scope !== "campaign" };
+          return {
+            row,
+            target,
+            inherited: inheritedFrom(target, "campaign"),
+            // Save over the entry the shown target came from.
+            saveTo: { tableIds: [tableId], campaignId },
+          };
         }),
     [campaigns, tableSettingsById],
   );
@@ -262,14 +283,14 @@ export function PulseTargetEditorDialog({
             {context ? `· ${platformLabel(context.platform)}` : ""}
           </DialogTitle>
           <DialogDescription>
-            יעד שנשמר כאן הוא יעד מאושר, ומחליף גם יעד שוק שכרמן קבעה. יעד של
-            קמפיין גובר על יעד הפלטפורמה.
+            יעד שנשמר כאן הוא יעד מאושר: הוא מחליף יעד שוק שכרמן קבעה וגובר עליו
+            בכל רמה. יעד מאושר של קמפיין גובר על יעד הפלטפורמה.
           </DialogDescription>
         </DialogHeader>
 
         {context ? (
           <div className="space-y-4 py-1" key={openedAt}>
-            {context.platformTableId &&
+            {platformTableIds.length > 0 &&
             EDITABLE_GOALS.has(context.primaryGoal) ? (
               <div className="space-y-2">
                 <div className="text-sm font-semibold">יעד לפלטפורמה</div>
@@ -285,11 +306,15 @@ export function PulseTargetEditorDialog({
                   }
                   goal={platformGoal}
                   target={platformTarget}
-                  inherited={false}
-                  saving={savingKey === context.platformTableId}
+                  // Legacy report-settings targets are shown, not removed here.
+                  inherited={inheritedFrom(platformTarget, "platform")}
+                  saving={
+                    savingKey ===
+                    pulseTargetSaveKey({ tableIds: platformTableIds })
+                  }
                   onSave={(kind, value) =>
                     onSave({
-                      tableId: context.platformTableId!,
+                      tableIds: platformTableIds,
                       goal: platformGoal,
                       kind,
                       value,
@@ -306,8 +331,11 @@ export function PulseTargetEditorDialog({
                   אין קמפייני לידים או איקומרס עם הוצאה ב־7 הימים האחרונים
                 </p>
               ) : (
-                campaignRows.map(({ row, target, inherited }) => {
-                  const slot = row.campaign_id || row.campaign_name;
+                campaignRows.map(({ row, target, inherited, saveTo }) => {
+                  const save = {
+                    ...saveTo,
+                    campaignName: row.campaign_name,
+                  };
                   return (
                     <TargetRow
                       key={row.campaign_key}
@@ -326,15 +354,13 @@ export function PulseTargetEditorDialog({
                       goal={row.goal}
                       target={target}
                       inherited={inherited}
-                      saving={savingKey === `${row.table_id}:${slot}`}
+                      saving={savingKey === pulseTargetSaveKey(save)}
                       onSave={(kind, value) =>
                         onSave({
-                          tableId: row.table_id,
+                          ...save,
                           goal: row.goal,
                           kind,
                           value,
-                          campaignId: row.campaign_id,
-                          campaignName: row.campaign_name,
                         })
                       }
                     />

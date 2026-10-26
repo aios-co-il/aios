@@ -47,6 +47,32 @@ Deno.test(
     assertStrictEquals(silent?.level, "watch");
     assertMatch(silent.label, /בלי התראה/);
 
+    // A target-less exception with its alerts off is stored yellow (warning) and
+    // still shows, labelled as silent.
+    const yellow = evaluateEfficiencyIssue({
+      campaignRows: [
+        {
+          ...breach,
+          status: "warning",
+          alert_eligible: false,
+          status_reason:
+            "עלייה מתמשכת ב־CPL מול הבסיס (40%+ ב־3 וב־7 ימים) — אין יעד",
+        },
+      ],
+    });
+    assertStrictEquals(yellow?.level, "watch");
+    assertMatch(yellow.label, /בלי התראה \(התראות לקמפיינים בלי יעד כבויות\)$/);
+
+    const watch = { ...breach, status: "warning", status_tier: "watch" };
+    assertMatch(
+      evaluateEfficiencyIssue({ campaignRows: [breach, watch] }).label,
+      / \(ועוד קמפיין אחד\)$/,
+    );
+    assertMatch(
+      evaluateEfficiencyIssue({ campaignRows: [breach, watch, watch] }).label,
+      / \(ועוד 2 קמפיינים\)$/,
+    );
+
     assertStrictEquals(
       evaluateEfficiencyIssue({
         campaignRows: [{ ...breach, status: "healthy", status_tier: "normal" }],

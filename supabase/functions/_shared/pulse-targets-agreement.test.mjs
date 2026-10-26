@@ -13,6 +13,8 @@ import {
 import { buildPulseCampaignRows } from "./pulse-campaign-goals.mjs";
 import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
 import { evaluatePulseInstantAlerts } from "./pulse-instant-alerts.ts";
+import { listCampaignsWithoutTarget } from "./pulse-targets.mjs";
+import { buildPulseCategoryDigestLines } from "./campaign-pulse.ts";
 
 const NOW = "2026-09-18"; // current 7d: 09-11..09-17; baseline: 08-14..09-10
 const ALERTS_ON = { manager: { cost: { target_less_alerts: true } } };
@@ -97,7 +99,8 @@ Deno.test(
     const off = onlyRow(records, tables, null);
     assertStrictEquals(off.trend_3d_pct, 50);
     assertStrictEquals(off.trend_7d_pct, 50);
-    assertStrictEquals(off.status, "critical");
+    // Yellow while target-less alerts are off: red means an alert is due.
+    assertStrictEquals(off.status, "warning");
     assertStrictEquals(off.status_tier, "exception");
     assertStrictEquals(
       off.alert_eligible,
@@ -110,6 +113,7 @@ Deno.test(
 
     const on = onlyRow(records, tables, ALERTS_ON);
     assertStrictEquals(on.alert_eligible, true);
+    assertStrictEquals(on.status, "critical");
     assertStrictEquals(
       on.status_reason,
       off.status_reason,
@@ -421,5 +425,121 @@ Deno.test(
       if (alertRules === null)
         assertStrictEquals(a.issues.efficiency.level, "watch");
     }
+  },
+);
+
+Deno.test(
+  "duplicate Meta tables: the campaign's target and verdict do not depend on record order",
+  () => {
+    const t1 = campaignDays({
+      tableId: "t1",
+      campaignId: "c1",
+      name: "Leads",
+      extra: LEAD,
+      baseline: { spend: 100, leads: 2 }, // CPL 50
+      current: { spend: 150, leads: 2 }, // CPL 75
+    });
+    const t2 = campaignDays({
+      tableId: "t2",
+      campaignId: "c2",
+      name: "Leads",
+      extra: LEAD,
+      baseline: { spend: 100, leads: 2 },
+      current: { spend: 150, leads: 2 },
+    });
+    // The editor saved an approved per-campaign CPL 60 on t1 under c1.
+    const tables = [
+      leadsTable("t1", "a", { pulse_targets: { c1: { cpl: 60 } } }),
+      leadsTable("t2", "a"),
+    ];
+    const seen = [];
+    for (const records of [
+      [...t1, ...t2],
+      [...t2, ...t1],
+    ]) {
+      const row = onlyRow(records, tables, ALERTS_ON);
+      assertStrictEquals(row.target_value, 60);
+      assertStrictEquals(row.target_source, "approved");
+      assertStrictEquals(row.target_table_id, "t1");
+      assertMatch(row.status_reason, /היעד המאושר \(CPL 60\)/);
+      assertStrictEquals(row.alert_eligible, true);
+      assertStrictEquals(row.spend_7d, 1050, "one table's rows per day");
+      assertEquals(
+        listCampaignsWithoutTarget({ campaignRows: [row], tables }),
+        [],
+      );
+      seen.push([row.table_id, row.campaign_id, row.status_reason]);
+    }
+    assertEquals(seen[0], seen[1]);
+  },
+);
+
+Deno.test(
+  "no target: spend with no leads in the last 3 days counts past the threshold",
+  () => {
+    const records = campaignDays({
+      tableId: "t1",
+      campaignId: "c1",
+      name: "Leads",
+      extra: LEAD,
+      baseline: { spend: 100, leads: 2 }, // CPL 50
+      current: { spend: 100, leads: 1 }, // CPL 100
+    });
+    for (const record of records)
+      if ([day(0), day(1), day(2)].includes(record.data.date))
+        record.data = { ...record.data, leads: 0 };
+    const tables = [leadsTable("t1", "a")];
+
+    const row = onlyRow(records, tables, ALERTS_ON);
+    assertStrictEquals(row.spend_3d, 300);
+    assertStrictEquals(row.efficiency_3d, null);
+    assertStrictEquals(row.trend_7d_pct, 250);
+    assertStrictEquals(row.status_tier, "exception");
+    assertStrictEquals(row.status, "critical");
+    assertStrictEquals(row.alert_eligible, true);
+    assertMatch(row.status_reason, /CPL.*אין יעד/);
+
+    const [candidate] = evaluatePulseInstantAlerts(
+      [{ client_id: "a", client_name: "a", campaign_breakdown: [row] }],
+      [],
+      {
+        instant_wa_enabled: true,
+        no_contact_enabled: false,
+        cpl_spike_enabled: false,
+        disconnected_enabled: false,
+      },
+    );
+    assertMatch(candidate.message, /יעד: אין יעד\n/);
+    assertMatch(candidate.message, /3 ימים: אין תוצאות/);
+    assertMatch(candidate.message, /החמרה מול הבסיס: 3 ימים אין תוצאות/);
+    assertStrictEquals(candidate.evidence.no_results_3d, true);
+
+    // Off by default: the same campaign is a yellow, silent exception.
+    const off = onlyRow(records, tables, null);
+    assertStrictEquals(off.status, "warning");
+    assertStrictEquals(off.alert_eligible, false);
+  },
+);
+
+Deno.test(
+  "a target-less exception with alerts off stays yellow in the WhatsApp digest",
+  () => {
+    const row = onlyRow(
+      campaignDays({
+        tableId: "t1",
+        campaignId: "c1",
+        name: "Leads",
+        extra: LEAD,
+        baseline: { spend: 100, leads: 2 },
+        current: { spend: 150, leads: 2 },
+      }),
+      [leadsTable("t1", "a")],
+      null,
+    );
+    const lines = buildPulseCategoryDigestLines([
+      { client_name: "a", campaign_breakdown: [row] },
+    ]);
+    assertStrictEquals(lines[1], "לידים: 🔴 0 · 🟡 1 · 🟢 0 (קמפיין אחד)");
+    assert(!lines.some((line) => line.includes("חריגות מאומתות")));
   },
 );

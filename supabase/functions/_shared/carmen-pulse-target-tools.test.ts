@@ -403,3 +403,241 @@ Deno.test(
     assertStrictEquals(client.missing[0].campaigns[0].campaign_id, "c1");
   },
 );
+
+function addPulseRow(db: ReturnType<typeof fakeDb>, row: Row) {
+  db.tables.campaign_pulse_snapshots[0].campaign_breakdown.push({
+    client_id: "client-1",
+    table_id: "t-meta",
+    platform: "meta",
+    spend_7d: 500,
+    delivery_status: "active",
+    ...row,
+  });
+}
+
+Deno.test(
+  "set_market_target refuses a campaign measured on another goal and keeps its approved target",
+  async () => {
+    const db = fakeDb(
+      seed({
+        pulse_targets: {
+          123: { cpa: 50, source: "approved", goal: "ecommerce" },
+        },
+      }),
+    );
+    addPulseRow(db, {
+      campaign_key: "k123",
+      campaign_id: "123",
+      campaign_name: "מבצע",
+      goal: "ecommerce",
+    });
+    const result: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        kind: "cpl",
+        value: 40,
+        rationale: RATIONALE,
+        campaign_id: "123",
+      },
+    );
+    assertStrictEquals(result.success, false);
+    assertStrictEquals(result.error, "goal_mismatch");
+    assertMatch(result.message, /איקומרס/);
+    assertStrictEquals(db.writes.length, 0);
+
+    // Even with a stale pulse that says "leads", the approved slot is not replaced.
+    db.tables.campaign_pulse_snapshots[0].campaign_breakdown.at(-1).goal =
+      "leads";
+    const stale: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 40,
+        rationale: RATIONALE,
+        campaign_id: "123",
+      },
+    );
+    assertStrictEquals(stale.error, "approved_target_exists");
+    assertStrictEquals(db.writes.length, 0);
+    const meta = db.tables.crm_tables.find((t) => t.id === "t-meta")!;
+    assertEquals(meta.integration_settings.pulse_targets["123"], {
+      cpa: 50,
+      source: "approved",
+      goal: "ecommerce",
+    });
+  },
+);
+
+Deno.test(
+  "a campaign target needs the campaign in the latest pulse",
+  async () => {
+    // The approved target sits under the name; without the campaign in the pulse
+    // a write under the id would shadow it.
+    const db = fakeDb(seed({ pulse_targets: { "Camp A": { cpl: 80 } } }));
+    for (const tool of ["set_market_target", "set_pulse_target"]) {
+      const result: any = await executePulseTargetTool(db, ctx(), tool, {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 40,
+        rationale: RATIONALE,
+        campaign_id: "777",
+      });
+      assertStrictEquals(result.error, "campaign_not_in_pulse", tool);
+    }
+    assertStrictEquals(db.writes.length, 0);
+    assertStrictEquals(db.tables.agent_approval_queue.length, 0);
+  },
+);
+
+Deno.test(
+  "set_pulse_target refuses a goal the campaign is not measured on",
+  async () => {
+    const db = fakeDb(seed());
+    const result: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_pulse_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "ecommerce",
+        kind: "roas",
+        value: 3,
+        campaign_id: "c1", // a leads campaign in the pulse
+      },
+    );
+    assertStrictEquals(result.error, "goal_mismatch");
+    assertStrictEquals(db.tables.agent_approval_queue.length, 0);
+  },
+);
+
+Deno.test(
+  "a platform market target is all or nothing across the platform's tables",
+  async () => {
+    const db = fakeDb(seed());
+    db.tables.crm_tables.push({
+      id: "t-meta-2",
+      client_id: "client-1",
+      tenant_id: "tenant-1",
+      integration_type: "facebook_ecommerce",
+      integration_settings: {
+        pulse_platform_targets: { leads: { cpl: 70, source: "approved" } },
+      },
+    });
+    const result: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 55,
+        rationale: RATIONALE,
+      },
+    );
+    assertStrictEquals(result.success, false);
+    assertStrictEquals(result.error, "approved_target_exists");
+    assertStrictEquals(result.table_id, "t-meta-2");
+    assertStrictEquals(db.writes.length, 0, "t-meta is not written either");
+  },
+);
+
+Deno.test(
+  "a market target far from the client's own baseline is refused",
+  async () => {
+    const db = fakeDb(seed());
+    const breakdown = db.tables.campaign_pulse_snapshots[0].campaign_breakdown;
+    breakdown[0].baseline_efficiency_7d = 50;
+    const far: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 20,
+        rationale: RATIONALE,
+        campaign_id: "c1",
+      },
+    );
+    assertStrictEquals(far.error, "value_out_of_range");
+    assertEquals(far.allowed_range, [25, 75]);
+    const platform: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 90,
+        rationale: RATIONALE,
+      },
+    );
+    assertStrictEquals(platform.error, "value_out_of_range");
+    assertStrictEquals(db.writes.length, 0);
+
+    const near: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 60,
+        rationale: RATIONALE,
+        campaign_id: "c1",
+      },
+    );
+    assertStrictEquals(near.success, true);
+  },
+);
+
+Deno.test(
+  "only managers and campaigners set targets; a viewer role is refused",
+  async () => {
+    const db = fakeDb(seed());
+    for (const tool of ["set_market_target", "set_pulse_target"]) {
+      const result: any = await executePulseTargetTool(
+        db,
+        ctx({ callerRole: "sales_person", isManagerRole: false }),
+        tool,
+        {
+          client_id: "client-1",
+          platform: "meta",
+          goal: "leads",
+          value: 60,
+          rationale: RATIONALE,
+        },
+      );
+      assertStrictEquals(result.error, "role_not_allowed", tool);
+    }
+    assertStrictEquals(db.writes.length, 0);
+    const campaigner: any = await executePulseTargetTool(
+      db,
+      ctx({ callerRole: "campaigner", isManagerRole: false }),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 60,
+        rationale: RATIONALE,
+      },
+    );
+    assertStrictEquals(campaigner.success, true);
+  },
+);

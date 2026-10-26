@@ -14,6 +14,14 @@
  * one only where no approved target applies; a person replaces it by saving an
  * approved target in the same place.
  *
+ * Which target applies: an approved target at any level beats a market estimate at
+ * any level (a person's decision always wins over Carmen's estimate, even one set
+ * later at the platform level). Among targets of the same source the most specific
+ * level wins whole (campaign → platform → pulse_targets.default → table fields). A
+ * campaign merged from several report tables (duplicate Meta tables) is resolved over
+ * all of them (resolvePulseTargetAcross); between tables at the same level the most
+ * recently set target wins, then the first table.
+ *
  * Plain ESM so the Deno functions and the Vite dashboard run the same rules.
  */
 
@@ -106,9 +114,118 @@ function campaignSlotKey(campaign) {
   return name || null;
 }
 
+function campaignSlots(campaign) {
+  if (!campaign) return [];
+  const id = String(campaign.campaignId ?? campaign.campaign_id ?? "").trim();
+  const name = String(
+    campaign.campaignName ?? campaign.campaign_name ?? "",
+  ).trim();
+  return [...new Set([id, name])].filter((slot) => slot && slot !== "default");
+}
+
+/** The goal a stored campaign entry was written for (older entries carry none). */
+function entryGoal(entry) {
+  if (!isPlainObject(entry)) return null;
+  if (TARGET_KINDS_BY_GOAL[entry.goal]) return entry.goal;
+  if (readKind(entry, "roas") !== null || readKind(entry, "cpa") !== null)
+    return "ecommerce";
+  if (readKind(entry, "cpl") !== null) return "leads";
+  if (readKind(entry, "cost_per_result") !== null) return "engagement";
+  return null;
+}
+
+/** Every valid target for the goal at one table, most specific first. */
+function targetsAtPlace(settings, goal, campaign) {
+  const s = isPlainObject(settings) ? settings : {};
+  const targets = campaignTargets(s);
+  const platformTargets = isPlainObject(s.pulse_platform_targets)
+    ? s.pulse_platform_targets
+    : {};
+  return [
+    // The readers try the id before the name.
+    ...campaignSlots(campaign).map((slot) =>
+      targetFromEntry(targets[slot], goal, "campaign"),
+    ),
+    targetFromEntry(platformTargets[goal], goal, "platform"),
+    targetFromEntry(platformTargets.default, goal, "platform"),
+    targetFromEntry(targets.default, goal, "default"),
+    // Legacy table fields have no source: a person set them in the report settings.
+    targetFromEntry(
+      {
+        roas: s.target_roas,
+        cpa: s.target_cpa,
+        cpl: s.target_cpl,
+        cost_per_result: s.target_cost_per_result,
+      },
+      goal,
+      "table",
+    ),
+  ].filter(Boolean);
+}
+
+const SCOPE_RANK = Object.freeze({
+  campaign: 0,
+  platform: 1,
+  default: 2,
+  table: 3,
+});
+
+function setAtMs(target) {
+  const ms = Date.parse(target.set_at || "");
+  return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
+
+/** Does `a` (from a later table) beat `b`? Same table: the earlier one always wins. */
+function outranks(a, b) {
+  const source =
+    Number(a.source !== "approved") - Number(b.source !== "approved");
+  if (source) return source < 0;
+  const scope = SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope];
+  if (scope) return scope < 0;
+  return setAtMs(a) > setAtMs(b);
+}
+
 /**
- * The target that applies to a campaign (or, without one, to the whole platform goal).
- * The most specific place that holds a valid target for the goal wins whole, so a
+ * The target that applies to one campaign merged from several tables (or, without
+ * a campaign, to the platform goal of several tables). Every table is read with its
+ * own campaign id and name; see the header for the order.
+ *
+ * @param {Array<{
+ *   tableId?: string | null,
+ *   settings: Record<string, unknown> | null | undefined,
+ *   campaignId?: string | null,
+ *   campaignName?: string | null,
+ * }>} places tables in a stable order (the first one wins a full tie)
+ * @param {string} goal leads | ecommerce | engagement
+ */
+export function resolvePulseTargetAcross(places, goal) {
+  let best = null;
+  for (const place of places || []) {
+    const campaign =
+      place.campaignId || place.campaignName
+        ? { campaignId: place.campaignId, campaignName: place.campaignName }
+        : null;
+    const found = targetsAtPlace(place.settings, goal, campaign);
+    // Within one table: the most specific approved target, else the most specific
+    // market estimate.
+    const own =
+      found.find((target) => target.source === "approved") || found[0] || null;
+    if (!own) continue;
+    if (!best || outranks(own, best))
+      best = {
+        ...own,
+        table_id: place.tableId ?? null,
+        // The campaign id this table stores it under (duplicate tables differ).
+        campaign_id:
+          own.scope === "campaign" ? (place.campaignId ?? null) : null,
+      };
+  }
+  return best;
+}
+
+/**
+ * The target that applies to a campaign (or, without one, to the whole platform goal)
+ * in one table. Approved beats market; then the most specific place wins whole, so a
  * campaign's own CPA beats the platform's ROAS.
  *
  * @param {Record<string, unknown> | null | undefined} settings crm_tables.integration_settings
@@ -116,36 +233,9 @@ function campaignSlotKey(campaign) {
  * @param {{ campaignId?: string | null, campaignName?: string | null } | null} [campaign]
  */
 export function resolvePulseTarget(settings, goal, campaign = null) {
-  const s = isPlainObject(settings) ? settings : {};
-  const targets = campaignTargets(s);
-  if (campaign) {
-    const id = String(campaign.campaignId ?? campaign.campaign_id ?? "").trim();
-    const name = String(
-      campaign.campaignName ?? campaign.campaign_name ?? "",
-    ).trim();
-    const entry = (id && targets[id]) || (name && targets[name]) || null;
-    const hit = entry && targetFromEntry(entry, goal, "campaign");
-    if (hit) return hit;
-  }
-  const platformTargets = isPlainObject(s.pulse_platform_targets)
-    ? s.pulse_platform_targets
-    : {};
-  const platformHit =
-    targetFromEntry(platformTargets[goal], goal, "platform") ||
-    targetFromEntry(platformTargets.default, goal, "platform");
-  if (platformHit) return platformHit;
-  const defaultHit = targetFromEntry(targets.default, goal, "default");
-  if (defaultHit) return defaultHit;
-  // Legacy table fields have no source: a person set them in the report settings.
-  return targetFromEntry(
-    {
-      roas: s.target_roas,
-      cpa: s.target_cpa,
-      cpl: s.target_cpl,
-      cost_per_result: s.target_cost_per_result,
-    },
-    goal,
-    "table",
+  const found = targetsAtPlace(settings, goal, campaign);
+  return (
+    found.find((target) => target.source === "approved") || found[0] || null
   );
 }
 
@@ -242,13 +332,26 @@ export function buildPulseTargetPatch(existingSettings, input) {
 
 /**
  * May Carmen write a market target here? Never where an approved target applies:
- * at campaign level an approved campaign or platform target blocks it; at platform
- * level an approved platform, default or table target blocks it. Carmen may replace
- * her own earlier estimate.
+ * at campaign level an approved campaign, platform, default or table target blocks
+ * it (approved beats market at any level, see resolvePulseTarget), and so does an
+ * approved entry stored under the campaign's id or name for any goal, because a
+ * write replaces that slot whole. At platform level an approved platform, default
+ * or table target blocks it. Carmen may replace her own earlier estimate.
  */
 export function canSetMarketTarget(settings, goal, campaign = null) {
   if (!pulseTargetKindsForGoal(goal).length)
     return { ok: false, reason: "unsupported_goal", existing: null };
+  const targets = campaignTargets(isPlainObject(settings) ? settings : {});
+  for (const slot of campaignSlots(campaign)) {
+    const entry = targets[slot];
+    if (!isPlainObject(entry)) continue;
+    if (normalizeTargetSource(entry.source) !== "approved") continue;
+    const goalOfEntry = entryGoal(entry);
+    const existing =
+      goalOfEntry && targetFromEntry(entry, goalOfEntry, "campaign");
+    if (existing)
+      return { ok: false, reason: "approved_target_exists", existing };
+  }
   const existing = resolvePulseTarget(settings, goal, campaign);
   if (existing && existing.source === "approved")
     return { ok: false, reason: "approved_target_exists", existing };
@@ -274,6 +377,10 @@ export function listCampaignsWithoutTarget({ campaignRows = [], tables = [] }) {
     if (!((Number(row.spend_7d) || 0) > 0)) continue;
     if (row.delivery_status === "paused" || row.delivery_status === "removed")
       continue;
+    // The pulse row resolved its target over every table the campaign is read
+    // from; a stored snapshot can be older than a target set since, so the row's
+    // own table is read again as well.
+    if (row.target_value !== null && row.target_value !== undefined) continue;
     const settings = settingsById.get(row.table_id);
     if (!settings) continue;
     const target = resolvePulseTarget(settings, row.goal, {
@@ -349,10 +456,7 @@ export function summarizePulseTargets({ tables = [], campaignRows = [] }) {
     }
     for (const [slot, entry] of Object.entries(campaignTargets(settings))) {
       if (slot === "default" || !isPlainObject(entry)) continue;
-      const goal =
-        entry.goal ||
-        pulseTargetGoalFromEntry(entry) ||
-        (readKind(entry, "cpl") !== null ? "leads" : null);
+      const goal = entryGoal(entry);
       if (!goal) continue;
       const target = targetFromEntry(entry, goal, "campaign");
       if (target)
@@ -377,11 +481,4 @@ export function summarizePulseTargets({ tables = [], campaignRows = [] }) {
       0,
     ),
   };
-}
-
-function pulseTargetGoalFromEntry(entry) {
-  if (readKind(entry, "roas") !== null || readKind(entry, "cpa") !== null)
-    return "ecommerce";
-  if (readKind(entry, "cost_per_result") !== null) return "engagement";
-  return null;
 }

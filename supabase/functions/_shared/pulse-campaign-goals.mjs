@@ -4,7 +4,7 @@ import {
 } from "./pulse-cost-rules.mjs";
 import {
   pulseTargetSourceLabel,
-  resolvePulseTarget,
+  resolvePulseTargetAcross,
 } from "./pulse-targets.mjs";
 
 const DAY_MS = 86_400_000;
@@ -721,17 +721,47 @@ function platformForIntegration(type) {
   return "unknown";
 }
 
-/** The target that applies to this campaign, from any place it may be stored. */
-function campaignTarget(settings = {}, data = {}, goal) {
-  return resolvePulseTarget(settings, goal, {
-    campaignId: data.campaign_id || data.campaignId || null,
-    campaignName:
-      data.campaign_name ||
-      data.campaignName ||
-      data.campaign ||
-      data.name ||
-      null,
-  });
+/** Duplicate Meta tables: the one built for the goal reads it best. */
+function tableTypeRank(table, goal) {
+  if (table?.integration_type === "facebook_ecommerce")
+    return goal === "ecommerce" ? 0 : 1;
+  if (table?.integration_type === "facebook_insights")
+    return goal === "ecommerce" ? 1 : 0;
+  return 0;
+}
+
+/**
+ * Which of two rows of one campaign represents it (negative: `a`). The best scored
+ * row wins; ties go to the goal's own table type, then table id, then the latest
+ * day, then campaign id, so the pick never depends on the order the records came in.
+ */
+function compareCampaignItems(a, b, goal) {
+  return (
+    b.score - a.score ||
+    tableTypeRank(a.table, goal) - tableTypeRank(b.table, goal) ||
+    String(a.table.id).localeCompare(String(b.table.id)) ||
+    String(b.record.data.date || "").localeCompare(
+      String(a.record.data.date || ""),
+    ) ||
+    String(a.identity.id ?? "").localeCompare(String(b.identity.id ?? ""))
+  );
+}
+
+/**
+ * The target that applies to a campaign, over every table (and that table's own
+ * campaign id and name) the campaign is read from, so duplicate report tables give
+ * the same answer whichever of them the row was sampled from.
+ */
+function campaignTarget(places, goal) {
+  return resolvePulseTargetAcross(
+    places.map(({ table, identity }) => ({
+      tableId: table.id,
+      settings: table.integration_settings || {},
+      campaignId: identity.id,
+      campaignName: identity.name === "ללא שם" ? null : identity.name,
+    })),
+    goal,
+  );
 }
 
 function aggregate(rows, goal, outcomeKind) {
@@ -928,11 +958,20 @@ function classifyStatus({
 
   const useRoas = goal === "ecommerce" && target?.kind !== "cpa";
   const lowerIsBetter = !useRoas;
-  const trend3 = pct(
-    useRoas ? current3.roas : current3.efficiency,
-    useRoas ? baseline3.roas : baseline3.efficiency,
-    lowerIsBetter,
-  );
+  // Spend with no result at all in the last 3 days has no cost per result, and is
+  // worse than any rise: count it past every threshold (the 7-day window, minimum
+  // spend and baseline guards still decide). A day with 0 leads reads as "no
+  // value" (pulseCampaignOutcome), so 3 such days aggregate to null, not 0; the
+  // 7-day window has results here (the cases without any returned above).
+  const noResults3 =
+    !useRoas && current3.spend > 0 && !(Number(current3.outcomes) > 0);
+  const trend3 = noResults3
+    ? Number.POSITIVE_INFINITY
+    : pct(
+        useRoas ? current3.roas : current3.efficiency,
+        useRoas ? baseline3.roas : baseline3.efficiency,
+        lowerIsBetter,
+      );
   const trend7 = pct(
     useRoas ? current7.roas : current7.efficiency,
     useRoas ? baseline7.roas : baseline7.efficiency,
@@ -955,8 +994,10 @@ function classifyStatus({
     rules: costRules,
   });
   if (verdict.level === "exception") {
+    // Red only when the alert is sent: while the tenant keeps target-less alerts
+    // off, the exception is yellow everywhere (dashboard, digest, client status).
     return {
-      status: "critical",
+      status: verdict.alertEligible ? "critical" : "warning",
       tier: "exception",
       reason: verdict.reason,
       alertEligible: verdict.alertEligible,
@@ -1127,17 +1168,37 @@ export function buildPulseCampaignRows({
     })),
   );
 
+  // Every table (with its own campaign id and name) each campaign is read from,
+  // including tables whose daily rows lose the per-day pick below: a target stored
+  // on any of them applies to the campaign.
+  const placesByCampaign = new Map();
   for (const item of usable) {
     const { record, table, platform, identity } = item;
     const data = record.data;
     const goal = campaignGoal.get(campaignOf(item));
-    const mergeKey = `${canonicalCampaignMergeKey(table.client_id, platform, goal, identity)}:${data.date}`;
+    const campaignKey = canonicalCampaignMergeKey(
+      table.client_id,
+      platform,
+      goal,
+      identity,
+    );
+    const places = placesByCampaign.get(campaignKey) || new Map();
+    const placeKey = `${table.id}:${identity.id ?? ""}:${identity.name}`;
+    if (!places.has(placeKey)) places.set(placeKey, { table, identity });
+    placesByCampaign.set(campaignKey, places);
+
+    const mergeKey = `${campaignKey}:${data.date}`;
+    const candidate = {
+      record,
+      table,
+      identity,
+      platform,
+      goal,
+      score: recordScore(record, table),
+    };
     const previous = deduped.get(mergeKey);
-    if (
-      !previous ||
-      recordScore(record, table) > recordScore(previous.record, previous.table)
-    ) {
-      deduped.set(mergeKey, { record, table, identity, platform, goal });
+    if (!previous || compareCampaignItems(candidate, previous, goal) < 0) {
+      deduped.set(mergeKey, candidate);
     }
   }
 
@@ -1164,13 +1225,9 @@ export function buildPulseCampaignRows({
   );
   const rows = [];
 
-  for (const items of campaigns.values()) {
+  for (const [campaignKey, items] of campaigns) {
     const sample = items.reduce((best, item) =>
-      !best ||
-      recordScore(item.record, item.table) >
-        recordScore(best.record, best.table)
-        ? item
-        : best,
+      compareCampaignItems(item, best, item.goal) < 0 ? item : best,
     );
     const sampleClassification = classifyPulseCampaignGoal(sample.record.data, {
       integration_type: sample.table.integration_type,
@@ -1235,11 +1292,16 @@ export function buildPulseCampaignRows({
       sample.record.data,
       tableSettings,
     );
-    const target = campaignTarget(
-      tableSettings,
-      sample.record.data,
-      classification.goal,
+    const places = [
+      ...(placesByCampaign.get(campaignKey)?.values() || []),
+    ].sort(
+      (a, b) =>
+        tableTypeRank(a.table, classification.goal) -
+          tableTypeRank(b.table, classification.goal) ||
+        String(a.table.id).localeCompare(String(b.table.id)) ||
+        String(a.identity.id ?? "").localeCompare(String(b.identity.id ?? "")),
     );
+    const target = campaignTarget(places, classification.goal);
     const status = classifyStatus({
       goal: classification.goal,
       current3,
@@ -1301,6 +1363,11 @@ export function buildPulseCampaignRows({
       target_kind: target?.kind ?? null,
       target_source: target?.source ?? null,
       target_scope: target?.scope ?? null,
+      // Where the target is stored (a duplicate table may hold it) and Carmen's
+      // reasoning for a market estimate, so the editor shows what the pulse used.
+      target_table_id: target?.table_id ?? null,
+      target_campaign_id: target?.campaign_id ?? null,
+      target_rationale: target?.rationale ?? null,
       spend_3d: round(current3.spend),
       outcomes_3d: round(current3.outcomes),
       efficiency_3d: round(efficiency3),

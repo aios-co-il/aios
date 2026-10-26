@@ -40,6 +40,21 @@ const PLATFORM_TYPES: Record<string, string[]> = {
 const AD_TYPES = [...PLATFORM_TYPES.meta, ...PLATFORM_TYPES.google];
 const TARGET_GOALS = ["leads", "ecommerce"];
 const MIN_RATIONALE_CHARS = 30;
+/** A market estimate must stay within this share of the client's own 7-day baseline. */
+const MARKET_TARGET_MAX_DEVIATION = 0.5;
+/**
+ * Roles that may set targets (the people who can edit report tables in the UI).
+ * A caller with no role (an automation, Carmen on her own) may still set a market
+ * target; set_pulse_target always needs a person.
+ */
+const TARGET_WRITER_ROLES = new Set([
+  "super_admin",
+  "owner",
+  "agency_owner",
+  "agency_manager",
+  "team_manager",
+  "campaigner",
+]);
 const MAX_CLIENTS_RETURNED = 40;
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -86,7 +101,7 @@ export const PULSE_TARGET_TOOLS = [
   {
     name: "set_market_target",
     description:
-      "קביעת יעד שוק (כרמן) — הערכה שלך ליעד CPL / CPA / ROAS לקמפיין או לפלטפורמה שאין להם יעד מאושר. היעד חייב להתבסס גם על בנצ׳מרקים של הענף של הלקוח בשוק הישראלי וגם על ההיסטוריה של הלקוח עצמו (הביצועים בדופק), והנימוק (rationale) חייב לציין את שניהם עם מספרים. לא דורס יעד מאושר שאדם קבע — אם יש כזה הכלי מסרב. יעד שוק מפעיל התראות כמו יעד מאושר, וההתראה מציינת שזה יעד שוק של כרמן. אם המשתמש עצמו רוצה לקבוע יעד — set_pulse_target.",
+      "קביעת יעד שוק (כרמן) — הערכה שלך ליעד CPL / CPA / ROAS לקמפיין או לפלטפורמה שאין להם יעד מאושר. היעד חייב להתבסס גם על בנצ׳מרקים של הענף של הלקוח בשוק הישראלי וגם על ההיסטוריה של הלקוח עצמו (הביצועים בדופק), והנימוק (rationale) חייב לציין את שניהם עם מספרים. הערך חייב להיות בטווח של ±50% מהבסיס של הלקוח ב־4 השבועות האחרונים; יעד רחוק יותר יתריע מיד, ולכן מציעים אותו למשתמש עם set_pulse_target. לא דורס יעד מאושר שאדם קבע — אם יש כזה הכלי מסרב. יעד לקמפיין: רק לקמפיין שמופיע בדופק האחרון, ורק למטרה שלפיה הוא נמדד. יעד שוק מפעיל התראות כמו יעד מאושר, וההתראה מציינת שזה יעד שוק של כרמן. אם המשתמש עצמו רוצה לקבוע יעד — set_pulse_target.",
     parameters: {
       type: "object",
       properties: {
@@ -214,24 +229,113 @@ async function latestCampaignRows(
   return rows;
 }
 
-/** Campaign name from the latest pulse (so the target also matches by name). */
-async function findCampaign(
-  supabase: Db,
-  ctx: PulseTargetToolContext,
+type PulseCampaignMatch = {
+  campaignId: string;
+  campaignName: string | null;
+  tableId: string | null;
+  goal: string | null;
+  targetSource: string | null;
+  targetValue: number | null;
+  targetKind: string | null;
+  targetScope: string | null;
+};
+
+/** The campaign as the latest pulse sees it (name, table, goal and its target). */
+function matchCampaign(
+  rows: Array<Record<string, unknown>>,
   input: TargetInput,
-) {
+): PulseCampaignMatch | null {
   if (!input.campaignId) return null;
-  const rows = await latestCampaignRows(supabase, ctx, [input.clientId]);
   const match = rows.find(
     (row) =>
       String(row.campaign_id ?? "") === input.campaignId &&
       row.platform === input.platform,
   );
+  if (!match) return null;
+  const text = (value: unknown) => (value ? String(value) : null);
+  const targetValue = Number(match.target_value);
   return {
     campaignId: input.campaignId,
-    campaignName: match ? String(match.campaign_name ?? "") || null : null,
-    tableId: match ? String(match.table_id ?? "") || null : null,
+    campaignName: text(match.campaign_name),
+    tableId: text(match.table_id),
+    goal: text(match.goal),
+    targetSource: text(match.target_source),
+    targetValue:
+      match.target_value != null && Number.isFinite(targetValue)
+        ? targetValue
+        : null,
+    targetKind: text(match.target_kind),
+    targetScope: text(match.target_scope),
   };
+}
+
+const GOAL_LABELS: Record<string, string> = {
+  leads: "לידים",
+  ecommerce: "איקומרס",
+  engagement: "אינגייג׳מנט",
+};
+
+/** A campaign target needs the campaign in the latest pulse, measured on this goal. */
+function campaignProblem(
+  input: TargetInput,
+  campaign: PulseCampaignMatch | null,
+): { error: string; message: string } | null {
+  if (!input.campaignId) return null;
+  if (!campaign)
+    return {
+      error: "campaign_not_in_pulse",
+      message:
+        "הקמפיין לא מופיע בדופק האחרון של הלקוח בפלטפורמה הזו. בדקי את campaign_id ב־get_pulse_targets, או קבעי יעד לפלטפורמה.",
+    };
+  if (campaign.goal && campaign.goal !== input.goal)
+    return {
+      error: "goal_mismatch",
+      message: `הדופק מודד את הקמפיין כ${GOAL_LABELS[campaign.goal] || "לא מסווג"}, לא כ${GOAL_LABELS[input.goal]}. יעד נקבע רק למטרה שלפיה הקמפיין נמדד.`,
+    };
+  return null;
+}
+
+function roleProblem(
+  ctx: PulseTargetToolContext,
+): { error: string; message: string } | null {
+  if (!ctx.callerRole || TARGET_WRITER_ROLES.has(ctx.callerRole)) return null;
+  return {
+    error: "role_not_allowed",
+    message:
+      "רק מנהלים וקמפיינרים קובעים יעדי דופק. אפשר להציג את היעדים עם get_pulse_targets.",
+  };
+}
+
+/**
+ * The client's own 7-day baseline for this target from the latest pulse: the
+ * campaign's, or the spend-weighted one of the platform's campaigns of that goal.
+ * Only rows measured on the same metric count (an ecommerce row is measured on
+ * ROAS unless it has a CPA target). Null when the pulse has none.
+ */
+function ownBaseline(
+  rows: Array<Record<string, unknown>>,
+  input: TargetInput,
+): number | null {
+  let weighted = 0;
+  let weight = 0;
+  for (const row of rows) {
+    if (row.platform !== input.platform || row.goal !== input.goal) continue;
+    if (input.campaignId && String(row.campaign_id ?? "") !== input.campaignId)
+      continue;
+    const measured =
+      row.goal === "ecommerce"
+        ? row.target_kind === "cpa"
+          ? "cpa"
+          : "roas"
+        : "cpl";
+    if (measured !== input.kind) continue;
+    const baseline = Number(row.baseline_efficiency_7d);
+    const spend = Number(row.spend_7d);
+    if (!(baseline > 0) || !(spend > 0)) continue;
+    weighted += baseline * spend;
+    weight += spend;
+  }
+  return weight > 0 ? weighted / weight : null;
 }
 
 async function clientName(supabase: Db, clientId: string) {
@@ -353,6 +457,8 @@ async function setMarketTarget(
       message:
         "נימוק חסר או קצר מדי: ציינו את הבנצ׳מרק של הענף בישראל ואת ההיסטוריה של הלקוח, עם מספרים.",
     };
+  const role = roleProblem(ctx);
+  if (role) return { success: false, ...role };
   await ctx.assertClientAccess(parsed.clientId);
   const tables = await loadPlatformTables(
     supabase,
@@ -365,7 +471,68 @@ async function setMarketTarget(
       error: "no_campaign_table",
       message: "אין ללקוח טבלת קמפיינים מחוברת בפלטפורמה הזו",
     };
-  const campaign = await findCampaign(supabase, ctx, parsed);
+  const rows = await latestCampaignRows(supabase, ctx, [parsed.clientId]);
+  const campaign = matchCampaign(rows, parsed);
+  const problem = campaignProblem(parsed, campaign);
+  if (problem) return { success: false, ...problem };
+
+  const refusal = (existing: unknown) => ({
+    success: false,
+    error: "approved_target_exists",
+    existing,
+    message:
+      "כבר יש יעד מאושר שאדם קבע — כרמן לא דורסת אותו. אם צריך לשנות, הציעי למשתמש set_pulse_target (באישור).",
+  });
+  // The pulse resolved the campaign's target over every table it is read from.
+  if (campaign?.targetSource === "approved")
+    return refusal({
+      value: campaign.targetValue,
+      kind: campaign.targetKind,
+      source: "approved",
+      scope: campaign.targetScope,
+    });
+  // An approved target on any table of this client × platform blocks the whole
+  // write: nothing is written unless every table allows it.
+  const ref = campaign
+    ? { campaignId: campaign.campaignId, campaignName: campaign.campaignName }
+    : null;
+  for (const table of tables) {
+    const allowed = canSetMarketTarget(
+      table.integration_settings || {},
+      parsed.goal,
+      ref,
+    );
+    if (!allowed.ok)
+      return allowed.reason === "approved_target_exists"
+        ? { ...refusal(allowed.existing), table_id: table.id }
+        : {
+            success: false,
+            error: allowed.reason || "not_written",
+            message: "היעד לא נשמר",
+          };
+  }
+
+  // A market estimate far from the client's own history would alert at once
+  // (or never): that call belongs to a person.
+  const baseline = ownBaseline(rows, parsed);
+  if (
+    baseline !== null &&
+    (parsed.value < baseline * (1 - MARKET_TARGET_MAX_DEVIATION) ||
+      parsed.value > baseline * (1 + MARKET_TARGET_MAX_DEVIATION))
+  ) {
+    const low =
+      Math.round(baseline * (1 - MARKET_TARGET_MAX_DEVIATION) * 100) / 100;
+    const high =
+      Math.round(baseline * (1 + MARKET_TARGET_MAX_DEVIATION) * 100) / 100;
+    return {
+      success: false,
+      error: "value_out_of_range",
+      baseline: Math.round(baseline * 100) / 100,
+      allowed_range: [low, high],
+      message: `יעד שוק חייב להיות בטווח של ±50% מהבסיס של הלקוח (${pulseTargetKindLabel(parsed.kind)} ${low}–${high}). יעד רחוק יותר — הציעי אותו למשתמש עם set_pulse_target, באישור.`,
+    };
+  }
+
   // A campaign target goes to the table the pulse reads that campaign from.
   const targetTables =
     campaign?.tableId && tables.some((t) => t.id === campaign.tableId)
@@ -373,22 +540,8 @@ async function setMarketTarget(
       : tables;
   const setAt = (ctx.now?.() ?? new Date()).toISOString();
   const written: Array<Record<string, unknown>> = [];
-  const skipped: Array<Record<string, unknown>> = [];
   for (const table of targetTables) {
-    const settings = table.integration_settings || {};
-    const ref = campaign
-      ? { campaignId: campaign.campaignId, campaignName: campaign.campaignName }
-      : null;
-    const allowed = canSetMarketTarget(settings, parsed.goal, ref);
-    if (!allowed.ok) {
-      skipped.push({
-        table_id: table.id,
-        reason: allowed.reason,
-        existing: allowed.existing,
-      });
-      continue;
-    }
-    const next = buildPulseTargetPatch(settings, {
+    const next = buildPulseTargetPatch(table.integration_settings || {}, {
       goal: parsed.goal,
       kind: parsed.kind as never,
       value: parsed.value,
@@ -409,17 +562,6 @@ async function setMarketTarget(
       integration_type: table.integration_type,
     });
   }
-  if (!written.length) {
-    const approved = skipped.find((s) => s.reason === "approved_target_exists");
-    return {
-      success: false,
-      error: approved ? "approved_target_exists" : "not_written",
-      existing: approved?.existing ?? null,
-      message: approved
-        ? "כבר יש יעד מאושר שאדם קבע — כרמן לא דורסת אותו. אם צריך לשנות, הציעי למשתמש set_pulse_target (באישור)."
-        : "היעד לא נשמר",
-    };
-  }
   const label = `${pulseTargetKindLabel(parsed.kind)} ${parsed.value}`;
   return {
     success: true,
@@ -429,7 +571,6 @@ async function setMarketTarget(
     scope: campaign ? "campaign" : "platform",
     campaign: campaign?.campaignName || campaign?.campaignId || null,
     written,
-    skipped,
     set_at: setAt,
     note: "מרענון הדופק הבא חריגה מתמשכת מהיעד תתריע כמו יעד מאושר, וההתראה תציין שזה יעד שוק של כרמן. אדם יכול להחליף אותו ביעד מאושר בדשבורד הדופק.",
   };
@@ -448,6 +589,8 @@ async function requestApprovedTarget(
     };
   const parsed = parseTargetInput(args);
   if ("error" in parsed) return parsed;
+  const role = roleProblem(ctx);
+  if (role) return role;
   await ctx.assertClientAccess(parsed.clientId);
   const tables = await loadPlatformTables(
     supabase,
@@ -460,7 +603,14 @@ async function requestApprovedTarget(
       error: "no_campaign_table",
       message: "אין ללקוח טבלת קמפיינים מחוברת בפלטפורמה הזו",
     };
-  const campaign = await findCampaign(supabase, ctx, parsed);
+  const campaign = matchCampaign(
+    await latestCampaignRows(supabase, ctx, [parsed.clientId]),
+    parsed,
+  );
+  // A campaign slot holds one target: a target for the wrong goal would also wipe
+  // the one the campaign is measured on.
+  const problem = campaignProblem(parsed, campaign);
+  if (problem) return problem;
   const tableIds =
     campaign?.tableId && tables.some((t) => t.id === campaign.tableId)
       ? [campaign.tableId]

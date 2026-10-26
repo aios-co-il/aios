@@ -8,6 +8,7 @@ import {
   pulseTargetKindsForGoal,
   pulseTargetSourceLabel,
   resolvePulseTarget,
+  resolvePulseTargetAcross,
 } from "./pulse-targets.mjs";
 
 const MOOD_STATUS_LABELS = {
@@ -230,7 +231,8 @@ export function evaluateEfficiencyIssue({ campaignRows = [] } = {}) {
   const flagged = campaignRows
     .filter(
       (row) =>
-        (row.status === "critical" && row.status_tier === "exception") ||
+        // An exception is red when it alerts and yellow while its alerts are off.
+        row.status_tier === "exception" ||
         (row.status === "warning" && row.status_tier === "watch"),
     )
     .sort(
@@ -241,13 +243,19 @@ export function evaluateEfficiencyIssue({ campaignRows = [] } = {}) {
     );
   if (!flagged.length) return null;
   const worst = flagged[0];
-  const more = flagged.length > 1 ? ` (+${flagged.length - 1} קמפיינים)` : "";
+  const others = flagged.length - 1;
+  const more =
+    others === 1
+      ? " (ועוד קמפיין אחד)"
+      : others > 1
+        ? ` (ועוד ${others} קמפיינים)`
+        : "";
   const name = worst.campaign_name ? `${worst.campaign_name}: ` : "";
   const silentException =
     worst.status_tier === "exception" && worst.alert_eligible !== true;
   return {
     level: worst.alert_eligible === true ? "alert" : "watch",
-    label: `${name}${worst.status_reason || "חריגה"}${silentException ? " · בלי התראה (התראות ללא יעד כבויות)" : ""}${more}`,
+    label: `${name}${worst.status_reason || "חריגה"}${silentException ? " · בלי התראה (התראות לקמפיינים בלי יעד כבויות)" : ""}${more}`,
   };
 }
 
@@ -358,13 +366,27 @@ export function buildPulseAttentionRows({
     const metrics = aggregatePlatformMetrics(normalizedRows, configuredGoal);
     if (metrics.spend7d <= 0) continue;
 
+    const clientTables = tablesByClient.get(clientId) ?? [];
     const primaryTable = pickPrimaryTable(
-      tablesByClient.get(clientId) ?? [],
+      clientTables,
       platform,
       metrics.primaryGoal,
     );
-    const settings = primaryTable?.integration_settings || {};
-    const target = readPlatformTarget(settings, metrics.primaryGoal);
+    // The platform target as the pulse and the editor read it: from any of the
+    // platform's tables, the primary one first.
+    const platformTables = [
+      primaryTable,
+      ...platformTablesForClient(tables, clientId, platform).filter(
+        (table) => table !== primaryTable,
+      ),
+    ].filter(Boolean);
+    const target = resolvePulseTargetAcross(
+      platformTables.map((table) => ({
+        tableId: table.id,
+        settings: table.integration_settings || {},
+      })),
+      metrics.primaryGoal,
+    );
     const efficiencyIssue = evaluateEfficiencyIssue({ campaignRows: rows });
 
     const issues = {

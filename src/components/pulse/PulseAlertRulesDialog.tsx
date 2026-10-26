@@ -18,6 +18,46 @@ import {
 } from "@/lib/pulseAlertRules";
 import { resolvePulseCostRules } from "@/lib/pulseTargets";
 
+/**
+ * A threshold that can be cleared while typing: the text is kept as typed, only a
+ * valid number (at least `min`) is stored, and leaving the field restores the
+ * stored value. Clearing it never stores 0, so the minimum-spend guard stays on.
+ */
+function ThresholdInput({
+  label,
+  value,
+  min,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type="number"
+        min={min}
+        className="h-8 mt-1"
+        aria-label={label}
+        value={draft}
+        onChange={(event) => {
+          const raw = event.target.value;
+          setDraft(raw);
+          const number = Number(raw);
+          if (raw.trim() !== "" && Number.isFinite(number) && number >= min)
+            onCommit(number);
+        }}
+        onBlur={() => setDraft(String(value))}
+      />
+    </div>
+  );
+}
+
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -162,49 +202,24 @@ export function PulseAlertRulesDialog({
               />
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div>
-                <Label className="text-xs">עליית CPL/CPA (%)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  className="h-8 mt-1"
-                  value={cost.trend_pct}
-                  onChange={(event) =>
-                    setCost({ trend_pct: Number(event.target.value) || 40 })
-                  }
-                />
-              </div>
-              <div>
-                <Label className="text-xs">ירידת ROAS (%)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  className="h-8 mt-1"
-                  value={cost.roas_drop_pct}
-                  onChange={(event) =>
-                    setCost({
-                      roas_drop_pct: Number(event.target.value) || 25,
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <Label className="text-xs">הוצאה מינ׳ ב־7 ימים</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  className="h-8 mt-1"
-                  value={cost.min_spend_7d}
-                  onChange={(event) =>
-                    setCost({
-                      min_spend_7d: Math.max(
-                        0,
-                        Number(event.target.value) || 0,
-                      ),
-                    })
-                  }
-                />
-              </div>
+              <ThresholdInput
+                label="עליית CPL/CPA (%)"
+                value={cost.trend_pct}
+                min={1}
+                onCommit={(trend_pct) => setCost({ trend_pct })}
+              />
+              <ThresholdInput
+                label="ירידת ROAS (%)"
+                value={cost.roas_drop_pct}
+                min={1}
+                onCommit={(roas_drop_pct) => setCost({ roas_drop_pct })}
+              />
+              <ThresholdInput
+                label="הוצאה מינ׳ ב־7 ימים"
+                value={cost.min_spend_7d}
+                min={0}
+                onCommit={(min_spend_7d) => setCost({ min_spend_7d })}
+              />
             </div>
           </div>
 

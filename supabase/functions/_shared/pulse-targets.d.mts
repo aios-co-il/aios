@@ -39,6 +39,23 @@ export function resolvePulseTarget(
   campaign?: CampaignRef,
 ): PulseTarget | null;
 
+export type PulseTargetPlace = {
+  tableId?: string | null;
+  settings: Record<string, unknown> | null | undefined;
+  campaignId?: string | null;
+  campaignName?: string | null;
+};
+
+export function resolvePulseTargetAcross(
+  places: PulseTargetPlace[],
+  goal: string,
+):
+  | (PulseTarget & {
+      table_id: string | null;
+      campaign_id: string | null;
+    })
+  | null;
+
 export function buildPulseTargetPatch(
   existingSettings: Record<string, unknown> | null | undefined,
   input: {

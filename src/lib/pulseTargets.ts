@@ -12,6 +12,7 @@ import {
   pulseTargetKindsForGoal as kindsForGoal,
   pulseTargetSourceLabel as sourceLabel,
   resolvePulseTarget as resolveTarget,
+  resolvePulseTargetAcross as resolveTargetAcross,
 } from "../../supabase/functions/_shared/pulse-targets.mjs";
 import {
   PULSE_COST_RULE_DEFAULTS as COST_DEFAULTS,
@@ -73,6 +74,88 @@ export const resolvePulseTarget = resolveTarget as (
     campaignName?: string | null;
   } | null,
 ) => PulseTarget | null;
+
+/** One campaign (or platform goal) read from several report tables. */
+export const resolvePulseTargetAcross = resolveTargetAcross as (
+  places: Array<{
+    tableId?: string | null;
+    settings: Record<string, unknown> | null | undefined;
+    campaignId?: string | null;
+    campaignName?: string | null;
+  }>,
+  goal: PulseCampaignGoal,
+) =>
+  | (PulseTarget & {
+      table_id: string | null;
+      campaign_id: string | null;
+    })
+  | null;
+
+const SCOPE_ORDER: Record<PulseTarget["scope"], number> = {
+  campaign: 0,
+  platform: 1,
+  default: 2,
+  table: 3,
+};
+
+export type CampaignRowTarget = {
+  target: PulseTarget | null;
+  /** Where a campaign-level target is stored, so saving replaces that entry. */
+  tableId: string;
+  campaignId: string | null;
+};
+
+/**
+ * The target that applies to a pulse row, and where to save over it. The row's own
+ * target was resolved over every table the campaign is read from (duplicate report
+ * tables); the row's table is read again too, so a save shows before the rows are
+ * rebuilt. Same order as the pulse: approved first, then the most specific level.
+ */
+export function campaignRowTarget(
+  row: PulseCampaignGoalRow,
+  tableSettingsById: Map<string, Record<string, unknown>>,
+): CampaignRowTarget {
+  const here = { tableId: row.table_id, campaignId: row.campaign_id };
+  const fresh = resolvePulseTarget(
+    tableSettingsById.get(row.table_id) ?? {},
+    row.goal,
+    { campaignId: row.campaign_id, campaignName: row.campaign_name },
+  );
+  const value = row.target_value;
+  const kind = row.target_kind as PulseTargetKind | null;
+  const fromRow: PulseTarget | null =
+    value === null || value === undefined || !kind
+      ? null
+      : {
+          value,
+          kind,
+          direction: kind === "roas" ? "minimum" : "maximum",
+          source:
+            row.target_source === "carmen_market"
+              ? "carmen_market"
+              : "approved",
+          scope: row.target_scope ?? "campaign",
+          rationale: row.target_rationale ?? null,
+          set_at: null,
+          set_by: null,
+        };
+  const rowWins =
+    fromRow &&
+    (!fresh ||
+      Number(fromRow.source !== "approved") -
+        Number(fresh.source !== "approved") <
+        0 ||
+      (fromRow.source === fresh.source &&
+        SCOPE_ORDER[fromRow.scope] < SCOPE_ORDER[fresh.scope]));
+  if (!rowWins) return { target: fresh, ...here };
+  return fromRow.scope === "campaign" && row.target_table_id
+    ? {
+        target: fromRow,
+        tableId: row.target_table_id,
+        campaignId: row.target_campaign_id ?? row.campaign_id,
+      }
+    : { target: fromRow, ...here };
+}
 
 export const buildPulseTargetPatch = buildPatch as (
   existingSettings: Record<string, unknown>,

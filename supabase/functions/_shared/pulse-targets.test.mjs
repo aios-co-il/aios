@@ -11,6 +11,7 @@ import {
   listCampaignsWithoutTarget,
   pulseTargetSourceLabel,
   resolvePulseTarget,
+  resolvePulseTargetAcross,
   summarizePulseTargets,
 } from "./pulse-targets.mjs";
 
@@ -18,18 +19,19 @@ Deno.test(
   "a target without a source is approved; carmen_market is labelled",
   () => {
     const settings = {
-      pulse_platform_targets: { leads: { cpl: 80 } },
       pulse_targets: {
         c1: {
           cpl: 60,
           source: "carmen_market",
           rationale: "ענף עורכי דין בישראל ₪60–90 לליד; ממוצע הלקוח ₪58",
         },
+        c2: { cpl: 45 },
       },
     };
-    const platform = resolvePulseTarget(settings, "leads", null);
-    assertStrictEquals(platform.source, "approved");
-    assertStrictEquals(platform.scope, "platform");
+    assertStrictEquals(
+      resolvePulseTarget(settings, "leads", { campaignId: "c2" }).source,
+      "approved",
+    );
     const campaign = resolvePulseTarget(settings, "leads", {
       campaignId: "c1",
     });
@@ -41,6 +43,143 @@ Deno.test(
       "יעד שוק (כרמן)",
     );
     assertStrictEquals(pulseTargetSourceLabel(undefined), "יעד מאושר");
+  },
+);
+
+Deno.test(
+  "an approved platform target set after Carmen's campaign estimate wins and blocks her",
+  () => {
+    const settings = {
+      pulse_targets: {
+        c1: { cpl: 120, source: "carmen_market", rationale: "בנצ׳מרק 100–140" },
+      },
+      pulse_platform_targets: { leads: { cpl: 60, source: "approved" } },
+    };
+    const target = resolvePulseTarget(settings, "leads", { campaignId: "c1" });
+    assertStrictEquals(target.value, 60);
+    assertStrictEquals(target.source, "approved");
+    assertStrictEquals(target.scope, "platform");
+    const check = canSetMarketTarget(settings, "leads", { campaignId: "c1" });
+    assertStrictEquals(check.ok, false);
+    assertStrictEquals(check.reason, "approved_target_exists");
+  },
+);
+
+Deno.test(
+  "Carmen never replaces an approved campaign slot, whatever its goal or key",
+  () => {
+    // (a) The slot holds an approved ecommerce CPA; a leads market write would
+    // replace the slot whole and drop it.
+    const otherGoal = {
+      pulse_targets: {
+        123: { cpa: 50, source: "approved", goal: "ecommerce" },
+      },
+    };
+    const wrongGoal = canSetMarketTarget(otherGoal, "leads", {
+      campaignId: "123",
+    });
+    assertStrictEquals(wrongGoal.ok, false);
+    assertStrictEquals(wrongGoal.reason, "approved_target_exists");
+    assertStrictEquals(wrongGoal.existing.kind, "cpa");
+
+    // (b) The approved target is stored under the name: a write under the id
+    // would shadow it, because readers try the id first.
+    const byName = { pulse_targets: { "Camp A": { cpl: 80 } } };
+    assertStrictEquals(
+      canSetMarketTarget(byName, "leads", {
+        campaignId: "777",
+        campaignName: "Camp A",
+      }).reason,
+      "approved_target_exists",
+    );
+    // And even if a market entry sits under the id, the approved one applies.
+    const both = {
+      pulse_targets: {
+        777: { cpl: 40, source: "carmen_market" },
+        "Camp A": { cpl: 80 },
+      },
+    };
+    const resolved = resolvePulseTarget(both, "leads", {
+      campaignId: "777",
+      campaignName: "Camp A",
+    });
+    assertStrictEquals(resolved.value, 80);
+    assertStrictEquals(resolved.source, "approved");
+  },
+);
+
+Deno.test(
+  "a campaign read from several tables gets one target whatever the table order",
+  () => {
+    const places = (order) =>
+      order.map((id) =>
+        id === "t1"
+          ? {
+              tableId: "t1",
+              settings: { pulse_targets: { c1: { cpl: 60 } } },
+              campaignId: "c1",
+              campaignName: "Leads",
+            }
+          : {
+              tableId: "t2",
+              settings: {
+                pulse_platform_targets: {
+                  leads: { cpl: 90, source: "carmen_market" },
+                },
+              },
+              campaignId: "c2",
+              campaignName: "Leads",
+            },
+      );
+    for (const order of [
+      ["t1", "t2"],
+      ["t2", "t1"],
+    ]) {
+      const target = resolvePulseTargetAcross(places(order), "leads");
+      assertStrictEquals(target.value, 60);
+      assertStrictEquals(target.source, "approved");
+      assertStrictEquals(target.table_id, "t1");
+    }
+
+    // Same source and level on two tables: the most recently set one wins.
+    const older = {
+      tableId: "t1",
+      settings: {
+        pulse_targets: { c1: { cpl: 60, set_at: "2026-10-01T08:00:00Z" } },
+      },
+      campaignId: "c1",
+    };
+    const newer = {
+      tableId: "t2",
+      settings: {
+        pulse_targets: { c2: { cpl: 70, set_at: "2026-10-20T08:00:00Z" } },
+      },
+      campaignId: "c2",
+    };
+    assertStrictEquals(
+      resolvePulseTargetAcross([older, newer], "leads").value,
+      70,
+    );
+    assertStrictEquals(
+      resolvePulseTargetAcross([newer, older], "leads").value,
+      70,
+    );
+    // A campaign's own target on one table beats a platform target on another.
+    assertStrictEquals(
+      resolvePulseTargetAcross(
+        [
+          {
+            tableId: "t1",
+            settings: { pulse_platform_targets: { leads: { cpl: 40 } } },
+            campaignId: "c1",
+          },
+          newer,
+        ],
+        "leads",
+      ).scope,
+      "campaign",
+    );
+    assertStrictEquals(resolvePulseTargetAcross([], "leads"), null);
   },
 );
 
@@ -262,6 +401,13 @@ Deno.test(
           client_id: "b",
           table_id: "t2",
           goal: "ecommerce",
+        }),
+        // The pulse found a target on a duplicate table of this campaign.
+        row({
+          campaign_id: "c7",
+          campaign_name: "Duplicate table",
+          target_value: 55,
+          target_source: "approved",
         }),
       ],
     });

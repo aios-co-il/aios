@@ -62,6 +62,8 @@ export type PulseSnapshotAlertInput = {
     target_source?: string | null;
     efficiency_3d?: number | null;
     efficiency_7d?: number | null;
+    spend_3d?: number | null;
+    outcomes_3d?: number | null;
     trend_3d_pct?: number | null;
     trend_7d_pct?: number | null;
     data_fresh_through?: string | null;
@@ -173,15 +175,21 @@ export function evaluatePulseInstantAlerts(
       if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
       const target =
         campaign.target_value === null || campaign.target_value === undefined
-          ? "אין יעד מאושר"
+          ? "אין יעד"
           : `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${campaign.target_source === "carmen_market" ? " · יעד שוק (כרמן)" : ""}`;
+      // Spend with no result in the last 3 days has no cost per result to show
+      // (a lead day with 0 leads is stored as no value, so outcomes_3d is null).
+      const noResults3 =
+        campaign.efficiency_3d == null &&
+        !(Number(campaign.outcomes_3d) > 0) &&
+        Number(campaign.spend_3d) > 0;
       // Without a target the comparison is the baseline: show how far it moved.
       const baselineTrendLine =
         campaign.target_value == null &&
-        campaign.trend_3d_pct != null &&
-        campaign.trend_7d_pct != null
+        campaign.trend_7d_pct != null &&
+        (campaign.trend_3d_pct != null || noResults3)
           ? [
-              `החמרה מול הבסיס: 3 ימים ${campaign.trend_3d_pct}% · 7 ימים ${campaign.trend_7d_pct}%`,
+              `החמרה מול הבסיס: 3 ימים ${noResults3 ? "אין תוצאות" : `${campaign.trend_3d_pct}%`} · 7 ימים ${campaign.trend_7d_pct}%`,
             ]
           : [];
       const severity = Math.max(
@@ -202,6 +210,9 @@ export function evaluatePulseInstantAlerts(
         target_source: campaign.target_source ?? null,
         efficiency_3d: campaign.efficiency_3d ?? null,
         efficiency_7d: campaign.efficiency_7d ?? null,
+        spend_3d: campaign.spend_3d ?? null,
+        outcomes_3d: campaign.outcomes_3d ?? null,
+        no_results_3d: noResults3,
         trend_3d_pct: campaign.trend_3d_pct ?? null,
         trend_7d_pct: campaign.trend_7d_pct ?? null,
         data_fresh_through: campaign.data_fresh_through ?? null,
@@ -222,7 +233,7 @@ export function evaluatePulseInstantAlerts(
           `קטגוריה: ${campaign.goal || "לא מסווג"}`,
           `סיבה: ${campaign.status_reason || "חריגה מתמשכת"}`,
           `יעד: ${target}`,
-          `3 ימים: ${campaign.efficiency_3d ?? "חסר"} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
+          `3 ימים: ${campaign.efficiency_3d ?? (noResults3 ? "אין תוצאות" : "חסר")} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
           ...baselineTrendLine,
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,

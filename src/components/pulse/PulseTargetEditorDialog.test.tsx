@@ -64,7 +64,7 @@ describe("PulseTargetEditorDialog", () => {
           clientName: "שיפוצי אבי",
           platform: "meta",
           primaryGoal: "leads",
-          platformTableId: "t1",
+          platformTableIds: ["t1"],
         }}
         campaigns={[campaign()]}
         tableSettingsById={
@@ -96,11 +96,110 @@ describe("PulseTargetEditorDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "אשר כיעד מאושר" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave).toHaveBeenCalledWith({
-      tableId: "t1",
+      tableIds: ["t1"],
       goal: "leads",
       kind: "cpl",
       value: 60,
       campaignId: "c1",
+      campaignName: "לידים שיפוץ",
+    });
+  });
+
+  it("saves a platform target to every table of the platform", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PulseTargetEditorDialog
+        open
+        onOpenChange={() => {}}
+        context={{
+          clientId: "client-1",
+          clientName: "חנות",
+          platform: "google",
+          primaryGoal: "leads",
+          platformTableIds: ["g1", "g2"],
+        }}
+        campaigns={[]}
+        tableSettingsById={new Map()}
+        savingKey={null}
+        onSave={onSave}
+      />,
+    );
+    const [platformInput] = screen.getAllByPlaceholderText("לדוגמה: 90");
+    fireEvent.change(platformInput, { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: "שמור יעד" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith({
+      tableIds: ["g1", "g2"],
+      goal: "leads",
+      kind: "cpl",
+      value: 70,
+    });
+  });
+
+  it("shows a report-settings target as inherited instead of offering a no-op remove", () => {
+    render(
+      <PulseTargetEditorDialog
+        open
+        onOpenChange={() => {}}
+        context={{
+          clientId: "client-1",
+          clientName: "שיפוצי אבי",
+          platform: "meta",
+          primaryGoal: "leads",
+          platformTableIds: ["t1"],
+        }}
+        campaigns={[]}
+        tableSettingsById={new Map([["t1", { target_cpl: 80 }]])}
+        savingKey={null}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/\(מהגדרות הדוח\)/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "הסר יעד" })).toBeNull();
+    expect(
+      (screen.getByRole("button", { name: "שמור יעד" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it("edits the target the pulse found on a duplicate table where it is stored", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PulseTargetEditorDialog
+        open
+        onOpenChange={() => {}}
+        context={{
+          clientId: "client-1",
+          clientName: "שיפוצי אבי",
+          platform: "meta",
+          primaryGoal: "leads",
+          platformTableIds: ["t1", "t2"],
+        }}
+        campaigns={[
+          campaign({
+            target_value: 60,
+            target_kind: "cpl",
+            target_source: "carmen_market",
+            target_scope: "campaign",
+            target_table_id: "t2",
+            target_campaign_id: "c2",
+            target_rationale: "ענף שיפוצים ₪50–70; הלקוח ₪52",
+          }),
+        ]}
+        tableSettingsById={new Map([["t1", {}]])}
+        savingKey={null}
+        onSave={onSave}
+      />,
+    );
+    expect(screen.getByText(/נימוק כרמן/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "אשר כיעד מאושר" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith({
+      tableIds: ["t2"],
+      goal: "leads",
+      kind: "cpl",
+      value: 60,
+      campaignId: "c2",
       campaignName: "לידים שיפוץ",
     });
   });

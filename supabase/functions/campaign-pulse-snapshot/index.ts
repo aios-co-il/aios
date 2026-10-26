@@ -34,6 +34,7 @@ import {
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
 import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
+import { buildPulseExceptionConfirmPrompt } from "../_shared/pulse-exception-confirm.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -910,24 +911,13 @@ Deno.serve(async (req) => {
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          analyzeException: async (candidate) => {
-            const evidence = JSON.stringify(candidate.evidence || {});
-            return await aiChatJSON<{
+          // Confirms approved, Carmen-market and target-less candidates alike.
+          analyzeException: async (candidate) =>
+            await aiChatJSON<{
               confirmed: boolean;
               summary?: string | null;
               recommended_check?: string | null;
-            }>(
-              [
-                "את מאמתת מועמד חריגה שכבר סונן דטרמיניסטית. אל תבצעי ניתוח מתקדם ואל תמציאי נתונים.",
-                "אשרי רק אם הראיות מראות חריגה מתמשכת מיעד מאושר או הוצאה ללא תוצאות.",
-                'החזירי JSON בלבד: {"confirmed":boolean,"summary":"משפט קצר","recommended_check":"בדיקה אחת"}.',
-                `לקוח: ${candidate.client_name}`,
-                `קמפיין: ${candidate.campaign_key || "לא ידוע"}`,
-                `סיבה: ${candidate.message}`,
-                `ראיות: ${evidence}`,
-              ].join("\n"),
-            );
-          },
+            }>(buildPulseExceptionConfirmPrompt(candidate)),
         });
       } catch (instantAlertError) {
         console.warn(
