@@ -13,7 +13,7 @@ test("extrude depth adds that many solid offset steps", () => {
     shadowBlur: 16,
   });
   expect(css).toBeTruthy();
-  const steps = css.match(/\d+px \d+px 0 #1e3a8a/g) ?? [];
+  const steps = css?.match(/\d+px \d+px 0 #1e3a8a/g) ?? [];
   expect(steps.length).toBe(6);
 });
 
