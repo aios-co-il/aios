@@ -29,6 +29,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { getRepoSlug } from "../_shared/github-repo.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
+import {
+  asJsonObject,
+  type JsonObject,
+  thrownMessage,
+} from "../_shared/manus-json.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -156,10 +162,18 @@ function bearerFrom(req: Request): string | undefined {
 
 function sbClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 }
+
+type ManusTaskCreateBody = {
+  message: { text: string };
+  project_id: string;
+  agent_profile: string;
+  share_visibility: string;
+  title?: string;
+};
 
 // Resolve who is asking (tenant + agent), from the caller's bearer.
 async function resolveContext(
@@ -195,10 +209,7 @@ async function resolveContext(
     }
     return fallback;
   } catch (e) {
-    console.error(
-      "[manus-mcp] resolveContext failed:",
-      (e as any)?.message ?? e,
-    );
+    console.error("[manus-mcp] resolveContext failed:", thrownMessage(e) ?? e);
     return fallback;
   }
 }
@@ -221,7 +232,7 @@ async function getManusApiKey(tenantId: string | null): Promise<string> {
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
-    const key = (data?.settings as any)?.api_key;
+    const key = asJsonObject(data?.settings)?.api_key;
     if (typeof key === "string" && key.length > 0) return key;
   } catch {
     /* fall through */
@@ -237,7 +248,7 @@ async function createManusTask(
   agentProfile = "manus-1.6",
   title?: string,
 ): Promise<{ taskId: string; taskUrl: string; shareUrl: string }> {
-  const body: Record<string, any> = {
+  const body: ManusTaskCreateBody = {
     message: { text: prompt },
     project_id: MANUS_PROJECT_ID,
     agent_profile: agentProfile,
@@ -255,25 +266,29 @@ async function createManusTask(
   });
   const raw = await res.text();
   if (!res.ok) {
-    let detail = raw.slice(0, 500);
+    let detail: Json | undefined = raw.slice(0, 500);
     try {
-      detail =
-        JSON.parse(raw)?.error?.message || JSON.parse(raw)?.error || detail;
+      const parsed: Json = JSON.parse(raw);
+      const error = asJsonObject(parsed)?.error;
+      detail = asJsonObject(error)?.message || error || detail;
     } catch {
       /* keep raw */
     }
     throw new Error(`Manus API error [${res.status}]: ${detail}`);
   }
-  let data: any = {};
+  let data: Json = {};
   try {
     data = JSON.parse(raw);
   } catch {
     /* ignore */
   }
-  const taskId = data?.data?.task_id || data?.task_id || data?.id || "—";
-  const taskUrl =
-    data?.data?.task_url || data?.task_url || `https://manus.im/t/${taskId}`;
-  const shareUrl = data?.data?.share_url || data?.share_url || taskUrl;
+  const top = asJsonObject(data);
+  const inner = asJsonObject(top?.data);
+  const taskId = String(inner?.task_id || top?.task_id || top?.id || "—");
+  const taskUrl = String(
+    inner?.task_url || top?.task_url || `https://manus.im/t/${taskId}`,
+  );
+  const shareUrl = String(inner?.share_url || top?.share_url || taskUrl);
   return { taskId, taskUrl, shareUrl };
 }
 
@@ -305,14 +320,15 @@ async function sendManusMessage(
     );
     return { taskId: "", taskUrl: "", shareUrl: "" }; // signal caller to retry with create
   }
-  let data: any = {};
+  let data: Json = {};
   try {
     data = JSON.parse(raw);
   } catch {
     /* ignore */
   }
-  const taskUrl = data?.data?.task_url || `https://manus.im/t/${taskId}`;
-  const shareUrl = data?.data?.share_url || taskUrl;
+  const inner = asJsonObject(asJsonObject(data)?.data);
+  const taskUrl = String(inner?.task_url || `https://manus.im/t/${taskId}`);
+  const shareUrl = String(inner?.share_url || taskUrl);
   return { taskId, taskUrl, shareUrl };
 }
 
@@ -332,17 +348,14 @@ async function findActiveTask(
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(1);
-    const row = (data || [])[0] as any;
+    const row = (data || [])[0];
     if (row?.task_id)
       return {
         taskId: row.task_id,
         taskUrl: row.task_url || `https://manus.im/t/${row.task_id}`,
       };
   } catch (e) {
-    console.error(
-      "[manus-mcp] findActiveTask failed:",
-      (e as any)?.message ?? e,
-    );
+    console.error("[manus-mcp] findActiveTask failed:", thrownMessage(e) ?? e);
   }
   return null;
 }
@@ -380,7 +393,7 @@ async function logDispatch(args: {
       });
     }
   } catch (e) {
-    console.error("[manus-mcp] logDispatch failed:", (e as any)?.message ?? e);
+    console.error("[manus-mcp] logDispatch failed:", thrownMessage(e) ?? e);
   }
 }
 
@@ -396,7 +409,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(5);
-    const rows = (data || []) as Array<any>;
+    const rows = data || [];
     if (!rows.length) return "";
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
@@ -414,7 +427,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
   } catch (e) {
     console.error(
       "[manus-mcp] recentDispatchContext failed:",
-      (e as any)?.message ?? e,
+      thrownMessage(e) ?? e,
     );
     return "";
   }
@@ -424,7 +437,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
 
 async function handleToolCall(
   name: string,
-  args: Record<string, any>,
+  args: JsonObject,
   ctx: { tenantId: string | null; agentId: string | null },
 ): Promise<string> {
   if (!ctx.tenantId) {
@@ -576,14 +589,17 @@ Deno.serve(async (req) => {
     );
   }
 
-  let msg: any;
+  let msg: Json;
   try {
     msg = await req.json();
   } catch {
     return rpcError(null, -32700, "Parse error");
   }
 
-  const { id, method, params } = msg ?? {};
+  const rpc = asJsonObject(msg);
+  const id = rpc?.id;
+  const method = rpc?.method;
+  const params = asJsonObject(rpc?.params);
 
   // Bearer gate — MANUS_MCP_BEARER must match
   const requiredBearer = Deno.env.get("MANUS_MCP_BEARER");
@@ -616,15 +632,17 @@ Deno.serve(async (req) => {
         return rpcResult(id, { tools: TOOLS });
 
       case "tools/call": {
-        const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const name = String(params?.name);
+        const args = asJsonObject(params?.arguments) ?? {};
         try {
           const ctx = await resolveContext(bearerFrom(req));
           const text = await handleToolCall(name, args, ctx);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(thrownMessage(e) ?? e)}` },
+            ],
             isError: true,
           });
         }
@@ -633,8 +651,12 @@ Deno.serve(async (req) => {
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[manus-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[manus-mcp]", thrownMessage(e) ?? e);
+    return rpcError(
+      id,
+      -32603,
+      `Internal error: ${String(thrownMessage(e) ?? e)}`,
+    );
   }
 });

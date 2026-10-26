@@ -16,6 +16,9 @@ import {
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { asJsonObject } from "../_shared/manus-json.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -27,7 +30,16 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(body: any, status = 200) {
+type SendMessageBody = {
+  tenantId: string;
+  senderUserId: string;
+  message: string;
+  integrationId?: Json;
+  groupId?: string;
+  phoneNumber?: string;
+};
+
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -42,7 +54,7 @@ function bearerFrom(req: Request): string | undefined {
 }
 
 async function sendViaActionStep(
-  sb: any,
+  sb: DbClient,
   args: {
     automationId: string;
     tenantId: string;
@@ -79,7 +91,7 @@ async function sendViaActionStep(
   const step = steps?.[0];
   if (!step) return false;
 
-  const cfg = step.configuration || {};
+  const cfg = asJsonObject(step.configuration) ?? {};
   const integrationId =
     cfg.green_api_integration_id || cfg.integration_id || null;
 
@@ -100,7 +112,11 @@ async function sendViaActionStep(
       ? "send-manus-wa-message"
       : "send-green-api-message";
 
-  const body: any = { tenantId, senderUserId: connectionUserId, message };
+  const body: SendMessageBody = {
+    tenantId,
+    senderUserId: connectionUserId,
+    message,
+  };
   if (integrationId) body.integrationId = integrationId;
   if (groupId) body.groupId = groupId;
   else body.phoneNumber = phoneNumber;
@@ -135,12 +151,13 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let body: any;
+  let rawBody: Json;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return json({ error: "bad json" }, 400);
   }
+  const body = asJsonObject(rawBody);
 
   const tenantId = String(body?.tenant_id ?? "").trim();
   const message = String(body?.message ?? "").trim();
@@ -149,7 +166,7 @@ Deno.serve(async (req) => {
   if (!tenantId || !message)
     return json({ error: "tenant_id and message are required" }, 400);
 
-  const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const sb = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
@@ -178,17 +195,17 @@ Deno.serve(async (req) => {
     ]);
 
   const staff = (campaigners || [])
-    .filter((c: any) => !!normalizeNotifyPhone(c.phone))
-    .map((c: any) => ({
-      phone: c.phone as string,
-      full_name: c.full_name as string | null,
+    .filter((c) => !!normalizeNotifyPhone(c.phone))
+    .map((c) => ({
+      phone: c.phone,
+      full_name: c.full_name,
       role: Array.isArray(c.role) ? (c.role[0] ?? null) : (c.role ?? null),
     }));
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
     campaignPulsePhone: heartbeat?.campaign_pulse_phone ?? null,
-    sessions: (sessions || []).map((s: any) => ({
+    sessions: (sessions || []).map((s) => ({
       chat_id: s.chat_id,
       phone: s.phone,
       sender_name: s.sender_name,

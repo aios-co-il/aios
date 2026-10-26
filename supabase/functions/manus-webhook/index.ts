@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,7 +149,9 @@ serve(async (req) => {
 
     if (taskId) {
       // Update our local task record
-      const updateData: any = { updated_at: new Date().toISOString() };
+      const updateData: TablesUpdate<"manus_tasks"> = {
+        updated_at: new Date().toISOString(),
+      };
       if (status) updateData.status = status;
       if (output) updateData.output = output;
       if (creditUsage !== undefined) updateData.credit_usage = creditUsage;

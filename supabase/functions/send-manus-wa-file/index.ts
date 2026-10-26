@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { Tables } from "../_shared/database.types.ts";
+import { asJsonObject, parseJsonOrRaw } from "../_shared/manus-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +9,11 @@ const corsHeaders = {
 };
 
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
+
+type ManusWaIntegration = Pick<
+  Tables<"tenant_integrations">,
+  "api_key" | "settings" | "user_id"
+>;
 
 function toGatewayPhone(input: string, defaultCc = "972"): string {
   let d = (input || "").replace(/[^0-9]/g, "");
@@ -128,7 +135,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    let integ: any = null;
+    let integ: ManusWaIntegration | null = null;
     if (integrationId) {
       const { data } = await supabase
         .from("tenant_integrations")
@@ -150,7 +157,8 @@ Deno.serve(async (req) => {
       integ = data?.[0] || null;
     }
 
-    if (!integ?.api_key || !(integ?.settings as any)?.instance_id) {
+    const settings = asJsonObject(integ?.settings);
+    if (!integ?.api_key || !settings?.instance_id) {
       return new Response(
         JSON.stringify({ error: "Manus WhatsApp not configured" }),
         {
@@ -160,10 +168,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const settings = integ.settings as any;
     const instanceId = settings.instance_id;
     const apiKey = integ.api_key;
-    const cc = (settings.country_code || "972").toString();
+    const cc = String(settings.country_code || "972");
     const phone = toGatewayPhone(
       String(phoneNumber || ""),
       /^\d{1,3}$/.test(cc) ? cc : "972",
@@ -191,13 +198,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
     const respText = await res.text();
-    let respData: any;
-    try {
-      respData = JSON.parse(respText);
-    } catch {
-      respData = { raw: respText };
-    }
-    if (!res.ok || respData?.success === false) {
+    const respData = parseJsonOrRaw(respText);
+    const respObject = asJsonObject(respData);
+    if (!res.ok || respObject?.success === false) {
       throw new Error(
         `Manus WA error [${res.status}]: ${JSON.stringify(respData)}`,
       );
@@ -216,7 +219,7 @@ Deno.serve(async (req) => {
       provider: "manus_wa",
       sent_by_user_id: userId,
       raw_provider_data: {
-        ...respData,
+        ...respObject,
         fileUrl: urlToSend,
         mimeType,
         filename,
@@ -226,7 +229,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, messageId: respData.messageId }),
+      JSON.stringify({ success: true, messageId: respObject?.messageId }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
