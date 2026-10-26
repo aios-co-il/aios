@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   crmWhatsappFunctionName,
   pickCrmWhatsappIntegration,
@@ -11,30 +10,26 @@ const meta = { id: "x1", integration_type: "meta_whatsapp", user_id: null };
 
 test("prefers the lead's active CRM WhatsApp provider", () => {
   const picked = pickCrmWhatsappIntegration("manus_wa", [green, manus, meta]);
-  assert.equal(picked?.id, "m1");
-  assert.equal(picked?.type, "manus_wa");
+  expect(picked?.id).toBe("m1");
+  expect(picked?.type).toBe("manus_wa");
 });
 
 test("falls back to green_api then manus then meta", () => {
-  assert.equal(
-    pickCrmWhatsappIntegration(null, [meta, manus, green])?.type,
+  expect(pickCrmWhatsappIntegration(null, [meta, manus, green])?.type).toBe(
     "green_api",
   );
-  assert.equal(
-    pickCrmWhatsappIntegration(null, [meta, manus])?.type,
+  expect(pickCrmWhatsappIntegration(null, [meta, manus])?.type).toBe(
     "manus_wa",
   );
-  assert.equal(
-    pickCrmWhatsappIntegration("telegram", [meta])?.type,
+  expect(pickCrmWhatsappIntegration("telegram", [meta])?.type).toBe(
     "meta_whatsapp",
   );
 });
 
 test("maps provider to the CRM send function", () => {
-  assert.equal(crmWhatsappFunctionName("green_api"), "send-green-api-message");
-  assert.equal(crmWhatsappFunctionName("manus_wa"), "send-manus-wa-message");
-  assert.equal(
-    crmWhatsappFunctionName("meta_whatsapp"),
+  expect(crmWhatsappFunctionName("green_api")).toBe("send-green-api-message");
+  expect(crmWhatsappFunctionName("manus_wa")).toBe("send-manus-wa-message");
+  expect(crmWhatsappFunctionName("meta_whatsapp")).toBe(
     "send-meta-whatsapp-message",
   );
 });

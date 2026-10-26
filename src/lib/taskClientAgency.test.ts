@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   CLIENT_UNREADABLE_ERROR,
   CLIENT_WITHOUT_AGENCY_ERROR,
@@ -35,8 +34,8 @@ test("a client missing from the cached picker list still resolves its agency", a
     cachedClients: [activeClientInPicker],
   });
 
-  assert.equal(resolved.agencyId, AGENCY_ID);
-  assert.equal(resolved.clientName, "לקוח מושהה");
+  expect(resolved.agencyId).toBe(AGENCY_ID);
+  expect(resolved.clientName).toBe("לקוח מושהה");
 });
 
 test("the fresh read wins over a stale cached row", async () => {
@@ -49,7 +48,7 @@ test("the fresh read wins over a stale cached row", async () => {
     cachedClients: [activeClientInPicker],
   });
 
-  assert.equal(resolved.agencyId, movedAgencyId);
+  expect(resolved.agencyId).toBe(movedAgencyId);
 });
 
 test("the cached row covers a client that cannot be read back", async () => {
@@ -59,7 +58,7 @@ test("the cached row covers a client that cannot be read back", async () => {
     cachedClients: [activeClientInPicker],
   });
 
-  assert.equal(resolved.agencyId, AGENCY_ID);
+  expect(resolved.agencyId).toBe(AGENCY_ID);
 });
 
 test("the agency of the originating card is the last resort", async () => {
@@ -72,11 +71,11 @@ test("the agency of the originating card is the last resort", async () => {
     fallbackAgencyId: AGENCY_ID,
   });
 
-  assert.equal(resolved.agencyId, AGENCY_ID);
+  expect(resolved.agencyId).toBe(AGENCY_ID);
 });
 
 test("a client genuinely without an agency is reported as such", async () => {
-  await assert.rejects(
+  await expect(
     resolveClientTaskAgency({
       clientId: "client-no-agency",
       fetchClient: fetchFrom([
@@ -84,29 +83,26 @@ test("a client genuinely without an agency is reported as such", async () => {
       ]),
       cachedClients: [],
     }),
-    new Error(CLIENT_WITHOUT_AGENCY_ERROR),
-  );
+  ).rejects.toThrow(new Error(CLIENT_WITHOUT_AGENCY_ERROR));
 });
 
 test("an unreadable client is not blamed on a missing agency", async () => {
-  await assert.rejects(
+  await expect(
     resolveClientTaskAgency({
       clientId: "client-deleted",
       fetchClient: async () => null,
       cachedClients: [],
     }),
-    new Error(CLIENT_UNREADABLE_ERROR),
-  );
+  ).rejects.toThrow(new Error(CLIENT_UNREADABLE_ERROR));
 });
 
 test("no client at all is rejected before any lookup", async () => {
-  await assert.rejects(
+  await expect(
     resolveClientTaskAgency({
       clientId: "",
       fetchClient: async () => {
         throw new Error("should not be called");
       },
     }),
-    new Error(MISSING_CLIENT_ERROR),
-  );
+  ).rejects.toThrow(new Error(MISSING_CLIENT_ERROR));
 });

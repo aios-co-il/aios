@@ -1,28 +1,27 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   formatCloudAgentError,
   grokUsesExistingWebhook,
   isCursorSpendLimitError,
 } from "./cloud-errors.ts";
 
-test("Grok uses the existing webhook when both secrets exist", () => {
-  assert.equal(grokUsesExistingWebhook("", "k"), false);
-  assert.equal(grokUsesExistingWebhook("https://example", ""), false);
-  assert.equal(grokUsesExistingWebhook("https://example", "k"), true);
+Deno.test("Grok uses the existing webhook when both secrets exist", () => {
+  assertStrictEquals(grokUsesExistingWebhook("", "k"), false);
+  assertStrictEquals(grokUsesExistingWebhook("https://example", ""), false);
+  assertStrictEquals(grokUsesExistingWebhook("https://example", "k"), true);
 });
 
-test("spend-limit 400 becomes Hebrew, not a raw Cursor dump", () => {
+Deno.test("spend-limit 400 becomes Hebrew, not a raw Cursor dump", () => {
   const msg = formatCloudAgentError(
     400,
     "Usage-based pricing required. Background Agent requires at least $2 remaining until your hard limit.",
   );
-  assert.match(msg, /תקציב/);
-  assert.match(msg, /cursor\.com\/dashboard/);
-  assert.match(msg, /Cursor Cloud/);
-  assert.equal(isCursorSpendLimitError(msg), true);
+  assertMatch(msg, /תקציב/);
+  assertMatch(msg, /cursor\.com\/dashboard/);
+  assertMatch(msg, /Cursor Cloud/);
+  assertStrictEquals(isCursorSpendLimitError(msg), true);
 });
 
-test("401 stays a key error", () => {
-  assert.match(formatCloudAgentError(401, "Invalid User API Key"), /מפתח/);
+Deno.test("401 stays a key error", () => {
+  assertMatch(formatCloudAgentError(401, "Invalid User API Key"), /מפתח/);
 });

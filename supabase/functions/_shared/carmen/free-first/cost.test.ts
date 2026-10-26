@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { checkPremiumBudget, safeUsageEvent } from "./cost.ts";
 
 const budget = {
@@ -9,40 +8,40 @@ const budget = {
   spentUsd: 7,
   estimatedNextCallUsd: 0.5,
 };
-test("valid premium preflight accounts for committed money", () => {
-  assert.deepEqual(checkPremiumBudget(budget), {
+Deno.test("valid premium preflight accounts for committed money", () => {
+  assertEquals(checkPremiumBudget(budget), {
     allowed: true,
     reason: "allowed",
     remainingUsd: 1,
   });
 });
-test("unapproved premium never runs even with funds", () => {
-  assert.equal(
+Deno.test("unapproved premium never runs even with funds", () => {
+  assertStrictEquals(
     checkPremiumBudget({ ...budget, approved: false }).reason,
     "not_approved",
   );
 });
-test("unknown price cannot be auto-authorized", () => {
-  assert.equal(
+Deno.test("unknown price cannot be auto-authorized", () => {
+  assertStrictEquals(
     checkPremiumBudget({ ...budget, estimatedNextCallUsd: null }).reason,
     "unknown_cost",
   );
 });
-test("budget refuses NaN, negative amounts and overspending", () => {
-  assert.equal(
+Deno.test("budget refuses NaN, negative amounts and overspending", () => {
+  assertStrictEquals(
     checkPremiumBudget({ ...budget, spentUsd: NaN }).reason,
     "invalid_budget",
   );
-  assert.equal(
+  assertStrictEquals(
     checkPremiumBudget({ ...budget, estimatedNextCallUsd: -1 }).reason,
     "unknown_cost",
   );
-  assert.equal(
+  assertStrictEquals(
     checkPremiumBudget({ ...budget, estimatedNextCallUsd: 1.01 }).reason,
     "budget_exceeded",
   );
 });
-test("log schema only keeps safe token/cost metrics", () => {
+Deno.test("log schema only keeps safe token/cost metrics", () => {
   const event = safeUsageEvent({
     tenantId: "tenant",
     requestId: "req",
@@ -55,7 +54,7 @@ test("log schema only keeps safe token/cost metrics", () => {
     outputTokens: -1,
     actualCostUsd: 0,
   });
-  assert.equal(event.inputTokens, 100);
-  assert.equal(event.outputTokens, undefined);
-  assert.equal(event.actualCostUsd, 0);
+  assertStrictEquals(event.inputTokens, 100);
+  assertStrictEquals(event.outputTokens, undefined);
+  assertStrictEquals(event.actualCostUsd, 0);
 });

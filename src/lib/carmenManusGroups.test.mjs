@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import {
   collectSyncedCatalog,
   mergeSyncCatalogWithDb,
@@ -28,10 +27,10 @@ test("collectSyncedCatalog: prefers groups catalog over bare chat ids", () => {
       },
     },
   ]);
-  assert.equal(hasSync, true);
-  assert.equal(entries.length, 2);
-  assert.equal(chatIds.length, 2);
-  assert.equal(entries[0].name, "Alpha");
+  expect(hasSync).toBe(true);
+  expect(entries.length).toBe(2);
+  expect(chatIds.length).toBe(2);
+  expect(entries[0].name).toBe("Alpha");
 });
 
 test("mergeSyncCatalogWithDb: includes catalog entries missing from DB", () => {
@@ -45,9 +44,9 @@ test("mergeSyncCatalogWithDb: includes catalog entries missing from DB", () => {
     ],
     new Map(),
   );
-  assert.equal(merged.length, 1);
-  assert.equal(merged[0].id, "550e8400-e29b-41d4-a716-446655440000");
-  assert.equal(merged[0].group_name, "Missing in DB");
+  expect(merged.length).toBe(1);
+  expect(merged[0].id).toBe("550e8400-e29b-41d4-a716-446655440000");
+  expect(merged[0].group_name).toBe("Missing in DB");
 });
 
 test("mergeSyncCatalogWithDb: DB row wins for name when present", () => {
@@ -71,5 +70,5 @@ test("mergeSyncCatalogWithDb: DB row wins for name when present", () => {
       ],
     ]),
   );
-  assert.equal(merged[0].group_name, "Fresh name");
+  expect(merged[0].group_name).toBe("Fresh name");
 });

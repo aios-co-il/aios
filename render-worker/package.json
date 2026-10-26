@@ -9,6 +9,6 @@
   },
   "scripts": {
     "start": "node src/index.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "cd .. && vitest run --project node render-worker"
   }
 }

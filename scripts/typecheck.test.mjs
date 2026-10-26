@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import ts from "typescript";
 import {
   collectDiagnostics,
@@ -29,17 +28,16 @@ const baseline = (diagnostics) => ({
 });
 
 test("unchanged diagnostics and line-only shifts preserve existing debt", () => {
-  assert.deepEqual(compareDiagnostics([error], snapshot([error])), {
+  expect(compareDiagnostics([error], snapshot([error]))).toStrictEqual({
     added: [],
     resolved: [],
   });
-  assert.deepEqual(
+  expect(
     compareDiagnostics(
       [{ ...error, line: 100, column: 12 }],
       snapshot([error]),
     ),
-    { added: [], resolved: [] },
-  );
+  ).toStrictEqual({ added: [], resolved: [] });
 });
 
 test("new diagnostics, dependent-file errors, and equal-total replacements fail", () => {
@@ -49,36 +47,32 @@ test("new diagnostics, dependent-file errors, and equal-total replacements fail"
     message: "Property 'missing' does not exist.",
     source: "missing",
   };
-  assert.deepEqual(compareDiagnostics([replacement], snapshot([error])).added, [
-    replacement,
-  ]);
+  expect(
+    compareDiagnostics([replacement], snapshot([error])).added,
+  ).toStrictEqual([replacement]);
   const dependent = { ...error, file: "src/dependent.ts" };
-  assert.deepEqual(
+  expect(
     compareDiagnostics([error, dependent], snapshot([error])).added,
-    [dependent],
-  );
+  ).toStrictEqual([dependent]);
 });
 
 test("diagnostic counts cannot conceal duplicate additions or resolved errors", () => {
-  assert.equal(
+  expect(
     compareDiagnostics([error, error], snapshot([error])).added.length,
-    1,
-  );
-  assert.equal(
+  ).toBe(1);
+  expect(
     compareDiagnostics([error], snapshot([error, error])).resolved[0].count,
-    1,
-  );
-  assert.deepEqual(
-    compareDiagnostics([], snapshot([error])).resolved,
+  ).toBe(1);
+  expect(compareDiagnostics([], snapshot([error])).resolved).toStrictEqual(
     snapshot([error]),
   );
 });
 
 test("source changes distinguish errors with identical messages", () => {
   const replacement = { ...error, source: "otherValue" };
-  assert.deepEqual(compareDiagnostics([replacement], snapshot([error])).added, [
-    replacement,
-  ]);
+  expect(
+    compareDiagnostics([replacement], snapshot([error])).added,
+  ).toStrictEqual([replacement]);
 });
 
 test("embedded checkout paths match between local and CI without masking different modules", () => {
@@ -92,19 +86,17 @@ test("embedded checkout paths match between local and CI without masking differe
     message("/home/runner/work/aios/aios"),
     "/home/runner/work/aios/aios",
   );
-  assert.equal(local, ci);
-  assert.equal(
+  expect(local).toBe(ci);
+  expect(
     normalizeDiagnosticMessage(message("C:/work/aios"), "C:\\work\\aios"),
-    local,
-  );
-  assert.equal(
+  ).toBe(local);
+  expect(
     compareDiagnostics(
       [{ ...error, code: 7016, message: ci }],
       snapshot([{ ...error, code: 7016, message: local }]),
     ).added.length,
-    0,
-  );
-  assert.notEqual(
+  ).toBe(0);
+  expect(
     normalizeDiagnosticMessage(
       message("/workspace/aios").replace(
         "/papaparse/papaparse.js",
@@ -112,15 +104,13 @@ test("embedded checkout paths match between local and CI without masking differe
       ),
       "/workspace/aios",
     ),
-    local,
-  );
-  assert.equal(
+  ).not.toBe(local);
+  expect(
     normalizeDiagnosticMessage(
       "'/workspace/aios-other/file.ts'",
       "/workspace/aios",
     ),
-    "'/workspace/aios-other/file.ts'",
-  );
+  ).toBe("'/workspace/aios-other/file.ts'");
 });
 
 test("real missing-declaration diagnostics remain identical across different checkout directories", () => {
@@ -149,10 +139,10 @@ test("real missing-declaration diagnostics remain identical across different che
     }
     const local = collectDiagnostics(dirs[0]);
     const ci = collectDiagnostics(dirs[1]);
-    assert.equal(local.length, 1);
-    assert.equal(local[0].code, 7016);
-    assert.match(local[0].message, /\.\/src\/helpers\.js/);
-    assert.deepEqual(compareDiagnostics(ci, snapshot(local)), {
+    expect(local.length).toBe(1);
+    expect(local[0].code).toBe(7016);
+    expect(local[0].message).toMatch(/\.\/src\/helpers\.js/);
+    expect(compareDiagnostics(ci, snapshot(local))).toStrictEqual({
       added: [],
       resolved: [],
     });
@@ -162,14 +152,14 @@ test("real missing-declaration diagnostics remain identical across different che
 });
 
 test("malformed and duplicate baseline entries fail closed", () => {
-  assert.throws(() => validateBaseline({}));
-  assert.throws(() =>
+  expect(() => validateBaseline({})).toThrow();
+  expect(() =>
     validateBaseline({
       ...baseline([]),
       diagnostics: [{ ...error, count: 0 }],
     }),
-  );
-  assert.throws(() =>
+  ).toThrow();
+  expect(() =>
     validateBaseline({
       ...baseline([]),
       diagnostics: [
@@ -177,7 +167,7 @@ test("malformed and duplicate baseline entries fail closed", () => {
         { ...error, count: 1 },
       ],
     }),
-  );
+  ).toThrow();
 });
 
 test("trusted checker checks an external project without executing its checker or updating its baseline", () => {
@@ -207,11 +197,11 @@ test("trusted checker checks an external project without executing its checker o
     const file = path.join(dir, "scripts/typecheck-baseline.json");
     const captured = JSON.stringify(baseline(collectDiagnostics(dir)));
     fs.writeFileSync(file, captured);
-    assert.equal(run(["--project", dir]), 0);
-    assert.equal(fs.readFileSync(file, "utf8"), captured);
-    assert.throws(() => run(["--project", dir, "--accept-new"]), /Usage/);
+    expect(run(["--project", dir])).toBe(0);
+    expect(fs.readFileSync(file, "utf8")).toBe(captured);
+    expect(() => run(["--project", dir, "--accept-new"])).toThrow(/Usage/);
     fs.writeFileSync(file, JSON.stringify(baseline([])));
-    assert.equal(run(["--project", dir]), 1);
+    expect(run(["--project", dir])).toBe(1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -247,38 +237,35 @@ test("real compiler checks the full frontend, tracks locations, and handles shif
       'import { value } from "./source";\nexport const amount: number = value;\n';
     fs.writeFileSync(path.join(dir, "src/consumer.ts"), consumer);
     const original = collectDiagnostics(dir);
-    assert.equal(original.length, 1);
-    assert.equal(original[0].file, "src/consumer.ts");
-    assert.equal(original[0].line, 2);
+    expect(original.length).toBe(1);
+    expect(original[0].file).toBe("src/consumer.ts");
+    expect(original[0].line).toBe(2);
     fs.writeFileSync(path.join(dir, "src/consumer.ts"), "\n\n" + consumer);
-    assert.equal(collectDiagnostics(dir)[0].line, 4);
-    assert.equal(
+    expect(collectDiagnostics(dir)[0].line).toBe(4);
+    expect(
       compareDiagnostics(collectDiagnostics(dir), snapshot(original)).added
         .length,
-      0,
-    );
+    ).toBe(0);
     fs.writeFileSync(
       path.join(dir, "src/consumer.ts"),
       consumer.replace(": number", ": boolean"),
     );
     const replacement = collectDiagnostics(dir);
-    assert.equal(replacement.length, original.length);
-    assert.equal(
+    expect(replacement.length).toBe(original.length);
+    expect(
       compareDiagnostics(replacement, snapshot(original)).added.length,
-      1,
-    );
+    ).toBe(1);
     fs.writeFileSync(path.join(dir, "src/consumer.ts"), consumer);
     fs.writeFileSync(
       path.join(dir, "src/source.ts"),
       "export const value = 1;\n",
     );
-    assert.equal(
+    expect(
       compareDiagnostics(collectDiagnostics(dir), snapshot(original)).resolved
         .length,
-      1,
-    );
+    ).toBe(1);
     fs.writeFileSync(path.join(dir, "tsconfig.app.json"), "{broken");
-    assert.throws(() => collectDiagnostics(dir));
+    expect(() => collectDiagnostics(dir)).toThrow();
     fs.writeFileSync(
       path.join(dir, "tsconfig.app.json"),
       JSON.stringify({
@@ -286,7 +273,7 @@ test("real compiler checks the full frontend, tracks locations, and handles shif
         include: ["src"],
       }),
     );
-    assert.throws(() => collectDiagnostics(dir));
+    expect(() => collectDiagnostics(dir)).toThrow();
     fs.writeFileSync(
       path.join(dir, "tsconfig.app.json"),
       JSON.stringify({
@@ -294,12 +281,11 @@ test("real compiler checks the full frontend, tracks locations, and handles shif
         include: ["src"],
       }),
     );
-    assert.throws(
-      () => collectDiagnostics(dir),
+    expect(() => collectDiagnostics(dir)).toThrow(
       /Compiler configuration failure/,
     );
     fs.unlinkSync(path.join(dir, "tsconfig.app.json"));
-    assert.throws(() => collectDiagnostics(dir));
+    expect(() => collectDiagnostics(dir)).toThrow();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -308,7 +294,7 @@ test("real compiler checks the full frontend, tracks locations, and handles shif
 test("strict mode catches implicit-any and null assignments without weakening overrides", () => {
   for (const configFile of ["tsconfig.json", "tsconfig.app.json"]) {
     const { compilerOptions } = JSON.parse(fs.readFileSync(configFile, "utf8"));
-    assert.equal(compilerOptions.strict, true);
+    expect(compilerOptions.strict).toBe(true);
     for (const flag of [
       "noImplicitAny",
       "strictNullChecks",
@@ -319,11 +305,10 @@ test("strict mode catches implicit-any and null assignments without weakening ov
       "useUnknownInCatchVariables",
       "strictBuiltinIteratorReturn",
     ]) {
-      assert.notEqual(
+      expect(
         compilerOptions[flag],
-        false,
         `${configFile} must not disable ${flag}`,
-      );
+      ).not.toBe(false);
     }
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aio-strict-typecheck-"));
@@ -341,7 +326,7 @@ test("strict mode catches implicit-any and null assignments without weakening ov
       "export function echo(value) { return value; }\nexport const count: number = null;\n",
     );
     const diagnostics = collectDiagnostics(dir);
-    assert.deepEqual(diagnostics.map((d) => d.code).sort(), [2322, 7006]);
+    expect(diagnostics.map((d) => d.code).sort()).toStrictEqual([2322, 7006]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
