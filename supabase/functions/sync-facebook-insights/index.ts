@@ -13,11 +13,13 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
-  replacedRecordsFilter,
   resolveAdsSyncWindow,
-  resolvePruneStart,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import { buildSyncOutcome, isWriteSuccess } from "../_shared/sync-outcome.ts";
+import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+
+const SOURCE = "sync-facebook-insights";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +33,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Set once the table is known, so an unexpected error is recorded as a failed run.
+  let recordFailure: ((message: string) => Promise<unknown>) | null = null;
   try {
     // Allow service-role internal calls (Carmen / cron) to bypass user auth —
     // mirrors sync-google-ads-data. Requires x-internal-cron: true AND service bearer.
@@ -215,6 +219,15 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = integration.api_key;
+    recordFailure = (message) =>
+      saveSyncRun(supabaseAdmin, table_id, {
+        outcome: buildSyncOutcome({
+          status: "failed",
+          error: message,
+          source: SOURCE,
+        }),
+        fallbackSettings: settings,
+      });
 
     // Calculate date range
     const now = new Date();
@@ -381,17 +394,20 @@ Deno.serve(async (req) => {
       `[sync-facebook-insights] Fetching campaign/adset/ad insights from FB`,
     );
 
-    const { records: insights, levelCounts } =
-      await buildAllLevelInsightRecords(
-        adAccountId,
-        sinceStr,
-        untilStr,
-        accessToken,
-        campaignStatuses,
-        resultLeadTypes,
-        optimizationGoals,
-        resultMetrics,
-      );
+    const {
+      records: insights,
+      levelCounts,
+      levelErrors,
+    } = await buildAllLevelInsightRecords(
+      adAccountId,
+      sinceStr,
+      untilStr,
+      accessToken,
+      campaignStatuses,
+      resultLeadTypes,
+      optimizationGoals,
+      resultMetrics,
+    );
 
     console.log(
       `[sync-facebook-insights] Got ${insights.length} insight rows from FB`,
@@ -431,43 +447,24 @@ Deno.serve(async (req) => {
       .eq("table_id", table_id)
       .in("key", ["date_start", "date_stop", "landing_page_views"]);
 
-    // Replace only the days this run re-fetched; rows older than the sync window are
-    // history a longer report window still needs. A run that came back empty is far
-    // more likely to be a Meta hiccup than an account with no delivery at all, so it
-    // leaves the stored rows alone instead of blanking the report.
+    // Replace only the days (and levels) this run re-fetched; rows older than the
+    // sync window are history a longer report window still needs. An empty run or a
+    // failed campaign-level fetch leaves the stored rows alone (syncAdsWindow).
     // Scope by table_id only — shared-agency tables can leave orphan rows under a
     // previous tenant_id; filtering by tenant_id would leave them forever and inflate KPIs.
-    if (insights.length > 0) {
-      await supabaseAdmin
-        .from("crm_records")
-        .delete()
-        .eq("table_id", table_id)
-        .or(
-          replacedRecordsFilter(
-            resolvePruneStart(
-              syncWindow,
-              insights.map((i) => i.date),
-            ),
-          ),
-        );
-    }
-
-    // Bulk insert new records (one round-trip per chunk instead of one per row)
-    if (insights.length > 0) {
-      const recordRows = insights.map((insight) => ({
-        table_id,
-        tenant_id: tableTenantId,
-        created_by: user.id || null,
-        data: insight,
-      }));
-      const INSERT_CHUNK = 500;
-      for (let i = 0; i < recordRows.length; i += INSERT_CHUNK) {
-        const { error: insertError } = await supabase
-          .from("crm_records")
-          .insert(recordRows.slice(i, i + INSERT_CHUNK));
-        if (insertError) throw insertError;
-      }
-    }
+    const outcome = await syncAdsWindow(
+      { deleteClient: supabaseAdmin, insertClient: supabase },
+      {
+        tableId: table_id,
+        tenantId: tableTenantId,
+        createdBy: user.id || null,
+        window: syncWindow,
+        records: insights,
+        levelCounts,
+        levelErrors,
+        source: SOURCE,
+      },
+    );
 
     const lastCampaignUpdatedAt = latestCampaignUpdatedTime(campaignStatuses);
     const lastMetaActivity = await fetchLastMetaCampaignActivity(
@@ -475,44 +472,41 @@ Deno.serve(async (req) => {
       adAccountId,
     );
 
-    // Update last_sync_at / account status without wiping concurrent currency edits
-    const { data: freshTable } = await supabase
-      .from("crm_tables")
-      .select("integration_settings")
-      .eq("id", table_id)
-      .maybeSingle();
-    const currentSettings = (freshTable?.integration_settings ||
-      settings ||
-      {}) as Record<string, unknown>;
-    await supabase
-      .from("crm_tables")
-      .update({
-        integration_settings: {
-          ...currentSettings,
-          last_sync_at: new Date().toISOString(),
-          last_insights_until: untilStr,
-          last_campaign_updated_at: lastCampaignUpdatedAt,
-          last_meta_activity: lastMetaActivity,
-          account_status: accountStatus,
-          account_disable_reason: accountDisableReason,
-        },
-      })
-      .eq("id", table_id);
+    // Account status always; last_sync_at only after a successful write (saveSyncRun).
+    const { lastSyncAt } = await saveSyncRun(supabase, table_id, {
+      outcome,
+      fallbackSettings: settings,
+      settingsPatch: {
+        ...(isWriteSuccess(outcome.status)
+          ? { last_insights_until: untilStr }
+          : {}),
+        last_campaign_updated_at: lastCampaignUpdatedAt,
+        last_meta_activity: lastMetaActivity,
+        account_status: accountStatus,
+        account_disable_reason: accountDisableReason,
+      },
+    });
 
     return new Response(
       JSON.stringify({
-        success: true,
-        records_synced: insights.length,
+        success: outcome.status !== "failed",
+        ...(outcome.status === "failed" ? { error: outcome.error } : {}),
+        records_synced: outcome.rows,
         by_level: levelCounts,
+        outcome,
         account_status: accountStatus,
-        last_sync_at: new Date().toISOString(),
+        last_sync_at: lastSyncAt,
       }),
       {
+        status: outcome.status === "failed" ? 502 : 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error: any) {
     console.error("Error in sync-facebook-insights:", error);
+    await recordFailure?.(
+      error instanceof Error ? error.message : String(error),
+    ).catch(() => {});
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

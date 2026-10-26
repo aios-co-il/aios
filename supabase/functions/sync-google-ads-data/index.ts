@@ -6,6 +6,12 @@ import {
 } from "../_shared/campaign-operational-health.ts";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
 import {
+  type AdsLevel,
+  buildSyncOutcome,
+  scheduledMarkerPatch,
+} from "../_shared/sync-outcome.ts";
+import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+import {
   replacedRecordsFilter,
   resolveAdsSyncWindow,
   resolvePruneStart,
@@ -91,6 +97,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Set once the table is known: a run that cannot fetch or write is recorded as
+  // failed instead of leaving the previous outcome in place.
+  let recordFailure: ((message: string) => Promise<unknown>) | null = null;
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -216,6 +225,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Operational-only scans write no report rows, so they leave the outcome alone.
+    if (!operational_only) {
+      recordFailure = (message) =>
+        saveSyncRun(supabaseAdmin, table_id, {
+          outcome: buildSyncOutcome({
+            status: "failed",
+            error: message,
+            source: "sync-google-ads-data",
+          }),
+          catchup: update_last_sync === false,
+          fallbackSettings: settings,
+        }).catch(() => {});
+    }
+
     // Resolve WHICH Google Ads connection to use.
     //
     // Preferred: the exact connection chosen when the table was created, stored as
@@ -273,6 +296,7 @@ Deno.serve(async (req) => {
     }
 
     if (!integration?.api_key) {
+      await recordFailure?.("Google Ads not connected");
       return new Response(
         JSON.stringify({ error: "Google Ads not connected" }),
         {
@@ -366,6 +390,9 @@ Deno.serve(async (req) => {
     {
       const r = await ensureFreshToken(false);
       if (!r.ok) {
+        await recordFailure?.(
+          r.needsReauth ? "needs_reauth" : `token_refresh_failed: ${r.error}`,
+        );
         return new Response(
           JSON.stringify({
             error: r.needsReauth ? "needs_reauth" : "token_refresh_failed",
@@ -807,6 +834,7 @@ Deno.serve(async (req) => {
 
     // If still 401 after a refresh attempt — refresh_token is bad/revoked
     if (searchResponse.status === 401) {
+      await recordFailure?.("needs_reauth");
       return new Response(
         JSON.stringify({
           error: "needs_reauth",
@@ -930,6 +958,9 @@ Deno.serve(async (req) => {
     const finalError = detectGAError(searchData);
     if (finalError) {
       console.error("Google Ads API error:", finalError);
+      await recordFailure?.(
+        `Google Ads API error: ${finalError.message || JSON.stringify(finalError)}`,
+      );
       return new Response(
         JSON.stringify({
           error: "Google Ads API error",
@@ -952,6 +983,8 @@ Deno.serve(async (req) => {
       `[sync-google-ads] campaign batches received: ${batchesArr.length}`,
     );
     const records: GoogleAdsRecord[] = parseGaqlResults(batchesArr, "campaign");
+    // A failed ad group / ad query keeps that level's stored rows (syncAdsWindow).
+    const levelErrors: Partial<Record<AdsLevel, string>> = {};
 
     try {
       const adGroupBatches = await runGaqlSearch(adGroupQuery);
@@ -960,6 +993,9 @@ Deno.serve(async (req) => {
         `[sync-google-ads] ad group rows: ${records.filter((r) => r.entity_level === "adset").length}`,
       );
     } catch (adGroupErr) {
+      levelErrors.adset = String(
+        adGroupErr instanceof Error ? adGroupErr.message : adGroupErr,
+      );
       console.warn(
         "[sync-google-ads] ad group query failed (non-fatal):",
         adGroupErr instanceof Error ? adGroupErr.message : adGroupErr,
@@ -973,6 +1009,7 @@ Deno.serve(async (req) => {
         `[sync-google-ads] ad rows: ${records.filter((r) => r.entity_level === "ad").length}`,
       );
     } catch (adErr) {
+      levelErrors.ad = String(adErr instanceof Error ? adErr.message : adErr);
       console.warn(
         "[sync-google-ads] ad query failed (non-fatal):",
         adErr instanceof Error ? adErr.message : adErr,
@@ -1380,92 +1417,49 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Replace only the days this run re-fetched (admin client to bypass RLS); rows older
-    // than the sync window are history a longer report window still needs. A run that came
-    // back empty is far more likely to be a Google Ads hiccup than an account with no
-    // delivery at all, so it leaves the stored rows alone instead of blanking the report.
+    const byLevelCount = (level: AdsLevel) =>
+      records.filter((r) => (r.entity_level || "campaign") === level).length;
+
+    // Replace only the days (and levels) this run re-fetched (admin client to bypass
+    // RLS); rows older than the sync window are history a longer report window still
+    // needs. An empty run leaves the stored rows alone (far more likely a Google Ads
+    // hiccup than an account with no delivery), and a failed delete inserts nothing.
     // table_id only — orphan rows from a previous tenant_id must not survive sync.
-    if (records.length > 0) {
-      const { error: delErr } = await supabaseAdmin
-        .from("crm_records")
-        .delete()
-        .eq("table_id", table_id)
-        .or(
-          replacedRecordsFilter(
-            resolvePruneStart(
-              syncWindow,
-              records.map((r) => r.date),
-            ),
-          ),
-        );
-      if (delErr)
-        console.error("[sync-google-ads] delete error:", delErr.message);
-    }
+    const outcome = await syncAdsWindow(
+      { deleteClient: supabaseAdmin },
+      {
+        tableId: table_id,
+        tenantId: tableTenantId,
+        createdBy: user.id,
+        window: syncWindow,
+        records,
+        levelCounts: {
+          campaign: byLevelCount("campaign"),
+          adset: byLevelCount("adset"),
+          ad: byLevelCount("ad"),
+        },
+        levelErrors,
+        source: "sync-google-ads-data",
+      },
+    );
+    console.log(
+      `[sync-google-ads] outcome: ${outcome.status}, inserted: ${outcome.rows}`,
+      outcome.error || "",
+    );
 
-    // Insert new records (batched)
-    let inserted = 0;
-    if (records.length > 0) {
-      const rows = records.map((record) => ({
-        table_id,
-        tenant_id: tableTenantId,
-        created_by: user.id,
-        data: record as any,
-      }));
-      const { error: insErr, count } = await supabaseAdmin
-        .from("crm_records")
-        .insert(rows, { count: "exact" });
-      if (insErr) {
-        console.error("[sync-google-ads] insert error:", insErr.message);
-      } else {
-        inserted = count ?? rows.length;
-      }
-    }
-    console.log(`[sync-google-ads] inserted: ${inserted}`);
-
-    // Update last_sync_at on both the column and settings. Health/pulse read
-    // the freshest of the two; older writers only patched settings and left a
-    // stale column that looked like "sync missing".
-    const syncedAt = new Date().toISOString();
-    const settingsPatch: Record<string, unknown> = {};
-    if (update_last_sync !== false) settingsPatch.last_sync_at = syncedAt;
-    if (
-      typeof scheduled_history_from === "string" &&
-      isoDate.test(scheduled_history_from)
-    ) {
-      settingsPatch.scheduled_history_from = scheduled_history_from;
-    }
-    if (
-      typeof scheduled_synced_through === "string" &&
-      isoDate.test(scheduled_synced_through)
-    ) {
-      settingsPatch.scheduled_synced_through = scheduled_synced_through;
-    }
-    if (
-      typeof scheduled_lookback_on === "string" &&
-      isoDate.test(scheduled_lookback_on)
-    ) {
-      settingsPatch.scheduled_lookback_on = scheduled_lookback_on;
-    }
-    if (Object.keys(settingsPatch).length > 0) {
-      await patchIntegrationSettings(
-        supabaseAdmin,
-        table_id,
-        settingsPatch,
-        settings,
-      );
-    }
-    if (update_last_sync !== false) {
-      const { error: lastSyncColErr } = await supabaseAdmin
-        .from("crm_tables")
-        .update({ last_sync_at: syncedAt })
-        .eq("id", table_id);
-      if (lastSyncColErr) {
-        console.error(
-          "[sync-google-ads] last_sync_at column update failed:",
-          lastSyncColErr.message,
-        );
-      }
-    }
+    // last_sync_at (column + settings) and the scheduled markers move only after a
+    // successful write; catch-up chunks (update_last_sync=false) never stamp it.
+    // Health/pulse read the freshest of column vs settings.
+    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, table_id, {
+      outcome,
+      catchup: update_last_sync === false,
+      fallbackSettings: settings,
+      settingsPatch: scheduledMarkerPatch(outcome.status, {
+        scheduled_history_from,
+        scheduled_synced_through,
+        scheduled_lookback_on,
+      }),
+    });
 
     const byLevel = {
       campaign: records.filter(
@@ -1478,18 +1472,24 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
-        records_synced: inserted,
+        success: outcome.status !== "failed",
+        ...(outcome.status === "failed" ? { error: outcome.error } : {}),
+        records_synced: outcome.rows,
         by_level: byLevel,
-        last_sync_at: syncedAt,
+        outcome,
+        last_sync_at: lastSyncAt,
         verified_against: verifiedSiteUrl,
       }),
       {
+        status: outcome.status === "failed" ? 502 : 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error: any) {
     console.error("Error in sync-google-ads-data:", error);
+    await recordFailure?.(
+      error instanceof Error ? error.message : String(error),
+    );
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

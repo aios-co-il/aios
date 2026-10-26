@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildSyncOutcome } from "../_shared/sync-outcome.ts";
+import { saveSyncRun } from "../_shared/ads-sync-write.ts";
+
+const SOURCE = "webhook-google-ads-sync";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,10 +178,20 @@ Deno.serve(async (req) => {
     }
 
     // === BATCH UPSERT: fetch all existing records ONCE ===
-    const { data: allExisting } = await supabase
-      .from("crm_records")
-      .select("id, data")
-      .eq("table_id", table_id);
+    // Paged: one request stops at max_rows (1000), and a row missing from this map
+    // would be inserted a second time instead of updated.
+    const allExisting: { id: string; data: unknown }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error: pageError } = await supabase
+        .from("crm_records")
+        .select("id, data")
+        .eq("table_id", table_id)
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (pageError) throw pageError;
+      allExisting.push(...(page || []));
+      if (!page || page.length < 1000) break;
+    }
 
     // Build lookup map: "campaign_id|date" -> record id
     const existingMap = new Map<string, string>();
@@ -298,12 +312,14 @@ Deno.serve(async (req) => {
 
     // Batch insert (Supabase handles arrays)
     let insertedCount = 0;
+    let writeErrors = 0;
     if (toInsert.length > 0) {
       // Insert in chunks of 500 to avoid payload limits
       for (let i = 0; i < toInsert.length; i += 500) {
         const chunk = toInsert.slice(i, i + 500);
         const { error } = await supabase.from("crm_records").insert(chunk);
         if (error) {
+          writeErrors++;
           console.error("Batch insert error:", error);
         } else {
           insertedCount += chunk.length;
@@ -319,13 +335,21 @@ Deno.serve(async (req) => {
         .update({ data: item.data, updated_at: new Date().toISOString() })
         .eq("id", item.id);
       if (!error) updatedCount++;
+      else writeErrors++;
     }
 
-    // Update last_sync_at
-    await supabase
-      .from("crm_tables")
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq("id", table_id);
+    // last_sync_at moves only when everything received was written; the attempt
+    // and its outcome are always recorded.
+    const written = insertedCount + updatedCount;
+    await saveSyncRun(supabase, table_id, {
+      outcome: buildSyncOutcome({
+        status: writeErrors > 0 ? "failed" : written > 0 ? "ok" : "empty",
+        rows: written,
+        error: writeErrors > 0 ? `${writeErrors} writes failed` : null,
+        source: SOURCE,
+      }),
+      fallbackSettings: table.integration_settings || {},
+    });
 
     console.log(
       `Synced ${records.length} records: ${insertedCount} inserted, ${updatedCount} updated, ${skippedInvalidCount} skipped invalid, ${skippedOutOfRangeCount} skipped out-of-range`,

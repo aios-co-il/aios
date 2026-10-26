@@ -186,6 +186,7 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+import { fetchCampaignLevelRecords } from "../_shared/pulse-inputs.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -11221,12 +11222,16 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("table_id, data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds);
-        for (const r of recs || []) {
+        // Campaign-level rows of the last 7 days, paged: one unfiltered request
+        // stopped at 1000 rows of any level/date and missed real spend.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows as the untyped client returned them
+        const recs: any[] = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: d7Str,
+          tenantIds: accessibleTenantIds,
+          columns: "id, table_id, data",
+        });
+        for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
           const cur = spendByClient.get(cid) || {

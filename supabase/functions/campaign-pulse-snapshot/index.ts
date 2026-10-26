@@ -40,6 +40,11 @@ import {
 } from "../_shared/pulse-campaign-goals.mjs";
 import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
+import {
+  fetchCampaignLevelRecords,
+  pulseClientWindows,
+  recordsThrough,
+} from "../_shared/pulse-inputs.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -497,18 +502,12 @@ Deno.serve(async (req) => {
     const MAX_META_ACTIVITY_CALLS = 25;
 
     const now = new Date();
-    const d7 = new Date(now);
-    d7.setDate(d7.getDate() - 7);
-    const d14 = new Date(now);
-    d14.setDate(d14.getDate() - 14);
-    const d35 = new Date(now);
-    d35.setDate(d35.getDate() - 35);
-    const d7Str = d7.toISOString().slice(0, 10);
-    const d14Str = d14.toISOString().slice(0, 10);
-    const d30 = new Date(now);
-    d30.setDate(d30.getDate() - 30);
-    const d30Str = d30.toISOString().slice(0, 10);
-    const d35Str = d35.toISOString().slice(0, 10);
+    // Israel full days ending yesterday, like campaign_breakdown: the 7-day window
+    // and its prior week never include today's partial day.
+    const windows = pulseClientWindows(now);
+    const d7Str = windows.current7Start;
+    const d14Str = windows.previous7Start;
+    const d30Str = windows.recent30Start;
     const snapshots: any[] = [];
     for (const client of reportableClients) {
       try {
@@ -561,39 +560,14 @@ Deno.serve(async (req) => {
             );
           }
         }
-        let records: any[] = [];
-        if (tableIds.length) {
-          const filtered = await supabase
-            .from("crm_records")
-            .select("table_id, data")
-            .in("table_id", tableIds)
-            .filter("data->>date", "gte", d35Str)
-            .limit(5000);
-          if (!filtered.error && (filtered.data?.length || 0) > 0) {
-            records = filtered.data || [];
-          } else {
-            if (filtered.error) {
-              console.warn(
-                "[campaign-pulse] crm_records date filter failed",
-                client.id,
-                filtered.error.message,
-              );
-            }
-            const fallback = await supabase
-              .from("crm_records")
-              .select("table_id, data")
-              .in("table_id", tableIds)
-              .limit(5000);
-            records = fallback.data || [];
-            if (fallback.error) {
-              console.warn(
-                "[campaign-pulse] crm_records fallback failed",
-                client.id,
-                fallback.error.message,
-              );
-            }
-          }
-        }
+        // Every campaign-level row (no entity_level = campaign) since the oldest
+        // window day, paged past PostgREST's 1000-row cap. A read error throws into
+        // the no_data row below instead of scoring a truncated set.
+        const records: any[] = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: windows.queryStart,
+          columns: "id, table_id, data",
+        });
         const tableById = new Map(
           activeTables.map((table: any) => [table.id, table]),
         );
@@ -620,13 +594,13 @@ Deno.serve(async (req) => {
         );
         const goalMode = detectCampaignGoalMode(activeTables);
         const leadMetrics = computeGoalMetricsFromRecords(
-          leadRecords,
+          recordsThrough(leadRecords, windows.end),
           "leads",
           d7Str,
           d14Str,
         );
         const ecommerceMetrics = computeGoalMetricsFromRecords(
-          ecommerceRecords,
+          recordsThrough(ecommerceRecords, windows.end),
           "ecommerce",
           d7Str,
           d14Str,

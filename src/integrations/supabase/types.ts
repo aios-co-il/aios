@@ -5164,6 +5164,8 @@ export type Database = {
           integration_type: string | null;
           integrations: Json | null;
           last_sync_at: string | null;
+          last_sync_attempt_at: string | null;
+          last_sync_outcome: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5183,6 +5185,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5202,6 +5206,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name?: string;
           slug?: string;
           tenant_id?: string;

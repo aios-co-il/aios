@@ -3,6 +3,7 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
+import { syncOutcomeProblem } from "./sync-freshness.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -34,6 +35,8 @@ export type CampaignTableLike = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
+  /** Latest run's outcome (also mirrored in integration_settings), see sync-outcome.ts. */
+  last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
 
@@ -49,11 +52,16 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
   )[0];
 }
 
+/**
+ * Stale = no successful write within `staleMs`, or the latest run came back empty
+ * or failed (its stored rows were not refreshed, whatever last_sync_at says).
+ */
 export function isSyncStale(
   table: CampaignTableLike,
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
+  if (syncOutcomeProblem(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();

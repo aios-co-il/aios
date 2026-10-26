@@ -1037,6 +1037,8 @@ export async function buildAllLevelInsightRecords(
 ): Promise<{
   records: InsightRecord[];
   levelCounts: Record<AdsEntityLevel, number>;
+  /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
+  levelErrors: Partial<Record<AdsEntityLevel, string>>;
 }> {
   const levels: AdsEntityLevel[] = ["campaign", "adset", "ad"];
   const allRows: InsightRecord[] = [];
@@ -1045,6 +1047,7 @@ export async function buildAllLevelInsightRecords(
     adset: 0,
     ad: 0,
   };
+  const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
   for (const level of levels) {
     try {
@@ -1069,14 +1072,13 @@ export async function buildAllLevelInsightRecords(
       levelCounts[level] = raw.length;
       console.log(`[fbInsights] level=${level} rows=${raw.length}`);
     } catch (err) {
-      console.error(
-        `[fbInsights] level=${level} fetch failed:`,
-        err instanceof Error ? err.message : err,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      levelErrors[level] = message || "fetch failed";
+      console.error(`[fbInsights] level=${level} fetch failed:`, message);
     }
   }
 
-  return { records: allRows, levelCounts };
+  return { records: allRows, levelCounts, levelErrors };
 }
 
 export type LastMetaActivity = {
