@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   getClientIntegrationSelect,
   toClientIntegration,
@@ -25,31 +24,37 @@ const REPORT_TYPES = [
 
 function assertNoSecrets(payload: unknown, label: string) {
   const json = JSON.stringify(payload);
-  assert.ok(!json.includes("ya29."), `${label}: access token leaked`);
-  assert.ok(!json.includes("1//secret"), `${label}: refresh token leaked`);
-  assert.ok(!json.includes('"api_key"'), `${label}: api_key field leaked`);
-  assert.ok(
+  expect(!json.includes("ya29."), `${label}: access token leaked`).toBeTruthy();
+  expect(
+    !json.includes("1//secret"),
+    `${label}: refresh token leaked`,
+  ).toBeTruthy();
+  expect(
+    !json.includes('"api_key"'),
+    `${label}: api_key field leaked`,
+  ).toBeTruthy();
+  expect(
     !json.includes("refresh_token"),
     `${label}: refresh_token field leaked`,
-  );
+  ).toBeTruthy();
 }
 
 test("report integration types are tenant-scoped for listing", () => {
   for (const type of REPORT_TYPES) {
-    assert.equal(isReportTenantScopedIntegration(type), true, type);
+    expect(isReportTenantScopedIntegration(type), type).toBe(true);
   }
-  assert.equal(isReportTenantScopedIntegration("meta_whatsapp"), false);
-  assert.equal(isReportTenantScopedIntegration("green_api"), false);
-  assert.ok(REPORT_TENANT_SCOPED_INTEGRATION_TYPES.has("facebook"));
+  expect(isReportTenantScopedIntegration("meta_whatsapp")).toBe(false);
+  expect(isReportTenantScopedIntegration("green_api")).toBe(false);
+  expect(REPORT_TENANT_SCOPED_INTEGRATION_TYPES.has("facebook")).toBeTruthy();
 });
 
 for (const integrationType of GOOGLE_TYPES) {
   test(`useUserIntegrations pipeline strips secrets for ${integrationType}`, () => {
     const select = getClientIntegrationSelect(integrationType);
-    assert.ok(
+    expect(
       !select.includes("api_key"),
       `${integrationType} select must omit api_key`,
-    );
+    ).toBeTruthy();
 
     const dbRow = {
       id: `int-${integrationType}`,
@@ -89,19 +94,18 @@ for (const integrationType of GOOGLE_TYPES) {
       ),
     ];
 
-    assert.equal(clientRows[0].has_credential, true);
-    assert.equal(clientRows[0]._isOwn, true);
-    assert.equal(
+    expect(clientRows[0].has_credential).toBe(true);
+    expect(clientRows[0]._isOwn).toBe(true);
+    expect(
       (clientRows[0].settings as Record<string, unknown>)?.google_email,
-      "ads@arba.co.il",
-    );
+    ).toBe("ads@arba.co.il");
     assertNoSecrets(clientRows, integrationType);
   });
 }
 
 test("facebook integrations still expose api_key for legacy frontend flows", () => {
   const select = getClientIntegrationSelect("facebook_lead_ads");
-  assert.ok(select.includes("api_key"));
+  expect(select.includes("api_key")).toBeTruthy();
 
   const client = toClientIntegration({
     id: "fb-1",
@@ -112,9 +116,8 @@ test("facebook integrations still expose api_key for legacy frontend flows", () 
     settings: { page_name: "Demo Page" },
   });
 
-  assert.equal(
-    (client as { api_key?: string }).api_key,
+  expect((client as { api_key?: string }).api_key).toBe(
     "EAAB-legacy-page-token",
   );
-  assert.equal(client.has_credential, true);
+  expect(client.has_credential).toBe(true);
 });

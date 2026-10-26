@@ -1,9 +1,8 @@
-import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { assembleFilm } from "../src/compose/assemble.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
 
@@ -30,17 +29,14 @@ test("buildTimeline keeps approved clips in storyboard order", () => {
     ],
     { aspect: "16:9", musicPath: "bed.mp3" },
   );
-  assert.deepEqual(
-    timeline.scenes.map((scene) => scene.id),
-    ["a", "b"],
-  );
-  assert.equal(timeline.scenes[0].durationS, 0.5);
-  assert.equal(timeline.scenes[0].voicePath, "a.mp3");
-  assert.equal(timeline.scenes[1].overlayText, "שלום");
-  assert.equal(timeline.totalS, 2.5);
-  assert.deepEqual([timeline.width, timeline.height], [1280, 720]);
-  assert.equal(timeline.musicPath, "bed.mp3");
-  assert.equal(timeline.fps, 25);
+  expect(timeline.scenes.map((scene) => scene.id)).toStrictEqual(["a", "b"]);
+  expect(timeline.scenes[0].durationS).toBe(0.5);
+  expect(timeline.scenes[0].voicePath).toBe("a.mp3");
+  expect(timeline.scenes[1].overlayText).toBe("שלום");
+  expect(timeline.totalS).toBe(2.5);
+  expect([timeline.width, timeline.height]).toStrictEqual([1280, 720]);
+  expect(timeline.musicPath).toBe("bed.mp3");
+  expect(timeline.fps).toBe(25);
 });
 
 const media = (args) => {
@@ -49,9 +45,8 @@ const media = (args) => {
     throw new Error(`ffmpeg fixture failed: ${args.join(" ")}`);
 };
 
-test(
+test.skipIf(!hasFfmpeg)(
   "assembleFilm writes an mp4 from the shared timeline",
-  { skip: !hasFfmpeg },
   async () => {
     const dir = await mkdtemp(join(tmpdir(), "timeline-"));
     try {
@@ -98,7 +93,7 @@ test(
       );
       await assembleFilm(timeline, output);
       const file = await stat(output);
-      assert.equal(file.size > 1000, true);
+      expect(file.size > 1000).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

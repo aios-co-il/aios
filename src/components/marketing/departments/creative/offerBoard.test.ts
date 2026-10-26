@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildOfferBoardLayers,
   fitCta,
@@ -9,14 +8,13 @@ import {
 } from "./offerBoard.ts";
 
 test("fitFontSize shrinks long lines and grows short ones", () => {
-  assert.ok(
+  expect(
     fitFontSize("AI", 46, 40, 22) >
       fitFontSize("הלקוח עדיין מחפש המלצה בגוגל", 46, 40, 22),
-  );
-  assert.equal(
+  ).toBeTruthy();
+  expect(
     fitFontSize("הלקוח עדיין מחפש המלצה בגוגל ובפייסבוק בלי תוצאה", 46, 40, 22),
-    22,
-  );
+  ).toBe(22);
 });
 
 test("parseOfferBullets reads marked lines only", () => {
@@ -25,21 +23,20 @@ test("parseOfferBullets reads marked lines only", () => {
 - בדיקת אתר
 * אסטרטגיה
 גוף: משפט רגיל`);
-  assert.deepEqual(bullets, ["חיפוש AI", "בדיקת אתר", "אסטרטגיה"]);
+  expect(bullets).toStrictEqual(["חיפוש AI", "בדיקת אתר", "אסטרטגיה"]);
 });
 
 test("footer modules come from copy bullets, not Promo's default services", () => {
-  assert.deepEqual(footerModules([]), []);
-  assert.deepEqual(footerModules(["חיפוש AI"]), []);
+  expect(footerModules([])).toStrictEqual([]);
+  expect(footerModules(["חיפוש AI"])).toStrictEqual([]);
   const modules = footerModules(["חיפוש AI", "בדיקת אתר", "אסטרטגיה", "ליווי"]);
-  assert.deepEqual(
-    modules.map((item) => item.label),
-    ["חיפוש AI", "בדיקת אתר", "אסטרטגיה", "ליווי"],
-  );
-  assert.equal(
-    modules.some((item) => item.label === "ליווי"),
-    true,
-  );
+  expect(modules.map((item) => item.label)).toStrictEqual([
+    "חיפוש AI",
+    "בדיקת אתר",
+    "אסטרטגיה",
+    "ליווי",
+  ]);
+  expect(modules.some((item) => item.label === "ליווי")).toBe(true);
 });
 
 test("offer board builds a clean column, black footer, and four icon objects", () => {
@@ -62,35 +59,28 @@ test("offer board builds a clean column, black footer, and four icon objects", (
     logoUrl: "https://example.com/logo.png",
     format: "1:1",
   });
-  assert.ok(
+  expect(
     layers.some(
       (layer) => layer.role === "type_field" && (layer.width ?? 0) <= 48,
     ),
-  );
-  assert.ok(layers.some((layer) => layer.role === "divider"));
-  assert.equal(
-    layers.find((layer) => layer.role === "footer")?.fill,
-    "#111111",
-  );
-  assert.equal(
+  ).toBeTruthy();
+  expect(layers.some((layer) => layer.role === "divider")).toBeTruthy();
+  expect(layers.find((layer) => layer.role === "footer")?.fill).toBe("#111111");
+  expect(
     layers.filter((layer) => layer.role === "icon" && (layer.y ?? 0) > 64)
       .length,
-    4,
-  );
-  assert.ok(
+  ).toBe(4);
+  expect(
     layers.some(
       (layer) => layer.role === "cta" && (layer.text?.length ?? 99) <= 28,
     ),
-  );
-  assert.ok(
+  ).toBeTruthy();
+  expect(
     layers.some(
       (layer) => layer.role === "cta_fill" && layer.fill === "#dc2626",
     ),
-  );
-  assert.equal(
-    layers.some((layer) => layer.role === "logo"),
-    false,
-  );
+  ).toBeTruthy();
+  expect(layers.some((layer) => layer.role === "logo")).toBe(false);
 });
 
 test("offer board without copy bullets does not stamp Promo's four services", () => {
@@ -109,19 +99,15 @@ test("offer board without copy bullets does not stamp Promo's four services", ()
     },
     format: "1:1",
   });
-  assert.equal(layers.filter((layer) => layer.role === "icon_label").length, 0);
-  assert.equal(
-    layers.some((layer) => layer.text === "חיפוש AI"),
-    false,
-  );
-  assert.equal(
-    layers.some((layer) => layer.text === "מה מקבלים איתנו?"),
-    false,
-  );
-  assert.ok(layers.some((layer) => layer.role === "cta"));
+  expect(layers.filter((layer) => layer.role === "icon_label").length).toBe(0);
+  expect(layers.some((layer) => layer.text === "חיפוש AI")).toBe(false);
+  expect(layers.some((layer) => layer.text === "מה מקבלים איתנו?")).toBe(false);
+  expect(layers.some((layer) => layer.role === "cta")).toBeTruthy();
 });
 
 test("fitCta shortens a long button label", () => {
-  assert.equal(fitCta("השאירו פרטים"), "השאירו פרטים");
-  assert.ok(fitCta("השאירו פרטים לבדיקת הנוכחות שלכם בצ'אט").length <= 27);
+  expect(fitCta("השאירו פרטים")).toBe("השאירו פרטים");
+  expect(
+    fitCta("השאירו פרטים לבדיקת הנוכחות שלכם בצ'אט").length <= 27,
+  ).toBeTruthy();
 });

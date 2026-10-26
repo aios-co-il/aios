@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildAdaptiveTreatment,
   detectCopyMood,
@@ -7,13 +6,12 @@ import {
 } from "./adaptiveTreatment.ts";
 
 test("detectCopyMood reads urgency, doubt, and screen life from the copy", () => {
-  assert.equal(
-    detectCopyMood("וריאציה 1 — פומו תחרותי\nהמתחרים כבר טסים"),
+  expect(detectCopyMood("וריאציה 1 — פומו תחרותי\nהמתחרים כבר טסים")).toBe(
     "urgent",
   );
-  assert.equal(detectCopyMood("אתה עדיין לא יודע אם אתה שם? מתלבט"), "doubt");
-  assert.equal(detectCopyMood("עדיין מגלגל בטיקטוק? תפתח צ'אט"), "screen");
-  assert.equal(detectCopyMood("רק 99 ש״ח ללילה"), "offer");
+  expect(detectCopyMood("אתה עדיין לא יודע אם אתה שם? מתלבט")).toBe("doubt");
+  expect(detectCopyMood("עדיין מגלגל בטיקטוק? תפתח צ'אט")).toBe("screen");
+  expect(detectCopyMood("רק 99 ש״ח ללילה")).toBe("offer");
 });
 
 test("adaptive treatment follows copy, logo colors, and topic — not the style boards", () => {
@@ -28,26 +26,26 @@ test("adaptive treatment follows copy, logo colors, and topic — not the style 
     brief: "טיסה ישירה לרודוס",
     brandColors: ["#e11d48", "#111111"],
   });
-  assert.match(treatment, /ADAPTIVE STYLE/i);
-  assert.match(treatment, /PALETTE IS THE LOGO/i);
-  assert.match(treatment, /#e11d48/);
-  assert.match(treatment, /מגולל לצ'אט|טיקטוק|צ'אט/);
-  assert.match(treatment, /screen life/i);
-  assert.match(treatment, /Forbidden default recipes/i);
-  assert.match(treatment, /pink-cyan hologram/i);
-  assert.doesNotMatch(treatment, /dress that same situation in a/);
-  assert.doesNotMatch(treatment, /Swiss \/ international commercial/i);
+  expect(treatment).toMatch(/ADAPTIVE STYLE/i);
+  expect(treatment).toMatch(/PALETTE IS THE LOGO/i);
+  expect(treatment).toMatch(/#e11d48/);
+  expect(treatment).toMatch(/מגולל לצ'אט|טיקטוק|צ'אט/);
+  expect(treatment).toMatch(/screen life/i);
+  expect(treatment).toMatch(/Forbidden default recipes/i);
+  expect(treatment).toMatch(/pink-cyan hologram/i);
+  expect(treatment).not.toMatch(/dress that same situation in a/);
+  expect(treatment).not.toMatch(/Swiss \/ international commercial/i);
 });
 
 test("optional costume is a material hint only", () => {
-  assert.equal(isOptionalCostume("adaptive"), false);
-  assert.equal(isOptionalCostume("bauhaus"), true);
+  expect(isOptionalCostume("adaptive")).toBe(false);
+  expect(isOptionalCostume("bauhaus")).toBe(true);
   const treatment = buildAdaptiveTreatment({
     copyText: "כותרת: רודוס",
     brandColors: ["#111111"],
     costumeLabel: "באוהאוס",
   });
-  assert.match(treatment, /Optional costume hint/i);
-  assert.match(treatment, /באוהאוס/);
-  assert.match(treatment, /never its palette/i);
+  expect(treatment).toMatch(/Optional costume hint/i);
+  expect(treatment).toMatch(/באוהאוס/);
+  expect(treatment).toMatch(/never its palette/i);
 });

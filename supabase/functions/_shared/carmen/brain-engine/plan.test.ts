@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { type EngineConnection, planBrainEngine } from "./plan.ts";
 
 const conn = (
@@ -44,11 +43,11 @@ const smart = route("smart", {
 });
 const all = () => true;
 
-test("non-model routes run Carmen's own engine", () => {
-  assert.deepEqual(planBrainEngine(null, conns, modelRoutes, all), {
+Deno.test("non-model routes run Carmen's own engine", () => {
+  assertEquals(planBrainEngine(null, conns, modelRoutes, all), {
     kind: "internal",
   });
-  assert.deepEqual(
+  assertEquals(
     planBrainEngine(
       route("internal", { route_type: "internal" }),
       conns,
@@ -59,58 +58,76 @@ test("non-model routes run Carmen's own engine", () => {
   );
 });
 
-test("a picked brain runs Carmen's loop only when approved for client data", () => {
-  const paid = planBrainEngine(route("paid"), conns, modelRoutes, all);
-  assert.equal(paid.kind, "connections");
-  assert.deepEqual(
-    paid.kind === "connections" && paid.connections.map((c) => c.id),
-    ["paid"],
-  );
-  assert.equal(paid.kind === "connections" && paid.fallbackInternal, false);
-  assert.equal(
-    planBrainEngine(route("free-unapproved"), conns, modelRoutes, all).kind,
-    "refused",
-  );
-  assert.equal(
-    planBrainEngine(route("free-nokey"), conns, modelRoutes, all).kind,
-    "refused",
-  );
-});
+Deno.test(
+  "a picked brain runs Carmen's loop only when approved for client data",
+  () => {
+    const paid = planBrainEngine(route("paid"), conns, modelRoutes, all);
+    assertStrictEquals(paid.kind, "connections");
+    assertEquals(
+      paid.kind === "connections" && paid.connections.map((c) => c.id),
+      ["paid"],
+    );
+    assertStrictEquals(
+      paid.kind === "connections" && paid.fallbackInternal,
+      false,
+    );
+    assertStrictEquals(
+      planBrainEngine(route("free-unapproved"), conns, modelRoutes, all).kind,
+      "refused",
+    );
+    assertStrictEquals(
+      planBrainEngine(route("free-nokey"), conns, modelRoutes, all).kind,
+      "refused",
+    );
+  },
+);
 
-test("the smart router uses approved free brains the user may pick, then Carmen", () => {
-  const plan = planBrainEngine(smart, conns, modelRoutes, all);
-  assert.equal(plan.kind, "connections");
-  if (plan.kind !== "connections") return;
-  assert.deepEqual(
-    plan.connections.map((c) => c.id),
-    ["free-a", "free-b"],
-  );
-  assert.equal(plan.fallbackInternal, true);
+Deno.test(
+  "the smart router uses approved free brains the user may pick, then Carmen",
+  () => {
+    const plan = planBrainEngine(smart, conns, modelRoutes, all);
+    assertStrictEquals(plan.kind, "connections");
+    if (plan.kind !== "connections") return;
+    assertEquals(
+      plan.connections.map((c) => c.id),
+      ["free-a", "free-b"],
+    );
+    assertStrictEquals(plan.fallbackInternal, true);
 
-  const noA = planBrainEngine(smart, conns, modelRoutes, (s) => s !== "free-a");
-  assert.deepEqual(
-    noA.kind === "connections" && noA.connections.map((c) => c.id),
-    ["free-b"],
-  );
-  const noInternal = planBrainEngine(
-    smart,
-    conns,
-    modelRoutes,
-    (s) => s !== "internal",
-  );
-  assert.equal(
-    noInternal.kind === "connections" && noInternal.fallbackInternal,
-    false,
-  );
-});
+    const noA = planBrainEngine(
+      smart,
+      conns,
+      modelRoutes,
+      (s) => s !== "free-a",
+    );
+    assertEquals(
+      noA.kind === "connections" && noA.connections.map((c) => c.id),
+      ["free-b"],
+    );
+    const noInternal = planBrainEngine(
+      smart,
+      conns,
+      modelRoutes,
+      (s) => s !== "internal",
+    );
+    assertStrictEquals(
+      noInternal.kind === "connections" && noInternal.fallbackInternal,
+      false,
+    );
+  },
+);
 
-test("the smart router with no free brain falls back to Carmen, or refuses", () => {
-  const paidOnly = [conns[0]];
-  assert.deepEqual(planBrainEngine(smart, paidOnly, modelRoutes, all), {
-    kind: "internal",
-  });
-  assert.equal(
-    planBrainEngine(smart, paidOnly, modelRoutes, (s) => s !== "internal").kind,
-    "refused",
-  );
-});
+Deno.test(
+  "the smart router with no free brain falls back to Carmen, or refuses",
+  () => {
+    const paidOnly = [conns[0]];
+    assertEquals(planBrainEngine(smart, paidOnly, modelRoutes, all), {
+      kind: "internal",
+    });
+    assertStrictEquals(
+      planBrainEngine(smart, paidOnly, modelRoutes, (s) => s !== "internal")
+        .kind,
+      "refused",
+    );
+  },
+);

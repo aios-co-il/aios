@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { fakeDb } from "../fake-db.ts";
 import { resolveAudience } from "./resolve.ts";
 
@@ -91,79 +90,91 @@ const db = () =>
     broadcast_matching_entity_ids: (a) => matching[String(a.p_entity_type)],
   });
 
-test("leads come back as recipients in the RPC's order, with labels", async () => {
-  const r = await resolveAudience(db().db, T, { source: "leads" });
-  assert.deepEqual(
-    r.map((x) => x.entity_id),
-    ["L2", "L1"],
-  );
-  assert.deepEqual(r[1], {
-    entity_type: "lead",
-    entity_id: "L1",
-    phone: "0501",
-    email: null,
-    contact_name: "Dana Cohen",
-    vars: {
-      contact_name: "Dana Cohen",
-      name: "Dana Cohen",
-      first_name: "Dana",
+Deno.test(
+  "leads come back as recipients in the RPC's order, with labels",
+  async () => {
+    const r = await resolveAudience(db().db, T, { source: "leads" });
+    assertEquals(
+      r.map((x) => x.entity_id),
+      ["L2", "L1"],
+    );
+    assertEquals(r[1], {
+      entity_type: "lead",
+      entity_id: "L1",
       phone: "0501",
-      sales_person_name: "Sam",
-      lead_stage: "New",
-      lead_status: "Hot",
-    },
-  });
-});
+      email: null,
+      contact_name: "Dana Cohen",
+      vars: {
+        contact_name: "Dana Cohen",
+        name: "Dana Cohen",
+        first_name: "Dana",
+        phone: "0501",
+        sales_person_name: "Sam",
+        lead_stage: "New",
+        lead_status: "Hot",
+      },
+    });
+  },
+);
 
-test("clients carry their campaigner and status label", async () => {
+Deno.test("clients carry their campaigner and status label", async () => {
   const fake = db();
   const [c] = await resolveAudience(fake.db, T, { source: "clients" });
-  assert.equal(c.contact_name, "Acme");
-  assert.equal(c.vars.campaigner_name, "Cami");
-  assert.equal(c.vars.client_status, "פעיל");
-  assert.equal(fake.rpcCalls[0].args.p_entity_type, "client");
+  assertStrictEquals(c.contact_name, "Acme");
+  assertStrictEquals(c.vars.campaigner_name, "Cami");
+  assertStrictEquals(c.vars.client_status, "פעיל");
+  assertStrictEquals(fake.rpcCalls[0].args.p_entity_type, "client");
 });
 
-test("a static list returns its members; the member phone wins", async () => {
-  const [m] = await resolveAudience(db().db, T, {
-    source: "list",
-    listId: "S",
-  });
-  assert.equal(m.entity_id, "L1");
-  assert.equal(m.phone, "0599");
-  assert.equal(m.vars.phone, "0599");
-  assert.equal(m.vars.city, "TLV");
-});
+Deno.test(
+  "a static list returns its members; the member phone wins",
+  async () => {
+    const [m] = await resolveAudience(db().db, T, {
+      source: "list",
+      listId: "S",
+    });
+    assertStrictEquals(m.entity_id, "L1");
+    assertStrictEquals(m.phone, "0599");
+    assertStrictEquals(m.vars.phone, "0599");
+    assertStrictEquals(m.vars.city, "TLV");
+  },
+);
 
-test("a synced list reads its stored members, not the filter", async () => {
-  const fake = db();
-  const r = await resolveAudience(fake.db, T, { source: "list", listId: "Y" });
-  assert.deepEqual(
-    r.map((x) => x.entity_id),
-    ["L2"],
-  );
-  assert.deepEqual(fake.rpcCalls, []);
-});
+Deno.test(
+  "a synced list reads its stored members, not the filter",
+  async () => {
+    const fake = db();
+    const r = await resolveAudience(fake.db, T, {
+      source: "list",
+      listId: "Y",
+    });
+    assertEquals(
+      r.map((x) => x.entity_id),
+      ["L2"],
+    );
+    assertEquals(fake.rpcCalls, []);
+  },
+);
 
-test("a dynamic CRM list resolves its filter live", async () => {
+Deno.test("a dynamic CRM list resolves its filter live", async () => {
   const r = await resolveAudience(db().db, T, { source: "list", listId: "D" });
-  assert.deepEqual(
+  assertEquals(
     r.map((x) => x.entity_id),
     ["L2", "L1"],
   );
 });
 
-test("a dynamic list pointing at a list is not nested", async () => {
+Deno.test("a dynamic list pointing at a list is not nested", async () => {
   const r = await resolveAudience(db().db, T, { source: "list", listId: "N" });
-  assert.deepEqual(r, []);
+  assertEquals(r, []);
 });
 
-test("includeIds and excludeIds narrow the source", async () => {
+Deno.test("includeIds and excludeIds narrow the source", async () => {
   const inc = await resolveAudience(db().db, T, {
     source: "leads",
     includeIds: ["L1"],
   });
-  assert.deepEqual(
+  assertEquals(
     inc.map((x) => x.entity_id),
     ["L1"],
   );
@@ -171,7 +182,7 @@ test("includeIds and excludeIds narrow the source", async () => {
     source: "leads",
     excludeIds: ["L1"],
   });
-  assert.deepEqual(
+  assertEquals(
     exc.map((x) => x.entity_id),
     ["L2"],
   );
