@@ -67,10 +67,6 @@ interface CRMSettingsSectionProps {
 }
 
 type ClientCrmPatch = Partial<Pick<Tables<"clients">, "tier" | "services">>;
-type SeoHistoryEntry = Pick<
-  Tables<"seo_monthly_updates">,
-  "month" | "status" | "notes"
->;
 
 const hasClientId = (row: unknown, id: string): row is { id: string } =>
   typeof row === "object" && row !== null && "id" in row && row.id === id;
@@ -99,8 +95,7 @@ export function CRMSettingsSection({
           .select("month, status, notes, updated_at")
           .eq("client_id", client.id)
           .order("month", { ascending: false })
-          .limit(3)
-          .overrideTypes<SeoHistoryEntry[], { merge: false }>();
+          .limit(3);
         if (error) return [];
         return data ?? [];
       } catch {

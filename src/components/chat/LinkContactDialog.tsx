@@ -132,12 +132,7 @@ export function LinkContactDialog({
         query = query.ilike("group_name", `%${searchTerm}%`);
       }
 
-      const { data } = await query
-        .limit(50)
-        .overrideTypes<
-          Array<{ id: string; group_name: string | null; group_id: string }>,
-          { merge: false }
-        >();
+      const { data } = await query.limit(50);
       return data || [];
     },
     enabled: !!tenantId && open && selectedType === "group",
