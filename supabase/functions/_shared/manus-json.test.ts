@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asJsonObject,
   parseJsonOrRaw,
@@ -7,28 +6,28 @@ import {
   thrownName,
 } from "./manus-json.ts";
 
-test("asJsonObject keeps objects and rejects other JSON values", () => {
+Deno.test("asJsonObject keeps objects and rejects other JSON values", () => {
   const obj = { instance_id: "i1" };
-  assert.equal(asJsonObject(obj), obj);
-  assert.equal(asJsonObject(null), null);
-  assert.equal(asJsonObject(undefined), null);
-  assert.equal(asJsonObject([1]), null);
-  assert.equal(asJsonObject("x"), null);
-  assert.equal(asJsonObject(3), null);
+  assertStrictEquals(asJsonObject(obj), obj);
+  assertStrictEquals(asJsonObject(null), null);
+  assertStrictEquals(asJsonObject(undefined), null);
+  assertStrictEquals(asJsonObject([1]), null);
+  assertStrictEquals(asJsonObject("x"), null);
+  assertStrictEquals(asJsonObject(3), null);
 });
 
-test("parseJsonOrRaw parses JSON and wraps invalid text", () => {
-  assert.deepEqual(parseJsonOrRaw('{"success":true}'), { success: true });
-  assert.equal(parseJsonOrRaw("null"), null);
-  assert.deepEqual(parseJsonOrRaw("<html>"), { raw: "<html>" });
+Deno.test("parseJsonOrRaw parses JSON and wraps invalid text", () => {
+  assertEquals(parseJsonOrRaw('{"success":true}'), { success: true });
+  assertStrictEquals(parseJsonOrRaw("null"), null);
+  assertEquals(parseJsonOrRaw("<html>"), { raw: "<html>" });
 });
 
-test("thrownMessage and thrownName read error-like values only", () => {
+Deno.test("thrownMessage and thrownName read error-like values only", () => {
   const err = new Error("boom");
-  assert.equal(thrownMessage(err), "boom");
-  assert.equal(thrownName(err), "Error");
-  assert.equal(thrownMessage({ message: "pg" }), "pg");
-  assert.equal(thrownMessage("text"), undefined);
-  assert.equal(thrownMessage(null), undefined);
-  assert.equal(thrownName(undefined), undefined);
+  assertStrictEquals(thrownMessage(err), "boom");
+  assertStrictEquals(thrownName(err), "Error");
+  assertStrictEquals(thrownMessage({ message: "pg" }), "pg");
+  assertStrictEquals(thrownMessage("text"), undefined);
+  assertStrictEquals(thrownMessage(null), undefined);
+  assertStrictEquals(thrownName(undefined), undefined);
 });
