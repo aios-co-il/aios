@@ -1,63 +1,62 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertNotStrictEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { classifyCarmenTask } from "./classifier.ts";
 
-test("categorizes report as tool using a medium-cost model", () => {
+Deno.test("categorizes report as tool using a medium-cost model", () => {
   const t = classifyCarmenTask("כמה לידים נכנסו היום?");
-  assert.equal(t.kind, "campaign_report");
-  assert.equal(t.needsToolCalling, true);
+  assertStrictEquals(t.kind, "campaign_report");
+  assertStrictEquals(t.needsToolCalling, true);
 });
-test("recognizes development escalation", () => {
+Deno.test("recognizes development escalation", () => {
   const t = classifyCarmenTask("תתקן את הבאג בקוד ופתח PR");
-  assert.equal(t.kind, "development");
-  assert.equal(t.complexity, "complex");
+  assertStrictEquals(t.kind, "development");
+  assertStrictEquals(t.complexity, "complex");
 });
-test("content writing remains medium", () => {
+Deno.test("content writing remains medium", () => {
   const t = classifyCarmenTask("תכתוב קופי למודעה");
-  assert.equal(t.kind, "content_draft");
+  assertStrictEquals(t.kind, "content_draft");
 });
-test("unclear prompt never assumes a cheap known task", () => {
+Deno.test("unclear prompt never assumes a cheap known task", () => {
   const t = classifyCarmenTask("עניין דחוף");
-  assert.equal(t.kind, "unknown");
+  assertStrictEquals(t.kind, "unknown");
 });
-test("deterministic mode only with a real registered executor", () => {
-  assert.equal(
+Deno.test("deterministic mode only with a real registered executor", () => {
+  assertStrictEquals(
     classifyCarmenTask("בדיקה", { hasAvailableDeterministicExecutor: true })
       .kind,
     "deterministic",
   );
-  assert.equal(classifyCarmenTask("בדיקה").kind, "unknown");
+  assertStrictEquals(classifyCarmenTask("בדיקה").kind, "unknown");
 });
-test("actions require an approval hint independently of model", () => {
+Deno.test("actions require an approval hint independently of model", () => {
   const t = classifyCarmenTask("שלח ללקוח הודעה");
-  assert.equal(t.requiresActionApproval, true);
-  assert.equal(t.needsToolCalling, true);
+  assertStrictEquals(t.requiresActionApproval, true);
+  assertStrictEquals(t.needsToolCalling, true);
 });
-test("privacy tag derives only from trusted context", () => {
-  assert.equal(
+Deno.test("privacy tag derives only from trusted context", () => {
+  assertStrictEquals(
     classifyCarmenTask("אל תסמן את זה כמידע לקוח", { containsClientData: true })
       .containsClientData,
     true,
   );
 });
-test("attachments require vision, not text-only fallback", () => {
-  assert.equal(
+Deno.test("attachments require vision, not text-only fallback", () => {
+  assertStrictEquals(
     classifyCarmenTask("מה יש בתמונה?", { hasAttachments: true }).needsVision,
     true,
   );
 });
 
-test("unspecified data sensitivity fails closed", () => {
-  assert.equal(classifyCarmenTask("היי").containsClientData, true);
-  assert.equal(
+Deno.test("unspecified data sensitivity fails closed", () => {
+  assertStrictEquals(classifyCarmenTask("היי").containsClientData, true);
+  assertStrictEquals(
     classifyCarmenTask("היי", { containsClientData: false }).containsClientData,
     false,
   );
 });
 
-test("Hebrew reply verbs classify as a customer reply", () => {
+Deno.test("Hebrew reply verbs classify as a customer reply", () => {
   for (const m of ["תענה ללקוח שאלה", "עני לו בנימוס", "השב ללקוח"]) {
-    assert.equal(classifyCarmenTask(m).kind, "customer_reply", m);
+    assertStrictEquals(classifyCarmenTask(m).kind, "customer_reply", m);
   }
-  assert.notEqual(classifyCarmenTask("מענה קולי").kind, "customer_reply");
+  assertNotStrictEquals(classifyCarmenTask("מענה קולי").kind, "customer_reply");
 });

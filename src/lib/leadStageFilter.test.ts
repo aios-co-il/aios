@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   applyLeadStageQuery,
   applyResponseStatusFilter,
@@ -16,15 +15,15 @@ import {
 } from "./leadStageFilter.ts";
 
 test("empty stage selection means every stage", () => {
-  assert.deepEqual(normalizeLeadStageIds("all"), []);
-  assert.deepEqual(normalizeLeadStageIds(undefined), []);
-  assert.deepEqual(normalizeLeadStageIds([]), []);
-  assert.equal(leadMatchesStageFilter("new", []), true);
-  assert.equal(leadMatchesStageFilter(null, []), true);
+  expect(normalizeLeadStageIds("all")).toStrictEqual([]);
+  expect(normalizeLeadStageIds(undefined)).toStrictEqual([]);
+  expect(normalizeLeadStageIds([])).toStrictEqual([]);
+  expect(leadMatchesStageFilter("new", [])).toBe(true);
+  expect(leadMatchesStageFilter(null, [])).toBe(true);
 });
 
 test("several stages match any of them", () => {
-  assert.deepEqual(
+  expect(
     normalizeLeadStageIds([
       "proposal_sent",
       "negotiation",
@@ -32,97 +31,85 @@ test("several stages match any of them", () => {
       "all",
       "",
     ]),
-    ["proposal_sent", "negotiation"],
-  );
-  assert.equal(
+  ).toStrictEqual(["proposal_sent", "negotiation"]);
+  expect(
     leadMatchesStageFilter("negotiation", ["proposal_sent", "negotiation"]),
-    true,
-  );
-  assert.equal(
-    leadMatchesStageFilter("new", ["proposal_sent", "negotiation"]),
+  ).toBe(true);
+  expect(leadMatchesStageFilter("new", ["proposal_sent", "negotiation"])).toBe(
     false,
   );
 });
 
 test("legacy preset stageId still loads, and stageIds wins when both exist", () => {
-  assert.deepEqual(leadStageIdsFromPreset({ stageId: "proposal_sent" }), [
+  expect(leadStageIdsFromPreset({ stageId: "proposal_sent" })).toStrictEqual([
     "proposal_sent",
   ]);
-  assert.deepEqual(leadStageIdsFromPreset({ stageId: "all" }), []);
-  assert.deepEqual(
+  expect(leadStageIdsFromPreset({ stageId: "all" })).toStrictEqual([]);
+  expect(
     leadStageIdsFromPreset({ stageIds: ["a", "b"], stageId: "all" }),
-    ["a", "b"],
-  );
-  assert.deepEqual(leadStageIdsFromPreset({ stageIds: [] }), []);
+  ).toStrictEqual(["a", "b"]);
+  expect(leadStageIdsFromPreset({ stageIds: [] })).toStrictEqual([]);
 });
 
 test("show keeps selected stages and hide drops them", () => {
-  assert.equal(leadMatchesStageFilter("new", ["new"], "show"), true);
-  assert.equal(leadMatchesStageFilter("contacted", ["new"], "show"), false);
-  assert.equal(leadMatchesStageFilter("new", ["new"], "hide"), false);
-  assert.equal(leadMatchesStageFilter("contacted", ["new"], "hide"), true);
-  assert.equal(leadMatchesStageFilter(null, ["new"], "hide"), true);
-  assert.equal(normalizeLeadValueFilterMode("hide"), "hide");
-  assert.equal(normalizeLeadValueFilterMode("show"), "show");
-  assert.equal(normalizeLeadValueFilterMode(undefined), "show");
-  assert.equal(normalizeLeadValueFilterMode("exclude"), "show");
+  expect(leadMatchesStageFilter("new", ["new"], "show")).toBe(true);
+  expect(leadMatchesStageFilter("contacted", ["new"], "show")).toBe(false);
+  expect(leadMatchesStageFilter("new", ["new"], "hide")).toBe(false);
+  expect(leadMatchesStageFilter("contacted", ["new"], "hide")).toBe(true);
+  expect(leadMatchesStageFilter(null, ["new"], "hide")).toBe(true);
+  expect(normalizeLeadValueFilterMode("hide")).toBe("hide");
+  expect(normalizeLeadValueFilterMode("show")).toBe("show");
+  expect(normalizeLeadValueFilterMode(undefined)).toBe("show");
+  expect(normalizeLeadValueFilterMode("exclude")).toBe("show");
 });
 
 test("response status show and hide treat an empty status as none", () => {
-  assert.equal(
+  expect(
     leadMatchesResponseStatusFilter("new_lead", ["new_lead"], "show"),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     leadMatchesResponseStatusFilter("in_progress", ["new_lead"], "show"),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     leadMatchesResponseStatusFilter("not_relevant", ["not_relevant"], "hide"),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     leadMatchesResponseStatusFilter("new_lead", ["not_relevant"], "hide"),
+  ).toBe(true);
+  expect(leadMatchesResponseStatusFilter(null, ["not_relevant"], "hide")).toBe(
     true,
   );
-  assert.equal(
-    leadMatchesResponseStatusFilter(null, ["not_relevant"], "hide"),
+  expect(leadMatchesResponseStatusFilter("", ["not_relevant"], "hide")).toBe(
     true,
   );
-  assert.equal(
-    leadMatchesResponseStatusFilter("", ["not_relevant"], "hide"),
-    true,
-  );
-  assert.equal(leadMatchesResponseStatusFilter(null, ["none"], "show"), true);
-  assert.equal(
-    leadMatchesResponseStatusFilter("new_lead", ["none"], "show"),
+  expect(leadMatchesResponseStatusFilter(null, ["none"], "show")).toBe(true);
+  expect(leadMatchesResponseStatusFilter("new_lead", ["none"], "show")).toBe(
     false,
   );
-  assert.equal(
-    leadMatchesResponseStatusFilter(null, ["not_relevant"], "show"),
+  expect(leadMatchesResponseStatusFilter(null, ["not_relevant"], "show")).toBe(
     false,
   );
-  assert.equal(leadMatchesResponseStatusFilter("new_lead", [], "hide"), true);
+  expect(leadMatchesResponseStatusFilter("new_lead", [], "hide")).toBe(true);
 });
 
 test("hide stage ids become the complement, and an empty complement matches nothing", () => {
   const all = ["new", "contacted", "meeting_scheduled"];
-  assert.equal(includedStageIds([], all, "hide"), null);
-  assert.deepEqual(includedStageIds(["new"], all, "show"), ["new"]);
-  assert.deepEqual(includedStageIds(["new"], all, "hide"), [
+  expect(includedStageIds([], all, "hide")).toBe(null);
+  expect(includedStageIds(["new"], all, "show")).toStrictEqual(["new"]);
+  expect(includedStageIds(["new"], all, "hide")).toStrictEqual([
     "contacted",
     "meeting_scheduled",
   ]);
-  assert.deepEqual(includedStageIds(all, all, "hide"), []);
-  assert.deepEqual(stagesForKanbanQuery([], all, "show"), all);
-  assert.deepEqual(stagesForKanbanQuery(all, all, "hide"), [
+  expect(includedStageIds(all, all, "hide")).toStrictEqual([]);
+  expect(stagesForKanbanQuery([], all, "show")).toStrictEqual(all);
+  expect(stagesForKanbanQuery(all, all, "hide")).toStrictEqual([
     NO_MATCHING_STAGE_ID,
   ]);
-  assert.deepEqual(kanbanResponseStatuses(["not_relevant"], "show"), [
+  expect(kanbanResponseStatuses(["not_relevant"], "show")).toStrictEqual([
     "not_relevant",
   ]);
-  assert.equal(kanbanResponseStatuses(["not_relevant"], "hide"), null);
-  assert.equal(kanbanResponseStatuses(["none"], "show"), null);
+  expect(kanbanResponseStatuses(["not_relevant"], "hide")).toBe(null);
+  expect(kanbanResponseStatuses(["none"], "show")).toBe(null);
 });
 
 test("stage and response queries encode show and hide", () => {
@@ -159,7 +146,7 @@ test("stage and response queries encode show and hide", () => {
   applyResponseStatusFilter(query, ["none"], "show");
   applyResponseStatusFilter(query, ["none", "new_lead"], "show");
 
-  assert.deepEqual(calls, [
+  expect(calls).toStrictEqual([
     ["in", "status", ["new"]],
     ["in", "status", ["contacted"]],
     ["in", "status", [NO_MATCHING_STAGE_ID]],
@@ -173,13 +160,16 @@ test("stage and response queries encode show and hide", () => {
 });
 
 test("saved presets keep a single stage readable by older clients", () => {
-  assert.deepEqual(leadStagePresetFields(["proposal_sent"]), {
+  expect(leadStagePresetFields(["proposal_sent"])).toStrictEqual({
     stageIds: ["proposal_sent"],
     stageId: "proposal_sent",
   });
-  assert.deepEqual(leadStagePresetFields(["a", "b"]), {
+  expect(leadStagePresetFields(["a", "b"])).toStrictEqual({
     stageIds: ["a", "b"],
     stageId: "all",
   });
-  assert.deepEqual(leadStagePresetFields([]), { stageIds: [], stageId: "all" });
+  expect(leadStagePresetFields([])).toStrictEqual({
+    stageIds: [],
+    stageId: "all",
+  });
 });

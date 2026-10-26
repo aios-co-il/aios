@@ -1,20 +1,19 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   cursorSessionDisplayName,
   formatCursorSessionsForAgent,
   type CursorTaskSessionRow,
 } from "./cursor-session-tracker.ts";
 
-test("cursorSessionDisplayName prefers task title", () => {
-  assert.equal(
+Deno.test("cursorSessionDisplayName prefers task title", () => {
+  assertStrictEquals(
     cursorSessionDisplayName({
       taskTitle: "Fix pulse bug",
       sourceTool: "request_dev_task",
     }),
     "AIOS · Fix pulse bug",
   );
-  assert.equal(
+  assertStrictEquals(
     cursorSessionDisplayName({
       requestText: "Research WA triggers",
       sourceTool: "ask_cursor",
@@ -23,7 +22,7 @@ test("cursorSessionDisplayName prefers task title", () => {
   );
 });
 
-test("formatCursorSessionsForAgent lists sessions for Carmen", () => {
+Deno.test("formatCursorSessionsForAgent lists sessions for Carmen", () => {
   const rows: CursorTaskSessionRow[] = [
     {
       id: "1",
@@ -42,7 +41,7 @@ test("formatCursorSessionsForAgent lists sessions for Carmen", () => {
     },
   ];
   const text = formatCursorSessionsForAgent(rows);
-  assert.match(text, /bc-abc/);
-  assert.match(text, /Fix pulse/);
-  assert.match(text, /task=task-1/);
+  assertMatch(text, /bc-abc/);
+  assertMatch(text, /Fix pulse/);
+  assertMatch(text, /task=task-1/);
 });

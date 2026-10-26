@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   getClientIntegrationSelect,
   integrationHasCredential,
@@ -9,10 +8,12 @@ import {
 } from "./tenantIntegrationsClient.ts";
 
 test("getClientIntegrationSelect omits api_key for Google types", () => {
-  assert.ok(!getClientIntegrationSelect("google_ads").includes("api_key"));
-  assert.ok(
+  expect(
+    !getClientIntegrationSelect("google_ads").includes("api_key"),
+  ).toBeTruthy();
+  expect(
     getClientIntegrationSelect("facebook_lead_ads").includes("api_key"),
-  );
+  ).toBeTruthy();
 });
 
 test("sanitizeIntegrationSettings strips OAuth secrets for Google", () => {
@@ -26,14 +27,16 @@ test("sanitizeIntegrationSettings strips OAuth secrets for Google", () => {
     "google_ads",
   );
 
-  assert.equal(sanitized?.google_email, "ads@example.com");
-  assert.equal(sanitized?.refresh_token, undefined);
-  assert.equal(sanitized?.access_token, undefined);
+  expect(sanitized?.google_email).toBe("ads@example.com");
+  expect(sanitized?.refresh_token).toBe(undefined);
+  expect(sanitized?.access_token).toBe(undefined);
 });
 
 test("sanitizeIntegrationSettings leaves non-Google settings intact", () => {
   const settings = { page_name: "My Page", api_token: "make-token" };
-  assert.deepEqual(sanitizeIntegrationSettings(settings, "make_api"), settings);
+  expect(sanitizeIntegrationSettings(settings, "make_api")).toStrictEqual(
+    settings,
+  );
 });
 
 test("toClientIntegration removes api_key for Google and keeps has_credential", () => {
@@ -49,14 +52,12 @@ test("toClientIntegration removes api_key for Google and keeps has_credential", 
     },
   });
 
-  assert.equal(client.has_credential, true);
-  assert.equal(client.api_key, undefined);
-  assert.equal(
-    (client.settings as Record<string, unknown>)?.refresh_token,
+  expect(client.has_credential).toBe(true);
+  expect(client.api_key).toBe(undefined);
+  expect((client.settings as Record<string, unknown>)?.refresh_token).toBe(
     undefined,
   );
-  assert.equal(
-    (client.settings as Record<string, unknown>)?.google_email,
+  expect((client.settings as Record<string, unknown>)?.google_email).toBe(
     "ga@example.com",
   );
 });
@@ -71,12 +72,12 @@ test("toClientIntegration keeps api_key for Facebook integrations", () => {
     settings: { page_name: "Demo Page" },
   });
 
-  assert.equal(client.has_credential, true);
-  assert.equal((client as { api_key?: string }).api_key, "EAAB-page-token");
+  expect(client.has_credential).toBe(true);
+  expect((client as { api_key?: string }).api_key).toBe("EAAB-page-token");
 });
 
 test("integrationHasCredential is false when Google row has no tokens or email", () => {
-  assert.equal(
+  expect(
     integrationHasCredential({
       id: "x",
       tenant_id: "t",
@@ -84,21 +85,17 @@ test("integrationHasCredential is false when Google row has no tokens or email",
       is_active: true,
       settings: {},
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("isGoogleIntegrationConnected requires active + credential", () => {
-  assert.equal(
+  expect(
     isGoogleIntegrationConnected({ is_active: true, has_credential: true }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isGoogleIntegrationConnected({ is_active: true, has_credential: false }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     isGoogleIntegrationConnected({ is_active: false, has_credential: true }),
-    false,
-  );
+  ).toBe(false);
 });

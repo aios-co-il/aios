@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   dropUnresolvedTemplateLines,
   explainMetaWhatsAppError,
@@ -10,31 +9,37 @@ import {
   shouldApplyDeliveryStatus,
 } from "./meta-whatsapp.ts";
 
-test("a lead with no screening answers does not break the template send", () => {
-  assert.equal(sanitizeTemplateParameter(""), "-");
-  assert.equal(sanitizeTemplateParameter("   "), "-");
-  assert.equal(sanitizeTemplateParameter(null), "-");
-  assert.equal(sanitizeTemplateParameter("\n\n"), "-");
-});
+Deno.test(
+  "a lead with no screening answers does not break the template send",
+  () => {
+    assertStrictEquals(sanitizeTemplateParameter(""), "-");
+    assertStrictEquals(sanitizeTemplateParameter("   "), "-");
+    assertStrictEquals(sanitizeTemplateParameter(null), "-");
+    assertStrictEquals(sanitizeTemplateParameter("\n\n"), "-");
+  },
+);
 
-test("a multiline Q&A block collapses to one line without doubled bullets", () => {
-  assert.equal(
-    sanitizeTemplateParameter("• האם תוכל?: כן\n• ספרו לי בקצרה?: טסט"),
-    "האם תוכל?: כן • ספרו לי בקצרה?: טסט",
-  );
-  assert.equal(
-    sanitizeTemplateParameter("שורה\tאחת\nשתיים"),
-    "שורה • אחת • שתיים",
-  );
-});
+Deno.test(
+  "a multiline Q&A block collapses to one line without doubled bullets",
+  () => {
+    assertStrictEquals(
+      sanitizeTemplateParameter("• האם תוכל?: כן\n• ספרו לי בקצרה?: טסט"),
+      "האם תוכל?: כן • ספרו לי בקצרה?: טסט",
+    );
+    assertStrictEquals(
+      sanitizeTemplateParameter("שורה\tאחת\nשתיים"),
+      "שורה • אחת • שתיים",
+    );
+  },
+);
 
-test("a parameter longer than Meta allows is truncated", () => {
+Deno.test("a parameter longer than Meta allows is truncated", () => {
   const truncated = sanitizeTemplateParameter("א".repeat(5000));
-  assert.equal(truncated.length, 1024);
-  assert.ok(truncated.endsWith("…"));
+  assertStrictEquals(truncated.length, 1024);
+  assert(truncated.endsWith("…"));
 });
 
-test("a line whose placeholder resolves to nothing is dropped", () => {
+Deno.test("a line whose placeholder resolves to nothing is dropped", () => {
   const data: Record<string, string> = { lead_name: "רון לוי", source: "" };
   const resolve = (line: string) =>
     line.replace(
@@ -49,62 +54,71 @@ test("a line whose placeholder resolves to nothing is dropped", () => {
     "ליד חדש התקבל",
   ].join("\n");
 
-  assert.equal(
+  assertStrictEquals(
     dropUnresolvedTemplateLines(raw, resolve),
     "שם הליד: {{lead_name}}\nליד חדש התקבל",
   );
 });
 
-test("dropping unresolved lines leaves plain text and repeated placeholders alone", () => {
-  const resolve = (line: string) => line.replace(/\{\{name\}\}/g, "דוד");
-  assert.equal(dropUnresolvedTemplateLines("שלום", resolve), "שלום");
-  assert.equal(
-    dropUnresolvedTemplateLines("{{name}} ו-{{name}}", resolve),
-    "{{name}} ו-{{name}}",
-  );
-  assert.equal(dropUnresolvedTemplateLines("{{missing}}", resolve), "");
+Deno.test(
+  "dropping unresolved lines leaves plain text and repeated placeholders alone",
+  () => {
+    const resolve = (line: string) => line.replace(/\{\{name\}\}/g, "דוד");
+    assertStrictEquals(dropUnresolvedTemplateLines("שלום", resolve), "שלום");
+    assertStrictEquals(
+      dropUnresolvedTemplateLines("{{name}} ו-{{name}}", resolve),
+      "{{name}} ו-{{name}}",
+    );
+    assertStrictEquals(dropUnresolvedTemplateLines("{{missing}}", resolve), "");
+  },
+);
+
+Deno.test("delivery status only moves forward, and failure always wins", () => {
+  assertStrictEquals(shouldApplyDeliveryStatus(undefined, "sent"), true);
+  assertStrictEquals(shouldApplyDeliveryStatus("sent", "delivered"), true);
+  assertStrictEquals(shouldApplyDeliveryStatus("delivered", "read"), true);
+  assertStrictEquals(shouldApplyDeliveryStatus("read", "delivered"), false);
+  assertStrictEquals(shouldApplyDeliveryStatus("read", "failed"), true);
+  assertStrictEquals(shouldApplyDeliveryStatus("sent", "bogus"), false);
 });
 
-test("delivery status only moves forward, and failure always wins", () => {
-  assert.equal(shouldApplyDeliveryStatus(undefined, "sent"), true);
-  assert.equal(shouldApplyDeliveryStatus("sent", "delivered"), true);
-  assert.equal(shouldApplyDeliveryStatus("delivered", "read"), true);
-  assert.equal(shouldApplyDeliveryStatus("read", "delivered"), false);
-  assert.equal(shouldApplyDeliveryStatus("read", "failed"), true);
-  assert.equal(shouldApplyDeliveryStatus("sent", "bogus"), false);
-});
+Deno.test(
+  "explainMetaWhatsAppError: 131049 engagement is not retryable",
+  () => {
+    const explained = explainMetaWhatsAppError(131049);
+    assertStrictEquals(explained.code, "131049");
+    assertStrictEquals(explained.retryable, false);
+    assertMatch(explained.messageHe, /131049/);
+    assertMatch(explained.opsHintHe, /Quality Rating|מעורבות|איכות/);
+  },
+);
 
-test("explainMetaWhatsAppError: 131049 engagement is not retryable", () => {
-  const explained = explainMetaWhatsAppError(131049);
-  assert.equal(explained.code, "131049");
-  assert.equal(explained.retryable, false);
-  assert.match(explained.messageHe, /131049/);
-  assert.match(explained.opsHintHe, /Quality Rating|מעורבות|איכות/);
-});
-
-test("explainMetaWhatsAppError: 131042 payment points to billing", () => {
+Deno.test("explainMetaWhatsAppError: 131042 payment points to billing", () => {
   const explained = explainMetaWhatsAppError("131042");
-  assert.equal(explained.retryable, false);
-  assert.match(explained.opsHintHe, /Billing|תשלום/);
+  assertStrictEquals(explained.retryable, false);
+  assertMatch(explained.opsHintHe, /Billing|תשלום/);
 });
 
-test("extractMetaErrorCodeFromMessage reads Hebrew delivery log text", () => {
-  assert.equal(
-    extractMetaErrorCodeFromMessage(
-      "Meta לא מסרה את ההודעה (קוד 131049): In order to maintain a healthy ecosystem engagement",
-    ),
-    "131049",
-  );
-  assert.equal(
-    extractMetaErrorCodeFromMessage(
-      "(#200) You do not have the necessary permissions to send messages",
-    ),
-    "200",
-  );
-});
+Deno.test(
+  "extractMetaErrorCodeFromMessage reads Hebrew delivery log text",
+  () => {
+    assertStrictEquals(
+      extractMetaErrorCodeFromMessage(
+        "Meta לא מסרה את ההודעה (קוד 131049): In order to maintain a healthy ecosystem engagement",
+      ),
+      "131049",
+    );
+    assertStrictEquals(
+      extractMetaErrorCodeFromMessage(
+        "(#200) You do not have the necessary permissions to send messages",
+      ),
+      "200",
+    );
+  },
+);
 
-test("inboundButtonPayload reads quick-reply and interactive ids", () => {
-  assert.equal(
+Deno.test("inboundButtonPayload reads quick-reply and interactive ids", () => {
+  assertStrictEquals(
     inboundButtonPayload({
       type: "button",
       button: {
@@ -114,7 +128,7 @@ test("inboundButtonPayload reads quick-reply and interactive ids", () => {
     }),
     LEAD_OPTIN_BUTTON_PAYLOAD,
   );
-  assert.equal(
+  assertStrictEquals(
     inboundButtonPayload({
       type: "interactive",
       interactive: {
@@ -123,7 +137,7 @@ test("inboundButtonPayload reads quick-reply and interactive ids", () => {
     }),
     "LEAD_OPTIN_YES",
   );
-  assert.equal(
+  assertStrictEquals(
     inboundButtonPayload({ type: "text", text: { body: "שלום" } }),
     null,
   );
