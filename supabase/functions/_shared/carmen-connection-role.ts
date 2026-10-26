@@ -18,10 +18,16 @@ export const CARMEN_INSTRUCTIONS_MAX_CHARS = 2000;
  * active Manus connection (today's behaviour), else secondary.
  */
 export function resolveCarmenConnectionRole(
-  integration: { integration_type?: string | null; settings?: any } | null,
+  integration: { integration_type?: string | null; settings?: unknown } | null,
   opts: { tenantHasActiveManus: boolean },
 ): CarmenConnectionRole {
-  const explicit = integration?.settings?.carmen_role;
+  const settings = integration?.settings;
+  const explicit =
+    typeof settings === "object" &&
+    settings !== null &&
+    "carmen_role" in settings
+      ? settings.carmen_role
+      : undefined;
   if (explicit === "primary" || explicit === "secondary" || explicit === "none")
     return explicit;
   if (integration?.integration_type === "manus_wa") return "primary";
@@ -120,12 +126,16 @@ export type CarmenAutomationContext = {
 
 export function buildCarmenAutomationContext(
   automationId: string | null | undefined,
-  cfg: any,
+  cfg: unknown,
 ): CarmenAutomationContext | null {
   if (!automationId) return null;
+  const instructions =
+    typeof cfg === "object" && cfg !== null && "carmen_instructions" in cfg
+      ? cfg.carmen_instructions
+      : undefined;
   return {
     automation_id: automationId,
-    carmen_instructions: sanitizeCarmenInstructions(cfg?.carmen_instructions),
+    carmen_instructions: sanitizeCarmenInstructions(instructions),
   };
 }
 
