@@ -16,7 +16,9 @@ export function asJsonObject(value: Json | undefined): JsonObject {
 }
 
 /** Last non-blank assistant message in a stored conversation_history. */
-export function lastAssistantContent(history: Json | undefined): string | undefined {
+export function lastAssistantContent(
+  history: Json | undefined,
+): string | undefined {
   if (!Array.isArray(history)) return undefined;
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
@@ -43,7 +45,9 @@ function isNullableString(value: Json | undefined): value is string | null {
 }
 
 /** A complete WhatsApp notify target as spawnSubagent / run-ai-agent store it; anything else is null. */
-export function readWhatsAppNotify(value: Json | undefined): WhatsAppNotify | null {
+export function readWhatsAppNotify(
+  value: Json | undefined,
+): WhatsAppNotify | null {
   if (!isJsonObject(value)) return null;
   const {
     surface,

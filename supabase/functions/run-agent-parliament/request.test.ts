@@ -19,7 +19,13 @@ test("readParliamentRequest exposes body fields and treats non-objects as empty"
 test("readHistory keeps string role/content entries and drops malformed ones", () => {
   const ok = { role: "user", content: "hi" };
   assert.deepEqual(
-    readHistory([ok, null, { role: "assistant" }, { role: 1, content: "x" }, "s"]),
+    readHistory([
+      ok,
+      null,
+      { role: "assistant" },
+      { role: 1, content: "x" },
+      "s",
+    ]),
     [ok],
   );
   assert.deepEqual(readHistory("not-an-array"), []);

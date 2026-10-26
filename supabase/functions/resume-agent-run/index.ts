@@ -215,9 +215,12 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("[resume-agent-run] error:", errorMessage(e));
-    return new Response(JSON.stringify({ error: String(errorMessage(e) ?? e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: String(errorMessage(e) ?? e) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
