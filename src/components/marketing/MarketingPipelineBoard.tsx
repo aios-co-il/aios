@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -133,21 +134,27 @@ const APPROVAL_CONFIG: Record<
   },
 };
 
-const STATUS_COLORS: Record<string, string> = {
+type ItemStatus = Enums<"marketing_item_status">;
+
+const STATUS_COLORS: Partial<Record<ItemStatus, string>> = {
   draft: "bg-gray-100 text-gray-600",
   in_progress: "bg-blue-100 text-blue-700",
-  awaiting_approval: "bg-amber-100 text-amber-700",
-  completed: "bg-emerald-100 text-emerald-700",
+  waiting_approval: "bg-amber-100 text-amber-700",
+  approved: "bg-emerald-100 text-emerald-700",
+  published: "bg-emerald-100 text-emerald-700",
   failed: "bg-red-100 text-red-700",
 };
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Partial<Record<ItemStatus, string>> = {
   draft: "טיוטה",
   in_progress: "בעבודה",
-  awaiting_approval: "ממתין לאישור",
-  completed: "הושלם",
+  waiting_approval: "ממתין לאישור",
+  approved: "אושר",
+  published: "פורסם",
   failed: "נכשל",
 };
+
+const DONE_STATUSES: ItemStatus[] = ["approved", "published"];
 
 // ─── WorkItem card (compact, inside department) ───────────────────────────────
 function WorkItemCard({
@@ -227,11 +234,11 @@ function WorkItemCard({
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
 function StatusBar({ items }: { items: BoardWorkItem[] }) {
-  const countStatus = (status: string) =>
-    items.filter((i) => i.status === status).length;
+  const countStatus = (...statuses: ItemStatus[]) =>
+    items.filter((i) => statuses.includes(i.status)).length;
   const running = countStatus("in_progress");
-  const waiting = countStatus("awaiting_approval");
-  const done = countStatus("completed");
+  const waiting = countStatus("waiting_approval");
+  const done = countStatus(...DONE_STATUSES);
   const draft = countStatus("draft");
 
   if (items.length === 0) return null;
