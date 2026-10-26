@@ -22,6 +22,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
+import { isRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -87,7 +88,7 @@ function presentedKeys(req: Request, url: URL): string[] {
 async function runDirect(
   ctx: Ctx,
   direct: Record<string, unknown>,
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/run-ai-agent`, {
     method: "POST",
     headers: {
@@ -100,25 +101,37 @@ async function runDirect(
       direct_tool: { ...direct, caller: ctx.caller },
     }),
   });
-  const data = await res.json().catch(() => ({}));
+  const json: unknown = await res.json().catch(() => ({}));
+  const data: Record<string, unknown> = isRecord(json) ? json : {};
   if (!res.ok)
     throw new Error(String(data?.error || `run-ai-agent ${res.status}`));
   return data;
 }
 
-let toolsCache: { at: number; tools: any[] } | null = null;
+type McpToolEntry = {
+  name: unknown;
+  description: string;
+  inputSchema: unknown;
+};
 
-async function listTools(ctx: Ctx) {
-  if (toolsCache && Date.now() - toolsCache.at < TOOLS_TTL_MS)
-    return toolsCache.tools;
-  const data = await runDirect(ctx, { action: "list" });
-  const tools = (data.tools || []).map((t: any) => ({
+function toMcpTool(entry: unknown): McpToolEntry {
+  const t: Record<string, unknown> = isRecord(entry) ? entry : {};
+  return {
     name: t.name,
     description:
       (t.requires_approval ? "[queued for David's approval] " : "") +
       String(t.description || ""),
     inputSchema: t.parameters || { type: "object", properties: {} },
-  }));
+  };
+}
+
+let toolsCache: { at: number; tools: McpToolEntry[] } | null = null;
+
+async function listTools(ctx: Ctx) {
+  if (toolsCache && Date.now() - toolsCache.at < TOOLS_TTL_MS)
+    return toolsCache.tools;
+  const data = await runDirect(ctx, { action: "list" });
+  const tools = (Array.isArray(data.tools) ? data.tools : []).map(toMcpTool);
   toolsCache = { at: Date.now(), tools };
   return tools;
 }
@@ -130,8 +143,8 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
       case "initialize":
         return rpcResult(id, {
           protocolVersion:
-            typeof (params as any)?.protocolVersion === "string"
-              ? (params as any).protocolVersion
+            typeof params?.protocolVersion === "string"
+              ? params.protocolVersion
               : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: SERVER_INFO,
@@ -144,21 +157,21 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
       case "tools/list":
         return rpcResult(id, { tools: await listTools(ctx) });
       case "tools/call": {
-        const name = String((params as any)?.name || "");
-        const args = ((params as any)?.arguments ?? {}) as Record<
-          string,
-          unknown
-        >;
+        const name = String(params?.name || "");
+        const args = params?.arguments ?? {};
         try {
           const data = await runDirect(ctx, { action: "call", name, args });
-          const text = JSON.stringify(data.result ?? null).slice(0, MAX_RESULT);
+          const result = data.result;
+          const text = JSON.stringify(result ?? null).slice(0, MAX_RESULT);
           return rpcResult(id, {
             content: [{ type: "text", text }],
-            isError: !!data.result?.error,
+            isError: isRecord(result) && !!result.error,
           });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(thrownMessage(e) ?? e)}` },
+            ],
             isError: true,
           });
         }
@@ -166,9 +179,13 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[carmen-tools-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[carmen-tools-mcp]", thrownMessage(e) ?? e);
+    return rpcError(
+      id,
+      -32603,
+      `Internal error: ${String(thrownMessage(e) ?? e)}`,
+    );
   }
 }
 

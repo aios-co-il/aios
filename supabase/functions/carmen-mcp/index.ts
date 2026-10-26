@@ -23,6 +23,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
+import { isRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -218,12 +219,13 @@ async function invokeCarmen(opts: {
     throw new Error(`Carmen run-ai-agent ${res.status}: ${detail}`);
   }
 
-  let data: any = {};
+  let parsed: unknown = {};
   try {
-    data = JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error("Carmen returned non-JSON response");
   }
+  const data: Record<string, unknown> = isRecord(parsed) ? parsed : {};
 
   if (!data?.success && data?.error) throw new Error(String(data.error));
   const output = String(data?.output ?? "").trim();
@@ -263,13 +265,13 @@ async function logDispatch(args: {
         error: args.error || null,
       });
   } catch (e) {
-    console.error("[carmen-mcp] logDispatch failed:", (e as any)?.message ?? e);
+    console.error("[carmen-mcp] logDispatch failed:", thrownMessage(e) ?? e);
   }
 }
 
 async function handleToolCall(
   name: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   ctx: { tenantId: string; userId: string },
 ): Promise<string> {
   if (name !== "ask_carmen") throw new Error(`Unknown tool: ${name}`);
@@ -307,8 +309,8 @@ async function handleToolCall(
       ? `\n\n[conversation_id: ${result.conversation_id}]`
       : "";
     return `${result.output}${toolsLine}${convLine}`;
-  } catch (e: any) {
-    const errMsg = String(e?.message ?? e);
+  } catch (e) {
+    const errMsg = String(thrownMessage(e) ?? e);
     await logDispatch({
       tenantId: ctx.tenantId,
       tool: "ask_carmen",
@@ -331,8 +333,8 @@ async function handleRpcMessage(
 ): Promise<Response> {
   const { id, method, params } = msg ?? {};
   const clientProtocol =
-    typeof (params as any)?.protocolVersion === "string"
-      ? (params as any).protocolVersion
+    typeof params?.protocolVersion === "string"
+      ? params.protocolVersion
       : undefined;
 
   try {
@@ -359,13 +361,16 @@ async function handleRpcMessage(
         });
       case "tools/call": {
         const toolName = params?.name as string;
-        const toolArgs = (params?.arguments ?? {}) as Record<string, any>;
+        const rawArgs = params?.arguments ?? {};
+        const toolArgs = isRecord(rawArgs) ? rawArgs : {};
         try {
           const text = await handleToolCall(toolName, toolArgs, ctx);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(thrownMessage(e) ?? e)}` },
+            ],
             isError: true,
           });
         }
@@ -373,9 +378,13 @@ async function handleRpcMessage(
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[carmen-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[carmen-mcp]", thrownMessage(e) ?? e);
+    return rpcError(
+      id,
+      -32603,
+      `Internal error: ${String(thrownMessage(e) ?? e)}`,
+    );
   }
 }
 
