@@ -60,7 +60,9 @@ import {
   authorizeDirectAutomationRun,
   authorizeTenantCaller,
   bearerToken,
+  type RunCaller,
 } from "../_shared/automation-run-auth.ts";
+import { bindAutomationAgentCaller } from "../_shared/run-agent-trust.mjs";
 import { userClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
@@ -1475,6 +1477,11 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json();
 
+    // Who started this run, as the auth check below proved it (AIO-241). Carmen
+    // runs as this caller: a user's run never takes a phone or a WhatsApp target
+    // from the payload. Stays null (no identity) until a check allows the run.
+    let runCaller: RunCaller | null = null;
+
     // Running one automation by id (tests, manual triggers, reruns) is limited
     // to the service role and to users who may manage that automation.
     if (requestBody?.automationId) {
@@ -1501,6 +1508,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = decision.caller;
     }
 
     // Backward-compat alias: old name → new name
@@ -1550,6 +1558,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = decision.caller;
     }
 
     // ===== AUTOMATION SAFETY GUARDS =====
@@ -3088,6 +3097,8 @@ Deno.serve(async (req) => {
                         payloadData?.sender_phone || payloadData?.phone || null,
                     });
                     if (waNotify) agentBody.wa_notify = waNotify;
+                    // A user's run acts as that user, never as the payload's phone.
+                    bindAutomationAgentCaller(agentBody, runCaller);
                     const agentRes = await fetch(agentUrl, {
                       method: "POST",
                       headers: {
@@ -3757,13 +3768,9 @@ Deno.serve(async (req) => {
               const agentId = agentConfig.agent_id;
               if (agentId) {
                 const agentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-ai-agent`;
-                const agentRes = await fetch(agentUrl, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  },
-                  body: JSON.stringify({
+                // A user's run acts as that user, never as the payload's phone.
+                const agentBody = bindAutomationAgentCaller(
+                  {
                     agent_id: agentId,
                     command_text:
                       payloadData?.command_text ||
@@ -3783,7 +3790,16 @@ Deno.serve(async (req) => {
                       pipeline_stage: payloadData?.pipeline_stage,
                       agency_name: payloadData?.agency_name,
                     },
-                  }),
+                  },
+                  runCaller,
+                );
+                const agentRes = await fetch(agentUrl, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify(agentBody),
                 });
                 response = await agentRes.json();
               } else {

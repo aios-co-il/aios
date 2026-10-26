@@ -13604,7 +13604,13 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-import { bindRunAgentCaller } from "../_shared/run-agent-trust.mjs";
+import {
+  automationApprovalRefusal,
+  bindRunAgentCaller,
+  isAutomationRun,
+  runCallerPhone,
+  runMayDecideApprovals,
+} from "../_shared/run-agent-trust.mjs";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -13648,6 +13654,11 @@ async function handleRunAgent(
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
       task_skills.length > 0;
+    // AIO-241: an automation run (trigger-automation) never approves or rejects
+    // pending requests and is not a chat conversation. Carmen's WhatsApp sessions
+    // come from the webhooks without a top-level automation_id.
+    const automationRun = isAutomationRun(bodyJson);
+    const mayDecideApprovals = runMayDecideApprovals(bodyJson);
     console.log(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
@@ -13712,7 +13723,7 @@ async function handleRunAgent(
     // lead_data is service-only: stripped from user-JWT requests in Deno.serve.
     let callerCampaignerId: string | null = null;
     let callerName: string | null = user_name || null;
-    const callerPhone = lead_data?.phone || null;
+    const callerPhone = runCallerPhone(bodyJson);
     if (callerPhone && resolvedTenantId) {
       // Normalize: take last 9 digits for comparison
       const normalizedPhone = callerPhone.replace(/[^0-9]/g, "").slice(-9);
@@ -13825,7 +13836,8 @@ async function handleRunAgent(
       (surface === "internal_chat" ||
         surface === "aios" ||
         surface === "grok_bot") &&
-      callerUserId
+      callerUserId &&
+      !automationRun
     ) {
       if (conversation_id) {
         const { data: existingConversation } = await supabase
@@ -15268,7 +15280,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const userSaidApprove = approvalReply.approve;
     const userSaidReject = approvalReply.reject;
     let approvalPick: any = null;
-    if (isCarmen && !pinSkillsOnly && (userSaidApprove || userSaidReject)) {
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      mayDecideApprovals &&
+      (userSaidApprove || userSaidReject)
+    ) {
       const { data: pendingRows } = await supabase
         .from("agent_approval_queue")
         .select(APPROVAL_PICK_COLUMNS)
@@ -15302,6 +15319,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (
       isCarmen &&
       !pinSkillsOnly &&
+      mayDecideApprovals &&
       userSaidApprove &&
       isDeterministicApprovalPick(approvalPick, String(command_text || ""))
     ) {
@@ -15830,6 +15848,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
+          } else if (
+            !mayDecideApprovals &&
+            automationApprovalRefusal(toolName)
+          ) {
+            result = automationApprovalRefusal(toolName);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {

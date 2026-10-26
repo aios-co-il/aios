@@ -43,16 +43,22 @@ const client = {
 const run = (token: string) =>
   authorizeDirectAutomationRun(client, token, SERVICE, TENANT);
 
+const asService = { allowed: true, caller: { kind: "service" } };
+const asUser = (userId: string) => ({
+  allowed: true,
+  caller: { kind: "user", userId },
+});
+
 test("service role may run any automation", async () => {
-  assert.deepEqual(await run(SERVICE), { allowed: true });
+  assert.deepEqual(await run(SERVICE), asService);
 });
 
-test("tenant owner may run their automation", async () => {
-  assert.deepEqual(await run("owner-a"), { allowed: true });
+test("tenant owner may run their automation, as themselves", async () => {
+  assert.deepEqual(await run("owner-a"), asUser("u1"));
 });
 
-test("super admin may run it", async () => {
-  assert.deepEqual(await run("super"), { allowed: true });
+test("super admin may run it, as themselves", async () => {
+  assert.deepEqual(await run("super"), asUser("u4"));
 });
 
 test("owner of another tenant is refused", async () => {
@@ -103,17 +109,17 @@ const tenantRun = (token: string, tenantId: unknown = TENANT) =>
 
 test("tenant caller: service role is allowed without a caller client", async () => {
   callerHeaders.length = 0;
-  assert.deepEqual(await tenantRun(SERVICE, null), { allowed: true });
+  assert.deepEqual(await tenantRun(SERVICE, null), asService);
   assert.deepEqual(callerHeaders, []);
 });
 
-test("tenant caller: a member of the body tenant is allowed", async () => {
-  assert.deepEqual(await tenantRun("member-a"), { allowed: true });
-  assert.deepEqual(await tenantRun("owner-a"), { allowed: true });
+test("tenant caller: a member of the body tenant is allowed, as themselves", async () => {
+  assert.deepEqual(await tenantRun("member-a"), asUser("u3"));
+  assert.deepEqual(await tenantRun("owner-a"), asUser("u1"));
 });
 
-test("tenant caller: a super admin of another tenant is allowed", async () => {
-  assert.deepEqual(await tenantRun("super"), { allowed: true });
+test("tenant caller: a super admin of another tenant is allowed, as themselves", async () => {
+  assert.deepEqual(await tenantRun("super"), asUser("u4"));
 });
 
 test("tenant caller: a member of another tenant is refused", async () => {
