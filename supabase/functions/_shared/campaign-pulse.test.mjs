@@ -314,7 +314,7 @@ test("stale platform on otherwise healthy client becomes warning", () => {
   assert.ok(result.flags.some((flag) => flag.includes("Meta")));
 });
 
-test("client without a documented call in 14 days becomes warning", () => {
+test("client without a documented call in 14 days stays healthy (call is a separate indicator)", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -335,8 +335,8 @@ test("client without a documented call in 14 days becomes warning", () => {
     lastClientCallAt: "2026-07-15T12:00:00.000Z",
     nowMs: NOW,
   });
-  assert.equal(result.status, "warning");
-  assert.ok(result.flags.some((flag) => flag.includes("14 הימים")));
+  assert.equal(result.status, "healthy");
+  assert.deepEqual(result.flags, []);
 });
 
 test("client call within 14 days keeps healthy campaign healthy", () => {
@@ -364,7 +364,7 @@ test("client call within 14 days keeps healthy campaign healthy", () => {
   assert.deepEqual(result.flags, []);
 });
 
-test("client with no documented call is flagged", () => {
+test("client with no documented call keeps its performance status", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -385,8 +385,8 @@ test("client with no documented call is flagged", () => {
     lastClientCallAt: null,
     nowMs: NOW,
   });
-  assert.equal(result.status, "warning");
-  assert.deepEqual(result.flags, ["לא תועדה שיחה טלפונית עם הלקוח"]);
+  assert.equal(result.status, "healthy");
+  assert.deepEqual(result.flags, []);
 });
 
 test("stopped campaign makes the client critical", () => {
@@ -743,7 +743,8 @@ test("multi-client digest groups by agency and keeps call-log gaps out of the wa
   assert.match(digest, /🔴 \*1\* דורשים טיפול/);
   assert.match(digest, /🟡 \*1\* במגמה שלילית/);
   assert.match(digest, /🟢 \*1\* תקינים/);
-  assert.match(digest, /⚙️ \*2\* עם בעיית תפעול/);
+  assert.match(digest, /⚙️ \*1\* עם בעיית תפעול/);
+  assert.match(digest, /📞 \*1\* ללא שיחה מתועדת/);
   assert.match(digest, /\*DMM-LTD\* \(2\) — 🔴 1 · 🟡 0 · 🟢 1/);
   assert.match(digest, /🔴 Smart air — הוצאה ללא רכישות/);
   assert.match(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);

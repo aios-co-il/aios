@@ -13,9 +13,15 @@ import {
 import {
   formatLastClientCall,
   formatPulseMoney,
+  pulseHasNoRecentClientCall,
   pulseSpendColumnLabel,
   type PulseSnapshotRow,
 } from "@/lib/pulseDashboard";
+import {
+  CLIENT_CALL_STALE_DAYS,
+  NO_RECENT_CLIENT_CALL_LABEL,
+  NO_RECENT_CLIENT_CALL_TEXT,
+} from "../../../supabase/functions/_shared/pulse-client-call.ts";
 import {
   campaignDeliveryStatusLabel,
   type PulseCampaignGoal,
@@ -263,6 +269,8 @@ export function PulseClientRawCard({
     last_client_call_at: null,
     last_client_call_by: null,
   };
+  // Contact indicator, kept apart from campaign status (AIO-227).
+  const noRecentCall = pulseHasNoRecentClientCall(pulse);
 
   const sections = GOAL_SECTION_ORDER.map((goal) => ({
     goal,
@@ -313,12 +321,23 @@ export function PulseClientRawCard({
             <span className="text-muted-foreground">שיחה אחרונה: </span>
             <button
               type="button"
-              className="underline decoration-dotted underline-offset-2 hover:text-primary"
+              className={`underline decoration-dotted underline-offset-2 hover:text-primary ${
+                noRecentCall ? "font-medium text-amber-700" : ""
+              }`}
               onClick={onCallLog}
               disabled={!pulse}
             >
               {formatLastClientCall(callSnapshot)}
             </button>
+            {noRecentCall && callSnapshot.last_client_call_at ? (
+              <Badge
+                variant="outline"
+                className="ms-1 border-amber-300 bg-amber-100 text-[10px] text-amber-900"
+                title={NO_RECENT_CLIENT_CALL_TEXT}
+              >
+                {`${NO_RECENT_CLIENT_CALL_LABEL} ב-${CLIENT_CALL_STALE_DAYS} יום`}
+              </Badge>
+            ) : null}
           </div>
           <div>
             <span className="text-muted-foreground">נגיעה בקמפיין: </span>

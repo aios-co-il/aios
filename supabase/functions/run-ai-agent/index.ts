@@ -183,6 +183,10 @@ import {
   selectPulseCriticalAlerts,
 } from "../_shared/campaign-pulse.ts";
 import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  normalizePulseRowClientCall,
+} from "../_shared/pulse-client-call.ts";
+import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
@@ -7415,15 +7419,18 @@ async function executeTool(
           freshestByClient.set(row.client_id, row);
         }
       }
-      let normalizedRows = Array.from(freshestByClient.values()).map(
-        (row: any) => ({
-          ...row,
-          client_name: row.clients?.name || null,
-          agency_name: row.agencies?.name || null,
-          clients: undefined,
-          agencies: undefined,
-        }),
-      );
+      // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      let normalizedRows = Array.from(freshestByClient.values())
+        .map((row: any) =>
+          normalizePulseRowClientCall({
+            ...row,
+            client_name: row.clients?.name || null,
+            agency_name: row.agencies?.name || null,
+            clients: undefined,
+            agencies: undefined,
+          }),
+        )
+        .filter((row: any) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7522,7 +7529,11 @@ async function executeTool(
             (client: any) => client.client_id === row.client_id,
           );
           const agencyName = snapshotRow?.agency_name;
-          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(fmtDate(snapshotRow?.last_client_call_at))} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
+          const lastCall = fmtDate(snapshotRow?.last_client_call_at);
+          const callCell = snapshotRow?.no_recent_client_call
+            ? `${lastCall} · ${NO_RECENT_CLIENT_CALL_TEXT}`
+            : lastCall;
+          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(callCell)} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
         }),
       ];
       const { data: tenantRow } = await supabase
@@ -7533,6 +7544,9 @@ async function executeTool(
       const tenantSlug = tenantRow?.slug || tenantId;
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
+      const noRecentClientCallCount = normalizedRows.filter(
+        (row: any) => row.no_recent_client_call === true,
+      ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
         accessibleTenantIds,
@@ -7551,6 +7565,7 @@ async function executeTool(
           count: 0,
           freshness: null,
           status_counts: statusCounts,
+          no_recent_client_call_count: 0,
           dashboard_url: dashboardUrl,
           whatsapp_digest: null,
           rows: preferDigest ? undefined : [],
@@ -7569,6 +7584,7 @@ async function executeTool(
           count: goalRows.length,
           freshness: normalizedRows[0]?.calculated_at || null,
           status_counts: statusCounts,
+          no_recent_client_call_count: noRecentClientCallCount,
           dashboard_url: dashboardUrl,
           whatsapp_digest: whatsappDigest,
           formatted_markdown: null,
@@ -7584,13 +7600,14 @@ async function executeTool(
         count: normalizedRows.length,
         freshness: normalizedRows[0]?.calculated_at || null,
         status_counts: statusCounts,
+        no_recent_client_call_count: noRecentClientCallCount,
         dashboard_url: dashboardUrl,
         whatsapp_digest: whatsappDigest,
         manual_overrides: manualOverrides,
         rows: normalizedRows,
         formatted_markdown: tableLines.join("\n"),
         instructions_to_agent:
-          "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
+          "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
     case "analyze_campaign_performance": {

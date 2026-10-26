@@ -12,6 +12,7 @@ import {
   detectCampaignGoalMode,
   integrationTypeToGoal,
   isPulseDeliveryExcludedPhone,
+  resolveNoRecentClientCall,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
@@ -628,6 +629,11 @@ Deno.serve(async (req) => {
         const lastClientCallAt = clientCallDataAvailable
           ? latestCall?.last_client_call_at || null
           : undefined;
+        // Contact indicator only (AIO-227): never part of the campaign status.
+        const noRecentClientCall = resolveNoRecentClientCall(
+          lastClientCallAt,
+          now.getTime(),
+        );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
         const leadTables = activeTables.filter(
           (table: any) =>
@@ -653,8 +659,6 @@ Deno.serve(async (req) => {
           purchases7: 0,
           roas: null,
           cplChangePct: leadMetrics.changePct,
-          lastClientCallAt:
-            goalMode !== "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode !== "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -674,8 +678,6 @@ Deno.serve(async (req) => {
           purchases7: ecommerceMetrics.outcomes,
           roas: ecommerceMetrics.efficiency,
           cplChangePct: null,
-          lastClientCallAt:
-            goalMode === "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode === "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -737,6 +739,7 @@ Deno.serve(async (req) => {
           is_ecommerce: isEcommerce,
           stale_platforms: stalePlatforms,
           flags,
+          no_recent_client_call: noRecentClientCall,
         });
         snapshots.push({
           tenant_id: tenantId,
@@ -769,6 +772,8 @@ Deno.serve(async (req) => {
           meta_change_availability: lastMetaChange.availability,
           last_client_call_at: latestCall?.last_client_call_at || null,
           last_client_call_by: latestCall?.last_client_call_by || null,
+          // In-memory only: derived from last_client_call_at, not a stored column.
+          no_recent_client_call: noRecentClientCall,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -811,6 +816,7 @@ Deno.serve(async (req) => {
           meta_change_availability: "meta_api_unavailable",
           last_client_call_at: null,
           last_client_call_by: null,
+          no_recent_client_call: null,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -835,7 +841,12 @@ Deno.serve(async (req) => {
     }
     if (snapshots.length) {
       const rows = snapshots.map(
-        ({ client_name: _c, agency_name: _a, ...row }) => row,
+        ({
+          client_name: _c,
+          agency_name: _a,
+          no_recent_client_call: _n,
+          ...row
+        }) => row,
       );
       let { error } = await supabase
         .from("campaign_pulse_snapshots")
