@@ -26,6 +26,7 @@ import {
   WooAttributionSection,
   wooAttributionLabel,
 } from "@/components/dynamic-tables/WooAttributionSection";
+import type { WooOrderAttribution } from "@/lib/wooAttribution";
 import {
   filterWooOrdersForRevenue,
   sumWooRevenue,
@@ -39,7 +40,7 @@ type PublicWooOrder = WooOrderRevenueRow & {
   customer_first_name?: string | null;
   customer_last_name?: string | null;
   line_items?: Json;
-  attribution?: Json;
+  attribution?: WooOrderAttribution | null;
 };
 
 interface PublicWooCommerceViewProps {

@@ -412,7 +412,7 @@ export function SeoDashboardView({
   function normalizeKeyword(keyword: Json) {
     const kw = asJsonObject(keyword);
     return {
-      keyword: kw.keyword || "",
+      keyword: String(kw.keyword || ""),
       position: kw.position ?? kw.best_position ?? null,
       traffic: kw.traffic ?? kw.sum_traffic ?? 0,
       volume: kw.volume ?? kw.search_volume ?? null,

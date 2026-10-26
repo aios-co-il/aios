@@ -39,6 +39,7 @@ import {
 import { useSeoKeywordRelevance } from "@/hooks/useSeoKeywordRelevance";
 import { clusterKeywords, type KeywordCluster } from "@/lib/seoKeywordClusters";
 import { toast } from "sonner";
+import type { Json } from "@/integrations/supabase/types";
 
 const HEBREW_REGEX = /[\u0590-\u05FF]/;
 const ENGLISH_REGEX = /[A-Za-z]/;
@@ -59,20 +60,20 @@ function normalizeKw(raw: string): string {
 /** An Ahrefs / tracked / GSC-only keyword row as merged by the SEO dashboards. */
 export type SeoKeywordRow = {
   keyword?: string;
-  position?: number | null;
-  position_prev_month?: number | null;
-  position_3month?: number | null;
-  position_yearly?: number | null;
-  traffic?: number | null;
-  volume?: number | null;
-  kd?: number | null;
-  cpc?: number | null;
-  url?: string | null;
-  gsc_clicks?: number | null;
-  gsc_impressions?: number | null;
-  gsc_ctr?: number | null;
-  gsc_position?: number | null;
-  ahrefs_position?: number | null;
+  position?: Json;
+  position_prev_month?: Json;
+  position_3month?: Json;
+  position_yearly?: Json;
+  traffic?: Json;
+  volume?: Json;
+  kd?: Json;
+  cpc?: Json;
+  url?: Json;
+  gsc_clicks?: Json;
+  gsc_impressions?: Json;
+  gsc_ctr?: Json;
+  gsc_position?: Json;
+  ahrefs_position?: Json;
   _position_source?: string;
   _source?: string;
   _local_tracked?: boolean;
@@ -170,15 +171,15 @@ function KeywordRow({
 }) {
   const posChangeMonth =
     kw.position_prev_month != null && kw.position != null
-      ? kw.position_prev_month - kw.position
+      ? Number(kw.position_prev_month) - Number(kw.position)
       : null;
   const posChange3m =
     kw.position_3month != null && kw.position != null
-      ? kw.position_3month - kw.position
+      ? Number(kw.position_3month) - Number(kw.position)
       : null;
   const posChangeYear =
     kw.position_yearly != null && kw.position != null
-      ? kw.position_yearly - kw.position
+      ? Number(kw.position_yearly) - Number(kw.position)
       : null;
   const gscClicks = kw.gsc_clicks != null ? Number(kw.gsc_clicks) : null;
   const ahrefsTraffic = kw.traffic != null ? Number(kw.traffic) : null;
@@ -319,7 +320,7 @@ function KeywordRow({
           </td>
           <td className="p-3 text-center text-xs hidden sm:table-cell">
             {kw.gsc_ctr != null ? (
-              formatGscCtrPercent(kw.gsc_ctr)
+              formatGscCtrPercent(Number(kw.gsc_ctr))
             ) : (
               <span className="text-muted-foreground">—</span>
             )}
@@ -335,18 +336,18 @@ function KeywordRow({
 
       <td
         className="p-3 text-right text-xs max-w-[200px] truncate hidden lg:table-cell"
-        title={kw.url ?? undefined}
+        title={kw.url == null ? undefined : String(kw.url)}
       >
         {kw.url ? (
           <a
-            href={kw.url}
+            href={String(kw.url)}
             target="_blank"
             rel="noopener noreferrer"
             dir="ltr"
             className="text-primary hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            {safePathname(kw.url)}
+            {safePathname(String(kw.url))}
           </a>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -706,7 +707,7 @@ export function SeoKeywordsTable({
       const sorted = [...variants].sort((a, b) => {
         const ap = a.position ?? Number.POSITIVE_INFINITY;
         const bp = b.position ?? Number.POSITIVE_INFINITY;
-        if (ap !== bp) return ap - bp;
+        if (ap !== bp) return Number(ap) - Number(bp);
         const at = Number(a.traffic ?? 0),
           bt = Number(b.traffic ?? 0);
         if (at !== bt) return bt - at;
@@ -1253,7 +1254,8 @@ export function SeoKeywordsTable({
             <TabsContent value="all" className="mt-0">
               <KeywordTable
                 keywords={[...allKeywords].sort(
-                  (a, b) => (a.position ?? 999) - (b.position ?? 999),
+                  (a, b) =>
+                    Number(a.position ?? 999) - Number(b.position ?? 999),
                 )}
                 title={`כל הביטויים (${allKeywords.length})`}
                 icon={<span>📋</span>}
@@ -1300,7 +1302,7 @@ export function SeoKeywordsTable({
                       <div className="font-medium truncate">{phrase}</div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2 justify-end mt-0.5">
                         {kw.position != null && (
-                          <span>מיקום {kw.position}</span>
+                          <span>מיקום {String(kw.position)}</span>
                         )}
                         {manual ? (
                           <Badge
