@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   acceptedMessageFor,
   canAdvanceToReview,
@@ -25,9 +28,9 @@ function base(): ParliamentState {
   };
 }
 
-test("parliament MVP seats default to cursor+grok+codex", () => {
-  assert.deepEqual(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
-  assert.deepEqual(
+Deno.test("parliament MVP seats default to cursor+grok+codex", () => {
+  assertEquals(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
+  assertEquals(
     parliamentSeatsFromConfig({
       seats: ["cursor", "grok", "codex", "claude", "extra"],
     }),
@@ -35,75 +38,93 @@ test("parliament MVP seats default to cursor+grok+codex", () => {
   );
 });
 
-test("partial failure does not block synthesis", () => {
+Deno.test("partial failure does not block synthesis", () => {
   let state = recordParliamentAnswer(base(), "cursor", "ship it", 1);
   state = markParliamentFailed(state, "grok", "timeout");
-  assert.equal(canAdvanceToReview(state), true);
+  assertStrictEquals(canAdvanceToReview(state), true);
   state = { ...state, status: "round2", round: 2 };
   state = recordParliamentAnswer(state, "cursor", "still ship it", 2);
-  assert.equal(canSynthesize(state), true);
+  assertStrictEquals(canSynthesize(state), true);
 });
 
-test("reused Cursor Direct copy says the chat was already open", () => {
-  assert.match(
+Deno.test("reused Cursor Direct copy says the chat was already open", () => {
+  assertMatch(
     acceptedMessageFor("cursor", "https://cursor.com/agents/bc-1", {
       reused: true,
     }),
     /שכבר פתוח/,
   );
-  assert.match(
+  assertMatch(
     acceptedMessageFor("codex", "https://chatgpt.com/c/abc", { reused: true }),
     /ChatGPT Workspace/,
   );
 });
 
-test("direct channels require a callback; internal streams", () => {
-  assert.equal(capabilitiesForProvider("internal").streaming_reply, true);
-  assert.equal(capabilitiesForProvider("internal").callback_required, false);
-  assert.equal(capabilitiesForProvider("cursor").callback_required, true);
-  assert.equal(capabilitiesForProvider("codex").callback_required, true);
-  assert.equal(capabilitiesForProvider("chatgpt").callback_required, true);
+Deno.test("direct channels require a callback; internal streams", () => {
+  assertStrictEquals(capabilitiesForProvider("internal").streaming_reply, true);
+  assertStrictEquals(
+    capabilitiesForProvider("internal").callback_required,
+    false,
+  );
+  assertStrictEquals(capabilitiesForProvider("cursor").callback_required, true);
+  assertStrictEquals(capabilitiesForProvider("codex").callback_required, true);
+  assertStrictEquals(
+    capabilitiesForProvider("chatgpt").callback_required,
+    true,
+  );
 });
 
-test("resolveCallbackOrigin prefers session codex over stated chatgpt", () => {
-  assert.equal(resolveCallbackOrigin("chatgpt", "codex"), "codex");
-  assert.equal(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
-  assert.equal(resolveCallbackOrigin(undefined, "codex"), "codex");
-  assert.equal(resolveCallbackOrigin(null, null), "internal");
-});
+Deno.test(
+  "resolveCallbackOrigin prefers session codex over stated chatgpt",
+  () => {
+    assertStrictEquals(resolveCallbackOrigin("chatgpt", "codex"), "codex");
+    assertStrictEquals(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
+    assertStrictEquals(resolveCallbackOrigin(undefined, "codex"), "codex");
+    assertStrictEquals(resolveCallbackOrigin(null, null), "internal");
+  },
+);
 
-test("database route parser validates enums and handles absent routes", () => {
-  const row = {
-    id: "route",
-    tenant_id: "tenant",
-    agent_id: null,
-    slug: "parliament",
-    label: "Parliament",
-    route_type: "parliament",
-    provider: "parliament",
-    connection_id: null,
-    config: { rounds: 2 },
-    active: true,
-    created_at: "now",
-    updated_at: "now",
-  };
-  assert.deepEqual(parseBrainRoute(row)?.config, { rounds: 2 });
-  assert.equal(parseBrainRoute(row)?.route_type, "parliament");
-  assert.equal(parseBrainRoute(null), null);
-  assert.equal(parseBrainRoute({ ...row, route_type: "invalid" }), null);
-  assert.equal(parseBrainRoute({ ...row, provider: "invalid" }), null);
-  assert.deepEqual(parseBrainRoute({ ...row, config: null })?.config, {});
-});
+Deno.test(
+  "database route parser validates enums and handles absent routes",
+  () => {
+    const row = {
+      id: "route",
+      tenant_id: "tenant",
+      agent_id: null,
+      slug: "parliament",
+      label: "Parliament",
+      route_type: "parliament",
+      provider: "parliament",
+      connection_id: null,
+      config: { rounds: 2 },
+      active: true,
+      created_at: "now",
+      updated_at: "now",
+    };
+    assertEquals(parseBrainRoute(row)?.config, { rounds: 2 });
+    assertStrictEquals(parseBrainRoute(row)?.route_type, "parliament");
+    assertStrictEquals(parseBrainRoute(null), null);
+    assertStrictEquals(
+      parseBrainRoute({ ...row, route_type: "invalid" }),
+      null,
+    );
+    assertStrictEquals(parseBrainRoute({ ...row, provider: "invalid" }), null);
+    assertEquals(parseBrainRoute({ ...row, config: null })?.config, {});
+  },
+);
 
-test("parliament context keeps existing metadata and serializable state", () => {
-  const state = base();
-  const context = { conversation_id: "conversation", nested: { keep: true } };
-  const result = withParliamentContext(context, state);
-  assert.deepEqual(result, { ...context, parliament: state });
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
-  assert.deepEqual(context, {
-    conversation_id: "conversation",
-    nested: { keep: true },
-  });
-  assert.deepEqual(withParliamentContext(null, state), { parliament: state });
-});
+Deno.test(
+  "parliament context keeps existing metadata and serializable state",
+  () => {
+    const state = base();
+    const context = { conversation_id: "conversation", nested: { keep: true } };
+    const result = withParliamentContext(context, state);
+    assertEquals(result, { ...context, parliament: state });
+    assertEquals(JSON.parse(JSON.stringify(result)), result);
+    assertEquals(context, {
+      conversation_id: "conversation",
+      nested: { keep: true },
+    });
+    assertEquals(withParliamentContext(null, state), { parliament: state });
+  },
+);
