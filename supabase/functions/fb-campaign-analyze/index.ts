@@ -1,6 +1,43 @@
 // Analyzes Facebook campaign performance: today vs 7-day vs 30-day, detects anomalies,
 // and returns ad-level spend/leads/CPL for selective enable/disable workflows.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  asArray,
+  asRecord,
+  asRecords,
+  errorMessage,
+  isRecord,
+} from "../_shared/provider-json-b23.ts";
+
+type AdMetrics = {
+  spend: number;
+  leads: number;
+  impressions: number;
+  clicks: number;
+  cpl: number | null;
+};
+
+type Recommendation = {
+  action: string;
+  reason: string;
+  severity: string;
+  candidate_ad_ids?: {
+    ad_id: unknown;
+    ad_name: unknown;
+    cpl_7d: number | null;
+    leads_7d: number;
+  }[];
+};
+
+const LEAD_COST_ACTION_TYPES = [
+  "lead",
+  "onsite_conversion.lead_grouped",
+  "offsite_conversion.fb_pixel_lead",
+  "leadgen.other",
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +47,7 @@ const corsHeaders = {
 };
 
 async function getFbToken(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -33,18 +70,19 @@ async function getFbToken(
   return integ?.api_key || null;
 }
 
-function leadsFromActions(actions: any[]): number {
+function leadsFromActions(actions: unknown): number {
   if (!Array.isArray(actions)) return 0;
   let leads = 0;
-  for (const a of actions) {
-    const t = String(a?.action_type || "");
+  for (const action of actions) {
+    const a = asRecord(action);
+    const t = String(a.action_type || "");
     if (
       t === "lead" ||
       t === "leadgen.other" ||
       t === "onsite_conversion.lead_grouped" ||
       t.endsWith(".lead")
     ) {
-      leads += Number(a?.value || 0);
+      leads += Number(a.value || 0);
     }
   }
   return leads;
@@ -103,8 +141,8 @@ Deno.serve(async (req) => {
       const r = await fetch(
         `https://graph.facebook.com/v21.0/${campaign_id}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
       );
-      const j = await r.json();
-      return j?.data?.[0] || null;
+      const first = asArray(asRecord(await r.json()).data)[0];
+      return isRecord(first) ? first : null;
     };
     const [today, last7, last30] = await Promise.all([
       fetchInsights("today"),
@@ -112,16 +150,12 @@ Deno.serve(async (req) => {
       fetchInsights("last_30d"),
     ]);
 
-    const cplFrom = (ins: any) => {
+    const cplFrom = (ins: Record<string, unknown> | null) => {
       if (!ins) return null;
-      const leadAction = (ins.cost_per_action_type || []).find(
-        (a: any) =>
-          [
-            "lead",
-            "onsite_conversion.lead_grouped",
-            "offsite_conversion.fb_pixel_lead",
-            "leadgen.other",
-          ].includes(a.action_type) ||
+      const leadAction = asRecords(ins.cost_per_action_type).find(
+        (a) =>
+          (typeof a.action_type === "string" &&
+            LEAD_COST_ACTION_TYPES.includes(a.action_type)) ||
           String(a.action_type || "").endsWith(".lead"),
       );
       if (leadAction) return Number(leadAction.value);
@@ -137,14 +171,13 @@ Deno.serve(async (req) => {
     const adsRes = await fetch(
       `https://graph.facebook.com/v21.0/${campaign_id}/ads?fields=id,name,effective_status,status&limit=200&access_token=${token}`,
     );
-    const adsJson = await adsRes.json();
-    const adsMeta = Array.isArray(adsJson?.data) ? adsJson.data : [];
+    const adsMeta = asRecords(asRecord(await adsRes.json()).data);
     const adInsightsRes = await fetch(
       `https://graph.facebook.com/v21.0/${campaign_id}/insights?level=ad&date_preset=last_7d&fields=ad_id,ad_name,spend,actions,impressions,clicks&limit=200&access_token=${token}`,
     );
-    const adInsightsJson = await adInsightsRes.json();
-    const metricsByAd = new Map<string, any>();
-    for (const row of adInsightsJson?.data || []) {
+    const adInsightsJson = asRecord(await adInsightsRes.json());
+    const metricsByAd = new Map<string, AdMetrics>();
+    for (const row of asRecords(adInsightsJson.data)) {
       const leads = leadsFromActions(row.actions || []);
       const spend = Number(row.spend || 0);
       metricsByAd.set(String(row.ad_id), {
@@ -156,8 +189,8 @@ Deno.serve(async (req) => {
       });
     }
     const ads = adsMeta
-      .map((ad: any) => {
-        const m = metricsByAd.get(String(ad.id)) || {
+      .map((ad) => {
+        const m: AdMetrics = metricsByAd.get(String(ad.id)) || {
           spend: 0,
           leads: 0,
           impressions: 0,
@@ -176,7 +209,7 @@ Deno.serve(async (req) => {
           clicks_7d: m.clicks,
         };
       })
-      .sort((a: any, b: any) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
+      .sort((a, b) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
 
     const anomalies: string[] = [];
     if (
@@ -203,7 +236,7 @@ Deno.serve(async (req) => {
         `CTR ירד ב-${(((ctr30 - ctr7) / ctr30) * 100).toFixed(0)}% מול 30 ימים`,
       );
 
-    const recommendations: any[] = [];
+    const recommendations: Recommendation[] = [];
     if (cplToday && cpl7 && cplToday > cpl7 * 2)
       recommendations.push({
         action: "pause",
@@ -223,7 +256,7 @@ Deno.serve(async (req) => {
         severity: "high",
       });
     const pausedLowCpl = ads.filter(
-      (a: any) =>
+      (a) =>
         a.effective_status === "PAUSED" && a.cpl_7d != null && a.leads_7d > 0,
     );
     if (pausedLowCpl.length) {
@@ -231,7 +264,7 @@ Deno.serve(async (req) => {
         action: "enable_low_cpl_ads",
         reason: "מודעות מושבתות עם CPL נמוך — אפשר להדליק סלקטיבית אחרי אישור",
         severity: "medium",
-        candidate_ad_ids: pausedLowCpl.slice(0, 10).map((a: any) => ({
+        candidate_ad_ids: pausedLowCpl.slice(0, 10).map((a) => ({
           ad_id: a.ad_id,
           ad_name: a.ad_name,
           cpl_7d: a.cpl_7d,
@@ -263,10 +296,10 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("[fb-campaign-analyze]", err);
     return new Response(
-      JSON.stringify({ error: String(err?.message || err) }),
+      JSON.stringify({ error: String(errorMessage(err) || err) }),
       { status: 500, headers: corsHeaders },
     );
   }

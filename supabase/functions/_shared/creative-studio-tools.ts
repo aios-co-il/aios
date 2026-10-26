@@ -184,8 +184,20 @@ export const CREATIVE_STUDIO_TOOLS = [
 export const isCreativeStudioTool = (name: string) =>
   CREATIVE_STUDIO_TOOLS.some((tool) => tool.name === name);
 
-// deno-lint-ignore no-explicit-any
-type Db = any;
+type QueryResult = { data: unknown; error: { message: string } | null };
+
+type Query = PromiseLike<QueryResult> & {
+  select: (columns: string) => Query;
+  eq: (column: string, value: unknown) => Query;
+  order: (column: string) => Query;
+  update: (values: Record<string, unknown>) => Query;
+  insert: (values: Record<string, unknown>) => Query;
+  delete: () => Query;
+  single: () => Promise<QueryResult>;
+  maybeSingle: () => Promise<QueryResult>;
+};
+
+type Db = { from: (table: string) => Query };
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -525,7 +537,7 @@ export async function executeCreativeStudioTool(
       return {
         added: true,
         scene_number: after + 1,
-        ui_action: { type: "focus_scene", scene_id: data?.id },
+        ui_action: { type: "focus_scene", scene_id: asRecord(data).id },
       };
     }
 

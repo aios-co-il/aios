@@ -5,6 +5,20 @@ import {
   listedPropertyMatchesDomain,
   normalizeGaHost,
 } from "../_shared/gaDomain.ts";
+import {
+  asArray,
+  asRecord,
+  asRecords,
+  errorMessage,
+  optString,
+} from "../_shared/provider-json-b23.ts";
+
+type GaProperty = {
+  id: unknown;
+  name?: string;
+  accountName?: string;
+  websiteUrl?: string;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,10 +230,13 @@ serve(async (req) => {
       }
 
       const existingForUser =
-        allGa?.find((row: any) => row.user_id === userId) || null;
+        allGa?.find(
+          (row: { user_id: string | null }) => row.user_id === userId,
+        ) || null;
       const existingForEmail = googleEmail
         ? allGa?.find(
-            (row: any) => row.settings?.google_email === googleEmail,
+            (row: { settings: unknown }) =>
+              asRecord(row.settings).google_email === googleEmail,
           ) || null
         : null;
       // Only OVERWRITE an existing row when the SAME Google account reconnects
@@ -365,14 +382,14 @@ serve(async (req) => {
       }
 
       let accessToken = integration.api_key;
-      let settings = integration.settings as any;
-      const ownerEmail = settings?.google_email || null;
+      let settings = asRecord(integration.settings);
+      const ownerEmail = settings.google_email || null;
 
       const refreshAccessToken = async (): Promise<{
         ok: boolean;
         reason?: string;
       }> => {
-        if (!settings?.refresh_token)
+        if (!settings.refresh_token)
           return { ok: false, reason: "missing_refresh_token" };
         const refreshResponse = await fetch(
           "https://oauth2.googleapis.com/token",
@@ -382,7 +399,7 @@ serve(async (req) => {
             body: new URLSearchParams({
               client_id: clientId,
               client_secret: clientSecret,
-              refresh_token: settings.refresh_token,
+              refresh_token: String(settings.refresh_token),
               grant_type: "refresh_token",
             }),
           },
@@ -407,7 +424,12 @@ serve(async (req) => {
       };
 
       // Proactive refresh if expired
-      if (settings?.expires_at && new Date(settings.expires_at) < new Date()) {
+      const expiresAt = settings.expires_at;
+      if (
+        (typeof expiresAt === "string" || typeof expiresAt === "number") &&
+        expiresAt &&
+        new Date(expiresAt) < new Date()
+      ) {
         await refreshAccessToken();
       }
 
@@ -415,7 +437,7 @@ serve(async (req) => {
       // Ask for the API maximum (200) and follow nextPageToken so a login
       // with 100+ accounts is not cut off after the first page.
       const fetchAccounts = async () => {
-        const accountSummaries: any[] = [];
+        const accountSummaries: unknown[] = [];
         let pageToken = "";
         for (let page = 0; page < 20; page++) {
           const url = new URL(
@@ -426,13 +448,15 @@ serve(async (req) => {
           const response = await fetch(url.toString(), {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
-          const data: any = await response
-            .clone()
-            .json()
-            .catch(() => ({}));
-          if (!response.ok || data?.error) return response;
-          accountSummaries.push(...(data.accountSummaries || []));
-          pageToken = data.nextPageToken || "";
+          const data = asRecord(
+            await response
+              .clone()
+              .json()
+              .catch(() => ({})),
+          );
+          if (!response.ok || data.error) return response;
+          accountSummaries.push(...asArray(data.accountSummaries));
+          pageToken = optString(data.nextPageToken) || "";
           if (!pageToken) break;
         }
         return new Response(JSON.stringify({ accountSummaries }), {
@@ -442,14 +466,16 @@ serve(async (req) => {
       };
 
       let accountsResponse = await fetchAccounts();
-      let accountsData: any = await accountsResponse.json().catch(() => ({}));
+      let accountsData = asRecord(
+        await accountsResponse.json().catch(() => ({})),
+      );
 
       // If credentials invalid, try one forced refresh and retry once.
       const looksUnauthorized =
         accountsResponse.status === 401 ||
-        accountsData?.error?.code === 401 ||
+        asRecord(accountsData.error).code === 401 ||
         /invalid.*credential|invalid_grant|unauthorized/i.test(
-          accountsData?.error?.message || "",
+          String(asRecord(accountsData.error).message || ""),
         );
 
       // Persist the broken state so the settings page shows the red
@@ -477,7 +503,9 @@ serve(async (req) => {
         const refreshResult = await refreshAccessToken();
         if (refreshResult.ok) {
           accountsResponse = await fetchAccounts();
-          accountsData = await accountsResponse.json().catch(() => ({}));
+          accountsData = asRecord(
+            await accountsResponse.json().catch(() => ({})),
+          );
         } else {
           const reason = refreshResult.reason || "token_revoked";
           await markNeedsReauth(reason);
@@ -493,11 +521,12 @@ serve(async (req) => {
         }
       }
 
-      if (accountsData?.error) {
+      if (accountsData.error) {
+        const accountsError = asRecord(accountsData.error);
         const stillUnauthorized =
-          accountsData.error.code === 401 ||
+          accountsError.code === 401 ||
           /invalid.*credential|invalid_grant|unauthorized/i.test(
-            accountsData.error.message || "",
+            String(accountsError.message || ""),
           );
         if (stillUnauthorized) {
           await markNeedsReauth("token_revoked");
@@ -518,37 +547,30 @@ serve(async (req) => {
           "GA get_properties Google API error:",
           JSON.stringify(accountsData.error),
         );
-        const cachedOnError = Array.isArray(settings?.available_properties)
-          ? settings.available_properties
-          : [];
+        const cachedOnError = asArray(settings.available_properties);
         return new Response(
           JSON.stringify({
             properties: cachedOnError,
             needs_reconnect: cachedOnError.length === 0,
             owner_email: ownerEmail,
             reason: "google_api_error",
-            error_detail:
-              accountsData.error.message || String(accountsData.error),
-            error_code: accountsData.error.code ?? null,
-            error_status: accountsData.error.status ?? null,
+            error_detail: accountsError.message || String(accountsData.error),
+            error_code: accountsError.code ?? null,
+            error_status: accountsError.status ?? null,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
       // Extract properties from account summaries
-      const properties: any[] = [];
-      if (accountsData.accountSummaries) {
-        for (const account of accountsData.accountSummaries) {
-          if (account.propertySummaries) {
-            for (const prop of account.propertySummaries) {
-              properties.push({
-                id: prop.property,
-                name: prop.displayName,
-                accountName: account.displayName,
-              });
-            }
-          }
+      const properties: GaProperty[] = [];
+      for (const account of asRecords(accountsData.accountSummaries)) {
+        for (const prop of asRecords(account.propertySummaries)) {
+          properties.push({
+            id: prop.property,
+            name: optString(prop.displayName),
+            accountName: optString(account.displayName),
+          });
         }
       }
 
@@ -613,10 +635,10 @@ serve(async (req) => {
         JSON.stringify({ properties, owner_email: ownerEmail }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching properties:", error);
       return new Response(
-        JSON.stringify({ error: error.message || String(error) }),
+        JSON.stringify({ error: errorMessage(error) || String(error) }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${settings.api_token}` },
     });
     const body = await res.text();
-    let data: any = {};
+    let data: unknown = {};
     try {
       data = JSON.parse(body);
     } catch {

@@ -1,4 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  asRecord,
+  asRecords,
+  errorMessage,
+  isRecord,
+  optString,
+} from "../_shared/provider-json-b23.ts";
+
+type FacebookIntegration = {
+  id: string;
+  api_key: string | null;
+  settings: unknown;
+  shared_from_integration_id: string | null;
+  user_id: string | null;
+  connection_visibility: string | null;
+  tenant_id: string;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,7 +83,7 @@ Deno.serve(async (req) => {
 
     const integrationFields =
       "id, api_key, settings, shared_from_integration_id, user_id, connection_visibility, tenant_id";
-    let integration: any = null;
+    let integration: FacebookIntegration | null = null;
 
     if (requestedIntegrationId) {
       const { data: specific } = await supabaseAdmin
@@ -187,12 +204,12 @@ Deno.serve(async (req) => {
       graphUrl.searchParams.set("access_token", accessToken);
 
       const graphResponse = await fetch(graphUrl);
-      const graphData: any = await graphResponse.json();
+      const graphData = asRecord(await graphResponse.json());
 
       if (!graphResponse.ok || graphData.error) {
         console.warn("Facebook direct account validation failed", {
           status: graphResponse.status,
-          code: graphData?.error?.code ?? null,
+          code: asRecord(graphData.error).code ?? null,
         });
         return jsonResponse(
           {
@@ -204,15 +221,15 @@ Deno.serve(async (req) => {
         );
       }
 
-      const business = graphData.business || null;
+      const business = asRecord(graphData.business);
       const account = {
         id: graphData.id || `act_${requestedAdAccountId}`,
         name: graphData.name || `act_${requestedAdAccountId}`,
         account_status: graphData.account_status,
         currency: graphData.currency || "ILS",
         amount_spent: graphData.amount_spent,
-        business_id: business?.id || null,
-        business_name: business?.name || null,
+        business_id: business.id || null,
+        business_name: business.name || null,
       };
 
       return jsonResponse({
@@ -225,19 +242,21 @@ Deno.serve(async (req) => {
     }
 
     // Compatibility fallback for older callers that still expect enumeration.
-    const fetchEdge = async (edgeUrl: string): Promise<any[]> => {
-      const rows: any[] = [];
+    const fetchEdge = async (
+      edgeUrl: string,
+    ): Promise<Record<string, unknown>[]> => {
+      const rows: Record<string, unknown>[] = [];
       let next: string | null = edgeUrl;
       try {
         while (next) {
           const response = await fetch(next);
-          const data: any = await response.json();
+          const data = asRecord(await response.json());
           if (!response.ok || data.error) break;
-          if (Array.isArray(data.data)) rows.push(...data.data);
-          next = data.paging?.next || null;
+          rows.push(...asRecords(data.data));
+          next = optString(asRecord(data.paging).next) || null;
         }
-      } catch (error: any) {
-        console.warn("Facebook edge fetch failed", error?.message);
+      } catch (error) {
+        console.warn("Facebook edge fetch failed", errorMessage(error));
       }
       return rows;
     };
@@ -248,7 +267,7 @@ Deno.serve(async (req) => {
     const businesses = await fetchEdge(
       `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&limit=100&access_token=${accessToken}`,
     );
-    const businessAccounts: any[] = [];
+    const businessAccounts: Record<string, unknown>[] = [];
 
     for (const business of businesses) {
       const [clientAccounts, ownedAccounts] = await Promise.all([
@@ -268,9 +287,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const byId = new Map<string, any>();
+    const byId = new Map<string, Record<string, unknown>>();
     for (const account of [...owned, ...businessAccounts]) {
-      if (account?.id && !byId.has(account.id)) byId.set(account.id, account);
+      const id = optString(account.id);
+      if (id && !byId.has(id)) byId.set(id, account);
     }
 
     return jsonResponse({
@@ -281,17 +301,19 @@ Deno.serve(async (req) => {
         account_status: account.account_status,
         currency: account.currency,
         amount_spent: account.amount_spent,
-        business_id: account.business_id || account.business?.id || null,
-        business_name: account.business_name || account.business?.name || null,
+        business_id:
+          account.business_id || asRecord(account.business).id || null,
+        business_name:
+          account.business_name || asRecord(account.business).name || null,
       })),
       lookup_mode: "fallback",
       integration_id: integration.id,
       integration_visibility: integration.connection_visibility || "private",
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in get-facebook-ad-accounts", {
-      name: error?.name || "Error",
-      message: error?.message || "Unknown error",
+      name: (isRecord(error) && error.name) || "Error",
+      message: errorMessage(error) || "Unknown error",
     });
     return jsonResponse(
       {

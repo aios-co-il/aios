@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecords } from "../_shared/provider-json-b23.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,8 +111,8 @@ serve(async (req) => {
     const formsData = await formsResponse.json();
 
     // Parse forms and their fields
-    const forms = (formsData.data || []).map((form: any) => {
-      const fields = (form.questions || []).map((q: any) => ({
+    const forms = asRecords(formsData.data).map((form) => {
+      const fields = asRecords(form.questions).map((q) => ({
         key: q.key,
         label: q.label || q.key,
         type: q.type,

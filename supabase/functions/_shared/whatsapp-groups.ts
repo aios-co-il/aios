@@ -3,8 +3,24 @@
  * same group_chat_id) when operators sync the same phone into MC and DMM.
  * Invite links fetched via one tenant's Green API should propagate to siblings.
  */
+import { asRecords, optString, type QueryResult } from "./provider-json-b23.ts";
+
+interface GroupsFilter extends PromiseLike<QueryResult> {
+  eq(column: string, value: string): GroupsFilter;
+  neq(column: string, value: string): GroupsFilter;
+  not(column: string, operator: string, value: null): GroupsFilter;
+  limit(count: number): GroupsFilter;
+}
+
+interface GroupsDb {
+  from(table: string): {
+    update(values: { invite_link: string }): GroupsFilter;
+    select(columns: string): GroupsFilter;
+  };
+}
+
 export async function propagateWhatsappGroupInviteLink(
-  supabase: { from: (table: string) => any },
+  supabase: GroupsDb,
   groupChatId: string,
   inviteLink: string | null | undefined,
 ): Promise<void> {
@@ -27,7 +43,7 @@ export async function propagateWhatsappGroupInviteLink(
 
 /** Use cached link, or copy from a sibling row with the same group_chat_id. */
 export async function resolveWhatsappGroupInviteLink(
-  supabase: { from: (table: string) => any },
+  supabase: GroupsDb,
   groupChatId: string | null | undefined,
   cachedLink: string | null | undefined,
 ): Promise<string | null> {
@@ -42,7 +58,8 @@ export async function resolveWhatsappGroupInviteLink(
     .not("invite_link", "is", null)
     .limit(1);
 
-  const siblingLink = siblings?.[0]?.invite_link?.trim() || null;
+  const siblingLink =
+    optString(asRecords(siblings)[0]?.invite_link)?.trim() || null;
   if (siblingLink) {
     await propagateWhatsappGroupInviteLink(supabase, groupChatId, siblingLink);
   }
