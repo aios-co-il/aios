@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "./TenantContext";
 import { useQuery } from "@tanstack/react-query";
+import { isJsonObject } from "@/lib/typing-b26";
 
 export type ColorPalette =
   "default" | "green-gradient" | "blue" | "purple" | "orange";
@@ -65,6 +66,10 @@ const palettes = {
   },
 };
 
+const isColorPalette = (value: unknown): value is ColorPalette =>
+  typeof value === "string" &&
+  Object.prototype.hasOwnProperty.call(palettes, value);
+
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { currentTenantId } = useTenant();
   const [palette, setPaletteState] = useState<ColorPalette>("green-gradient");
@@ -86,7 +91,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       // IMPORTANT: React Query does not allow `undefined` as resolved data.
-      return (data?.setting_value ?? null) as any;
+      return data?.setting_value ?? null;
     },
     enabled: !!currentTenantId,
   });
@@ -94,12 +99,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // Apply branding when loaded
   useEffect(() => {
     if (brandingSettings) {
-      const settings = brandingSettings as {
-        colorPalette?: ColorPalette;
-        logoUrl?: string;
-      };
-      const colorPalette = settings.colorPalette || "default";
-      const logo = settings.logoUrl || null;
+      const settings = isJsonObject(brandingSettings) ? brandingSettings : {};
+      const colorPalette = isColorPalette(settings.colorPalette)
+        ? settings.colorPalette
+        : "default";
+      const logo =
+        typeof settings.logoUrl === "string" && settings.logoUrl
+          ? settings.logoUrl
+          : null;
 
       setPaletteState(colorPalette);
       setLogoUrlState(logo);
@@ -114,9 +121,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     applyPalette(newPalette);
 
     // Save to tenant_settings
-    const currentSettings =
-      (brandingSettings as { colorPalette?: ColorPalette; logoUrl?: string }) ||
-      {};
+    const currentSettings = isJsonObject(brandingSettings)
+      ? brandingSettings
+      : {};
     await supabase.from("tenant_settings").upsert(
       {
         tenant_id: currentTenantId,
@@ -138,9 +145,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setLogoUrlState(url);
 
     // Save to tenant_settings
-    const currentSettings =
-      (brandingSettings as { colorPalette?: ColorPalette; logoUrl?: string }) ||
-      {};
+    const currentSettings = isJsonObject(brandingSettings)
+      ? brandingSettings
+      : {};
     await supabase.from("tenant_settings").upsert(
       {
         tenant_id: currentTenantId,

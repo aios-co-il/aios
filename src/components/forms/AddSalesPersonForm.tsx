@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -124,18 +125,18 @@ export function AddSalesPersonForm() {
       // Extract shared agencies
       const shared = (sharedAccess || [])
         .map((s) => s.agencies)
-        .filter(Boolean);
+        .filter((agency) => agency != null);
 
       // Combine and remove duplicates
       const combined = [...(ownedAgencies || []), ...shared];
-      const uniqueMap = new Map();
+      const uniqueMap = new Map<string, (typeof combined)[number]>();
       combined.forEach((agency) => {
         if (agency && agency.id && !uniqueMap.has(agency.id)) {
           uniqueMap.set(agency.id, agency);
         }
       });
 
-      return Array.from(uniqueMap.values()).sort((a: any, b: any) =>
+      return Array.from(uniqueMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
       );
     },
@@ -146,7 +147,7 @@ export function AddSalesPersonForm() {
     mutationFn: async (values: FormValues) => {
       if (!tenantId) throw new Error("לא נמצא tenant_id");
 
-      const submitData: any = {
+      const submitData: TablesInsert<"sales_people"> = {
         full_name: values.full_name,
         email: values.email || null,
         phone: values.phone || null,
@@ -174,7 +175,7 @@ export function AddSalesPersonForm() {
       setOpen(false);
       form.reset();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה בהוספת איש מכירות",
         description: error.message,

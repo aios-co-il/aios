@@ -1,11 +1,39 @@
 import { useState, useEffect } from "react";
 import type { FolderLink } from "@/components/forms/FolderLinksField";
 import type { Attachment } from "@/components/forms/AttachmentsField";
+import { isJsonObject } from "@/lib/typing-b26";
 
 interface EntityWithFiles {
-  folder_links?: any;
+  folder_links?: unknown;
   folder_link?: string;
-  attachments?: any;
+  attachments?: unknown;
+}
+
+const optionalString = (value: unknown) =>
+  typeof value === "string" ? value : undefined;
+
+function toFolderLinks(value: unknown): FolderLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isJsonObject).map((item) => ({
+    ...item,
+    name: optionalString(item.name) ?? "",
+    url: optionalString(item.url) ?? "",
+  }));
+}
+
+function toAttachments(value: unknown): Attachment[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isJsonObject).map((item) => ({
+    ...item,
+    name: optionalString(item.name) ?? "",
+    type: optionalString(item.type) ?? "",
+    path: optionalString(item.path),
+    url: optionalString(item.url),
+    size: typeof item.size === "number" ? item.size : undefined,
+    uploaded_at: optionalString(item.uploaded_at),
+    created_at: optionalString(item.created_at),
+    created_by: optionalString(item.created_by),
+  }));
 }
 
 /**
@@ -20,11 +48,11 @@ export function useFolderLinksAndAttachments(entity: EntityWithFiles) {
     // Parse folder_links
     if (entity?.folder_links) {
       try {
-        const parsed =
+        const parsed: unknown =
           typeof entity.folder_links === "string"
             ? JSON.parse(entity.folder_links)
             : entity.folder_links;
-        setFolderLinks(Array.isArray(parsed) ? parsed : []);
+        setFolderLinks(toFolderLinks(parsed));
       } catch {
         // Fallback to old folder_link field
         if (entity.folder_link) {
@@ -42,11 +70,11 @@ export function useFolderLinksAndAttachments(entity: EntityWithFiles) {
     // Parse attachments
     if (entity?.attachments) {
       try {
-        const parsed =
+        const parsed: unknown =
           typeof entity.attachments === "string"
             ? JSON.parse(entity.attachments)
             : entity.attachments;
-        setAttachments(Array.isArray(parsed) ? parsed : []);
+        setAttachments(toAttachments(parsed));
       } catch {
         setAttachments([]);
       }

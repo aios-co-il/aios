@@ -5,7 +5,7 @@ function isMissingTableError(message: string): boolean {
 }
 
 export async function fetchRecordingFolders(tenantId: string) {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("recording_folders")
     .select("id, name, icon, position")
     .eq("tenant_id", tenantId)

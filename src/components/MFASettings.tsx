@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, AlertCircle, Copy, Check } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { errorMessage } from "@/lib/typing-b26";
 
 export function MFASettings() {
   const [isEnrolled, setIsEnrolled] = useState(false);
@@ -38,7 +39,7 @@ export function MFASettings() {
       setIsEnrolled(
         data?.currentLevel === "aal2" || data?.nextLevel === "aal2",
       );
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error checking MFA status:", error);
     } finally {
       setIsLoading(false);
@@ -74,10 +75,10 @@ export function MFASettings() {
         setSecret(data.totp.secret);
         setFactorId(data.id);
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה",
-        description: error.message || "אירעה שגיאה בהפעלת אימות דו-שלבי",
+        description: errorMessage(error) || "אירעה שגיאה בהפעלת אימות דו-שלבי",
         variant: "destructive",
       });
     } finally {
@@ -130,10 +131,10 @@ export function MFASettings() {
       setVerifyCode("");
       setIsEnrolling(false);
       await checkMFAStatus();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה",
-        description: error.message || "הקוד שגוי, נסה שוב",
+        description: errorMessage(error) || "הקוד שגוי, נסה שוב",
         variant: "destructive",
       });
     }
@@ -160,10 +161,10 @@ export function MFASettings() {
 
       setIsEnrolled(false);
       checkMFAStatus();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה",
-        description: error.message || "אירעה שגיאה בביטול אימות דו-שלבי",
+        description: errorMessage(error) || "אירעה שגיאה בביטול אימות דו-שלבי",
         variant: "destructive",
       });
     }

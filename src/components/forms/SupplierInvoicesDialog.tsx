@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -31,9 +32,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { errorMessage } from "@/lib/typing-b26";
 
 interface SupplierInvoicesDialogProps {
-  supplier: any;
+  supplier: Pick<Tables<"suppliers">, "id" | "name" | "email" | "phone">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -120,9 +122,9 @@ export function SupplierInvoicesDialog({
       if (data?.invoice_name) setInvoiceName(data.invoice_name);
       if (data?.invoice_amount) setInvoiceAmount(String(data.invoice_amount));
       toast.success("הנתונים חולצו בהצלחה!");
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error("שגיאה בקריאת החשבונית: " + (e.message || ""));
+      toast.error("שגיאה בקריאת החשבונית: " + (errorMessage(e) || ""));
     } finally {
       setIsExtracting(false);
     }
@@ -179,8 +181,8 @@ export function SupplierInvoicesDialog({
       setNotes("");
       setInvoiceDate(format(new Date(), "yyyy-MM-dd"));
       setInvoiceMonth(format(new Date(), "yyyy-MM"));
-    } catch (e: any) {
-      toast.error("שגיאה בשמירת חשבונית: " + (e.message || ""));
+    } catch (e) {
+      toast.error("שגיאה בשמירת חשבונית: " + (errorMessage(e) || ""));
     } finally {
       setIsUploading(false);
     }

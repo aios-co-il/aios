@@ -34,11 +34,26 @@ import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SUMMARY_PROSE_CLASS } from "@/components/recordings/SummaryViewerDialog";
+import { errorMessage } from "@/lib/typing-b26";
+
+interface SummarizableRecording {
+  id: string;
+  meeting_topic: string | null;
+  start_time: string | null;
+  duration: number | null;
+  file_path: string | null;
+  recording_url: string | null;
+  download_url?: string | null;
+  client_id: string | null;
+  lead_id?: string | null;
+  agency_id?: string | null;
+  campaigner_ids?: string[] | null;
+}
 
 interface SummarizeRecordingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  recording: any;
+  recording: SummarizableRecording;
 }
 
 const FOCUS_OPTIONS = [
@@ -123,7 +138,7 @@ export default function SummarizeRecordingDialog({
               .update({
                 transcription_status: "completed",
                 transcription_error: null,
-              } as any)
+              })
               .eq("id", recording.id);
           }
           toast({ title: "תמלול קיים נטען אוטומטית" });
@@ -166,7 +181,7 @@ export default function SummarizeRecordingDialog({
         .update({
           transcription_status: null,
           transcription_error: null,
-        } as any)
+        })
         .eq("id", recordingId);
 
       stopPolling();
@@ -226,7 +241,7 @@ export default function SummarizeRecordingDialog({
                 .update({
                   transcription_status: "failed",
                   transcription_error: errMsg,
-                } as any)
+                })
                 .eq("id", recordingId);
               toast({
                 title: "נראה שהתמלול נתקע",
@@ -395,8 +410,8 @@ export default function SummarizeRecordingDialog({
         setIsTranscribing(false);
         return;
       }
-    } catch (err: any) {
-      const errMsg = err.message || "";
+    } catch (err) {
+      const errMsg = errorMessage(err) || "";
       if (
         errMsg.includes("Failed to fetch") ||
         errMsg.includes("network") ||
@@ -410,10 +425,10 @@ export default function SummarizeRecordingDialog({
         });
         return;
       }
-      setFailedError(err.message || "שגיאה לא ידועה");
+      setFailedError(errorMessage(err) || "שגיאה לא ידועה");
       toast({
         title: "שגיאה בתמלול",
-        description: err.message || "נסה שוב או הדבק תמלול ידנית",
+        description: errorMessage(err) || "נסה שוב או הדבק תמלול ידנית",
         variant: "destructive",
       });
       setIsTranscribing(false);
@@ -489,10 +504,10 @@ export default function SummarizeRecordingDialog({
         queryKey: ["recordings", currentTenantId],
       });
       toast({ title: "הסיכום נוצר בהצלחה!", description: "הקובץ נשמר ושויך" });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה ביצירת סיכום",
-        description: err.message || "נסה שוב",
+        description: errorMessage(err) || "נסה שוב",
         variant: "destructive",
       });
     } finally {
@@ -685,18 +700,18 @@ export default function SummarizeRecordingDialog({
                             .update({
                               transcription_status: null,
                               transcription_error: null,
-                            } as any)
+                            })
                             .eq("id", recording.id);
 
                           // Small delay to let DB update
                           await new Promise((r) => setTimeout(r, 1000));
                           void handleTranscribe();
-                        } catch (err: any) {
+                        } catch (err) {
                           setIsTranscribing(false);
-                          setFailedError(err.message || "שגיאה ברענון");
+                          setFailedError(errorMessage(err) || "שגיאה ברענון");
                           toast({
                             title: "שגיאה ברענון קישורים",
-                            description: err.message,
+                            description: errorMessage(err),
                             variant: "destructive",
                           });
                         }
@@ -790,25 +805,25 @@ export default function SummarizeRecordingDialog({
                 <SelectContent>
                   <SelectItem value="none">בחר...</SelectItem>
                   {targetType === "client" &&
-                    clients.map((c: any) => (
+                    clients.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>
                     ))}
                   {targetType === "lead" &&
-                    leads.map((l: any) => (
+                    leads.map((l) => (
                       <SelectItem key={l.id} value={l.id}>
                         {l.company_name}
                       </SelectItem>
                     ))}
                   {targetType === "campaigner" &&
-                    campaigners.map((c: any) => (
+                    campaigners.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.full_name}
                       </SelectItem>
                     ))}
                   {targetType === "agency" &&
-                    agencies.map((a: any) => (
+                    agencies.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.name}
                       </SelectItem>

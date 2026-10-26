@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
+import { errorMessage } from "@/lib/typing-b26";
 
 export type CloneEntityType = "agent" | "automation" | "pipeline";
 
@@ -33,6 +34,12 @@ interface CloneToOrgDialogProps {
   entityName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface TenantOption {
+  id: string;
+  name?: string | null;
+  slug?: string | null;
 }
 
 interface CloneResult {
@@ -76,16 +83,16 @@ export function CloneToOrgDialog({
   const [results, setResults] = useState<CloneResult[] | null>(null);
 
   const tenantName = (id: string) =>
-    (userTenants || []).find((t: any) => t.id === id)?.name || id;
+    (userTenants || []).find((t: TenantOption) => t.id === id)?.name || id;
 
   const availableTenants = useMemo(() => {
     const list = (userTenants || []).filter(
-      (t: any) => t.id !== sourceTenantId,
+      (t: TenantOption) => t.id !== sourceTenantId,
     );
     if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
     return list.filter(
-      (t: any) =>
+      (t: TenantOption) =>
         (t.name || "").toLowerCase().includes(q) ||
         (t.slug || "").toLowerCase().includes(q),
     );
@@ -111,19 +118,18 @@ export function CloneToOrgDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const { data, error } = await supabase.functions.invoke(
-        "clone-entity-to-tenant",
-        {
-          headers: { Authorization: `Bearer ${session?.access_token}` },
-          body: {
-            entity_type: entityType,
-            entity_id: entityId,
-            target_tenant_ids: Array.from(selected),
-          },
+      const { data, error } = await supabase.functions.invoke<{
+        results?: CloneResult[];
+      }>("clone-entity-to-tenant", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: {
+          entity_type: entityType,
+          entity_id: entityId,
+          target_tenant_ids: Array.from(selected),
         },
-      );
+      });
       if (error) throw error;
-      const res: CloneResult[] = (data as any)?.results || [];
+      const res: CloneResult[] = data?.results || [];
       setResults(res);
       const ok = res.filter((r) => r.success).length;
       const failed = res.filter((r) => !r.success);
@@ -133,10 +139,10 @@ export function CloneToOrgDialog({
         variant: ok === 0 ? "destructive" : "default",
       });
       if (ok > 0) setSelected(new Set());
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בשכפול",
-        description: e.message,
+        description: errorMessage(e),
         variant: "destructive",
       });
     } finally {
@@ -226,7 +232,7 @@ export function CloneToOrgDialog({
                     אין ארגונים זמינים
                   </p>
                 ) : (
-                  availableTenants.map((t: any) => (
+                  availableTenants.map((t: TenantOption) => (
                     <label
                       key={t.id}
                       className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"

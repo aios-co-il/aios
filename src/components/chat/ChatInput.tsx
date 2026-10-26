@@ -230,7 +230,7 @@ export default function ChatInput({
     }
   };
 
-  const handleEmojiSelect = (emoji: any) => {
+  const handleEmojiSelect = (emoji: { native: string }) => {
     setMessage((prev) => prev + emoji.native);
     setShowEmojiPicker(false);
     textareaRef.current?.focus();
