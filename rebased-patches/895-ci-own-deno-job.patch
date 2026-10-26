@@ -1,0 +1,53 @@
+From 1416af61e3c1480358a88367f8b65eb40652888e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 15:12:23 +0000
+Subject: [PATCH] ci(whatsapp): run Manus schema tests in their own job
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018yMLzGJhHxrHKDgAcXxJSS
+---
+ .github/workflows/ci-frontend.yml | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index 39a2b6b34..b44ec44d9 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -140,6 +140,20 @@ jobs:
+             validateBaseline(current);
+             core.info(`TypeScript baseline is valid at ${pr.head.sha}; baseline updates do not require a separate approval.`);
+ 
++  manus-webhook-schema:
++    runs-on: ubuntu-latest
++    permissions:
++      contents: read
++    steps:
++      - uses: actions/checkout@v4
++
++      - uses: denoland/setup-deno@v2
++        with:
++          deno-version: v2.9.6
++
++      - name: Manus webhook schema regression tests
++        run: deno test supabase/functions/manus-wa-webhook/payload-schema.test.ts
++
+   build:
+     runs-on: ubuntu-latest
+     permissions:
+@@ -185,13 +199,6 @@ jobs:
+       - name: Carmen pulse regression tests
+         run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs
+ 
+-      - uses: denoland/setup-deno@v2
+-        with:
+-          deno-version: v2.9.6
+-
+-      - name: Manus webhook schema regression tests
+-        run: deno test supabase/functions/manus-wa-webhook/payload-schema.test.ts
+-
+       - name: Build frontend
+         run: pnpm build
+ 
+-- 
+2.43.0
+
