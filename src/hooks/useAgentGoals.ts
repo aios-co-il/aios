@@ -2,20 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
+import { toAgentGoal, type AgentGoal } from "@/lib/agentGoalRows";
 
-export interface AgentGoal {
-  id: string;
-  tenant_id: string;
-  agent_id: string;
-  title: string;
-  description: string | null;
-  priority: "high" | "medium" | "low";
-  status: "active" | "paused" | "done";
-  target_date: string | null;
-  metadata: any;
-  created_at: string;
-  updated_at: string;
-}
+export type { AgentGoal };
 
 export function useAgentGoals(agentId: string | null) {
   return useQuery({
@@ -23,12 +12,12 @@ export function useAgentGoals(agentId: string | null) {
     enabled: !!agentId,
     queryFn: async (): Promise<AgentGoal[]> => {
       const { data, error } = await supabase
-        .from("agent_goals" as any)
+        .from("agent_goals")
         .select("*")
         .eq("agent_id", agentId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as any;
+      return (data ?? []).map(toAgentGoal);
     },
   });
 }
@@ -40,7 +29,7 @@ export function useAgentGoalMutations(agentId: string | null) {
   const create = useMutation({
     mutationFn: async (input: Partial<AgentGoal>) => {
       if (!agentId || !tenantId) throw new Error("missing agent/tenant");
-      const { error } = await supabase.from("agent_goals" as any).insert({
+      const { error } = await supabase.from("agent_goals").insert({
         agent_id: agentId,
         tenant_id: tenantId,
         title: input.title!,
@@ -55,7 +44,7 @@ export function useAgentGoalMutations(agentId: string | null) {
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] });
       toast.success("מטרה נוספה");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const update = useMutation({
@@ -64,20 +53,20 @@ export function useAgentGoalMutations(agentId: string | null) {
       ...patch
     }: Partial<AgentGoal> & { id: string }) => {
       const { error } = await supabase
-        .from("agent_goals" as any)
+        .from("agent_goals")
         .update(patch)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] }),
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("agent_goals" as any)
+        .from("agent_goals")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -86,7 +75,7 @@ export function useAgentGoalMutations(agentId: string | null) {
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] });
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return { create, update, remove };

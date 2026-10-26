@@ -28,6 +28,24 @@ export interface RealtimeHandle {
   speakText: (text: string) => void;
 }
 
+type RealtimeServerEvent = {
+  type?: unknown;
+  delta?: unknown;
+  transcript?: unknown;
+  item?: unknown;
+  error?: unknown;
+};
+type RealtimeOutputItem = {
+  type?: unknown;
+  name?: unknown;
+  arguments?: unknown;
+  call_id?: unknown;
+};
+
+function objectOrNull(value: unknown): object | null {
+  return typeof value === "object" && value !== null ? value : null;
+}
+
 export async function startRealtimeVoice(
   clientSecret: string,
   model: string,
@@ -103,12 +121,14 @@ export async function startRealtimeVoice(
     );
   };
   dc.onmessage = async (e) => {
-    let ev: any;
+    let parsed: unknown;
     try {
-      ev = JSON.parse(e.data);
+      parsed = JSON.parse(e.data);
     } catch {
       return;
     }
+    const ev: RealtimeServerEvent | null = objectOrNull(parsed);
+    if (!ev) return;
     switch (ev.type) {
       case "response.created":
         responseActive = true;
@@ -139,7 +159,7 @@ export async function startRealtimeVoice(
           cb.onUserTranscript(ev.transcript.trim());
         break;
       case "response.output_item.done": {
-        const item = ev.item;
+        const item: RealtimeOutputItem | null = objectOrNull(ev.item);
         if (
           item?.type === "function_call" &&
           item.name === "ask_carmen" &&
@@ -147,7 +167,10 @@ export async function startRealtimeVoice(
         ) {
           let question = "";
           try {
-            question = JSON.parse(item.arguments)?.question ?? "";
+            const args: { question?: unknown } | null = objectOrNull(
+              JSON.parse(String(item.arguments)),
+            );
+            if (typeof args?.question === "string") question = args.question;
           } catch {
             /* malformed args */
           }
@@ -168,9 +191,13 @@ export async function startRealtimeVoice(
         }
         break;
       }
-      case "error":
-        cb.onError(ev.error?.message ?? "Realtime error");
+      case "error": {
+        const error: { message?: unknown } | null = objectOrNull(ev.error);
+        cb.onError(
+          typeof error?.message === "string" ? error.message : "Realtime error",
+        );
         break;
+      }
     }
   };
 

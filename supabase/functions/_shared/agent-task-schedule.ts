@@ -53,11 +53,12 @@ export function decideRecurringRun(
  * Result checkpoint for a fresh recurring occurrence: drop the previous run's
  * conversation so the agent starts the task anew instead of "continuing".
  */
-export function freshOccurrenceResult(
-  previous: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-  const prev = previous && typeof previous === "object" ? previous : {};
-  const keep: Record<string, unknown> = {};
+export function freshOccurrenceResult<V>(
+  previous: Record<string, V> | null | undefined,
+): Record<string, V | never[] | number> {
+  const prev: Record<string, V> =
+    previous && typeof previous === "object" ? previous : {};
+  const keep: Record<string, V> = {};
   for (const key of [
     "notify",
     "reminder_delivery",
