@@ -5,6 +5,7 @@ import {
 import type { Database } from "../_shared/database.types.ts";
 import { asJsonObject, asObject } from "../_shared/lead-json.ts";
 import {
+  cachedManyChatFieldId,
   findManyChatPhoneField,
   manyChatSuccessId,
 } from "../_shared/manychat-reply.ts";
@@ -142,12 +143,8 @@ async function getPhoneNumberFieldId(
     .single();
 
   const settings = asJsonObject(integration?.settings) ?? {};
-  const cachedFieldId = settings.phone_number_field_id;
-  if (cachedFieldId) {
-    return typeof cachedFieldId === "number"
-      ? cachedFieldId
-      : Number(cachedFieldId);
-  }
+  const cachedFieldId = cachedManyChatFieldId(settings.phone_number_field_id);
+  if (cachedFieldId !== null) return cachedFieldId;
 
   // Fetch from ManyChat API
   const res = await fetch("https://api.manychat.com/fb/page/getCustomFields", {

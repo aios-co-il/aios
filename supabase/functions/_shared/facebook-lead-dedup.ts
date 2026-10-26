@@ -387,6 +387,13 @@ export async function shouldCreateCrmLeadForFacebookFlow(
   triggerConfig: unknown,
   triggerActionType: string | null | undefined,
 ): Promise<boolean> {
+  if (!automationId) {
+    return shouldCreateCrmLeadForFacebookFlowConfig(
+      triggerConfig,
+      triggerActionType,
+      false,
+    );
+  }
   const { data: createLeadStep } = await supabase
     .from("automation_flow_steps")
     .select("id")

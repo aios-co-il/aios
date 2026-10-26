@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cachedManyChatFieldId,
   findManyChatPhoneField,
   manyChatSuccessId,
   mentionsManyChatRateLimit,
@@ -34,4 +35,12 @@ test("findManyChatPhoneField matches the phone_number field by name", () => {
   });
   assert.equal(findManyChatPhoneField({ status: "error", data: [] }), null);
   assert.equal(findManyChatPhoneField({ status: "success", data: {} }), null);
+});
+
+test("cachedManyChatFieldId reads numeric ids and rejects the rest", () => {
+  assert.equal(cachedManyChatFieldId(12345), 12345);
+  assert.equal(cachedManyChatFieldId("12345"), 12345);
+  for (const value of [undefined, null, "", 0, "abc", { id: 1 }, [7], true]) {
+    assert.equal(cachedManyChatFieldId(value), null);
+  }
 });

@@ -4,7 +4,10 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2";
 import type { Database } from "../_shared/database.types.ts";
 import { asJsonObject, asObject } from "../_shared/lead-json.ts";
-import { findManyChatPhoneField } from "../_shared/manychat-reply.ts";
+import {
+  cachedManyChatFieldId,
+  findManyChatPhoneField,
+} from "../_shared/manychat-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,12 +73,8 @@ async function getPhoneFieldId(
     .single();
 
   const settings = asJsonObject(integration?.settings) ?? {};
-  const cachedFieldId = settings.phone_number_field_id;
-  if (cachedFieldId) {
-    return typeof cachedFieldId === "number"
-      ? cachedFieldId
-      : Number(cachedFieldId);
-  }
+  const cachedFieldId = cachedManyChatFieldId(settings.phone_number_field_id);
+  if (cachedFieldId !== null) return cachedFieldId;
 
   const res = await fetch("https://api.manychat.com/fb/page/getCustomFields", {
     headers: {

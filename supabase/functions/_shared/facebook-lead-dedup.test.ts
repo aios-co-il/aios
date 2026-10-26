@@ -8,6 +8,7 @@ import {
   facebookFlowEventSource,
   facebookIntakeEventSource,
   facebookTriggerAutomationSucceeded,
+  shouldCreateCrmLeadForFacebookFlow,
   shouldCreateCrmLeadForFacebookFlowConfig,
   facebookWhatsAppSendSource,
   hashWhatsAppBody,
@@ -338,4 +339,15 @@ test("shouldCreateCrmLeadForFacebookFlowConfig skips CRM for WhatsApp-only flows
     shouldCreateCrmLeadForFacebookFlowConfig({}, "inbound_webhook_lead", true),
     false,
   );
+});
+
+test("shouldCreateCrmLeadForFacebookFlow skips the step lookup without an automation id", async () => {
+  const tables: string[] = [];
+  const db = eventsDb({}, (name) => tables.push(name));
+  const config = { create_crm_lead: true };
+  assert.equal(
+    await shouldCreateCrmLeadForFacebookFlow(db, "", config, "facebook_lead"),
+    shouldCreateCrmLeadForFacebookFlowConfig(config, "facebook_lead", false),
+  );
+  assert.deepEqual(tables, []);
 });

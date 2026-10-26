@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { asJsonObject, asObject } from "../_shared/lead-json.ts";
 import {
+  cachedManyChatFieldId,
   findManyChatPhoneField,
   manyChatSuccessId,
   mentionsManyChatRateLimit,
@@ -132,12 +133,8 @@ async function getPhoneNumberFieldId(
     .single();
 
   const settings = asJsonObject(integration?.settings) ?? {};
-  const cachedFieldId = settings.phone_number_field_id;
-  if (cachedFieldId) {
-    return typeof cachedFieldId === "number"
-      ? cachedFieldId
-      : Number(cachedFieldId);
-  }
+  const cachedFieldId = cachedManyChatFieldId(settings.phone_number_field_id);
+  if (cachedFieldId !== null) return cachedFieldId;
 
   // If not cached, fetch from ManyChat API
   try {

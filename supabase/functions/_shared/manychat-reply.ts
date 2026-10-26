@@ -32,3 +32,15 @@ export function findManyChatPhoneField(
   }
   return null;
 }
+
+/** A cached custom field id as a number; null when unset or not numeric, so it is fetched again. */
+export function cachedManyChatFieldId(value: unknown): number | null {
+  if (!value) return null;
+  const id =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
+  return Number.isFinite(id) ? id : null;
+}
