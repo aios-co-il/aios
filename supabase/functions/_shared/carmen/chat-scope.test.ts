@@ -14,12 +14,15 @@ import {
   keepVisibleChatRows,
   phoneTail,
   resolveChatScope,
+  ROLE_PRIORITY,
+  tenantRoleFor,
   withChatScopeColumns,
   type ChatScope,
 } from "./chat-scope.ts";
 import { fakeDb, parseOrFilter, evalFilter } from "./chat-scope-fake-db.ts";
 
 const T = "10000000-0000-4000-8000-000000000001";
+const T2 = "10000000-0000-4000-8000-000000000002";
 const DAVID = "d0000000-0000-4000-8000-00000000000d";
 const DANA = "d0000000-0000-4000-8000-0000000000a1";
 const DANA_CAMP = "c1000000-0000-4000-8000-0000000000a1";
@@ -268,9 +271,18 @@ test("applyChatScope chains the filters on a query", async () => {
   assert.deepEqual(queries[0].calls, ["eq:group_id", "neq:provider"]);
 });
 
-function world() {
+type Row = Record<string, unknown>;
+
+/** A user_roles row; tenant null is a global role. */
+function role(user_id: string, r: string, tenant_id: string | null = T): Row {
+  return { user_id, role: r, tenant_id };
+}
+
+function world(roles: Row[] = [], managed: Row[] = []) {
   return fakeDb(
     {
+      user_roles: roles,
+      user_managed_agencies: managed,
       whatsapp_groups: [
         { id: GA, tenant_id: T, group_chat_id: "120363-a@g.us" },
       ],
@@ -306,30 +318,114 @@ function world() {
 const base = {
   tenantId: T,
   accessibleTenantIds: [T],
-  managedAgencyIds: [],
   today: "2026-10-26",
 };
 
-test("resolve: owner keeps today's access without any lookup", async () => {
-  const { db, queries, rpcCalls } = world();
+test("tenantRoleFor: highest role in this tenant or a global one, never another tenant's", async () => {
+  const { db, queries } = world([
+    role(DANA, "owner", T2),
+    role(DANA, "agency_owner", T2),
+    role(DANA, "viewer"),
+    role(DANA, "campaigner"),
+    role(DAVID, "super_admin", null),
+  ]);
+  assert.equal(await tenantRoleFor(db, T, DANA), "campaigner");
+  assert.equal(await tenantRoleFor(db, T2, DANA), "owner");
+  assert.equal(await tenantRoleFor(db, T, DAVID), "super_admin");
+  assert.equal(await tenantRoleFor(db, T, MANUS), null);
+  assert.deepEqual(queries[0], {
+    table: "user_roles",
+    ors: [`tenant_id.eq.${T},tenant_id.is.null`],
+    calls: ["eq:user_id", "or"],
+  });
+  const before = queries.length;
+  assert.equal(await tenantRoleFor(db, "not-a-tenant", DANA), null);
+  assert.equal(await tenantRoleFor(db, T, "system"), null);
+  assert.equal(queries.length, before, "no query for a bad id");
+  assert.equal(ROLE_PRIORITY[0], "super_admin");
+});
+
+test("resolve: owner keeps today's access after one role lookup", async () => {
+  const { db, queries, rpcCalls } = world([role(DAVID, "owner")]);
   const scope = await resolveChatScope(db, {
     ...base,
     userId: DAVID,
-    callerRole: "owner",
     callerCampaignerId: null,
     waNotify: { chat_id: "120363-a@g.us", is_group: true },
   });
   assert.equal(scope.mode, "full");
-  assert.equal(queries.length + rpcCalls.length, 0);
+  assert.deepEqual(
+    queries.map((q) => q.table),
+    ["user_roles"],
+  );
+  assert.equal(rpcCalls.length, 0);
   assert.deepEqual(chatScopeMeta(scope), {});
+  const globalAdmin = await resolveChatScope(
+    world([role(DAVID, "super_admin", null)]).db,
+    { ...base, userId: DAVID, callerCampaignerId: null },
+  );
+  assert.equal(globalAdmin.mode, "full");
+});
+
+test("resolve: an owner of another tenant who is a campaigner here gets staff scope", async () => {
+  const roles = [
+    role(DANA, "owner", T2),
+    role(DANA, "super_admin", T2),
+    role(DANA, "campaigner"),
+  ];
+  const inApp = await resolveChatScope(world(roles).db, {
+    ...base,
+    userId: DANA,
+    callerCampaignerId: null,
+  });
+  assert.equal(inApp.mode, "staff");
+  assert.deepEqual(inApp.clientIds, [CA]);
+  assert.deepEqual(inApp.connectionUserIds, [DANA, ORG_LINE]);
+  assert.equal(
+    isChatRowVisible(
+      { provider: "green_api", connection_user_id: DAVID },
+      inApp,
+    ),
+    false,
+  );
+
+  // On WhatsApp: matched by phone to the campaigner record in this tenant.
+  const onWhatsApp = await resolveChatScope(world(roles).db, {
+    ...base,
+    userId: DANA,
+    callerCampaignerId: DANA_CAMP,
+    waNotify: { chat_id: "972501234567@c.us", connection_user_id: MANUS },
+  });
+  assert.equal(onWhatsApp.mode, "staff");
+  assert.deepEqual(onWhatsApp.clientIds, [CA]);
+
+  // An agency owner elsewhere does not read every thread here.
+  const agencyElsewhere = await resolveChatScope(
+    world([role(DANA, "agency_owner", T2), role(DANA, "campaigner")]).db,
+    { ...base, userId: DANA, callerCampaignerId: null },
+  );
+  assert.deepEqual(agencyElsewhere.clientIds, [CA]);
+  assert.equal(agencyElsewhere.leads.all, false);
+
+  // No role here at all: nothing, unless a campaigner record matched here.
+  const noRoleHere = await resolveChatScope(
+    world([role(DANA, "owner", T2)]).db,
+    { ...base, userId: DANA, callerCampaignerId: null },
+  );
+  assert.equal(noRoleHere.mode, "none");
+  const recordOnly = await resolveChatScope(
+    world([role(DANA, "owner", T2)]).db,
+    { ...base, userId: DANA, callerCampaignerId: DANA_CAMP },
+  );
+  assert.equal(recordOnly.mode, "staff");
+  assert.deepEqual(recordOnly.clientIds, [CA]);
 });
 
 test("resolve: in-app campaigner gets active client_team clients only", async () => {
-  const { db, rpcCalls } = world();
+  const { db, rpcCalls } = world([role(DANA, "campaigner")]);
   const scope = await resolveChatScope(db, {
     ...base,
     userId: DANA,
-    callerRole: "campaigner",
     callerCampaignerId: null,
   });
   assert.equal(scope.mode, "staff");
@@ -346,45 +442,50 @@ test("resolve: in-app campaigner gets active client_team clients only", async ()
 });
 
 test("resolve: team manager gets the agency's clients and leads", async () => {
-  const { db } = world();
+  const managed = [{ user_id: DANA, agency_id: AG1 }];
+  const { db } = world([role(DANA, "team_manager")], managed);
   const scope = await resolveChatScope(db, {
     ...base,
     userId: DANA,
-    callerRole: "team_manager",
     callerCampaignerId: null,
-    managedAgencyIds: [AG1],
   });
   assert.deepEqual([...(scope.clientIds as string[])].sort(), [CA, CB].sort());
   assert.deepEqual(scope.leads.agencyIds, [AG1]);
   assert.deepEqual([...scope.linkedGroupIds].sort(), [GA, GB].sort());
+
+  // Managed agencies count only with the team_manager role in this tenant.
+  const elsewhere = await resolveChatScope(
+    world([role(DANA, "team_manager", T2), role(DANA, "campaigner")], managed)
+      .db,
+    { ...base, userId: DANA, callerCampaignerId: null },
+  );
+  assert.deepEqual(elsewhere.clientIds, [CA]);
+  assert.deepEqual(elsewhere.leads.agencyIds, []);
 });
 
 test("resolve: agency owner reads all linked threads, sales person own leads", async () => {
-  const { db } = world();
+  const { db } = world([role(DANA, "agency_owner")]);
   const tenantWide = await resolveChatScope(db, {
     ...base,
     userId: DANA,
-    callerRole: "agency_owner",
     callerCampaignerId: null,
   });
   assert.equal(tenantWide.clientIds, "all");
   assert.equal(tenantWide.leads.all, true);
   assert.deepEqual([...tenantWide.linkedGroupIds].sort(), [GA, GB, GC].sort());
-  const sales = await resolveChatScope(world().db, {
-    ...base,
-    userId: DAVID,
-    callerRole: "sales_person",
-    callerCampaignerId: null,
-  });
+  const sales = await resolveChatScope(
+    world([role(DAVID, "sales_person")]).db,
+    { ...base, userId: DAVID, callerCampaignerId: null },
+  );
   assert.equal(sales.leads.salesPersonId, SP);
   assert.deepEqual(sales.clientIds, []);
 });
 
 test("resolve: WhatsApp turns — group, own chat, unknown sender", async () => {
+  const dana = [role(DANA, "campaigner")];
   const group = await resolveChatScope(world().db, {
     ...base,
     userId: null,
-    callerRole: null,
     callerCampaignerId: null,
     waNotify: { chat_id: "120363-a@g.us", is_group: true },
   });
@@ -392,20 +493,18 @@ test("resolve: WhatsApp turns — group, own chat, unknown sender", async () => 
   assert.equal(group.groupId, GA);
   assert.deepEqual(group.connectionUserIds, []);
 
-  const missing = await resolveChatScope(world().db, {
+  const missing = await resolveChatScope(world(dana).db, {
     ...base,
     userId: DANA,
-    callerRole: "campaigner",
     callerCampaignerId: DANA_CAMP,
     waNotify: { chat_id: "999@g.us", is_group: true },
   });
   assert.equal(missing.mode, "none");
   assert.equal(missing.reason, CHAT_SCOPE_NOTES.groupNotFound);
 
-  const own = await resolveChatScope(world().db, {
+  const own = await resolveChatScope(world(dana).db, {
     ...base,
     userId: DANA,
-    callerRole: "campaigner",
     callerCampaignerId: DANA_CAMP,
     waNotify: { chat_id: "972501234567@c.us", connection_user_id: MANUS },
   });
@@ -421,7 +520,6 @@ test("resolve: WhatsApp turns — group, own chat, unknown sender", async () => 
   const stranger = await resolveChatScope(world().db, {
     ...base,
     userId: null,
-    callerRole: null,
     callerCampaignerId: null,
     waNotify: { chat_id: "972507777777@c.us", connection_user_id: MANUS },
   });
@@ -435,7 +533,6 @@ test("resolve: WhatsApp turns — group, own chat, unknown sender", async () => 
   const system = await resolveChatScope(world().db, {
     ...base,
     userId: null,
-    callerRole: null,
     callerCampaignerId: null,
   });
   assert.equal(system.mode, "none");
@@ -443,7 +540,12 @@ test("resolve: WhatsApp turns — group, own chat, unknown sender", async () => 
 
 test("resolve: a failing connection lookup hides green_api rows", async () => {
   const { db } = fakeDb(
-    { profiles: [], client_team: [], clients: [] },
+    {
+      user_roles: [role(DANA, "agency_owner")],
+      profiles: [],
+      client_team: [],
+      clients: [],
+    },
     {
       chat_allowed_connection_user_ids: () => {
         throw new Error("function does not exist");
@@ -456,9 +558,9 @@ test("resolve: a failing connection lookup hides green_api rows", async () => {
     const scope = await resolveChatScope(db, {
       ...base,
       userId: DANA,
-      callerRole: "agency_owner",
       callerCampaignerId: null,
     });
+    assert.equal(scope.mode, "staff");
     assert.deepEqual(scope.connectionUserIds, []);
     assert.equal(
       isChatRowVisible(

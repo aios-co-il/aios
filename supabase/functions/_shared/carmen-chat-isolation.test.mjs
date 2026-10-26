@@ -74,6 +74,16 @@ test("the three chat readers run through the chat scope wrapper", () => {
   );
   assert.doesNotMatch(scopeInput, /args\./);
   assert.match(scopeInput, /userId: actorUserId/);
+  // callerRole is the highest role across all tenants; the scope reads the
+  // role in this tenant itself.
+  assert.doesNotMatch(scopeInput, /callerRole|managedAgencyIds/);
+});
+
+test("get_recent_inbound_messages keeps its old output shape", () => {
+  assert.match(
+    caseBody("get_recent_inbound_messages"),
+    /connection_user_id: _conn,\s*provider: _provider,\s*group_id: _group,/,
+  );
 });
 
 test("send_message looks up the client or lead inside the caller's tenants", () => {
@@ -94,8 +104,9 @@ test("only service callers may set the WhatsApp chat and sender phone", () => {
 
 // A tenant with David (owner) on his private Green API line, an org-wide Green
 // line, Carmen's Manus line, campaigner Dana (client A), campaigner Ronit
-// (client B), an agency owner, a team manager of agency 1, and a client
-// contact who talks to Carmen in client A's group.
+// (client B), an agency owner, a team manager of agency 1, Maya (owner of
+// another tenant, campaigner of client A here), and a client contact who talks
+// to Carmen in client A's group.
 const T = "10000000-0000-4000-8000-000000000001";
 const T2 = "10000000-0000-4000-8000-000000000002";
 const DAVID = "d0000000-0000-4000-8000-00000000000d";
@@ -103,10 +114,12 @@ const DANA = "d0000000-0000-4000-8000-0000000000a1";
 const RONIT = "d0000000-0000-4000-8000-0000000000a2";
 const AG_OWNER = "d0000000-0000-4000-8000-0000000000a3";
 const TEAM_MGR = "d0000000-0000-4000-8000-0000000000a4";
+const MAYA = "d0000000-0000-4000-8000-0000000000a5";
 const ORG_LINE = "d0000000-0000-4000-8000-0000000000f1";
 const MANUS = "d0000000-0000-4000-8000-0000000000e1";
 const DANA_CAMP = "c1000000-0000-4000-8000-0000000000a1";
 const RONIT_CAMP = "c1000000-0000-4000-8000-0000000000a2";
+const MAYA_CAMP = "c1000000-0000-4000-8000-0000000000a5";
 const AG1 = "a0000000-0000-4000-8000-000000000001";
 const CA = "c0000000-0000-4000-8000-00000000000a";
 const CB = "c0000000-0000-4000-8000-00000000000b";
@@ -116,6 +129,7 @@ const GFAM = "f0000000-0000-4000-8000-0000000000ff";
 const L1 = "b0000000-0000-4000-8000-000000000001";
 const DANA_PHONE = "972501111111";
 const DAVID_PHONE = "972509999999";
+const MAYA_PHONE = "972502222222";
 
 const integrations = [
   { tenant_id: T, user_id: DAVID, connection_visibility: "private" },
@@ -226,10 +240,28 @@ const messages = [
   }),
 ];
 
+// user_roles is per tenant. run-ai-agent's callerRole is the highest role
+// across every tenant, so Maya would count as an owner there.
+const userRoles = [
+  { user_id: DAVID, role: "owner", tenant_id: T },
+  { user_id: DANA, role: "campaigner", tenant_id: T },
+  { user_id: RONIT, role: "campaigner", tenant_id: T },
+  { user_id: AG_OWNER, role: "agency_owner", tenant_id: T },
+  { user_id: TEAM_MGR, role: "team_manager", tenant_id: T },
+  { user_id: MAYA, role: "owner", tenant_id: T2 },
+  { user_id: MAYA, role: "agency_owner", tenant_id: T2 },
+  { user_id: MAYA, role: "campaigner", tenant_id: T },
+];
+
 function world() {
   return fakeDb(
     {
       chat_messages: messages,
+      user_roles: userRoles,
+      user_managed_agencies: [
+        { user_id: TEAM_MGR, agency_id: AG1 },
+        { user_id: MAYA, agency_id: AG1 },
+      ],
       whatsapp_groups: [
         { id: GA, tenant_id: T, group_chat_id: "120363-a@g.us" },
         { id: GB, tenant_id: T, group_chat_id: "120363-b@g.us" },
@@ -240,9 +272,11 @@ function world() {
         { id: RONIT, campaigner_id: RONIT_CAMP },
         { id: AG_OWNER, campaigner_id: null },
         { id: TEAM_MGR, campaigner_id: null },
+        { id: MAYA, campaigner_id: MAYA_CAMP },
       ],
       client_team: [
         { campaigner_id: DANA_CAMP, client_id: CA, start_date: "2026-01-01" },
+        { campaigner_id: MAYA_CAMP, client_id: CA, start_date: "2026-01-01" },
         { campaigner_id: RONIT_CAMP, client_id: CB, start_date: "2026-01-01" },
       ],
       clients: [
@@ -259,16 +293,13 @@ function world() {
   );
 }
 
+// Each caller as run-ai-agent passes it: the verified user id and, on a
+// WhatsApp turn, the sender's campaigner record and the chat. No role goes in.
 const callers = {
-  owner: { userId: DAVID, callerRole: "owner", callerCampaignerId: null },
-  danaInApp: {
-    userId: DANA,
-    callerRole: "campaigner",
-    callerCampaignerId: null,
-  },
+  owner: { userId: DAVID, callerCampaignerId: null },
+  danaInApp: { userId: DANA, callerCampaignerId: null },
   danaOnWhatsApp: {
     userId: DANA,
-    callerRole: "campaigner",
     callerCampaignerId: DANA_CAMP,
     waNotify: {
       chat_id: `${DANA_PHONE}@c.us`,
@@ -276,21 +307,21 @@ const callers = {
       connection_user_id: MANUS,
     },
   },
-  ronit: { userId: RONIT, callerRole: "campaigner", callerCampaignerId: null },
-  agencyOwner: {
-    userId: AG_OWNER,
-    callerRole: "agency_owner",
-    callerCampaignerId: null,
-  },
-  teamManager: {
-    userId: TEAM_MGR,
-    callerRole: "team_manager",
-    callerCampaignerId: null,
-    managedAgencyIds: [AG1],
+  ronit: { userId: RONIT, callerCampaignerId: null },
+  agencyOwner: { userId: AG_OWNER, callerCampaignerId: null },
+  teamManager: { userId: TEAM_MGR, callerCampaignerId: null },
+  ownerElsewhereInApp: { userId: MAYA, callerCampaignerId: null },
+  ownerElsewhereOnWhatsApp: {
+    userId: MAYA,
+    callerCampaignerId: MAYA_CAMP,
+    waNotify: {
+      chat_id: `${MAYA_PHONE}@c.us`,
+      is_group: false,
+      connection_user_id: MANUS,
+    },
   },
   groupContact: {
     userId: null,
-    callerRole: null,
     callerCampaignerId: null,
     waNotify: {
       chat_id: "120363-a@g.us",
@@ -300,7 +331,6 @@ const callers = {
   },
   unknownPrivateSender: {
     userId: null,
-    callerRole: null,
     callerCampaignerId: null,
     waNotify: { chat_id: "972507777777@c.us", connection_user_id: MANUS },
   },
@@ -310,7 +340,6 @@ function input(caller) {
   return {
     tenantId: T,
     accessibleTenantIds: [T],
-    managedAgencyIds: [],
     today: "2026-10-26",
     ...caller,
   };
@@ -344,6 +373,7 @@ async function readChats(caller, { contact, keyword } = {}) {
   const { data: pushed } = await applyChatScope(q, scope);
   const rows = await keepVisibleChatRows(db, pushed, scope, [T]);
   return {
+    mode: scope.mode,
     ids: rows.map((r) => r.id).sort(),
     pushedIds: pushed.map((r) => r.id).sort(),
   };
@@ -392,6 +422,26 @@ test("matrix: campaigner of client A asking about client B gets nothing of B", a
 
   const ronit = await readChats(callers.ronit, { keyword: "תקציב" });
   assert.deepEqual(ronit.ids, ["b-dm-on-org-green", "b-group-on-manus"]);
+});
+
+test("matrix: owner of another tenant, campaigner here, gets staff scope only", async () => {
+  const inApp = await readChats(callers.ownerElsewhereInApp, {
+    keyword: "תקציב",
+  });
+  assert.equal(inApp.mode, "staff");
+  assert.deepEqual(inApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
+  assert.deepEqual(inApp.pushedIds, inApp.ids);
+
+  const askAboutB = await readChats(callers.ownerElsewhereInApp, {
+    contact: { type: "client", id: CB },
+  });
+  assert.equal(askAboutB.refused?.error, "access_denied");
+
+  const onWhatsApp = await readChats(callers.ownerElsewhereOnWhatsApp, {
+    keyword: "תקציב",
+  });
+  assert.equal(onWhatsApp.mode, "staff");
+  assert.deepEqual(onWhatsApp.ids, ["a-dm-on-org-green", "a-group-on-manus"]);
 });
 
 test("matrix: a client contact in a group reads only that group on Carmen's line", async () => {
@@ -444,10 +494,6 @@ test("matrix: unknown private senders and system runs read nothing", async () =>
   });
   assert.equal(stranger.refused?.access_scope, "none");
   assert.deepEqual(stranger.refused?.messages, []);
-  const system = await readChats({
-    userId: null,
-    callerRole: null,
-    callerCampaignerId: null,
-  });
+  const system = await readChats({ userId: null, callerCampaignerId: null });
   assert.equal(system.refused?.access_scope, "none");
 });

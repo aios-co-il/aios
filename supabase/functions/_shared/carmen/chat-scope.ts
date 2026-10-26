@@ -9,6 +9,11 @@
  * the turn came from. Tool arguments from the model are applied on top and
  * can only narrow it.
  *
+ * The caller's role is read here from user_roles of this tenant (plus global,
+ * tenant_id null, roles), never from run-ai-agent's callerRole: that one is
+ * picked across all of the user's tenants, so an owner of another tenant
+ * would get owner access here.
+ *
  * - owner / super_admin: every chat of the tenant, as before.
  * - A WhatsApp group turn by anyone else: only that group's messages.
  * - Other staff: client- or lead-linked threads they are responsible for
@@ -31,11 +36,16 @@ export type ChatScopeMode = "full" | "group" | "staff" | "none";
 export interface ChatScopeInput {
   tenantId: string;
   accessibleTenantIds: string[];
-  /** The verified caller's user id (JWT user or the sender's profile). */
+  /**
+   * The verified caller's user id (JWT user or the sender's profile). Their
+   * role and managed agencies are looked up for this tenant only.
+   */
   userId: string | null;
-  callerRole: string | null;
+  /**
+   * The caller's campaigner record, if any (on WhatsApp: the sender's active
+   * record in this tenant). Counts as a campaigner when no role is found.
+   */
   callerCampaignerId: string | null;
-  managedAgencyIds: string[];
   /** Set by service callers only (Carmen's WhatsApp webhook, automations). */
   waNotify?: {
     chat_id?: unknown;
@@ -83,6 +93,18 @@ export interface LeadOwner {
   sales_person_id: string | null;
 }
 
+/** Highest first: the order run-ai-agent uses to pick a caller's role. */
+export const ROLE_PRIORITY = [
+  "super_admin",
+  "owner",
+  "agency_owner",
+  "agency_manager",
+  "team_manager",
+  "campaigner",
+  "sales_person",
+  "seo",
+  "viewer",
+];
 /** Roles that keep today's tenant-wide chat access. */
 const FULL_ROLES = ["owner", "super_admin"];
 /** Staff who see every client- and lead-linked thread of the tenant. */
@@ -149,14 +171,15 @@ function noneScope(reason: string): ChatScope {
 }
 
 /**
- * The caller's chat tier. A matched campaigner record without a role still
- * counts as a campaigner, as in assertCallerCanAccessClient.
+ * The chat tier of a role in this tenant (tenantRoleFor). A matched campaigner
+ * record without a role still counts as a campaigner, as in
+ * assertCallerCanAccessClient.
  */
 export function chatRoleTier(
-  callerRole: string | null | undefined,
+  tenantRole: string | null | undefined,
   callerCampaignerId?: string | null,
 ): "full" | "tenant" | "team" | "member" | null {
-  const role = String(callerRole || "");
+  const role = String(tenantRole || "");
   if (FULL_ROLES.includes(role)) return "full";
   if (TENANT_ROLES.includes(role)) return "tenant";
   if (role === "team_manager") return "team";
@@ -448,6 +471,43 @@ async function linkedGroupIdsFor(
 }
 
 /**
+ * The user's highest role in this tenant, counting global (tenant_id null)
+ * roles too, as resolveDirectCaller in run-ai-agent does. A role the user
+ * holds in another tenant never counts.
+ */
+export async function tenantRoleFor(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+): Promise<string | null> {
+  const tenant = asUuidOrNull(tenantId);
+  const user = asUuidOrNull(userId);
+  if (!tenant || !user) return null;
+  const found = await rows(
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user)
+      .or(`tenant_id.eq.${tenant},tenant_id.is.null`),
+  );
+  const roles = found.map((r: any) => String(r.role));
+  return ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
+}
+
+async function managedAgencyIdsFor(
+  supabase: any,
+  userId: string,
+): Promise<string[]> {
+  const found = await rows(
+    supabase
+      .from("user_managed_agencies")
+      .select("agency_id")
+      .eq("user_id", userId),
+  );
+  return uuids(found.map((r: any) => r.agency_id));
+}
+
+/**
  * Builds the caller's chat scope. Only the verified caller and the WhatsApp
  * chat of the turn go in; tool arguments never do.
  */
@@ -455,9 +515,12 @@ export async function resolveChatScope(
   supabase: any,
   input: ChatScopeInput,
 ): Promise<ChatScope> {
-  const tier = chatRoleTier(input.callerRole, input.callerCampaignerId);
-  if (tier === "full") return FULL_CHAT_SCOPE;
   const userId = asUuidOrNull(input.userId);
+  const role = userId
+    ? await tenantRoleFor(supabase, input.tenantId, userId)
+    : null;
+  const tier = chatRoleTier(role, input.callerCampaignerId);
+  if (tier === "full") return FULL_CHAT_SCOPE;
   const tenantIds = uuids(
     input.accessibleTenantIds?.length
       ? input.accessibleTenantIds
@@ -519,8 +582,12 @@ export async function resolveChatScope(
           .filter((r: any) => isActiveAssignment(r, today))
           .map((r: any) => r.client_id)
       : [];
+    // Agencies live in one tenant; the clients and leads checks below are
+    // tenant-filtered, so another tenant's agencies match nothing here.
     const agencyIds =
-      tier === "team" ? uuids(input.managedAgencyIds || []) : [];
+      tier === "team" && userId
+        ? await managedAgencyIdsFor(supabase, userId)
+        : [];
     const agencyClients = agencyIds.length
       ? (
           await rows(
@@ -537,9 +604,7 @@ export async function resolveChatScope(
       all: false,
       agencyIds,
       salesPersonId:
-        input.callerRole === "sales_person"
-          ? asUuidOrNull(profile?.sales_person_id)
-          : null,
+        role === "sales_person" ? asUuidOrNull(profile?.sales_person_id) : null,
     };
   }
 

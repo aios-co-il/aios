@@ -5693,14 +5693,14 @@ async function executeTool(
   };
   // Chat readers (AIO-231): scope from the verified caller and the WhatsApp
   // chat of this turn, never from tool arguments (_shared/carmen/chat-scope.ts).
+  // It reads the caller's role in this tenant itself: callerRole here is the
+  // highest role across all of the user's tenants.
   const chatScopeFor = () =>
     resolveChatScope(supabase, {
       tenantId,
       accessibleTenantIds,
       userId: actorUserId,
-      callerRole: callerRole ?? null,
       callerCampaignerId: callerCampaignerId ?? null,
-      managedAgencyIds,
       waNotify,
     });
   if (isVideoDirectorTool(name)) {
@@ -10047,14 +10047,22 @@ async function executeTool(
       );
       return {
         count: data.length,
-        messages: data.map(({ connection_user_id: _conn, ...m }: any) => ({
-          ...m,
-          contact_name:
-            m.clients?.name ||
-            m.leads?.company_name ||
-            m.sender_name ||
-            m.sender_phone,
-        })),
+        // The scope columns are for the row check only; keep the old shape.
+        messages: data.map(
+          ({
+            connection_user_id: _conn,
+            provider: _provider,
+            group_id: _group,
+            ...m
+          }: any) => ({
+            ...m,
+            contact_name:
+              m.clients?.name ||
+              m.leads?.company_name ||
+              m.sender_name ||
+              m.sender_phone,
+          }),
+        ),
         ...chatScopeMeta(chatScope),
       };
     }
