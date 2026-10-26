@@ -43,3 +43,7 @@ test("toJson matches what JSON serialization sends", () => {
     c: [null],
   });
 });
+
+test("toJson leaves undefined undefined instead of throwing", () => {
+  assert.equal(toJson(undefined), undefined);
+});

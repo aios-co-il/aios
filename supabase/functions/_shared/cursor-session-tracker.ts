@@ -131,6 +131,22 @@ export async function linkCursorSessionToDevTask(
     .eq("tenant_id", args.tenantId);
 }
 
+export function listRecentCursorSessionsSince(
+  supabase: CursorSessionsClient,
+  tenantId: string,
+  sinceIso: string,
+) {
+  return supabase
+    .from("cursor_task_sessions")
+    .select(
+      "cursor_agent_id, session_url, display_name, task_title, dev_task_id, source_tool, created_at",
+    )
+    .eq("tenant_id", tenantId)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(25);
+}
+
 export async function completeCursorSessionsForTask(
   supabase: CursorSessionsClient,
   tenantId: string,

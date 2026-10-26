@@ -12,23 +12,12 @@ import type {
   Tables,
   TablesUpdate,
 } from "../_shared/database.types.ts";
-import { jsonField, unknownField } from "../_shared/json-fields.ts";
+import { jsonField } from "../_shared/json-fields.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { freshZoomRecordingUrls } from "./zoom-recordings-list.ts";
 
 type ZoomRecordingRow = Tables<"zoom_recordings">;
 
-/** Zoom recordings API items (described, not validated). */
-interface ZoomRecordingFile {
-  recording_type?: string;
-  download_url?: string;
-  play_url?: string;
-}
-
-interface ZoomMeeting {
-  id?: string | number;
-  uuid?: string;
-  recording_files?: ZoomRecordingFile[];
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -191,10 +180,7 @@ serve(async (req) => {
       contentType = fileData.type || "audio/mp4";
     }
     // Case 2: Zoom recording — prefer the smallest audio variant if available
-    else if (
-      recording.recording_url ||
-      unknownField(recording, "download_url")
-    ) {
+    else if (recording.recording_url) {
       // Prefer audio_only / audio_transcript siblings (smaller and faster)
       const { data: alternatives } = await supabase
         .from("zoom_recordings")
@@ -204,9 +190,7 @@ serve(async (req) => {
         .in("recording_type", ["audio_only", "audio_transcript"]);
 
       const audioAlt = (alternatives || []).find(
-        (alt) =>
-          alt.id !== recording.id &&
-          (alt.recording_url || unknownField(alt, "download_url")),
+        (alt) => alt.id !== recording.id && alt.recording_url,
       );
 
       const sourceRecording = audioAlt || recording;
@@ -785,10 +769,7 @@ async function downloadZoomMedia(
   blob?: Blob;
   contentType?: string;
 }> {
-  const rawUrls = [
-    unknownField(recording, "download_url"),
-    recording.recording_url,
-  ].filter(Boolean) as string[];
+  const rawUrls = recording.recording_url ? [recording.recording_url] : [];
   const expandedUrls = rawUrls.flatMap((url) => {
     const variants = [url];
     if (url.includes("/play/"))
@@ -944,38 +925,14 @@ async function downloadZoomMedia(
       );
 
       if (listResp.ok) {
-        const listData = await listResp.json();
-        const meetings: ZoomMeeting[] = Array.isArray(listData?.meetings)
-          ? listData.meetings
-          : [];
         const meetingIdStr = String(recording.meeting_id);
-        const matchedMeeting = meetings.find(
-          (m) =>
-            String(m.id) === meetingIdStr || String(m.uuid) === meetingIdStr,
+        const uniqueFreshUrls = freshZoomRecordingUrls(
+          await listResp.json(),
+          meetingIdStr,
+          String(recording.recording_type || ""),
         );
 
-        if (matchedMeeting) {
-          const files: ZoomRecordingFile[] = Array.isArray(
-            matchedMeeting.recording_files,
-          )
-            ? matchedMeeting.recording_files
-            : [];
-          const targetType = String(
-            recording.recording_type || "",
-          ).toLowerCase();
-          const exactType = files.filter(
-            (f) => String(f?.recording_type || "").toLowerCase() === targetType,
-          );
-          const prioritized = [...exactType, ...files].filter(Boolean);
-
-          const uniqueFreshUrls = [
-            ...new Set(
-              prioritized
-                .flatMap((f) => [f?.download_url, f?.play_url])
-                .filter(Boolean),
-            ),
-          ] as string[];
-
+        if (uniqueFreshUrls) {
           for (const freshUrl of uniqueFreshUrls) {
             const freshResult = await tryDownloadFromUrl(freshUrl);
             if (freshResult.blob) {

@@ -38,7 +38,13 @@ export function thrownMessage(e: unknown): unknown {
   return unknownField(e, "message") ?? e;
 }
 
-/** The JSON a write would send for `value` (JSON.stringify semantics), as a typed Json value. */
-export function toJson(value: object): Json {
-  return JSON.parse(JSON.stringify(value));
+/**
+ * The JSON a write would send for `value` (JSON.stringify semantics), as a typed Json value.
+ * Undefined stays undefined, so the field is omitted from the write as before.
+ */
+export function toJson(value: object): Json;
+export function toJson(value: object | undefined): Json | undefined;
+export function toJson(value: object | undefined): Json | undefined {
+  const text = JSON.stringify(value);
+  return text === undefined ? undefined : JSON.parse(text);
 }

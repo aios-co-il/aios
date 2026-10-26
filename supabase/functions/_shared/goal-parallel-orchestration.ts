@@ -3,6 +3,7 @@
  */
 
 import type { Json } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
 import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
 
 export type ParallelPlanStep = {
@@ -64,7 +65,7 @@ export function selectNextSequentialStep(
 }
 
 export async function notifyDavidStagingReady(
-  supabase: UntypedSchemaClient,
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -95,8 +96,10 @@ export async function notifyDavidStagingReady(
     .filter(Boolean)
     .join("\n");
 
+  // Pre-existing bug: the RPC arg is p_tenant, not p_tenant_id; fixing it would start sending notifications.
+  const untypedRpc: UntypedSchemaClient = supabase;
   try {
-    await supabase.rpc("claude_notify_david", {
+    await untypedRpc.rpc("claude_notify_david", {
       p_message: message.slice(0, 3500),
       p_tenant_id: args.tenantId,
     });

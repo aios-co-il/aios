@@ -37,24 +37,16 @@ import {
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
-import type { ChannelProvider } from "../_shared/agent-channel/types.ts";
+import {
+  CHANNEL_PROVIDERS,
+  type ChannelProvider,
+} from "../_shared/agent-channel/types.ts";
 import type { Json, Tables } from "../_shared/database.types.ts";
 import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
 
-const CHANNEL_PROVIDERS: readonly ChannelProvider[] = [
-  "cursor",
-  "grok",
-  "codex",
-  "claude",
-  "chatgpt",
-  "internal",
-  "parliament",
-  "model",
-];
-
-function replyOrigin(raw: unknown): ChannelProvider {
+function replyOrigin(raw: unknown): ChannelProvider | undefined {
   const stated = raw || "grok";
-  return CHANNEL_PROVIDERS.find((p) => p === stated) ?? "grok";
+  return CHANNEL_PROVIDERS.find((p) => p === stated);
 }
 
 function isArgsObject(value: unknown): value is Record<string, unknown> {

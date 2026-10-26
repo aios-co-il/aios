@@ -569,7 +569,7 @@ async function executePlanStep(
   };
   const inputHash = hashInput(input);
 
-  const { data: action } = await supabase
+  const { data: action, error: actionError } = await supabase
     .from("goal_actions")
     .insert({
       tenant_id: state.goal.tenant_id,
@@ -583,6 +583,11 @@ async function executePlanStep(
     })
     .select("*")
     .single();
+  if (actionError || !action) {
+    throw new Error(
+      `goal_actions insert failed for step ${step.id}: ${actionError?.message ?? "no row returned"}`,
+    );
+  }
 
   await supabase
     .from("goal_plan_steps")
@@ -696,7 +701,7 @@ async function executePlanStep(
           },
           completed_at: new Date().toISOString(),
         })
-        .eq("id", action!.id);
+        .eq("id", action.id);
       const stepStatus = parallelTrack ? "in_progress" : "done";
       await supabase
         .from("goal_plan_steps")
@@ -725,7 +730,7 @@ async function executePlanStep(
           result: { phase: "verify_requested" },
           completed_at: new Date().toISOString(),
         })
-        .eq("id", action!.id);
+        .eq("id", action.id);
       await supabase
         .from("goal_plan_steps")
         .update({
@@ -767,7 +772,7 @@ async function executePlanStep(
       prompt,
       iterationId,
       stepId: step.id,
-      actionId: action!.id,
+      actionId: action.id,
     });
 
     if (queued.dispatched || queued.awaiting) {
@@ -811,7 +816,7 @@ async function executePlanStep(
         criterion_id: criterion?.id ?? null,
         evidence_type: ev.type,
         content: toJson(ev.content),
-        source_action_id: action!.id,
+        source_action_id: action.id,
       });
     }
     for (const upd of result.data?.criterion_updates || []) {
@@ -835,7 +840,7 @@ async function executePlanStep(
         result: result.data === null ? null : toJson(result.data),
         completed_at: new Date().toISOString(),
       })
-      .eq("id", action!.id);
+      .eq("id", action.id);
     await supabase
       .from("goal_plan_steps")
       .update({
@@ -853,7 +858,7 @@ async function executePlanStep(
         error: msg,
         completed_at: new Date().toISOString(),
       })
-      .eq("id", action!.id);
+      .eq("id", action.id);
     await supabase
       .from("goal_plan_steps")
       .update({ status: "failed" })

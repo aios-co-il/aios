@@ -7,7 +7,11 @@ import { asJsonObject, jsonField } from "../_shared/json-fields.ts";
 import { readSyncProgress, type SyncResult } from "./sync-progress.ts";
 
 /** ManyChat custom field id as stored in settings or returned by the API. */
-type ManyChatFieldId = NonNullable<Json>;
+type ManyChatFieldId = string | number;
+
+function asFieldId(value: Json | undefined): ManyChatFieldId | null {
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,8 +150,9 @@ async function getPhoneNumberFieldId(
     .single();
 
   const settings = asJsonObject(integration?.settings) ?? {};
-  if (settings.phone_number_field_id) {
-    return settings.phone_number_field_id;
+  const storedFieldId = asFieldId(settings.phone_number_field_id);
+  if (storedFieldId) {
+    return storedFieldId;
   }
 
   const res = await fetch("https://api.manychat.com/fb/page/getCustomFields", {
@@ -164,7 +169,7 @@ async function getPhoneNumberFieldId(
       const name = jsonField(f, "name");
       return typeof name === "string" && name.toLowerCase() === "phone_number";
     });
-    const phoneFieldId = jsonField(phoneField, "id");
+    const phoneFieldId = asFieldId(jsonField(phoneField, "id"));
     if (phoneFieldId) {
       await supabase
         .from("tenant_integrations")

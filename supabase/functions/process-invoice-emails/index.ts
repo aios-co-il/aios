@@ -4,6 +4,7 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Tables } from "../_shared/database.types.ts";
+import { findAttachments, parseEmailHeader } from "./gmail-message.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,26 +16,6 @@ type GmailTokenRow = Pick<
   Tables<"gmail_tokens">,
   "access_token" | "expires_at" | "refresh_token" | "user_id"
 >;
-
-interface GmailHeader {
-  name: string;
-  value?: string;
-}
-
-interface GmailMessagePart {
-  filename: string;
-  mimeType: string;
-  headers?: GmailHeader[];
-  body?: { attachmentId?: string; size?: number };
-  parts?: GmailMessagePart[];
-}
-
-interface GmailAttachment {
-  filename: string;
-  mimeType: string;
-  attachmentId: string;
-  size: number;
-}
 
 interface InvoiceEmailResult {
   messageId: unknown;
@@ -85,36 +66,6 @@ async function refreshTokenIfNeeded(
     .eq("user_id", tokenData.user_id);
 
   return tokens.access_token;
-}
-
-function parseEmailHeader(
-  payload: GmailMessagePart | undefined,
-  headerName: string,
-): string {
-  return (
-    payload?.headers?.find(
-      (h) => h.name.toLowerCase() === headerName.toLowerCase(),
-    )?.value || ""
-  );
-}
-
-// Find attachments recursively in MIME parts
-function findAttachments(
-  parts: GmailMessagePart[],
-  result: GmailAttachment[] = [],
-): GmailAttachment[] {
-  for (const part of parts || []) {
-    if (part.filename && part.body?.attachmentId) {
-      result.push({
-        filename: part.filename,
-        mimeType: part.mimeType,
-        attachmentId: part.body.attachmentId,
-        size: part.body.size || 0,
-      });
-    }
-    if (part.parts) findAttachments(part.parts, result);
-  }
-  return result;
 }
 
 serve(async (req) => {

@@ -154,9 +154,22 @@ export async function mcpRequestDevTask(
   };
 }
 
-/** task_updates is written with a tenant_id column the generated schema does not have. */
-export async function completeHumanCursorTask(
+/** task_updates has no tenant_id column in the generated schema. */
+function insertAgentTaskUpdate(
   supabase: UntypedSchemaClient,
+  row: {
+    task_id: string;
+    tenant_id: string;
+    user_id: null;
+    content: string;
+    update_type: string;
+  },
+) {
+  return supabase.from("task_updates").insert(row);
+}
+
+export async function completeHumanCursorTask(
+  supabase: DbClient,
   args: { tenantId: string; taskId: string; summary?: string },
 ): Promise<{ ok: boolean; advanced?: boolean }> {
   const { tenantId, taskId, summary } = args;
@@ -175,7 +188,7 @@ export async function completeHumanCursorTask(
     .eq("id", taskId)
     .eq("tenant_id", tenantId);
 
-  await supabase.from("task_updates").insert({
+  await insertAgentTaskUpdate(supabase, {
     task_id: taskId,
     tenant_id: tenantId,
     user_id: null,

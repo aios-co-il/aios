@@ -9,6 +9,7 @@
 // `offsite_conversion.custom.*` prefix — so website-lead campaigns optimised on a
 // custom conversion were silently counted as 0 leads in the synced report.
 
+import { readFbInsightsPage } from "./fbInsightsPage.ts";
 import { unknownField } from "./json-fields.ts";
 
 export interface CampaignStatus {
@@ -48,12 +49,6 @@ export interface FbAdset {
   campaign_id?: string;
   optimization_goal?: string | null;
   promoted_object?: unknown;
-}
-
-interface FbInsightsPage {
-  error?: { message?: string };
-  data?: FbInsightRow[];
-  paging?: { next?: string };
 }
 
 /** One insights row; Graph returns metric values as numeric strings. */
@@ -1074,10 +1069,9 @@ export async function fetchFacebookInsightsAtLevel(
   let next: string | null = firstUrl;
   while (next) {
     const r: Response = await fetch(next);
-    const d: FbInsightsPage = await r.json();
-    if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
-    if (Array.isArray(d.data)) rows.push(...d.data);
-    next = d.paging?.next || null;
+    const page = readFbInsightsPage(await r.json());
+    rows.push(...page.rows);
+    next = page.next;
   }
   return rows;
 }

@@ -21,24 +21,16 @@
 //   CURSOR_STICKY_AGENT_ID  force one global sticky agent id (bc-…)
 //   CURSOR_STICKY           "false" to disable sticky reuse (default true)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { ChannelProvider } from "../_shared/agent-channel/types.ts";
+import {
+  CHANNEL_PROVIDERS,
+  type ChannelProvider,
+} from "../_shared/agent-channel/types.ts";
 import type { Database, Json } from "../_shared/database.types.ts";
 import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
 
-const REPLY_ORIGINS: readonly ChannelProvider[] = [
-  "cursor",
-  "grok",
-  "codex",
-  "claude",
-  "chatgpt",
-  "internal",
-  "parliament",
-  "model",
-];
-
-function replyOrigin(raw: unknown): ChannelProvider {
+function replyOrigin(raw: unknown): ChannelProvider | undefined {
   const stated = raw || "cursor";
-  return REPLY_ORIGINS.find((p) => p === stated) ?? "cursor";
+  return CHANNEL_PROVIDERS.find((p) => p === stated);
 }
 
 function isArgsObject(value: unknown): value is Record<string, unknown> {

@@ -7,28 +7,12 @@
 //   2. Fallback: the active `llm` tenant integration's settings.openai_api_key
 //      (the same place run-ai-agent's resolveLLMTarget reads). This keeps voice,
 //      embeddings, etc. working even when the env secret was never configured.
+import {
+  readEmbeddingItems,
+  readScribeWords,
+  readWhisperSegments,
+} from "./ai-response-items.ts";
 import type { Json } from "./database.types.ts";
-
-/** Provider response items (described, not validated). */
-interface EmbeddingItem {
-  index?: number;
-  embedding: number[];
-}
-
-interface WhisperSegment {
-  no_speech_prob?: number;
-  text?: string;
-  start?: number;
-  end?: number;
-}
-
-interface ScribeWord {
-  type?: string;
-  text?: string;
-  speaker_id?: string;
-  start?: number;
-  end?: number;
-}
 
 type VisionContentPart =
   | { type: "text"; text: string }
@@ -158,7 +142,7 @@ export async function aiEmbedBatch(
         0,
       ),
     });
-    const items: EmbeddingItem[] = j?.data ?? [];
+    const items = readEmbeddingItems(j?.data);
     const out: number[][] = items
       .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       .map((d) => d.embedding);
@@ -379,9 +363,7 @@ export async function aiTranscribeVerbose(
     });
     if (!r.ok) return null;
     const j = await r.json();
-    const rawSegments: WhisperSegment[] = Array.isArray(j?.segments)
-      ? j.segments
-      : [];
+    const rawSegments = readWhisperSegments(j?.segments);
     const segments: TranscriptSegment[] = rawSegments
       .filter((s) => (s?.no_speech_prob ?? 0) < 0.6 && (s?.text ?? "").trim())
       .map((s) => ({
@@ -494,7 +476,7 @@ export async function aiDiarizeTranscribe(
       return null;
     }
     const j = await r.json();
-    const words: ScribeWord[] = Array.isArray(j?.words) ? j.words : [];
+    const words = readScribeWords(j?.words);
     const segments: DiarizedSegment[] = [];
     let current: DiarizedSegment | null = null;
     for (const w of words) {

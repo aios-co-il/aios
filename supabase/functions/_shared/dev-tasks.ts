@@ -8,11 +8,11 @@ import {
   trackCursorTaskSession,
   cursorSessionDisplayName,
   linkCursorSessionToDevTask,
+  listRecentCursorSessionsSince,
 } from "./cursor-session-tracker.ts";
 import type { Json, TablesUpdate } from "./database.types.ts";
 import { jsonField, toJson } from "./json-fields.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
 
 export const DEV_TASK_STATUSES = [
   "draft",
@@ -165,7 +165,7 @@ function isDispatchTimeoutError(message: string): boolean {
 
 /** After a dispatch tool error, verify Cursor actually received the task via durable logs. */
 export async function reconcileDevTaskCursorDelivery(
-  supabase: UntypedSchemaClient,
+  supabase: DbClient,
   args: {
     tenantId: string;
     taskId: string;
@@ -181,9 +181,8 @@ export async function reconcileDevTaskCursorDelivery(
   return null;
 }
 
-/** cursor_task_sessions is missing from the generated schema. */
 async function tryReconcileDevTaskCursorDeliveryOnce(
-  supabase: UntypedSchemaClient,
+  supabase: DbClient,
   args: {
     tenantId: string;
     taskId: string;
@@ -221,15 +220,8 @@ async function tryReconcileDevTaskCursorDeliveryOnce(
     }
   }
 
-  const { data: sessions, error: sessErr } = await supabase
-    .from("cursor_task_sessions")
-    .select(
-      "cursor_agent_id, session_url, display_name, task_title, dev_task_id, source_tool, created_at",
-    )
-    .eq("tenant_id", tenantId)
-    .gte("created_at", sinceIso)
-    .order("created_at", { ascending: false })
-    .limit(25);
+  const { data: sessions, error: sessErr } =
+    await listRecentCursorSessionsSince(supabase, tenantId, sinceIso);
   if (sessErr) {
     console.warn(
       "[dev-tasks] reconcile cursor_task_sessions query failed:",
