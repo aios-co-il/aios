@@ -10297,6 +10297,119 @@ export type Database = {
           },
         ];
       };
+      reconcile_findings: {
+        Row: {
+          aios_value: number | null;
+          campaign_id: string | null;
+          client_id: string | null;
+          created_at: string;
+          date: string | null;
+          details: Json;
+          id: string;
+          kind: string;
+          metric: string | null;
+          platform_value: number | null;
+          run_id: string;
+          table_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id: string;
+          table_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind?: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id?: string;
+          table_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_findings_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "reconcile_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      reconcile_runs: {
+        Row: {
+          client_id: string | null;
+          finished_at: string | null;
+          id: string;
+          platform: string | null;
+          started_at: string;
+          status: string;
+          summary: Json;
+          table_id: string | null;
+          tenant_id: string;
+          window_end: string | null;
+          window_start: string | null;
+        };
+        Insert: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Update: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status?: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id?: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_runs_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       recording_folders: {
         Row: {
           created_at: string;

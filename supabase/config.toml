@@ -600,6 +600,9 @@ verify_jwt = true
 [functions.carmen-memory-worker]
 verify_jwt = true
 
+[functions.carmen-reconcile-worker]
+verify_jwt = true
+
 [functions.carmen-save-media]
 verify_jwt = true
 
