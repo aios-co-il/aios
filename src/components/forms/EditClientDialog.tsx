@@ -67,6 +67,7 @@ import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssig
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import type { Tables } from "@/integrations/supabase/types";
 import { parseClientServices } from "@/lib/clientServices-b13";
+import { invalidEnumMessage } from "@/lib/crmEnums-b13";
 
 type ClientRow = Tables<"clients">;
 type EditableClient = Pick<ClientRow, "id" | "name"> &
@@ -624,8 +625,46 @@ export function EditClientDialog({
     },
   });
 
+  // A stored tier/status the form can't represent must never be saved as null
+  // or replaced silently: block the submit with the zod enum error, as before.
+  const storedStatus = client.status || "active";
+  const storedStatusError =
+    toFormStatus(storedStatus) === undefined
+      ? invalidEnumMessage(FORM_STATUSES, storedStatus)
+      : null;
+  const storedTierError =
+    client.tier && toFormTier(client.tier) === undefined
+      ? invalidEnumMessage(FORM_TIERS, client.tier)
+      : null;
+
+  const flagUnrepresentableStoredValues = (
+    values: Partial<z.infer<typeof formSchema>>,
+  ) => {
+    let blocked = false;
+    if (storedStatusError && values.status === undefined) {
+      form.setError("status", {
+        type: "invalid_enum_value",
+        message: storedStatusError,
+      });
+      blocked = true;
+    }
+    if (storedTierError && values.tier === undefined) {
+      form.setError("tier", {
+        type: "invalid_enum_value",
+        message: storedTierError,
+      });
+      blocked = true;
+    }
+    return blocked;
+  };
+
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    if (flagUnrepresentableStoredValues(values)) return;
     mutation.mutate(values);
+  };
+
+  const onInvalidSubmit = () => {
+    flagUnrepresentableStoredValues(form.getValues());
   };
 
   // Get available time slots from the meeting scheduler hook
@@ -717,7 +756,7 @@ export function EditClientDialog({
           <TabsContent value="details">
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit(onSubmit)}
+                onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)}
                 className="space-y-4"
               >
                 <FormField

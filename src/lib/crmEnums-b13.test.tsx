@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  invalidEnumMessage,
   isClientMoodStatus,
   isClientStatus,
   isLeadSource,
@@ -17,5 +18,11 @@ describe("CRM enum guards", () => {
     expect(isClientMoodStatus(null)).toBe(false);
     expect(isClientStatus("archived")).toBe(false);
     expect(isLeadSource("facebook")).toBe(false);
+  });
+
+  it("formats out-of-enum values like zod", () => {
+    expect(invalidEnumMessage(["A", "B", "C"], "D")).toBe(
+      "Invalid enum value. Expected 'A' | 'B' | 'C', received 'D'",
+    );
   });
 });
