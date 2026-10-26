@@ -89,8 +89,7 @@ export default function MaskyooSettings() {
         queryKey: ["maskyoo-settings", tenantId],
       });
     },
-    onError: (e) =>
-      toast.error("שגיאה בשמירה", { description: e.message }),
+    onError: (e) => toast.error("שגיאה בשמירה", { description: e.message }),
   });
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

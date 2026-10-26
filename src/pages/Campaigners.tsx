@@ -283,15 +283,13 @@ export default function Campaigners() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {campaigner.client_team.map(
-                                  (assignment) => (
-                                    <TableRow key={assignment.id}>
-                                      <TableCell className="font-medium">
-                                        {assignment.clients?.name ?? "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                  ),
-                                )}
+                                {campaigner.client_team.map((assignment) => (
+                                  <TableRow key={assignment.id}>
+                                    <TableCell className="font-medium">
+                                      {assignment.clients?.name ?? "—"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
                               </TableBody>
                             </Table>
                           </div>

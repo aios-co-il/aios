@@ -51,14 +51,19 @@ export type TenantIntegrationRow = {
 };
 
 type KnownTenantIntegrationFields = {
-  [K in keyof TenantIntegrationRow as string extends K
-    ? never
-    : number extends K
+  [
+    K in keyof TenantIntegrationRow as string extends K
       ? never
-      : K]: TenantIntegrationRow[K];
+      : number extends K
+        ? never
+        : K
+  ]: TenantIntegrationRow[K];
 };
 
-export type ClientIntegration = Omit<KnownTenantIntegrationFields, "api_key"> & {
+export type ClientIntegration = Omit<
+  KnownTenantIntegrationFields,
+  "api_key"
+> & {
   [key: string]: unknown;
 } & {
   has_credential: boolean;
