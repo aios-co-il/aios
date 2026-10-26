@@ -50,6 +50,7 @@ export function policyPhoneList(entries) {
 /**
  * Merge automation configuration with optional carmen_access_policies row.
  * Policy wins when present; automation remains fallback.
+ * @param {object | null} [policy]
  */
 export function mergeCarmenScopeConfig(
   automationCfg = {},
