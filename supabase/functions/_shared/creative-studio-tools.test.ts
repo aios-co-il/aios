@@ -1,6 +1,9 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   CREATIVE_STUDIO_TOOLS,
+  type CreativeStudioDb,
+  type CreativeStudioQuery,
+  type CreativeStudioTable,
   executeCreativeStudioTool,
   isCreativeStudioTool,
   missingForStudio,
@@ -30,35 +33,30 @@ function fakeDb(tables: Record<string, unknown[]>) {
       }
       return list;
     };
-    const q: Record<string, unknown> = {
+    const q: CreativeStudioQuery & CreativeStudioTable = {
       select: () => q,
-      eq: (key: string, value: unknown) => (
-        call.filters.push(`${key}=${value}`),
-        q
-      ),
+      match: (filter) => {
+        for (const [key, value] of Object.entries(filter)) {
+          call.filters.push(`${key}=${value}`);
+        }
+        return q;
+      },
       order: () => q,
-      update: (payload: unknown) => (
-        (call.op = "update"),
-        (call.payload = payload),
-        q
-      ),
-      insert: (payload: unknown) => (
-        (call.op = "insert"),
-        (call.payload = payload),
-        q
-      ),
+      update: (payload) => ((call.op = "update"), (call.payload = payload), q),
+      insert: (payload) => ((call.op = "insert"), (call.payload = payload), q),
       delete: () => ((call.op = "delete"), q),
       single: async () => ({ data: { id: "new-scene" }, error: null }),
       maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
-      then: (resolve: (value: unknown) => unknown) =>
+      then: (onfulfilled, onrejected) =>
         Promise.resolve({
           data: call.op === "select" ? rows() : null,
           error: null,
-        }).then(resolve),
+        }).then(onfulfilled, onrejected),
     };
     return q;
   };
-  return { db: { from }, calls };
+  const db: CreativeStudioDb = { from };
+  return { db, calls };
 }
 
 const videoItem = {

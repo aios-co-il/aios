@@ -6,14 +6,14 @@
 import { asRecords, optString, type QueryResult } from "./provider-json-b23.ts";
 
 interface GroupsFilter extends PromiseLike<QueryResult> {
-  eq(column: string, value: string): GroupsFilter;
-  neq(column: string, value: string): GroupsFilter;
-  not(column: string, operator: string, value: null): GroupsFilter;
+  match(filter: { group_chat_id: string }): GroupsFilter;
+  filter(column: "invite_link", operator: "neq", value: string): GroupsFilter;
+  not(column: "invite_link", operator: "is", value: null): GroupsFilter;
   limit(count: number): GroupsFilter;
 }
 
 interface GroupsDb {
-  from(table: string): {
+  from(table: "whatsapp_groups"): {
     update(values: { invite_link: string }): GroupsFilter;
     select(columns: string): GroupsFilter;
   };
@@ -30,8 +30,8 @@ export async function propagateWhatsappGroupInviteLink(
   const { error } = await supabase
     .from("whatsapp_groups")
     .update({ invite_link: link })
-    .eq("group_chat_id", groupChatId)
-    .neq("invite_link", link);
+    .match({ group_chat_id: groupChatId })
+    .filter("invite_link", "neq", link);
 
   if (error) {
     console.warn("[whatsapp-groups] invite_link propagation failed", {
@@ -54,7 +54,7 @@ export async function resolveWhatsappGroupInviteLink(
   const { data: siblings } = await supabase
     .from("whatsapp_groups")
     .select("invite_link")
-    .eq("group_chat_id", groupChatId)
+    .match({ group_chat_id: groupChatId })
     .not("invite_link", "is", null)
     .limit(1);
 

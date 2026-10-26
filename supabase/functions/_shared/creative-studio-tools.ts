@@ -186,18 +186,33 @@ export const isCreativeStudioTool = (name: string) =>
 
 type QueryResult = { data: unknown; error: { message: string } | null };
 
-type Query = PromiseLike<QueryResult> & {
-  select: (columns: string) => Query;
-  eq: (column: string, value: unknown) => Query;
-  order: (column: string) => Query;
-  update: (values: Record<string, unknown>) => Query;
-  insert: (values: Record<string, unknown>) => Query;
-  delete: () => Query;
-  single: () => Promise<QueryResult>;
-  maybeSingle: () => Promise<QueryResult>;
-};
+export interface CreativeStudioQuery extends PromiseLike<QueryResult> {
+  select(columns: string): CreativeStudioQuery;
+  match(filter: {
+    tenant_id: string;
+    id?: unknown;
+    item_id?: string;
+  }): CreativeStudioQuery;
+  order(column: string): CreativeStudioQuery;
+  single(): PromiseLike<QueryResult>;
+  maybeSingle(): PromiseLike<QueryResult>;
+}
 
-type Db = { from: (table: string) => Query };
+export interface CreativeStudioTable {
+  select(columns: string): CreativeStudioQuery;
+  update(values: Record<string, unknown>): CreativeStudioQuery;
+  insert(values: Record<string, unknown>): CreativeStudioQuery;
+  delete(): CreativeStudioQuery;
+}
+
+/** Only the builder methods the studio tools call; the generated-schema client satisfies it. */
+export interface CreativeStudioDb {
+  from(
+    table: "marketing_work_items" | "marketing_video_scenes",
+  ): CreativeStudioTable;
+}
+
+type Db = CreativeStudioDb;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -230,8 +245,7 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data, error } = await supabase
     .from("marketing_video_scenes")
     .select(SCENE_COLUMNS)
-    .eq("item_id", itemId)
-    .eq("tenant_id", tenantId)
+    .match({ item_id: itemId, tenant_id: tenantId })
     .order("position");
   if (error) throw new Error(error.message);
   return (Array.isArray(data) ? data : []) as Record<string, unknown>[];
@@ -253,8 +267,7 @@ async function savePayload(
   const { error } = await supabase
     .from("marketing_work_items")
     .update({ payload })
-    .eq("id", project.id)
-    .eq("tenant_id", tenantId);
+    .match({ id: project.id, tenant_id: tenantId });
   if (error) throw new Error(error.message);
 }
 
@@ -294,8 +307,7 @@ export async function executeCreativeStudioTool(
   const loaded = await supabase
     .from("marketing_work_items")
     .select("id, title, client_id, current_stage_id, payload")
-    .eq("id", itemId)
-    .eq("tenant_id", tenantId)
+    .match({ id: itemId, tenant_id: tenantId })
     .maybeSingle();
   if (loaded.error) return { error: loaded.error.message };
   if (!loaded.data) return { error: "פרויקט לא נמצא" };
@@ -485,8 +497,7 @@ export async function executeCreativeStudioTool(
       const { error } = await supabase
         .from("marketing_video_scenes")
         .update(fields)
-        .eq("id", scene.id)
-        .eq("tenant_id", tenantId);
+        .match({ id: scene.id, tenant_id: tenantId });
       if (error) return { error: error.message };
       return {
         updated: true,
@@ -551,8 +562,7 @@ export async function executeCreativeStudioTool(
     const { error } = await supabase
       .from("marketing_video_scenes")
       .delete()
-      .eq("id", scene.id)
-      .eq("tenant_id", tenantId);
+      .match({ id: scene.id, tenant_id: tenantId });
     if (error) return { error: error.message };
     return { deleted: true, scene_number: Number(args.scene_number) };
   }
