@@ -2,9 +2,9 @@ import {
   leadPhoneVariants,
   pickDuplicateLead,
 } from "./lead-duplicate-match.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 
-/** The slice of the Supabase client these helpers use, so tests can fake it. */
-export type LeadDb = { from: (table: string) => any };
+export type LeadDb = DbClient;
 
 type InboundContact = { phone?: string | null; email?: string | null };
 
@@ -26,7 +26,7 @@ export async function getExistingLead(
   incoming: InboundContact,
 ) {
   const phoneVariants = leadPhoneVariants(incoming.phone);
-  if (phoneVariants.length === 0) return null;
+  if (phoneVariants.length === 0 || !tenantId) return null;
 
   const { data: leadsByPhone } = await db
     .from("leads")

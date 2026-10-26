@@ -1,5 +1,7 @@
 /** Idempotency for Facebook Instant Form → automation WhatsApp sends. */
 
+import type { DbClient } from "./supabase-clients.ts";
+
 const asId = (value: unknown): string => String(value ?? "").trim();
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -61,7 +63,7 @@ function isUniqueViolation(
 }
 
 export async function claimFacebookLeadIntake(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; leadgenId: unknown; formId?: unknown },
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
@@ -92,7 +94,7 @@ export async function claimFacebookLeadIntake(
 }
 
 export async function wasFacebookLeadIntakeClaimed(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
@@ -110,7 +112,7 @@ export async function wasFacebookLeadIntakeClaimed(
 }
 
 export async function claimFacebookLeadAutomationRun(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: {
     tenantId: string;
     automationId: string;
@@ -143,7 +145,7 @@ export async function claimFacebookLeadAutomationRun(
 }
 
 export async function claimFacebookLeadWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
@@ -177,7 +179,7 @@ export async function claimFacebookLeadWhatsAppSend(
 }
 
 export async function claimIdenticalWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: {
     tenantId: string;
     chatId: string;
@@ -219,7 +221,7 @@ export async function claimIdenticalWhatsAppSend(
 }
 
 export async function releaseFacebookLeadWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
@@ -242,7 +244,7 @@ export async function releaseFacebookLeadWhatsAppSend(
 }
 
 export async function releaseFacebookLeadAutomationRun(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
@@ -261,7 +263,7 @@ export async function releaseFacebookLeadAutomationRun(
 }
 
 export async function wasFacebookLeadAutomationClaimed(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
@@ -292,7 +294,7 @@ export function facebookTriggerAutomationSucceeded(body: unknown): boolean {
 }
 
 export async function findExistingFacebookLead(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<{ id: string } | null> {
   const leadgenId = asId(params.leadgenId);
@@ -339,7 +341,7 @@ export function shouldCreateCrmLeadForFacebookFlowConfig(
 }
 
 export async function shouldCreateCrmLeadForFacebookFlow(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   automationId: string,
   triggerConfig: unknown,
   triggerActionType: string | null | undefined,

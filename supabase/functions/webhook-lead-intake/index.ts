@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import {
   processAutomationOnlyLeadWebhook,
   resolveLeadAlertAutomation,
@@ -456,7 +457,7 @@ Deno.serve(async (req) => {
 
     // If existing lead found - update with new info if available
     if (existingLead) {
-      const updates: Record<string, any> = {};
+      const updates: TablesUpdate<"leads"> = {};
       let hasUpdates = false;
 
       // Only update fields that are empty in existing lead but have values in payload
