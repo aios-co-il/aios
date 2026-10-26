@@ -4,12 +4,10 @@ import type {
   PulseCampaignBreakdownRow,
   PulseStatus,
 } from "../_shared/campaign-pulse.ts";
-import type { SpawnSubagentParams } from "../_shared/subagent.ts";
 import type { AgentRow } from "./database-contracts.ts";
 import { jsonObject } from "./json-config.ts";
 
-/** Originating WhatsApp chat, forwarded to reminders and subagents. */
-export type WaNotifyTarget = NonNullable<SpawnSubagentParams["notify"]>;
+export type { WaNotifyTarget } from "./wa-notify.ts";
 
 /** Output of normalizeAdCopyVariants (fb-ad-duplicate.mjs). */
 export type AdCopyVariant = {
