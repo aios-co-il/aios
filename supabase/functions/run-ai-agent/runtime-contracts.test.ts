@@ -4,7 +4,11 @@ import {
   assertStrictEquals,
   assertThrows,
 } from "jsr:@std/assert@1";
+import { requireInsertValue } from "./database-contracts.ts";
 import { errorMessage } from "./error-message.ts";
+import { isMarketingWorkItemListRow } from "./marketing-rows.ts";
+import { isPulseSnapshotRow, isRetentionPulseRow } from "./pulse-rows.ts";
+import { isJson } from "./row-guards.ts";
 import { jsonObject } from "./json-config.ts";
 import {
   automationStepArg,
@@ -202,4 +206,42 @@ Deno.test("crmRecordDay keeps string dates and drops non-string ones", () => {
   ]) {
     assertStrictEquals(crmRecordDay(data), null);
   }
+});
+
+const nulls = (...keys: string[]) =>
+  Object.fromEntries(keys.map((key) => [key, null]));
+const pulseRow = {
+  ...nulls("data_fresh_through", "cpl_change_pct", "roas_7d", "agency_id"),
+  ...nulls("roas_change_pct", "last_meta_change_at", "last_meta_change_type"),
+  ...nulls("last_meta_change_actor", "last_meta_change_object", "agencies"),
+  ...nulls("meta_change_availability", "ecommerce_goal_status"),
+  ...{ tenant_id: "t1", calculated_at: "2026-10-01", client_id: "c1" },
+  ...{ spend_7d: 10, lead_spend_7d: 10, ecommerce_spend_7d: 0, leads_7d: 2 },
+  ...{ cpl_7d: 5, purchases_7d: 0, revenue_7d: 0, is_ecommerce: false },
+  ...{ source: "synced_crm", status: "warning", lead_goal_status: "warning" },
+  ...{ campaign_goal_mode: "leads", flags: ["cpl_up"] },
+  campaign_breakdown: [{ goal: "leads", alert_eligible: true }],
+  clients: { name: "Client" },
+};
+
+Deno.test("dynamic-select rows are validated field by field", () => {
+  assertStrictEquals(isPulseSnapshotRow(pulseRow), true);
+  assertStrictEquals(isPulseSnapshotRow({ ...pulseRow, status: "pending" }), false);
+  assertStrictEquals(isPulseSnapshotRow({ ...pulseRow, flags: [1] }), false);
+  assertStrictEquals(isPulseSnapshotRow({ ...pulseRow, clients: {} }), false);
+  const retention = { client_id: "c1", status: "x", calculated_at: "d" };
+  assertStrictEquals(isRetentionPulseRow({ ...retention, flags: null }), true);
+  assertStrictEquals(isRetentionPulseRow(retention), false);
+  const item = { ...nulls("title", "target_channel", "client_id"), id: "i1" };
+  const listRow = { ...item, status: "draft", payload: { a: [1, null] } };
+  const row = { ...listRow, ...nulls("pipeline_id", "current_stage_id") };
+  const full = { ...row, updated_at: "2026-10-01", clients: null };
+  assertStrictEquals(isMarketingWorkItemListRow(full), true);
+  assertStrictEquals(isMarketingWorkItemListRow({ ...full, status: "x" }), false);
+  assertStrictEquals(isJson({ a: () => 1 }), false);
+});
+
+Deno.test("NOT NULL insert values fail before the request only when missing", () => {
+  assertStrictEquals(requireInsertValue("", "t.c"), "");
+  assertThrows(() => requireInsertValue(null, "t.user_id"), Error, "t.user_id");
 });

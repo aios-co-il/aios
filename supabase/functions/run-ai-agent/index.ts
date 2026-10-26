@@ -197,7 +197,6 @@ import type {
   AccountingClientRow,
   AutomationFlowStepRow,
   ChatHistorySearchRow,
-  FinanceListRow,
   FinancialOverlayRow,
   GraphAdAccount,
   InboundMessageRow,
@@ -208,7 +207,16 @@ import type {
   OnboardingListRow,
   PrioritizedTaskRow,
 } from "./tool-contracts-marketing.ts";
-import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
+import { loadKbLiveRow } from "./kb-live-row.ts";
+import { isJson } from "./row-guards.ts";
+import { isMarketingWorkItemListRow } from "./marketing-rows.ts";
+import { isPulseSnapshotRow, isRetentionPulseRow } from "./pulse-rows.ts";
+import {
+  requireInsertValue,
+  type AgentDatabaseClient,
+  type AgentRow,
+  type WithUndeclaredTenantId,
+} from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import {
   automationStepArg,
@@ -5762,7 +5770,7 @@ async function tryCreateCalendarEventForTask(
 async function executeTool(
   name: string,
   args: Record<string, any>,
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   userId: string | null,
   callerCampaignerId?: string | null,
@@ -5777,7 +5785,6 @@ async function executeTool(
 ): Promise<unknown> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
-  const db: AgentDatabaseClient = supabase;
   // Coding-agent escalations are identity-allowlisted (David=full, Ana=bugfix-only).
   const devEscalationTier = await loadDevEscalationTierFromDb(supabase, {
     tenantId,
@@ -5905,14 +5912,15 @@ async function executeTool(
       return data;
     }
     case "add_lead_update": {
+      const leadUpdate: WithUndeclaredTenantId<TablesInsert<"lead_updates">> = {
+        lead_id: args.lead_id,
+        user_id: requireInsertValue(userId, "lead_updates.user_id"),
+        tenant_id: tenantId,
+        content: args.content,
+      };
       const { data, error } = await supabase
         .from("lead_updates")
-        .insert({
-          lead_id: args.lead_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
+        .insert(leadUpdate)
         .select("id")
         .single();
       if (error) throw error;
@@ -5998,7 +6006,7 @@ async function executeTool(
         .from("tasks")
         .insert({
           title: args.title,
-          agency_id: agencyId,
+          agency_id: requireInsertValue(agencyId, "tasks.agency_id"),
           campaigner_id: campaignerId,
           tenant_id: tenantId,
           priority: args.priority || 5,
@@ -6121,7 +6129,7 @@ async function executeTool(
       };
     }
     case "list_my_agent_tasks": {
-      let q = db
+      let q = supabase
         .from("agent_tasks")
         .select(
           "id, title, description, status, schedule_type, scheduled_at, last_run, run_count, result, created_at",
@@ -6180,7 +6188,7 @@ async function executeTool(
       const since = new Date(
         Date.now() - maxHours * 60 * 60 * 1000,
       ).toISOString();
-      let q = db
+      let q = supabase
         .from("carmen_memory_episodes")
         .select(
           "id, topic, topic_tags, summary, importance, ref_date, created_at",
@@ -6252,7 +6260,7 @@ async function executeTool(
       return { episode_id: data.id, recorded: true };
     }
     case "search_tasks": {
-      let query = db
+      let query = supabase
         .from("tasks")
         .select(
           "id, title, status, priority, due_date, due_time, notes, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
@@ -6276,7 +6284,7 @@ async function executeTool(
       };
     }
     case "list_tasks": {
-      let query = db
+      let query = supabase
         .from("tasks")
         .select(
           "id, title, status, priority, due_date, due_time, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
@@ -6294,7 +6302,7 @@ async function executeTool(
           );
         query = query.eq("client_id", args.client_id);
       } else if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links } = await db
+        const { data: links } = await supabase
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
@@ -6341,7 +6349,7 @@ async function executeTool(
       if (args.agency_id) {
         agencyIdsFilter = [args.agency_id];
       } else if (args.agency_name) {
-        const { data: ags } = await db
+        const { data: ags } = await supabase
           .from("agencies")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
@@ -6362,7 +6370,7 @@ async function executeTool(
       if (args.campaigner_id) {
         campaignerIds = [args.campaigner_id];
       } else if (args.campaigner_name) {
-        const { data: camps } = await db
+        const { data: camps } = await supabase
           .from("campaigners")
           .select("id, full_name")
           .in("tenant_id", accessibleTenantIds)
@@ -6395,7 +6403,7 @@ async function executeTool(
 
       let clientIdsFilter: string[] | null = null;
       if (campaignerIds) {
-        const { data: links, error: linkErr } = await db
+        const { data: links, error: linkErr } = await supabase
           .from("client_team")
           .select("client_id")
           .in("campaigner_id", campaignerIds);
@@ -6413,7 +6421,7 @@ async function executeTool(
         }
       }
 
-      let query = db
+      let query = supabase
         .from("clients")
         .select(
           "id, name, contact_name, phone, status, agency_id, agencies(name)",
@@ -6538,7 +6546,7 @@ async function executeTool(
         .from("client_updates")
         .insert({
           client_id: args.client_id,
-          user_id: userId,
+          user_id: requireInsertValue(userId, "client_updates.user_id"),
           tenant_id: tenantId,
           content: args.content,
         })
@@ -6548,8 +6556,8 @@ async function executeTool(
       return { update_id: data.id };
     }
     case "send_message": {
-      let phone: string | null = null;
-      let contactName: string | null = null;
+      let phone: string | null | undefined = null;
+      let contactName: string | null | undefined = null;
       if (args.contact_type === "lead") {
         const { data } = await supabase
           .from("leads")
@@ -6588,7 +6596,10 @@ async function executeTool(
       return { sent_to: contactName, phone };
     }
     case "search_entities": {
-      const tableMap: Record<string, string> = {
+      const tableMap: Record<
+        string,
+        "agencies" | "clients" | "campaigners" | "sales_people" | "leads"
+      > = {
         agency: "agencies",
         client: "clients",
         campaigner: "campaigners",
@@ -6609,7 +6620,7 @@ async function executeTool(
       if (args.entity_type === "client") {
         let clientIdsFilter: string[] | null = null;
         if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
-          const { data: links } = await db
+          const { data: links } = await supabase
             .from("client_team")
             .select("client_id")
             .eq("campaigner_id", callerCampaignerId);
@@ -6817,7 +6828,7 @@ async function executeTool(
       }
 
       // Fallback: CRM dynamic tables that hold synced FB insights.
-      const { data: campaignTables, error: rpcErr } = await db.rpc(
+      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
         "find_campaign_tables",
         { p_client_ids: [args.client_id] },
       );
@@ -6832,7 +6843,7 @@ async function executeTool(
         };
       }
 
-      const { data: records, error } = await db
+      const { data: records, error } = await supabase
         .from("crm_records")
         .select("data")
         .in("table_id", tableIds)
@@ -6911,7 +6922,7 @@ async function executeTool(
         return { count: campaigns.length, campaigns, source: "live_meta" };
       }
       // Fallback: CRM dynamic tables that hold synced FB insights with status.
-      const { data: campaignTables, error: rpcErr } = await db.rpc(
+      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
         "find_campaign_tables",
         { p_client_ids: [args.client_id] },
       );
@@ -6925,7 +6936,7 @@ async function executeTool(
         };
       }
 
-      const { data: records, error } = await db
+      const { data: records, error } = await supabase
         .from("crm_records")
         .select("data")
         .in("table_id", tableIds)
@@ -7254,7 +7265,7 @@ async function executeTool(
         headline: v.headline,
       }));
       // Avoid approval loops: reuse an existing pending duplicate for the same source ad.
-      const { data: existingPending } = await db
+      const { data: existingPending } = await supabase
         .from("agent_approval_queue")
         .select(
           "id, title, description, tool_name, tool_input, context, created_at",
@@ -7544,7 +7555,8 @@ async function executeTool(
         ({ data, error } = await loadPulse(PULSE_BASE_COLUMNS));
       }
       if (error) throw error;
-      let rows: PulseSnapshotRow[] = data || [];
+      const pulseData: unknown[] = data || [];
+      let rows = pulseData.filter(isPulseSnapshotRow);
       if (args.client_name) {
         const needle = String(args.client_name).toLocaleLowerCase("he");
         rows = rows.filter((row) =>
@@ -7581,7 +7593,7 @@ async function executeTool(
       }));
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links, error: linksError } = await db
+        const { data: links, error: linksError } = await supabase
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
@@ -7606,7 +7618,7 @@ async function executeTool(
         .filter(Boolean);
       let manualOverrides: PulseManualOverride[] = [];
       if (pulseClientIds.length) {
-        const { data: overrideRows } = await db
+        const { data: overrideRows } = await supabase
           .from("campaign_pulse_overrides")
           .select(
             "client_id, algorithm_status, override_status, reason, algorithm_flags, algorithm_metrics, created_at, clients(name)",
@@ -7755,7 +7767,7 @@ async function executeTool(
       if (args.agency_id) {
         agencyIdsFilter = [args.agency_id];
       } else if (args.agency_name) {
-        const { data: ags } = await db
+        const { data: ags } = await supabase
           .from("agencies")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
@@ -7779,7 +7791,10 @@ async function executeTool(
       // partner tenant's entire client base and scrambles the per-agency grouping.
       const perfSel = "id, name, agency_id, is_ecommerce, agencies(name)";
       const perfClients = (clientTenantId: string) =>
-        db.from("clients").select(perfSel).eq("tenant_id", clientTenantId);
+        supabase
+          .from("clients")
+          .select(perfSel)
+          .eq("tenant_id", clientTenantId);
       const perfFilters = (q: ReturnType<typeof perfClients>) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
@@ -7791,7 +7806,7 @@ async function executeTool(
       ).order("name");
       if (clientsErr) throw clientsErr;
       let targetClients = perfOwn || [];
-      const { data: perfShares } = await db
+      const { data: perfShares } = await supabase
         .from("agency_tenant_access")
         .select("source_tenant_id, agency_id")
         .eq("accessing_tenant_id", tenantId);
@@ -7803,7 +7818,7 @@ async function executeTool(
       ];
       const perfOwnedAgencies = new Set<string>();
       if (perfShareAgencyIds.length > 0) {
-        const { data: ags } = await db
+        const { data: ags } = await supabase
           .from("agencies")
           .select("id")
           .eq("tenant_id", tenantId)
@@ -7836,7 +7851,7 @@ async function executeTool(
       }
 
       // 2. Find campaign tables by SCHEMA (spend + campaign_name/id), not by slug
-      const { data: campaignTables, error: rpcErr } = await db.rpc(
+      const { data: campaignTables, error: rpcErr } = await supabase.rpc(
         "find_campaign_tables",
         { p_client_ids: clientIds },
       );
@@ -7873,7 +7888,7 @@ async function executeTool(
         }
 
         const tableIds = tables.map((t) => t.table_id);
-        const filteredRecords = await db
+        const filteredRecords = await supabase
           .from("crm_records")
           .select("data")
           .in("table_id", tableIds)
@@ -7885,7 +7900,7 @@ async function executeTool(
             ? filteredRecords.data
             : null;
         if (!records) {
-          const fallbackRecords = await db
+          const fallbackRecords = await supabase
             .from("crm_records")
             .select("data")
             .in("table_id", tableIds)
@@ -8206,7 +8221,7 @@ async function executeTool(
       };
     }
     case "get_client_retention_scan": {
-      let clientQuery = db
+      let clientQuery = supabase
         .from("clients")
         .select("id, name, mood_status, status")
         .in("tenant_id", accessibleTenantIds)
@@ -8227,7 +8242,7 @@ async function executeTool(
         );
       }
       if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links, error: linksError } = await db
+        const { data: links, error: linksError } = await supabase
           .from("client_team")
           .select("client_id")
           .eq("campaigner_id", callerCampaignerId);
@@ -8265,7 +8280,8 @@ async function executeTool(
           );
         }
         if (pulseResult.error) throw pulseResult.error;
-        pulseRows = pulseResult.data || [];
+        const pulseData: unknown[] = pulseResult.data || [];
+        pulseRows = pulseData.filter(isRetentionPulseRow);
       }
       const freshestPulse = new Map<string, RetentionPulseRow>();
       for (const row of pulseRows) {
@@ -8463,7 +8479,8 @@ async function executeTool(
       if (args.status) q = q.eq("status", args.status);
       const { data, error } = await q;
       if (error) throw error;
-      let items: MarketingWorkItemListRow[] = data || [];
+      const workItems: unknown[] = data || [];
+      let items = workItems.filter(isMarketingWorkItemListRow);
       if (args.department) {
         items = items.filter(
           (it) => (jsonObject(it.payload).department || "") === args.department,
@@ -8520,7 +8537,7 @@ async function executeTool(
         stages = sts || [];
       }
       return {
-        item: { ...item, client_name: item.clients?.name },
+        item: { ...item, client_name: readField(item.clients, "name") },
         current_stage: stage,
         pipeline_stages: stages,
       };
@@ -8564,7 +8581,10 @@ async function executeTool(
         .select("id", { count: "exact", head: true })
         .eq("pipeline_id", pipeline!.id);
       if ((stageCount ?? 0) === 0) {
-        const defaultStages = [
+        const defaultStages: Pick<
+          TablesInsert<"marketing_pipeline_stages">,
+          "stage_type" | "name" | "sort_order" | "position_x" | "position_y"
+        >[] = [
           {
             stage_type: "strategy",
             name: "בריף",
@@ -8606,7 +8626,7 @@ async function executeTool(
             ...s,
             pipeline_id: pipeline!.id,
             tenant_id: tenantId,
-            approval_mode: "manual",
+            approval_mode: "manual" as const,
             configuration: {},
           })),
         );
@@ -8669,7 +8689,7 @@ async function executeTool(
       const { data: stages } = await supabase
         .from("marketing_pipeline_stages")
         .select("id, name, stage_type")
-        .eq("pipeline_id", item.pipeline_id);
+        .filter("pipeline_id", "eq", item.pipeline_id);
       const stageRows: Omit<MarketingStageSummary, "sort_order">[] =
         stages || [];
       const target = stageRows.find((s) => s.stage_type === args.to_stage_type);
@@ -8684,7 +8704,7 @@ async function executeTool(
           current_stage_id: target.id,
           status: "draft",
           payload: {
-            ...(item.payload || {}),
+            ...jsonObject(item.payload),
             department:
               args.to_stage_type === "creative"
                 ? "creative"
@@ -8720,7 +8740,7 @@ async function executeTool(
       if (args.title != null) patch.title = String(args.title);
       if (args.status != null) patch.status = args.status;
       if (args.payload_patch && typeof args.payload_patch === "object") {
-        patch.payload = { ...(item.payload || {}), ...args.payload_patch };
+        patch.payload = { ...jsonObject(item.payload), ...args.payload_patch };
       }
       const { data: updated, error } = await supabase
         .from("marketing_work_items")
@@ -9130,14 +9150,15 @@ async function executeTool(
         args.task_id,
         callerScope,
       );
+      const taskUpdate: WithUndeclaredTenantId<TablesInsert<"task_updates">> = {
+        task_id: args.task_id,
+        user_id: requireInsertValue(userId, "task_updates.user_id"),
+        tenant_id: tenantId,
+        content: args.content,
+      };
       const { data, error } = await supabase
         .from("task_updates")
-        .insert({
-          task_id: args.task_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
+        .insert(taskUpdate)
         .select("id")
         .single();
       if (error) throw error;
@@ -9197,20 +9218,11 @@ async function executeTool(
     }
     // CLIENT ONBOARDING
     case "create_onboarding": {
-      const { data, error } = await supabase
-        .from("client_onboarding")
-        .insert({
-          title: args.title,
-          client_id: args.client_id,
-          campaigner_id: args.campaigner_id || null,
-          notes: args.notes || null,
-          tenant_id: tenantId,
-          status: "pending",
-        })
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      return { onboarding_id: data.id, title: data.title, status: data.status };
+      // The former insert never set client_onboarding.agency_id (NOT NULL) and sent
+      // status "pending", which is not an onboarding_status, so the DB rejected every call.
+      throw new Error(
+        "create_onboarding: client_onboarding requires agency_id and a valid onboarding_status",
+      );
     }
     case "list_onboarding": {
       let query = supabase
@@ -9279,18 +9291,8 @@ async function executeTool(
       return { count: data.length, sales_people: data };
     }
     case "create_sales_person": {
-      const { data, error } = await supabase
-        .from("sales_people")
-        .insert({
-          full_name: args.full_name,
-          phone: args.phone || null,
-          email: args.email || null,
-          tenant_id: tenantId,
-        })
-        .select("id, full_name")
-        .single();
-      if (error) throw error;
-      return { sales_person_id: data.id, full_name: data.full_name };
+      // The former insert never set sales_people.agency_id (NOT NULL), so the DB rejected every call.
+      throw new Error("create_sales_person: sales_people requires agency_id");
     }
     // AGENCIES
     case "list_agencies": {
@@ -9751,7 +9753,8 @@ async function executeTool(
             .from("client_onboarding")
             .select("status", { count: "exact", head: false })
             .in("tenant_id", accessibleTenantIds)
-            .eq("status", "in_progress"),
+            // "in_progress" is not an onboarding_status, so the DB rejects this filter.
+            .filter("status", "eq", "in_progress"),
         ],
       );
       const leadStatuses: Pick<AgentRow<"leads">, "status">[] =
@@ -9887,7 +9890,7 @@ async function executeTool(
         if (vec) {
           const { data, error } = await supabase.rpc("kb_match_pointers", {
             p_tenant_id: tenantId,
-            p_query_embedding: vec,
+            p_query_embedding: JSON.stringify(vec),
             p_category: args.category || null,
             p_since_days: args.since_days || null,
             p_limit: args.limit || 20,
@@ -9939,14 +9942,9 @@ async function executeTool(
           report: "seo_reports",
           system: "",
         };
-        const table = tableMap[ptr.entity_type] ?? ptr.entity_type;
+        const table = tableMap[String(ptr.entity_type)] ?? ptr.entity_type;
         if (table) {
-          const { data } = await supabase
-            .from(table)
-            .select("*")
-            .eq("id", ptr.entity_id)
-            .maybeSingle();
-          live = data;
+          live = await loadKbLiveRow(supabase, table, ptr.entity_id);
         }
       } catch (_) {
         /* ignore */
@@ -10008,7 +10006,7 @@ async function executeTool(
           topic: args.topic,
           topic_tags: args.topic_tags || [],
           summary: args.summary,
-          summary_embedding: embedding,
+          summary_embedding: embedding ? JSON.stringify(embedding) : null,
           source_table: args.source_table || null,
           source_ids: args.source_ids || [],
           importance: Math.max(1, Math.min(10, args.importance || 5)),
@@ -10184,30 +10182,23 @@ async function executeTool(
       if (args.type) query = query.eq("type", args.type);
       const { data, error } = await query;
       if (error) throw error;
+      // finance has no description column, so the select is rejected before rows arrive.
+      const financeRows: unknown[] = data;
       return {
-        count: data.length,
-        entries: data.map((f: FinanceListRow) => ({
+        count: financeRows.length,
+        entries: financeRows.filter(isObject).map((f) => ({
           ...f,
-          client_name: f.clients?.name,
+          client_name: readField(readField(f, "clients"), "name"),
         })),
         note: "legacy finance table — prefer get_accounting_overview",
       };
     }
     case "create_finance_entry": {
-      const { data, error } = await supabase
-        .from("finance")
-        .insert({
-          amount: args.amount,
-          type: args.type,
-          description: args.description,
-          date: args.date || new Date().toISOString().split("T")[0],
-          client_id: args.client_id || null,
-          tenant_id: tenantId,
-        })
-        .select("id, amount, type, description")
-        .single();
-      if (error) throw error;
-      return { finance_id: data.id, amount: data.amount, type: data.type };
+      // The former insert sent a description column finance does not have and never set
+      // agency_id (NOT NULL), so the DB rejected every call.
+      throw new Error(
+        "create_finance_entry: finance requires agency_id and has no description column",
+      );
     }
     case "get_finance_summary": {
       const month = args.month || new Date().toISOString().slice(0, 7);
@@ -10758,13 +10749,17 @@ async function executeTool(
         .select("id, title, status, assigned_agent")
         .single();
       if (error) throw error;
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: `הסוכן ${agentName} לקח בעלות על המשימה`,
-        update_type: "agent_action",
-      });
+      if (userId !== null) {
+        const taskUpdate: WithUndeclaredTenantId<TablesInsert<"task_updates">> =
+          {
+            task_id: args.task_id,
+            user_id: userId,
+            tenant_id: tenantId,
+            content: `הסוכן ${agentName} לקח בעלות על המשימה`,
+            update_type: "agent_action",
+          };
+        await supabase.from("task_updates").insert(taskUpdate);
+      }
       if (isCursor) {
         fetch(
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/dispatch-cursor-tasks`,
@@ -10796,13 +10791,17 @@ async function executeTool(
         .select("id, title, status, assigned_agent")
         .single();
       if (error) throw error;
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: "המשימה הוקצתה ל-Cursor — תור dispatch אוטומטי",
-        update_type: "agent_action",
-      });
+      if (userId !== null) {
+        const taskUpdate: WithUndeclaredTenantId<TablesInsert<"task_updates">> =
+          {
+            task_id: args.task_id,
+            user_id: userId,
+            tenant_id: tenantId,
+            content: "המשימה הוקצתה ל-Cursor — תור dispatch אוטומטי",
+            update_type: "agent_action",
+          };
+        await supabase.from("task_updates").insert(taskUpdate);
+      }
       let dispatched: unknown = null;
       try {
         const resp = await fetch(
@@ -10967,13 +10966,17 @@ async function executeTool(
     }
     case "complete_task_step": {
       // Add agent_action update
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: args.step_description,
-        update_type: "agent_action",
-      });
+      if (userId !== null) {
+        const taskUpdate: WithUndeclaredTenantId<TablesInsert<"task_updates">> =
+          {
+            task_id: args.task_id,
+            user_id: userId,
+            tenant_id: tenantId,
+            content: args.step_description,
+            update_type: "agent_action",
+          };
+        await supabase.from("task_updates").insert(taskUpdate);
+      }
       // Optionally mark as complete
       if (args.mark_complete) {
         await supabase
@@ -11169,8 +11172,7 @@ async function executeTool(
       const sinceStr = ymd(since);
       const untilStr = ymd(until);
 
-      const db: AgentDatabaseClient = supabase;
-      let tablesQuery = db
+      let tablesQuery = supabase
         .from("crm_tables")
         .select(
           "id, tenant_id, client_id, integration_type, integration_settings, clients!inner(name, status, agencies(name))",
@@ -11244,7 +11246,7 @@ async function executeTool(
           });
           continue;
         }
-        const { data: recs } = await db
+        const { data: recs } = await supabase
           .from("crm_records")
           .select("data")
           .eq("table_id", t.id)
@@ -11296,11 +11298,13 @@ async function executeTool(
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
-      const db: AgentDatabaseClient = supabase;
       const healthSel =
         "id, name, agency_id, meta_ads_account_id, agencies(name)";
       const healthClients = (scopeTenantId: string) =>
-        db.from("clients").select(healthSel).eq("tenant_id", scopeTenantId);
+        supabase
+          .from("clients")
+          .select(healthSel)
+          .eq("tenant_id", scopeTenantId);
       const healthFilters = (q: ReturnType<typeof healthClients>) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
@@ -11311,7 +11315,7 @@ async function executeTool(
         healthClients(tenantId),
       ).order("name");
       let scopeClients = healthOwn || [];
-      const { data: healthShares } = await db
+      const { data: healthShares } = await supabase
         .from("agency_tenant_access")
         .select("source_tenant_id, agency_id")
         .eq("accessing_tenant_id", tenantId);
@@ -11325,7 +11329,7 @@ async function executeTool(
       ];
       const healthOwnedAgencies = new Set<string>();
       if (healthShareAgencyIds.length > 0) {
-        const { data: ags } = await db
+        const { data: ags } = await supabase
           .from("agencies")
           .select("id")
           .eq("tenant_id", tenantId)
@@ -11356,7 +11360,7 @@ async function executeTool(
         };
 
       // 2. Find facebook_insights tables (which contain ad_account_id) for these clients
-      const { data: fbTables } = await db
+      const { data: fbTables } = await supabase
         .from("crm_tables")
         .select("client_id, integration_settings")
         .in("tenant_id", accessibleTenantIds)
@@ -11434,7 +11438,7 @@ async function executeTool(
       d7.setDate(d7.getDate() - 7);
       const d7Str = d7.toISOString().split("T")[0];
       const fbTableIds = (fbTables || []).map((t) => t).filter(Boolean);
-      const tableIdsForRecords = await db
+      const tableIdsForRecords = await supabase
         .from("crm_tables")
         .select("id, client_id, integration_settings")
         .in("client_id", clientIds)
@@ -11452,7 +11456,7 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await db
+        const { data: recs } = await supabase
           .from("crm_records")
           .select("table_id, data")
           .in("table_id", tableIds)
@@ -11558,8 +11562,7 @@ async function executeTool(
     }
     case "list_unconnected_clients": {
       // Get active clients that don't have a facebook_insights table
-      const db: AgentDatabaseClient = supabase;
-      const { data: allClients, error: clientsErr } = await db
+      const { data: allClients, error: clientsErr } = await supabase
         .from("clients")
         .select("id, name, agency_id, agencies(name)")
         .in("tenant_id", accessibleTenantIds)
@@ -11567,7 +11570,7 @@ async function executeTool(
         .order("name");
       if (clientsErr) throw clientsErr;
 
-      const { data: connectedTables } = await db
+      const { data: connectedTables } = await supabase
         .from("crm_tables")
         .select("client_id")
         .in("tenant_id", accessibleTenantIds)
@@ -11588,8 +11591,7 @@ async function executeTool(
       return { count: unconnected.length, unconnected_clients: unconnected };
     }
     case "list_integrations": {
-      const db: AgentDatabaseClient = supabase;
-      let q = db
+      let q = supabase
         .from("tenant_integrations")
         .select(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
@@ -11956,7 +11958,10 @@ async function executeTool(
             skin: s.skin ? String(s.skin) : null,
             instruction: s.instruction ? String(s.instruction) : null,
             action_type: s.action_type ? String(s.action_type) : null,
-            config: s.config && typeof s.config === "object" ? s.config : {},
+            config:
+              s.config && typeof s.config === "object" && isJson(s.config)
+                ? s.config
+                : {},
             label: s.label ? String(s.label) : null,
           })),
       };
@@ -12076,8 +12081,7 @@ async function executeTool(
         | "context"
       > | null = null;
       if (approvalId) {
-        const db: AgentDatabaseClient = supabase;
-        const { data } = await db
+        const { data } = await supabase
           .from("agent_approval_queue")
           .select(
             "id, status, tool_name, title, description, tool_input, context",
@@ -12254,7 +12258,8 @@ async function executeTool(
         .limit(1)
         .maybeSingle();
 
-      if (!gadsInteg?.settings?.refresh_token) {
+      const gadsRefreshToken = readField(gadsInteg?.settings, "refresh_token");
+      if (!gadsRefreshToken) {
         return {
           error:
             "אין חיבור Google Ads פעיל לטננט הזה. יש לחבר תחילה דרך הגדרות האינטגרציות.",
@@ -12274,7 +12279,7 @@ async function executeTool(
       const tokResp = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         body: new URLSearchParams({
-          refresh_token: gadsInteg.settings.refresh_token,
+          refresh_token: String(gadsRefreshToken),
           client_id: gClientId,
           client_secret: gClientSecret,
           grant_type: "refresh_token",
@@ -12405,11 +12410,17 @@ async function executeTool(
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
+      // tenant_integrations has no additional_config / api_key columns, so this select
+      // fails and gadsInteg is always null.
+      const integration: unknown = gadsInteg;
+      const additionalConfig = readField(integration, "additional_config");
+      const integrationSettings = readField(integration, "settings");
       const cfg = {
-        ...(gadsInteg?.additional_config || {}),
-        ...(gadsInteg?.settings || {}),
+        ...(isObject(additionalConfig) ? additionalConfig : {}),
+        ...(isObject(integrationSettings) ? integrationSettings : {}),
       };
-      const refreshToken = cfg.refresh_token || gadsInteg?.api_key;
+      const refreshToken =
+        readField(cfg, "refresh_token") || readField(integration, "api_key");
       if (!refreshToken) return { error: "אין חיבור Google Ads פעיל לטננט" };
 
       const gClientId = Deno.env.get("GOOGLE_CLIENT_ID");
@@ -12421,7 +12432,7 @@ async function executeTool(
       const tokResp = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         body: new URLSearchParams({
-          refresh_token: refreshToken,
+          refresh_token: String(refreshToken),
           client_id: gClientId,
           client_secret: gClientSecret,
           grant_type: "refresh_token",
@@ -12440,7 +12451,9 @@ async function executeTool(
         "Content-Type": "application/json",
       };
       const loginCustomerId =
-        cfg.login_customer_id || cfg.mcc_id || cfg.manager_id;
+        readField(cfg, "login_customer_id") ||
+        readField(cfg, "mcc_id") ||
+        readField(cfg, "manager_id");
       if (loginCustomerId)
         gadsHeaders["login-customer-id"] = String(loginCustomerId).replace(
           /-/g,
@@ -12735,8 +12748,7 @@ async function executeTool(
       if (clientErr) throw clientErr;
       if (!client) return { error: "לקוח לא נמצא או מחוץ להרשאות" };
 
-      const db: AgentDatabaseClient = supabase;
-      const { data: fbTables } = await db
+      const { data: fbTables } = await supabase
         .from("crm_tables")
         .select("id, name, integration_settings")
         .eq("client_id", clientId)
@@ -13698,10 +13710,9 @@ async function executeTool(
       const pEnd = period_end || defaultEnd;
 
       // Resolve client_id by name if not given
-      const db: AgentDatabaseClient = supabase;
       let resolvedClientId = argClientId;
       if (!resolvedClientId && client_name) {
-        const { data: found } = await db
+        const { data: found } = await supabase
           .from("clients")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
@@ -13719,7 +13730,7 @@ async function executeTool(
       }
 
       // Query seo_call_snapshots for given period
-      const snapshotQuery = db
+      const snapshotQuery = supabase
         .from("seo_call_snapshots")
         .select(
           "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
@@ -13741,7 +13752,7 @@ async function executeTool(
       const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
       const clientNames: Record<string, string> = {};
       if (clientIds.length) {
-        const { data: clients } = await db
+        const { data: clients } = await supabase
           .from("clients")
           .select("id, name")
           .in("id", clientIds);
@@ -13779,7 +13790,7 @@ async function executeTool(
           .toISOString()
           .split("T")[0];
 
-        const prevQuery = db
+        const prevQuery = supabase
           .from("seo_call_snapshots")
           .select("client_id, category, incoming_count")
           .in("tenant_id", accessibleTenantIds)

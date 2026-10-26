@@ -151,7 +151,7 @@ export function validateReportTableAccountId(
 }
 
 /**
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {import('https://esm.sh/@supabase/supabase-js@2.75.0').SupabaseClient} supabase
  * @param {{ id?: string, client_id?: string|null, integration_type?: string|null, integration_settings?: Record<string, unknown>|null }} tableRow
  * @param {{ logPrefix?: string }} [opts]
  */
@@ -243,7 +243,7 @@ export async function syncClientCardFromReportTable(
 
 /**
  * Resolve Google Ads customer_id: assigned google_ads crm_table first, then clients.google_ads_account_id.
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {import('https://esm.sh/@supabase/supabase-js@2.75.0').SupabaseClient} supabase
  * @param {string} clientId
  */
 export async function googleResolveClientCustomerId(supabase, clientId) {
@@ -275,7 +275,7 @@ export async function googleResolveClientCustomerId(supabase, clientId) {
 
 /**
  * Build customer_id → client map from both client card fields and assigned google_ads tables.
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {import('https://esm.sh/@supabase/supabase-js@2.75.0').SupabaseClient} supabase
  * @param {string[]} tenantIds
  */
 export async function buildGoogleCustomerClientMap(supabase, tenantIds) {
