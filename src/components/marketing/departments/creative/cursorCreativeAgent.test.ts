@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildCreativeAgentPrompt,
   buildCreativeJobBrief,
@@ -33,18 +32,17 @@ test("formatConceptJobBrief uses the approved concept fields", () => {
     whyItWorks: "סצנה במקום טקסט",
     reference: "Think Small",
   });
-  assert.match(block, /^1\. CONCEPT/);
-  assert.match(block, /הכיס הריק/);
-  assert.match(block, /ארנק פעור/);
-  assert.match(block, /שחור-זהב/);
-  assert.match(block, /TYPE only/);
+  expect(block).toMatch(/^1\. CONCEPT/);
+  expect(block).toMatch(/הכיס הריק/);
+  expect(block).toMatch(/ארנק פעור/);
+  expect(block).toMatch(/שחור-זהב/);
+  expect(block).toMatch(/TYPE only/);
 });
 
 test("formatBrandColorJobBrief locks hex colors and admits when none exist", () => {
-  assert.match(formatBrandColorJobBrief(kit()), /#c00000/);
-  assert.match(formatBrandColorJobBrief(kit()), /hard lock/);
-  assert.match(
-    formatBrandColorJobBrief(kit({ brandBook: undefined })),
+  expect(formatBrandColorJobBrief(kit())).toMatch(/#c00000/);
+  expect(formatBrandColorJobBrief(kit())).toMatch(/hard lock/);
+  expect(formatBrandColorJobBrief(kit({ brandBook: undefined }))).toMatch(
     /none on file/,
   );
 });
@@ -54,26 +52,26 @@ test("formatReferenceJobBrief lists download URLs as a fail-if-skipped block", (
     { url: "https://cdn.example/ref.jpg", kind: "style" },
     { url: "https://cdn.example/logo.png", kind: "logo" },
   ]);
-  assert.match(block, /^3\. CRITICAL REFERENCE URLS/);
-  assert.match(block, /https:\/\/cdn\.example\/ref\.jpg/);
-  assert.match(block, /https:\/\/cdn\.example\/logo\.png/);
-  assert.match(block, /Skipping these is a fail/);
-  assert.match(block, /DESIGN SYSTEM LOCK/);
-  assert.match(formatReferenceJobBrief([]), /none on file/);
+  expect(block).toMatch(/^3\. CRITICAL REFERENCE URLS/);
+  expect(block).toMatch(/https:\/\/cdn\.example\/ref\.jpg/);
+  expect(block).toMatch(/https:\/\/cdn\.example\/logo\.png/);
+  expect(block).toMatch(/Skipping these is a fail/);
+  expect(block).toMatch(/DESIGN SYSTEM LOCK/);
+  expect(formatReferenceJobBrief([])).toMatch(/none on file/);
 });
 
 test("formatStyleJobBrief names the selected dropdown style and calls out a change", () => {
   const selected = formatStyleJobBrief("swiss");
-  assert.match(selected, /מסחרי נקי/);
-  assert.match(selected, /swiss/);
-  assert.match(selected, /SELECTED STYLE/);
-  assert.doesNotMatch(selected, /STYLE CHANGE/);
+  expect(selected).toMatch(/מסחרי נקי/);
+  expect(selected).toMatch(/swiss/);
+  expect(selected).toMatch(/SELECTED STYLE/);
+  expect(selected).not.toMatch(/STYLE CHANGE/);
   const changed = formatStyleJobBrief("cinematic", "swiss");
-  assert.match(changed, /STYLE CHANGE/);
-  assert.match(changed, /מסחרי נקי/);
-  assert.match(changed, /קולנועי/);
-  assert.match(changed, /Do not keep the old look/);
-  assert.doesNotMatch(formatStyleJobBrief("swiss", "swiss"), /STYLE CHANGE/);
+  expect(changed).toMatch(/STYLE CHANGE/);
+  expect(changed).toMatch(/מסחרי נקי/);
+  expect(changed).toMatch(/קולנועי/);
+  expect(changed).toMatch(/Do not keep the old look/);
+  expect(formatStyleJobBrief("swiss", "swiss")).not.toMatch(/STYLE CHANGE/);
 });
 
 test("resolvePreviousStyleId prefers the replaced card, then sibling source, then last live", () => {
@@ -82,26 +80,20 @@ test("resolvePreviousStyleId prefers the replaced card, then sibling source, the
     { visualStyle: "cinematic" as const, rejected: true },
     { visualStyle: "industrial" as const },
   ];
-  assert.equal(
+  expect(
     resolvePreviousStyleId(
       { visualStyle: "collage" },
       { visualStyle: "swiss" },
       live,
     ),
-    "collage",
-  );
-  assert.equal(
+  ).toBe("collage");
+  expect(
     resolvePreviousStyleId(undefined, { visualStyle: "swiss" }, live),
-    "swiss",
-  );
-  assert.equal(
-    resolvePreviousStyleId(undefined, undefined, live),
-    "industrial",
-  );
-  assert.equal(
+  ).toBe("swiss");
+  expect(resolvePreviousStyleId(undefined, undefined, live)).toBe("industrial");
+  expect(
     resolvePreviousStyleId({ visualStyle: undefined }, undefined, live),
-    undefined,
-  );
+  ).toBe(undefined);
 });
 
 test("buildCreativeJobBrief includes concept, colors, refs, and style", () => {
@@ -120,12 +112,12 @@ test("buildCreativeJobBrief includes concept, colors, refs, and style", () => {
     styleId: "swiss",
     previousStyleId: "cinematic",
   });
-  assert.match(brief, /JOB BRIEF/);
-  assert.match(brief, /הכיס הריק/);
-  assert.match(brief, /#c00000/);
-  assert.match(brief, /https:\/\/cdn\.example\/ref\.jpg/);
-  assert.match(brief, /מסחרי נקי/);
-  assert.match(brief, /STYLE CHANGE/);
+  expect(brief).toMatch(/JOB BRIEF/);
+  expect(brief).toMatch(/הכיס הריק/);
+  expect(brief).toMatch(/#c00000/);
+  expect(brief).toMatch(/https:\/\/cdn\.example\/ref\.jpg/);
+  expect(brief).toMatch(/מסחרי נקי/);
+  expect(brief).toMatch(/STYLE CHANGE/);
 });
 
 test("buildCreativeAgentPrompt leads with the job brief then the photograph lock", () => {
@@ -148,17 +140,17 @@ test("buildCreativeAgentPrompt leads with the job brief then the photograph lock
     styleId: "swiss",
     previousStyleId: "cinematic",
   });
-  assert.match(prompt, /JOB BRIEF/);
-  assert.match(prompt, /הכיס הריק/);
-  assert.match(prompt, /BRAND COLORS/);
-  assert.match(prompt, /CRITICAL REFERENCE URLS/);
-  assert.match(prompt, /https:\/\/cdn\.example\/ref\.jpg/);
-  assert.match(prompt, /https:\/\/cdn\.example\/logo\.png/);
-  assert.match(prompt, /PROJECT STYLE[\s\S]*מסחרי נקי/);
-  assert.match(prompt, /STYLE CHANGE/);
-  assert.match(prompt, /CONCEPT PHOTOGRAPH/);
-  assert.match(prompt, /פעם חיפשו אותך/);
+  expect(prompt).toMatch(/JOB BRIEF/);
+  expect(prompt).toMatch(/הכיס הריק/);
+  expect(prompt).toMatch(/BRAND COLORS/);
+  expect(prompt).toMatch(/CRITICAL REFERENCE URLS/);
+  expect(prompt).toMatch(/https:\/\/cdn\.example\/ref\.jpg/);
+  expect(prompt).toMatch(/https:\/\/cdn\.example\/logo\.png/);
+  expect(prompt).toMatch(/PROJECT STYLE[\s\S]*מסחרי נקי/);
+  expect(prompt).toMatch(/STYLE CHANGE/);
+  expect(prompt).toMatch(/CONCEPT PHOTOGRAPH/);
+  expect(prompt).toMatch(/פעם חיפשו אותך/);
   const briefAt = prompt.indexOf("JOB BRIEF");
   const photoAt = prompt.indexOf("CONCEPT PHOTOGRAPH");
-  assert.ok(briefAt >= 0 && photoAt > briefAt);
+  expect(briefAt >= 0 && photoAt > briefAt).toBeTruthy();
 });

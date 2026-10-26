@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 import {
   isClientCallUpdate,
@@ -14,15 +13,13 @@ import {
 const CALL_NOTE = "דיברתי עם הלקוח בטלפון על התקציב";
 
 test("a person's weekly update that documents a call becomes a call", () => {
-  assert.equal(resolveClientUpdateType("weekly_update", CALL_NOTE), "call");
-  assert.equal(
-    resolveClientUpdateType("weekly_update", CALL_NOTE, "human"),
+  expect(resolveClientUpdateType("weekly_update", CALL_NOTE)).toBe("call");
+  expect(resolveClientUpdateType("weekly_update", CALL_NOTE, "human")).toBe(
     "call",
   );
-  assert.equal(
+  expect(
     resolveClientUpdateType("weekly_update", "לא הצלחתי לדבר עם הלקוח"),
-    "weekly_update",
-  );
+  ).toBe("weekly_update");
 });
 
 test("entries no person typed are never reclassified as calls", () => {
@@ -33,89 +30,80 @@ test("entries no person typed are never reclassified as calls", () => {
     "group_digest",
     "automation",
   ])
-    assert.equal(
+    expect(
       resolveClientUpdateType("weekly_update", CALL_NOTE, source),
-      "weekly_update",
       source,
-    );
+    ).toBe("weekly_update");
 });
 
 test("contact counting mirrors get_latest_client_call_updates", () => {
-  assert.equal(isClientCallUpdate("call", "x"), true);
-  assert.equal(isClientCallUpdate("call", "x", "human"), true);
-  assert.equal(isClientCallUpdate("weekly_update", CALL_NOTE, null), true);
-  assert.equal(
+  expect(isClientCallUpdate("call", "x")).toBe(true);
+  expect(isClientCallUpdate("call", "x", "human")).toBe(true);
+  expect(isClientCallUpdate("weekly_update", CALL_NOTE, null)).toBe(true);
+  expect(
     isClientCallUpdate("weekly_update", CALL_NOTE, "carmen_confirmed"),
-    true,
-  );
-  assert.equal(
-    isClientCallUpdate("meeting", "פגישה", "carmen_confirmed", true),
+  ).toBe(true);
+  expect(isClientCallUpdate("meeting", "פגישה", "carmen_confirmed", true)).toBe(
     true,
   );
   // Plain meetings keep today's rule.
-  assert.equal(isClientCallUpdate("meeting", "פגישה", "human"), false);
+  expect(isClientCallUpdate("meeting", "פגישה", "human")).toBe(false);
   // Automatic sources never count, even with the flag or call text.
-  assert.equal(isClientCallUpdate("call", "x", "carmen"), false);
-  assert.equal(
-    isClientCallUpdate("weekly_update", CALL_NOTE, "system_send"),
+  expect(isClientCallUpdate("call", "x", "carmen")).toBe(false);
+  expect(isClientCallUpdate("weekly_update", CALL_NOTE, "system_send")).toBe(
     false,
   );
-  assert.equal(isClientCallUpdate("call", "x", "group_digest", true), false);
-  assert.equal(isClientCallUpdate("call", "x", "automation"), false);
+  expect(isClientCallUpdate("call", "x", "group_digest", true)).toBe(false);
+  expect(isClientCallUpdate("call", "x", "automation")).toBe(false);
 });
 
 test("source filter groups Carmen's two sources and treats legacy rows as human", () => {
-  assert.equal(clientUpdateSourceFilterKey(null), "human");
-  assert.equal(clientUpdateSourceFilterKey("human"), "human");
-  assert.equal(clientUpdateSourceFilterKey("carmen"), "carmen");
-  assert.equal(clientUpdateSourceFilterKey("carmen_confirmed"), "carmen");
-  assert.equal(clientUpdateSourceFilterKey("system_send"), "system_send");
-  assert.equal(matchesClientUpdateSourceFilter("automation", "all"), true);
-  assert.equal(
-    matchesClientUpdateSourceFilter("carmen_confirmed", "carmen"),
+  expect(clientUpdateSourceFilterKey(null)).toBe("human");
+  expect(clientUpdateSourceFilterKey("human")).toBe("human");
+  expect(clientUpdateSourceFilterKey("carmen")).toBe("carmen");
+  expect(clientUpdateSourceFilterKey("carmen_confirmed")).toBe("carmen");
+  expect(clientUpdateSourceFilterKey("system_send")).toBe("system_send");
+  expect(matchesClientUpdateSourceFilter("automation", "all")).toBe(true);
+  expect(matchesClientUpdateSourceFilter("carmen_confirmed", "carmen")).toBe(
     true,
   );
-  assert.equal(matchesClientUpdateSourceFilter(undefined, "human"), true);
-  assert.equal(matchesClientUpdateSourceFilter("carmen", "human"), false);
+  expect(matchesClientUpdateSourceFilter(undefined, "human")).toBe(true);
+  expect(matchesClientUpdateSourceFilter("carmen", "human")).toBe(false);
 });
 
 test("automatic entries are edited only by owners; own human notes by their author", () => {
   const me = "user-1";
-  assert.equal(
+  expect(
     canModifyClientUpdate({
       source: "human",
       rowUserId: me,
       currentUserId: me,
       canManageAutomaticEntries: false,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     canModifyClientUpdate({
       source: null,
       rowUserId: "someone-else",
       currentUserId: me,
       canManageAutomaticEntries: true,
     }),
-    false,
-  );
+  ).toBe(false);
   // A Carmen entry attributed to the campaigner is still not theirs to edit.
-  assert.equal(
+  expect(
     canModifyClientUpdate({
       source: "carmen_confirmed",
       rowUserId: me,
       currentUserId: me,
       canManageAutomaticEntries: false,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     canModifyClientUpdate({
       source: "system_send",
       rowUserId: "someone-else",
       currentUserId: me,
       canManageAutomaticEntries: true,
     }),
-    true,
-  );
+  ).toBe(true);
 });

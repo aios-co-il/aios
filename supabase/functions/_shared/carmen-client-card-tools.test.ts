@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import {
   addClientUpdateFromCarmen,
@@ -77,155 +76,173 @@ function fakeCardRpc(opts: {
   return { supabase, rows, calls };
 }
 
-test("add_client_update: a background call is refused without touching the card", async () => {
-  const { supabase, calls } = fakeCardRpc({ ownerUserId: OWNER_USER });
-  const result = await addClientUpdateFromCarmen(supabase, {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "דיברתי עם הלקוח בטלפון",
-    updateType: "call",
-    humanRequesterUserId: null,
-    now: NOW,
-  });
-  assert.equal(result.success, false);
-  assert.equal(result.error, "human_requester_required");
-  assert.equal(calls.length, 0);
-});
+Deno.test(
+  "add_client_update: a background call is refused without touching the card",
+  async () => {
+    const { supabase, calls } = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const result = await addClientUpdateFromCarmen(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "דיברתי עם הלקוח בטלפון",
+      updateType: "call",
+      humanRequesterUserId: null,
+      now: NOW,
+    });
+    assertStrictEquals(result.success, false);
+    assertStrictEquals(result.error, "human_requester_required");
+    assertStrictEquals(calls.length, 0);
+  },
+);
 
-test("add_client_update: a requested call is carmen_confirmed, attributed and counted", async () => {
-  const { supabase, calls } = fakeCardRpc({
-    campaignerUserId: CAMPAIGNER_USER,
-    ownerUserId: OWNER_USER,
-  });
-  const result = await addClientUpdateFromCarmen(supabase, {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "שיחה עם הלקוח על התקציב",
-    updateType: "call",
-    humanRequesterUserId: OWNER_USER,
-    surface: "whatsapp",
-    now: NOW,
-  });
-  assert.equal(result.success, true);
-  assert.equal(result.created, true);
-  assert.equal(result.source, "carmen_confirmed");
-  assert.equal(result.attributed_user_id, OWNER_USER);
-  assert.equal(result.attribution, "attributed");
-  assert.equal(result.counts_as_contact, true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "record_client_card_entry");
-  assert.equal(calls[0].args.p_attributed_user, OWNER_USER);
-  assert.equal(calls[0].args.p_counts_as_contact, true);
-  assert.equal(calls[0].args.p_update_type, "call");
-  assert.deepEqual(calls[0].args.p_metadata, {
-    tool: "add_client_update",
-    requested_by: OWNER_USER,
-    surface: "whatsapp",
-  });
-});
+Deno.test(
+  "add_client_update: a requested call is carmen_confirmed, attributed and counted",
+  async () => {
+    const { supabase, calls } = fakeCardRpc({
+      campaignerUserId: CAMPAIGNER_USER,
+      ownerUserId: OWNER_USER,
+    });
+    const result = await addClientUpdateFromCarmen(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "שיחה עם הלקוח על התקציב",
+      updateType: "call",
+      humanRequesterUserId: OWNER_USER,
+      surface: "whatsapp",
+      now: NOW,
+    });
+    assertStrictEquals(result.success, true);
+    assertStrictEquals(result.created, true);
+    assertStrictEquals(result.source, "carmen_confirmed");
+    assertStrictEquals(result.attributed_user_id, OWNER_USER);
+    assertStrictEquals(result.attribution, "attributed");
+    assertStrictEquals(result.counts_as_contact, true);
+    assertStrictEquals(calls.length, 1);
+    assertStrictEquals(calls[0].name, "record_client_card_entry");
+    assertStrictEquals(calls[0].args.p_attributed_user, OWNER_USER);
+    assertStrictEquals(calls[0].args.p_counts_as_contact, true);
+    assertStrictEquals(calls[0].args.p_update_type, "call");
+    assertEquals(calls[0].args.p_metadata, {
+      tool: "add_client_update",
+      requested_by: OWNER_USER,
+      surface: "whatsapp",
+    });
+  },
+);
 
-test("add_client_update: a background note falls back to the campaigner, then the owner", async () => {
-  const withCampaigner = fakeCardRpc({
-    campaignerUserId: CAMPAIGNER_USER,
-    ownerUserId: OWNER_USER,
-  });
-  const a = await addClientUpdateFromCarmen(withCampaigner.supabase, {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "הלקוח ביקש דוח חודשי",
-    now: NOW,
-  });
-  assert.equal(withCampaigner.calls[0].args.p_attributed_user, null);
-  assert.equal(withCampaigner.calls[0].args.p_source, "carmen");
-  assert.equal(a.attributed_user_id, CAMPAIGNER_USER);
-  assert.equal(a.attribution, "campaigner");
-  assert.equal(a.counts_as_contact, false);
+Deno.test(
+  "add_client_update: a background note falls back to the campaigner, then the owner",
+  async () => {
+    const withCampaigner = fakeCardRpc({
+      campaignerUserId: CAMPAIGNER_USER,
+      ownerUserId: OWNER_USER,
+    });
+    const a = await addClientUpdateFromCarmen(withCampaigner.supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "הלקוח ביקש דוח חודשי",
+      now: NOW,
+    });
+    assertStrictEquals(withCampaigner.calls[0].args.p_attributed_user, null);
+    assertStrictEquals(withCampaigner.calls[0].args.p_source, "carmen");
+    assertStrictEquals(a.attributed_user_id, CAMPAIGNER_USER);
+    assertStrictEquals(a.attribution, "campaigner");
+    assertStrictEquals(a.counts_as_contact, false);
 
-  const ownerOnly = fakeCardRpc({ ownerUserId: OWNER_USER });
-  const b = await addClientUpdateFromCarmen(ownerOnly.supabase, {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "הלקוח ביקש דוח חודשי",
-    now: NOW,
-  });
-  assert.equal(b.attributed_user_id, OWNER_USER);
-  assert.equal(b.attribution, "owner");
-});
+    const ownerOnly = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const b = await addClientUpdateFromCarmen(ownerOnly.supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "הלקוח ביקש דוח חודשי",
+      now: NOW,
+    });
+    assertStrictEquals(b.attributed_user_id, OWNER_USER);
+    assertStrictEquals(b.attribution, "owner");
+  },
+);
 
-test("add_client_update: a repeated call within the hour returns the first entry", async () => {
-  const { supabase, rows, calls } = fakeCardRpc({ ownerUserId: OWNER_USER });
-  const input = {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "דיברתי עם הלקוח",
-    updateType: "call",
-    humanRequesterUserId: CAMPAIGNER_USER,
-    now: NOW,
-  };
-  const first = await addClientUpdateFromCarmen(supabase, input);
-  const second = await addClientUpdateFromCarmen(supabase, {
-    ...input,
-    content: "  דיברתי עם הלקוח ",
-    now: new Date("2026-10-26T09:40:00Z"),
-  });
-  assert.equal(rows.length, 1);
-  assert.equal(calls[0].args.p_source_ref, calls[1].args.p_source_ref);
-  assert.equal(first.created, true);
-  assert.equal(second.created, false);
-  assert.equal(second.update_id, first.update_id);
-  assert.equal(typeof second.note, "string");
+Deno.test(
+  "add_client_update: a repeated call within the hour returns the first entry",
+  async () => {
+    const { supabase, rows, calls } = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const input = {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "דיברתי עם הלקוח",
+      updateType: "call",
+      humanRequesterUserId: CAMPAIGNER_USER,
+      now: NOW,
+    };
+    const first = await addClientUpdateFromCarmen(supabase, input);
+    const second = await addClientUpdateFromCarmen(supabase, {
+      ...input,
+      content: "  דיברתי עם הלקוח ",
+      now: new Date("2026-10-26T09:40:00Z"),
+    });
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(calls[0].args.p_source_ref, calls[1].args.p_source_ref);
+    assertStrictEquals(first.created, true);
+    assertStrictEquals(second.created, false);
+    assertStrictEquals(second.update_id, first.update_id);
+    assertStrictEquals(typeof second.note, "string");
 
-  const nextHour = await addClientUpdateFromCarmen(supabase, {
-    ...input,
-    now: new Date("2026-10-26T10:05:00Z"),
-  });
-  assert.equal(nextHour.created, true);
-  assert.equal(rows.length, 2);
-});
+    const nextHour = await addClientUpdateFromCarmen(supabase, {
+      ...input,
+      now: new Date("2026-10-26T10:05:00Z"),
+    });
+    assertStrictEquals(nextHour.created, true);
+    assertStrictEquals(rows.length, 2);
+  },
+);
 
-test("add_client_update: a client outside the tenant comes back as access_denied", async () => {
-  const { supabase } = fakeCardRpc({
-    error: { code: "42501", message: "client is not in tenant" },
-  });
-  const result = await addClientUpdateFromCarmen(supabase, {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "הערה",
-    now: NOW,
-  });
-  assert.deepEqual(result, {
-    success: false,
-    error: "access_denied",
-    message: "client is not in tenant",
-  });
-});
+Deno.test(
+  "add_client_update: a client outside the tenant comes back as access_denied",
+  async () => {
+    const { supabase } = fakeCardRpc({
+      error: { code: "42501", message: "client is not in tenant" },
+    });
+    const result = await addClientUpdateFromCarmen(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "הערה",
+      now: NOW,
+    });
+    assertEquals(result, {
+      success: false,
+      error: "access_denied",
+      message: "client is not in tenant",
+    });
+  },
+);
 
-test("health card entries are source carmen, deduped per hour and mood", async () => {
-  const { supabase, calls, rows } = fakeCardRpc({
-    campaignerUserId: CAMPAIGNER_USER,
-  });
-  const input = {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    note: "עלייה בעלות לליד",
-    moodStatus: "wavering",
-    requesterUserId: "system",
-    tool: "update_client_health" as const,
-    now: NOW,
-  };
-  const entry = await recordCarmenHealthCardEntry(supabase, input);
-  await recordCarmenHealthCardEntry(supabase, input);
-  await recordCarmenHealthCardEntry(supabase, {
-    ...input,
-    moodStatus: "churn_risk",
-  });
-  assert.equal(entry.attribution, "campaigner");
-  assert.equal(calls[0].args.p_source, "carmen");
-  assert.equal(calls[0].args.p_attributed_user, null);
-  assert.equal(
-    calls[0].args.p_content,
-    "[עדכון אוטומטי - כרמן] עלייה בעלות לליד",
-  );
-  assert.equal(calls[0].args.p_counts_as_contact, null);
-  assert.equal(rows.length, 2);
-});
+Deno.test(
+  "health card entries are source carmen, deduped per hour and mood",
+  async () => {
+    const { supabase, calls, rows } = fakeCardRpc({
+      campaignerUserId: CAMPAIGNER_USER,
+    });
+    const input = {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      note: "עלייה בעלות לליד",
+      moodStatus: "wavering",
+      requesterUserId: "system",
+      tool: "update_client_health" as const,
+      now: NOW,
+    };
+    const entry = await recordCarmenHealthCardEntry(supabase, input);
+    await recordCarmenHealthCardEntry(supabase, input);
+    await recordCarmenHealthCardEntry(supabase, {
+      ...input,
+      moodStatus: "churn_risk",
+    });
+    assertStrictEquals(entry.attribution, "campaigner");
+    assertStrictEquals(calls[0].args.p_source, "carmen");
+    assertStrictEquals(calls[0].args.p_attributed_user, null);
+    assertStrictEquals(
+      calls[0].args.p_content,
+      "[עדכון אוטומטי - כרמן] עלייה בעלות לליד",
+    );
+    assertStrictEquals(calls[0].args.p_counts_as_contact, null);
+    assertStrictEquals(rows.length, 2);
+  },
+);
