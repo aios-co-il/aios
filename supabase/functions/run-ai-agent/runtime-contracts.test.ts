@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
+import { crmRecordDay } from "./tool-contracts-crm.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 
 function response(value: unknown, status = 200) {
@@ -93,4 +94,19 @@ test("errorMessage reads message from errors and error-like objects", () => {
   assert.equal(errorMessage("plain string"), undefined);
   assert.equal(errorMessage(null), undefined);
   assert.equal(errorMessage({ code: 1 }), undefined);
+});
+
+test("crmRecordDay keeps string dates and drops non-string ones", () => {
+  assert.equal(crmRecordDay({ date: "2026-10-01", spend: 3 }), "2026-10-01");
+  for (const data of [
+    { date: "" },
+    { date: 20261001 },
+    { date: null },
+    { spend: 3 },
+    ["2026-10-01"],
+    "2026-10-01",
+    null,
+  ]) {
+    assert.equal(crmRecordDay(data), null);
+  }
 });
