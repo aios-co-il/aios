@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Building2, Loader2, ShieldCheck } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { resolveAppHomePath } from "@/lib/appHomePath";
+import { readErrorMessage } from "@/lib/pageTypeGuards";
 
 const signUpSchema = z
   .object({
@@ -129,9 +130,9 @@ export default function SignUp() {
       } else {
         navigate("/auth", { replace: true });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Signup error:", error);
-      toast.error(error.message || "שגיאה ביצירת החשבון");
+      toast.error(readErrorMessage(error) || "שגיאה ביצירת החשבון");
     } finally {
       setIsLoading(false);
     }

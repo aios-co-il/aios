@@ -23,6 +23,19 @@ import { useUserAgencies } from "@/hooks/useUserAgencies";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
+interface SupplierPaymentRow {
+  id: string;
+  date: string;
+  type: "expense";
+  amount: number;
+  category: string;
+  agency_id: string | null;
+  agencies: { name: string } | null;
+  suppliers: { name: string };
+  clients: null;
+  isSupplierPayment: true;
+}
+
 export default function Finance() {
   const { selectedAgency } = useAgency();
   const { tenantId } = useCurrentTenant();
@@ -102,10 +115,30 @@ export default function Finance() {
 
       if (error) throw error;
 
-      const rows: any[] = [];
-      data?.forEach((s: any) => {
-        [1, 2, 3].forEach((i) => {
-          const amount = Number(s[`payment_${i}`] || 0);
+      const rows: SupplierPaymentRow[] = [];
+      data?.forEach((s) => {
+        const slots = [
+          {
+            i: 1,
+            payment: s.payment_1,
+            agencyId: s.agency_id_1,
+            agency: s.agency_1,
+          },
+          {
+            i: 2,
+            payment: s.payment_2,
+            agencyId: s.agency_id_2,
+            agency: s.agency_2,
+          },
+          {
+            i: 3,
+            payment: s.payment_3,
+            agencyId: s.agency_id_3,
+            agency: s.agency_3,
+          },
+        ];
+        slots.forEach(({ i, payment, agencyId, agency }) => {
+          const amount = Number(payment || 0);
           if (amount > 0) {
             rows.push({
               id: `supplier-${s.id}-${i}`,
@@ -113,8 +146,8 @@ export default function Finance() {
               type: "expense",
               amount,
               category: "תשלום ספק",
-              agency_id: s[`agency_id_${i}`],
-              agencies: s[`agency_${i}`],
+              agency_id: agencyId,
+              agencies: agency,
               suppliers: { name: s.name },
               clients: null,
               isSupplierPayment: true,
@@ -176,8 +209,8 @@ export default function Finance() {
     if (isCampaigner && !isTeamManager) {
       accessibleSupplierRows = [];
     } else if (userAgencyIds && userAgencyIds.length > 0) {
-      accessibleSupplierRows = supplierPaymentRows?.filter((r) =>
-        userAgencyIds.includes(r.agency_id),
+      accessibleSupplierRows = supplierPaymentRows?.filter(
+        (r) => r.agency_id !== null && userAgencyIds.includes(r.agency_id),
       );
     }
   }

@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   ArrowRight,
   Brain,
@@ -171,7 +172,7 @@ export default function LLMSettings({
         return integration.id; // nothing new typed
       }
 
-      const payload: any = {
+      const payload: TablesInsert<"tenant_integrations"> = {
         tenant_id: tenantId,
         user_id: userId,
         integration_type: "llm",
