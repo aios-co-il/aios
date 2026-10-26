@@ -722,6 +722,7 @@ async function ensureStillPage(
   const { data: existing } = await supabase
     .from("workshop_artifacts")
     .select("id")
+    .eq("tenant_id", tenantId)
     .eq("ref_table", "marketing_assets")
     .eq("ref_id", assetId)
     .maybeSingle();
@@ -1336,6 +1337,7 @@ export async function executeWorkshopTool(
         .from("clients")
         .select("website")
         .eq("id", project.client_id)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       wanted = String(client.data?.website ?? "").trim();
     }
@@ -1381,23 +1383,23 @@ export async function executeWorkshopTool(
         social: report.social,
       },
     };
-    if (existing) {
-      await supabase
-        .from("workshop_assets")
-        .update({ text: summary, meta })
-        .eq("id", existing.id);
-    } else {
-      await supabase.from("workshop_assets").insert({
-        tenant_id: tenantId,
-        item_id: itemId,
-        asset_type: "site",
-        source: "carmen",
-        title: `האתר · ${hostLabel(report.url)}`,
-        url: report.url,
-        text: summary,
-        meta,
-      });
-    }
+    const savedSite = existing
+      ? await supabase
+          .from("workshop_assets")
+          .update({ text: summary, meta })
+          .eq("id", existing.id)
+          .eq("tenant_id", tenantId)
+      : await supabase.from("workshop_assets").insert({
+          tenant_id: tenantId,
+          item_id: itemId,
+          asset_type: "site",
+          source: "carmen",
+          title: `האתר · ${hostLabel(report.url)}`,
+          url: report.url,
+          text: summary,
+          meta,
+        });
+    if (savedSite.error) return { error: savedSite.error.message };
     let applied = false;
     const brand = asRecord(project.payload.brand_book);
     const nextPayload: Record<string, unknown> = { ...project.payload };
@@ -1483,7 +1485,7 @@ export async function executeWorkshopTool(
           failed.push({ reason: "טקסט ריק" });
           continue;
         }
-        await supabase.from("workshop_assets").insert({
+        const savedText = await supabase.from("workshop_assets").insert({
           tenant_id: tenantId,
           item_id: itemId,
           asset_type: "text",
@@ -1491,6 +1493,13 @@ export async function executeWorkshopTool(
           title: title || "בריף",
           text,
         });
+        if (savedText.error) {
+          failed.push({
+            url: title || "בריף",
+            reason: savedText.error.message,
+          });
+          continue;
+        }
         added.push({ title: title || "בריף", type: "text" });
         continue;
       }
@@ -1500,7 +1509,7 @@ export async function executeWorkshopTool(
       }
       if (kind === "link") {
         if (!byUrl.has(url)) {
-          await supabase.from("workshop_assets").insert({
+          const savedLink = await supabase.from("workshop_assets").insert({
             tenant_id: tenantId,
             item_id: itemId,
             asset_type: "link",
@@ -1508,6 +1517,10 @@ export async function executeWorkshopTool(
             title: title || hostLabel(url),
             url,
           });
+          if (savedLink.error) {
+            failed.push({ url, reason: savedLink.error.message });
+            continue;
+          }
           added.push({ title: title || hostLabel(url), type: "link" });
         }
         continue;
@@ -1522,11 +1535,13 @@ export async function executeWorkshopTool(
       const known = byUrl.get(url);
       if (known) {
         if (wantsReference && !known.use_as_reference) {
-          await supabase
+          const marked = await supabase
             .from("workshop_assets")
             .update({ use_as_reference: true })
-            .eq("id", known.id);
-          referenceCount += 1;
+            .eq("id", known.id)
+            .eq("tenant_id", tenantId);
+          if (marked.error) failed.push({ url, reason: marked.error.message });
+          else referenceCount += 1;
         }
         continue;
       }
@@ -1539,7 +1554,7 @@ export async function executeWorkshopTool(
         failed.push({ url, reason: imported.error ?? "התמונה לא נקראה" });
         continue;
       }
-      await supabase.from("workshop_assets").insert({
+      const savedImage = await supabase.from("workshop_assets").insert({
         tenant_id: tenantId,
         item_id: itemId,
         asset_type: "image",
@@ -1550,6 +1565,10 @@ export async function executeWorkshopTool(
         use_as_reference: wantsReference,
         meta: { imported_from: url },
       });
+      if (savedImage.error) {
+        failed.push({ url, reason: savedImage.error.message });
+        continue;
+      }
       if (wantsReference) referenceCount += 1;
       added.push({ title: title || hostLabel(url), type: "image" });
     }
@@ -1606,6 +1625,7 @@ export async function executeWorkshopTool(
             .from("clients")
             .select("id, name, website")
             .eq("id", item.data.client_id)
+            .eq("tenant_id", tenantId)
             .maybeSingle()
         ).data
       : null;

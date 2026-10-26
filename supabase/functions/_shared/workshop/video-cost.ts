@@ -351,9 +351,7 @@ export async function sceneEngineFor(
   if (connections.openrouter) return "openrouter";
   const fallback: SceneEngine = higgsfieldReady(settings)
     ? "higgsfield"
-    : connections.openrouter
-      ? "openrouter"
-      : "mock";
+    : "mock";
   const elevenKey = hasKey(settings, "elevenlabs_api_key")
     ? String(settings.elevenlabs_api_key).trim()
     : "";

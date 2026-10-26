@@ -4,8 +4,9 @@
  * runtime's CPU limit, which killed the chat mid-turn. run-ai-agent calls this with the service
  * role key after it has checked the caller's access to the tenant.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { makeAdImage } from "../_shared/creative/ad-image.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
     /^Bearer\s+/i,
     "",
   );
-  if (!serviceKey || token !== serviceKey)
+  if (!serviceKey || !timingSafeEqualStr(token, serviceKey))
     return json({ error: "Unauthorized" }, 401);
   const body = await req.json().catch(() => null);
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
@@ -29,9 +30,7 @@ Deno.serve(async (req) => {
       { success: false, error: "tenant_id and prompt are required" },
       400,
     );
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {
-    auth: { persistSession: false },
-  });
+  const supabase = serviceClient();
   try {
     return json(
       await makeAdImage(supabase, tenantId, {
@@ -42,6 +41,9 @@ Deno.serve(async (req) => {
       }),
     );
   } catch (error) {
+    // The message is the engine's own reason (plan, key, credits); only run-ai-agent, which
+    // holds the service key, can read it, and it is how Carmen explains a refusal.
+    console.error("workshop-image failed", error);
     return json(
       {
         success: false,
