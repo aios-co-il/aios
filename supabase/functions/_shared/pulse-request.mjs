@@ -5,6 +5,18 @@ export function hasPulseIntent(text) {
   );
 }
 
+// "רענני דופק", "דופק עדכני", the voice "בדיקת דופק מלאה ועדכנית": the caller
+// wants the pulse recomputed now (refresh_campaign_pulse), not the stored one.
+export function isPulseRefreshRequest(text) {
+  const value = String(text || "");
+  return (
+    hasPulseIntent(value) &&
+    /רענ[ןנו]|ריענון|עדכני|מעודכ[ןנ]|בזמן\s*אמת|מחדש|\brefresh|\bup[\s-]*to[\s-]*date\b|\bfresh\b/iu.test(
+      value,
+    )
+  );
+}
+
 export function isCachedPulseRequest(text) {
   // Only unqualified summary requests may bypass the model with empty tool args.
   // Client filters, analysis, refresh and send instructions need normal routing.

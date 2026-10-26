@@ -125,7 +125,7 @@
 מאומת שחסר ב-`run-ai-agent` (grep):
 
 - **אימייל:** אין שליחת מייל (יש רק זימון יומן). מנכ"לית צריכה `send_email` (Gmail).
-- **איקומרס:** סקין `ecommerce_pulse` מפנה ל-`list_shopify_orders`/`list_woocommerce_orders` — **לא קיימים**.
+- **איקומרס:** סקין `ecommerce_pulse` מפנה ל-`list_shopify_orders`/`list_woocommerce_orders` — **לא קיימים**. (AIO-237: הסקין כבר לא מפנה אליהם ועובד מהדופק; כלי הזמנות עדיין חסרים.)
 - **SEO:** Ahrefs מוזכר בסקינז — **לא מחווט** (רק Maskyoo calls).
 - **אנליטיקס:** GSC / web-analytics מוזכרים — לא מחווטים.
 - **תוכן:** Gamma / higgsfield / וידאו מוזכרים — לא מחווטים.

@@ -17,6 +17,10 @@ import {
   DEV_ENVIRONMENT_STANDING,
   DEV_ENVIRONMENT_TRIGGERS,
 } from "../environments-standing.ts";
+import {
+  ECOMMERCE_PULSE_SKILL_ROW,
+  PULSE_CHECK_SKILL_ROW,
+} from "../carmen-pulse-rules.mjs";
 
 export interface CarmenSkill {
   id: string;
@@ -45,35 +49,38 @@ interface DbSkillRow {
 
 // ────────── Hardcoded fallbacks (used only if DB read fails) ──────────
 
-const FALLBACK_PULSE_CHECK: CarmenSkill = {
-  id: "pulse_check",
-  triggers: [
-    /בדיקת\s*דופק/,
-    /בדיקת\s*דוח/,
-    /סיכום\s*קמפיינים/,
-    /מצב\s*קמפיינים/,
-    /\bpulse\s*check\b/i,
-  ],
-  tools: ["get_latest_campaign_pulse"],
-  prompt:
-    "=== סקיל: בדיקת דופק ===\nחובה לקרוא ל-get_latest_campaign_pulse. בוואטסאפ החזירי רק whatsapp_digest (סיכום + קישור לדשבורד) — אסור טבלת Markdown או פירוט לקוחות. לקמפיינרים הכלי מסנן אוטומטית ללקוחות משויכים ב-client_team. בדשבורד הפנימי מותר formatted_markdown. אסור לחשב בדיקה חדשה או להשלים נתונים מהזיכרון. אם אין Snapshot — אמרי שאין בדיקת דופק זמינה.",
-  source: "fallback",
-};
-const FALLBACK_ECOMMERCE: CarmenSkill = {
-  id: "ecommerce_pulse",
-  triggers: [
-    /איקומרס/,
-    /ecommerce/i,
-    /e-commerce/i,
-    /רכישות/,
-    /\broas\b/i,
-    /\bcpp\b/i,
-  ],
-  tools: ["analyze_campaign_performance", "check_ad_accounts_health"],
-  prompt:
-    "=== סקיל: בדיקת דופק איקומרס ===\nללקוחות is_ecommerce=true: רכישות, CPP, רווח, ROAS — לא CPL.",
-  source: "fallback",
-};
+// pulse_check and ecommerce_pulse share their text with the global ai_skills
+// rows written by migration 20261026131000 and with Carmen's pulse-rules block
+// (carmen-pulse-rules.mjs), so the fallback renders exactly like the DB row.
+function fallbackFromSkillRow(row: {
+  slug: string;
+  goal: string | null;
+  system_prompt: string | null;
+  constraints: string | null;
+  steps: string | null;
+  output_template: string | null;
+  allowed_tools: readonly string[];
+  triggers: readonly string[];
+}): CarmenSkill {
+  const skill = rowToSkill({
+    ...row,
+    allowed_tools: [...row.allowed_tools],
+    triggers: [...row.triggers],
+    trigger_phrases: [],
+    handoff_slugs: [],
+    version: 0,
+    scope: "global",
+    tenant_id: null,
+  });
+  return { ...skill, version: undefined, source: "fallback" };
+}
+
+const FALLBACK_PULSE_CHECK: CarmenSkill = fallbackFromSkillRow(
+  PULSE_CHECK_SKILL_ROW,
+);
+const FALLBACK_ECOMMERCE: CarmenSkill = fallbackFromSkillRow(
+  ECOMMERCE_PULSE_SKILL_ROW,
+);
 const FALLBACK_RETENTION: CarmenSkill = {
   id: "client_retention_scan",
   triggers: [

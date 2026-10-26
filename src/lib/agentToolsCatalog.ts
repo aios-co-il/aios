@@ -51,6 +51,16 @@ export const AGENT_TOOLS_CATALOG: AgentToolEntry[] = [
     group: "דוחות",
   },
   {
+    name: "get_latest_campaign_pulse",
+    label: "בדיקת דופק שמורה",
+    group: "דוחות",
+  },
+  {
+    name: "refresh_campaign_pulse",
+    label: "רענון בדיקת דופק",
+    group: "דוחות",
+  },
+  {
     name: "analyze_facebook_campaign",
     label: "ניתוח קמפיין FB",
     group: "פייסבוק",

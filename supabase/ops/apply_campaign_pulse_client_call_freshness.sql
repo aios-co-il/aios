@@ -76,6 +76,9 @@ SET update_type = 'call',
 WHERE update_type = 'weekly_update'
   AND public.client_update_documents_phone_call(content);
 
+-- Superseded (AIO-237): migration 20261026131000_carmen_pulse_refresh.sql owns
+-- the global pulse_check text now. Re-running this UPDATE would put back the
+-- old "never refresh" rule; skip it.
 UPDATE public.ai_skills
 SET
   system_prompt = $$הציגי רק את בדיקת הדופק האחרונה שכבר חושבה ונשמרה. חובה לקרוא ל-get_latest_campaign_pulse.

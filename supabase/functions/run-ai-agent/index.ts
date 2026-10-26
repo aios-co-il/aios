@@ -29,7 +29,18 @@ import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
-import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
+import {
+  isCachedPulseRequest,
+  isPulseRefreshRequest,
+} from "../_shared/pulse-request.mjs";
+import {
+  appendCarmenPulseRules,
+  CARMEN_PULSE_RULES_VERSION,
+} from "../_shared/carmen-pulse-rules.mjs";
+import {
+  createPulseRefreshDeps,
+  runCampaignPulseRefresh,
+} from "../_shared/carmen-pulse-refresh.mjs";
 import {
   classifyDirectTool,
   directToolPool,
@@ -777,6 +788,8 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  // Carmen refreshes the pulse in chat (AIO-237).
+  "refresh_campaign_pulse",
   ...NATIVE_DEV_TASK_TOOLS,
 ]);
 
@@ -1883,7 +1896,7 @@ const ALL_TOOLS = [
   {
     name: "get_latest_campaign_pulse",
     description:
-      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
+      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. לבדיקת דופק עדכנית — refresh_campaign_pulse. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
     parameters: {
       type: "object",
       properties: {
@@ -1895,6 +1908,21 @@ const ALL_TOOLS = [
           type: "string",
           enum: ["healthy", "warning", "critical", "no_data"],
         },
+      },
+    },
+  },
+  {
+    name: "refresh_campaign_pulse",
+    description:
+      'רענון בדיקת הדופק: מחשב מחדש את הדופק של הארגון מהנתונים שכבר סונכרנו ומחזיר אותו כמו get_latest_campaign_pulse, עם refresh_note. לא שולח הודעות ולא מריץ סנכרון מול Meta או Google. מרענן לכל היותר פעם ב-10 דקות לארגון; אחרת מחזיר את הבדיקה הקיימת. לבקשות כמו "רענני דופק", "דופק עדכני", "בדיקת דופק מלאה ועדכנית".',
+    parameters: {
+      type: "object",
+      properties: {
+        client_id: {
+          type: "string",
+          description: "לקוח אחד (רק לקוח שמותר למשתמש לראות)",
+        },
+        client_name: { type: "string", description: "חיפוש חלקי בשם הלקוח" },
       },
     },
   },
@@ -7591,6 +7619,53 @@ async function executeTool(
         instructions_to_agent:
           "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
+    }
+    case "refresh_campaign_pulse": {
+      // AIO-237: recompute this tenant's snapshot (no digest, no instant
+      // alerts, rate-limited), then answer like get_latest_campaign_pulse.
+      const pulseArgs = {
+        client_id: args.client_id || undefined,
+        client_name: args.client_name || undefined,
+      };
+      return await runCampaignPulseRefresh(
+        { tenantId, clientId: args.client_id },
+        {
+          ...createPulseRefreshDeps({
+            supabase,
+            tenantId,
+            requestedBy: actorUserId,
+            supabaseUrl: Deno.env.get("SUPABASE_URL"),
+            serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+          }),
+          assertClientVisible: async (clientId: string) => {
+            // Managers skip assertCallerCanAccessClient's tenant check.
+            const { data: client } = await supabase
+              .from("clients")
+              .select("id")
+              .eq("id", clientId)
+              .in("tenant_id", accessibleTenantIds)
+              .maybeSingle();
+            if (!client) throw new Error("הלקוח לא נמצא או מחוץ להרשאה שלך");
+            await assertCallerCanAccessClient(supabase, clientId, callerScope);
+          },
+          loadPulse: () =>
+            executeTool(
+              "get_latest_campaign_pulse",
+              pulseArgs,
+              supabase,
+              tenantId,
+              userId,
+              callerCampaignerId,
+              agentId,
+              callerRole,
+              callerManagedAgencyIds,
+              callerPhone,
+              waNotify,
+              surface,
+              conversationId,
+            ),
+        },
+      );
     }
     case "analyze_campaign_performance": {
       // 1. Resolve scope -> list of target clients (active+onboarding)
@@ -14109,7 +14184,7 @@ async function handleRunAgent(
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${isCarmen ? CARMEN_PULSE_RULES_VERSION : "none"}`,
     );
     if (shouldUseV2Prompt(agent)) {
       // Build V2 prompt using the new modular builder
@@ -14821,14 +14896,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 • תשובות קצרות לשאלות פשוטות נשארות קצרות — טבלה רק כשיש באמת נתונים טבלאיים.`;
     }
 
-    // WhatsApp / scheduled tasks: pulse must stay short (counts + dashboard link).
-    if (isCarmen && (surface === "whatsapp" || surface === "task")) {
-      systemPrompt += `\n\n📱 === בדיקת דופק בוואטסאפ (חובה) ===
-• בקשה ל"בדיקת דופק" / "דופק" / "מצב קמפיינים" — חובה get_latest_campaign_pulse בלבד.
-• אחרי הכלי — החזירי את whatsapp_digest כלשונו, כולל בלוק "🔴 דורש טיפול" כשיש ושורת הקישור לדשבורד. בלי הקדמה, בלי סיכום נוסף.
-• "בדיקת תקינות מערכות וקמפיינים" זה דוח אחר (health probe) — לא בדיקת דופק. אל תערבבי ביניהם.
-• אסור טבלת Markdown, אסור "בדיקת דופק אחרונה — חושבה ב־…" + פירוט לקוחות, אסור להמציא שורות מה-rows.`;
-    }
+    // Versioned pulse rules (AIO-237), appended after the V1/V2 prompt so they
+    // reach V1 with an empty or custom system_prompt and V2 alike. On WhatsApp
+    // and scheduled tasks the block also keeps the pulse to the short digest.
+    systemPrompt = appendCarmenPulseRules(systemPrompt, { isCarmen, surface });
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
@@ -14864,6 +14935,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Only unqualified summaries use empty tool args; scoped requests must
     // retain their client/agency filters through normal tool routing.
     const isStoredPulseRequest = !pinSkillsOnly && isCachedPulseRequest(cmd);
+    // "רענני דופק" / "דופק עדכני" / the voice "בדיקת דופק מלאה ועדכנית" (AIO-237).
+    const isPulseRefreshCommand =
+      isCarmen && !pinSkillsOnly && isPulseRefreshRequest(cmd);
     const userAskedBackground =
       /\b(ברקע|תמשיכ[יה]\s+לבד|background|אל\s+תחכ[יה]|תעדכנ[יה]\s+אחר[\s-]?כך|תרוצ[יה]\s+ברקע)\b/i.test(
         cmd,
@@ -15643,6 +15717,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
         if (
           round === 0 &&
+          isPulseRefreshCommand &&
+          cappedTools.some(
+            (t: any) => t.function?.name === "refresh_campaign_pulse",
+          )
+        ) {
+          payload.tool_choice = {
+            type: "function",
+            function: { name: "refresh_campaign_pulse" },
+          };
+        }
+        if (
+          round === 0 &&
           extractMeetingUrl(String(command_text || "")) &&
           cappedTools.some(
             (t: any) => t.function?.name === "join_meeting_for_client",
@@ -15875,6 +15961,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           result.whatsapp_digest.trim()
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
+        }
+        if (
+          round === 0 &&
+          toolName === "refresh_campaign_pulse" &&
+          isPulseRefreshCommand &&
+          pulseSurfacePrefersWhatsAppDigest(surface) &&
+          typeof result?.whatsapp_digest === "string" &&
+          result.whatsapp_digest.trim()
+        ) {
+          pulseDigestShortcut = [result.refresh_note, result.whatsapp_digest]
+            .filter((part: unknown) => typeof part === "string" && part.trim())
+            .map((part: string) => part.trim())
+            .join("\n\n");
         }
       }
 
