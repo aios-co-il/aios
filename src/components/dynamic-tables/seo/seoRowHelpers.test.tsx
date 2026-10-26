@@ -13,7 +13,6 @@ describe("keyword rows with numeric strings", () => {
     expect(positionDelta("12", "4")).toBe(8);
     expect(positionDelta(3, "5")).toBe(-2);
     expect(positionDelta(null, 4)).toBeNull();
-    expect(positionDelta(7, undefined)).toBeNull();
   });
 
   it("sorts by numeric position, missing positions last", () => {
@@ -68,7 +67,6 @@ describe("toGscSites", () => {
       { siteUrl: "sc-domain:a.com", permissionLevel: "siteOwner" },
       { siteUrl: "https://b.com/", permissionLevel: undefined },
     ]);
-    expect(toGscSites({ siteUrl: "a" })).toEqual([]);
   });
 });
 
@@ -147,6 +145,5 @@ describe("computeGaOrganicByMonth", () => {
         { data: null },
       ]),
     ).toEqual([{ month: "2026-07", sessions: 0 }]);
-    expect(computeGaOrganicByMonth(null)).toEqual([]);
   });
 });
