@@ -6,6 +6,8 @@ import {
 import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { readImageGenerationPayload } from "./image-generation-payload.ts";
+import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
@@ -117,5 +119,59 @@ Deno.test(
     assertStrictEquals(errorMessage("plain string"), undefined);
     assertStrictEquals(errorMessage(null), undefined);
     assertStrictEquals(errorMessage({ code: 1 }), undefined);
+  },
+);
+
+Deno.test(
+  "image provider payloads expose only the fields generate_ad_image reads",
+  () => {
+    assertEquals(
+      readImageGenerationPayload({ data: [{ b64_json: "aGk=" }], created: 1 }),
+      { content: "", b64Json: "aGk=", inlineParts: [] },
+    );
+    assertEquals(
+      readImageGenerationPayload({
+        choices: [
+          {
+            message: {
+              content: "done",
+              parts: [
+                { text: "no image" },
+                { inline_data: null },
+                { inline_data: { data: "aGk=", mime_type: "image/jpeg" } },
+              ],
+            },
+          },
+        ],
+      }),
+      {
+        content: "done",
+        b64Json: "",
+        inlineParts: [{ data: "aGk=", mime_type: "image/jpeg" }],
+      },
+    );
+    for (const malformed of [null, "x", [], { data: [{ b64_json: 7 }] }]) {
+      assertEquals(readImageGenerationPayload(malformed), {
+        content: "",
+        b64Json: "",
+        inlineParts: [],
+      });
+    }
+  },
+);
+
+Deno.test(
+  "Meta lead form question input reads type and label from objects only",
+  () => {
+    assertEquals(
+      readMetaLeadQuestionInput({ type: "custom", label: "Budget", x: 1 }),
+      { type: "custom", label: "Budget" },
+    );
+    assertEquals(readMetaLeadQuestionInput({ type: "EMAIL" }), {
+      type: "EMAIL",
+      label: undefined,
+    });
+    assertEquals(readMetaLeadQuestionInput("EMAIL"), {});
+    assertEquals(readMetaLeadQuestionInput(null), {});
   },
 );
