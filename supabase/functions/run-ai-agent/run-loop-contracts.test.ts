@@ -14,6 +14,16 @@ import {
   parseRunAgentRequest,
   readConversationTurns,
 } from "./run-request.ts";
+import {
+  argEnum,
+  argNullableNumber,
+  argNullableString,
+  argNumber,
+  argObject,
+  argString,
+  argStringArray,
+  requireArgString,
+} from "./tool-args.ts";
 
 test("request body keeps typed fields and treats wrongly typed values as absent", () => {
   const body = parseRunAgentRequest({
@@ -185,4 +195,49 @@ test("readWaNotifyTarget keeps complete WhatsApp targets and drops malformed one
   assert.equal(readWaNotifyTarget({ ...target, surface: "email" }), null);
   assert.equal(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
   assert.equal(readWaNotifyTarget(["x"]), null);
+});
+
+const toolArgs = {
+  id: "c1",
+  count: 7,
+  quoted: " 12 ",
+  blank: "",
+  word: "abc",
+  flag: true,
+  cleared: null,
+  tags: ["a", 2, "b"],
+  nested: { k: 1 },
+  list: [1],
+};
+
+test("tool args read strings and numbers the way the old coercions did", () => {
+  assert.equal(argString(toolArgs, "id"), "c1");
+  assert.equal(argString(toolArgs, "count"), "7");
+  assert.equal(argString(toolArgs, "flag"), undefined);
+  assert.equal(argString(toolArgs, "missing"), undefined);
+  assert.equal(requireArgString(toolArgs, "blank"), "");
+  assert.throws(
+    () => requireArgString(toolArgs, "nested"),
+    /nested is required/,
+  );
+  assert.equal(argNumber(toolArgs, "count"), 7);
+  assert.equal(argNumber(toolArgs, "quoted"), 12);
+  assert.equal(argNumber(toolArgs, "blank"), undefined);
+  assert.equal(argNumber(toolArgs, "word"), undefined);
+  assert.equal(argNullableString(toolArgs, "cleared"), null);
+  assert.equal(argNullableNumber(toolArgs, "cleared"), null);
+  assert.equal(argNullableString(toolArgs, "missing"), undefined);
+});
+
+test("tool args narrow arrays, objects and enums", () => {
+  assert.deepEqual(argStringArray(toolArgs, "tags"), ["a", "b"]);
+  assert.equal(argStringArray(toolArgs, "id"), undefined);
+  assert.deepEqual(argObject(toolArgs, "nested"), { k: 1 });
+  assert.equal(argObject(toolArgs, "list"), undefined);
+  assert.equal(argObject(toolArgs, "cleared"), undefined);
+  const statuses = ["open", "done"] as const;
+  assert.equal(argEnum({ s: "done" }, "s", statuses), "done");
+  assert.equal(argEnum({ s: "" }, "s", statuses), undefined);
+  assert.equal(argEnum({}, "s", statuses), undefined);
+  assert.throws(() => argEnum({ s: "x" }, "s", statuses), /open, done/);
 });

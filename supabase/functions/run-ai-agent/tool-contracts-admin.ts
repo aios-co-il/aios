@@ -83,3 +83,28 @@ export function automationStepArg(value: unknown): AutomationStepArg {
     label: readField(value, "label"),
   };
 }
+
+export type SuccessCriterionArg = {
+  key?: string;
+  description: string;
+  required?: boolean;
+  verification_type?: string;
+  evidence_required?: string;
+};
+
+const optionalOf = (value: unknown, type: "string" | "boolean") =>
+  value === undefined || typeof value === type;
+
+/** LLM-supplied success criterion; extra fields (e.g. verification_config) are kept as sent. */
+export function isSuccessCriterionArg(
+  value: unknown,
+): value is SuccessCriterionArg {
+  return (
+    isObject(value) &&
+    typeof readField(value, "description") === "string" &&
+    optionalOf(readField(value, "key"), "string") &&
+    optionalOf(readField(value, "required"), "boolean") &&
+    optionalOf(readField(value, "verification_type"), "string") &&
+    optionalOf(readField(value, "evidence_required"), "string")
+  );
+}
