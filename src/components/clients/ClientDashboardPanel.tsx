@@ -36,7 +36,7 @@ import {
   waitForSnapshotReady,
   type SyncableReportTable,
 } from "@/lib/reportSync";
-import { errorMessage } from "@/lib/dynamic-tables-b17";
+import { errorMessage } from "@/lib/jsonReaders";
 import { downloadReportPdf } from "@/lib/reportPdf";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 

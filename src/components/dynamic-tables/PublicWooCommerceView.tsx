@@ -1,5 +1,5 @@
 import type { Json } from "@/integrations/supabase/types";
-import { asJsonArray, asJsonObject } from "@/lib/dynamic-tables-b17";
+import { asJsonArray, asJsonObject } from "@/lib/jsonReaders";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, TrendingUp, Package, Users } from "lucide-react";

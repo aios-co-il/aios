@@ -19,10 +19,10 @@ import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import {
   asJsonArray,
   asJsonObject,
+  type JsonObject,
   readField,
   readString,
-  type JsonObject,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
 
 interface CategoryTable {
   id: string;

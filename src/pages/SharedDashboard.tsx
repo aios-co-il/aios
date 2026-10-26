@@ -1,10 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import {
-  jsonText,
-  type CrmTableIntegrationSettings,
-  type JsonObject,
-} from "@/lib/dynamic-tables-b19";
-import type { SharedDashboardPayload } from "@/lib/shared-dashboard-b19";
+import { type JsonObject, readString } from "@/lib/jsonReaders";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
+import type { SharedDashboardPayload } from "@/lib/sharedDashboardPayload";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1340,7 +1337,7 @@ export default function SharedDashboard({
   const analyticsReportMode = useMemo(
     () =>
       resolveAnalyticsReportMode({
-        dashboardMode: jsonText(
+        dashboardMode: readString(
           data?.dashboard?.settings,
           "default_report_mode",
         ),

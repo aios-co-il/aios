@@ -2,13 +2,13 @@ import type { Json } from "@/integrations/supabase/types";
 import {
   asJsonArray,
   asJsonObject,
+  type JsonObject,
   readDateInput,
   readField,
   readString,
   readText,
-  type JsonObject,
-  type SeoReportRow,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
+import type { SeoReportRow } from "@/lib/dynamicTableTypes";
 import { useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent } from "@/components/ui/card";

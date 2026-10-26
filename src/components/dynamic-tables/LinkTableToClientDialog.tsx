@@ -1,4 +1,4 @@
-import { readField } from "@/lib/dynamic-tables-b17";
+import { readField } from "@/lib/jsonReaders";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

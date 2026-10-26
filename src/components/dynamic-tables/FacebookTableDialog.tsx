@@ -1,4 +1,4 @@
-import { errorMessage, readString, readText } from "@/lib/dynamic-tables-b17";
+import { errorMessage, readString, readText } from "@/lib/jsonReaders";
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

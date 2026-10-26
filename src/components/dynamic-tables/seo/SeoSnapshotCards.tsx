@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { keywordTop20Rank } from "@/lib/gscPosition";
-import type { JsonObject } from "@/types/dashboard-b18";
+import type { JsonObject } from "@/lib/jsonReaders";
 
 /** A tracked/organic keyword row; only the rank-related fields are read here. */
 interface SnapshotKeyword {

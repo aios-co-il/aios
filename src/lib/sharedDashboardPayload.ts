@@ -2,16 +2,14 @@ import type { ComponentProps } from "react";
 import type { Json } from "@/integrations/supabase/types";
 import type { PublicWooCommerceView } from "@/components/dynamic-tables/PublicWooCommerceView";
 import type { WooOrderRevenueRow } from "@/lib/wooOrderRevenue";
-import type {
-  CrmTableIntegrationSettings,
-  JsonObject,
-} from "@/lib/dynamic-tables-b19";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
+import type { JsonObject } from "@/lib/jsonReaders";
 import type {
   SharedKeywordRelevance,
   SharedSeoMonthly,
   SharedTablePayload,
   SharedTableRecord,
-} from "@/lib/shared-table-b19";
+} from "@/lib/sharedTablePayload";
 
 export interface SharedDashboardInfo {
   name: string;

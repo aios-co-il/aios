@@ -2,10 +2,8 @@ import type { ComponentProps } from "react";
 import type { PublicSeoView } from "@/components/dynamic-tables/PublicSeoView";
 import type { PublicSeoMonthlyWorkView } from "@/components/dynamic-tables/PublicSeoMonthlyWorkView";
 import type { PublicMaskyooCallsCard } from "@/components/dynamic-tables/PublicMaskyooCallsCard";
-import type {
-  CrmTableIntegrationSettings,
-  JsonObject,
-} from "@/lib/dynamic-tables-b19";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
+import type { JsonObject } from "@/lib/jsonReaders";
 
 type PublicSeoProps = ComponentProps<typeof PublicSeoView>;
 type MonthlyWorkProps = ComponentProps<typeof PublicSeoMonthlyWorkView>;

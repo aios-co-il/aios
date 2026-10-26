@@ -11,12 +11,8 @@ import {
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
-import {
-  asJsonObject,
-  parseJsonFloat,
-  toCrmRecordRows,
-  type CrmRecordRow,
-} from "@/types/dashboard-b18";
+import { asJsonObject, parseJsonFloat } from "@/lib/jsonReaders";
+import { type CrmRecordRow, toCrmRecordRows } from "@/types/dashboardRows";
 
 interface TableCardAlertsProps {
   tableId: string;

@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, type ComponentProps } from "react";
 import type { Json } from "@/integrations/supabase/types";
-import type { JsonObject } from "@/lib/dynamic-tables-b19";
+import type { JsonObject } from "@/lib/jsonReaders";
 import type {
   SharedTablePayload,
   SharedTableRecord,
-} from "@/lib/shared-table-b19";
+} from "@/lib/sharedTablePayload";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

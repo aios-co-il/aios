@@ -7,7 +7,7 @@ import {
   readField,
   readString,
   readText,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
 import { useState, useMemo, useEffect } from "react";
 import DOMPurify from "dompurify";
 import { useNavigate } from "react-router-dom";

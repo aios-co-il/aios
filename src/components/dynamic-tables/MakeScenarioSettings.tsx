@@ -3,7 +3,7 @@ import {
   jsonObjects,
   readString,
   readText,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -166,10 +166,11 @@ export function MakeScenarioSettings({
 
   // Check for changes
   useEffect(() => {
-    const currentScenarioId = settings.make_scenario_id || "";
-    const currentSchedule = settings.sync_schedule || "manual";
-    const currentWebhookUrl = settings.make_webhook_url || "";
-    const currentSyncRange = settings.default_sync_range || "last_30_days";
+    const currentScenarioId = readText(settings, "make_scenario_id") || "";
+    const currentSchedule = readText(settings, "sync_schedule") || "manual";
+    const currentWebhookUrl = readText(settings, "make_webhook_url") || "";
+    const currentSyncRange =
+      readText(settings, "default_sync_range") || "last_30_days";
 
     setHasChanges(
       scenarioId !== currentScenarioId ||

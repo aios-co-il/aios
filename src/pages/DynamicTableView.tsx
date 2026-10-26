@@ -144,11 +144,13 @@ import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import {
   asJsonObject,
   errorMessage,
-  jsonField,
-  readMakeApiSettings,
-  type CrmTableIntegrationSettings,
   type JsonObject,
-} from "@/lib/dynamic-tables-b19";
+  readField,
+} from "@/lib/jsonReaders";
+import {
+  type CrmTableIntegrationSettings,
+  readMakeApiSettings,
+} from "@/lib/dynamicTableTypes";
 
 // Google Ads icon component
 const GoogleAdsIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
@@ -1324,7 +1326,7 @@ export default function DynamicTableView({
             },
           });
         if (fetchError) throw fetchError;
-        const ahrefsFetchError = jsonField(fetchData, "error");
+        const ahrefsFetchError = readField(fetchData, "error");
         if (ahrefsFetchError) throw new Error(String(ahrefsFetchError));
 
         // Step 2: pull ALL reports for this client (all months) and rebuild
@@ -1343,8 +1345,8 @@ export default function DynamicTableView({
         const allRecordsToInsert: TablesInsert<"crm_records">[] = [];
 
         for (const report of reports) {
-          const rd = asJsonObject(report.report_data) ?? {};
-          const snapshot = asJsonObject(rd.snapshot) ?? {};
+          const rd = asJsonObject(report.report_data);
+          const snapshot = asJsonObject(rd.snapshot);
           const reportDate = report.report_date || report.received_at;
           const organicKeywords = Array.isArray(rd.organic_keywords)
             ? rd.organic_keywords
@@ -1356,7 +1358,7 @@ export default function DynamicTableView({
 
           if (allKeywords.length > 0) {
             for (const keywordRow of allKeywords) {
-              const kw = asJsonObject(keywordRow) ?? {};
+              const kw = asJsonObject(keywordRow);
               allRecordsToInsert.push({
                 table_id: table.id,
                 tenant_id: table.tenant_id,
@@ -1415,14 +1417,14 @@ export default function DynamicTableView({
           `crm-fields?table_id=${table.id}`,
           { method: "GET" },
         );
-        const existingFieldList = jsonField(existingFields, "fields");
+        const existingFieldList = readField(existingFields, "fields");
         const fieldsList = Array.isArray(existingFieldList)
           ? existingFieldList
           : [];
 
         if (fieldsList.length === 0) {
           const hasKeywords = recordsToInsert.some((r) =>
-            jsonField(r.data, "keyword"),
+            readField(r.data, "keyword"),
           );
           const seoFields = hasKeywords
             ? [
@@ -1491,8 +1493,8 @@ export default function DynamicTableView({
 
         return {
           recordsCount: recordsToInsert.length,
-          trackedCount: jsonField(fetchData, "tracked_count") ?? null,
-          organicCount: jsonField(fetchData, "keywords_count") ?? null,
+          trackedCount: readField(fetchData, "tracked_count") ?? null,
+          organicCount: readField(fetchData, "keywords_count") ?? null,
         };
       }
 

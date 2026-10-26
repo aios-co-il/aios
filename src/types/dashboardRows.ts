@@ -1,16 +1,5 @@
 import type { Json } from "@/integrations/supabase/types";
-
-/** A JSON object as stored in jsonb columns (`crm_records.data`, settings). */
-export type JsonObject = { [key: string]: Json | undefined };
-
-export function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** The object form of a JSON value; null, primitives and arrays read as `{}`. */
-export function asJsonObject(value: unknown): JsonObject {
-  return isJsonObject(value) ? value : {};
-}
+import { asJsonObject, isJsonObject, type JsonObject } from "@/lib/jsonReaders";
 
 /** A `crm-records` report row: `crm_records.id` + its user-defined `data` jsonb. */
 export type CrmRecordRow = { id: string; data: JsonObject | null };
@@ -28,24 +17,6 @@ export function toCrmRecordRows(value: unknown): CrmRecordRow[] {
         ]
       : [],
   );
-}
-
-/** `parseFloat` on a JSON value, with the same implicit string coercion. */
-export const parseJsonFloat = (value: Json | undefined): number =>
-  parseFloat(String(value));
-
-/** `err?.message` for any thrown value (Error, PostgrestError, plain objects). */
-export function thrownMessage(err: unknown): unknown {
-  return typeof err === "object" && err !== null && "message" in err
-    ? err.message
-    : undefined;
-}
-
-/** `err?.code` for any thrown value (PostgrestError / FunctionsError). */
-export function thrownCode(err: unknown): unknown {
-  return typeof err === "object" && err !== null && "code" in err
-    ? err.code
-    : undefined;
 }
 
 /** A `crm-tables` row as read by the combined dashboard; other columns pass through. */

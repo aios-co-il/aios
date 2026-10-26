@@ -38,7 +38,7 @@ import {
   sumWooRevenue,
   wooOrderRevenueTimestamp,
 } from "@/lib/wooOrderRevenue";
-import { asJsonObject } from "@/types/dashboard-b18";
+import { asJsonObject } from "@/lib/jsonReaders";
 
 interface Props {
   clientId: string;

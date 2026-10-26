@@ -1,35 +1,38 @@
-import type { Json } from "@/integrations/supabase/types";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { asJsonObject, type JsonObject } from "@/lib/jsonReaders";
 
-export type JsonObject = { [key: string]: Json | undefined };
+export type CrmTableRow = Tables<"crm_tables">;
 
-export function asJsonObject(
-  value: Json | null | undefined,
-): JsonObject | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value
-    : null;
+export type SeoReportRecord = Partial<
+  Pick<
+    Tables<"ahrefs_reports">,
+    | "id"
+    | "client_id"
+    | "domain"
+    | "received_at"
+    | "report_date"
+    | "report_type"
+    | "report_data"
+    | "comparison_data"
+    | "metadata"
+  >
+>;
+
+export type SeoReportRow = Pick<
+  Tables<"ahrefs_reports">,
+  "id" | "domain" | "received_at" | "report_date" | "report_data"
+> &
+  SeoReportRecord;
+
+export interface DynamicRecord {
+  id?: string;
+  data?: JsonObject | null;
 }
 
-export function jsonField(
-  value: Json | null | undefined,
-  key: string,
-): Json | undefined {
-  return asJsonObject(value)?.[key];
-}
+export type LangFilterValue = "all" | "he" | "en";
 
-export function jsonText(
-  value: Json | null | undefined,
-  key: string,
-): string | undefined {
-  const field = jsonField(value, key);
-  return typeof field === "string" ? field : undefined;
-}
-
-export function errorMessage(error: unknown): string | undefined {
-  if (typeof error === "object" && error !== null && "message" in error) {
-    return typeof error.message === "string" ? error.message : undefined;
-  }
-  return undefined;
+export function toLangFilter(value: unknown): LangFilterValue {
+  return value === "he" || value === "en" ? value : "all";
 }
 
 type SettingText = string | null;
@@ -92,7 +95,7 @@ function settingId(value: Json | undefined): SettingId | undefined {
 export function readMakeApiSettings(
   value: Json | null | undefined,
 ): MakeApiSettings {
-  const settings = asJsonObject(value) ?? {};
+  const settings = asJsonObject(value);
   return {
     api_token: settingText(settings.api_token),
     team_id: settingId(settings.team_id),

@@ -3,7 +3,7 @@ import {
   toWooOrderAttribution,
   toWooOrderRow,
   toWooOrderRows,
-} from "./wooOrderRows-b18";
+} from "./wooOrderRows";
 
 describe("toWooOrderAttribution", () => {
   it("keeps string fields and nulls the rest", () => {

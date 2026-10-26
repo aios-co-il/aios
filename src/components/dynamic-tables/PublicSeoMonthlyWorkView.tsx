@@ -1,4 +1,5 @@
-import { errorMessage, type SeoReportRecord } from "@/lib/dynamic-tables-b17";
+import { errorMessage } from "@/lib/jsonReaders";
+import type { SeoReportRecord } from "@/lib/dynamicTableTypes";
 import { useMemo, useRef, useState } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { he } from "date-fns/locale";

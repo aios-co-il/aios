@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Globe, Search, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { errorMessage } from "@/lib/dynamic-tables-b17";
+import { errorMessage } from "@/lib/jsonReaders";
 
 interface AhrefsProject {
   project_id: string;

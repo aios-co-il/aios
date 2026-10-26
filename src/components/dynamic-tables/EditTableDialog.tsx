@@ -1,4 +1,4 @@
-import { asJsonObject, readText } from "@/lib/dynamic-tables-b17";
+import { asJsonObject, readText } from "@/lib/jsonReaders";
 import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,

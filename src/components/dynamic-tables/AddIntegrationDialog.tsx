@@ -19,7 +19,7 @@ import {
   errorMessage,
   jsonObjects,
   readField,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
 import {
   Loader2,
   Facebook,

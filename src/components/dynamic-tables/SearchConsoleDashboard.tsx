@@ -1,4 +1,4 @@
-import { isJsonObject } from "@/lib/dynamic-tables-b17";
+import { isJsonObject } from "@/lib/jsonReaders";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

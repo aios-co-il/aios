@@ -1,4 +1,4 @@
-import { errorMessage } from "@/lib/dynamic-tables-b17";
+import { errorMessage } from "@/lib/jsonReaders";
 import { useEffect, useState } from "react";
 import {
   Dialog,

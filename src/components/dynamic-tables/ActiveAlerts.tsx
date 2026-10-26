@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
-import { readField, readFloat, readString } from "@/lib/dynamic-tables-b17";
+import { readField, readFloat, readString } from "@/lib/jsonReaders";
 
 interface AlertRecord {
   data?: unknown;

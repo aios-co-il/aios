@@ -109,7 +109,7 @@ import { useAgency } from "@/contexts/AgencyContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useUserRole } from "@/hooks/useUserRole";
 import type { LucideIcon } from "lucide-react";
-import type { CrmTableIntegrationSettings } from "@/lib/dynamic-tables-b19";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
 
 interface CrmTable {
   id: string;

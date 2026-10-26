@@ -2,12 +2,12 @@ import {
   asArray,
   asJsonArray,
   asJsonObject,
+  type JsonObject,
   readField,
   readString,
   readText,
-  toLangFilter,
-  type JsonObject,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
+import { toLangFilter } from "@/lib/dynamicTableTypes";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

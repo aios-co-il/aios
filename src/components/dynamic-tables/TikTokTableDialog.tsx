@@ -29,7 +29,7 @@ import {
   useTableDialogAgencies,
 } from "@/hooks/useAgencyClients";
 import { Loader2, AlertCircle, Music2 } from "lucide-react";
-import { asJsonObject } from "@/types/dashboard-b18";
+import { asJsonObject } from "@/lib/jsonReaders";
 
 interface Props {
   open: boolean;

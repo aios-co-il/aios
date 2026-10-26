@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import type { Json } from "@/integrations/supabase/types";
 import type { ClientIntegration } from "@/lib/tenantIntegrationsClient";
-import { asJsonObject, isJsonObject } from "@/types/dashboard-b18";
+import { asJsonObject, isJsonObject } from "@/lib/jsonReaders";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,9 +1,5 @@
-import {
-  asJsonObject,
-  readField,
-  readString,
-  toLangFilter,
-} from "@/lib/dynamic-tables-b17";
+import { asJsonObject, readField, readString } from "@/lib/jsonReaders";
+import { toLangFilter } from "@/lib/dynamicTableTypes";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

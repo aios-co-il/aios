@@ -4,13 +4,13 @@ import {
   asJsonObject,
   errorMessage,
   isJsonObject,
+  type JsonObject,
   readDateInput,
   readField,
   readString,
   readText,
-  type DynamicRecord,
-  type JsonObject,
-} from "@/lib/dynamic-tables-b17";
+} from "@/lib/jsonReaders";
+import type { DynamicRecord } from "@/lib/dynamicTableTypes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

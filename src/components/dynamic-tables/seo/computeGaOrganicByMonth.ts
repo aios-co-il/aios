@@ -8,7 +8,7 @@
  *   2. daily_source — derived by month, excluding paid mediums
  *   3. monthly_organic — last fallback (organic only)
  */
-import { asJsonObject } from "@/types/dashboard-b18";
+import { asJsonObject } from "@/lib/jsonReaders";
 
 export type GaRecord = { id?: string; data?: unknown };
 

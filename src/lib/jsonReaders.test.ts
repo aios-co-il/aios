@@ -5,12 +5,15 @@ import {
   asJsonObject,
   errorMessage,
   jsonObjects,
+  parseJsonFloat,
   readDateInput,
+  readField,
   readFloat,
   readString,
   readText,
-  toLangFilter,
-} from "./dynamic-tables-b17.ts";
+  thrownCode,
+  thrownMessage,
+} from "./jsonReaders.ts";
 
 test("asJsonObject keeps plain objects and replaces everything else", () => {
   const settings = { clientId: "c1" };
@@ -56,9 +59,24 @@ test("errorMessage reads message from Error and error-like objects", () => {
   assert.equal(errorMessage({ message: 42 }), undefined);
 });
 
-test("toLangFilter falls back to all for unknown values", () => {
-  assert.equal(toLangFilter("he"), "he");
-  assert.equal(toLangFilter("en"), "en");
-  assert.equal(toLangFilter("fr"), "all");
-  assert.equal(toLangFilter(undefined), "all");
+test("readField returns raw fields of objects only", () => {
+  assert.equal(readField({ error: "boom" }, "error"), "boom");
+  assert.equal(readField("not-an-object", "error"), undefined);
+  assert.equal(readField(null, "error"), undefined);
+});
+
+test("parseJsonFloat matches parseFloat's string coercion", () => {
+  assert.equal(parseJsonFloat("12.5"), 12.5);
+  assert.equal(parseJsonFloat(3), 3);
+  assert.ok(Number.isNaN(parseJsonFloat(undefined)));
+  assert.ok(Number.isNaN(parseJsonFloat(null)));
+});
+
+test("thrown values read message and code like optional chaining did", () => {
+  const pgError = { message: "duplicate", code: "23505" };
+  assert.equal(thrownMessage(pgError), "duplicate");
+  assert.equal(thrownCode(pgError), "23505");
+  assert.equal(thrownMessage(new Error("boom")), "boom");
+  assert.equal(thrownMessage("text"), undefined);
+  assert.equal(thrownCode(null), undefined);
 });

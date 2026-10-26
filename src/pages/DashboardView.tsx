@@ -8,13 +8,15 @@ import type { Json, Tables } from "@/integrations/supabase/types";
 import {
   asJsonObject,
   isJsonObject,
+  type JsonObject,
   thrownMessage,
-  toDashboardFields,
-  toDashboardTables,
+} from "@/lib/jsonReaders";
+import {
   type DashboardField,
   type DashboardTable,
-  type JsonObject,
-} from "@/types/dashboard-b18";
+  toDashboardFields,
+  toDashboardTables,
+} from "@/types/dashboardRows";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

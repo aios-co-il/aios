@@ -16,7 +16,7 @@ import {
   filterWooOrdersForRevenue,
   sumWooRevenue,
 } from "@/lib/wooOrderRevenue";
-import { toWooOrderRows, type WooOrderRow } from "@/lib/wooOrderRows-b18";
+import { toWooOrderRows, type WooOrderRow } from "@/lib/wooOrderRows";
 
 /** React-query keys used by DashboardView + WooCommerceDashboard. */
 export const wooDashboardQueryKeys = {

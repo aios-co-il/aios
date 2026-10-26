@@ -1,8 +1,4 @@
-import {
-  readString,
-  readText,
-  type JsonObject,
-} from "@/lib/dynamic-tables-b17";
+import { type JsonObject, readString, readText } from "@/lib/jsonReaders";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";

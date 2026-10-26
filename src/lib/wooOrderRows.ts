@@ -1,6 +1,6 @@
 import type { Json } from "@/integrations/supabase/types";
 import type { WooOrderAttribution } from "@/lib/wooAttribution";
-import { isJsonObject } from "@/types/dashboard-b18";
+import { isJsonObject } from "@/lib/jsonReaders";
 
 /** A `woocommerce_orders` row as selected by the Woo dashboards (any column subset). */
 export type WooOrderRow = {

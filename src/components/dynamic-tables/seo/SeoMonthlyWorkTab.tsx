@@ -69,7 +69,7 @@ import {
   downloadPdfBlob,
 } from "@/lib/seoMonthlyPdf";
 import { archiveSeoMonthlyPdf } from "@/lib/seoMonthlyPdfArchive";
-import { thrownCode, thrownMessage } from "@/types/dashboard-b18";
+import { thrownCode, thrownMessage } from "@/lib/jsonReaders";
 
 type Props = {
   clientId: string;

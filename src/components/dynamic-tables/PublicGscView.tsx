@@ -1,4 +1,4 @@
-import { type JsonObject } from "@/lib/dynamic-tables-b17";
+import type { JsonObject } from "@/lib/jsonReaders";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
