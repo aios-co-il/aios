@@ -189,6 +189,25 @@ import {
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { errorMessage } from "./error-message.ts";
+import { readImageGenerationPayload } from "./image-generation-payload.ts";
+import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
+import type {
+  AccountingClientRow,
+  AutomationFlowStepRow,
+  ChatHistorySearchRow,
+  FinanceListRow,
+  FinancialOverlayRow,
+  GraphAdAccount,
+  InboundMessageRow,
+  MarketingStageSummary,
+  MarketingWorkItemListRow,
+  MetaLeadQuestion,
+  OneTimeIncomeRow,
+  OnboardingListRow,
+  PrioritizedTaskRow,
+} from "./tool-contracts-marketing.ts";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
@@ -8407,29 +8426,32 @@ async function executeTool(
       if (args.status) q = q.eq("status", args.status);
       const { data, error } = await q;
       if (error) throw error;
-      let items = data || [];
+      let items: MarketingWorkItemListRow[] = data || [];
       if (args.department) {
         items = items.filter(
-          (it: any) => (it.payload?.department || "") === args.department,
+          (it) => (jsonObject(it.payload).department || "") === args.department,
         );
       }
       return {
         count: items.length,
-        items: items.map((it: any) => ({
-          id: it.id,
-          title: it.title,
-          status: it.status,
-          department: it.payload?.department || null,
-          client_id: it.client_id,
-          client_name: it.clients?.name || null,
-          target_channel: it.target_channel,
-          current_stage_id: it.current_stage_id,
-          updated_at: it.updated_at,
-          brief_preview:
-            typeof it.payload?.brief_text === "string"
-              ? String(it.payload.brief_text).slice(0, 160)
-              : null,
-        })),
+        items: items.map((it) => {
+          const payload = jsonObject(it.payload);
+          return {
+            id: it.id,
+            title: it.title,
+            status: it.status,
+            department: payload.department || null,
+            client_id: it.client_id,
+            client_name: it.clients?.name || null,
+            target_channel: it.target_channel,
+            current_stage_id: it.current_stage_id,
+            updated_at: it.updated_at,
+            brief_preview:
+              typeof payload.brief_text === "string"
+                ? payload.brief_text.slice(0, 160)
+                : null,
+          };
+        }),
       };
     }
     case "get_marketing_work_item": {
@@ -8451,7 +8473,7 @@ async function executeTool(
           .maybeSingle();
         stage = st;
       }
-      let stages: any[] = [];
+      let stages: MarketingStageSummary[] = [];
       if (item.pipeline_id) {
         const { data: sts } = await supabase
           .from("marketing_pipeline_stages")
@@ -8461,7 +8483,7 @@ async function executeTool(
         stages = sts || [];
       }
       return {
-        item: { ...item, client_name: (item as any).clients?.name },
+        item: { ...item, client_name: item.clients?.name },
         current_stage: stage,
         pipeline_stages: stages,
       };
@@ -8557,7 +8579,10 @@ async function executeTool(
         .select("id, stage_type")
         .eq("pipeline_id", pipeline!.id);
       const stageId =
-        stages?.find((s: any) => s.stage_type === stageType)?.id || null;
+        stages?.find(
+          (s: Pick<MarketingStageSummary, "id" | "stage_type">) =>
+            s.stage_type === stageType,
+        )?.id || null;
       if (!stageId) return { error: `שלב ${stageType} לא נמצא בפייפליין` };
 
       const channel = args.channel || "כללי";
@@ -8608,13 +8633,13 @@ async function executeTool(
         .from("marketing_pipeline_stages")
         .select("id, name, stage_type")
         .eq("pipeline_id", item.pipeline_id);
-      const target = (stages || []).find(
-        (s: any) => s.stage_type === args.to_stage_type,
-      );
+      const stageRows: Omit<MarketingStageSummary, "sort_order">[] =
+        stages || [];
+      const target = stageRows.find((s) => s.stage_type === args.to_stage_type);
       if (!target)
         return {
           error: `שלב ${args.to_stage_type} לא נמצא בפייפליין`,
-          available: (stages || []).map((s: any) => s.stage_type),
+          available: stageRows.map((s) => s.stage_type),
         };
       const { data: updated, error } = await supabase
         .from("marketing_work_items")
@@ -8628,7 +8653,7 @@ async function executeTool(
                 ? "creative"
                 : args.to_stage_type === "copy"
                   ? "copy"
-                  : (item.payload as any)?.department,
+                  : jsonObject(item.payload).department,
           },
           updated_at: new Date().toISOString(),
         })
@@ -8677,8 +8702,8 @@ async function executeTool(
       // stays the fallback (_shared/creative/openrouterImage.ts).
       let b64 = "";
       let mime = "image/png";
-      let imageData: any = {};
-      let content = "";
+      let imageData = readImageGenerationPayload({});
+      let content: unknown = "";
       let imageProvider = "openai/gpt-image-1";
       const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
         () => "",
@@ -8694,9 +8719,9 @@ async function executeTool(
           b64 = generated.b64;
           mime = generated.mediaType;
           imageProvider = `openrouter/${generated.model}`;
-        } catch (e: any) {
+        } catch (e) {
           console.warn(
-            `[generate_ad_image] OpenRouter failed, using OpenAI: ${e?.message ?? e}`,
+            `[generate_ad_image] OpenRouter failed, using OpenAI: ${errorMessage(e) ?? e}`,
           );
         }
       }
@@ -8731,10 +8756,10 @@ async function executeTool(
           const errText = await imageRes.text();
           throw new Error(`Image generation error: ${errText}`);
         }
-        imageData = await imageRes.json();
-        content = imageData.choices?.[0]?.message?.content || "";
+        imageData = readImageGenerationPayload(await imageRes.json());
+        content = imageData.content;
         // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-        b64 = imageData?.data?.[0]?.b64_json || "";
+        b64 = imageData.b64Json;
       }
       const images = b64
         ? [{ image_url: { url: `data:${mime};base64,${b64}` } }]
@@ -8781,32 +8806,32 @@ async function executeTool(
 
       // Fallback: check inline_data in parts
       if (!imageUrl) {
-        const parts = imageData.choices?.[0]?.message?.parts || [];
-        for (const part of parts) {
-          if (part.inline_data) {
-            const base64 = part.inline_data.data;
-            const mimeType = part.inline_data.mime_type || "image/png";
-            const ext = mimeType.includes("jpeg") ? "jpg" : "png";
-            const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-            const binaryData = Uint8Array.from(atob(base64), (c) =>
-              c.charCodeAt(0),
-            );
-            await supabase.storage
-              .createBucket("social-media", { public: true })
-              .catch(() => {});
-            const { error: uploadError } = await supabase.storage
-              .from("social-media")
-              .upload(fileName, binaryData, {
-                contentType: mimeType,
-                upsert: true,
-              });
-            if (uploadError) throw uploadError;
-            const { data: urlData } = supabase.storage
-              .from("social-media")
-              .getPublicUrl(fileName);
-            imageUrl = urlData.publicUrl;
-            break;
-          }
+        const part = imageData.inlineParts[0];
+        if (part) {
+          const base64 = String(part.data);
+          const mimeType =
+            typeof part.mime_type === "string" && part.mime_type
+              ? part.mime_type
+              : "image/png";
+          const ext = mimeType.includes("jpeg") ? "jpg" : "png";
+          const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
+          const binaryData = Uint8Array.from(atob(base64), (c) =>
+            c.charCodeAt(0),
+          );
+          await supabase.storage
+            .createBucket("social-media", { public: true })
+            .catch(() => {});
+          const { error: uploadError } = await supabase.storage
+            .from("social-media")
+            .upload(fileName, binaryData, {
+              contentType: mimeType,
+              upsert: true,
+            });
+          if (uploadError) throw uploadError;
+          const { data: urlData } = supabase.storage
+            .from("social-media")
+            .getPublicUrl(fileName);
+          imageUrl = urlData.publicUrl;
         }
       }
 
@@ -8852,7 +8877,7 @@ async function executeTool(
     }
     case "update_client": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const updates: Record<string, any> = {};
+      const updates: TablesUpdate<"clients"> = {};
       if (args.name) updates.name = args.name;
       if (args.contact_name !== undefined)
         updates.contact_name = args.contact_name;
@@ -8911,12 +8936,12 @@ async function executeTool(
       return {
         updated: data.length,
         campaign_active: !!args.active,
-        tables: data.map((t: any) => t.name),
+        tables: data.map((t: Pick<AgentRow<"crm_tables">, "name">) => t.name),
       };
     }
     // LEADS - full CRUD
     case "update_lead": {
-      const updates: Record<string, any> = {};
+      const updates: TablesUpdate<"leads"> = {};
       if (args.company_name) updates.company_name = args.company_name;
       if (args.contact_name !== undefined)
         updates.contact_name = args.contact_name;
@@ -8965,7 +8990,7 @@ async function executeTool(
         .eq("id", args.task_id)
         .in("tenant_id", accessibleTenantIds)
         .maybeSingle();
-      const updates: Record<string, any> = {};
+      const updates: TablesUpdate<"tasks"> = {};
       if (args.title) updates.title = args.title;
       if (args.due_date !== undefined) updates.due_date = args.due_date;
       if (args.due_time !== undefined) updates.due_time = args.due_time;
@@ -9162,7 +9187,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data.length,
-        onboarding: data.map((o: any) => ({
+        onboarding: data.map((o: OnboardingListRow) => ({
           ...o,
           client_name: o.clients?.name,
         })),
@@ -9353,22 +9378,26 @@ async function executeTool(
         )
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
+      const stepRows: AutomationFlowStepRow[] = steps || [];
       return {
         automation: auto,
-        steps: (steps || []).map((s: any) => ({
-          id: s.id,
-          step_type: s.step_type,
-          action_type: s.action_type,
-          label: s.label,
-          sort_order: s.sort_order,
-          parent_step_id: s.parent_step_id,
-          condition_branch: s.condition_branch,
-          skin_slugs: s.configuration?.skin_slugs || null,
-          step_instruction: s.configuration?.step_instruction || null,
-          agent_id: s.configuration?.agent_id || null,
-          facebook_form_id: s.configuration?.facebook_form_id || null,
-          config_keys: s.configuration ? Object.keys(s.configuration) : [],
-        })),
+        steps: stepRows.map((s) => {
+          const configuration = jsonObject(s.configuration);
+          return {
+            id: s.id,
+            step_type: s.step_type,
+            action_type: s.action_type,
+            label: s.label,
+            sort_order: s.sort_order,
+            parent_step_id: s.parent_step_id,
+            condition_branch: s.condition_branch,
+            skin_slugs: configuration.skin_slugs || null,
+            step_instruction: configuration.step_instruction || null,
+            agent_id: configuration.agent_id || null,
+            facebook_form_id: configuration.facebook_form_id || null,
+            config_keys: s.configuration ? Object.keys(s.configuration) : [],
+          };
+        }),
         steps_count: steps?.length || 0,
       };
     }
@@ -9429,13 +9458,16 @@ async function executeTool(
         .eq("is_flow", true)
         .order("name");
       if (automationError) throw automationError;
-      let matchingAutomations = automations || [];
+      let matchingAutomations: Pick<
+        AgentRow<"automations">,
+        "id" | "name" | "active" | "tenant_id"
+      >[] = automations || [];
       if (args.automation_name) {
-        matchingAutomations = matchingAutomations.filter((a: any) =>
+        matchingAutomations = matchingAutomations.filter((a) =>
           metaNameMatches(a.name, args.automation_name),
         );
       }
-      const automationIds = matchingAutomations.map((a: any) => a.id);
+      const automationIds = matchingAutomations.map((a) => a.id);
       const { data: triggerSteps, error: triggerError } = automationIds.length
         ? await supabase
             .from("automation_flow_steps")
@@ -9444,10 +9476,14 @@ async function executeTool(
             .eq("step_type", "trigger")
         : { data: [], error: null };
       if (triggerError) throw triggerError;
+      const triggerRows: Pick<
+        AgentRow<"automation_flow_steps">,
+        "automation_id" | "configuration"
+      >[] = triggerSteps || [];
       const currentByAutomation = new Map(
-        (triggerSteps || [])
-          .filter((s: any) => s.configuration?.facebook_form_id)
-          .map((s: any) => [s.automation_id, s.configuration]),
+        triggerRows
+          .map((s) => [s.automation_id, jsonObject(s.configuration)] as const)
+          .filter(([, configuration]) => configuration.facebook_form_id),
       );
 
       let pages = await metaLeadPages(supabase, tenantId);
@@ -9460,8 +9496,8 @@ async function executeTool(
       if (args.form_name)
         forms = forms.filter((f) => metaNameMatches(f.name, args.form_name));
       return {
-        automations: matchingAutomations.map((automation: any) => {
-          const current: any = currentByAutomation.get(automation.id);
+        automations: matchingAutomations.map((automation) => {
+          const current = currentByAutomation.get(automation.id);
           return {
             id: automation.id,
             name: automation.name,
@@ -9526,7 +9562,7 @@ async function executeTool(
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים ליצור טופס Meta",
         );
-      const questions = Array.isArray(args.questions)
+      const questions: unknown[] = Array.isArray(args.questions)
         ? args.questions.slice(0, 30)
         : [];
       if (questions.length === 0)
@@ -9553,16 +9589,17 @@ async function executeTool(
         "COMPANY_NAME",
         "CUSTOM",
       ]);
-      const normalizedQuestions = questions.map((question: any) => {
-        const type = String(question?.type || "")
+      const normalizedQuestions = questions.map((input): MetaLeadQuestion => {
+        const question = readMetaLeadQuestionInput(input);
+        const type = String(question.type || "")
           .trim()
           .toUpperCase();
         if (!allowedQuestionTypes.has(type))
           throw new Error(`סוג שדה Meta אינו נתמך: ${type || "ריק"}`);
-        if (type === "CUSTOM" && !String(question?.label || "").trim()) {
+        if (type === "CUSTOM" && !String(question.label || "").trim()) {
           throw new Error("שדה CUSTOM חייב לכלול label");
         }
-        return question?.label
+        return question.label
           ? { type, label: String(question.label).trim() }
           : { type };
       });
@@ -9619,7 +9656,7 @@ async function executeTool(
         id: String(json.id),
         name: String(args.form_name).trim(),
         status: "DRAFT",
-        fields: normalizedQuestions.map((question: any, index: number) => ({
+        fields: normalizedQuestions.map((question, index) => ({
           key:
             question.type === "CUSTOM"
               ? `custom_${index + 1}`
@@ -9680,12 +9717,19 @@ async function executeTool(
             .eq("status", "in_progress"),
         ],
       );
-      const leadsByStatus = (leadsRes.data || []).reduce((acc: any, l: any) => {
-        acc[l.status] = (acc[l.status] || 0) + 1;
-        return acc;
-      }, {});
-      const clientsByStatus = (clientsRes.data || []).reduce(
-        (acc: any, c: any) => {
+      const leadStatuses: Pick<AgentRow<"leads">, "status">[] =
+        leadsRes.data || [];
+      const clientStatuses: Pick<AgentRow<"clients">, "status">[] =
+        clientsRes.data || [];
+      const leadsByStatus = leadStatuses.reduce<Record<string, number>>(
+        (acc, l) => {
+          acc[l.status] = (acc[l.status] || 0) + 1;
+          return acc;
+        },
+        {},
+      );
+      const clientsByStatus = clientStatuses.reduce<Record<string, number>>(
+        (acc, c) => {
           acc[c.status] = (acc[c.status] || 0) + 1;
           return acc;
         },
@@ -9847,7 +9891,7 @@ async function executeTool(
       if (pErr) throw pErr;
       if (!ptr) return { error: "pointer not found" };
       // Fetch live row from source
-      let live: any = null;
+      let live: unknown = null;
       try {
         const tableMap: Record<string, string> = {
           client: "clients",
@@ -9904,7 +9948,9 @@ async function executeTool(
           .update({ last_accessed_at: new Date().toISOString() })
           .in(
             "id",
-            data.map((d: any) => d.id),
+            data.map(
+              (d: Pick<AgentRow<"carmen_memory_episodes">, "id">) => d.id,
+            ),
           )
           .then(() => {});
       }
@@ -10025,8 +10071,8 @@ async function executeTool(
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
       const { data, error } = await q;
       if (error) throw error;
-      const fmt = (iso: string) =>
-        new Date(iso).toLocaleString("he-IL", {
+      const fmt = (iso: string | null) =>
+        new Date(iso === null ? 0 : iso).toLocaleString("he-IL", {
           timeZone: "Asia/Jerusalem",
           dateStyle: "short",
           timeStyle: "short",
@@ -10042,7 +10088,7 @@ async function executeTool(
               ? "אין הודעות בחלון הזמן בצ׳אט הנוכחי — נסי days_back גדול יותר או browse_all_chats=true."
               : "אין תוצאות בצ׳אט הנוכחי — נסי מילת תוכן אחרת או browse_all_chats=true."
             : undefined,
-        messages: data.reverse().map((m: any) => ({
+        messages: data.reverse().map((m: ChatHistorySearchRow) => ({
           when_israel: fmt(m.created_at),
           direction: m.direction,
           from: m.sender_name || m.sender_phone || "",
@@ -10070,7 +10116,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data.length,
-        messages: data.map((m: any) => ({
+        messages: data.map((m: InboundMessageRow) => ({
           ...m,
           contact_name:
             m.clients?.name ||
@@ -10094,7 +10140,10 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data.length,
-        entries: data.map((f: any) => ({ ...f, client_name: f.clients?.name })),
+        entries: data.map((f: FinanceListRow) => ({
+          ...f,
+          client_name: f.clients?.name,
+        })),
         note: "legacy finance table — prefer get_accounting_overview",
       };
     }
@@ -10131,12 +10180,14 @@ async function executeTool(
         .gte("date", startDate)
         .lte("date", endDate);
       if (error) throw error;
-      const income = (data || [])
-        .filter((f: any) => f.type === "income")
-        .reduce((s: number, f: any) => s + (f.amount || 0), 0);
-      const expense = (data || [])
-        .filter((f: any) => f.type === "expense")
-        .reduce((s: number, f: any) => s + (f.amount || 0), 0);
+      const financeRows: Pick<AgentRow<"finance">, "amount" | "type">[] =
+        data || [];
+      const income = financeRows
+        .filter((f) => f.type === "income")
+        .reduce((s, f) => s + (f.amount || 0), 0);
+      const expense = financeRows
+        .filter((f) => f.type === "expense")
+        .reduce((s, f) => s + (f.amount || 0), 0);
       return {
         month,
         income,
@@ -10171,19 +10222,21 @@ async function executeTool(
       if (agencyId) clientsQ = clientsQ.eq("agency_id", agencyId);
       const { data: clients, error: cErr } = await clientsQ.limit(500);
       if (cErr) throw cErr;
-      const clientIds = (clients || []).map((c: any) => c.id);
-      const { data: ctfd } = clientIds.length
-        ? await supabase
-            .from("client_tenant_financial_data")
-            .select("client_id, retainer, monthly_budget")
-            .eq("tenant_id", tenantId)
-            .in("client_id", clientIds)
-        : { data: [] as any[] };
-      const finMap = new Map<string, any>(
-        (ctfd || []).map((r: any) => [r.client_id, r]),
+      const clientRows: AccountingClientRow[] = clients || [];
+      const clientIds = clientRows.map((c) => c.id);
+      const { data: ctfd }: { data: FinancialOverlayRow[] | null } =
+        clientIds.length
+          ? await supabase
+              .from("client_tenant_financial_data")
+              .select("client_id, retainer, monthly_budget")
+              .eq("tenant_id", tenantId)
+              .in("client_id", clientIds)
+          : { data: [] };
+      const finMap = new Map(
+        (ctfd || []).map((r) => [r.client_id, r] as const),
       );
-      const enriched = (clients || []).map((c: any) => {
-        const overlay: any = finMap.get(c.id);
+      const enriched = clientRows.map((c) => {
+        const overlay = finMap.get(c.id);
         const retainer = Number(overlay?.retainer ?? c.retainer ?? 0) || 0;
         return {
           client_id: c.id,
@@ -10197,8 +10250,8 @@ async function executeTool(
         };
       });
       const expectedRetainers = enriched
-        .filter((c: any) => c.status === "active")
-        .reduce((s: number, c: any) => s + c.retainer, 0);
+        .filter((c) => c.status === "active")
+        .reduce((s, c) => s + c.retainer, 0);
 
       let otiQ = supabase
         .from("one_time_incomes")
@@ -10208,7 +10261,7 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .eq("payment_month", month);
       if (agencyId) {
-        const agencyClientIds = enriched.map((c: any) => c.client_id);
+        const agencyClientIds = enriched.map((c) => c.client_id);
         otiQ = otiQ.in(
           "client_id",
           agencyClientIds.length
@@ -10217,8 +10270,9 @@ async function executeTool(
         );
       }
       const { data: oneTime } = await otiQ.limit(200);
-      const oneTimeTotal = (oneTime || []).reduce(
-        (s: number, r: any) => s + (Number(r.amount) || 0),
+      const oneTimeRows: OneTimeIncomeRow[] = oneTime || [];
+      const oneTimeTotal = oneTimeRows.reduce(
+        (s, r) => s + (Number(r.amount) || 0),
         0,
       );
 
@@ -10230,7 +10284,7 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .eq("payment_month", month);
       if (agencyId) {
-        const agencyClientIds = enriched.map((c: any) => c.client_id);
+        const agencyClientIds = enriched.map((c) => c.client_id);
         ipQ = ipQ.in(
           "client_id",
           agencyClientIds.length
@@ -10239,8 +10293,12 @@ async function executeTool(
         );
       }
       const { data: incomePayments } = await ipQ.limit(500);
-      const collected = (incomePayments || []).reduce(
-        (s: number, r: any) => s + (Number(r.amount) || 0),
+      const incomePaymentRows: Pick<
+        AgentRow<"income_payments">,
+        "client_id" | "amount"
+      >[] = incomePayments || [];
+      const collected = incomePaymentRows.reduce(
+        (s, r) => s + (Number(r.amount) || 0),
         0,
       );
 
@@ -10252,13 +10310,15 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .eq("payment_month", month)
         .limit(500);
-      const expensesPaid = (expensePayments || []).reduce(
-        (s: number, r: any) => s + (Number(r.amount) || 0),
+      const expensePaymentRows: Pick<AgentRow<"expense_payments">, "amount">[] =
+        expensePayments || [];
+      const expensesPaid = expensePaymentRows.reduce(
+        (s, r) => s + (Number(r.amount) || 0),
         0,
       );
       const expectedFixedExpenses = enriched
-        .filter((c: any) => c.status === "active")
-        .reduce((s: number, c: any) => s + c.monthly_fixed_expense, 0);
+        .filter((c) => c.status === "active")
+        .reduce((s, c) => s + c.monthly_fixed_expense, 0);
 
       return {
         month,
@@ -10273,9 +10333,9 @@ async function executeTool(
         estimated_gross: collected - expensesPaid,
         clients_count: enriched.length,
         active_with_retainer: enriched.filter(
-          (c: any) => c.status === "active" && c.retainer > 0,
+          (c) => c.status === "active" && c.retainer > 0,
         ).length,
-        one_time_incomes: (oneTime || []).slice(0, 30).map((r: any) => ({
+        one_time_incomes: oneTimeRows.slice(0, 30).map((r) => ({
           id: r.id,
           client_id: r.client_id,
           client_name: r.clients?.name,
@@ -10283,18 +10343,18 @@ async function executeTool(
           amount: r.amount,
         })),
         top_uncollected_retainers: enriched
-          .filter((c: any) => c.status === "active" && c.retainer > 0)
+          .filter((c) => c.status === "active" && c.retainer > 0)
           .filter(
-            (c: any) =>
-              !(incomePayments || []).some(
-                (p: any) =>
+            (c) =>
+              !incomePaymentRows.some(
+                (p) =>
                   p.client_id === c.client_id &&
                   Number(p.amount) === c.retainer,
               ),
           )
-          .sort((a: any, b: any) => b.retainer - a.retainer)
+          .sort((a, b) => b.retainer - a.retainer)
           .slice(0, 15)
-          .map((c: any) => ({
+          .map((c) => ({
             client_id: c.client_id,
             name: c.name,
             retainer: c.retainer,
@@ -10361,13 +10421,18 @@ async function executeTool(
         month,
         count: data?.length || 0,
         total: (data || []).reduce(
-          (s: number, r: any) => s + (Number(r.amount) || 0),
+          (s: number, r: Pick<AgentRow<"one_time_incomes">, "amount">) =>
+            s + (Number(r.amount) || 0),
           0,
         ),
-        incomes: (data || []).map((r: any) => ({
-          ...r,
-          client_name: r.clients?.name,
-        })),
+        incomes: (data || []).map(
+          (
+            r: OneTimeIncomeRow & Pick<AgentRow<"one_time_incomes">, "is_paid">,
+          ) => ({
+            ...r,
+            client_name: r.clients?.name,
+          }),
+        ),
       };
     }
     case "list_income_payments": {
@@ -10388,7 +10453,8 @@ async function executeTool(
         month,
         count: data?.length || 0,
         total_collected: (data || []).reduce(
-          (s: number, r: any) => s + (Number(r.amount) || 0),
+          (s: number, r: Pick<AgentRow<"income_payments">, "amount">) =>
+            s + (Number(r.amount) || 0),
           0,
         ),
         payments: data || [],
@@ -10412,7 +10478,8 @@ async function executeTool(
         month,
         count: data?.length || 0,
         total_paid: (data || []).reduce(
-          (s: number, r: any) => s + (Number(r.amount) || 0),
+          (s: number, r: Pick<AgentRow<"expense_payments">, "amount">) =>
+            s + (Number(r.amount) || 0),
           0,
         ),
         payments: data || [],
@@ -10704,8 +10771,11 @@ async function executeTool(
           },
         );
         dispatched = await resp.json();
-      } catch (e: any) {
-        console.warn("[assign_task_to_cursor] dispatch failed:", e?.message);
+      } catch (e) {
+        console.warn(
+          "[assign_task_to_cursor] dispatch failed:",
+          errorMessage(e),
+        );
       }
       return { success: true, task: data, dispatch: dispatched };
     }
@@ -10886,8 +10956,9 @@ async function executeTool(
       if (error) throw error;
       // Score each task
       const now = new Date();
-      const scored = (openTasks || [])
-        .map((t: any) => {
+      const taskRows: PrioritizedTaskRow[] = openTasks || [];
+      const scored = taskRows
+        .map((t) => {
           let score = t.priority || 5;
           if (t.due_date) {
             const due = new Date(t.due_date);
@@ -10909,7 +10980,7 @@ async function executeTool(
             campaigner_name: t.campaigners?.full_name,
           };
         })
-        .sort((a: any, b: any) => b.urgency_score - a.urgency_score);
+        .sort((a, b) => b.urgency_score - a.urgency_score);
       return { count: scored.length, prioritized_tasks: scored };
     }
     // FACEBOOK AD ACCOUNTS
@@ -10943,7 +11014,7 @@ async function executeTool(
       }
 
       const accessToken = integration.api_key;
-      let allAccounts: any[] = [];
+      let allAccounts: GraphAdAccount[] = [];
       let nextUrl = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
       while (nextUrl) {
         const resp = await fetch(nextUrl);
@@ -10954,7 +11025,7 @@ async function executeTool(
       }
       return {
         count: allAccounts.length,
-        ad_accounts: allAccounts.map((a: any) => ({
+        ad_accounts: allAccounts.map((a) => ({
           id: a.id,
           name: a.name,
           status: a.account_status,

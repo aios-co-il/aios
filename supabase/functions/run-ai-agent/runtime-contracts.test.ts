@@ -4,6 +4,8 @@ import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
 import { crmRecordDay } from "./tool-contracts-crm.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { readImageGenerationPayload } from "./image-generation-payload.ts";
+import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
@@ -109,4 +111,52 @@ test("crmRecordDay keeps string dates and drops non-string ones", () => {
   ]) {
     assert.equal(crmRecordDay(data), null);
   }
+});
+
+test("image provider payloads expose only the fields generate_ad_image reads", () => {
+  assert.deepEqual(
+    readImageGenerationPayload({ data: [{ b64_json: "aGk=" }], created: 1 }),
+    { content: "", b64Json: "aGk=", inlineParts: [] },
+  );
+  assert.deepEqual(
+    readImageGenerationPayload({
+      choices: [
+        {
+          message: {
+            content: "done",
+            parts: [
+              { text: "no image" },
+              { inline_data: null },
+              { inline_data: { data: "aGk=", mime_type: "image/jpeg" } },
+            ],
+          },
+        },
+      ],
+    }),
+    {
+      content: "done",
+      b64Json: "",
+      inlineParts: [{ data: "aGk=", mime_type: "image/jpeg" }],
+    },
+  );
+  for (const malformed of [null, "x", [], { data: [{ b64_json: 7 }] }]) {
+    assert.deepEqual(readImageGenerationPayload(malformed), {
+      content: "",
+      b64Json: "",
+      inlineParts: [],
+    });
+  }
+});
+
+test("Meta lead form question input reads type and label from objects only", () => {
+  assert.deepEqual(
+    readMetaLeadQuestionInput({ type: "custom", label: "Budget", x: 1 }),
+    { type: "custom", label: "Budget" },
+  );
+  assert.deepEqual(readMetaLeadQuestionInput({ type: "EMAIL" }), {
+    type: "EMAIL",
+    label: undefined,
+  });
+  assert.deepEqual(readMetaLeadQuestionInput("EMAIL"), {});
+  assert.deepEqual(readMetaLeadQuestionInput(null), {});
 });
