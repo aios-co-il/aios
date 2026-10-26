@@ -9,15 +9,12 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-
-export type CurrentTenant = Pick<Tables<"tenants">, "id" | "name" | "slug">;
 
 interface TenantContextType {
   currentTenantId: string | null;
   currentTenantSlug: string | null;
   setCurrentTenantId: (tenantId: string) => void;
-  currentTenant: CurrentTenant | null | undefined;
+  currentTenant: any;
   isLoading: boolean;
   isActiveTenantSynced: boolean;
   /** True after user_active_tenant upsert matches currentTenantId (RLS scope). */
