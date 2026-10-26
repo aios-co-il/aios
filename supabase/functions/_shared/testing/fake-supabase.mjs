@@ -1,5 +1,5 @@
 /**
- * Minimal in-memory stand-in for the supabase-js query builder, for node:test.
+ * Minimal in-memory stand-in for the supabase-js query builder, for Deno tests.
  * Supports select/insert with eq, neq, in, order, limit, maybeSingle, single
  * and await. Every query is recorded in `queries` so tests can assert what
  * was asked (for example, which integration types were requested).

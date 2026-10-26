@@ -2,7 +2,7 @@
  * claude-notify core: auth, recipient + transport planning, the real send and
  * the ping report. The edge function (claude-notify/index.ts) only wires env
  * and the Supabase client into createClaudeNotifyHandler, so the whole request
- * path is testable under node --test.
+ * path is testable under deno test.
  *
  * Auth fails closed: a request must carry CLAUDE_MCP_BEARER or this project's
  * service-role key. When CLAUDE_MCP_BEARER is unset, only the service-role key
