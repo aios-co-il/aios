@@ -11,16 +11,7 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     setupFiles: ["./src/test/setup.ts"],
-    // Keep node:test suites on their existing runner.
-    include: [
-      "src/**/*.test.tsx",
-      "src/lib/carmenSkinPortraits.test.ts",
-      "src/lib/clientConnectionProvision.test.ts",
-      "src/lib/commandCenterAttachments.test.ts",
-      "src/lib/crmTableCategories.test.ts",
-      "src/lib/seoKeywordClusters.test.ts",
-      "src/lib/seoMonthlyPdfArchive.test.ts",
-    ],
+    include: ["src/**/*.test.{ts,tsx}"],
     clearMocks: true,
   },
 });

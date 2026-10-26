@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   applyLeadExportTenantScope,
   buildLeadExportRows,
@@ -21,24 +20,21 @@ const statuses = [
 ];
 
 test("leadMatchesTagFilter keeps all leads when no tag filter is set", () => {
-  assert.equal(leadMatchesTagFilter(["FB"], ["t1"], [], new Set()), true);
+  expect(leadMatchesTagFilter(["FB"], ["t1"], [], new Set())).toBe(true);
 });
 
 test("leadMatchesTagFilter none shows only untagged leads", () => {
-  assert.equal(leadMatchesTagFilter([], [], ["none"], new Set()), true);
-  assert.equal(
-    leadMatchesTagFilter(["FB"], ["t1"], ["none"], new Set(["t1"])),
+  expect(leadMatchesTagFilter([], [], ["none"], new Set())).toBe(true);
+  expect(leadMatchesTagFilter(["FB"], ["t1"], ["none"], new Set(["t1"]))).toBe(
     false,
   );
 });
 
 test("leadMatchesTagFilter selected tags keep matching leads", () => {
-  assert.equal(
-    leadMatchesTagFilter(["FB"], ["t1"], ["t1"], new Set(["t1"])),
+  expect(leadMatchesTagFilter(["FB"], ["t1"], ["t1"], new Set(["t1"]))).toBe(
     true,
   );
-  assert.equal(
-    leadMatchesTagFilter(["אתר"], ["t2"], ["t1"], new Set(["t1"])),
+  expect(leadMatchesTagFilter(["אתר"], ["t2"], ["t1"], new Set(["t1"]))).toBe(
     false,
   );
 });
@@ -90,31 +86,30 @@ test("buildLeadExportRows maps fields, tags, statuses and numbered updates", () 
   ];
 
   const rows = buildLeadExportRows(leads, stages, statuses);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0]["שם איש קשר"], "יוסי");
-  assert.equal(rows[0]["שלב"], "חדש");
-  assert.equal(rows[0]["סטטוס תגובה"], "אין מענה 1");
-  assert.equal(rows[0]["תגיות"], "FB, חם");
-  assert.equal(rows[0]["מקור"], "FB");
-  assert.equal(rows[0]["שם קמפיין"], "קיץ");
-  assert.equal(rows[0]["סוכנות"], "צחי קווטנסקי");
-  assert.match(String(rows[0]["עדכון 1"]), /התקשרתי/);
-  assert.match(String(rows[0]["עדכון 2"]), /אין מענה/);
-  assert.equal(rows[0]["טופס: city"], "תל אביב");
-  assert.equal(rows[1]["שלב"], "נסגר");
-  assert.equal(rows[1]["עדכון 2"], "");
-  assert.ok("עדכון 1" in rows[1]);
-  assert.ok("עדכון 2" in rows[1]);
+  expect(rows.length).toBe(2);
+  expect(rows[0]["שם איש קשר"]).toBe("יוסי");
+  expect(rows[0]["שלב"]).toBe("חדש");
+  expect(rows[0]["סטטוס תגובה"]).toBe("אין מענה 1");
+  expect(rows[0]["תגיות"]).toBe("FB, חם");
+  expect(rows[0]["מקור"]).toBe("FB");
+  expect(rows[0]["שם קמפיין"]).toBe("קיץ");
+  expect(rows[0]["סוכנות"]).toBe("צחי קווטנסקי");
+  expect(String(rows[0]["עדכון 1"])).toMatch(/התקשרתי/);
+  expect(String(rows[0]["עדכון 2"])).toMatch(/אין מענה/);
+  expect(rows[0]["טופס: city"]).toBe("תל אביב");
+  expect(rows[1]["שלב"]).toBe("נסגר");
+  expect(rows[1]["עדכון 2"]).toBe("");
+  expect("עדכון 1" in rows[1]).toBeTruthy();
+  expect("עדכון 2" in rows[1]).toBeTruthy();
 });
 
 test("collectFormDataKeys gathers unique form fields", () => {
-  assert.deepEqual(
+  expect(
     collectFormDataKeys([
       { id: "1", form_data: { b: "2", a: "1" } },
       { id: "2", form_data: { a: "3" } },
     ]),
-    ["a", "b"],
-  );
+  ).toStrictEqual(["a", "b"]);
 });
 
 test("formatLeadExportUpdate joins date, author and content", () => {
@@ -123,8 +118,8 @@ test("formatLeadExportUpdate joins date, author and content", () => {
     created_at: "2026-08-01",
     author_name: "דוד",
   });
-  assert.match(text, /דוד/);
-  assert.match(text, /חזרתי אליו/);
+  expect(text).toMatch(/דוד/);
+  expect(text).toMatch(/חזרתי אליו/);
 });
 
 test("owner export keeps all current-tenant leads when an agency is selected", () => {
@@ -144,31 +139,27 @@ test("owner export keeps all current-tenant leads when an agency is selected", (
     isOwner: true,
     selectedAgency: "agency-b",
   });
-  assert.equal(
+  expect(
     calls.some((call) => call[0] === "eq" && call[1] === "agency_id"),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     calls.some(
       (call) =>
         call[0] === "or" && String(call[1]).includes("tenant_id.eq.tenant-1"),
     ),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     leadExportMatchesPageScope(
       { tenant_id: "tenant-1", agency_id: "agency-a" },
       { tenantId: "tenant-1", isOwner: true },
     ),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     leadExportMatchesPageScope(
       { tenant_id: "other", agency_id: "agency-b" },
       { tenantId: "tenant-1", isOwner: true },
     ),
-    false,
-  );
+  ).toBe(false);
 });
 
 function makeClient(
@@ -248,8 +239,8 @@ test("fetchAllLeadsForExport pages past the loaded UI window", async () => {
     tenantId: "tenant-1",
     isOwner: true,
   });
-  assert.equal(leads.length, 1205);
-  assert.deepEqual(ordersByTable.leads, [
+  expect(leads.length).toBe(1205);
+  expect(ordersByTable.leads).toStrictEqual([
     { column: "created_at", ascending: false },
     { column: "id", ascending: false },
   ]);
@@ -297,10 +288,10 @@ test("paged tag and update queries use a unique id order", async () => {
     tenantId: "tenant-1",
     isOwner: true,
   });
-  assert.deepEqual(ordersByTable.chat_contact_tags, [
+  expect(ordersByTable.chat_contact_tags).toStrictEqual([
     { column: "id", ascending: true },
   ]);
-  assert.deepEqual(ordersByTable.lead_updates, [
+  expect(ordersByTable.lead_updates).toStrictEqual([
     { column: "created_at", ascending: true },
     { column: "id", ascending: true },
   ]);

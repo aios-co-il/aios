@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildLayerTextShadow,
   inferLayerShadow,
@@ -13,13 +12,13 @@ test("extrude depth adds that many solid offset steps", () => {
     shadowColor: "#1e3a8a",
     shadowBlur: 16,
   });
-  assert.ok(css);
+  expect(css).toBeTruthy();
   const steps = css.match(/\d+px \d+px 0 #1e3a8a/g) ?? [];
-  assert.equal(steps.length, 6);
+  expect(steps.length).toBe(6);
 });
 
 test("none produces no shadow css", () => {
-  assert.equal(buildLayerTextShadow({ shadowStyle: "none" }), undefined);
+  expect(buildLayerTextShadow({ shadowStyle: "none" })).toBe(undefined);
 });
 
 test("soft shadow keeps a single blur drop", () => {
@@ -29,7 +28,7 @@ test("soft shadow keeps a single blur drop", () => {
     shadowColor: "#000000",
     shadowBlur: 18,
   });
-  assert.equal(css, "0 4px 18px #000000");
+  expect(css).toBe("0 4px 18px #000000");
 });
 
 test("halo is an outline glow, not a caption plate", () => {
@@ -39,9 +38,9 @@ test("halo is an outline glow, not a caption plate", () => {
     shadowColor: "#fde7ee",
     shadowBlur: 18,
   });
-  assert.ok(css);
-  assert.match(css ?? "", /0 0 18px #fde7ee/);
-  assert.match(css ?? "", /-1px 0 0 #fde7ee/);
+  expect(css).toBeTruthy();
+  expect(css ?? "").toMatch(/0 0 18px #fde7ee/);
+  expect(css ?? "").toMatch(/-1px 0 0 #fde7ee/);
 });
 
 test("infer restores extrude depth from existing designed layers", () => {
@@ -60,9 +59,9 @@ test("infer restores extrude depth from existing designed layers", () => {
     }),
   };
   const inferred = inferLayerShadow(layer);
-  assert.equal(inferred.shadowStyle, "extrude");
-  assert.equal(inferred.shadowDepth, 8);
-  assert.equal(inferred.shadowColor, "#1e3a8a");
+  expect(inferred.shadowStyle).toBe("extrude");
+  expect(inferred.shadowDepth).toBe(8);
+  expect(inferred.shadowColor).toBe("#1e3a8a");
 });
 
 test("inferred shadow colors are always 6-digit hex", () => {
@@ -75,7 +74,7 @@ test("inferred shadow colors are always 6-digit hex", () => {
     height: 10,
     textShadow: "0 2px 8px #abc",
   });
-  assert.match(fromShort.shadowColor, /^#[0-9a-fA-F]{6}$/);
+  expect(fromShort.shadowColor).toMatch(/^#[0-9a-fA-F]{6}$/);
   const fromRgb = inferLayerShadow({
     id: "2",
     type: "text",
@@ -85,5 +84,5 @@ test("inferred shadow colors are always 6-digit hex", () => {
     height: 10,
     textShadow: "0 2px 8px rgba(15, 23, 42, 0.4)",
   });
-  assert.equal(fromRgb.shadowColor, "#0f172a");
+  expect(fromRgb.shadowColor).toBe("#0f172a");
 });
