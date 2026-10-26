@@ -1,7 +1,6 @@
-import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { generateClip, failClip } from "../src/jobs/clip.mjs";
 import {
   klingDuration,
@@ -41,17 +40,16 @@ function stillPng() {
 test("klingToken is an HS256 JWT signed with the secret key", () => {
   const token = klingToken("ak", "sk", 1000);
   const [header, payload, signature] = token.split(".");
-  assert.deepEqual(JSON.parse(Buffer.from(header, "base64url")), {
+  expect(JSON.parse(Buffer.from(header, "base64url"))).toStrictEqual({
     alg: "HS256",
     typ: "JWT",
   });
-  assert.deepEqual(JSON.parse(Buffer.from(payload, "base64url")), {
+  expect(JSON.parse(Buffer.from(payload, "base64url"))).toStrictEqual({
     iss: "ak",
     exp: 2800,
     nbf: 995,
   });
-  assert.equal(
-    signature,
+  expect(signature).toBe(
     createHmac("sha256", "sk")
       .update(`${header}.${payload}`)
       .digest("base64url"),
@@ -59,15 +57,15 @@ test("klingToken is an HS256 JWT signed with the secret key", () => {
 });
 
 test("Kling durations round to the 5 s and 10 s clips the API offers, and cost follows", () => {
-  assert.equal(klingDuration(3), "5");
-  assert.equal(klingDuration(5), "5");
-  assert.equal(klingDuration(7), "10");
+  expect(klingDuration(3)).toBe("5");
+  expect(klingDuration(5)).toBe("5");
+  expect(klingDuration(7)).toBe("10");
   const provider = klingProvider();
-  assert.deepEqual(provider.estimate({ durationS: 4 }), {
+  expect(provider.estimate({ durationS: 4 })).toStrictEqual({
     credits: 5100,
     usd: 0.85,
   });
-  assert.deepEqual(provider.estimate({ durationS: 8 }), {
+  expect(provider.estimate({ durationS: 8 })).toStrictEqual({
     credits: 10200,
     usd: 1.7,
   });
@@ -85,14 +83,12 @@ test("Kling signs with the tenant's own key pair before the env pair", async () 
       klingAccessKey: "tenant-ak",
       klingSecretKey: "tenant-sk",
     });
-    assert.equal(provider.name, "kling");
-    assert.deepEqual(
+    expect(provider.name).toBe("kling");
+    expect(
       await provider.submit({ imageUrl: "https://x/a.png", prompt: "p" }),
-      { jobId: "t1" },
-    );
+    ).toStrictEqual({ jobId: "t1" });
     const [, payload] = auth.replace("Bearer ", "").split(".");
-    assert.equal(
-      JSON.parse(Buffer.from(payload, "base64url").toString()).iss,
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString()).iss).toBe(
       "tenant-ak",
     );
   } finally {
@@ -105,10 +101,9 @@ test("a half-saved tenant Kling pair fails instead of using the env pair", async
   process.env.KLING_SECRET_KEY = "env-sk";
   try {
     const provider = getVideoProvider("kling", { klingAccessKey: "tenant-ak" });
-    await assert.rejects(
+    await expect(
       provider.submit({ imageUrl: "https://x/a.png", prompt: "p" }),
-      /both the Access Key and the Secret Key/,
-    );
+    ).rejects.toThrow(/both the Access Key and the Secret Key/);
   } finally {
     delete process.env.KLING_ACCESS_KEY;
     delete process.env.KLING_SECRET_KEY;
@@ -116,28 +111,26 @@ test("a half-saved tenant Kling pair fails instead of using the env pair", async
 });
 
 test("clip prompts always end with the no-text rule", () => {
-  assert.equal(
-    clipPrompt("Camera dollies in"),
+  expect(clipPrompt("Camera dollies in")).toBe(
     "Camera dollies in No text, no letters, no logos.",
   );
-  assert.match(clipPrompt(""), /push-in\. No text, no letters, no logos\.$/);
+  expect(clipPrompt("")).toMatch(/push-in\. No text, no letters, no logos\.$/);
 });
 
 test("unknown providers are rejected and mock is the default", () => {
-  assert.throws(() => getVideoProvider("nope"), /Unknown VIDEO_PROVIDER/);
-  assert.equal(getVideoProvider("mock").name, "mock");
+  expect(() => getVideoProvider("nope")).toThrow(/Unknown VIDEO_PROVIDER/);
+  expect(getVideoProvider("mock").name).toBe("mock");
 });
 
-test(
+test.skipIf(!hasFfmpeg)(
   "the mock provider renders an MP4 of the requested length",
-  { skip: !hasFfmpeg },
   async () => {
     const bytes = await kenBurnsClip(stillPng(), {
       durationS: 1,
       aspect: "9:16",
       fps: 10,
     });
-    assert.equal(Buffer.from(bytes.slice(4, 8)).toString(), "ftyp");
+    expect(Buffer.from(bytes.slice(4, 8)).toString()).toBe("ftyp");
   },
 );
 
@@ -184,9 +177,8 @@ const clipRun = (sceneId, extra = {}) => ({
   ...extra,
 });
 
-test(
+test.skipIf(!hasFfmpeg)(
   "seven clips run in parallel and one failure leaves the other six",
-  { skip: !hasFfmpeg },
   async () => {
     const db = fakeDb({ still: stillPng() });
     const mock = mockProvider();
@@ -211,24 +203,24 @@ test(
         generateClip({ db, run, provider: failing, log: () => {} }),
       ),
     );
-    assert.equal(results.filter((r) => r.status === "fulfilled").length, 6);
-    assert.match(results[3].reason.message, /rejected the image/);
-    assert.equal(db.calls.uploads.length, 6);
-    assert.ok(
+    expect(results.filter((r) => r.status === "fulfilled").length).toBe(6);
+    expect(results[3].reason.message).toMatch(/rejected the image/);
+    expect(db.calls.uploads.length).toBe(6);
+    expect(
       db.calls.uploads.every(
         (u) =>
           u.bucket === "creative-video" &&
           /^t1\/c1\/i1\/s\d\/clip-v1\.mp4$/.test(u.path),
       ),
-    );
+    ).toBeTruthy();
     const attach = db.calls.rpcs.find((call) => call.args.p_scene_id === "s0");
-    assert.equal(attach.name, "attach_video_scene_asset");
-    assert.equal(attach.args.p_kind, "clip");
-    assert.equal(attach.args.p_meta.provider, "mock");
-    assert.equal(attach.args.p_run_id, "run-s0");
+    expect(attach.name).toBe("attach_video_scene_asset");
+    expect(attach.args.p_kind).toBe("clip");
+    expect(attach.args.p_meta.provider).toBe("mock");
+    expect(attach.args.p_run_id).toBe("run-s0");
 
     await failClip({ db, run: runs[3] });
-    assert.deepEqual(db.calls.updates.at(-1), {
+    expect(db.calls.updates.at(-1)).toStrictEqual({
       table: "marketing_video_scenes",
       query: "id=eq.s3&tenant_id=eq.t1&status=eq.clip_generating",
       patch: { status: "failed" },
@@ -256,40 +248,32 @@ test("a retried run resumes its provider job instead of paying twice", async () 
     provider,
     log: () => {},
   });
-  assert.equal(submits, 0);
-  assert.equal(result.output.job_id, "task-42");
-  assert.equal(result.costUsd, 0.85);
-  assert.equal(result.credits, 5100);
+  expect(submits).toBe(0);
+  expect(result.output.job_id).toBe("task-42");
+  expect(result.costUsd).toBe(0.85);
+  expect(result.credits).toBe(5100);
 });
 
 test("worker guards keep paths in the tenant folder and fetches on media hosts", async () => {
   const { assertTenantPath, assertMediaUrl, safeSegment } =
     await import("../src/guard.mjs");
-  assert.equal(
-    assertTenantPath("t1", "t1/c1/i1/clip.mp4"),
-    "t1/c1/i1/clip.mp4",
-  );
-  assert.throws(
-    () => assertTenantPath("t1", "t1/../t2/clip.mp4"),
+  expect(assertTenantPath("t1", "t1/c1/i1/clip.mp4")).toBe("t1/c1/i1/clip.mp4");
+  expect(() => assertTenantPath("t1", "t1/../t2/clip.mp4")).toThrow(
     /outside the tenant/,
   );
-  assert.throws(
-    () => assertTenantPath("t1", "t2/c/i/clip.mp4"),
+  expect(() => assertTenantPath("t1", "t2/c/i/clip.mp4")).toThrow(
     /outside the tenant/,
   );
-  assert.throws(() => assertTenantPath("t1", "t1//x"), /outside the tenant/);
-  assert.equal(safeSegment("../../t2"), "general");
-  assert.equal(safeSegment("c1-ab_9"), "c1-ab_9");
-  assert.equal(
-    assertMediaUrl("https://abc.supabase.co/storage/v1/x"),
+  expect(() => assertTenantPath("t1", "t1//x")).toThrow(/outside the tenant/);
+  expect(safeSegment("../../t2")).toBe("general");
+  expect(safeSegment("c1-ab_9")).toBe("c1-ab_9");
+  expect(assertMediaUrl("https://abc.supabase.co/storage/v1/x")).toBe(
     "https://abc.supabase.co/storage/v1/x",
   );
-  assert.throws(
-    () => assertMediaUrl("http://abc.supabase.co/x"),
+  expect(() => assertMediaUrl("http://abc.supabase.co/x")).toThrow(
     /not allowed/,
   );
-  assert.throws(
-    () => assertMediaUrl("https://169.254.169.254/latest"),
+  expect(() => assertMediaUrl("https://169.254.169.254/latest")).toThrow(
     /not allowed/,
   );
 });
@@ -304,14 +288,13 @@ test("a clip run for a scene outside the run's tenant is refused before any prov
     submit: async () => ((submitted = true), { jobId: "x" }),
     poll: async () => ({ status: "succeeded", bytes: new Uint8Array([0]) }),
   };
-  await assert.rejects(
+  await expect(
     generateClip({
       db,
       run: clipRun("s1", { tenant_id: "t2" }),
       provider,
       log: () => {},
     }),
-    /not in the run's tenant/,
-  );
-  assert.equal(submitted, false);
+  ).rejects.toThrow(/not in the run's tenant/);
+  expect(submitted).toBe(false);
 });

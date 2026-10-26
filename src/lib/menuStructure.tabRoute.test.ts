@@ -1,11 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { tabIdForRoute } from "./menuStructure.ts";
 
 test("recordings route maps to marketing sidebar tab", () => {
-  assert.equal(tabIdForRoute("/recordings"), "marketing");
+  expect(tabIdForRoute("/recordings")).toBe("marketing");
 });
 
 test("clients route maps to daily sidebar tab", () => {
-  assert.equal(tabIdForRoute("/clients"), "daily");
+  expect(tabIdForRoute("/clients")).toBe("daily");
 });

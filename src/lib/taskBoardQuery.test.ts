@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { startOfDay } from "date-fns";
 import {
   buildChatTaskOrFilter,
@@ -15,10 +14,10 @@ test("buildTaskDueDateOrFilter uses due_date only (no target_date — column may
     rangeEnd: "2026-08-30",
     today: "2026-08-24",
   });
-  assert.equal(filter.includes("target_date"), false);
-  assert.match(filter, /due_date\.lt\.2026-08-24/);
-  assert.match(filter, /due_date\.gte\.2026-08-24/);
-  assert.match(filter, /due_date\.lte\.2026-08-30/);
+  expect(filter.includes("target_date")).toBe(false);
+  expect(filter).toMatch(/due_date\.lt\.2026-08-24/);
+  expect(filter).toMatch(/due_date\.gte\.2026-08-24/);
+  expect(filter).toMatch(/due_date\.lte\.2026-08-30/);
 });
 
 test("buildTaskDueDateOrFilter does not pull all historical untimed or done-undated rows", () => {
@@ -27,11 +26,10 @@ test("buildTaskDueDateOrFilter does not pull all historical untimed or done-unda
     rangeEnd: "2026-08-30",
     today: "2026-08-28",
   });
-  assert.equal(filter.includes("due_time.is.null"), false);
-  assert.match(filter, /due_date\.is\.null/);
-  assert.match(filter, /and\(due_date\.is\.null,status\.neq\.done\)/);
-  assert.equal(
-    filter,
+  expect(filter.includes("due_time.is.null")).toBe(false);
+  expect(filter).toMatch(/due_date\.is\.null/);
+  expect(filter).toMatch(/and\(due_date\.is\.null,status\.neq\.done\)/);
+  expect(filter).toBe(
     "and(due_date.gte.2026-08-24,due_date.lte.2026-08-30)," +
       "and(due_date.lt.2026-08-28,status.neq.done)," +
       "and(due_date.is.null,status.neq.done)",
@@ -46,9 +44,9 @@ test("custom range still excludes unbounded untimed and done-undated", () => {
     customStart: "2026-08-01",
     customEnd: "2026-08-31",
   });
-  assert.match(filter, /due_date\.gte\.2026-08-01/);
-  assert.match(filter, /due_date\.lte\.2026-08-31/);
-  assert.equal(filter.includes("due_time.is.null"), false);
+  expect(filter).toMatch(/due_date\.gte\.2026-08-01/);
+  expect(filter).toMatch(/due_date\.lte\.2026-08-31/);
+  expect(filter.includes("due_time.is.null")).toBe(false);
 });
 
 test("taskAppearsOnTimeGrid requires date, time, in-range, and not overdue", () => {
@@ -58,48 +56,43 @@ test("taskAppearsOnTimeGrid requires date, time, in-range, and not overdue", () 
   };
   const today = startOfDay(new Date("2026-08-24"));
 
-  assert.equal(
+  expect(
     taskAppearsOnTimeGrid(
       { due_date: "2026-08-25", due_time: "10:00:00", status: "open" },
       range,
       today,
     ),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     taskAppearsOnTimeGrid(
       { due_date: "2026-08-25", due_time: null, status: "open" },
       range,
       today,
     ),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     taskAppearsOnTimeGrid(
       { due_date: "2026-09-01", due_time: "10:00:00", status: "open" },
       range,
       today,
     ),
-    false,
-  );
+  ).toBe(false);
   // Completed timed tasks stay on the calendar (marked done).
-  assert.equal(
+  expect(
     taskAppearsOnTimeGrid(
       { due_date: "2026-08-25", due_time: "10:00:00", status: "done" },
       range,
       today,
     ),
-    true,
-  );
+  ).toBe(true);
   // Overdue open tasks stay off the timed grid (backlog); overdue done in-range stay visible.
-  assert.equal(
+  expect(
     taskAppearsOnTimeGrid(
       { due_date: "2026-08-20", due_time: "10:00:00", status: "open" },
       range,
       today,
     ),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("buildChatTaskOrFilter pulls all open work plus recently done", () => {
@@ -107,11 +100,10 @@ test("buildChatTaskOrFilter pulls all open work plus recently done", () => {
     today: "2026-09-17",
     doneSince: "2026-09-03",
   });
-  assert.equal(
-    filter,
+  expect(filter).toBe(
     "status.neq.done,and(status.eq.done,updated_at.gte.2026-09-03)",
   );
-  assert.equal(filter.includes("due_date.gte"), false);
+  expect(filter.includes("due_date.gte")).toBe(false);
 });
 
 test("buildChatTaskOrFilter activity period uses created_at", () => {
@@ -120,7 +112,7 @@ test("buildChatTaskOrFilter activity period uses created_at", () => {
     doneSince: "2026-09-03",
     activitySince: "2026-09-01",
   });
-  assert.equal(filter, "created_at.gte.2026-09-01");
+  expect(filter).toBe("created_at.gte.2026-09-01");
 });
 
 test("filterTasksForChatSearch matches title, client, lead, and campaigner", () => {
@@ -144,15 +136,12 @@ test("filterTasksForChatSearch matches title, client, lead, and campaigner", () 
       campaigners: { full_name: "נועה" },
     },
   ];
-  assert.equal(filterTasksForChatSearch(tasks, "קמפיין").length, 1);
-  assert.equal(
-    filterTasksForChatSearch(tasks, "דלתא")[0].title,
-    "לסגור קמפיין",
-  );
-  assert.equal(filterTasksForChatSearch(tasks, "דוד")[0].title, "שיחה");
-  assert.equal(filterTasksForChatSearch(tasks, "אורבן")[0].title, "ליד חדש");
-  assert.equal(filterTasksForChatSearch(tasks, "מיכל")[0].title, "ליד חדש");
-  assert.equal(filterTasksForChatSearch(tasks, "   ").length, 3);
+  expect(filterTasksForChatSearch(tasks, "קמפיין").length).toBe(1);
+  expect(filterTasksForChatSearch(tasks, "דלתא")[0].title).toBe("לסגור קמפיין");
+  expect(filterTasksForChatSearch(tasks, "דוד")[0].title).toBe("שיחה");
+  expect(filterTasksForChatSearch(tasks, "אורבן")[0].title).toBe("ליד חדש");
+  expect(filterTasksForChatSearch(tasks, "מיכל")[0].title).toBe("ליד חדש");
+  expect(filterTasksForChatSearch(tasks, "   ").length).toBe(3);
 });
 
 test("sortTasksForChatList puts overdue and high priority first", () => {
@@ -197,7 +186,7 @@ test("sortTasksForChatList puts overdue and high priority first", () => {
     ],
     today,
   ).map((task) => task.id);
-  assert.deepEqual(sorted, [
+  expect(sorted).toStrictEqual([
     "overdue",
     "progress",
     "open-high",

@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
+// @vitest-environment node
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { pickExistingTeamMember } from "./teamMemberMatch.ts";
 
 const original = {
@@ -23,7 +23,7 @@ test("does not reuse a team member only because the name matches", () => {
     email: "raya@example.com",
     fullName: "  רעיה   כהן ",
   });
-  assert.equal(match, null);
+  expect(match).toBe(null);
 });
 
 test("reuses the card that already has this user's email even when the name differs", () => {
@@ -34,7 +34,7 @@ test("reuses the card that already has this user's email even when the name diff
     ],
     { email: "Raya@Example.com", fullName: "רעיה כהן" },
   );
-  assert.equal(match?.id, "new");
+  expect(match?.id).toBe("new");
 });
 
 test("does not merge two people who share a name but have different emails", () => {
@@ -42,7 +42,7 @@ test("does not merge two people who share a name but have different emails", () 
     [{ ...original, email: "other@example.com" }, duplicate],
     { email: "raya@example.com", fullName: "רעיה כהן" },
   );
-  assert.equal(match?.id, "new");
+  expect(match?.id).toBe("new");
 });
 
 test("does not treat a placeholder name as a match", () => {
@@ -58,7 +58,7 @@ test("does not treat a placeholder name as a match", () => {
     ],
     { email: "raya@example.com", fullName: "קמפיינר" },
   );
-  assert.equal(match, null);
+  expect(match).toBe(null);
 });
 
 test("app and edge matcher stay the same implementation", () => {
@@ -73,5 +73,5 @@ test("app and edge matcher stay the same implementation", () => {
     ),
     "utf8",
   );
-  assert.equal(app, edge);
+  expect(app).toBe(edge);
 });

@@ -1,6 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   buildHealthWhatsAppDigest,
   buildPulseDashboardAbsoluteUrl,
@@ -29,29 +33,29 @@ const DAY_OLD = "2026-08-02T12:30:00.000Z"; // ~23.5h — must NOT be stale (twi
 const STALE = "2026-07-20T08:00:00.000Z";
 const VERY_OLD_COLUMN = "2026-03-27T04:00:00.000Z";
 
-test("resolveLastSyncAt prefers freshest of column vs settings", () => {
-  assert.equal(
+Deno.test("resolveLastSyncAt prefers freshest of column vs settings", () => {
+  assertStrictEquals(
     resolveLastSyncAt({
       last_sync_at: VERY_OLD_COLUMN,
       integration_settings: { last_sync_at: FRESH },
     }),
     FRESH,
   );
-  assert.equal(
+  assertStrictEquals(
     resolveLastSyncAt({
       last_sync_at: null,
       integration_settings: { last_sync_at: STALE },
     }),
     STALE,
   );
-  assert.equal(
+  assertStrictEquals(
     resolveLastSyncAt({ last_sync_at: null, integration_settings: {} }),
     null,
   );
 });
 
-test("isSyncStale uses freshest timestamp", () => {
-  assert.equal(
+Deno.test("isSyncStale uses freshest timestamp", () => {
+  assertStrictEquals(
     isSyncStale(
       {
         last_sync_at: VERY_OLD_COLUMN,
@@ -61,7 +65,7 @@ test("isSyncStale uses freshest timestamp", () => {
     ),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     isSyncStale(
       {
         last_sync_at: null,
@@ -73,57 +77,31 @@ test("isSyncStale uses freshest timestamp", () => {
   );
 });
 
-test("isSyncStale tolerates ~24h gap (twice-daily sync + morning race)", () => {
-  assert.equal(
-    isSyncStale(
-      {
-        last_sync_at: DAY_OLD,
-        integration_settings: {},
-      },
-      NOW,
-    ),
-    false,
-  );
-});
+Deno.test(
+  "isSyncStale tolerates ~24h gap (twice-daily sync + morning race)",
+  () => {
+    assertStrictEquals(
+      isSyncStale(
+        {
+          last_sync_at: DAY_OLD,
+          integration_settings: {},
+        },
+        NOW,
+      ),
+      false,
+    );
+  },
+);
 
-test("pickFreshestTablePerPlatform ignores abandoned Meta duplicate", () => {
-  const picked = pickFreshestTablePerPlatform([
-    {
-      integration_type: "facebook_ecommerce",
-      campaign_active: true,
-      last_sync_at: null,
-      integration_settings: { last_sync_at: STALE },
-    },
-    {
-      integration_type: "facebook_insights",
-      campaign_active: true,
-      last_sync_at: FRESH,
-      integration_settings: {},
-    },
-    {
-      integration_type: "google_ads",
-      campaign_active: true,
-      last_sync_at: DAY_OLD,
-      integration_settings: {},
-    },
-  ]);
-  assert.equal(picked.length, 2);
-  assert.equal(
-    picked.find((t) => t.integration_type?.startsWith("facebook"))
-      ?.integration_type,
-    "facebook_insights",
-  );
-  assert.ok(picked.some((t) => t.integration_type === "google_ads"));
-});
-
-test("fresh Meta sibling keeps platform healthy despite abandoned ecommerce row", () => {
-  const result = classifyCampaignPulseStatus({
-    activeTables: [
+Deno.test(
+  "pickFreshestTablePerPlatform ignores abandoned Meta duplicate",
+  () => {
+    const picked = pickFreshestTablePerPlatform([
       {
-        integration_type: "google_ads",
+        integration_type: "facebook_ecommerce",
         campaign_active: true,
-        last_sync_at: FRESH,
-        integration_settings: {},
+        last_sync_at: null,
+        integration_settings: { last_sync_at: STALE },
       },
       {
         integration_type: "facebook_insights",
@@ -132,94 +110,135 @@ test("fresh Meta sibling keeps platform healthy despite abandoned ecommerce row"
         integration_settings: {},
       },
       {
-        integration_type: "facebook_ecommerce",
+        integration_type: "google_ads",
         campaign_active: true,
-        last_sync_at: null,
-        integration_settings: { last_sync_at: STALE },
+        last_sync_at: DAY_OLD,
+        integration_settings: {},
       },
-    ],
-    hasConfiguredCampaignTable: true,
-    recentRecordCount: 20,
-    isEcommerce: true,
-    spend7: 900,
-    leads7: 0,
-    purchases7: 12,
-    roas: 2.5,
-    cplChangePct: null,
-    nowMs: NOW,
-  });
-  assert.equal(result.status, "healthy");
-  assert.deepEqual(result.stalePlatforms, []);
-});
+    ]);
+    assertStrictEquals(picked.length, 2);
+    assertStrictEquals(
+      picked.find((t) => t.integration_type?.startsWith("facebook"))
+        ?.integration_type,
+      "facebook_insights",
+    );
+    assert(picked.some((t) => t.integration_type === "google_ads"));
+  },
+);
 
-test("health WhatsApp digest is short counts + dashboard link (no per-client list)", () => {
-  const digest = buildHealthWhatsAppDigest({
-    activeConnections: 40,
-    systemChecks: 8,
-    okChecks: 7,
-    issueCount: 18,
-    dashboardUrl: buildPulseDashboardAbsoluteUrl("marketingcaptain"),
-  });
-  assert.match(digest, /בדיקת תקינות מערכות וקמפיינים/);
-  assert.match(digest, /נמצאו 18 נקודות לטיפול/);
-  assert.match(
-    digest,
-    /https:\/\/aios\.co\.il\/t\/marketingcaptain\/dmm-dashboard/,
-  );
-  assert.equal(digest.includes("ארבע על ארבע"), false);
-  assert.equal(digest.includes("בילבי"), false);
-  assert.equal(digest.includes("Meta:"), false);
-  assert.equal(digest.includes("לא בוואטסאפ"), false);
-});
+Deno.test(
+  "fresh Meta sibling keeps platform healthy despite abandoned ecommerce row",
+  () => {
+    const result = classifyCampaignPulseStatus({
+      activeTables: [
+        {
+          integration_type: "google_ads",
+          campaign_active: true,
+          last_sync_at: FRESH,
+          integration_settings: {},
+        },
+        {
+          integration_type: "facebook_insights",
+          campaign_active: true,
+          last_sync_at: FRESH,
+          integration_settings: {},
+        },
+        {
+          integration_type: "facebook_ecommerce",
+          campaign_active: true,
+          last_sync_at: null,
+          integration_settings: { last_sync_at: STALE },
+        },
+      ],
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 20,
+      isEcommerce: true,
+      spend7: 900,
+      leads7: 0,
+      purchases7: 12,
+      roas: 2.5,
+      cplChangePct: null,
+      nowMs: NOW,
+    });
+    assertStrictEquals(result.status, "healthy");
+    assertEquals(result.stalePlatforms, []);
+  },
+);
 
-test("effectiveIsEcommerce follows facebook_ecommerce tables", () => {
-  assert.equal(
+Deno.test(
+  "health WhatsApp digest is short counts + dashboard link (no per-client list)",
+  () => {
+    const digest = buildHealthWhatsAppDigest({
+      activeConnections: 40,
+      systemChecks: 8,
+      okChecks: 7,
+      issueCount: 18,
+      dashboardUrl: buildPulseDashboardAbsoluteUrl("marketingcaptain"),
+    });
+    assertMatch(digest, /בדיקת תקינות מערכות וקמפיינים/);
+    assertMatch(digest, /נמצאו 18 נקודות לטיפול/);
+    assertMatch(
+      digest,
+      /https:\/\/aios\.co\.il\/t\/marketingcaptain\/dmm-dashboard/,
+    );
+    assertStrictEquals(digest.includes("ארבע על ארבע"), false);
+    assertStrictEquals(digest.includes("בילבי"), false);
+    assertStrictEquals(digest.includes("Meta:"), false);
+    assertStrictEquals(digest.includes("לא בוואטסאפ"), false);
+  },
+);
+
+Deno.test("effectiveIsEcommerce follows facebook_ecommerce tables", () => {
+  assertStrictEquals(
     effectiveIsEcommerce(false, [
       { integration_type: "google_ads", campaign_active: true },
     ]),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     effectiveIsEcommerce(false, [
       { integration_type: "facebook_ecommerce", campaign_active: true },
     ]),
     true,
   );
-  assert.equal(
+  assertStrictEquals(
     effectiveIsEcommerce(false, [
       { integration_type: "facebook_ecommerce", campaign_active: false },
     ]),
     false,
   );
-  assert.equal(effectiveIsEcommerce(true, []), true);
+  assertStrictEquals(effectiveIsEcommerce(true, []), true);
 });
 
-test("connected client with no recent rows is warning/stale, not no_data", () => {
-  const result = classifyCampaignPulseStatus({
-    activeTables: [
-      {
-        integration_type: "facebook_ecommerce",
-        campaign_active: true,
-        last_sync_at: null,
-        integration_settings: { last_sync_at: STALE },
-      },
-    ],
-    hasConfiguredCampaignTable: true,
-    recentRecordCount: 0,
-    isEcommerce: true,
-    spend7: 0,
-    leads7: 0,
-    purchases7: 0,
-    roas: null,
-    cplChangePct: null,
-    nowMs: NOW,
-  });
-  assert.equal(result.status, "warning");
-  assert.ok(result.flags.some((flag) => flag.includes("סנכרון ישן או חסר")));
-  assert.deepEqual(result.stalePlatforms, ["Meta"]);
-});
+Deno.test(
+  "connected client with no recent rows is warning/stale, not no_data",
+  () => {
+    const result = classifyCampaignPulseStatus({
+      activeTables: [
+        {
+          integration_type: "facebook_ecommerce",
+          campaign_active: true,
+          last_sync_at: null,
+          integration_settings: { last_sync_at: STALE },
+        },
+      ],
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 0,
+      isEcommerce: true,
+      spend7: 0,
+      leads7: 0,
+      purchases7: 0,
+      roas: null,
+      cplChangePct: null,
+      nowMs: NOW,
+    });
+    assertStrictEquals(result.status, "warning");
+    assert(result.flags.some((flag) => flag.includes("סנכרון ישן או חסר")));
+    assertEquals(result.stalePlatforms, ["Meta"]);
+  },
+);
 
-test("missing campaign table is no_data", () => {
+Deno.test("missing campaign table is no_data", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [],
     hasConfiguredCampaignTable: false,
@@ -232,59 +251,65 @@ test("missing campaign table is no_data", () => {
     cplChangePct: null,
     nowMs: NOW,
   });
-  assert.equal(result.status, "no_data");
-  assert.deepEqual(result.flags, ["אין טבלת קמפיין מחוברת"]);
+  assertStrictEquals(result.status, "no_data");
+  assertEquals(result.flags, ["אין טבלת קמפיין מחוברת"]);
 });
 
-test("ecommerce spend without purchases is critical (not lead CPL)", () => {
-  const result = classifyCampaignPulseStatus({
-    activeTables: [
-      {
-        integration_type: "facebook_ecommerce",
-        campaign_active: true,
-        last_sync_at: FRESH,
-        integration_settings: {},
-      },
-    ],
-    hasConfiguredCampaignTable: true,
-    recentRecordCount: 10,
-    isEcommerce: true,
-    spend7: 200,
-    leads7: 0,
-    purchases7: 0,
-    roas: null,
-    cplChangePct: null,
-    nowMs: NOW,
-  });
-  assert.equal(result.status, "critical");
-  assert.deepEqual(result.flags, ["הוצאה ללא רכישות"]);
-});
+Deno.test(
+  "ecommerce spend without purchases is critical (not lead CPL)",
+  () => {
+    const result = classifyCampaignPulseStatus({
+      activeTables: [
+        {
+          integration_type: "facebook_ecommerce",
+          campaign_active: true,
+          last_sync_at: FRESH,
+          integration_settings: {},
+        },
+      ],
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 10,
+      isEcommerce: true,
+      spend7: 200,
+      leads7: 0,
+      purchases7: 0,
+      roas: null,
+      cplChangePct: null,
+      nowMs: NOW,
+    });
+    assertStrictEquals(result.status, "critical");
+    assertEquals(result.flags, ["הוצאה ללא רכישות"]);
+  },
+);
 
-test("fresh google sync with metrics stays healthy even if column is old", () => {
-  const result = classifyCampaignPulseStatus({
-    activeTables: [
-      {
-        integration_type: "google_ads",
-        campaign_active: true,
-        last_sync_at: VERY_OLD_COLUMN,
-        integration_settings: { last_sync_at: FRESH },
-      },
-    ],
-    hasConfiguredCampaignTable: true,
-    recentRecordCount: 8,
-    isEcommerce: false,
-    spend7: 900,
-    leads7: 10,
-    purchases7: 0,
-    roas: null,
-    cplChangePct: 5,
-    nowMs: NOW,
-  });
-  assert.equal(result.status, "healthy");
-  assert.deepEqual(result.flags, []);
-});
+Deno.test(
+  "fresh google sync with metrics stays healthy even if column is old",
+  () => {
+    const result = classifyCampaignPulseStatus({
+      activeTables: [
+        {
+          integration_type: "google_ads",
+          campaign_active: true,
+          last_sync_at: VERY_OLD_COLUMN,
+          integration_settings: { last_sync_at: FRESH },
+        },
+      ],
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 8,
+      isEcommerce: false,
+      spend7: 900,
+      leads7: 10,
+      purchases7: 0,
+      roas: null,
+      cplChangePct: 5,
+      nowMs: NOW,
+    });
+    assertStrictEquals(result.status, "healthy");
+    assertEquals(result.flags, []);
+  },
+);
 
-test("stale platform on otherwise healthy client becomes warning", () => {
+Deno.test("stale platform on otherwise healthy client becomes warning", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -310,11 +335,11 @@ test("stale platform on otherwise healthy client becomes warning", () => {
     cplChangePct: null,
     nowMs: NOW,
   });
-  assert.equal(result.status, "warning");
-  assert.ok(result.flags.some((flag) => flag.includes("Meta")));
+  assertStrictEquals(result.status, "warning");
+  assert(result.flags.some((flag) => flag.includes("Meta")));
 });
 
-test("client without a documented call in 14 days becomes warning", () => {
+Deno.test("client without a documented call in 14 days becomes warning", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -335,11 +360,11 @@ test("client without a documented call in 14 days becomes warning", () => {
     lastClientCallAt: "2026-07-15T12:00:00.000Z",
     nowMs: NOW,
   });
-  assert.equal(result.status, "warning");
-  assert.ok(result.flags.some((flag) => flag.includes("14 הימים")));
+  assertStrictEquals(result.status, "warning");
+  assert(result.flags.some((flag) => flag.includes("14 הימים")));
 });
 
-test("client call within 14 days keeps healthy campaign healthy", () => {
+Deno.test("client call within 14 days keeps healthy campaign healthy", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -360,11 +385,11 @@ test("client call within 14 days keeps healthy campaign healthy", () => {
     lastClientCallAt: "2026-07-25T12:00:00.000Z",
     nowMs: NOW,
   });
-  assert.equal(result.status, "healthy");
-  assert.deepEqual(result.flags, []);
+  assertStrictEquals(result.status, "healthy");
+  assertEquals(result.flags, []);
 });
 
-test("client with no documented call is flagged", () => {
+Deno.test("client with no documented call is flagged", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -385,11 +410,11 @@ test("client with no documented call is flagged", () => {
     lastClientCallAt: null,
     nowMs: NOW,
   });
-  assert.equal(result.status, "warning");
-  assert.deepEqual(result.flags, ["לא תועדה שיחה טלפונית עם הלקוח"]);
+  assertStrictEquals(result.status, "warning");
+  assertEquals(result.flags, ["לא תועדה שיחה טלפונית עם הלקוח"]);
 });
 
-test("stopped campaign makes the client critical", () => {
+Deno.test("stopped campaign makes the client critical", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -410,64 +435,70 @@ test("stopped campaign makes the client critical", () => {
     stoppedCampaignCount: 2,
     nowMs: NOW,
   });
-  assert.equal(result.status, "critical");
-  assert.ok(result.flags.includes("2 קמפיינים נעצרו"));
+  assertStrictEquals(result.status, "critical");
+  assert(result.flags.includes("2 קמפיינים נעצרו"));
 });
 
-test("critical alerts attach only to clients with an active campaign table", () => {
-  const clients = [
-    {
-      clientId: "client-active",
-      clientName: "בילבי",
-      adAccountIds: ["111"],
-      hasActiveCampaignTable: true,
-    },
-    {
-      clientId: "client-paused",
-      clientName: "ארבע על ארבע",
-      adAccountIds: ["222"],
-      hasActiveCampaignTable: false,
-    },
-  ];
-  const issues = selectPulseCriticalAlerts(
-    [
-      // Meta's monitor records the ad account but no client_id.
+Deno.test(
+  "critical alerts attach only to clients with an active campaign table",
+  () => {
+    const clients = [
       {
-        alert_type: "campaign_stopped",
-        severity: "critical",
-        ad_account_id: "act_111",
-        campaign_name: "לידים אוגוסט",
+        clientId: "client-active",
+        clientName: "בילבי",
+        adAccountIds: ["111"],
+        hasActiveCampaignTable: true,
       },
       {
-        alert_type: "campaign_stopped",
-        severity: "critical",
-        ad_account_id: "act_222",
-        campaign_name: "קמפיין מושהה",
+        clientId: "client-paused",
+        clientName: "ארבע על ארבע",
+        adAccountIds: ["222"],
+        hasActiveCampaignTable: false,
       },
-      {
-        alert_type: "frequency_high",
-        severity: "info",
-        ad_account_id: "act_111",
-        campaign_name: "תדירות",
-      },
-      {
-        alert_type: "campaign_stopped",
-        severity: "critical",
-        ad_account_id: "act_999",
-        campaign_name: "לקוח לא ידוע",
-      },
-    ],
-    clients,
-  );
+    ];
+    const issues = selectPulseCriticalAlerts(
+      [
+        // Meta's monitor records the ad account but no client_id.
+        {
+          alert_type: "campaign_stopped",
+          severity: "critical",
+          ad_account_id: "act_111",
+          campaign_name: "לידים אוגוסט",
+        },
+        {
+          alert_type: "campaign_stopped",
+          severity: "critical",
+          ad_account_id: "act_222",
+          campaign_name: "קמפיין מושהה",
+        },
+        {
+          alert_type: "frequency_high",
+          severity: "info",
+          ad_account_id: "act_111",
+          campaign_name: "תדירות",
+        },
+        {
+          alert_type: "campaign_stopped",
+          severity: "critical",
+          ad_account_id: "act_999",
+          campaign_name: "לקוח לא ידוע",
+        },
+      ],
+      clients,
+    );
 
-  assert.equal(issues.length, 1);
-  assert.equal(issues[0].clientName, "בילבי");
-  assert.equal(issues[0].label, "קמפיין נעצר");
-  assert.equal(issues[0].campaignName, "לידים אוגוסט");
-  assert.equal(countStoppedCampaignsByClient(issues).get("client-active"), 1);
-});
+    assertStrictEquals(issues.length, 1);
+    assertStrictEquals(issues[0].clientName, "בילבי");
+    assertStrictEquals(issues[0].label, "קמפיין נעצר");
+    assertStrictEquals(issues[0].campaignName, "לידים אוגוסט");
+    assertStrictEquals(
+      countStoppedCampaignsByClient(issues).get("client-active"),
+      1,
+    );
+  },
+);
 
-test("critical alerts appear in the WhatsApp digest", () => {
+Deno.test("critical alerts appear in the WhatsApp digest", () => {
   const digest = buildPulseWhatsAppDigest(
     [{ status: "critical" }, { status: "healthy" }],
     "https://aios.co.il/t/dmm/dmm-dashboard",
@@ -488,17 +519,17 @@ test("critical alerts appear in the WhatsApp digest", () => {
       },
     ],
   );
-  assert.match(digest, /🔴 דורש טיפול:/);
-  assert.match(digest, /• בילבי: קמפיין נעצר — לידים אוגוסט/);
-  assert.match(digest, /• ארבע על ארבע: מודעה נדחתה/);
-  assert.equal(digest.includes("| סוכנות |"), false);
+  assertMatch(digest, /🔴 דורש טיפול:/);
+  assertMatch(digest, /• בילבי: קמפיין נעצר — לידים אוגוסט/);
+  assertMatch(digest, /• ארבע על ארבע: מודעה נדחתה/);
+  assertStrictEquals(digest.includes("| סוכנות |"), false);
 });
 
-test("ad account ids are read from table settings and normalized", () => {
-  assert.equal(normalizeAdAccountId("act_123"), "123");
-  assert.equal(normalizeAdAccountId(" 456 "), "456");
-  assert.equal(normalizeAdAccountId(null), null);
-  assert.deepEqual(
+Deno.test("ad account ids are read from table settings and normalized", () => {
+  assertStrictEquals(normalizeAdAccountId("act_123"), "123");
+  assertStrictEquals(normalizeAdAccountId(" 456 "), "456");
+  assertStrictEquals(normalizeAdAccountId(null), null);
+  assertEquals(
     clientAdAccountIds([
       {
         integration_type: "facebook_insights",
@@ -514,57 +545,63 @@ test("ad account ids are read from table settings and normalized", () => {
   );
 });
 
-test("WhatsApp pulse digest is short counts + dashboard link (no markdown table)", () => {
-  const digest = buildPulseWhatsAppDigest(
-    [
+Deno.test(
+  "WhatsApp pulse digest is short counts + dashboard link (no markdown table)",
+  () => {
+    const digest = buildPulseWhatsAppDigest(
+      [
+        { status: "healthy" },
+        { status: "warning" },
+        { status: "no_data" },
+        { status: "critical" },
+      ],
+      "https://aios.co.il/t/marketingcaptain/dmm-dashboard",
+    );
+    assertMatch(digest, /בדיקת דופק הושלמה/);
+    assertMatch(digest, /🟢 \*1\* תקינים/);
+    assertMatch(digest, /🟡 \*1\* במגמה שלילית/);
+    assertMatch(digest, /🔴 \*1\* דורשים טיפול/);
+    assertMatch(digest, /⚙️ \*1\* עם בעיית תפעול/);
+    assertMatch(
+      digest,
+      /https:\/\/aios\.co\.il\/t\/marketingcaptain\/dmm-dashboard/,
+    );
+    assertStrictEquals(digest.includes("| סוכנות |"), false);
+    assertStrictEquals(digest.includes("חושבה ב־"), false);
+    assertStrictEquals(digest.includes("לא בוואטסאפ"), false);
+    assertStrictEquals(digest.includes("בדשבורד בלבד"), false);
+    assertStrictEquals(
+      buildPulseWhatsAppDigest(
+        [{ status: "healthy", client_name: "בילבי" }],
+        "https://aios.co.il/t/marketingcaptain/dmm-dashboard",
+      ).includes("בדשבורד בלבד"),
+      false,
+    );
+    const counts = countPulseStatuses([
       { status: "healthy" },
       { status: "warning" },
       { status: "no_data" },
       { status: "critical" },
-    ],
-    "https://aios.co.il/t/marketingcaptain/dmm-dashboard",
-  );
-  assert.match(digest, /בדיקת דופק הושלמה/);
-  assert.match(digest, /🟢 \*1\* תקינים/);
-  assert.match(digest, /🟡 \*1\* במגמה שלילית/);
-  assert.match(digest, /🔴 \*1\* דורשים טיפול/);
-  assert.match(digest, /⚙️ \*1\* עם בעיית תפעול/);
-  assert.match(
-    digest,
-    /https:\/\/aios\.co\.il\/t\/marketingcaptain\/dmm-dashboard/,
-  );
-  assert.equal(digest.includes("| סוכנות |"), false);
-  assert.equal(digest.includes("חושבה ב־"), false);
-  assert.equal(digest.includes("לא בוואטסאפ"), false);
-  assert.equal(digest.includes("בדשבורד בלבד"), false);
-  assert.equal(
-    buildPulseWhatsAppDigest(
-      [{ status: "healthy", client_name: "בילבי" }],
-      "https://aios.co.il/t/marketingcaptain/dmm-dashboard",
-    ).includes("בדשבורד בלבד"),
-    false,
-  );
-  const counts = countPulseStatuses([
-    { status: "healthy" },
-    { status: "warning" },
-    { status: "no_data" },
-    { status: "critical" },
-  ]);
-  assert.equal(counts.attention, 2);
-  assert.equal(pulseSurfacePrefersWhatsAppDigest("whatsapp"), true);
-  assert.equal(pulseSurfacePrefersWhatsAppDigest("task"), true);
-  assert.equal(pulseSurfacePrefersWhatsAppDigest("internal_chat"), false);
-});
+    ]);
+    assertStrictEquals(counts.attention, 2);
+    assertStrictEquals(pulseSurfacePrefersWhatsAppDigest("whatsapp"), true);
+    assertStrictEquals(pulseSurfacePrefersWhatsAppDigest("task"), true);
+    assertStrictEquals(
+      pulseSurfacePrefersWhatsAppDigest("internal_chat"),
+      false,
+    );
+  },
+);
 
-test("filterPulseRowsByClientIds keeps only assigned clients", () => {
+Deno.test("filterPulseRowsByClientIds keeps only assigned clients", () => {
   const rows = [
     { client_id: "a", status: "healthy", client_name: "Alpha" },
     { client_id: "b", status: "warning", client_name: "Beta" },
     { client_id: "c", status: "critical", client_name: "Gamma" },
   ];
   const filtered = filterPulseRowsByClientIds(rows, ["a", "c"]);
-  assert.equal(filtered.length, 2);
-  assert.deepEqual(
+  assertStrictEquals(filtered.length, 2);
+  assertEquals(
     filtered.map((row) => row.client_id),
     ["a", "c"],
   );
@@ -573,52 +610,67 @@ test("filterPulseRowsByClientIds keeps only assigned clients", () => {
     filtered,
     "https://aios.co.il/t/dmm/dmm-dashboard",
   );
-  assert.match(digest, /נבדקו 2 לקוחות/);
-  assert.match(digest, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
-  assert.equal(filterPulseRowsByClientIds(rows, []).length, 0);
+  assertMatch(digest, /נבדקו 2 לקוחות/);
+  assertMatch(digest, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
+  assertStrictEquals(filterPulseRowsByClientIds(rows, []).length, 0);
 });
 
-test("hybrid snapshot expands to separate lead and ecommerce goal rows", () => {
-  const rows = expandSnapshotToGoalRows({
-    client_id: "c1",
-    client_name: "Hybrid Co",
-    status: "warning",
-    campaign_goal_mode: "hybrid",
-    lead_spend_7d: 100,
-    ecommerce_spend_7d: 200,
-    leads_7d: 5,
-    purchases_7d: 8,
-    cpl_7d: 20,
-    roas_7d: 2.5,
-    cpl_change_pct: 10,
-    roas_change_pct: -5,
-    lead_goal_status: "warning",
-    ecommerce_goal_status: "healthy",
-  });
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0].goal, "leads");
-  assert.equal(rows[1].goal, "ecommerce");
-  assert.equal(rows[0].efficiency_kind, "cpl");
-  assert.equal(rows[1].efficiency_kind, "roas");
+Deno.test(
+  "hybrid snapshot expands to separate lead and ecommerce goal rows",
+  () => {
+    const rows = expandSnapshotToGoalRows({
+      client_id: "c1",
+      client_name: "Hybrid Co",
+      status: "warning",
+      campaign_goal_mode: "hybrid",
+      lead_spend_7d: 100,
+      ecommerce_spend_7d: 200,
+      leads_7d: 5,
+      purchases_7d: 8,
+      cpl_7d: 20,
+      roas_7d: 2.5,
+      cpl_change_pct: 10,
+      roas_change_pct: -5,
+      lead_goal_status: "warning",
+      ecommerce_goal_status: "healthy",
+    });
+    assertStrictEquals(rows.length, 2);
+    assertStrictEquals(rows[0].goal, "leads");
+    assertStrictEquals(rows[1].goal, "ecommerce");
+    assertStrictEquals(rows[0].efficiency_kind, "cpl");
+    assertStrictEquals(rows[1].efficiency_kind, "roas");
+  },
+);
+
+Deno.test("isPulseDeliveryExcludedRecipient blocks אילנית", () => {
+  assertStrictEquals(isPulseDeliveryExcludedRecipient("אילנית"), true);
+  assertStrictEquals(isPulseDeliveryExcludedRecipient("דנה"), false);
 });
 
-test("isPulseDeliveryExcludedRecipient blocks אילנית", () => {
-  assert.equal(isPulseDeliveryExcludedRecipient("אילנית"), true);
-  assert.equal(isPulseDeliveryExcludedRecipient("דנה"), false);
-});
+Deno.test(
+  "isPulseDeliveryExcludedPhone is tenant-scoped (none blocked by default)",
+  () => {
+    assertStrictEquals(
+      isPulseDeliveryExcludedPhone("972507677613", "dmm"),
+      false,
+    );
+    assertStrictEquals(
+      isPulseDeliveryExcludedPhone("0507677613", "dmm"),
+      false,
+    );
+    assertStrictEquals(
+      isPulseDeliveryExcludedPhone("972507677613", "marketingcaptain"),
+      false,
+    );
+    assertStrictEquals(
+      isPulseDeliveryExcludedPhone("972558833168", "dmm"),
+      false,
+    );
+    assertStrictEquals(isPulseDeliveryExcludedPhone("972507677613"), false);
+  },
+);
 
-test("isPulseDeliveryExcludedPhone is tenant-scoped (none blocked by default)", () => {
-  assert.equal(isPulseDeliveryExcludedPhone("972507677613", "dmm"), false);
-  assert.equal(isPulseDeliveryExcludedPhone("0507677613", "dmm"), false);
-  assert.equal(
-    isPulseDeliveryExcludedPhone("972507677613", "marketingcaptain"),
-    false,
-  );
-  assert.equal(isPulseDeliveryExcludedPhone("972558833168", "dmm"), false);
-  assert.equal(isPulseDeliveryExcludedPhone("972507677613"), false);
-});
-
-test("category digest lines summarize the three campaign goals", () => {
+Deno.test("category digest lines summarize the three campaign goals", () => {
   const lines = buildPulseCategoryDigestLines([
     {
       client_name: "לקוח א",
@@ -638,114 +690,123 @@ test("category digest lines summarize the three campaign goals", () => {
     },
   ]);
 
-  assert.match(lines.join("\n"), /לידים: 🔴 1 · 🟡 0 · 🟢 1 \(2 קמפיינים\)/);
-  assert.match(
+  assertMatch(lines.join("\n"), /לידים: 🔴 1 · 🟡 0 · 🟢 1 \(2 קמפיינים\)/);
+  assertMatch(
     lines.join("\n"),
     /אינגייג׳מנט: 🔴 0 · 🟡 1 · 🟢 0 \(קמפיין אחד\)/,
   );
-  assert.match(lines.join("\n"), /איקומרס: 🔴 0 · 🟡 0 · 🟢 1/);
-  assert.match(lines.join("\n"), /טעונים סיווג: 1/);
-  assert.match(lines.join("\n"), /לקוח א — לידים חורף: CPL ₪180/);
+  assertMatch(lines.join("\n"), /איקומרס: 🔴 0 · 🟡 0 · 🟢 1/);
+  assertMatch(lines.join("\n"), /טעונים סיווג: 1/);
+  assertMatch(lines.join("\n"), /לקוח א — לידים חורף: CPL ₪180/);
 });
 
-test("category digest stays empty for legacy snapshots without breakdown", () => {
-  assert.deepEqual(
-    buildPulseCategoryDigestLines([
-      { client_name: "לקוח", campaign_breakdown: null },
-    ]),
-    [],
-  );
-});
+Deno.test(
+  "category digest stays empty for legacy snapshots without breakdown",
+  () => {
+    assertEquals(
+      buildPulseCategoryDigestLines([
+        { client_name: "לקוח", campaign_breakdown: null },
+      ]),
+      [],
+    );
+  },
+);
 
-test("whatsapp digest names red clients and keeps the dashboard link last", () => {
-  const digest = buildPulseWhatsAppDigest(
-    [
-      {
-        client_id: "c1",
-        client_name: "לקוח א",
-        status: "critical",
-        campaign_goal_mode: "leads",
-        campaign_breakdown: [
-          {
-            goal: "leads",
-            status: "critical",
-            alert_eligible: true,
-            campaign_name: "לידים חורף",
-            status_reason: "הוצאה בלי תוצאות",
-          },
-        ],
-      },
-      {
-        client_id: "c2",
-        client_name: "לקוח ב",
-        status: "healthy",
-        campaign_goal_mode: "ecommerce",
-        campaign_breakdown: [
-          { goal: "ecommerce", status: "healthy", campaign_name: "חנות" },
-        ],
-      },
-    ],
-    "https://aios.co.il/t/dmm/dmm-dashboard",
-  );
+Deno.test(
+  "whatsapp digest names red clients and keeps the dashboard link last",
+  () => {
+    const digest = buildPulseWhatsAppDigest(
+      [
+        {
+          client_id: "c1",
+          client_name: "לקוח א",
+          status: "critical",
+          campaign_goal_mode: "leads",
+          campaign_breakdown: [
+            {
+              goal: "leads",
+              status: "critical",
+              alert_eligible: true,
+              campaign_name: "לידים חורף",
+              status_reason: "הוצאה בלי תוצאות",
+            },
+          ],
+        },
+        {
+          client_id: "c2",
+          client_name: "לקוח ב",
+          status: "healthy",
+          campaign_goal_mode: "ecommerce",
+          campaign_breakdown: [
+            { goal: "ecommerce", status: "healthy", campaign_name: "חנות" },
+          ],
+        },
+      ],
+      "https://aios.co.il/t/dmm/dmm-dashboard",
+    );
 
-  // Multi-client digest lists the red client with its failing campaign (no category block).
-  assert.match(digest, /🔴 לקוח א — לידים חורף: הוצאה בלי תוצאות/);
-  assert.doesNotMatch(digest, /\|/);
-  assert.ok(digest.trim().endsWith("https://aios.co.il/t/dmm/dmm-dashboard"));
-});
+    // Multi-client digest lists the red client with its failing campaign (no category block).
+    assertMatch(digest, /🔴 לקוח א — לידים חורף: הוצאה בלי תוצאות/);
+    assertNotMatch(digest, /\|/);
+    assert(digest.trim().endsWith("https://aios.co.il/t/dmm/dmm-dashboard"));
+  },
+);
 
-test("multi-client digest groups by agency and keeps call-log gaps out of the warnings", () => {
-  const digest = buildPulseWhatsAppDigest(
-    [
-      {
-        client_name: "Smart air",
-        agency_name: "DMM-LTD",
-        status: "critical",
-        flags: ["הוצאה ללא רכישות"],
-      },
-      {
-        client_name: "Detailit",
-        agency_name: "DMM-LTD",
-        status: "warning",
-        flags: ["לא תועדה שיחה טלפונית עם הלקוח"],
-      },
-      {
-        client_name: "בילבי",
-        agency_name: "promo",
-        status: "warning",
-        flags: ["CPL עלה ב-40%"],
-      },
-      {
-        client_name: "חדש",
-        agency_name: "promo",
-        status: "no_data",
-        flags: ["אין טבלת קמפיין מחוברת"],
-      },
-    ],
-    "https://aios.co.il/t/dmm/dmm-dashboard",
-    [
-      {
-        clientId: "n",
-        clientName: "נורית אלדר",
-        alertType: "ad_disapproved",
-        label: "מודעה נדחתה",
-        campaignName: "א",
-      },
-      {
-        clientId: "n",
-        clientName: "נורית אלדר",
-        alertType: "ad_disapproved",
-        label: "מודעה נדחתה",
-        campaignName: "ב",
-      },
-    ],
-  );
-  assert.match(digest, /🔴 \*1\* דורשים טיפול/);
-  assert.match(digest, /🟡 \*1\* במגמה שלילית/);
-  assert.match(digest, /🟢 \*1\* תקינים/);
-  assert.match(digest, /⚙️ \*2\* עם בעיית תפעול/);
-  assert.match(digest, /\*DMM-LTD\* \(2\) — 🔴 1 · 🟡 0 · 🟢 1/);
-  assert.match(digest, /🔴 Smart air — הוצאה ללא רכישות/);
-  assert.match(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);
-  assert.match(digest, /• נורית אלדר: מודעה נדחתה ×2/);
-});
+Deno.test(
+  "multi-client digest groups by agency and keeps call-log gaps out of the warnings",
+  () => {
+    const digest = buildPulseWhatsAppDigest(
+      [
+        {
+          client_name: "Smart air",
+          agency_name: "DMM-LTD",
+          status: "critical",
+          flags: ["הוצאה ללא רכישות"],
+        },
+        {
+          client_name: "Detailit",
+          agency_name: "DMM-LTD",
+          status: "warning",
+          flags: ["לא תועדה שיחה טלפונית עם הלקוח"],
+        },
+        {
+          client_name: "בילבי",
+          agency_name: "promo",
+          status: "warning",
+          flags: ["CPL עלה ב-40%"],
+        },
+        {
+          client_name: "חדש",
+          agency_name: "promo",
+          status: "no_data",
+          flags: ["אין טבלת קמפיין מחוברת"],
+        },
+      ],
+      "https://aios.co.il/t/dmm/dmm-dashboard",
+      [
+        {
+          clientId: "n",
+          clientName: "נורית אלדר",
+          alertType: "ad_disapproved",
+          label: "מודעה נדחתה",
+          campaignName: "א",
+        },
+        {
+          clientId: "n",
+          clientName: "נורית אלדר",
+          alertType: "ad_disapproved",
+          label: "מודעה נדחתה",
+          campaignName: "ב",
+        },
+      ],
+    );
+    assertMatch(digest, /🔴 \*1\* דורשים טיפול/);
+    assertMatch(digest, /🟡 \*1\* במגמה שלילית/);
+    assertMatch(digest, /🟢 \*1\* תקינים/);
+    assertMatch(digest, /⚙️ \*2\* עם בעיית תפעול/);
+    assertMatch(digest, /\*DMM-LTD\* \(2\) — 🔴 1 · 🟡 0 · 🟢 1/);
+    assertMatch(digest, /🔴 Smart air — הוצאה ללא רכישות/);
+    assertMatch(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);
+    assertMatch(digest, /• נורית אלדר: מודעה נדחתה ×2/);
+  },
+);

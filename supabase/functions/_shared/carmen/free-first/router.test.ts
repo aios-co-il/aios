@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { routeCarmenTask } from "./router.ts";
 import type { ModelCandidate, RouterSettings } from "./types.ts";
 
@@ -42,8 +41,8 @@ const models: ModelCandidate[] = [
     estimatedCostUsd: 0.1,
   },
 ];
-test("deterministic path uses no model", () => {
-  assert.equal(
+Deno.test("deterministic path uses no model", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "deterministic", deterministicAvailable: true },
       settings,
@@ -51,18 +50,18 @@ test("deterministic path uses no model", () => {
     ).status,
     "no_model_needed",
   );
-  assert.equal(
+  assertStrictEquals(
     routeCarmenTask({ kind: "deterministic" }, settings, models).modelId,
     "groq-free",
   );
 });
-test("simple tasks prefer free with free fallback", () => {
+Deno.test("simple tasks prefer free with free fallback", () => {
   const d = routeCarmenTask({ kind: "lead_triage" }, settings, models);
-  assert.equal(d.modelId, "groq-free");
-  assert.deepEqual(d.fallbackIds, ["backup-free"]);
+  assertStrictEquals(d.modelId, "groq-free");
+  assertEquals(d.fallbackIds, ["backup-free"]);
 });
-test("complex task remains free under free_first", () => {
-  assert.equal(
+Deno.test("complex task remains free under free_first", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "strategy", complexity: "complex" },
       settings,
@@ -71,26 +70,26 @@ test("complex task remains free under free_first", () => {
     "groq-free",
   );
 });
-test("premium override requires consent", () => {
+Deno.test("premium override requires consent", () => {
   const d = routeCarmenTask(
     { kind: "strategy" },
     { ...settings, taskOverrides: { strategy: "premium" } },
     models,
   );
-  assert.equal(d.status, "approval_required");
-  assert.equal(d.modelId, "premium");
+  assertStrictEquals(d.status, "approval_required");
+  assertStrictEquals(d.modelId, "premium");
 });
-test("automatic payment needs permission and budget", () => {
+Deno.test("automatic payment needs permission and budget", () => {
   const s: RouterSettings = {
     ...settings,
     allowAutomaticPremium: true,
     taskOverrides: { strategy: "premium" },
   };
-  assert.equal(
+  assertStrictEquals(
     routeCarmenTask({ kind: "strategy" }, s, models).status,
     "ready",
   );
-  assert.equal(
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "strategy" },
       { ...s, remainingPremiumBudgetUsd: 0.01 },
@@ -98,7 +97,7 @@ test("automatic payment needs permission and budget", () => {
     ).status,
     "approval_required",
   );
-  assert.equal(
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "strategy" },
       s,
@@ -109,17 +108,17 @@ test("automatic payment needs permission and budget", () => {
     "approval_required",
   );
 });
-test("private client data never goes to unapproved providers", () => {
+Deno.test("private client data never goes to unapproved providers", () => {
   const d = routeCarmenTask(
     { kind: "customer_reply", containsClientData: true },
     settings,
     models,
   );
-  assert.equal(d.modelId, "premium");
-  assert.equal(d.status, "approval_required");
+  assertStrictEquals(d.modelId, "premium");
+  assertStrictEquals(d.status, "approval_required");
 });
-test("tool and vision requirements are enforced", () => {
-  assert.equal(
+Deno.test("tool and vision requirements are enforced", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "campaign_analysis", needsToolCalling: true, needsVision: true },
       settings,
@@ -128,7 +127,7 @@ test("tool and vision requirements are enforced", () => {
     "premium",
   );
 });
-test("quota exhaustion does not silently authorize spending", () => {
+Deno.test("quota exhaustion does not silently authorize spending", () => {
   const d = routeCarmenTask(
     { kind: "lead_triage" },
     settings,
@@ -136,27 +135,27 @@ test("quota exhaustion does not silently authorize spending", () => {
       m.tier === "free" ? { ...m, quotaAvailable: false } : m,
     ),
   );
-  assert.equal(d.status, "approval_required");
+  assertStrictEquals(d.status, "approval_required");
 });
-test("failed quality check triggers escalation with budget", () => {
+Deno.test("failed quality check triggers escalation with budget", () => {
   const d = routeCarmenTask(
     { kind: "content_draft", qualityFailures: 2 },
     { ...settings, allowAutomaticPremium: true },
     models,
   );
-  assert.equal(d.modelId, "premium");
-  assert.equal(d.reason, "quality_escalation");
+  assertStrictEquals(d.modelId, "premium");
+  assertStrictEquals(d.reason, "quality_escalation");
 });
-test("action approval remains independent of brain choice", () => {
+Deno.test("action approval remains independent of brain choice", () => {
   const d = routeCarmenTask(
     { kind: "customer_reply", requiresActionApproval: true },
     settings,
     models,
   );
-  assert.equal(d.requiresActionApproval, true);
+  assertStrictEquals(d.requiresActionApproval, true);
 });
-test("free_only never chooses paid fallback", () => {
-  assert.equal(
+Deno.test("free_only never chooses paid fallback", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "lead_triage" },
       { ...settings, taskOverrides: { lead_triage: "free_only" } },
@@ -165,8 +164,8 @@ test("free_only never chooses paid fallback", () => {
     "unavailable",
   );
 });
-test("premium override never silently downgrades", () => {
-  assert.equal(
+Deno.test("premium override never silently downgrades", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "strategy" },
       { ...settings, taskOverrides: { strategy: "premium" } },
@@ -175,8 +174,8 @@ test("premium override never silently downgrades", () => {
     "unavailable",
   );
 });
-test("smart_auto can choose paid for complex tasks", () => {
-  assert.equal(
+Deno.test("smart_auto can choose paid for complex tasks", () => {
+  assertStrictEquals(
     routeCarmenTask(
       { kind: "campaign_analysis", complexity: "complex" },
       { ...settings, mode: "smart_auto", allowAutomaticPremium: true },
