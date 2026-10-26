@@ -44,6 +44,7 @@ import {
   RefreshCw,
   Search,
   Table2,
+  Target,
 } from "lucide-react";
 import {
   isFacebookIntegration,
@@ -52,10 +53,20 @@ import {
 import { PulseClientRawCard } from "@/components/pulse/PulseClientRawCard";
 import { PulseAttentionTable } from "@/components/pulse/PulseAttentionTable";
 import {
-  buildPlatformTargetPatch,
+  PulseTargetEditorDialog,
+  type PulseTargetEditorContext,
+  type PulseTargetSaveInput,
+} from "@/components/pulse/PulseTargetEditorDialog";
+import { PulseMissingTargetsList } from "@/components/pulse/PulseMissingTargetsList";
+import {
   buildPulseAttentionRows,
   type PulseAttentionClientContext,
+  type PulseAttentionRow,
 } from "@/lib/pulseAttentionMatrix";
+import {
+  buildPulseTargetPatch,
+  listCampaignsWithoutTarget,
+} from "@/lib/pulseTargets";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -114,9 +125,9 @@ export function CampaignPulseDashboard({
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
-  const [dashboardTab, setDashboardTab] = useState<"data" | "attention">(
-    "data",
-  );
+  const [dashboardTab, setDashboardTab] = useState<
+    "data" | "attention" | "no_target"
+  >("data");
   const [filterService, setFilterService] = useState<
     "all" | "ppc_google" | "ppc_meta" | "seo" | "campaign"
   >("campaign");
@@ -127,9 +138,9 @@ export function CampaignPulseDashboard({
   const [callLogTarget, setCallLogTarget] =
     useState<PulseClientCallTarget | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [savingTargetTableId, setSavingTargetTableId] = useState<string | null>(
-    null,
-  );
+  const [savingTargetKey, setSavingTargetKey] = useState<string | null>(null);
+  const [targetEditor, setTargetEditor] =
+    useState<PulseTargetEditorContext | null>(null);
   const periodBounds = useMemo(() => getPulsePeriodBounds(period), [period]);
   const campaignTrendBounds = useMemo(
     () => pulseTrendWindows(jerusalemYmd()),
@@ -349,6 +360,24 @@ export function CampaignPulseDashboard({
     staleTime: 30_000,
   });
 
+  // The tenant's pulse rules: the cost thresholds for campaigns without a target
+  // (manager.cost) must match what the snapshot used. Defaults when unreadable.
+  const { data: pulseAlertRules = null } = useQuery({
+    queryKey: ["pulse-dash-alert-rules", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      const { data, error } = await supabase
+        .from("tenant_heartbeat_settings")
+        .select("pulse_alert_rules")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) return null;
+      return (data?.pulse_alert_rules ?? null) as unknown;
+    },
+    enabled: !!tenantId,
+    staleTime: 300_000,
+  });
+
   const { data: pulseCampaignTables = [], refetch: refetchPulseTables } =
     useQuery({
       queryKey: ["pulse-dash-tables", tenantId, clientIds.join(",")],
@@ -471,6 +500,7 @@ export function CampaignPulseDashboard({
         records: pulseCampaignRecords,
         tables: pulseCampaignTables,
         nowYmd: jerusalemYmd(),
+        alertRules: pulseAlertRules,
       });
     }
     return rehydrateCampaignBreakdownRows(
@@ -483,6 +513,7 @@ export function CampaignPulseDashboard({
     pulseCampaignTables,
     deliveryHints,
     pulseCampaignRecords,
+    pulseAlertRules,
   ]);
 
   const pulseInitialLoading =
@@ -773,31 +804,127 @@ export function CampaignPulseDashboard({
     return map;
   }, [pulseCampaignTables]);
 
-  async function savePlatformTarget(input: {
-    tableId: string;
-    goal: PulseCampaignGoal;
-    value: number | null;
-    existingSettings: Record<string, unknown>;
-  }) {
-    setSavingTargetTableId(input.tableId);
+  const missingTargetGroups = useMemo(
+    () =>
+      listCampaignsWithoutTarget({
+        campaignRows: visibleCampaignRows,
+        tables: pulseCampaignTables,
+      }),
+    [visibleCampaignRows, pulseCampaignTables],
+  );
+
+  const missingTargetCampaignCount = useMemo(
+    () =>
+      missingTargetGroups.reduce(
+        (total, group) => total + group.campaigns.length,
+        0,
+      ),
+    [missingTargetGroups],
+  );
+
+  /** The table that holds a platform target (the attention matrix's choice). */
+  function platformTargetTableId(
+    clientId: string,
+    platform: "meta" | "google",
+    goal: PulseCampaignGoal,
+  ): string | null {
+    const tables = (tablesByClient.get(clientId) ?? []).filter((table) =>
+      platform === "google"
+        ? table.integration_type === "google_ads"
+        : table.integration_type === "facebook_insights" ||
+          table.integration_type === "facebook_ecommerce",
+    );
+    if (!tables.length) return null;
+    if (platform === "meta") {
+      const preferred = tables.find((table) =>
+        goal === "ecommerce"
+          ? table.integration_type === "facebook_ecommerce"
+          : table.integration_type === "facebook_insights",
+      );
+      return (preferred ?? tables[0]).id;
+    }
+    return tables[0].id;
+  }
+
+  function openTargetEditorFromAttention(row: PulseAttentionRow) {
+    setTargetEditor({
+      clientId: row.clientId,
+      clientName: row.clientName,
+      platform: row.platform,
+      primaryGoal: row.primaryGoal,
+      platformTableId: row.tableId,
+      baselineEfficiency7d: row.baselineEfficiency7d,
+    });
+  }
+
+  function openTargetEditorForClient(
+    clientId: string,
+    platform: "meta" | "google",
+    goal: PulseCampaignGoal,
+  ) {
+    setTargetEditor({
+      clientId,
+      clientName: clientMetaById.get(clientId)?.name ?? "לקוח",
+      platform,
+      primaryGoal: goal,
+      platformTableId: platformTargetTableId(clientId, platform, goal),
+    });
+  }
+
+  const targetEditorCampaigns = useMemo(
+    () =>
+      targetEditor
+        ? visibleCampaignRows.filter(
+            (row) =>
+              row.client_id === targetEditor.clientId &&
+              row.platform === targetEditor.platform,
+          )
+        : [],
+    [targetEditor, visibleCampaignRows],
+  );
+
+  /** Saves an approved target (platform or one campaign) on the table settings. */
+  async function savePulseTarget(input: PulseTargetSaveInput) {
+    const slot = input.campaignId || input.campaignName || null;
+    const key = slot ? `${input.tableId}:${slot}` : input.tableId;
+    setSavingTargetKey(key);
     try {
-      const nextSettings = buildPlatformTargetPatch(
-        input.existingSettings,
-        input.goal,
-        input.value,
+      // Patch the stored settings, not the cached copy: syncs write
+      // integration_settings too (last_sync_at and more).
+      const { data: current, error: readError } = await supabase
+        .from("crm_tables")
+        .select("integration_settings")
+        .eq("id", input.tableId)
+        .maybeSingle();
+      if (readError) throw readError;
+      if (!current) throw new Error("הטבלה לא נמצאה");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const nextSettings = buildPulseTargetPatch(
+        (current.integration_settings ?? {}) as Record<string, unknown>,
+        {
+          goal: input.goal,
+          kind: input.kind,
+          value: input.value,
+          source: "approved",
+          campaignId: input.campaignId ?? null,
+          campaignName: input.campaignName ?? null,
+          setBy: user?.id ?? null,
+        },
       );
       const { error } = await supabase
         .from("crm_tables")
         .update({ integration_settings: nextSettings as any })
         .eq("id", input.tableId);
       if (error) throw error;
-      toast.success("יעד הפלטפורמה נשמר");
+      toast.success(input.value === null ? "היעד הוסר" : "היעד נשמר");
       await refetchPulseTables();
       refetchPulseRecords();
     } catch (error: any) {
       toast.error(error?.message ?? "שמירת היעד נכשלה");
     } finally {
-      setSavingTargetTableId(null);
+      setSavingTargetKey(null);
     }
   }
 
@@ -819,12 +946,14 @@ export function CampaignPulseDashboard({
       campaignCount: visibleCampaignRows.length,
       unclassifiedCount: unclassifiedCampaignRows.length,
       attentionCount: attentionRows.length,
+      missingTargetCount: missingTargetCampaignCount,
     }),
     [
       clientRawViews.length,
       visibleCampaignRows.length,
       unclassifiedCampaignRows.length,
       attentionRows.length,
+      missingTargetCampaignCount,
     ],
   );
 
@@ -1140,7 +1269,7 @@ export function CampaignPulseDashboard({
       <Tabs
         value={dashboardTab}
         onValueChange={(value) =>
-          setDashboardTab(value as "data" | "attention")
+          setDashboardTab(value as "data" | "attention" | "no_target")
         }
         dir="rtl"
         className="space-y-3"
@@ -1159,6 +1288,18 @@ export function CampaignPulseDashboard({
                 className="mr-1 text-[10px] px-1.5 py-0"
               >
                 {listSummary.attentionCount}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="no_target" className="gap-2">
+            <Target className="h-4 w-4" />
+            בלי יעד
+            {listSummary.missingTargetCount > 0 ? (
+              <Badge
+                variant="secondary"
+                className="mr-1 text-[10px] px-1.5 py-0"
+              >
+                {listSummary.missingTargetCount}
               </Badge>
             ) : null}
           </TabsTrigger>
@@ -1253,18 +1394,43 @@ export function CampaignPulseDashboard({
 
         <TabsContent value="attention" className="space-y-3 mt-0">
           <p className="text-sm text-muted-foreground">
-            שורה לכל לקוח × פלטפורמה — רק כשיש נושא רגיש. יעד מאושר → אחרת מגמת
-            7 ימים → אחרת בסיס 30 יום.
+            שורה לכל לקוח × פלטפורמה — רק כשיש נושא רגיש. היעילות נבדקת לכל
+            קמפיין מול היעד המאושר או יעד השוק של כרמן; קמפיין בלי יעד נבדק מול
+            4 השבועות הקודמים — אותם כללים כמו התראות הוואטסאפ.
           </p>
           <PulseAttentionTable
             rows={attentionRows}
             onOpenClient={openClientCard}
-            onSaveTarget={savePlatformTarget}
-            tableSettingsById={tableSettingsById}
-            savingTableId={savingTargetTableId}
+            onEditTargets={openTargetEditorFromAttention}
+            savingTableId={savingTargetKey}
+          />
+        </TabsContent>
+
+        <TabsContent value="no_target" className="space-y-3 mt-0">
+          <p className="text-sm text-muted-foreground">
+            לקוחות וקמפיינים עם הוצאה ב־7 הימים האחרונים שאין להם יעד — לא מאושר
+            ולא יעד שוק של כרמן.
+          </p>
+          <PulseMissingTargetsList
+            groups={missingTargetGroups}
+            clientMetaById={clientMetaById}
+            onOpenClient={openClientCard}
+            onSetTargets={openTargetEditorForClient}
           />
         </TabsContent>
       </Tabs>
+
+      <PulseTargetEditorDialog
+        open={!!targetEditor}
+        onOpenChange={(open) => {
+          if (!open) setTargetEditor(null);
+        }}
+        context={targetEditor}
+        campaigns={targetEditorCampaigns}
+        tableSettingsById={tableSettingsById}
+        savingKey={savingTargetKey}
+        onSave={savePulseTarget}
+      />
 
       <PulseClientCallDialog
         open={!!callLogTarget}

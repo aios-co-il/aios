@@ -50,6 +50,10 @@ export type PulseCampaignGoalRow = {
   alert_eligible: boolean;
   target_value: number | null;
   target_kind: string | null;
+  /** "approved" (a person) or "carmen_market" (Carmen's market estimate). */
+  target_source?: "approved" | "carmen_market" | null;
+  /** Where the target came from: the campaign itself, the platform goal, or the table. */
+  target_scope?: "campaign" | "platform" | "default" | "table" | null;
   spend_3d: number;
   outcomes_3d: number | null;
   efficiency_3d: number | null;
@@ -59,6 +63,9 @@ export type PulseCampaignGoalRow = {
   efficiency_7d: number | null;
   baseline_efficiency_3d: number | null;
   baseline_efficiency_7d: number | null;
+  /** Real outcomes and spending days in the 28-day baseline (target-less guards). */
+  baseline_outcomes?: number | null;
+  baseline_days?: number;
   trend_3d_pct: number | null;
   trend_7d_pct: number | null;
   impressions_7d: number;
@@ -89,6 +96,8 @@ export const buildPulseCampaignRows = buildRows as (input: {
     integration_settings?: Record<string, unknown> | null;
   }>;
   nowYmd: string;
+  /** tenant_heartbeat_settings.pulse_alert_rules — same value the snapshot uses. */
+  alertRules?: unknown;
 }) => PulseCampaignGoalRow[];
 
 export const classifyPulseCampaignGoal = classifyGoal as (

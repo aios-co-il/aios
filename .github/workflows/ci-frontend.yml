@@ -173,6 +173,9 @@ jobs:
       - name: Component regression tests
         run: pnpm test:components
 
+      - name: Pulse targets and cost rules tests
+        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-cost-rules.test.mjs supabase/functions/_shared/pulse-targets.test.mjs supabase/functions/_shared/pulse-targets-agreement.test.mjs supabase/functions/_shared/pulse-campaign-goals.test.mjs supabase/functions/_shared/pulse-attention-matrix.test.mjs supabase/functions/_shared/carmen-pulse-target-tools.test.ts
+
       - name: Regression guards (dashboards + permission personas)
         run: pnpm test:guards
         env:

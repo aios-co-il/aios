@@ -20,22 +20,35 @@ test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
   );
 });
 
-test("resolvePlatformTarget falls back to 30d baseline", () => {
-  assert.equal(resolvePlatformTarget({}, "leads", 75)?.source, "baseline_30d");
+test("resolvePlatformTarget no longer treats the 30-day baseline as a target", () => {
+  assert.equal(resolvePlatformTarget({}, "leads", 75), null);
 });
 
-test("evaluateEfficiencyIssue flags approved target breach", () => {
-  const issue = evaluateEfficiencyIssue({
-    currentEfficiency: 120,
-    trend7dPct: null,
-    target: {
-      value: 90,
-      kind: "cpl",
-      direction: "maximum",
-      source: "approved",
-    },
-  });
+test("evaluateEfficiencyIssue is red only for a campaign that alerts", () => {
+  const breach = {
+    campaign_name: "לידים",
+    status: "critical",
+    status_tier: "exception",
+    status_reason: "חריגה מתמשכת מהיעד המאושר (CPL 90)",
+    alert_eligible: true,
+    spend_7d: 800,
+  };
+  const issue = evaluateEfficiencyIssue({ campaignRows: [breach] });
   assert.equal(issue?.level, "alert");
+  assert.match(issue.label, /CPL 90/);
+
+  const silent = evaluateEfficiencyIssue({
+    campaignRows: [{ ...breach, alert_eligible: false }],
+  });
+  assert.equal(silent?.level, "watch");
+  assert.match(silent.label, /בלי התראה/);
+
+  assert.equal(
+    evaluateEfficiencyIssue({
+      campaignRows: [{ ...breach, status: "healthy", status_tier: "normal" }],
+    }),
+    null,
+  );
 });
 
 test("leads-only google table reclassifies mis-tagged ecommerce rows to CPL", () => {
@@ -203,8 +216,13 @@ test("a Google sales campaign detected from its conversion goal keeps ROAS in a 
         revenue_7d: 500,
         efficiency_7d: 0.5,
         baseline_efficiency_7d: 3,
-        trend_7d_pct: -80,
+        trend_7d_pct: 83.3,
         last_change_at: RECENT_CHANGE,
+        // As buildPulseCampaignRows classifies it against target_roas 3.
+        status: "critical",
+        status_tier: "exception",
+        status_reason: "חריגה מתמשכת מהיעד המאושר (ROAS 3)",
+        alert_eligible: true,
       },
     ],
     tables: [

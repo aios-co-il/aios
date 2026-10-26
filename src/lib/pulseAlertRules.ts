@@ -5,6 +5,19 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  /**
+   * Manager settings (AIO-236 and later). Only manager.cost is edited here; any
+   * other key is kept as stored. Read by _shared/pulse-cost-rules.mjs.
+   */
+  manager?: Record<string, unknown> & {
+    cost?: {
+      trend_pct?: number;
+      roas_drop_pct?: number;
+      min_spend_7d?: number;
+      target_less_alerts?: boolean;
+      [key: string]: unknown;
+    };
+  };
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -33,5 +46,41 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    ...(input.manager && typeof input.manager === "object"
+      ? { manager: input.manager as PulseAlertRules["manager"] }
+      : {}),
+  };
+}
+
+/**
+ * The stored pulse_alert_rules with the dialog's values on top. Keys the dialog
+ * does not know (future settings) survive a save instead of being wiped.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  edited: PulseAlertRules,
+): Record<string, unknown> {
+  const base =
+    stored && typeof stored === "object" && !Array.isArray(stored)
+      ? (stored as Record<string, unknown>)
+      : {};
+  const storedManager =
+    base.manager && typeof base.manager === "object"
+      ? (base.manager as Record<string, unknown>)
+      : {};
+  const parsed = parsePulseAlertRules(edited);
+  const editedManager = parsed.manager ?? {};
+  const storedCost =
+    storedManager.cost && typeof storedManager.cost === "object"
+      ? (storedManager.cost as Record<string, unknown>)
+      : {};
+  return {
+    ...base,
+    ...parsed,
+    manager: {
+      ...storedManager,
+      ...editedManager,
+      cost: { ...storedCost, ...(editedManager.cost ?? {}) },
+    },
   };
 }

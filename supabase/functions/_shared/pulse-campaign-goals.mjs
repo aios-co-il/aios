@@ -1,3 +1,12 @@
+import {
+  evaluateTargetlessCostTrend,
+  resolvePulseCostRules,
+} from "./pulse-cost-rules.mjs";
+import {
+  pulseTargetSourceLabel,
+  resolvePulseTarget,
+} from "./pulse-targets.mjs";
+
 const DAY_MS = 86_400_000;
 
 export const PULSE_CAMPAIGN_GOALS = ["leads", "engagement", "ecommerce"];
@@ -712,45 +721,17 @@ function platformForIntegration(type) {
   return "unknown";
 }
 
-function approvedTarget(settings = {}, data = {}, goal) {
-  const campaignId = String(data.campaign_id || data.campaignId || "");
-  const campaignName = String(
-    data.campaign_name || data.campaignName || data.campaign || data.name || "",
-  );
-  const platformTargets = settings.pulse_platform_targets || {};
-  const platformMapped = platformTargets[goal] || platformTargets.default || {};
-  const targets = settings.pulse_targets || settings.campaign_targets || {};
-  const campaignMapped = targets[campaignId] || targets[campaignName] || {};
-  const mapped = {
-    ...(targets.default || {}),
-    ...platformMapped,
-    ...campaignMapped,
-  };
-  if (goal === "ecommerce") {
-    const roas = Number(
-      mapped.roas ?? mapped.target_roas ?? settings.target_roas,
-    );
-    if (Number.isFinite(roas) && roas > 0)
-      return { value: roas, kind: "roas", direction: "minimum" };
-    const cpa = Number(mapped.cpa ?? mapped.target_cpa ?? settings.target_cpa);
-    if (Number.isFinite(cpa) && cpa > 0)
-      return { value: cpa, kind: "cpa", direction: "maximum" };
-  }
-  if (goal === "leads") {
-    const cpl = Number(mapped.cpl ?? mapped.target_cpl ?? settings.target_cpl);
-    if (Number.isFinite(cpl) && cpl > 0)
-      return { value: cpl, kind: "cpl", direction: "maximum" };
-  }
-  if (goal === "engagement") {
-    const cost = Number(
-      mapped.cost_per_result ??
-        mapped.target_cost_per_result ??
-        settings.target_cost_per_result,
-    );
-    if (Number.isFinite(cost) && cost > 0)
-      return { value: cost, kind: "cost_per_result", direction: "maximum" };
-  }
-  return null;
+/** The target that applies to this campaign, from any place it may be stored. */
+function campaignTarget(settings = {}, data = {}, goal) {
+  return resolvePulseTarget(settings, goal, {
+    campaignId: data.campaign_id || data.campaignId || null,
+    campaignName:
+      data.campaign_name ||
+      data.campaignName ||
+      data.campaign ||
+      data.name ||
+      null,
+  });
 }
 
 function aggregate(rows, goal, outcomeKind) {
@@ -839,14 +820,21 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+function targetMetricLabel(kind) {
+  if (kind === "cost_per_result") return "עלות לתוצאה";
+  return String(kind || "").toUpperCase();
+}
+
 function classifyStatus({
   goal,
   current3,
   current7,
   baseline3,
   baseline7,
+  baselineGuard = { outcomes: null, days: 0 },
   target,
   deliveryStatus = "unknown",
+  costRules = resolvePulseCostRules(null),
 }) {
   if (deliveryStatus === "paused") {
     return {
@@ -896,6 +884,8 @@ function classifyStatus({
     target?.kind === "roas" ? current7.roas : current7.efficiency;
   const current3Efficiency =
     target?.kind === "roas" ? current3.roas : current3.efficiency;
+  // An approved target and Carmen's market target alert the same way; the reason
+  // says which one it was, so people know when the bar is Carmen's estimate.
   if (target && currentEfficiency !== null) {
     const bad7 =
       target.direction === "minimum"
@@ -906,11 +896,15 @@ function classifyStatus({
       (target.direction === "minimum"
         ? current3Efficiency < target.value
         : current3Efficiency > target.value);
+    const market = target.source === "carmen_market";
+    const marketLabel = pulseTargetSourceLabel("carmen_market");
     if (bad7 && bad3) {
       return {
         status: "critical",
         tier: "exception",
-        reason: `חריגה מתמשכת מהיעד המאושר (${target.kind.toUpperCase()} ${target.value})`,
+        reason: market
+          ? `חריגה מתמשכת מול ${marketLabel} (${targetMetricLabel(target.kind)} ${target.value})`
+          : `חריגה מתמשכת מהיעד המאושר (${target.kind.toUpperCase()} ${target.value})`,
         alertEligible: true,
       };
     }
@@ -918,14 +912,16 @@ function classifyStatus({
       return {
         status: "warning",
         tier: "watch",
-        reason: `חריגה מהיעד המאושר ב־7 ימים; נדרשת התמדה לפני התראה`,
+        reason: market
+          ? `חריגה מול ${marketLabel} ב־7 ימים; נדרשת התמדה לפני התראה`
+          : `חריגה מהיעד המאושר ב־7 ימים; נדרשת התמדה לפני התראה`,
         alertEligible: false,
       };
     }
     return {
       status: "healthy",
       tier: "normal",
-      reason: "התוצאה בתוך היעד המאושר",
+      reason: market ? `התוצאה בתוך ${marketLabel}` : "התוצאה בתוך היעד המאושר",
       alertEligible: false,
     };
   }
@@ -942,23 +938,48 @@ function classifyStatus({
     useRoas ? baseline7.roas : baseline7.efficiency,
     lowerIsBetter,
   );
-  const worsening =
-    trend3 !== null && trend7 !== null && trend3 >= 25 && trend7 >= 25;
-  return worsening
-    ? {
-        status: "warning",
-        tier: "watch",
-        reason: "מגמה מתמשכת למעקב; אין יעד מאושר ולכן לא נשלחת התראת כשל",
-        alertEligible: false,
-      }
-    : {
-        status: "healthy",
-        tier: "normal",
-        reason: target
-          ? "בתוך היעד המאושר"
-          : "לא זוהתה חריגה; אין יעד מאושר להשוואה",
-        alertEligible: false,
-      };
+  const metric = useRoas
+    ? "roas"
+    : goal === "ecommerce"
+      ? "cpa"
+      : goal === "leads"
+        ? "cpl"
+        : "cost_per_result";
+  const verdict = evaluateTargetlessCostTrend({
+    metric,
+    trend3,
+    trend7,
+    spend7d: current7.spend,
+    baselineOutcomes: baselineGuard.outcomes,
+    baselineDays: baselineGuard.days,
+    rules: costRules,
+  });
+  if (verdict.level === "exception") {
+    return {
+      status: "critical",
+      tier: "exception",
+      reason: verdict.reason,
+      alertEligible: verdict.alertEligible,
+    };
+  }
+  if (verdict.level === "watch") {
+    return {
+      status: "warning",
+      tier: "watch",
+      reason: verdict.reason,
+      alertEligible: false,
+    };
+  }
+  return {
+    status: "healthy",
+    tier: "normal",
+    reason: target
+      ? target.source === "carmen_market"
+        ? `בתוך ${pulseTargetSourceLabel("carmen_market")}`
+        : "בתוך היעד המאושר"
+      : "לא זוהתה חריגה; אין יעד להשוואה",
+    alertEligible: false,
+  };
 }
 
 function datesBetween(start, end) {
@@ -1040,7 +1061,19 @@ export function googleReportCampaignKey(data = {}) {
   return String(data.campaign_id || data.campaign_name || "");
 }
 
-export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
+/**
+ * One row per campaign with its 3/7-day numbers, baseline, target and status.
+ * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
+ * snapshot and the dashboard pass the same value, so the cost thresholds for
+ * campaigns without a target (manager.cost) are the same on both sides.
+ */
+export function buildPulseCampaignRows({
+  records = [],
+  tables = [],
+  nowYmd,
+  alertRules = null,
+}) {
+  const rules = resolvePulseCostRules(alertRules);
   const windows = pulseTrendWindows(nowYmd);
   const tableMap = new Map(tables.map((table) => [table.id, table]));
   const deduped = new Map();
@@ -1185,12 +1218,24 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       outcome.kind,
       current7Dates,
     );
+    // The baseline must be solid before a trend without a target can alert:
+    // real (unscaled) outcomes and the number of days that actually spent.
+    const baselineRaw = aggregate(
+      baselineRows,
+      classification.goal,
+      outcome.kind,
+    );
+    const baselineDays = new Set(
+      baselineRows
+        .filter((row) => numberValue(row.data, ["spend", "cost"]) > 0)
+        .map((row) => row.data.date),
+    ).size;
     const tableSettings = sample.table.integration_settings || {};
     const deliveryStatus = resolveCampaignDeliveryStatus(
       sample.record.data,
       tableSettings,
     );
-    const target = approvedTarget(
+    const target = campaignTarget(
       tableSettings,
       sample.record.data,
       classification.goal,
@@ -1201,8 +1246,10 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       current7,
       baseline3,
       baseline7,
+      baselineGuard: { outcomes: baselineRaw.outcomes, days: baselineDays },
       target,
       deliveryStatus,
+      costRules: rules,
     });
     const useRoas =
       classification.goal === "ecommerce" && target?.kind !== "cpa";
@@ -1252,6 +1299,8 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       alert_eligible: status.alertEligible,
       target_value: target?.value ?? null,
       target_kind: target?.kind ?? null,
+      target_source: target?.source ?? null,
+      target_scope: target?.scope ?? null,
       spend_3d: round(current3.spend),
       outcomes_3d: round(current3.outcomes),
       efficiency_3d: round(efficiency3),
@@ -1261,6 +1310,8 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       efficiency_7d: round(efficiency7),
       baseline_efficiency_3d: round(baselineEfficiency3),
       baseline_efficiency_7d: round(baselineEfficiency7),
+      baseline_outcomes: round(baselineRaw.outcomes),
+      baseline_days: baselineDays,
       trend_3d_pct: round(
         pct(efficiency3, baselineEfficiency3, lowerIsBetter),
         1,

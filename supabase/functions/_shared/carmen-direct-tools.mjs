@@ -54,6 +54,8 @@ export const DIRECT_APPROVAL_TOOLS = Object.freeze([
   "set_automation_meta_lead_form",
   "set_campaign_table_active",
   "create_finance_entry",
+  // Carmen's market target alerts like an approved one (AIO-236).
+  "set_market_target",
 ]);
 
 const BLOCKED = new Set(DIRECT_BLOCKED_TOOLS);

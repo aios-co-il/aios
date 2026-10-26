@@ -58,6 +58,8 @@ export type PulseSnapshotAlertInput = {
     alert_eligible?: boolean | null;
     target_kind?: string | null;
     target_value?: number | null;
+    /** "approved" (default) or "carmen_market" — named in the alert text. */
+    target_source?: string | null;
     efficiency_3d?: number | null;
     efficiency_7d?: number | null;
     trend_3d_pct?: number | null;
@@ -172,7 +174,16 @@ export function evaluatePulseInstantAlerts(
       const target =
         campaign.target_value === null || campaign.target_value === undefined
           ? "אין יעד מאושר"
-          : `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}`;
+          : `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${campaign.target_source === "carmen_market" ? " · יעד שוק (כרמן)" : ""}`;
+      // Without a target the comparison is the baseline: show how far it moved.
+      const baselineTrendLine =
+        campaign.target_value == null &&
+        campaign.trend_3d_pct != null &&
+        campaign.trend_7d_pct != null
+          ? [
+              `החמרה מול הבסיס: 3 ימים ${campaign.trend_3d_pct}% · 7 ימים ${campaign.trend_7d_pct}%`,
+            ]
+          : [];
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -188,6 +199,7 @@ export function evaluatePulseInstantAlerts(
         goal: campaign.goal || null,
         target_kind: campaign.target_kind || null,
         target_value: campaign.target_value ?? null,
+        target_source: campaign.target_source ?? null,
         efficiency_3d: campaign.efficiency_3d ?? null,
         efficiency_7d: campaign.efficiency_7d ?? null,
         trend_3d_pct: campaign.trend_3d_pct ?? null,
@@ -211,6 +223,7 @@ export function evaluatePulseInstantAlerts(
           `סיבה: ${campaign.status_reason || "חריגה מתמשכת"}`,
           `יעד: ${target}`,
           `3 ימים: ${campaign.efficiency_3d ?? "חסר"} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
+          ...baselineTrendLine,
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",

@@ -16,6 +16,7 @@ import {
   parsePulseAlertRules,
   type PulseAlertRules,
 } from "@/lib/pulseAlertRules";
+import { resolvePulseCostRules } from "@/lib/pulseTargets";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
@@ -40,9 +41,20 @@ export function PulseAlertRulesDialog({
     if (open) setRules(parsePulseAlertRules(value));
   }, [open, value]);
 
+  // Thresholds for campaigns without a target (shared with the snapshot).
+  const cost = resolvePulseCostRules(rules);
+  const setCost = (patch: Partial<typeof cost>) =>
+    setRules((prev) => ({
+      ...prev,
+      manager: {
+        ...(prev.manager ?? {}),
+        cost: { ...(prev.manager?.cost ?? {}), ...patch },
+      },
+    }));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>חוקי התראות דופק ב-WhatsApp</DialogTitle>
           <DialogDescription>
@@ -129,6 +141,70 @@ export function PulseAlertRulesDialog({
                   }))
                 }
               />
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm">עלייה בעלות בקמפיין בלי יעד</Label>
+                <p className="text-xs text-muted-foreground">
+                  חריגה כשהעלות עולה (או ה־ROAS יורד) גם ב־3 וגם ב־7 הימים
+                  האחרונים מול 4 השבועות שלפניהם. מוצג בדשבורד תמיד; ב־WhatsApp
+                  רק כשהמתג פעיל.
+                </p>
+              </div>
+              <Switch
+                checked={cost.target_less_alerts}
+                onCheckedChange={(checked) =>
+                  setCost({ target_less_alerts: checked })
+                }
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs">עליית CPL/CPA (%)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="h-8 mt-1"
+                  value={cost.trend_pct}
+                  onChange={(event) =>
+                    setCost({ trend_pct: Number(event.target.value) || 40 })
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-xs">ירידת ROAS (%)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="h-8 mt-1"
+                  value={cost.roas_drop_pct}
+                  onChange={(event) =>
+                    setCost({
+                      roas_drop_pct: Number(event.target.value) || 25,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-xs">הוצאה מינ׳ ב־7 ימים</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  className="h-8 mt-1"
+                  value={cost.min_spend_7d}
+                  onChange={(event) =>
+                    setCost({
+                      min_spend_7d: Math.max(
+                        0,
+                        Number(event.target.value) || 0,
+                      ),
+                    })
+                  }
+                />
+              </div>
             </div>
           </div>
 
