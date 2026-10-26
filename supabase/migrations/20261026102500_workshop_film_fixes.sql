@@ -1,13 +1,9 @@
--- Workshop film fixes, part 2. Safe to re-run.
--- 1. produce_video redoes free-preview (mock) clips only when the caller asks (p_redo_preview).
---    The workshop prices those clips and asks for it; the Video Studio's plan does not count
---    them, so it keeps the old behaviour and its cost dialog.
--- 2. video_narration_ready accepts a continuous narration only while it reads the current script
---    in order, as the render worker requires; a reordered film is narrated again.
+-- Workshop film fixes. Safe to re-run.
+-- 1. produce_video with a paid engine animates again the scenes whose clip is a free mock preview.
+-- 2. A production that fails closes the item's pending film pages, also when no render ran.
 
--- ── 1. produce_video(p_redo_preview) ─────────────────────────────────────────
-drop function if exists public.produce_video(uuid, text, text, jsonb, uuid, boolean, boolean, text, text, boolean);
-
+-- ── 1. produce_video: a mock clip is redone by a paid engine ─────────────────
+-- Same body as 20261026102300_video_lipsync.sql; only the scene pick changes.
 create or replace function public.produce_video(
   p_item_id uuid,
   p_aspect text default '9:16',
@@ -18,8 +14,7 @@ create or replace function public.produce_video(
   p_with_music boolean default true,
   p_voice_id text default null,
   p_music_prompt text default null,
-  p_generate_audio boolean default false,
-  p_redo_preview boolean default false
+  p_generate_audio boolean default false
 )
 returns jsonb
 language plpgsql
@@ -51,9 +46,8 @@ begin
      and scene.still_asset_id is not null
      and (
        scene.clip_asset_id is null or scene.clip_stale or scene.status = 'failed'
-       -- A free-preview (mock) clip is animated again on a paid engine, only when the caller
-       -- priced it (the workshop does; the Video Studio's plan does not count those clips).
-       or (p_redo_preview and p_provider <> 'mock' and coalesce(clip.meta->>'provider', '') = 'mock')
+       -- A free-preview (mock) clip is animated again when a paid engine is chosen.
+       or (p_provider <> 'mock' and coalesce(clip.meta->>'provider', '') = 'mock')
      );
 
   perform public.set_video_production(p_item_id, jsonb_build_object(
@@ -106,57 +100,42 @@ begin
 end;
 $$;
 
-grant execute on function public.produce_video(uuid, text, text, jsonb, uuid, boolean, boolean, text, text, boolean, boolean)
+grant execute on function public.produce_video(uuid, text, text, jsonb, uuid, boolean, boolean, text, text, boolean)
   to authenticated, service_role;
 
--- ── 2. video_narration_ready ────────────────────────────────────────────────
--- Same body as 20261025150000_video_lipsync.sql; only the non-talking voice check changes.
-create or replace function public.video_narration_ready(p_item_id uuid)
-returns boolean
-language sql
-stable
-security invoker
+-- ── 2. A failed production closes its pending film pages ─────────────────────
+-- workshop_fail_pending_film only reacts to a failed render run; a production can also fail
+-- before any render (narration missing, no clips to assemble). Never blocks the item update.
+create or replace function public.workshop_fail_pending_films_on_production()
+returns trigger
+language plpgsql
+security definer
 set search_path = public
 as $$
-  select coalesce(v.script, '') = ''
-    or (
-      not v.talking
-      and exists (
-        select 1 from public.marketing_assets
-         where item_id = p_item_id
-           and type = 'narration'
-           and coalesce(url, '') <> ''
-           and coalesce(meta->>'text', '') = v.script
-      )
-    )
-    or not exists (
-      select 1
-        from public.marketing_video_scenes as scene
-        cross join lateral (
-          select public.video_narration_line(scene.meta, scene.voiceover_text) as line
-        ) as l
-        left join public.marketing_assets as voice on voice.id = scene.voice_asset_id
-       where scene.item_id = p_item_id
-         and l.line <> ''
-         and case
-           when v.talking then not (
-             coalesce(voice.type, '') = 'voiceover'
-             and coalesce(voice.meta->>'text', '') = l.line
-           )
-           -- A continuous take counts only while it reads the whole script in order (the render
-           -- plays it as one track); a reordered film is narrated again.
-           when coalesce(voice.type, '') = 'narration' then
-             coalesce(voice.meta->>'text', '') <> v.script
-           else coalesce(voice.meta->>'text', '') <> l.line
-         end
-    )
-  from (
-    select string_agg(l.line, ' ' order by scene.position) filter (where l.line <> '') as script,
-           coalesce(bool_or(coalesce(scene.meta->>'lipsync', '') = 'true'), false) as talking
-      from public.marketing_video_scenes as scene
-      cross join lateral (
-        select public.video_narration_line(scene.meta, scene.voiceover_text) as line
-      ) as l
-     where scene.item_id = p_item_id
-  ) as v;
+begin
+  update public.workshop_artifacts
+     set status = 'failed',
+         meta = meta || jsonb_build_object(
+           'error',
+           coalesce(nullif(new.payload->'video'->'production'->>'error', ''), 'ההפקה נכשלה')
+         )
+   where item_id = new.id
+     and tenant_id = new.tenant_id
+     and kind = 'film'
+     and status = 'pending';
+  return new;
+exception when others then
+  raise warning 'workshop_fail_pending_films_on_production: %', sqlerrm;
+  return new;
+end;
 $$;
+
+drop trigger if exists workshop_fail_pending_films_on_production on public.marketing_work_items;
+create trigger workshop_fail_pending_films_on_production
+  after update of payload on public.marketing_work_items
+  for each row
+  when (
+    new.payload->'video'->'production'->>'status' = 'failed'
+    and (old.payload->'video'->'production'->>'status') is distinct from 'failed'
+  )
+  execute function public.workshop_fail_pending_films_on_production();

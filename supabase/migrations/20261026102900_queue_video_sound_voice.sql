@@ -1,7 +1,7 @@
 -- queue_video_sound re-voices a talking film's narrated scenes when the project's voice changed,
 -- the same rule video_narration_ready uses (20261025210000). Without it a new voice queued
 -- nothing and the production failed with "narration missing". Same body as
--- 20261025150000_video_lipsync.sql otherwise. Safe to re-run.
+-- 20261026102300_video_lipsync.sql otherwise. Safe to re-run.
 
 create or replace function public.queue_video_sound(
   p_item_id uuid,

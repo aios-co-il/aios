@@ -15,8 +15,8 @@
 -- the character.
 --
 -- Replaces (copied from their latest definitions, with the additions marked "lipsync"):
---   video_narration_ready, queue_video_sound   (20261025100200_video_narration_whitespace.sql)
---   advance_video_production, produce_video     (20261023140000_video_continuous_narration.sql)
+--   video_narration_ready, queue_video_sound   (20261026102000_video_narration_whitespace.sql)
+--   advance_video_production, produce_video     (20261026100000_video_continuous_narration.sql)
 --   claim_video_run                             (20261016160000_video_studio_review_fixes_2.sql)
 --   save_video_storyboard                       (20261016140200_video_studio_run_claim.sql)
 
