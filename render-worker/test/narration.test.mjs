@@ -1,22 +1,20 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 import { loadFilmSources } from "../src/jobs/render.mjs";
 import { joinNarration, spokenLine } from "../src/narration.mjs";
 
 test("joinNarration makes one continuous script and skips blank lines", () => {
-  assert.equal(
-    joinNarration(["  כרמן יושבת  ", "", "   ", "ועובדת ליד המחשב"]),
+  expect(joinNarration(["  כרמן יושבת  ", "", "   ", "ועובדת ליד המחשב"])).toBe(
     "כרמן יושבת ועובדת ליד המחשב",
   );
-  assert.equal(joinNarration(["רק משפט אחד"]), "רק משפט אחד");
-  assert.equal(joinNarration([null, "  "]), "");
+  expect(joinNarration(["רק משפט אחד"])).toBe("רק משפט אחד");
+  expect(joinNarration([null, "  "])).toBe("");
 });
 
 test("spokenLine trims the same characters the database trims", () => {
-  assert.equal(spokenLine("\t כרמן יושבת\r\n"), "כרמן יושבת");
-  assert.equal(spokenLine("\u00a0מילה\u00a0"), "\u00a0מילה\u00a0");
-  assert.equal(spokenLine(null), "");
+  expect(spokenLine("\t כרמן יושבת\r\n")).toBe("כרמן יושבת");
+  expect(spokenLine("\u00a0מילה\u00a0")).toBe("\u00a0מילה\u00a0");
+  expect(spokenLine(null)).toBe("");
 });
 
 /** Answers loadFilmSources' reads from the table name and query. */
@@ -68,11 +66,11 @@ test("the continuous narration is used only when every spoken scene is in the fi
     }),
     run,
   );
-  assert.equal(full.narrationPath, "t/narration.mp3");
+  expect(full.narrationPath).toBe("t/narration.mp3");
   // The word timings travel with the narration for karaoke captions.
-  assert.deepEqual(full.narrationAlignment, alignment);
+  expect(full.narrationAlignment).toStrictEqual(alignment);
 
-  await assert.rejects(
+  await expect(
     loadFilmSources(
       fakeDb({
         scenes: [
@@ -94,8 +92,7 @@ test("the continuous narration is used only when every spoken scene is in the fi
       }),
       run,
     ),
-    /narration missing/,
-  );
+  ).rejects.toThrow(/narration missing/);
 });
 
 test("a continuous narration linked to each scene is never replayed as one scene's voice", async () => {
@@ -118,7 +115,7 @@ test("a continuous narration linked to each scene is never replayed as one scene
     clip_asset_id: clip,
     voice_asset_id: "narr-1",
   });
-  await assert.rejects(
+  await expect(
     loadFilmSources(
       fakeDb({
         scenes: [
@@ -131,8 +128,7 @@ test("a continuous narration linked to each scene is never replayed as one scene
       }),
       run,
     ),
-    /narration missing/,
-  );
+  ).rejects.toThrow(/narration missing/);
 
   // A scene's own voiceover still plays when the narration does not cover the film.
   const own = await loadFilmSources(
@@ -149,8 +145,8 @@ test("a continuous narration linked to each scene is never replayed as one scene
     }),
     run,
   );
-  assert.equal(own.narrationPath, null);
-  assert.equal(own.scenes[0].voicePath, "t/v1.mp3");
+  expect(own.narrationPath).toBe(null);
+  expect(own.scenes[0].voicePath).toBe("t/v1.mp3");
 });
 
 test("a talking clip made for an older line is muted and the new line plays as a voiceover", async () => {
@@ -180,8 +176,8 @@ test("a talking clip made for an older line is muted and the new line plays as a
   ];
   const sources = await loadFilmSources(fakeDb({ scenes, assets }), run);
   const [talking] = sources.scenes;
-  assert.equal(talking.lipsync, false);
-  assert.equal(talking.voicePath, "t/v1.mp3");
+  expect(talking.lipsync).toBe(false);
+  expect(talking.voicePath).toBe("t/v1.mp3");
   const { manifest } = buildWorkshopManifest({
     aspect: "9:16",
     scenes: [
@@ -195,11 +191,11 @@ test("a talking clip made for an older line is muted and the new line plays as a
       },
     ],
   });
-  assert.equal(manifest.scenes[0].clipVolume, 0);
+  expect(manifest.scenes[0].clipVolume).toBe(0);
 
   // The clip of the current line still speaks it.
   assets[0].meta.dialogue = "שורה חדשה";
   const current = await loadFilmSources(fakeDb({ scenes, assets }), run);
-  assert.equal(current.scenes[0].lipsync, true);
-  assert.equal(current.scenes[0].voicePath, null);
+  expect(current.scenes[0].lipsync).toBe(true);
+  expect(current.scenes[0].voicePath).toBe(null);
 });

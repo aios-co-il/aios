@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { brandFromPayload } from "../src/compose/brand.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
 import { loadFilmBrand } from "../src/jobs/render.mjs";
@@ -17,26 +16,24 @@ import {
 } from "../src/compose/workshop-edit.mjs";
 
 test("word timings come from character alignments and word lists", () => {
-  assert.deepEqual(
+  expect(
     wordsFromAlignment({
       characters: ["א", "ב", " ", "ג", "."],
       character_start_times_seconds: [0, 0.1, 0.2, 0.3, 0.4],
       character_end_times_seconds: [0.1, 0.2, 0.3, 0.4, 0.5],
     }),
-    [
-      { text: "אב", start: 0, end: 0.2 },
-      { text: "ג.", start: 0.3, end: 0.5 },
-    ],
-  );
-  assert.deepEqual(
-    wordsFromAlignment({ words: [{ word: "שלום", start: 1, end: 0.5 }] }),
-    [{ text: "שלום", start: 1, end: 1 }],
-  );
-  assert.deepEqual(wordsFromAlignment(null), []);
-  assert.deepEqual(wordsFromAlignment({ characters: "x" }), []);
-  assert.deepEqual(wordsToFrames([{ text: "a", start: 0, end: 0 }], 30, 60), [
-    { text: "a", startFrame: 60, endFrame: 61 },
+  ).toStrictEqual([
+    { text: "אב", start: 0, end: 0.2 },
+    { text: "ג.", start: 0.3, end: 0.5 },
   ]);
+  expect(
+    wordsFromAlignment({ words: [{ word: "שלום", start: 1, end: 0.5 }] }),
+  ).toStrictEqual([{ text: "שלום", start: 1, end: 1 }]);
+  expect(wordsFromAlignment(null)).toStrictEqual([]);
+  expect(wordsFromAlignment({ characters: "x" })).toStrictEqual([]);
+  expect(
+    wordsToFrames([{ text: "a", start: 0, end: 0 }], 30, 60),
+  ).toStrictEqual([{ text: "a", startFrame: 60, endFrame: 61 }]);
 });
 
 test("captions break after five words, a pause or a sentence end", () => {
@@ -56,37 +53,39 @@ test("captions break after five words, a pause or a sentence end", () => {
     at("שמונה", 100),
   ];
   const chunks = captionChunks(words, 30);
-  assert.deepEqual(
-    chunks.map((c) => c.words.map((w) => w.text).join(" ")),
+  expect(chunks.map((c) => c.words.map((w) => w.text).join(" "))).toStrictEqual(
     ["אחת שתיים שלוש ארבע חמש", "שש.", "שבע", "שמונה"],
   );
-  assert.equal(chunks[0].endFrame, 40);
-  assert.equal(chunks[2].endFrame, 66);
-  assert.equal(captionChunks(words, 30, 50).length, 3);
+  expect(chunks[0].endFrame).toBe(40);
+  expect(chunks[2].endFrame).toBe(66);
+  expect(captionChunks(words, 30, 50).length).toBe(3);
 });
 
 test("transitions default to a varied cycle and never exceed a third of a scene", () => {
-  assert.equal(sceneTransition(0, "slide"), "cut");
-  assert.deepEqual(
-    [1, 2, 3, 4, 5].map((i) => sceneTransition(i)),
-    ["crossfade", "slide", "zoom", "wipe", "crossfade"],
-  );
-  assert.equal(sceneTransition(2, "bogus"), "slide");
-  assert.equal(sceneTransition(2, "cut"), "cut");
-  assert.equal(transitionFrames(90, 90, "zoom"), 15);
-  assert.equal(transitionFrames(90, 30, "zoom"), 10);
-  assert.equal(transitionFrames(90, 90, "cut"), 0);
+  expect(sceneTransition(0, "slide")).toBe("cut");
+  expect([1, 2, 3, 4, 5].map((i) => sceneTransition(i))).toStrictEqual([
+    "crossfade",
+    "slide",
+    "zoom",
+    "wipe",
+    "crossfade",
+  ]);
+  expect(sceneTransition(2, "bogus")).toBe("slide");
+  expect(sceneTransition(2, "cut")).toBe("cut");
+  expect(transitionFrames(90, 90, "zoom")).toBe(15);
+  expect(transitionFrames(90, 30, "zoom")).toBe(10);
+  expect(transitionFrames(90, 90, "cut")).toBe(0);
 });
 
 test("fitScenes stretches in proportion and leaves long pictures alone", () => {
-  assert.deepEqual(fitScenes([30, 60], 180), [60, 120]);
-  assert.deepEqual(fitScenes([30, 30, 30], 100), [33, 33, 34]);
-  assert.deepEqual(fitScenes([90], 30), [90]);
-  assert.deepEqual(fitScenes([90], 0), [90]);
+  expect(fitScenes([30, 60], 180)).toStrictEqual([60, 120]);
+  expect(fitScenes([30, 30, 30], 100)).toStrictEqual([33, 33, 34]);
+  expect(fitScenes([90], 30)).toStrictEqual([90]);
+  expect(fitScenes([90], 0)).toStrictEqual([90]);
 });
 
 test("the music bed ducks under speech and recovers between lines", () => {
-  assert.deepEqual(
+  expect(
     speechSpans(
       [
         [50, 60],
@@ -95,12 +94,11 @@ test("the music bed ducks under speech and recovers between lines", () => {
       ],
       18,
     ),
-    [
-      [0, 30],
-      [50, 60],
-    ],
-  );
-  assert.deepEqual(
+  ).toStrictEqual([
+    [0, 30],
+    [50, 60],
+  ]);
+  expect(
     musicEnvelope(
       [
         [40, 100],
@@ -108,22 +106,21 @@ test("the music bed ducks under speech and recovers between lines", () => {
       ],
       300,
     ),
-    {
-      frames: [0, 32, 40, 100, 114, 192, 200, 260, 274, 300],
-      volumes: [0.2, 0.2, 0.06, 0.06, 0.2, 0.2, 0.06, 0.06, 0.2, 0.2],
-    },
-  );
-  assert.deepEqual(musicEnvelope([], 90), {
+  ).toStrictEqual({
+    frames: [0, 32, 40, 100, 114, 192, 200, 260, 274, 300],
+    volumes: [0.2, 0.2, 0.06, 0.06, 0.2, 0.2, 0.06, 0.06, 0.2, 0.2],
+  });
+  expect(musicEnvelope([], 90)).toStrictEqual({
     frames: [0, 90],
     volumes: [0.2, 0.2],
   });
   const tail = musicEnvelope([[60, 90]], 90);
-  assert.deepEqual(tail.frames, [0, 52, 60, 90]);
-  assert.equal(tail.volumes.at(-1), 0.06);
+  expect(tail.frames).toStrictEqual([0, 52, 60, 90]);
+  expect(tail.volumes.at(-1)).toBe(0.06);
 });
 
 test("brandFromPayload reads the brand kit fields and drops unsafe values", () => {
-  assert.deepEqual(
+  expect(
     brandFromPayload({
       logo_url: " https://x.supabase.co/logo.png ",
       client_website: "https://www.example.co.il/",
@@ -133,21 +130,19 @@ test("brandFromPayload reads the brand kit fields and drops unsafe values", () =
         fonts: ["<script>", "Assistant"],
       },
     }),
-    {
-      primaryColor: "#0F766E",
-      secondaryColor: "#f59e0b",
-      logoUrl: "https://x.supabase.co/logo.png",
-      fontFamily: "Assistant",
-      ctaText: "דברו איתנו",
-      ctaUrl: "www.example.co.il",
-    },
-  );
-  assert.equal(
+  ).toStrictEqual({
+    primaryColor: "#0F766E",
+    secondaryColor: "#f59e0b",
+    logoUrl: "https://x.supabase.co/logo.png",
+    fontFamily: "Assistant",
+    ctaText: "דברו איתנו",
+    ctaUrl: "www.example.co.il",
+  });
+  expect(
     brandFromPayload({ brand_book: { logoUrl: "t/logo.png" } }).logoUrl,
-    "t/logo.png",
-  );
-  assert.equal(brandFromPayload({}), null);
-  assert.equal(brandFromPayload(null), null);
+  ).toBe("t/logo.png");
+  expect(brandFromPayload({})).toBe(null);
+  expect(brandFromPayload(null)).toBe(null);
 });
 
 test("loadFilmBrand reads the payload of the run's item in the run's tenant", async () => {
@@ -159,8 +154,8 @@ test("loadFilmBrand reads the payload of the run's item in the run's tenant", as
     },
   };
   const brand = await loadFilmBrand(db, { item_id: "i 1", tenant_id: "t1" });
-  assert.equal(brand.ctaText, "קנו");
-  assert.deepEqual(queries, [
+  expect(brand.ctaText).toBe("קנו");
+  expect(queries).toStrictEqual([
     ["marketing_work_items", "id=eq.i%201&tenant_id=eq.t1&select=payload"],
   ]);
 });
@@ -180,10 +175,10 @@ test("buildTimeline carries lip-sync, transitions, word timings and the brand", 
     ],
     { brand: { ctaText: "x" }, clipAudio: false },
   );
-  assert.equal(timeline.scenes[0].lipsync, true);
-  assert.equal(timeline.scenes[0].transition, "wipe");
-  assert.deepEqual(timeline.scenes[0].voiceAlignment, { words: [] });
-  assert.deepEqual(timeline.brand, { ctaText: "x" });
-  assert.equal(timeline.clipAudio, false);
-  assert.equal(timeline.narrationAlignment, null);
+  expect(timeline.scenes[0].lipsync).toBe(true);
+  expect(timeline.scenes[0].transition).toBe("wipe");
+  expect(timeline.scenes[0].voiceAlignment).toStrictEqual({ words: [] });
+  expect(timeline.brand).toStrictEqual({ ctaText: "x" });
+  expect(timeline.clipAudio).toBe(false);
+  expect(timeline.narrationAlignment).toBe(null);
 });

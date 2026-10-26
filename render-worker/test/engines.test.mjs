@@ -146,7 +146,7 @@ test("a secret that already contains id:secret is not prefixed again", async () 
     imageUrl: "https://files.example/still.png",
     durationS: 5,
   });
-  assert.equal(authorization, `Key ${copied}`);
+  expect(authorization).toBe(`Key ${copied}`);
   await higgs.poll("req-2");
-  assert.equal(authorization, `Key ${copied}`);
+  expect(authorization).toBe(`Key ${copied}`);
 });

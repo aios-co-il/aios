@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 
 test("a mock clip is edited from its still and a real clip stays video", () => {
@@ -26,26 +25,28 @@ test("a mock clip is edited from its still and a real clip stays video", () => {
       },
     ],
   });
-  assert.equal(manifest.schemaVersion, 3);
-  assert.equal(manifest.composition, "WorkshopFilm");
-  assert.deepEqual([manifest.width, manifest.height], [1080, 1080]);
-  assert.equal(manifest.scenes[0].still, "still-0.png");
-  assert.equal(manifest.scenes[0].clip, null);
-  assert.equal(manifest.scenes[0].frameCount, 90);
-  assert.equal(manifest.scenes[0].move, "push");
-  assert.equal(manifest.scenes[0].caption, "שלום");
-  assert.equal(manifest.scenes[1].clip, "clip-1.mp4");
-  assert.equal(manifest.scenes[1].still, null);
-  assert.equal(manifest.scenes[1].startFrame, 90);
-  assert.equal(manifest.scenes[1].frameCount, 120);
-  assert.equal(manifest.scenes[1].move, "drift-left");
-  assert.equal(manifest.totalFrames, 210);
-  assert.equal(manifest.narration, "narration.mp3");
-  assert.equal(manifest.music, "music.mp3");
-  assert.deepEqual(
-    files.map((file) => file.to),
-    ["still-0.png", "clip-1.mp4", "narration.mp3", "music.mp3"],
-  );
+  expect(manifest.schemaVersion).toBe(3);
+  expect(manifest.composition).toBe("WorkshopFilm");
+  expect([manifest.width, manifest.height]).toStrictEqual([1080, 1080]);
+  expect(manifest.scenes[0].still).toBe("still-0.png");
+  expect(manifest.scenes[0].clip).toBe(null);
+  expect(manifest.scenes[0].frameCount).toBe(90);
+  expect(manifest.scenes[0].move).toBe("push");
+  expect(manifest.scenes[0].caption).toBe("שלום");
+  expect(manifest.scenes[1].clip).toBe("clip-1.mp4");
+  expect(manifest.scenes[1].still).toBe(null);
+  expect(manifest.scenes[1].startFrame).toBe(90);
+  expect(manifest.scenes[1].frameCount).toBe(120);
+  expect(manifest.scenes[1].move).toBe("drift-left");
+  expect(manifest.totalFrames).toBe(210);
+  expect(manifest.narration).toBe("narration.mp3");
+  expect(manifest.music).toBe("music.mp3");
+  expect(files.map((file) => file.to)).toStrictEqual([
+    "still-0.png",
+    "clip-1.mp4",
+    "narration.mp3",
+    "music.mp3",
+  ]);
 });
 
 const scene = (id, extra = {}) => ({
@@ -77,17 +78,21 @@ test("transitions vary by default, overlap at most a third, and honour the manif
       scene("f", { durationS: 0.5 }),
     ],
   });
-  assert.deepEqual(
-    manifest.scenes.map((s) => s.transition),
-    ["cut", "crossfade", "slide", "zoom", "wipe", "crossfade"],
-  );
-  assert.equal(manifest.scenes[0].transitionFrames, 0);
-  assert.equal(manifest.scenes[1].transitionFrames, 15);
-  assert.equal(manifest.scenes[5].transitionFrames, 5);
-  assert.equal(manifest.totalFrames, 5 * 60 + 15);
-  assert.equal(manifest.captions.length, 0);
-  assert.equal(manifest.brand, null);
-  assert.equal(manifest.endCard, null);
+  expect(manifest.scenes.map((s) => s.transition)).toStrictEqual([
+    "cut",
+    "crossfade",
+    "slide",
+    "zoom",
+    "wipe",
+    "crossfade",
+  ]);
+  expect(manifest.scenes[0].transitionFrames).toBe(0);
+  expect(manifest.scenes[1].transitionFrames).toBe(15);
+  expect(manifest.scenes[5].transitionFrames).toBe(5);
+  expect(manifest.totalFrames).toBe(5 * 60 + 15);
+  expect(manifest.captions.length).toBe(0);
+  expect(manifest.brand).toBe(null);
+  expect(manifest.endCard).toBe(null);
 });
 
 test("scenes stretch so a longer narration is never cut", () => {
@@ -98,20 +103,17 @@ test("scenes stretch so a longer narration is never cut", () => {
     scenes: [scene("a", { durationS: 2 }), scene("b", { durationS: 4 })],
   });
   // 9 s of speech plus a 15-frame tail, split 1:2 like the storyboard.
-  assert.equal(manifest.totalFrames, 285);
-  assert.deepEqual(
-    manifest.scenes.map((s) => s.frameCount),
-    [95, 190],
-  );
-  assert.equal(manifest.scenes[1].startFrame, 95);
+  expect(manifest.totalFrames).toBe(285);
+  expect(manifest.scenes.map((s) => s.frameCount)).toStrictEqual([95, 190]);
+  expect(manifest.scenes[1].startFrame).toBe(95);
   // No word timings: the bed ducks for the whole narration.
-  assert.equal(manifest.musicEnvelope.volumes[0], 0.06);
+  expect(manifest.musicEnvelope.volumes[0]).toBe(0.06);
   const short = buildWorkshopManifest({
     narrationPath: "/tmp/n.mp3",
     narrationDurationS: 1,
     scenes: [scene("a", { durationS: 3 })],
   }).manifest;
-  assert.equal(short.totalFrames, 90);
+  expect(short.totalFrames).toBe(90);
 });
 
 test("word timings become karaoke captions and duck the music", () => {
@@ -121,15 +123,14 @@ test("word timings become karaoke captions and duck the music", () => {
     musicPath: "/tmp/m.mp3",
     scenes: [scene("a", { durationS: 3 })],
   });
-  assert.equal(manifest.captions.length, 1);
-  assert.deepEqual(
+  expect(manifest.captions.length).toBe(1);
+  expect(
     manifest.captions[0].words.map((w) => [w.text, w.startFrame, w.endFrame]),
-    [
-      ["שלום", 0, 12],
-      ["עולם", 15, 30],
-    ],
-  );
-  assert.deepEqual(manifest.musicEnvelope, {
+  ).toStrictEqual([
+    ["שלום", 0, 12],
+    ["עולם", 15, 30],
+  ]);
+  expect(manifest.musicEnvelope).toStrictEqual({
     frames: [0, 30, 44, 90],
     volumes: [0.06, 0.06, 0.2, 0.2],
   });
@@ -146,20 +147,20 @@ test("clip audio plays alone, sits under speech, and a lip-synced clip stays lou
     ],
   });
   const [a, b, c, d] = manifest.scenes;
-  assert.equal(a.voice, "voice-0.mp3");
-  assert.equal(a.clipVolume, 0.15);
-  assert.equal(b.clipVolume, 0.9);
-  assert.equal(c.clipVolume, 0);
-  assert.equal(d.clip, "clip-3.mp4");
-  assert.equal(d.move, "static");
-  assert.equal(d.clipVolume, 1);
-  assert.equal(d.frameCount, 150);
+  expect(a.voice).toBe("voice-0.mp3");
+  expect(a.clipVolume).toBe(0.15);
+  expect(b.clipVolume).toBe(0.9);
+  expect(c.clipVolume).toBe(0);
+  expect(d.clip).toBe("clip-3.mp4");
+  expect(d.move).toBe("static");
+  expect(d.clipVolume).toBe(1);
+  expect(d.frameCount).toBe(150);
   const muted = buildWorkshopManifest({
     clipAudio: false,
     scenes: [scene("b", real)],
   }).manifest;
-  assert.equal(muted.clipAudio, false);
-  assert.equal(muted.scenes[0].clipVolume, 0);
+  expect(muted.clipAudio).toBe(false);
+  expect(muted.scenes[0].clipVolume).toBe(0);
 });
 
 test("a brand with a logo or CTA adds an end card and stages the logo", () => {
@@ -174,7 +175,7 @@ test("a brand with a logo or CTA adds an end card and stages the logo", () => {
       ctaUrl: "example.co.il",
     },
   });
-  assert.deepEqual(manifest.brand, {
+  expect(manifest.brand).toStrictEqual({
     primaryColor: "#FF3366",
     secondaryColor: null,
     logo: "logo.png",
@@ -182,15 +183,15 @@ test("a brand with a logo or CTA adds an end card and stages the logo", () => {
     ctaText: "הזמינו עכשיו",
     ctaUrl: "example.co.il",
   });
-  assert.deepEqual(manifest.endCard, { startFrame: 60, frameCount: 75 });
-  assert.equal(manifest.totalFrames, 135);
-  assert.ok(files.some((f) => f.to === "logo.png"));
+  expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 75 });
+  expect(manifest.totalFrames).toBe(135);
+  expect(files.some((f) => f.to === "logo.png")).toBeTruthy();
   const colorsOnly = buildWorkshopManifest({
     scenes: [scene("a")],
     brand: { primaryColor: "#123456" },
   }).manifest;
-  assert.equal(colorsOnly.endCard, null);
-  assert.equal(colorsOnly.totalFrames, 60);
+  expect(colorsOnly.endCard).toBe(null);
+  expect(colorsOnly.totalFrames).toBe(60);
 });
 
 test("a talking clip's line is captioned across its speech", () => {
@@ -206,15 +207,18 @@ test("a talking clip's line is captioned across its speech", () => {
     ],
   });
   const words = manifest.captions.flatMap((chunk) => chunk.words);
-  assert.deepEqual(
-    words.map((w) => w.text),
-    ["מחכה", "לכם", "לקפה", "של", "בוקר"],
-  );
-  assert.ok(words[0].startFrame > 0);
+  expect(words.map((w) => w.text)).toStrictEqual([
+    "מחכה",
+    "לכם",
+    "לקפה",
+    "של",
+    "בוקר",
+  ]);
+  expect(words[0].startFrame > 0).toBeTruthy();
   const last = words[words.length - 1];
-  assert.ok(last.endFrame <= manifest.scenes[0].frameCount);
+  expect(last.endFrame <= manifest.scenes[0].frameCount).toBeTruthy();
   for (let i = 1; i < words.length; i++)
-    assert.ok(words[i].startFrame >= words[i - 1].endFrame);
+    expect(words[i].startFrame >= words[i - 1].endFrame).toBeTruthy();
 });
 
 test("a talking clip shorter than its scene is captioned only while it speaks", () => {
@@ -231,7 +235,7 @@ test("a talking clip shorter than its scene is captioned only while it speaks", 
     ],
   });
   const words = manifest.captions.flatMap((chunk) => chunk.words);
-  assert.ok(words.at(-1).endFrame <= 4 * manifest.fps);
+  expect(words.at(-1).endFrame <= 4 * manifest.fps).toBeTruthy();
 });
 
 test("an ending without a closing card leaves the end card out", () => {
@@ -239,5 +243,5 @@ test("an ending without a closing card leaves the end card out", () => {
     scenes: [scene("a")],
     brand: { logoPath: "/tmp/logo.png", ctaText: "בואו", endCard: false },
   });
-  assert.equal(manifest.endCard, null);
+  expect(manifest.endCard).toBe(null);
 });

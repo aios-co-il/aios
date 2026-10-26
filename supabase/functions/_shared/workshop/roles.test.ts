@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import {
+  assertEquals,
+  assertNotStrictEquals,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   roleOfPersona,
   ROLE_TOOLS,
@@ -7,125 +10,164 @@ import {
   workshopRole,
 } from "./roles.ts";
 
-test("static creative goes to the designer", () => {
-  assert.equal(
+Deno.test("static creative goes to the designer", () => {
+  assertStrictEquals(
     workshopRole("תכיני לי פוסט לאינסטגרם על המבצע", null),
     "designer",
   );
-  assert.equal(workshopRole("צריך באנר לקמפיין", null), "designer");
+  assertStrictEquals(workshopRole("צריך באנר לקמפיין", null), "designer");
 });
 
-test("film concepts and generated films go to the producer", () => {
-  assert.equal(workshopRole("תני לי קונספטים לסרטון פרומו", null), "producer");
-  assert.equal(workshopRole("תנפישי את התמונות עם ליפ סינק", null), "producer");
-});
-
-test("a film from the user's own materials goes to the editor", () => {
-  assert.equal(workshopRole("תערכי לי סרטון מהחומרים שהעליתי", null), "editor");
-  assert.equal(workshopRole("make a video from my footage", null), "editor");
-});
-
-test("a reply with no signal stays with the current role", () => {
-  assert.equal(workshopRole("כן, מאשרת", "video_director"), "producer");
-  assert.equal(workshopRole("תמשיכי", "video_editor"), "editor");
-  assert.equal(workshopRole("תמשיכי", null), "designer");
-  assert.equal(roleOfPersona("workshop_editor"), "editor");
-});
-
-test("each role is offered only its own workshop tools, other tools stay", () => {
-  const tools = [
-    { name: "workshop_make_creative" },
-    { name: "workshop_produce_video" },
-    { name: "workshop_edit_from_assets" },
-    { name: "kb_search" },
-  ];
-  const isWorkshop = (name: string) => name.startsWith("workshop_");
-  assert.deepEqual(
-    toolsForRole(tools, "designer", isWorkshop).map((t) => t.name),
-    ["workshop_make_creative", "kb_search"],
-  );
-  assert.deepEqual(
-    toolsForRole(tools, "editor", isWorkshop).map((t) => t.name),
-    ["workshop_produce_video", "workshop_edit_from_assets", "kb_search"],
-  );
-  assert.equal(ROLE_TOOLS.producer.includes("workshop_make_creative"), false);
-});
-
-test("the open project keeps short replies and picture edits with its specialist", () => {
-  const film = { video: true, edit: false };
-  assert.equal(workshopRole("תמשיכי", "creative_direct", film), "producer");
-  assert.equal(
-    workshopRole("תשני את התמונה בסצנה 2", "creative_direct", film),
+Deno.test("film concepts and generated films go to the producer", () => {
+  assertStrictEquals(
+    workshopRole("תני לי קונספטים לסרטון פרומו", null),
     "producer",
   );
-  assert.equal(
-    workshopRole("תמשיכי", null, { video: true, edit: true }),
+  assertStrictEquals(
+    workshopRole("תנפישי את התמונות עם ליפ סינק", null),
+    "producer",
+  );
+});
+
+Deno.test("a film from the user's own materials goes to the editor", () => {
+  assertStrictEquals(
+    workshopRole("תערכי לי סרטון מהחומרים שהעליתי", null),
     "editor",
   );
-  assert.equal(
-    workshopRole("תכיני גם פוסט לפיד", "video_director", film),
-    "designer",
+  assertStrictEquals(
+    workshopRole("make a video from my footage", null),
+    "editor",
   );
-  assert.equal(
-    workshopRole("תמשיכי", "video_director", { video: false, edit: false }),
+});
+
+Deno.test("a reply with no signal stays with the current role", () => {
+  assertStrictEquals(workshopRole("כן, מאשרת", "video_director"), "producer");
+  assertStrictEquals(workshopRole("תמשיכי", "video_editor"), "editor");
+  assertStrictEquals(workshopRole("תמשיכי", null), "designer");
+  assertStrictEquals(roleOfPersona("workshop_editor"), "editor");
+});
+
+Deno.test(
+  "each role is offered only its own workshop tools, other tools stay",
+  () => {
+    const tools = [
+      { name: "workshop_make_creative" },
+      { name: "workshop_produce_video" },
+      { name: "workshop_edit_from_assets" },
+      { name: "kb_search" },
+    ];
+    const isWorkshop = (name: string) => name.startsWith("workshop_");
+    assertEquals(
+      toolsForRole(tools, "designer", isWorkshop).map((t) => t.name),
+      ["workshop_make_creative", "kb_search"],
+    );
+    assertEquals(
+      toolsForRole(tools, "editor", isWorkshop).map((t) => t.name),
+      ["workshop_produce_video", "workshop_edit_from_assets", "kb_search"],
+    );
+    assertStrictEquals(
+      ROLE_TOOLS.producer.includes("workshop_make_creative"),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "the open project keeps short replies and picture edits with its specialist",
+  () => {
+    const film = { video: true, edit: false };
+    assertStrictEquals(
+      workshopRole("תמשיכי", "creative_direct", film),
+      "producer",
+    );
+    assertStrictEquals(
+      workshopRole("תשני את התמונה בסצנה 2", "creative_direct", film),
+      "producer",
+    );
+    assertStrictEquals(
+      workshopRole("תמשיכי", null, { video: true, edit: true }),
+      "editor",
+    );
+    assertStrictEquals(
+      workshopRole("תכיני גם פוסט לפיד", "video_director", film),
+      "designer",
+    );
+    assertStrictEquals(
+      workshopRole("תמשיכי", "video_director", { video: false, edit: false }),
+      "producer",
+    );
+  },
+);
+
+Deno.test(
+  "Hebrew film words match as whole words, with or without a prefix",
+  () => {
+    assertStrictEquals(workshopRole("תעשי לי סרט", null), "producer");
+    assertStrictEquals(workshopRole("אפשר סרט?", null), "producer");
+    assertStrictEquals(workshopRole("תכיני ריל", null), "producer");
+    assertStrictEquals(workshopRole("תכיני ריל לאינסטגרם", null), "producer");
+    assertStrictEquals(workshopRole("תכיני לי את הסרט", null), "producer");
+    assertStrictEquals(workshopRole("ערכי את הסרטון", null), "editor");
+    assertStrictEquals(workshopRole("פוסט על הגריל החדש", null), "designer");
+    assertStrictEquals(workshopRole("פוסט לאפריל", null), "designer");
+    assertStrictEquals(workshopRole("סטורי לאינסטגרם", null), "designer");
+  },
+);
+
+Deno.test("brand values and history are not editing or story words", () => {
+  assertStrictEquals(
+    workshopRole("סרטון על הערכים של המותג", null),
     "producer",
   );
-});
-
-test("Hebrew film words match as whole words, with or without a prefix", () => {
-  assert.equal(workshopRole("תעשי לי סרט", null), "producer");
-  assert.equal(workshopRole("אפשר סרט?", null), "producer");
-  assert.equal(workshopRole("תכיני ריל", null), "producer");
-  assert.equal(workshopRole("תכיני ריל לאינסטגרם", null), "producer");
-  assert.equal(workshopRole("תכיני לי את הסרט", null), "producer");
-  assert.equal(workshopRole("ערכי את הסרטון", null), "editor");
-  assert.equal(workshopRole("פוסט על הגריל החדש", null), "designer");
-  assert.equal(workshopRole("פוסט לאפריל", null), "designer");
-  assert.equal(workshopRole("סטורי לאינסטגרם", null), "designer");
-});
-
-test("brand values and history are not editing or story words", () => {
-  assert.equal(workshopRole("סרטון על הערכים של המותג", null), "producer");
-  assert.equal(workshopRole("סרטון על ערכי המותג", null), "producer");
+  assertStrictEquals(workshopRole("סרטון על ערכי המותג", null), "producer");
   const film = { video: true, edit: false };
-  assert.equal(
+  assertStrictEquals(
     workshopRole("סצנה על ההיסטוריה של המותג", "video_director", film),
     "producer",
   );
 });
 
-test("an edit command without 'את' still goes to the editor, brand values do not", () => {
-  for (const text of [
-    "ערכי הסרטון שלי",
-    "ערכי הקטעים לסרטון אחד",
-    "קחי את הקטעים וערכי לסרטון אחד",
-  ])
-    assert.equal(workshopRole(text, null, null), "editor", text);
-  assert.notEqual(
-    workshopRole("סרטון על ערכי המותג שלנו", null, null),
-    "editor",
-  );
-});
+Deno.test(
+  "an edit command without 'את' still goes to the editor, brand values do not",
+  () => {
+    for (const text of [
+      "ערכי הסרטון שלי",
+      "ערכי הקטעים לסרטון אחד",
+      "קחי את הקטעים וערכי לסרטון אחד",
+    ])
+      assertStrictEquals(workshopRole(text, null, null), "editor", text);
+    assertNotStrictEquals(
+      workshopRole("סרטון על ערכי המותג שלנו", null, null),
+      "editor",
+    );
+  },
+);
 
-test("a post or an ad about films stays with the designer; a bare film request goes to the producer", () => {
-  for (const text of [
-    "מודעה לסרטים החדשים שלנו",
-    "פוסט לפסטיבל הסרטים",
-    "באנר לקולנוע עם סרטי השבוע",
-    "פוסט על הסרט",
-  ])
-    assert.equal(workshopRole(text, null, null), "designer", text);
-  for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"])
-    assert.equal(workshopRole(text, null, null), "producer", text);
-});
+Deno.test(
+  "a post or an ad about films stays with the designer; a bare film request goes to the producer",
+  () => {
+    for (const text of [
+      "מודעה לסרטים החדשים שלנו",
+      "פוסט לפסטיבל הסרטים",
+      "באנר לקולנוע עם סרטי השבוע",
+      "פוסט על הסרט",
+    ])
+      assertStrictEquals(workshopRole(text, null, null), "designer", text);
+    for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"])
+      assertStrictEquals(workshopRole(text, null, null), "producer", text);
+  },
+);
 
-test("the deliverable named first decides between a film and a post", () => {
-  for (const text of [
-    "תעשי לי סרט לסטורי",
-    "סרט קצר לסטורי באינסטגרם",
-    "סרט פרסומת למודעה בפייסבוק",
-  ])
-    assert.equal(workshopRole(text, null, null), "producer", text);
-  for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"])
-    assert.equal(workshopRole(text, null, null), "designer", text);
-});
+Deno.test(
+  "the deliverable named first decides between a film and a post",
+  () => {
+    for (const text of [
+      "תעשי לי סרט לסטורי",
+      "סרט קצר לסטורי באינסטגרם",
+      "סרט פרסומת למודעה בפייסבוק",
+    ])
+      assertStrictEquals(workshopRole(text, null, null), "producer", text);
+    for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"])
+      assertStrictEquals(workshopRole(text, null, null), "designer", text);
+  },
+);

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { isPaidPlanError } from "../src/providers/plan.mjs";
 import {
   geminiSpeechBody,
@@ -9,25 +8,21 @@ import {
 } from "../src/providers/geminiTts.mjs";
 
 test("a starter-plan refusal is recognized", () => {
-  assert.equal(
+  expect(
     isPaidPlanError(new Error("elevenlabs speech 402: paid_plan_required")),
-    true,
-  );
-  assert.equal(
-    isPaidPlanError(new Error("ממשק התמונות דורש תוכנית Pro")),
-    true,
-  );
-  assert.equal(isPaidPlanError(new Error("higgsfield submit 500")), false);
+  ).toBe(true);
+  expect(isPaidPlanError(new Error("ממשק התמונות דורש תוכנית Pro"))).toBe(true);
+  expect(isPaidPlanError(new Error("higgsfield submit 500"))).toBe(false);
 });
 
 test("the request names a prebuilt voice and sends only the transcript", () => {
   const body = geminiSpeechBody("שלום");
-  assert.deepEqual(body.contents[0].parts, [{ text: "שלום" }]);
-  assert.equal(body.generationConfig.responseModalities[0], "AUDIO");
-  assert.deepEqual(body.generationConfig.speechConfig, {
+  expect(body.contents[0].parts).toStrictEqual([{ text: "שלום" }]);
+  expect(body.generationConfig.responseModalities[0]).toBe("AUDIO");
+  expect(body.generationConfig.speechConfig).toStrictEqual({
     voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
   });
-  assert.equal(body.model, "gemini-3.8-flash-tts");
+  expect(body.model).toBe("gemini-3.8-flash-tts");
 });
 
 test("raw PCM from Gemini is wrapped as a WAV at the rate it states", async () => {
@@ -36,7 +31,7 @@ test("raw PCM from Gemini is wrapped as a WAV at the rate it states", async () =
     apiKey: "g",
     text: "שלום",
     fetchImpl: async (_url, init) => {
-      assert.equal(init.headers["x-goog-api-key"], "g");
+      expect(init.headers["x-goog-api-key"]).toBe("g");
       return {
         ok: true,
         json: async () => ({
@@ -59,19 +54,19 @@ test("raw PCM from Gemini is wrapped as a WAV at the rate it states", async () =
       };
     },
   });
-  assert.equal(speech.contentType, "audio/wav");
-  assert.equal(speech.bytes.toString("ascii", 0, 4), "RIFF");
-  assert.equal(speech.bytes.readUInt32LE(24), 24000);
-  assert.equal(speech.bytes.length, 44 + pcm.length);
-  assert.equal(speech.voice, "Kore");
-  assert.equal(speech.costUsd, 0.0003);
+  expect(speech.contentType).toBe("audio/wav");
+  expect(speech.bytes.toString("ascii", 0, 4)).toBe("RIFF");
+  expect(speech.bytes.readUInt32LE(24)).toBe(24000);
+  expect(speech.bytes.length).toBe(44 + pcm.length);
+  expect(speech.voice).toBe("Kore");
+  expect(speech.costUsd).toBe(0.0003);
 });
 
 test("a ready WAV is kept, and cost falls back to the audio length", () => {
   const wav = Buffer.concat([Buffer.from("RIFF\0\0\0\0WAVE"), Buffer.alloc(8)]);
   const kept = speechFile(wav, "audio/wav");
-  assert.equal(kept.bytes, wav);
+  expect(kept.bytes).toBe(wav);
   const pcm = speechFile(Buffer.alloc(48000), "audio/L16;rate=24000");
-  assert.equal(pcm.seconds, 1);
-  assert.equal(geminiSpeechCost(null, { text: "abcd", seconds: 1 }), 0.0003);
+  expect(pcm.seconds).toBe(1);
+  expect(geminiSpeechCost(null, { text: "abcd", seconds: 1 })).toBe(0.0003);
 });

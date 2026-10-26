@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   answerableIndex,
   hidePartialQuickReplies,
@@ -11,8 +10,8 @@ test("markers become button groups and disappear from the text", () => {
   const { text, groups } = parseQuickReplies(
     "כמה שאלות:\n\n[[בחירה: סגנון | ריאליסטי | קולנועי | איור]]\n[[בחירה: מנוע | Google | ElevenLabs]]\n\nמה דעתך?",
   );
-  assert.equal(text, "כמה שאלות:\n\nמה דעתך?");
-  assert.deepEqual(groups, [
+  expect(text).toBe("כמה שאלות:\n\nמה דעתך?");
+  expect(groups).toStrictEqual([
     { label: "סגנון", options: ["ריאליסטי", "קולנועי", "איור"] },
     { label: "מנוע", options: ["Google", "ElevenLabs"] },
   ]);
@@ -22,45 +21,42 @@ test("malformed groups are dropped, options are deduplicated and capped", () => 
   const { groups } = parseQuickReplies(
     "[[בחירה: בלי אפשרויות]] [[בחירה: | א | ב]] [[choice: x | 1 | 1 | 2 | 3 | 4 | 5 | 6 | 7]]",
   );
-  assert.equal(groups.length, 1);
-  assert.deepEqual(groups[0].options, ["1", "2", "3", "4", "5", "6"]);
+  expect(groups.length).toBe(1);
+  expect(groups[0].options).toStrictEqual(["1", "2", "3", "4", "5", "6"]);
 });
 
 test("a message without markers is untouched", () => {
   const { text, groups } = parseQuickReplies("שלום [רגיל] וקישור [x](y)");
-  assert.equal(text, "שלום [רגיל] וקישור [x](y)");
-  assert.deepEqual(groups, []);
+  expect(text).toBe("שלום [רגיל] וקישור [x](y)");
+  expect(groups).toStrictEqual([]);
 });
 
 test("a half-written marker does not show while the reply streams", () => {
-  assert.equal(hidePartialQuickReplies("שאלה\n[[בחירה: סגנון | ריא"), "שאלה");
-  assert.equal(
-    hidePartialQuickReplies("שאלה [[בחירה: א | ב]] עוד"),
+  expect(hidePartialQuickReplies("שאלה\n[[בחירה: סגנון | ריא")).toBe("שאלה");
+  expect(hidePartialQuickReplies("שאלה [[בחירה: א | ב]] עוד")).toBe(
     "שאלה  עוד",
   );
 });
 
 test("one group answers with the option, several answer with their labels", () => {
   const one = [{ label: "סגנון", options: ["א", "ב"] }];
-  assert.equal(quickReplyAnswer(one, { סגנון: "ב" }), "ב");
+  expect(quickReplyAnswer(one, { סגנון: "ב" })).toBe("ב");
   const two = [...one, { label: "מנוע", options: ["Google"] }];
-  assert.equal(
-    quickReplyAnswer(two, { סגנון: "א", מנוע: "Google" }),
+  expect(quickReplyAnswer(two, { סגנון: "א", מנוע: "Google" })).toBe(
     "סגנון: א\nמנוע: Google",
   );
-  assert.equal(quickReplyAnswer(two, { מנוע: "Google" }), "מנוע: Google");
+  expect(quickReplyAnswer(two, { מנוע: "Google" })).toBe("מנוע: Google");
 });
 
 test("only the latest assistant reply is answerable, and a user message closes it", () => {
-  assert.equal(answerableIndex([{ role: "user" }, { role: "assistant" }]), 1);
-  assert.equal(
+  expect(answerableIndex([{ role: "user" }, { role: "assistant" }])).toBe(1);
+  expect(
     answerableIndex([
       { role: "assistant" },
       { role: "tool_call" },
       { role: "tool_call" },
     ]),
-    0,
-  );
-  assert.equal(answerableIndex([{ role: "assistant" }, { role: "user" }]), -1);
-  assert.equal(answerableIndex([]), -1);
+  ).toBe(0);
+  expect(answerableIndex([{ role: "assistant" }, { role: "user" }])).toBe(-1);
+  expect(answerableIndex([])).toBe(-1);
 });

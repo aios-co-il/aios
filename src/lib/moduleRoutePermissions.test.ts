@@ -14,9 +14,8 @@ test("leads and lead-integrations keep distinct permissions", () => {
 });
 
 test("the workshop route needs the same permission as its menu item", () => {
-  assert.equal(permissionForSubpath("workshop"), "social_media");
-  assert.equal(
-    permissionHandleForPathname("/t/acme/workshop")?.permission,
+  expect(permissionForSubpath("workshop")).toBe("social_media");
+  expect(permissionHandleForPathname("/t/acme/workshop")?.permission).toBe(
     "social_media",
   );
 });

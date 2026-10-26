@@ -1,23 +1,21 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { higgsfieldCredential } from "../src/providers/higgsfield-credential.mjs";
 
 const copied = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:secret-part";
 
 test("a copied id:secret is sent as-is even when the id field is also filled", () => {
-  assert.equal(
+  expect(
     higgsfieldCredential("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", copied),
-    copied,
-  );
-  assert.equal(higgsfieldCredential("other-id", copied), copied);
-  assert.equal(higgsfieldCredential("", copied), copied);
+  ).toBe(copied);
+  expect(higgsfieldCredential("other-id", copied)).toBe(copied);
+  expect(higgsfieldCredential("", copied)).toBe(copied);
 });
 
 test("two separate parts are still joined", () => {
-  assert.equal(higgsfieldCredential("a", "b"), "a:b");
+  expect(higgsfieldCredential("a", "b")).toBe("a:b");
 });
 
 test("one side without a colon is not a credential", () => {
-  assert.equal(higgsfieldCredential("a", ""), "");
-  assert.equal(higgsfieldCredential("", "b"), "");
+  expect(higgsfieldCredential("a", "")).toBe("");
+  expect(higgsfieldCredential("", "b")).toBe("");
 });

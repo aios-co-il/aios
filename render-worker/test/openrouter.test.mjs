@@ -50,15 +50,15 @@ const json = (status, body) => new Response(JSON.stringify(body), { status });
 
 test("lengths and aspects follow the model family", async () => {
   const { openRouterAspect } = await import("../src/providers/openrouter.mjs");
-  assert.equal(openRouterClipSeconds(5, "google/veo-3.1"), 6);
-  assert.equal(openRouterClipSeconds(3, "google/veo-3.1-fast"), 4);
-  assert.equal(openRouterClipSeconds(12, "google/veo-3.1"), 8);
-  assert.equal(openRouterClipSeconds(2, "bytedance/seedance-2.5"), 4);
-  assert.equal(openRouterClipSeconds(40, "bytedance/seedance-2.5"), 30);
-  assert.equal(openRouterClipSeconds(20, "kwaivgi/kling-v3.0-pro"), 15);
-  assert.equal(openRouterAspect("1:1", "google/veo-3.1"), "9:16");
-  assert.equal(openRouterAspect("1:1", "kwaivgi/kling-v3.0-std"), "1:1");
-  assert.equal(openRouterAspect("4:5", "kwaivgi/kling-v3.0-std"), "9:16");
+  expect(openRouterClipSeconds(5, "google/veo-3.1")).toBe(6);
+  expect(openRouterClipSeconds(3, "google/veo-3.1-fast")).toBe(4);
+  expect(openRouterClipSeconds(12, "google/veo-3.1")).toBe(8);
+  expect(openRouterClipSeconds(2, "bytedance/seedance-2.5")).toBe(4);
+  expect(openRouterClipSeconds(40, "bytedance/seedance-2.5")).toBe(30);
+  expect(openRouterClipSeconds(20, "kwaivgi/kling-v3.0-pro")).toBe(15);
+  expect(openRouterAspect("1:1", "google/veo-3.1")).toBe("9:16");
+  expect(openRouterAspect("1:1", "kwaivgi/kling-v3.0-std")).toBe("1:1");
+  expect(openRouterAspect("4:5", "kwaivgi/kling-v3.0-std")).toBe("9:16");
   const body = openRouterClipBody({
     prompt: "p",
     imageUrl: "https://x/a.png",
@@ -66,9 +66,9 @@ test("lengths and aspects follow the model family", async () => {
     aspect: "16:9",
     model: "kwaivgi/kling-v3.0-std",
   });
-  assert.equal(body.aspect_ratio, "16:9");
-  assert.equal(body.generate_audio, false);
-  assert.equal(body.duration, 5);
+  expect(body.aspect_ratio).toBe("16:9");
+  expect(body.generate_audio).toBe(false);
+  expect(body.duration).toBe(5);
 });
 
 test("a talking scene goes to the talking model with audio and the Hebrew line", async () => {
@@ -80,8 +80,8 @@ test("a talking scene goes to the talking model with audio and the Hebrew line",
     return json(202, { id: "talk1", status: "pending" });
   };
   const p = openRouterProvider({ apiKey: "sk-or", fetchImpl });
-  assert.equal(p.nativeSpeech, true);
-  assert.equal(p.talkingModel, "google/veo-3.1");
+  expect(p.nativeSpeech).toBe(true);
+  expect(p.talkingModel).toBe("google/veo-3.1");
   const result = await p.submit({
     prompt: 'The character says in Hebrew: "שלום לכולם".',
     imageUrl: "https://x/a.png",
@@ -89,13 +89,13 @@ test("a talking scene goes to the talking model with audio and the Hebrew line",
     aspect: "9:16",
     talking: true,
   });
-  assert.deepEqual(result, { jobId: "talk1", model: "google/veo-3.1" });
-  assert.equal(sent[0].model, "google/veo-3.1");
-  assert.equal(sent[0].generate_audio, true);
-  assert.equal(sent[0].duration, 6);
-  assert.match(sent[0].prompt, /שלום לכולם/);
-  assert.equal(p.estimate({ durationS: 5, talking: true }).usd, 2.4);
-  assert.equal(p.estimate({ durationS: 5 }).usd, 0.42);
+  expect(result).toStrictEqual({ jobId: "talk1", model: "google/veo-3.1" });
+  expect(sent[0].model).toBe("google/veo-3.1");
+  expect(sent[0].generate_audio).toBe(true);
+  expect(sent[0].duration).toBe(6);
+  expect(sent[0].prompt).toMatch(/שלום לכולם/);
+  expect(p.estimate({ durationS: 5, talking: true }).usd).toBe(2.4);
+  expect(p.estimate({ durationS: 5 }).usd).toBe(0.42);
 });
 
 test("a refused submit is marked as before submit so the clip can fall back", async () => {
@@ -109,9 +109,9 @@ test("a refused submit is marked as before submit so the clip can fall back", as
   const error = await p
     .submit({ prompt: "p", imageUrl: "https://x/a.png" })
     .catch((caught) => caught);
-  assert.equal(error.submitted, false);
-  assert.equal(error.status, 402);
-  assert.match(error.message, /openrouter submit 402/);
+  expect(error.submitted).toBe(false);
+  expect(error.status).toBe(402);
+  expect(error.message).toMatch(/openrouter submit 402/);
 });
 
 test("poll maps failed, cancelled and expired to failed and the rest to pending", async () => {
@@ -127,13 +127,13 @@ test("poll maps failed, cancelled and expired to failed and the rest to pending"
     apiKey: "k",
     fetchImpl: async () => answers.shift(),
   });
-  assert.deepEqual(await p.poll("j"), { status: "pending" });
-  assert.deepEqual(await p.poll("j"), {
+  expect(await p.poll("j")).toStrictEqual({ status: "pending" });
+  expect(await p.poll("j")).toStrictEqual({
     status: "failed",
     error: "content policy",
   });
-  assert.equal((await p.poll("j")).status, "failed");
-  assert.equal((await p.poll("j")).status, "failed");
+  expect((await p.poll("j")).status).toBe("failed");
+  expect((await p.poll("j")).status).toBe("failed");
 });
 
 test("OpenRouter without a key fails before any request", async () => {
@@ -153,8 +153,8 @@ test("a short Kling clip is estimated at OpenRouter's 5 s minimum, and the real 
         ? new Response(new Uint8Array([1, 2]))
         : Response.json({ status: "completed", usage: { cost: 0.42 } }),
   });
-  assert.equal(p.estimate({ durationS: 3 }).usd, 0.42);
+  expect(p.estimate({ durationS: 3 }).usd).toBe(0.42);
   const done = await p.poll("job-1");
-  assert.equal(done.status, "succeeded");
-  assert.equal(done.costUsd, 0.42);
+  expect(done.status).toBe("succeeded");
+  expect(done.costUsd).toBe(0.42);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { lineFrames } from "../src/compose/line-sync.mjs";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 
@@ -13,21 +12,19 @@ const framed = (starts) =>
 test("each scene of a continuous take starts when its own line starts", () => {
   // Lines of 2, 1 and 3 words; the take lasts 200 frames with its tail.
   const words = framed([0, 10, 75, 120, 130, 140]);
-  assert.deepEqual(
+  expect(
     lineFrames(["א ב", "ג", "ד ה ו"], words, [75, 75, 75], 200),
-    [75, 45, 80],
-  );
+  ).toStrictEqual([75, 45, 80]);
   // The last scene keeps its own length when that is longer.
-  assert.deepEqual(
+  expect(
     lineFrames(["א ב", "ג", "ד ה ו"], words, [75, 75, 120], 200),
-    [75, 45, 120],
-  );
+  ).toStrictEqual([75, 45, 120]);
 });
 
 test("a scene with no line or words that do not add up fall back to even stretching", () => {
   const words = framed([0, 10, 75]);
-  assert.equal(lineFrames(["א ב", ""], words, [75, 75], 100), null);
-  assert.equal(lineFrames(["א", "ב"], words, [75, 75], 100), null);
+  expect(lineFrames(["א ב", ""], words, [75, 75], 100)).toBe(null);
+  expect(lineFrames(["א", "ב"], words, [75, 75], 100)).toBe(null);
 });
 
 test("the manifest cuts a narrated film at its line boundaries", () => {
@@ -66,6 +63,6 @@ test("the manifest cuts a narrated film at its line boundaries", () => {
   });
   const [a, b] = manifest.scenes;
   // "מאפה" starts at 2.4 s (8 characters × 0.3 s): scene b starts there.
-  assert.equal(b.startFrame, Math.round(2.4 * manifest.fps));
-  assert.equal(a.frameCount, b.startFrame);
+  expect(b.startFrame).toBe(Math.round(2.4 * manifest.fps));
+  expect(a.frameCount).toBe(b.startFrame);
 });

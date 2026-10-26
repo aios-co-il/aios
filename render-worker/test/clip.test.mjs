@@ -328,14 +328,15 @@ test("a provider job that failed is final, so a retry does not poll the dead job
     status: "failed",
     error: "Content policy violation",
   });
-  await assert.rejects(
+  await expect(
     generateClip({ db, run: clipRun("s1"), provider, log: () => {} }),
+  ).rejects.toSatisfy(
     (error) =>
       error.final === true &&
       error.submitted === true &&
       /Content policy violation/.test(error.message),
   );
-  assert.equal(seen.polls, 1);
+  expect(seen.polls).toBe(1);
 });
 
 test("a failed free-preview clip may be retried, since a retry renders a new one", async () => {
@@ -344,8 +345,9 @@ test("a failed free-preview clip may be retried, since a retry renders a new one
     { status: "failed", error: "ffmpeg null: killed" },
     { name: "mock" },
   );
-  await assert.rejects(
+  await expect(
     generateClip({ db, run: clipRun("s1"), provider, log: () => {} }),
+  ).rejects.toSatisfy(
     (error) => error.final !== true && /killed/.test(error.message),
   );
 });
@@ -360,9 +362,9 @@ test("the still copy an engine fetches carries the still's real type", async () 
   });
   await generateClip({ db, run: clipRun("s1"), provider, log: () => {} });
   const [copy] = db.calls.uploads;
-  assert.equal(copy.path, "t1/c1/i1/s1/still-source-run-s1.jpg");
-  assert.equal(copy.contentType, "image/jpeg");
-  assert.match(seen.submits[0].imageUrl, /still-source-run-s1\.jpg$/);
+  expect(copy.path).toBe("t1/c1/i1/s1/still-source-run-s1.jpg");
+  expect(copy.contentType).toBe("image/jpeg");
+  expect(seen.submits[0].imageUrl).toMatch(/still-source-run-s1\.jpg$/);
 });
 
 /** A small WebP made with ffmpeg; empty when ffmpeg cannot write WebP. */
@@ -380,17 +382,16 @@ function stillWebp() {
 }
 const webp = hasFfmpeg ? stillWebp() : new Uint8Array();
 
-test(
+test.skipIf(!webp.length)(
   "a WebP still is handed to the engine as a PNG",
-  { skip: !webp.length },
   async () => {
     const db = fakeDb({ still: webp });
     const { provider } = recordingProvider(done, { needsPublicImage: true });
     await generateClip({ db, run: clipRun("s1"), provider, log: () => {} });
     const [copy] = db.calls.uploads;
-    assert.equal(copy.path, "t1/c1/i1/s1/still-source-run-s1.png");
-    assert.equal(copy.contentType, "image/png");
-    assert.deepEqual([...copy.bytes.slice(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+    expect(copy.path).toBe("t1/c1/i1/s1/still-source-run-s1.png");
+    expect(copy.contentType).toBe("image/png");
+    expect([...copy.bytes.slice(0, 4)]).toStrictEqual([0x89, 0x50, 0x4e, 0x47]);
   },
 );
 
@@ -420,7 +421,7 @@ test("the paid submit and the save of its job id run inside the worker's submit 
       }
     },
   });
-  assert.deepEqual(seen, [
+  expect(seen).toStrictEqual([
     ["submit", true],
     ["save", true],
   ]);

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   artifactText,
   fallbackNote,
@@ -29,19 +28,17 @@ const page = (over: Partial<WorkshopArtifact>): WorkshopArtifact => ({
 });
 
 test("each kind of artifact gets the right kind of page", () => {
-  assert.equal(pageTypeFor(page({ kind: "brief" })), "brief");
-  assert.equal(pageTypeFor(page({ kind: "scene_still" })), "image");
-  assert.equal(pageTypeFor(page({ kind: "film" })), "video");
-  assert.equal(pageTypeFor(page({ kind: "music" })), "audio");
-  assert.equal(pageTypeFor(page({ kind: "copy" })), "text");
-  assert.equal(
+  expect(pageTypeFor(page({ kind: "brief" }))).toBe("brief");
+  expect(pageTypeFor(page({ kind: "scene_still" }))).toBe("image");
+  expect(pageTypeFor(page({ kind: "film" }))).toBe("video");
+  expect(pageTypeFor(page({ kind: "music" }))).toBe("audio");
+  expect(pageTypeFor(page({ kind: "copy" }))).toBe("text");
+  expect(
     pageTypeFor(page({ kind: "reference", url: "https://x/ref.mp4?t=1" })),
-    "video",
-  );
-  assert.equal(
+  ).toBe("video");
+  expect(
     pageTypeFor(page({ kind: "reference", url: "https://x/ref.png" })),
-    "image",
-  );
+  ).toBe("image");
 });
 
 test("the feed keeps arrival order and a folder shows only its own pages", () => {
@@ -50,33 +47,31 @@ test("the feed keeps arrival order and a folder shows only its own pages", () =>
     page({ id: "early", created_at: "2026-10-24T10:01:00Z" }),
     page({ id: "mid", created_at: "2026-10-24T10:03:00Z" }),
   ];
-  assert.deepEqual(
-    pagesIn(items, null).map((p) => p.id),
-    ["early", "mid", "late"],
-  );
-  assert.deepEqual(
-    pagesIn(items, "images").map((p) => p.id),
-    ["early", "mid"],
-  );
-  assert.deepEqual(
-    foldersOf(items).map((f) => [f.folder, f.count]),
-    [
-      ["copy", 1],
-      ["images", 2],
-    ],
-  );
+  expect(pagesIn(items, null).map((p) => p.id)).toStrictEqual([
+    "early",
+    "mid",
+    "late",
+  ]);
+  expect(pagesIn(items, "images").map((p) => p.id)).toStrictEqual([
+    "early",
+    "mid",
+  ]);
+  expect(foldersOf(items).map((f) => [f.folder, f.count])).toStrictEqual([
+    ["copy", 1],
+    ["images", 2],
+  ]);
 });
 
 test("page text comes from the first filled field", () => {
-  assert.equal(artifactText(page({ meta: { text: "  שלום  " } })), "שלום");
-  assert.equal(artifactText(page({ meta: { brief: "בריף" } })), "בריף");
-  assert.equal(artifactText(page({ meta: {} })), "");
+  expect(artifactText(page({ meta: { text: "  שלום  " } }))).toBe("שלום");
+  expect(artifactText(page({ meta: { brief: "בריף" } }))).toBe("בריף");
+  expect(artifactText(page({ meta: {} }))).toBe("");
 });
 
 test("the board follows new pages only while following", () => {
-  assert.equal(shouldFollow(1, 2, true), true);
-  assert.equal(shouldFollow(1, 2, false), false);
-  assert.equal(shouldFollow(2, 2, true), false);
+  expect(shouldFollow(1, 2, true)).toBe(true);
+  expect(shouldFollow(1, 2, false)).toBe(false);
+  expect(shouldFollow(2, 2, true)).toBe(false);
 });
 
 test("private bucket paths are signed and web links are left alone", () => {
@@ -89,22 +84,22 @@ test("private bucket paths are signed and web links are left alone", () => {
       thumb_url: "tenant/item/t.jpg",
     }),
   ];
-  assert.deepEqual(storagePathsIn(items), [
+  expect(storagePathsIn(items)).toStrictEqual([
     "tenant/item/clip.mp4",
     "tenant/item/t.jpg",
   ]);
   const out = withSignedUrls(items, {
     "tenant/item/clip.mp4": "https://signed/clip",
   });
-  assert.equal(out[0].url, "https://x/a.png");
-  assert.equal(out[1].url, "https://signed/clip");
-  assert.equal(out[2].thumb_url, null);
+  expect(out[0].url).toBe("https://x/a.png");
+  expect(out[1].url).toBe("https://signed/clip");
+  expect(out[2].thumb_url).toBe(null);
 });
 
 test("a project's format comes from its brief, with a default", () => {
   const brief = page({ kind: "brief", meta: { plan: { format: "9:16" } } });
-  assert.equal(projectFormat([brief]), "9:16");
-  assert.equal(projectFormat([]), "4:5");
+  expect(projectFormat([brief])).toBe("9:16");
+  expect(projectFormat([])).toBe("4:5");
 });
 
 test("failed pages leave the board and only recent errors are spoken", () => {
@@ -123,26 +118,21 @@ test("failed pages leave the board and only recent errors are spoken", () => {
     ],
     now,
   );
-  assert.deepEqual(
-    result.kept.map((row) => row.id),
-    ["ok"],
-  );
-  assert.deepEqual(result.failedIds, ["new", "dup", "old"]);
-  assert.deepEqual(result.messages, ["OpenAI: 400"]);
+  expect(result.kept.map((row) => row.id)).toStrictEqual(["ok"]);
+  expect(result.failedIds).toStrictEqual(["new", "dup", "old"]);
+  expect(result.messages).toStrictEqual(["OpenAI: 400"]);
 });
 
 test("a clip made on a replacement engine says so; a normal clip says nothing", () => {
-  assert.equal(
+  expect(
     fallbackNote(
       page({
         kind: "clip",
         meta: { provider: "mock", fallback_from: "elevenlabs" },
       }),
     ),
-    "הונפש במנוע התצוגה החינמי במקום ElevenLabs",
-  );
-  assert.equal(
+  ).toBe("הונפש במנוע התצוגה החינמי במקום ElevenLabs");
+  expect(
     fallbackNote(page({ kind: "clip", meta: { provider: "higgsfield" } })),
-    null,
-  );
+  ).toBe(null);
 });

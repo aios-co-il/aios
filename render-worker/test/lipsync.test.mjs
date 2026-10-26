@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 import { generateClip } from "../src/jobs/clip.mjs";
 import { generateLipsync, NO_LIPSYNC_PROVIDER } from "../src/jobs/lipsync.mjs";
@@ -29,33 +28,30 @@ const talkingMeta = { lipsync: true, speaker: "Carmen", dialogue: LINE };
 
 test("a talking scene speaks its dialogue, else its voiceover, and is left out of the narration", () => {
   const scene = { voiceover_text: " קריינות ", meta: talkingMeta };
-  assert.equal(isTalkingScene(scene), true);
-  assert.equal(talkingLine(scene), LINE);
-  assert.equal(narrationLine(scene), "");
-  assert.equal(
+  expect(isTalkingScene(scene)).toBe(true);
+  expect(talkingLine(scene)).toBe(LINE);
+  expect(narrationLine(scene)).toBe("");
+  expect(
     talkingLine({ voiceover_text: " רק קריינות\n", meta: { lipsync: true } }),
-    "רק קריינות",
-  );
-  assert.equal(talkingLine({ voiceover_text: "x", meta: {} }), "");
-  assert.equal(narrationLine({ voiceover_text: " x ", meta: {} }), "x");
+  ).toBe("רק קריינות");
+  expect(talkingLine({ voiceover_text: "x", meta: {} })).toBe("");
+  expect(narrationLine({ voiceover_text: " x ", meta: {} })).toBe("x");
 });
 
 test("ElevenLabs lip sync sends Creatify Aurora the still and the voice line inline", () => {
   const body = elevenLabsLipsyncBody({ imageBytes: PNG, audioBytes: MP3 });
-  assert.equal(body.model_id, "creatify-aurora");
-  assert.equal(body.image.type, "inline_base64");
-  assert.equal(body.image.mime_type, "image/png");
-  assert.equal(body.audio.mime_type, "audio/mpeg");
-  assert.equal(
-    Buffer.from(body.audio.content_base64, "base64").length,
+  expect(body.model_id).toBe("creatify-aurora");
+  expect(body.image.type).toBe("inline_base64");
+  expect(body.image.mime_type).toBe("image/png");
+  expect(body.audio.mime_type).toBe("audio/mpeg");
+  expect(Buffer.from(body.audio.content_base64, "base64").length).toBe(
     MP3.length,
   );
-  assert.equal(body.resolution, "720p");
-  assert.equal(
-    audioMime(new Uint8Array([0x52, 0x49, 0x46, 0x46])),
-    "audio/wav",
+  expect(body.resolution).toBe("720p");
+  expect(audioMime(new Uint8Array([0x52, 0x49, 0x46, 0x46]))).toBe("audio/wav");
+  expect(() => elevenLabsLipsyncBody({ imageBytes: PNG })).toThrow(
+    /voice line/,
   );
-  assert.throws(() => elevenLabsLipsyncBody({ imageBytes: PNG }), /voice line/);
 });
 
 test("Kling lip sync posts audio2video with the clip and audio urls, and reads the task back", async () => {
@@ -78,14 +74,14 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
   };
   try {
     const provider = klingLipsyncProvider({ fetchImpl });
-    assert.equal(provider.needs, "video");
+    expect(provider.needs).toBe("video");
     const { jobId } = await provider.submit({
       videoUrl: "https://p.supabase.co/v.mp4",
       audioUrl: "https://p.supabase.co/a.mp3",
     });
-    assert.equal(jobId, "k-1");
-    assert.match(calls[0].url, /\/v1\/videos\/lip-sync$/);
-    assert.deepEqual(JSON.parse(calls[0].init.body), {
+    expect(jobId).toBe("k-1");
+    expect(calls[0].url).toMatch(/\/v1\/videos\/lip-sync$/);
+    expect(JSON.parse(calls[0].init.body)).toStrictEqual({
       input: {
         video_url: "https://p.supabase.co/v.mp4",
         mode: "audio2video",
@@ -93,12 +89,12 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
         audio_url: "https://p.supabase.co/a.mp3",
       },
     });
-    assert.match(calls[0].init.headers.Authorization, /^Bearer /);
-    assert.deepEqual(await provider.poll("k-1"), {
+    expect(calls[0].init.headers.Authorization).toMatch(/^Bearer /);
+    expect(await provider.poll("k-1")).toStrictEqual({
       status: "succeeded",
       url: "https://cdn/x.mp4",
     });
-    assert.match(calls[1].url, /\/v1\/videos\/lip-sync\/k-1$/);
+    expect(calls[1].url).toMatch(/\/v1\/videos\/lip-sync\/k-1$/);
   } finally {
     delete process.env.KLING_ACCESS_KEY;
     delete process.env.KLING_SECRET_KEY;
@@ -113,50 +109,47 @@ test("Higgsfield lip sync and talking clips use the documented Seedance 2.5 fiel
     durationS: 2,
     aspect: "9:16",
   });
-  assert.deepEqual(body.image_urls, ["https://p.supabase.co/s.png"]);
-  assert.deepEqual(body.audio_urls, ["https://p.supabase.co/a.mp3"]);
-  assert.equal(body.duration, 4);
+  expect(body.image_urls).toStrictEqual(["https://p.supabase.co/s.png"]);
+  expect(body.audio_urls).toStrictEqual(["https://p.supabase.co/a.mp3"]);
+  expect(body.duration).toBe(4);
   const talking = higgsfieldTalkingBody({
     prompt: "p",
     imageUrl: "https://p.supabase.co/s.png",
     durationS: 40,
   });
-  assert.deepEqual(Object.keys(talking).sort(), [
+  expect(Object.keys(talking).sort()).toStrictEqual([
     "duration",
     "generate_audio",
     "image_url",
     "prompt",
     "resolution",
   ]);
-  assert.equal(talking.duration, 30);
-  assert.equal(talking.generate_audio, true);
+  expect(talking.duration).toBe(30);
+  expect(talking.generate_audio).toBe(true);
 });
 
 test("lip-sync providers follow the keys; a saved job only resumes its own provider", () => {
-  assert.deepEqual(lipsyncCandidates({}, {}), []);
-  assert.deepEqual(
+  expect(lipsyncCandidates({}, {})).toStrictEqual([]);
+  expect(
     lipsyncCandidates(
       { elevenLabsKey: "xi", higgsfieldKeyId: "a", higgsfieldKeySecret: "b" },
       { KLING_ACCESS_KEY: "k", KLING_SECRET_KEY: "s" },
     ),
-    ["elevenlabs", "kling", "higgsfield"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["elevenlabs", "kling", "higgsfield"]);
+  expect(
     lipsyncProviderNames(
       { input: {} },
       { higgsfieldKeySecret: "a:b" },
       { LIPSYNC_PROVIDER: "kling" },
     ),
-    ["kling", "higgsfield"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["kling", "higgsfield"]);
+  expect(
     lipsyncProviderNames(
       { provider: "higgsfield", provider_job_id: "h-1" },
       { elevenLabsKey: "xi" },
       {},
     ),
-    ["higgsfield"],
-  );
+  ).toStrictEqual(["higgsfield"]);
 });
 
 /** The run's item, talking scene and its assets, as the guard reads them for the run's tenant. */
@@ -278,24 +271,24 @@ test("a lip-sync run stores the provider job before polling and attaches a talki
     env: {},
     log: () => {},
   });
-  assert.equal(seen.submits.length, 1);
-  assert.deepEqual([...seen.submits[0].audioBytes], [...MP3]);
-  assert.deepEqual([...seen.submits[0].imageBytes], [...PNG]);
-  assert.equal(order[0], "poll-after-save");
-  assert.deepEqual(db.calls.updates[0].patch.provider_job_id, "job-1");
-  assert.equal(db.calls.updates[0].patch.provider, "elevenlabs");
+  expect(seen.submits.length).toBe(1);
+  expect([...seen.submits[0].audioBytes]).toStrictEqual([...MP3]);
+  expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
+  expect(order[0]).toBe("poll-after-save");
+  expect(db.calls.updates[0].patch.provider_job_id).toStrictEqual("job-1");
+  expect(db.calls.updates[0].patch.provider).toBe("elevenlabs");
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  assert.equal(attach.args.p_kind, "clip");
-  assert.equal(attach.args.p_url, "t1/c1/i1/s1/lipsync-v1.mp4");
-  assert.equal(attach.args.p_meta.lipsync, true);
-  assert.equal(attach.args.p_meta.provider, "elevenlabs");
-  assert.equal(attach.args.p_meta.dialogue, LINE);
-  assert.equal(attach.args.p_meta.voice_asset_id, "voice-1");
-  assert.equal(db.calls.uploads.at(-1).path, "t1/c1/i1/s1/lipsync-v1.mp4");
-  assert.equal(result.provider, "elevenlabs");
-  assert.equal(result.output.lipsync, true);
+  expect(attach.args.p_kind).toBe("clip");
+  expect(attach.args.p_url).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
+  expect(attach.args.p_meta.lipsync).toBe(true);
+  expect(attach.args.p_meta.provider).toBe("elevenlabs");
+  expect(attach.args.p_meta.dialogue).toBe(LINE);
+  expect(attach.args.p_meta.voice_asset_id).toBe("voice-1");
+  expect(db.calls.uploads.at(-1).path).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
+  expect(result.provider).toBe("elevenlabs");
+  expect(result.output.lipsync).toBe(true);
 });
 
 test("the lip-sync submit and the save of its job id run inside the worker's submit guard", async () => {
@@ -330,7 +323,7 @@ test("the lip-sync submit and the save of its job id run inside the worker's sub
       }
     },
   });
-  assert.deepEqual(seen, [
+  expect(seen).toStrictEqual([
     ["submit", true],
     ["save", true],
   ]);
@@ -352,20 +345,20 @@ test("a retried lip-sync run with a provider job resumes it and does not pay aga
     env: {},
     log: () => {},
   });
-  assert.equal(seen.submits.length, 0);
-  assert.equal(seen.polls, 1);
-  assert.equal(db.calls.updates.length, 0);
+  expect(seen.submits.length).toBe(0);
+  expect(seen.polls).toBe(1);
+  expect(db.calls.updates.length).toBe(0);
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  assert.equal(attach.args.p_meta.provider_job_id, "job-9");
-  assert.equal(attach.args.p_meta.source_kind, "clip");
+  expect(attach.args.p_meta.provider_job_id).toBe("job-9");
+  expect(attach.args.p_meta.source_kind).toBe("clip");
 });
 
 test("a voice path outside the run's tenant folder is refused before any provider call", async () => {
   const db = fakeDb({ voiceUrl: "t2/c1/i1/s1/voice.audio" });
   const { provider, seen } = fakeProvider();
-  await assert.rejects(
+  await expect(
     generateLipsync({
       db,
       run: RUN,
@@ -374,15 +367,14 @@ test("a voice path outside the run's tenant folder is refused before any provide
       env: {},
       log: () => {},
     }),
-    /outside the tenant folder/,
-  );
-  assert.equal(seen.submits.length, 0);
+  ).rejects.toThrow(/outside the tenant folder/);
+  expect(seen.submits.length).toBe(0);
 });
 
 test("a scene from another tenant is not found", async () => {
   const db = fakeDb();
   const { provider } = fakeProvider();
-  await assert.rejects(
+  await expect(
     generateLipsync({
       db,
       run: { ...RUN, tenant_id: "t2" },
@@ -391,14 +383,14 @@ test("a scene from another tenant is not found", async () => {
       env: {},
       log: () => {},
     }),
-    /not in the run's tenant/,
-  );
+  ).rejects.toThrow(/not in the run's tenant/);
 });
 
 test("without any lip-sync key the run fails with a clear, final message", async () => {
   const db = fakeDb();
-  await assert.rejects(
+  await expect(
     generateLipsync({ db, run: RUN, keys: {}, env: {}, log: () => {} }),
+  ).rejects.toSatisfy(
     (error) => error.final === true && error.message === NO_LIPSYNC_PROVIDER,
   );
 });
@@ -406,7 +398,7 @@ test("without any lip-sync key the run fails with a clear, final message", async
 test("a voice of another line is not lip-synced", async () => {
   const db = fakeDb({ voiceText: "שורה אחרת" });
   const { provider, seen } = fakeProvider();
-  await assert.rejects(
+  await expect(
     generateLipsync({
       db,
       run: RUN,
@@ -415,9 +407,8 @@ test("a voice of another line is not lip-synced", async () => {
       env: {},
       log: () => {},
     }),
-    /own voice line is missing/,
-  );
-  assert.equal(seen.submits.length, 0);
+  ).rejects.toThrow(/own voice line is missing/);
+  expect(seen.submits.length).toBe(0);
 });
 
 test("on an engine that speaks, a talking scene is one clip with the line in the prompt", async () => {
@@ -444,23 +435,24 @@ test("on an engine that speaks, a talking scene is one clip with the line in the
     provider,
     log: () => {},
   });
-  assert.equal(submits[0].generateAudio, true);
-  assert.equal(submits[0].talking, true);
-  assert.ok(submits[0].prompt.includes(LINE));
-  assert.ok(
+  expect(submits[0].generateAudio).toBe(true);
+  expect(submits[0].talking).toBe(true);
+  expect(submits[0].prompt.includes(LINE)).toBeTruthy();
+  expect(
     submits[0].prompt.startsWith("Camera holds Carmen looks at the camera"),
-  );
-  assert.ok(submits[0].prompt.endsWith("No text, no letters, no logos."));
+  ).toBeTruthy();
+  expect(
+    submits[0].prompt.endsWith("No text, no letters, no logos."),
+  ).toBeTruthy();
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  assert.equal(attach.args.p_meta.lipsync, true);
-  assert.equal(attach.args.p_meta.native_speech, true);
-  assert.equal(attach.args.p_meta.dialogue, LINE);
-  assert.equal(
+  expect(attach.args.p_meta.lipsync).toBe(true);
+  expect(attach.args.p_meta.native_speech).toBe(true);
+  expect(attach.args.p_meta.dialogue).toBe(LINE);
+  expect(
     talkingPrompt("", { line: "x" }).startsWith("Subtle natural motion"),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("a silent engine leaves the clip silent for the lip-sync pass", async () => {
@@ -482,12 +474,12 @@ test("a silent engine leaves the clip silent for the lip-sync pass", async () =>
     provider,
     log: () => {},
   });
-  assert.equal(submits[0].generateAudio, false);
-  assert.ok(!submits[0].prompt.includes(LINE));
+  expect(submits[0].generateAudio).toBe(false);
+  expect(!submits[0].prompt.includes(LINE)).toBeTruthy();
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  assert.equal(attach.args.p_meta.lipsync, undefined);
+  expect(attach.args.p_meta.lipsync).toBe(undefined);
 });
 
 test("a film with a talking scene plays its clip audio and narrates the other scenes one by one", async () => {
@@ -557,12 +549,12 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
     },
   };
   const sources = await loadFilmSources(db, { item_id: "i1", tenant_id: "t1" });
-  assert.equal(sources.narrationPath, null);
+  expect(sources.narrationPath).toBe(null);
   const [narrated, talking] = sources.scenes;
-  assert.equal(narrated.voicePath, "t1/c1/i1/a/voice.audio");
-  assert.equal(narrated.lipsync, false);
-  assert.equal(talking.voicePath, null);
-  assert.equal(talking.lipsync, true);
+  expect(narrated.voicePath).toBe("t1/c1/i1/a/voice.audio");
+  expect(narrated.lipsync).toBe(false);
+  expect(talking.voicePath).toBe(null);
+  expect(talking.lipsync).toBe(true);
   const { manifest, files } = buildWorkshopManifest({
     aspect: "9:16",
     scenes: sources.scenes.map((scene) => ({
@@ -574,24 +566,23 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
       clipHasAudio: true,
     })),
   });
-  assert.equal(manifest.scenes[0].voice, "voice-0.mp3");
-  assert.equal(manifest.scenes[0].lipsync, false);
-  assert.equal(manifest.scenes[1].lipsync, true);
-  assert.equal(manifest.scenes[1].clipVolume, 1);
-  assert.equal(manifest.scenes[1].move, "static");
-  assert.equal(manifest.scenes[1].voice, null);
+  expect(manifest.scenes[0].voice).toBe("voice-0.mp3");
+  expect(manifest.scenes[0].lipsync).toBe(false);
+  expect(manifest.scenes[1].lipsync).toBe(true);
+  expect(manifest.scenes[1].clipVolume).toBe(1);
+  expect(manifest.scenes[1].move).toBe("static");
+  expect(manifest.scenes[1].voice).toBe(null);
   // The talking scene stretches to its whole line.
-  assert.ok(manifest.scenes[1].frameCount >= Math.floor(5.5 * 30));
-  assert.ok(files.some((file) => file.to === "voice-0.mp3"));
+  expect(manifest.scenes[1].frameCount >= Math.floor(5.5 * 30)).toBeTruthy();
+  expect(files.some((file) => file.to === "voice-0.mp3")).toBeTruthy();
 });
 
 test("OpenRouter is the last lip-sync option and says the line itself with audio", async () => {
   const { lipsyncCandidates, openRouterLipsyncProvider } =
     await import("../src/providers/lipsync.mjs");
-  assert.deepEqual(
+  expect(
     lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
-    ["elevenlabs", "openrouter"],
-  );
+  ).toStrictEqual(["elevenlabs", "openrouter"]);
   let sent = null;
   const provider = openRouterLipsyncProvider({
     apiKey: "or-key",
@@ -606,8 +597,8 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
     durationS: 5,
     aspect: "9:16",
   });
-  assert.equal(jobId, "job-1");
-  assert.equal(sent.generate_audio, true);
-  assert.equal(sent.model, provider.model);
-  assert.match(sent.prompt, /שלום/);
+  expect(jobId).toBe("job-1");
+  expect(sent.generate_audio).toBe(true);
+  expect(sent.model).toBe(provider.model);
+  expect(sent.prompt).toMatch(/שלום/);
 });

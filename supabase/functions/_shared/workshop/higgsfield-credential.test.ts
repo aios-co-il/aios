@@ -1,30 +1,32 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
 
 const copied = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:secret-part";
 
-test("a copied id:secret is sent as-is even when the id field is also filled", () => {
-  assert.equal(
-    higgsfieldCredential("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", copied),
-    copied,
-  );
-  assert.equal(higgsfieldCredential("other-id", copied), copied);
-  assert.equal(higgsfieldCredential("", copied), copied);
+Deno.test(
+  "a copied id:secret is sent as-is even when the id field is also filled",
+  () => {
+    assertStrictEquals(
+      higgsfieldCredential("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", copied),
+      copied,
+    );
+    assertStrictEquals(higgsfieldCredential("other-id", copied), copied);
+    assertStrictEquals(higgsfieldCredential("", copied), copied);
+  },
+);
+
+Deno.test("two separate parts are still joined", () => {
+  assertStrictEquals(higgsfieldCredential("a", "b"), "a:b");
+  assertStrictEquals(higgsfieldCredential("  a  ", "  b  "), "a:b");
 });
 
-test("two separate parts are still joined", () => {
-  assert.equal(higgsfieldCredential("a", "b"), "a:b");
-  assert.equal(higgsfieldCredential("  a  ", "  b  "), "a:b");
+Deno.test("one side without a colon is not a credential", () => {
+  assertStrictEquals(higgsfieldCredential("a", ""), "");
+  assertStrictEquals(higgsfieldCredential("", "b"), "");
+  assertStrictEquals(higgsfieldCredential("  ", "  "), "");
 });
 
-test("one side without a colon is not a credential", () => {
-  assert.equal(higgsfieldCredential("a", ""), "");
-  assert.equal(higgsfieldCredential("", "b"), "");
-  assert.equal(higgsfieldCredential("  ", "  "), "");
-});
-
-test("the whole key stored in the id field is sent as-is", () => {
-  assert.equal(higgsfieldCredential(copied, ""), copied);
-  assert.equal(higgsfieldCredential(copied, "plain-secret"), copied);
+Deno.test("the whole key stored in the id field is sent as-is", () => {
+  assertStrictEquals(higgsfieldCredential(copied, ""), copied);
+  assertStrictEquals(higgsfieldCredential(copied, "plain-secret"), copied);
 });

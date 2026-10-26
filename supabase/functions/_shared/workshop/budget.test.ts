@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   approvalCode,
   budgetOf,
@@ -21,106 +20,124 @@ const film: Quote = {
 
 const yes = `מאשר תקציב ${approvalCode("tok")}`;
 
-test("a project without a budget stops and asks for one", () => {
-  assert.deepEqual(checkBudget({}, film, { turnId: "turn-1" }), {
+Deno.test("a project without a budget stops and asks for one", () => {
+  assertEquals(checkBudget({}, film, { turnId: "turn-1" }), {
     ok: false,
     reason: "no_budget",
   });
 });
 
-test("the user's tap in the next turn approves the budget and the step runs", () => {
-  const { payload } = requestBudget({}, 10, "turn-1", "tok");
-  const check = checkBudget(payload, film, {
-    token: "tok",
-    turnId: "turn-2",
-    userText: yes,
-  });
-  assert.equal(check.ok, true);
-  if (!check.ok) return;
-  const budget = budgetOf(check.payload);
-  assert.equal(budget.cap_usd, 10);
-  assert.equal(budget.request, undefined);
-});
+Deno.test(
+  "the user's tap in the next turn approves the budget and the step runs",
+  () => {
+    const { payload } = requestBudget({}, 10, "turn-1", "tok");
+    const check = checkBudget(payload, film, {
+      token: "tok",
+      turnId: "turn-2",
+      userText: yes,
+    });
+    assertStrictEquals(check.ok, true);
+    if (!check.ok) return;
+    const budget = budgetOf(check.payload);
+    assertStrictEquals(budget.cap_usd, 10);
+    assertStrictEquals(budget.request, undefined);
+  },
+);
 
-test("a step that fits in what is left runs without asking", () => {
+Deno.test("a step that fits in what is left runs without asking", () => {
   const approved = { workshop_budget: { cap_usd: 10, spent_usd: 4 } };
   const check = checkBudget(approved, film, { turnId: "turn-9" });
-  assert.equal(check.ok, true);
+  assertStrictEquals(check.ok, true);
 });
 
-test("a step over what is left stops with over_budget", () => {
+Deno.test("a step over what is left stops with over_budget", () => {
   const approved = { workshop_budget: { cap_usd: 10, spent_usd: 9 } };
-  assert.deepEqual(checkBudget(approved, film, { turnId: "turn-9" }), {
+  assertEquals(checkBudget(approved, film, { turnId: "turn-9" }), {
     ok: false,
     reason: "over_budget",
   });
 });
 
-test("only the user's own message approves: same turn, no code, or late is refused", () => {
-  const asked = new Date("2026-10-25T10:00:00Z");
-  const { payload } = requestBudget({}, 10, "turn-1", "tok", asked);
-  const at = new Date("2026-10-25T10:05:00Z");
-  assert.deepEqual(
-    checkBudget(
-      payload,
-      film,
-      { token: "tok", turnId: "turn-1", userText: yes },
-      at,
-    ),
-    { ok: false, reason: "same_turn" },
-  );
-  assert.deepEqual(
-    checkBudget(
-      payload,
-      film,
-      { token: "tok", turnId: "turn-2", userText: "תסתכלי על האתר" },
-      at,
-    ),
-    { ok: false, reason: "not_user" },
-  );
-  assert.deepEqual(
-    checkBudget(
-      payload,
-      film,
-      { token: "tok", turnId: "turn-2", userText: yes },
-      new Date("2026-10-25T10:31:00Z"),
-    ),
-    { ok: false, reason: "expired" },
-  );
-});
+Deno.test(
+  "only the user's own message approves: same turn, no code, or late is refused",
+  () => {
+    const asked = new Date("2026-10-25T10:00:00Z");
+    const { payload } = requestBudget({}, 10, "turn-1", "tok", asked);
+    const at = new Date("2026-10-25T10:05:00Z");
+    assertEquals(
+      checkBudget(
+        payload,
+        film,
+        { token: "tok", turnId: "turn-1", userText: yes },
+        at,
+      ),
+      { ok: false, reason: "same_turn" },
+    );
+    assertEquals(
+      checkBudget(
+        payload,
+        film,
+        { token: "tok", turnId: "turn-2", userText: "תסתכלי על האתר" },
+        at,
+      ),
+      { ok: false, reason: "not_user" },
+    );
+    assertEquals(
+      checkBudget(
+        payload,
+        film,
+        { token: "tok", turnId: "turn-2", userText: yes },
+        new Date("2026-10-25T10:31:00Z"),
+      ),
+      { ok: false, reason: "expired" },
+    );
+  },
+);
 
-test("free steps and queue approvals do not need the budget", () => {
-  assert.equal(
+Deno.test("free steps and queue approvals do not need the budget", () => {
+  assertStrictEquals(
     checkBudget({}, { ...film, engine: "mock", usd: 0 }, {}).ok,
     true,
   );
-  assert.equal(checkBudget({}, film, { approvedOutOfBand: true }).ok, true);
+  assertStrictEquals(
+    checkBudget({}, film, { approvedOutOfBand: true }).ok,
+    true,
+  );
 });
 
-test("spending adds the step's units at the price it was checked at", () => {
-  const approved = { workshop_budget: { cap_usd: 10, spent_usd: 1 } };
-  const check = checkBudget(approved, film, { turnId: "turn-9" });
-  assert.equal(check.ok, true);
-  if (!check.ok) return;
-  const after = spendBudget(check.payload, film.tool, 5);
-  assert.equal(budgetOf(after).spent_usd, 3.5);
-});
+Deno.test(
+  "spending adds the step's units at the price it was checked at",
+  () => {
+    const approved = { workshop_budget: { cap_usd: 10, spent_usd: 1 } };
+    const check = checkBudget(approved, film, { turnId: "turn-9" });
+    assertStrictEquals(check.ok, true);
+    if (!check.ok) return;
+    const after = spendBudget(check.payload, film.tool, 5);
+    assertStrictEquals(budgetOf(after).spent_usd, 3.5);
+  },
+);
 
-test("the proposed budget covers the step with room, or the user's own number", () => {
-  const budget = budgetOf({ workshop_budget: { cap_usd: 0, spent_usd: 0 } });
-  assert.equal(suggestCap(budget, film), 4);
-  assert.equal(suggestCap(budget, film, 20), 20);
-  assert.equal(suggestCap(budget, film, 1), 4);
-});
+Deno.test(
+  "the proposed budget covers the step with room, or the user's own number",
+  () => {
+    const budget = budgetOf({ workshop_budget: { cap_usd: 0, spent_usd: 0 } });
+    assertStrictEquals(suggestCap(budget, film), 4);
+    assertStrictEquals(suggestCap(budget, film, 20), 20);
+    assertStrictEquals(suggestCap(budget, film, 1), 4);
+  },
+);
 
-test("the user's code approves even when Carmen does not repeat the token", () => {
-  const { payload } = requestBudget({}, 10, "turn-1", "tok");
-  const check = checkBudget(payload, film, {
-    turnId: "turn-2",
-    userText: yes,
-  });
-  assert.equal(check.ok, true);
-});
+Deno.test(
+  "the user's code approves even when Carmen does not repeat the token",
+  () => {
+    const { payload } = requestBudget({}, 10, "turn-1", "tok");
+    const check = checkBudget(payload, film, {
+      turnId: "turn-2",
+      userText: yes,
+    });
+    assertStrictEquals(check.ok, true);
+  },
+);
 
 const filmBudget = () => {
   const priced = checkBudget(
@@ -128,43 +145,47 @@ const filmBudget = () => {
     film,
     {},
   );
-  assert.equal(priced.ok, true);
+  assertStrictEquals(priced.ok, true);
   if (!priced.ok) throw new Error("budget refused");
   return spendBudget(priced.payload, "workshop_produce_video", 5);
 };
 
-test("a finished film counts what it really cost, not its quote", () => {
+Deno.test("a finished film counts what it really cost, not its quote", () => {
   const quoted = filmBudget();
-  assert.equal(budgetOf(quoted).spent_usd, 2.5);
+  assertStrictEquals(budgetOf(quoted).spent_usd, 2.5);
   const dearer = budgetOf(
     settleProduction(quoted, { usd: 4.2, inFlight: false }),
   );
-  assert.equal(dearer.spent_usd, 4.2);
+  assertStrictEquals(dearer.spent_usd, 4.2);
   const cheaper = budgetOf(
     settleProduction(quoted, { usd: 1.1, inFlight: false }),
   );
-  assert.equal(cheaper.spent_usd, 1.1);
+  assertStrictEquals(cheaper.spent_usd, 1.1);
 });
 
-test("while the film is still running the larger of quote and real charge counts", () => {
-  const quoted = filmBudget();
-  assert.equal(
-    budgetOf(settleProduction(quoted, { usd: 0.4, inFlight: true })).spent_usd,
-    2.5,
-  );
-  assert.equal(
-    budgetOf(settleProduction(quoted, { usd: 3, inFlight: true })).spent_usd,
-    3,
-  );
-});
+Deno.test(
+  "while the film is still running the larger of quote and real charge counts",
+  () => {
+    const quoted = filmBudget();
+    assertStrictEquals(
+      budgetOf(settleProduction(quoted, { usd: 0.4, inFlight: true }))
+        .spent_usd,
+      2.5,
+    );
+    assertStrictEquals(
+      budgetOf(settleProduction(quoted, { usd: 3, inFlight: true })).spent_usd,
+      3,
+    );
+  },
+);
 
-test("settling twice does not count the film twice", () => {
+Deno.test("settling twice does not count the film twice", () => {
   const once = settleProduction(filmBudget(), { usd: 4.2, inFlight: false });
   const twice = settleProduction(once, { usd: 4.2, inFlight: false });
-  assert.equal(budgetOf(twice).spent_usd, 4.2);
+  assertStrictEquals(budgetOf(twice).spent_usd, 4.2);
 });
 
-test("pictures that were not made give their reservation back", () => {
+Deno.test("pictures that were not made give their reservation back", () => {
   const still: Quote = {
     tool: "workshop_make_stills",
     engine: "google",
@@ -178,14 +199,14 @@ test("pictures that were not made give their reservation back", () => {
   );
   if (!checked.ok) throw new Error("budget refused");
   const spent = spendBudget(checked.payload, "workshop_make_stills", 4);
-  assert.equal(budgetOf(spent).spent_usd, 0.4);
-  assert.equal(
+  assertStrictEquals(budgetOf(spent).spent_usd, 0.4);
+  assertStrictEquals(
     budgetOf(refundBudget(spent, "workshop_make_stills", 3)).spent_usd,
     0.1,
   );
 });
 
-test("approving a budget keeps what was already settled", () => {
+Deno.test("approving a budget keeps what was already settled", () => {
   const settled = settleProduction(filmBudget(), { usd: 4.2, inFlight: false });
   const { payload } = requestBudget(settled, 20, "turn-1", "tok");
   const check = checkBudget(
@@ -193,9 +214,9 @@ test("approving a budget keeps what was already settled", () => {
     { ...film, usd: 10 },
     { turnId: "turn-2", userText: yes },
   );
-  assert.equal(check.ok, true);
+  assertStrictEquals(check.ok, true);
   if (!check.ok) return;
   const budget = budgetOf(check.payload);
-  assert.equal(budget.spent_usd, 4.2);
-  assert.equal(budget.production_usd, 4.2);
+  assertStrictEquals(budget.spent_usd, 4.2);
+  assertStrictEquals(budget.production_usd, 4.2);
 });

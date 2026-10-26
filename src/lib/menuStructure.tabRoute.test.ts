@@ -6,8 +6,8 @@ test("recordings route maps to marketing sidebar tab", () => {
 });
 
 test("workshop and the old marketing urls stay on the marketing tab", () => {
-  assert.equal(tabIdForRoute("/workshop"), "marketing");
-  assert.equal(tabIdForRoute("/marketing/department/creative"), "marketing");
+  expect(tabIdForRoute("/workshop")).toBe("marketing");
+  expect(tabIdForRoute("/marketing/department/creative")).toBe("marketing");
 });
 
 test("clients route maps to daily sidebar tab", () => {

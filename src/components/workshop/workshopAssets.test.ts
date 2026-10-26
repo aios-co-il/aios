@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   assetStoragePath,
   canBeReference,
@@ -31,51 +30,44 @@ test("assets group into fixed sections with the client's first", () => {
     asset({ id: "4", asset_type: "site", source: "carmen" }),
     asset({ id: "5", asset_type: "file" }),
   ]);
-  assert.deepEqual(
-    sections.map((s) => [s.key, s.items.map((i) => i.id)]),
-    [
-      ["client", ["3"]],
-      ["image", ["2"]],
-      ["link", ["4"]],
-      ["text", ["1"]],
-      ["file", ["5"]],
-    ],
-  );
-  assert.deepEqual(groupAssets([]), []);
+  expect(sections.map((s) => [s.key, s.items.map((i) => i.id)])).toStrictEqual([
+    ["client", ["3"]],
+    ["image", ["2"]],
+    ["link", ["4"]],
+    ["text", ["1"]],
+    ["file", ["5"]],
+  ]);
+  expect(groupAssets([])).toStrictEqual([]);
 });
 
 test("only https pictures can be references, and they are counted", () => {
-  assert.equal(canBeReference(asset({})), true);
-  assert.equal(canBeReference(asset({ url: "http://f/x.png" })), false);
-  assert.equal(canBeReference(asset({ asset_type: "file" })), false);
-  assert.equal(
+  expect(canBeReference(asset({}))).toBe(true);
+  expect(canBeReference(asset({ url: "http://f/x.png" }))).toBe(false);
+  expect(canBeReference(asset({ asset_type: "file" }))).toBe(false);
+  expect(
     referenceCount([
       asset({ use_as_reference: true }),
       asset({ use_as_reference: true, asset_type: "file" }),
       asset({}),
     ]),
-    1,
-  );
+  ).toBe(1);
 });
 
 test("upload paths are ASCII and keep the extension", () => {
-  assert.equal(
-    assetStoragePath("t", "i", "לוגו חדש.PNG", 5),
+  expect(assetStoragePath("t", "i", "לוגו חדש.PNG", 5)).toBe(
     "t/workshop/i/5__.png",
   );
-  assert.equal(
-    assetStoragePath("t", "i", "my logo.JPG", 7),
+  expect(assetStoragePath("t", "i", "my logo.JPG", 7)).toBe(
     "t/workshop/i/7_my_logo.jpg",
   );
 });
 
 test("a typed link gets https and junk is refused", () => {
-  assert.equal(
-    normalizeLink("garden.example.com"),
+  expect(normalizeLink("garden.example.com")).toBe(
     "https://garden.example.com/",
   );
-  assert.equal(normalizeLink(" https://a.co/x "), "https://a.co/x");
-  assert.equal(normalizeLink("not a link"), null);
-  assert.equal(normalizeLink("localhost"), null);
-  assert.equal(normalizeLink(""), null);
+  expect(normalizeLink(" https://a.co/x ")).toBe("https://a.co/x");
+  expect(normalizeLink("not a link")).toBe(null);
+  expect(normalizeLink("localhost")).toBe(null);
+  expect(normalizeLink("")).toBe(null);
 });

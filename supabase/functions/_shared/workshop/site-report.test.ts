@@ -1,5 +1,9 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   colorsFrom,
   describeSite,
@@ -33,51 +37,54 @@ const PAGE = `<!doctype html><html lang="he" dir="rtl"><head>
 <a href="https://www.instagram.com/gardencafe/">IG</a>
 </body></html>`;
 
-test("a page's name, language, colors, fonts, words and pictures are read", () => {
-  const report = siteReport(PAGE, "https://garden.example.com/");
-  assert.equal(report.title, "קפה הגינה & בר");
-  assert.equal(report.lang, "he");
-  assert.equal(report.description, "בית קפה שכונתי עם מאפים טריים");
-  assert.deepEqual(report.colors.slice(0, 2), ["#0f766e", "#f59e0b"]);
-  assert.ok(!report.colors.includes("#ff0000"), "scripts are ignored");
-  assert.deepEqual(report.fonts, ["Heebo", "Secular One"]);
-  assert.deepEqual(report.headings, [
-    "הקפה הכי טוב בשכונה",
-    "מאפים טריים כל בוקר",
-  ]);
-  assert.equal(report.copy.length, 1);
-  assert.deepEqual([...report.buttons].sort(), ["הזמינו שולחן", "שלחו"].sort());
-  assert.equal(report.logo, "https://garden.example.com/img/logo.png");
-  assert.deepEqual(
-    report.images.map((image) => image.url),
-    [
-      "https://garden.example.com/img/share.jpg",
-      "https://garden.example.com/img/hero.jpg",
-      "https://cdn.example.com/p/cake.png",
-    ],
-  );
-  assert.equal(report.images[0].role, "og");
-  assert.deepEqual(report.social, ["https://www.instagram.com/gardencafe/"]);
-  assert.deepEqual(report.stylesheets, [
-    "https://garden.example.com/css/site.css",
-    "https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&family=Secular+One&display=swap",
-  ]);
+Deno.test(
+  "a page's name, language, colors, fonts, words and pictures are read",
+  () => {
+    const report = siteReport(PAGE, "https://garden.example.com/");
+    assertStrictEquals(report.title, "קפה הגינה & בר");
+    assertStrictEquals(report.lang, "he");
+    assertStrictEquals(report.description, "בית קפה שכונתי עם מאפים טריים");
+    assertEquals(report.colors.slice(0, 2), ["#0f766e", "#f59e0b"]);
+    assert(!report.colors.includes("#ff0000"), "scripts are ignored");
+    assertEquals(report.fonts, ["Heebo", "Secular One"]);
+    assertEquals(report.headings, [
+      "הקפה הכי טוב בשכונה",
+      "מאפים טריים כל בוקר",
+    ]);
+    assertStrictEquals(report.copy.length, 1);
+    assertEquals([...report.buttons].sort(), ["הזמינו שולחן", "שלחו"].sort());
+    assertStrictEquals(report.logo, "https://garden.example.com/img/logo.png");
+    assertEquals(
+      report.images.map((image) => image.url),
+      [
+        "https://garden.example.com/img/share.jpg",
+        "https://garden.example.com/img/hero.jpg",
+        "https://cdn.example.com/p/cake.png",
+      ],
+    );
+    assertStrictEquals(report.images[0].role, "og");
+    assertEquals(report.social, ["https://www.instagram.com/gardencafe/"]);
+    assertEquals(report.stylesheets, [
+      "https://garden.example.com/css/site.css",
+      "https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&family=Secular+One&display=swap",
+    ]);
+  },
+);
+
+Deno.test("neutral greys, black and white are not brand colors", () => {
+  assertEquals(colorsFrom("a{color:#000;b:#fff;c:#333;d:#e5e5e5}"), []);
+  assertEquals(colorsFrom("a{color:rgb(15, 118, 110)}"), ["#0f766e"]);
+  assertEquals(colorsFrom("a{color:#f90} b{color:#ff9900}"), ["#ff9900"]);
 });
 
-test("neutral greys, black and white are not brand colors", () => {
-  assert.deepEqual(colorsFrom("a{color:#000;b:#fff;c:#333;d:#e5e5e5}"), []);
-  assert.deepEqual(colorsFrom("a{color:rgb(15, 118, 110)}"), ["#0f766e"]);
-  assert.deepEqual(colorsFrom("a{color:#f90} b{color:#ff9900}"), ["#ff9900"]);
-});
-
-test("system fallback fonts are skipped", () => {
-  assert.deepEqual(
+Deno.test("system fallback fonts are skipped", () => {
+  assertEquals(
     fontsFrom("body{font-family:system-ui,Arial,'Rubik',sans-serif}"),
     ["Rubik"],
   );
 });
 
-test("stylesheet colors and fonts are folded into the report", () => {
+Deno.test("stylesheet colors and fonts are folded into the report", () => {
   const base = siteReport(
     "<html><head></head><body></body></html>",
     "https://a.co/",
@@ -85,15 +92,15 @@ test("stylesheet colors and fonts are folded into the report", () => {
   const merged = withStylesheets(base, [
     "a{color:#336699;font-family:Assistant}",
   ]);
-  assert.deepEqual(merged.colors, ["#336699"]);
-  assert.deepEqual(merged.fonts, ["Assistant"]);
-  assert.equal(withStylesheets(base, []), base);
+  assertEquals(merged.colors, ["#336699"]);
+  assertEquals(merged.fonts, ["Assistant"]);
+  assertStrictEquals(withStylesheets(base, []), base);
 });
 
-test("the description is a few readable lines in Hebrew", () => {
+Deno.test("the description is a few readable lines in Hebrew", () => {
   const text = describeSite(siteReport(PAGE, "https://garden.example.com/"));
-  assert.match(text, /^אתר: קפה הגינה & בר/);
-  assert.match(text, /צבעי מותג: #0f766e/);
-  assert.match(text, /גופנים: Heebo, Secular One/);
-  assert.match(text, /3 תמונות/);
+  assertMatch(text, /^אתר: קפה הגינה & בר/);
+  assertMatch(text, /צבעי מותג: #0f766e/);
+  assertMatch(text, /גופנים: Heebo, Secular One/);
+  assertMatch(text, /3 תמונות/);
 });

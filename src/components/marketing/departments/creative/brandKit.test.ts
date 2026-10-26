@@ -24,13 +24,11 @@ test("hebrew reference filenames become a supabase-safe storage key", () => {
     "כרמן.jpeg",
     1792753113831,
   );
-  assert.equal(
-    path,
+  expect(path).toBe(
     "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019/creative/25deb6c0-6bc6-43c0-aaf5-23863413c9e5/reference/1792753113831_file.jpeg",
   );
-  assert.match(path, SUPABASE_STORAGE_KEY);
-  assert.match(
-    creativeAssetStoragePath("t", "i", "logo", "carmen.jpg", 1),
+  expect(path).toMatch(SUPABASE_STORAGE_KEY);
+  expect(creativeAssetStoragePath("t", "i", "logo", "carmen.jpg", 1)).toMatch(
     /\/1_carmen\.jpg$/,
   );
 });

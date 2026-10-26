@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createInFlight } from "../src/inflight.mjs";
 
@@ -29,8 +28,8 @@ test("a stop puts held runs back to queued and leaves their provider job alone",
   inFlight.hold(db, { id: "r1" });
   inFlight.hold(db, { id: "r2" });
   inFlight.release({ id: "r2" });
-  assert.deepEqual(await inFlight.requeue(), ["r1"]);
-  assert.deepEqual(db.updates, [
+  expect(await inFlight.requeue()).toStrictEqual(["r1"]);
+  expect(db.updates).toStrictEqual([
     {
       table: "marketing_runs",
       query: "id=eq.r1&status=eq.running&attempts=eq.0",
@@ -52,16 +51,16 @@ test("a stop waits for a paid submit to save its job id, and no submit starts af
   });
   const stop = inFlight.requeue({ waitMs: 2000 });
   await tick();
-  assert.equal(db.updates.length, 0);
+  expect(db.updates.length).toBe(0);
   finish();
-  assert.deepEqual(await stop, ["r1"]);
+  expect(await stop).toStrictEqual(["r1"]);
   order.push("requeued");
-  assert.deepEqual(order, ["saved", "requeued"]);
+  expect(order).toStrictEqual(["saved", "requeued"]);
 
   let started = false;
   inFlight.submitting(run, async () => (started = true));
   await tick();
-  assert.equal(started, false);
+  expect(started).toBe(false);
 });
 
 test("a run still inside its submit when the wait ends stays running", async () => {
@@ -70,8 +69,8 @@ test("a run still inside its submit when the wait ends stays running", async () 
   const run = { id: "r1" };
   inFlight.hold(db, run);
   inFlight.submitting(run, () => new Promise(() => {}));
-  assert.deepEqual(await inFlight.requeue({ waitMs: 100 }), []);
-  assert.equal(db.updates.length, 0);
+  expect(await inFlight.requeue({ waitMs: 100 })).toStrictEqual([]);
+  expect(db.updates.length).toBe(0);
 });
 
 test("a run being claimed when the stop comes is queued again too", async () => {
@@ -80,7 +79,7 @@ test("a run being claimed when the stop comes is queued again too", async () => 
   inFlight
     .claim(tick(30).then(() => [{ id: "r3" }]))
     .then(([run]) => inFlight.hold(db, run));
-  assert.deepEqual(await inFlight.requeue(), ["r3"]);
+  expect(await inFlight.requeue()).toStrictEqual(["r3"]);
 });
 
 test("on SIGTERM the worker queues its run again and exits", async () => {
@@ -137,8 +136,8 @@ test("on SIGTERM the worker queues its run again and exits", async () => {
       once(child, "exit").then(() => true),
       tick(8000).then(() => false),
     ]);
-    assert.equal(exited, true);
-    assert.deepEqual(patches, [
+    expect(exited).toBe(true);
+    expect(patches).toStrictEqual([
       {
         url: "/rest/v1/marketing_runs?id=eq.run-1&status=eq.running&attempts=eq.1",
         body: REQUEUED,
@@ -156,9 +155,8 @@ test("a run out of attempts is left running so it fails instead of looping", asy
   const inFlight = createInFlight({ maxAttempts: 3 });
   inFlight.hold(db, { id: "last", attempts: 3 });
   inFlight.hold(db, { id: "early", attempts: 1 });
-  assert.deepEqual(await inFlight.requeue(), ["early"]);
-  assert.deepEqual(
-    db.updates.map((update) => update.query),
-    ["id=eq.early&status=eq.running&attempts=eq.1"],
-  );
+  expect(await inFlight.requeue()).toStrictEqual(["early"]);
+  expect(db.updates.map((update) => update.query)).toStrictEqual([
+    "id=eq.early&status=eq.running&attempts=eq.1",
+  ]);
 });

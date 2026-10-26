@@ -86,7 +86,7 @@ test("a continuous narration keeps each scene's own spoken line", () => {
     ]),
     defaultX,
   );
-  assert.equal(frame.voiceText, "אחת");
+  expect(frame.voiceText).toBe("אחת");
 });
 
 test("a missing still row leaves the frame without a picture", () => {

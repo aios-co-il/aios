@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import { runSlots } from "../src/loop.mjs";
 
 test("drain exits once a slot sees an empty queue", async () => {
@@ -16,8 +15,8 @@ test("drain exits once a slot sees an empty queue", async () => {
       return claims <= 2;
     },
   });
-  assert.ok(claims >= 3);
-  assert.ok(Date.now() - started < 1000);
+  expect(claims >= 3).toBeTruthy();
+  expect(Date.now() - started < 1000).toBeTruthy();
 });
 
 test("a running worker sleeps when the queue is empty until stopped", async () => {
@@ -33,7 +32,7 @@ test("a running worker sleeps when the queue is empty until stopped", async () =
     },
     processOne: async () => false,
   });
-  assert.equal(slept, 1);
+  expect(slept).toBe(1);
 });
 
 test("drain with an idle window keeps polling and picks up work queued meanwhile", async () => {
@@ -50,8 +49,8 @@ test("drain with an idle window keeps polling and picks up work queued meanwhile
     },
     processOne: async () => answers[claims++] ?? false,
   });
-  assert.ok(claims >= 6);
-  assert.equal(answers[2], true);
+  expect(claims >= 6).toBeTruthy();
+  expect(answers[2]).toBe(true);
 });
 
 test("no slot claims a new job at or after stopAt", async () => {
@@ -71,7 +70,7 @@ test("no slot claims a new job at or after stopAt", async () => {
       return claims < 10;
     },
   });
-  assert.equal(claims, 3);
+  expect(claims).toBe(3);
 });
 
 test("near the runner's limit only short jobs are claimed", async () => {
@@ -84,11 +83,11 @@ test("near the runner's limit only short jobs are claimed", async () => {
     "lipsync",
     "render",
   ];
-  assert.deepEqual(claimableKinds(kinds, 1000, 2000), kinds);
-  assert.deepEqual(claimableKinds(kinds, 2000, 2000), [
+  expect(claimableKinds(kinds, 1000, 2000)).toStrictEqual(kinds);
+  expect(claimableKinds(kinds, 2000, 2000)).toStrictEqual([
     "voice",
     "music",
     "render",
   ]);
-  assert.deepEqual(claimableKinds(kinds, 5000), kinds);
+  expect(claimableKinds(kinds, 5000)).toStrictEqual(kinds);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   emitWorkshopEvent,
   getWorkshopContext,
@@ -11,7 +10,7 @@ import {
 } from "./workshopBridge.ts";
 
 test("outside the workshop the chat adds nothing", () => {
-  assert.equal(workshopRequestParts(null), null);
+  expect(workshopRequestParts(null)).toBe(null);
 });
 
 test("an open project goes to Carmen with its id, a new board tells her to start one", () => {
@@ -20,36 +19,34 @@ test("an open project goes to Carmen with its id, a new board tells her to start
     title: "חג שמח",
     selectedArtifactId: "a-9",
   });
-  assert.deepEqual(open?.taskSkills, ["carmen_workshop"]);
-  assert.match(open!.promptAddon, /item_id=p-1 \(חג שמח\)/);
-  assert.match(open!.promptAddon, /artifact_id=a-9/);
+  expect(open?.taskSkills).toStrictEqual(["carmen_workshop"]);
+  expect(open!.promptAddon).toMatch(/item_id=p-1 \(חג שמח\)/);
+  expect(open!.promptAddon).toMatch(/artifact_id=a-9/);
 
   const blank = workshopRequestParts({
     projectId: null,
     title: null,
     selectedArtifactId: null,
   });
-  assert.match(blank!.promptAddon, /workshop_start_project/);
-  assert.doesNotMatch(blank!.promptAddon, /artifact_id/);
+  expect(blank!.promptAddon).toMatch(/workshop_start_project/);
+  expect(blank!.promptAddon).not.toMatch(/artifact_id/);
 });
 
 test("only well-formed workshop stream events reach the board", () => {
-  assert.deepEqual(
+  expect(
     workshopEventFrom({
       type: "workshop",
       event: "project",
       item_id: "i",
       artifact_id: "a",
     }),
-    { event: "project", item_id: "i", artifact_id: "a" },
-  );
-  assert.equal(workshopEventFrom({ type: "token", content: "x" }), null);
-  assert.equal(
+  ).toStrictEqual({ event: "project", item_id: "i", artifact_id: "a" });
+  expect(workshopEventFrom({ type: "token", content: "x" })).toBe(null);
+  expect(
     workshopEventFrom({ type: "workshop", event: "other", item_id: "i" }),
-    null,
-  );
-  assert.equal(workshopEventFrom({ type: "workshop", event: "project" }), null);
-  assert.equal(workshopEventFrom(null), null);
+  ).toBe(null);
+  expect(workshopEventFrom({ type: "workshop", event: "project" })).toBe(null);
+  expect(workshopEventFrom(null)).toBe(null);
 });
 
 test("the board hears events and the context is shared", () => {
@@ -58,16 +55,16 @@ test("the board hears events and the context is shared", () => {
   emitWorkshopEvent({ event: "artifacts", item_id: "i-1" });
   stop();
   emitWorkshopEvent({ event: "artifacts", item_id: "i-2" });
-  assert.deepEqual(heard, ["i-1"]);
+  expect(heard).toStrictEqual(["i-1"]);
 
   setWorkshopContext({ projectId: "p", title: null, selectedArtifactId: null });
-  assert.equal(getWorkshopContext()?.projectId, "p");
+  expect(getWorkshopContext()?.projectId).toBe("p");
   setWorkshopContext(null);
-  assert.equal(getWorkshopContext(), null);
+  expect(getWorkshopContext()).toBe(null);
 });
 
 test("workshop tools get a Hebrew line in the chat, others keep their name", () => {
-  assert.equal(workshopToolLabel("workshop_make_creative"), "יוצרת תמונות");
-  assert.equal(workshopToolLabel("create_lead"), "create_lead");
-  assert.equal(workshopToolLabel(undefined), undefined);
+  expect(workshopToolLabel("workshop_make_creative")).toBe("יוצרת תמונות");
+  expect(workshopToolLabel("create_lead")).toBe("create_lead");
+  expect(workshopToolLabel(undefined)).toBe(undefined);
 });
