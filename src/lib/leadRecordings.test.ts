@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildLeadRecordingItems,
   groupLeadRecordings,
@@ -47,11 +46,13 @@ test("lists automatic, linked, and manual recordings together", () => {
     ],
   );
 
-  assert.deepEqual(
-    items.map((item) => item.label),
-    ["הקלטה אוטומטית", "פגישת היכרות", "הקלטה ידנית 1", "הקלטה ידנית 2"],
-  );
-  assert.equal(items[2].filePath, "tenant/lead/1.mp3");
+  expect(items.map((item) => item.label)).toStrictEqual([
+    "הקלטה אוטומטית",
+    "פגישת היכרות",
+    "הקלטה ידנית 1",
+    "הקלטה ידנית 2",
+  ]);
+  expect(items[2].filePath).toBe("tenant/lead/1.mp3");
 });
 
 test("groups recordings by lead", () => {
@@ -68,9 +69,9 @@ test("groups recordings by lead", () => {
       },
     ],
   );
-  assert.deepEqual(Object.keys(grouped).sort(), ["a", "b"]);
-  assert.equal(grouped.a[0].label, "הקלטה אוטומטית");
-  assert.equal(grouped.b[0].label, "הקלטה ידנית");
+  expect(Object.keys(grouped).sort()).toStrictEqual(["a", "b"]);
+  expect(grouped.a[0].label).toBe("הקלטה אוטומטית");
+  expect(grouped.b[0].label).toBe("הקלטה ידנית");
 });
 
 test("plays PBX uploads from the private call-recordings bucket", () => {
@@ -85,6 +86,6 @@ test("plays PBX uploads from the private call-recordings bucket", () => {
     ],
     [],
   );
-  assert.equal(item.filePath, "tenant/pbx/1.mp3");
-  assert.equal(item.bucket, "call-recordings");
+  expect(item.filePath).toBe("tenant/pbx/1.mp3");
+  expect(item.bucket).toBe("call-recordings");
 });

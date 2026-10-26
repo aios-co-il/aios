@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   leadOpenSurface,
   parseLeadViewMode,
@@ -10,17 +9,17 @@ import {
 } from "./leadViewMode.ts";
 
 test("CRM table opens the chat record as a popup", () => {
-  assert.equal(leadOpenSurface("table"), "popup");
-  assert.equal(leadOpenSurface("kanban"), "chat");
-  assert.equal(leadOpenSurface("chat"), "chat");
+  expect(leadOpenSurface("table")).toBe("popup");
+  expect(leadOpenSurface("kanban")).toBe("chat");
+  expect(leadOpenSurface("chat")).toBe("chat");
 });
 
 test("parseLeadViewMode accepts the three CRM views", () => {
-  assert.equal(parseLeadViewMode("kanban"), "kanban");
-  assert.equal(parseLeadViewMode("table"), "table");
-  assert.equal(parseLeadViewMode("chat"), "chat");
-  assert.equal(parseLeadViewMode("pipeline"), null);
-  assert.equal(parseLeadViewMode(null), null);
+  expect(parseLeadViewMode("kanban")).toBe("kanban");
+  expect(parseLeadViewMode("table")).toBe("table");
+  expect(parseLeadViewMode("chat")).toBe("chat");
+  expect(parseLeadViewMode("pipeline")).toBe(null);
+  expect(parseLeadViewMode(null)).toBe(null);
 });
 
 test("readStoredLeadViewMode prefers the saved default over last used", () => {
@@ -34,12 +33,12 @@ test("readStoredLeadViewMode prefers the saved default over last used", () => {
   };
   try {
     store.set(LEAD_VIEW_MODE_STORAGE_KEY, "chat");
-    assert.equal(readStoredLeadViewMode(), "chat");
+    expect(readStoredLeadViewMode()).toBe("chat");
     store.set(LEAD_DEFAULT_VIEW_STORAGE_KEY, "table");
-    assert.equal(readStoredLeadViewMode(), "table");
+    expect(readStoredLeadViewMode()).toBe("table");
     writeStoredLeadViewMode("kanban", true);
-    assert.equal(store.get(LEAD_VIEW_MODE_STORAGE_KEY), "kanban");
-    assert.equal(store.get(LEAD_DEFAULT_VIEW_STORAGE_KEY), "kanban");
+    expect(store.get(LEAD_VIEW_MODE_STORAGE_KEY)).toBe("kanban");
+    expect(store.get(LEAD_DEFAULT_VIEW_STORAGE_KEY)).toBe("kanban");
   } finally {
     (globalThis as { localStorage?: unknown }).localStorage = previous;
   }

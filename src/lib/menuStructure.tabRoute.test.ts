@@ -1,9 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { tabIdForRoute } from "./menuStructure.ts";
 
 test("recordings route maps to marketing sidebar tab", () => {
-  assert.equal(tabIdForRoute("/recordings"), "marketing");
+  expect(tabIdForRoute("/recordings")).toBe("marketing");
 });
 
 test("workshop and the old marketing urls stay on the marketing tab", () => {
@@ -12,5 +11,5 @@ test("workshop and the old marketing urls stay on the marketing tab", () => {
 });
 
 test("clients route maps to daily sidebar tab", () => {
-  assert.equal(tabIdForRoute("/clients"), "daily");
+  expect(tabIdForRoute("/clients")).toBe("daily");
 });

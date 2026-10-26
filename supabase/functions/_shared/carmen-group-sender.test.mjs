@@ -1,7 +1,9 @@
-import assert from "node:assert/strict";
+import {
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 import {
   buildGroupSenderContextNote,
   managerGroupAccessViaAllowedPhones,
@@ -14,8 +16,8 @@ const GROUP_DIGITS = "120363425732219862";
 const DAVID = "972507677613";
 const ANA = "972545612156";
 
-test("resolveGroupParticipantPhone rejects group JID as sender", () => {
-  assert.equal(
+Deno.test("resolveGroupParticipantPhone rejects group JID as sender", () => {
+  assertStrictEquals(
     resolveGroupParticipantPhone({
       groupChatId: GROUP,
       phoneNumber: GROUP_DIGITS,
@@ -28,44 +30,50 @@ test("resolveGroupParticipantPhone rejects group JID as sender", () => {
   );
 });
 
-test("resolveGroupParticipantPhone returns participant from sender wid", () => {
-  assert.equal(
-    resolveGroupParticipantPhone({
-      groupChatId: GROUP,
-      phoneNumber: GROUP_DIGITS,
-      sourcePhoneNumber: null,
-      senderWid: `${DAVID}@c.us`,
-      selfWid: "972549696673@c.us",
-      isOutgoing: false,
-    }),
-    DAVID,
-  );
-});
+Deno.test(
+  "resolveGroupParticipantPhone returns participant from sender wid",
+  () => {
+    assertStrictEquals(
+      resolveGroupParticipantPhone({
+        groupChatId: GROUP,
+        phoneNumber: GROUP_DIGITS,
+        sourcePhoneNumber: null,
+        senderWid: `${DAVID}@c.us`,
+        selfWid: "972549696673@c.us",
+        isOutgoing: false,
+      }),
+      DAVID,
+    );
+  },
+);
 
-test("resolveGroupParticipantPhone prefers sourcePhoneNumber when wid missing", () => {
-  assert.equal(
-    resolveGroupParticipantPhone({
-      groupChatId: GROUP,
-      phoneNumber: GROUP_DIGITS,
-      sourcePhoneNumber: ANA,
-      senderWid: null,
-      selfWid: null,
-      isOutgoing: false,
-    }),
-    ANA,
-  );
-});
+Deno.test(
+  "resolveGroupParticipantPhone prefers sourcePhoneNumber when wid missing",
+  () => {
+    assertStrictEquals(
+      resolveGroupParticipantPhone({
+        groupChatId: GROUP,
+        phoneNumber: GROUP_DIGITS,
+        sourcePhoneNumber: ANA,
+        senderWid: null,
+        selfWid: null,
+        isOutgoing: false,
+      }),
+      ANA,
+    );
+  },
+);
 
-test("buildGroupSenderContextNote includes participant_phone", () => {
+Deno.test("buildGroupSenderContextNote includes participant_phone", () => {
   const note = buildGroupSenderContextNote(DAVID, "דוד");
-  assert.match(note, /participant_phone=972507677613/);
-  assert.match(note, /sender_name=דוד/);
-  assert.match(note, /group_id/);
+  assertMatch(note, /participant_phone=972507677613/);
+  assertMatch(note, /sender_name=דוד/);
+  assertMatch(note, /group_id/);
 });
 
-test("managerGroupAccessViaAllowedPhones: David yes, Ana no", () => {
+Deno.test("managerGroupAccessViaAllowedPhones: David yes, Ana no", () => {
   const allowed = [DAVID, ANA];
-  assert.equal(
+  assertStrictEquals(
     managerGroupAccessViaAllowedPhones({
       phoneDigits: DAVID,
       allowedPhones: allowed,
@@ -73,7 +81,7 @@ test("managerGroupAccessViaAllowedPhones: David yes, Ana no", () => {
     }),
     true,
   );
-  assert.equal(
+  assertStrictEquals(
     managerGroupAccessViaAllowedPhones({
       phoneDigits: ANA,
       allowedPhones: allowed,
@@ -81,7 +89,7 @@ test("managerGroupAccessViaAllowedPhones: David yes, Ana no", () => {
     }),
     false,
   );
-  assert.equal(
+  assertStrictEquals(
     managerGroupAccessViaAllowedPhones({
       phoneDigits: ANA,
       allowedPhones: allowed,
@@ -91,35 +99,35 @@ test("managerGroupAccessViaAllowedPhones: David yes, Ana no", () => {
   );
 });
 
-test("phonesMatch uses last-9 policy", () => {
-  assert.equal(phonesMatch("0507677613", DAVID), true);
-  assert.equal(phonesMatch(DAVID, "972507677613"), true);
+Deno.test("phonesMatch uses last-9 policy", () => {
+  assertStrictEquals(phonesMatch("0507677613", DAVID), true);
+  assertStrictEquals(phonesMatch(DAVID, "972507677613"), true);
 });
 
-test("green-api group insert stores participant phone not group id", () => {
-  const source = readFileSync(
-    new URL("../green-api-webhook/index.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(source, /resolveGroupParticipantPhone/);
-  assert.match(source, /sender_phone: participantPhone/);
-  assert.match(source, /sender_phone: statusParticipantPhone/);
-});
+Deno.test(
+  "green-api group insert stores participant phone not group id",
+  () => {
+    const source = readFileSync(
+      new URL("../green-api-webhook/index.ts", import.meta.url),
+      "utf8",
+    );
+    assertMatch(source, /resolveGroupParticipantPhone/);
+    assertMatch(source, /sender_phone: participantPhone/);
+    assertMatch(source, /sender_phone: statusParticipantPhone/);
+  },
+);
 
-test("manus group path persists chat_messages with authorPhone", () => {
+Deno.test("manus group path persists chat_messages with authorPhone", () => {
   const source = readFileSync(
     new URL("../manus-wa-webhook/index.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /\[manus-wa group\] chat_messages saved/);
-  assert.match(source, /sender_phone: authorPhone/);
+  assertMatch(source, /\[manus-wa group\] chat_messages saved/);
+  assertMatch(source, /sender_phone: authorPhone/);
 });
 
-test("carmen group identity runs on all channels", () => {
+Deno.test("carmen group identity runs on all channels", () => {
   const source = readFileSync(new URL("./carmen.ts", import.meta.url), "utf8");
-  assert.match(source, /if \(isGroup\) \{[\s\S]*resolveCarmenGroupIdentity/);
-  assert.doesNotMatch(
-    source,
-    /if \(isGroup && sourceChannel === 'own_instance'\)/,
-  );
+  assertMatch(source, /if \(isGroup\) \{[\s\S]*resolveCarmenGroupIdentity/);
+  assertNotMatch(source, /if \(isGroup && sourceChannel === 'own_instance'\)/);
 });

@@ -60,7 +60,7 @@ Give the Droplet at least 4 vCPUs.
 ## Test
 
 ```bash
-node --test test/*.test.mjs   # the ffmpeg test needs ffmpeg on PATH and skips otherwise
+pnpm --dir .. test:components   # from the repo root; the ffmpeg test needs ffmpeg on PATH and skips otherwise
 ```
 
 ## Safety rules the worker enforces

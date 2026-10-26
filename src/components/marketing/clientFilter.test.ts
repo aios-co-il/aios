@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   ALL_CLIENTS_FILTER,
   applyClientFilter,
@@ -10,30 +9,29 @@ import {
 } from "./clientFilter.ts";
 
 test("entry to creative always uses every client", () => {
-  assert.equal(entryClientFilter("creative", null), ALL_CLIENTS_FILTER);
-  assert.equal(entryClientFilter("creative", "client-1"), ALL_CLIENTS_FILTER);
-  assert.equal(entryClientFilter("copy", "client-1"), "client-1");
-  assert.equal(entryClientFilter("copy", null), null);
-  assert.equal(clientFilterToParam(entryClientFilter("creative", null)), "all");
+  expect(entryClientFilter("creative", null)).toBe(ALL_CLIENTS_FILTER);
+  expect(entryClientFilter("creative", "client-1")).toBe(ALL_CLIENTS_FILTER);
+  expect(entryClientFilter("copy", "client-1")).toBe("client-1");
+  expect(entryClientFilter("copy", null)).toBe(null);
+  expect(clientFilterToParam(entryClientFilter("creative", null))).toBe("all");
 });
 
 test("parseClientFilter maps a missing param to every client, not unassigned-only", () => {
-  assert.equal(parseClientFilter("all"), ALL_CLIENTS_FILTER);
-  assert.equal(parseClientFilter(null), ALL_CLIENTS_FILTER);
-  assert.equal(parseClientFilter(""), ALL_CLIENTS_FILTER);
-  assert.equal(parseClientFilter("general"), null);
-  assert.equal(parseClientFilter("abc"), "abc");
-  assert.equal(clientFilterToParam(null), "general");
-  assert.equal(clientFilterToParam(ALL_CLIENTS_FILTER), "all");
+  expect(parseClientFilter("all")).toBe(ALL_CLIENTS_FILTER);
+  expect(parseClientFilter(null)).toBe(ALL_CLIENTS_FILTER);
+  expect(parseClientFilter("")).toBe(ALL_CLIENTS_FILTER);
+  expect(parseClientFilter("general")).toBe(null);
+  expect(parseClientFilter("abc")).toBe("abc");
+  expect(clientFilterToParam(null)).toBe("general");
+  expect(clientFilterToParam(ALL_CLIENTS_FILTER)).toBe("all");
 });
 
 test("creative list filter never treats a missing client as unassigned-only", () => {
-  assert.equal(resolveCreativeListFilter(null), ALL_CLIENTS_FILTER);
-  assert.equal(
-    resolveCreativeListFilter(ALL_CLIENTS_FILTER),
+  expect(resolveCreativeListFilter(null)).toBe(ALL_CLIENTS_FILTER);
+  expect(resolveCreativeListFilter(ALL_CLIENTS_FILTER)).toBe(
     ALL_CLIENTS_FILTER,
   );
-  assert.equal(resolveCreativeListFilter("client-1"), "client-1");
+  expect(resolveCreativeListFilter("client-1")).toBe("client-1");
 });
 
 test("applyClientFilter does not constrain the query for all clients", () => {
@@ -51,5 +49,5 @@ test("applyClientFilter does not constrain the query for all clients", () => {
   applyClientFilter(query, ALL_CLIENTS_FILTER);
   applyClientFilter(query, "client-1");
   applyClientFilter(query, null);
-  assert.deepEqual(calls, ["eq:client_id:client-1", "is:client_id:null"]);
+  expect(calls).toStrictEqual(["eq:client_id:client-1", "is:client_id:null"]);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   framesToScenes,
   removedSceneIds,
@@ -57,20 +56,19 @@ test("scenes become frames ordered by position, with the current still and its c
     ]),
     defaultX,
   );
-  assert.deepEqual(
+  expect(
     frames.map((frame) => [frame.id, frame.order, frame.x, frame.y]),
-    [
-      ["a", 1, 0, 100],
-      ["b", 2, -300, 120],
-    ],
-  );
-  assert.equal(frames[0].visualPrompt, "p");
-  assert.equal(frames[0].overlayText, "o");
-  assert.equal(frames[0].voiceover, "v");
-  assert.equal(frames[0].imageUrl, undefined);
-  assert.equal(frames[1].duration, 4);
-  assert.equal(frames[1].imageUrl, "https://x/b.png");
-  assert.equal(frames[1].generationCost?.costUsd, 0.05);
+  ).toStrictEqual([
+    ["a", 1, 0, 100],
+    ["b", 2, -300, 120],
+  ]);
+  expect(frames[0].visualPrompt).toBe("p");
+  expect(frames[0].overlayText).toBe("o");
+  expect(frames[0].voiceover).toBe("v");
+  expect(frames[0].imageUrl).toBe(undefined);
+  expect(frames[1].duration).toBe(4);
+  expect(frames[1].imageUrl).toBe("https://x/b.png");
+  expect(frames[1].generationCost?.costUsd).toBe(0.05);
 });
 
 test("a continuous narration keeps each scene's own spoken line", () => {
@@ -97,8 +95,8 @@ test("a missing still row leaves the frame without a picture", () => {
     new Map(),
     defaultX,
   );
-  assert.equal(frame.imageUrl, undefined);
-  assert.equal("imageUrl" in frame, false);
+  expect(frame.imageUrl).toBe(undefined);
+  expect("imageUrl" in frame).toBe(false);
 });
 
 test("frames save in frame order with 1-based positions and canvas", () => {
@@ -129,7 +127,7 @@ test("frames save in frame order with 1-based positions and canvas", () => {
       imageUrl: "u",
     },
   ]);
-  assert.deepEqual(scenes, [
+  expect(scenes).toStrictEqual([
     {
       id: "a",
       position: 1,
@@ -165,8 +163,8 @@ test("only loaded scenes missing from the draft are removed", () => {
   const frames = [{ id: "a" }, { id: "new" }] as Parameters<
     typeof removedSceneIds
   >[1];
-  assert.deepEqual(removedSceneIds(["a", "b", "b"], frames), ["b"]);
-  assert.deepEqual(removedSceneIds([], frames), []);
+  expect(removedSceneIds(["a", "b", "b"], frames)).toStrictEqual(["b"]);
+  expect(removedSceneIds([], frames)).toStrictEqual([]);
 });
 
 test("stills attach for new pictures and duplicates, not for unchanged ones", () => {
@@ -184,15 +182,14 @@ test("stills attach for new pictures and duplicates, not for unchanged ones", ()
     { id: "copy-of-a", imageUrl: "https://x/a.png" },
     { id: "c" },
   ] as Parameters<typeof stillsToAttach>[1];
-  assert.deepEqual(
+  expect(
     stillsToAttach(persisted, frames).map((still) => [
       still.sceneId,
       still.imageUrl,
       still.cost?.costUsd,
     ]),
-    [
-      ["b", "https://x/b-new.png", 0.04],
-      ["copy-of-a", "https://x/a.png", undefined],
-    ],
-  );
+  ).toStrictEqual([
+    ["b", "https://x/b-new.png", 0.04],
+    ["copy-of-a", "https://x/a.png", undefined],
+  ]);
 });
