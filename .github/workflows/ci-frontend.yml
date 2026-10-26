@@ -185,6 +185,9 @@ jobs:
       - name: Carmen pulse regression tests
         run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs
 
+      - name: Carmen outbound line regression tests
+        run: node --test supabase/functions/_shared/claude-notify-core.test.mjs supabase/functions/_shared/staff-notify.test.mjs supabase/functions/_shared/manus-send-auth.test.mjs supabase/functions/_shared/wa-send-result.test.mjs
+
       - name: Build frontend
         run: pnpm build
 

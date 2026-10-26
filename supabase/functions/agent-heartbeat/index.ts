@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { jerusalemHour } from "../_shared/calendarTimeZone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,9 +39,9 @@ Deno.serve(async (req) => {
       const tenantId = setting.tenant_id;
       const allowedActions = (setting.allowed_actions || []) as string[];
 
-      // Check active hours
+      // Check active hours (Israel local time, DST-aware)
       const now = new Date();
-      const currentHour = now.getUTCHours() + 3; // Israel timezone offset
+      const currentHour = jerusalemHour(now);
       if (
         currentHour < setting.active_hours_start ||
         currentHour >= setting.active_hours_end
@@ -127,18 +128,38 @@ Deno.serve(async (req) => {
         staleTasks &&
         staleTasks.length > 0
       ) {
+        // task_updates.user_id is a profiles uuid and the table has no
+        // tenant_id: write the audit row as the tenant owner.
+        const { data: ownerRole } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("tenant_id", tenantId)
+          .eq("role", "owner")
+          .limit(1)
+          .maybeSingle();
+        const auditUserId: string | null = ownerRole?.user_id ?? null;
         for (const task of staleTasks) {
           await supabase
             .from("tasks")
             .update({ assigned_agent: null })
             .eq("id", task.id);
-          await supabase.from("task_updates").insert({
-            task_id: task.id,
-            user_id: "system",
-            tenant_id: tenantId,
-            content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
-            update_type: "agent_action",
-          });
+          if (auditUserId) {
+            const { error: auditError } = await supabase
+              .from("task_updates")
+              .insert({
+                task_id: task.id,
+                user_id: auditUserId,
+                content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
+                update_type: "agent_action",
+              });
+            if (auditError) {
+              console.warn(
+                "[agent-heartbeat] stale-release audit insert failed",
+                task.id,
+                auditError.message,
+              );
+            }
+          }
           actionsLog.push({
             type: "stale_task_released",
             task_id: task.id,
@@ -162,7 +183,7 @@ Deno.serve(async (req) => {
 
       const anomalyCount = anomalyTasks?.length || 0;
 
-      // 6. Generate daily summary
+      // 6. Summary for heartbeat_logs
       const summaryLines = [
         `סקירת Heartbeat - ${now.toISOString().split("T")[0]}`,
         `משימות שנסקרו: ${tasksReviewed}`,
@@ -178,44 +199,12 @@ Deno.serve(async (req) => {
       }
       const summary = summaryLines.join("\n");
 
-      // 7. Send daily anomaly digest once per day to assigned campaigner (only at 09:00 IL ≈ 06:00 UTC)
-      const isDigestHour = now.getUTCHours() === 6;
-      if (
-        isDigestHour &&
-        anomalyCount > 0 &&
-        allowedActions.includes("reminders")
-      ) {
-        // Find any campaigner with a phone in this tenant
-        const { data: campaigner } = await supabase
-          .from("campaigners")
-          .select("full_name, phone")
-          .eq("tenant_id", tenantId)
-          .eq("active", true)
-          .not("phone", "is", null)
-          .limit(1)
-          .maybeSingle();
-        if (campaigner?.phone) {
-          await fetch(`${SUPABASE_URL}/functions/v1/send-green-api-message`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              phone: campaigner.phone,
-              message: summary,
-              tenantId,
-            }),
-          }).catch(() => {});
-          actionsLog.push({
-            type: "daily_digest_sent",
-            to: campaigner.full_name,
-            anomalies: anomalyCount,
-          });
-        }
-      }
+      // The summary is only logged. Heartbeat sends no WhatsApp: the old daily
+      // anomaly digest went out through David's Green line with a body the
+      // sender rejected (400), yet was logged as sent. Carmen's planned
+      // morning brief takes over that job.
 
-      // 8. Log heartbeat
+      // 7. Log heartbeat
       await supabase.from("heartbeat_logs").insert({
         tenant_id: tenantId,
         tasks_reviewed: tasksReviewed,

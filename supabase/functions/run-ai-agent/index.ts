@@ -137,6 +137,11 @@ import {
   selectStaffMatch,
 } from "../_shared/staff-whatsapp.ts";
 import {
+  logStaffAlertOutcome,
+  sendStaffAlert,
+  staffAlertToolResult,
+} from "../_shared/staff-notify.ts";
+import {
   buildGoogleCustomerClientMap,
   googleResolveClientCustomerId,
   metaAdAccountsEqual,
@@ -451,122 +456,41 @@ async function fetchOpenAiBillingStatus(args: {
   return { ...status, summary_he };
 }
 
+// Staff alerts leave only from Carmen's Manus line (send-manus-wa-message:
+// Staging guard + chat_messages record). See _shared/staff-notify.ts.
 async function sendStaffWhatsappMessage(args: {
   supabase: any;
   tenantId: string;
   phone: string;
   message: string;
+  requesterUserId?: string | null;
+  agentId?: string | null;
+  conversationId?: string | null;
+  recipient?: { entity_type?: string; id?: string; full_name?: string } | null;
 }): Promise<{
   error?: string;
-  integration_id?: string;
-  provider?: string;
+  integration_id?: string | null;
+  provider?: string | null;
   [k: string]: any;
 }> {
-  const { supabase, tenantId, phone, message } = args;
-  const normalized = normalizeStaffPhone(phone);
-  if (!normalized) return { error: "מספר טלפון לא תקין" };
-
-  const { data: integrations } = await supabase
-    .from("tenant_integrations")
-    .select("id, integration_type, settings")
-    .eq("tenant_id", tenantId)
-    .in("integration_type", ["manus_wa", "manuswa", "greenapi", "green_api"])
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (!integrations?.length) {
-    return {
-      error:
-        "לא נמצאה אינטגרציית WhatsApp פעילה בטננט. חבר WhatsApp תחת הגדרות אינטגרציות.",
-    };
-  }
-
-  // Prefer Manus WA (Carmen's direct line), then Green API.
-  const ordered = [...integrations].sort((a: any, b: any) => {
-    const rank = (t: string) => (/manus/i.test(t) ? 0 : 1);
-    return rank(a.integration_type) - rank(b.integration_type);
+  const result = await sendStaffAlert({
+    supabase: args.supabase,
+    supabaseUrl: SUPABASE_URL,
+    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+    tenantId: args.tenantId,
+    phone: args.phone,
+    message: args.message,
+    requesterUserId: args.requesterUserId ?? null,
   });
-
-  const errors: string[] = [];
-  for (const integration of ordered) {
-    const type = String(integration.integration_type || "");
-    try {
-      if (/manus/i.test(type)) {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/manage-manus-wa`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              action: "send_message",
-              integrationId: integration.id,
-              phone: normalized,
-              message,
-            }),
-          },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          return { integration_id: integration.id, provider: type, ...data };
-        }
-        // Fallback to send-manus-wa-message
-        const res2 = await fetch(
-          `${SUPABASE_URL}/functions/v1/send-manus-wa-message`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              integrationId: integration.id,
-              tenantId,
-              phoneNumber: normalized,
-              message,
-            }),
-          },
-        );
-        const data2 = await res2.json().catch(() => ({}));
-        if (res2.ok) {
-          return {
-            integration_id: integration.id,
-            provider: "send-manus-wa-message",
-            ...data2,
-          };
-        }
-        errors.push(`${type}: ${data.error || data2.error || res.status}`);
-      } else {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/send-green-api-message`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              phone: normalized,
-              message,
-              tenantId,
-              integrationId: integration.id,
-            }),
-          },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          return { integration_id: integration.id, provider: type, ...data };
-        }
-        errors.push(`${type}: ${data.error || res.status}`);
-      }
-    } catch (e: any) {
-      errors.push(`${type}: ${e?.message || e}`);
-    }
-  }
-  return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
+  await logStaffAlertOutcome(args.supabase, {
+    tenantId: args.tenantId,
+    agentId: args.agentId,
+    userId: args.requesterUserId,
+    conversationId: args.conversationId,
+    recipient: args.recipient,
+    result,
+  });
+  return staffAlertToolResult(result);
 }
 
 const corsHeaders = {
@@ -13410,6 +13334,10 @@ async function executeTool(
         tenantId,
         phone: contact.phone,
         message,
+        requesterUserId: actorUserId,
+        agentId: agentId || null,
+        conversationId: conversationId || null,
+        recipient: contact,
       });
       if (sendResult.error) return sendResult;
       return {

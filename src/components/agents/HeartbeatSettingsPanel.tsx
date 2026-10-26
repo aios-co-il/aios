@@ -395,7 +395,8 @@ export function HeartbeatSettingsPanel() {
                             key={i}
                             className="flex items-center gap-1 text-[11px]"
                           >
-                            {action.type === "reminder_sent" ? (
+                            {action.type === "overdue_worker_nudged" &&
+                            action.ok !== false ? (
                               <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
                             ) : action.type === "stale_task_released" ? (
                               <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
