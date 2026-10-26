@@ -4,8 +4,12 @@
 // inline rule. A fixture run on a disposable PostgreSQL compared old and new
 // get_chat_contacts row by row; supabase/ops/verify_chat_allowed_connections.sql
 // repeats the helper check on a live database.
-import test from "node:test";
-import assert from "node:assert/strict";
+import {
+  assert,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { readFileSync } from "node:fs";
 
 const migrations = new URL("../../../migrations/", import.meta.url);
@@ -23,7 +27,7 @@ const CONTACTS_HEAD =
 
 function functionText(sql, head) {
   const start = sql.indexOf(head);
-  assert.ok(start >= 0, `missing ${head}`);
+  assert(start >= 0, `missing ${head}`);
   const end = sql.indexOf("\n$$;", start);
   return sql.slice(start, end + 4);
 }
@@ -39,9 +43,9 @@ const inlineRule = oldContacts.slice(
 );
 const squash = (s) => s.replace(/\s+/g, " ").trim();
 
-test("get_chat_contacts keeps its body except the connection rule", () => {
-  assert.ok(inlineRule.includes("connection_visibility = 'org'"));
-  assert.equal(
+Deno.test("get_chat_contacts keeps its body except the connection rule", () => {
+  assert(inlineRule.includes("connection_visibility = 'org'"));
+  assertStrictEquals(
     newContacts,
     oldContacts.replace(
       inlineRule,
@@ -50,41 +54,50 @@ test("get_chat_contacts keeps its body except the connection rule", () => {
   );
 });
 
-test("the helper is the old inline rule with the caller as arguments", () => {
-  const helper = functionText(
-    migration,
-    "CREATE OR REPLACE FUNCTION public.chat_allowed_connection_user_ids(",
-  );
-  const body = squash(helper.slice(helper.indexOf("AS $$") + 5, -4));
-  const expected = squash(
-    inlineRule
-      .replace("INTO allowed_user_ids", "")
-      .replace(
-        "array_agg(DISTINCT owners.owner_id)",
-        "COALESCE(array_agg(DISTINCT owners.owner_id), ARRAY[]::uuid[])",
-      )
-      .replace("is_admin", "COALESCE(public.is_super_admin(p_user_id), false)")
-      .replaceAll("current_user_id", "p_user_id")
-      .replaceAll("current_tenant_id", "p_tenant_id")
-      .replace(
-        ") owners;",
-        ") owners WHERE p_tenant_id IS NOT NULL AND p_user_id IS NOT NULL AND owners.owner_id IS NOT NULL;",
-      ),
-  );
-  assert.equal(body, expected);
-  assert.match(helper, /SECURITY DEFINER/);
-  assert.match(helper, /SET search_path TO 'public'/);
-  assert.match(helper, /RETURNS uuid\[\]/);
-});
+Deno.test(
+  "the helper is the old inline rule with the caller as arguments",
+  () => {
+    const helper = functionText(
+      migration,
+      "CREATE OR REPLACE FUNCTION public.chat_allowed_connection_user_ids(",
+    );
+    const body = squash(helper.slice(helper.indexOf("AS $$") + 5, -4));
+    const expected = squash(
+      inlineRule
+        .replace("INTO allowed_user_ids", "")
+        .replace(
+          "array_agg(DISTINCT owners.owner_id)",
+          "COALESCE(array_agg(DISTINCT owners.owner_id), ARRAY[]::uuid[])",
+        )
+        .replace(
+          "is_admin",
+          "COALESCE(public.is_super_admin(p_user_id), false)",
+        )
+        .replaceAll("current_user_id", "p_user_id")
+        .replaceAll("current_tenant_id", "p_tenant_id")
+        .replace(
+          ") owners;",
+          ") owners WHERE p_tenant_id IS NOT NULL AND p_user_id IS NOT NULL AND owners.owner_id IS NOT NULL;",
+        ),
+    );
+    assertStrictEquals(body, expected);
+    assertMatch(helper, /SECURITY DEFINER/);
+    assertMatch(helper, /SET search_path TO 'public'/);
+    assertMatch(helper, /RETURNS uuid\[\]/);
+  },
+);
 
-test("only the service role may call the helper; get_chat_contacts grants stay", () => {
-  assert.match(
-    migration,
-    /REVOKE ALL ON FUNCTION public\.chat_allowed_connection_user_ids\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/,
-  );
-  assert.match(
-    migration,
-    /GRANT EXECUTE ON FUNCTION public\.chat_allowed_connection_user_ids\(uuid, uuid\) TO service_role;/,
-  );
-  assert.doesNotMatch(migration, /(GRANT|REVOKE)[^;]*get_chat_contacts/);
-});
+Deno.test(
+  "only the service role may call the helper; get_chat_contacts grants stay",
+  () => {
+    assertMatch(
+      migration,
+      /REVOKE ALL ON FUNCTION public\.chat_allowed_connection_user_ids\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/,
+    );
+    assertMatch(
+      migration,
+      /GRANT EXECUTE ON FUNCTION public\.chat_allowed_connection_user_ids\(uuid, uuid\) TO service_role;/,
+    );
+    assertNotMatch(migration, /(GRANT|REVOKE)[^;]*get_chat_contacts/);
+  },
+);
