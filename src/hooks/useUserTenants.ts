@@ -2,31 +2,35 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
-import type { Tables } from "@/integrations/supabase/types";
 
-export type UserTenant = Pick<
-  Tables<"tenants">,
-  | "id"
-  | "name"
-  | "slug"
-  | "org_type"
-  | "parent_tenant_id"
-  | "subdomain"
-  | "contact_name"
-  | "contact_email"
-  | "status"
-  | "notes"
-  | "trial_ends_at"
->;
+/** The `list-user-tenants` entry fields that `isUserTenant` validates. */
+export interface UserTenant {
+  id: string;
+  name: string;
+  org_type: string;
+  slug?: string | null;
+  parent_tenant_id?: string | null;
+  status?: string | null;
+}
+
+type Candidate = Partial<Record<keyof UserTenant, unknown>>;
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value !== "";
+
+const isOptionalString = (value: unknown) =>
+  value === undefined || value === null || typeof value === "string";
 
 function isUserTenant(value: unknown): value is UserTenant {
+  if (typeof value !== "object" || value === null) return false;
+  const tenant: Candidate = value;
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    !!value.id &&
-    "name" in value &&
-    !!value.name
+    isNonEmptyString(tenant.id) &&
+    isNonEmptyString(tenant.name) &&
+    typeof tenant.org_type === "string" &&
+    isOptionalString(tenant.slug) &&
+    isOptionalString(tenant.parent_tenant_id) &&
+    isOptionalString(tenant.status)
   );
 }
 
