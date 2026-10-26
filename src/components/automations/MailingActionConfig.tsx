@@ -14,7 +14,7 @@ import {
 import { listKind } from "@/lib/broadcastListKind";
 
 interface Props {
-  tenantId?: string;
+  tenantId: string;
   actionType: string;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;

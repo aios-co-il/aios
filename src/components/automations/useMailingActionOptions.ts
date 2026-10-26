@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 /** Lists, templates and WhatsApp connections the mailing automation actions pick from. */
 export function useMailingActionOptions(
-  tenantId: string | undefined,
+  tenantId: string,
   { needsList, needsTemplate }: { needsList: boolean; needsTemplate: boolean },
 ) {
   const { data: lists = [] } = useQuery({
@@ -11,7 +11,6 @@ export function useMailingActionOptions(
     queryKey: ["broadcast-lists", tenantId, "automation-options"],
     enabled: !!tenantId && needsList,
     queryFn: async () => {
-      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("broadcast_lists")
         .select("id, name, kind, source, member_count")
@@ -26,7 +25,6 @@ export function useMailingActionOptions(
     queryKey: ["message-templates", tenantId, "automation-options"],
     enabled: !!tenantId && needsTemplate,
     queryFn: async () => {
-      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("message_templates")
         .select("id, name, channel")
@@ -42,7 +40,6 @@ export function useMailingActionOptions(
     queryKey: ["automation-wa-integrations", tenantId],
     enabled: !!tenantId && needsTemplate,
     queryFn: async () => {
-      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, integration_type, display_name")
