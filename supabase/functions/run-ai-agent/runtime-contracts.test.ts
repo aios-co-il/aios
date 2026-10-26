@@ -3,6 +3,12 @@ import test from "node:test";
 import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
 import { crmRecordDay } from "./tool-contracts-crm.ts";
+import {
+  automationStepArg,
+  isParallelTaskArg,
+  nestedErrorMessage,
+  readField,
+} from "./tool-contracts-admin.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 import { readImageGenerationPayload } from "./image-generation-payload.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
@@ -159,4 +165,41 @@ test("Meta lead form question input reads type and label from objects only", () 
   });
   assert.deepEqual(readMetaLeadQuestionInput("EMAIL"), {});
   assert.deepEqual(readMetaLeadQuestionInput(null), {});
+});
+
+test("readField and nestedErrorMessage mirror optional chaining on provider JSON", () => {
+  assert.equal(readField({ id: "1" }, "id"), "1");
+  for (const value of [null, undefined, "text", 3, [], ["x"]]) {
+    assert.equal(readField(value, "id"), undefined);
+  }
+  assert.equal(nestedErrorMessage({ error: { message: "denied" } }), "denied");
+  assert.equal(nestedErrorMessage({ error: "denied" }), undefined);
+  assert.equal(nestedErrorMessage({}), undefined);
+  assert.equal(nestedErrorMessage(null), undefined);
+});
+
+test("delegate_parallel keeps only entries with a truthy title and prompt", () => {
+  const tasks: unknown[] = [
+    { title: "a", prompt: "b", task_skills: ["x"] },
+    { title: "", prompt: "b" },
+    { title: "a" },
+    null,
+    "task",
+    ["a", "b"],
+  ];
+  assert.deepEqual(tasks.filter(isParallelTaskArg), [tasks[0]]);
+});
+
+test("automation steps read LLM fields and still reject null entries", () => {
+  assert.deepEqual(automationStepArg({ type: "agent", config: { a: 1 } }), {
+    type: "agent",
+    skin: undefined,
+    instruction: undefined,
+    action_type: undefined,
+    config: { a: 1 },
+    label: undefined,
+  });
+  assert.equal(automationStepArg("step").type, undefined);
+  assert.throws(() => automationStepArg(null), TypeError);
+  assert.throws(() => automationStepArg(undefined), TypeError);
 });
