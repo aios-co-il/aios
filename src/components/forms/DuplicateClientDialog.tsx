@@ -76,7 +76,7 @@ export function DuplicateClientDialog({
       onOpenChange(false);
       onDuplicated?.(data.newClientId);
     },
-    onError: (e: any) => {
+    onError: (e) => {
       toast.error("שגיאה בשכפול: " + (e?.message || "אירעה שגיאה"));
     },
   });

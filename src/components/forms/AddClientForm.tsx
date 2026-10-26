@@ -87,8 +87,8 @@ export function AddClientForm() {
 
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-client", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return [] as any[];
+    queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
+      if (!tenantId) return [];
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -122,14 +122,14 @@ export function AddClientForm() {
 
       // Combine and remove duplicates
       const combined = [...(ownedAgencies || []), ...shared];
-      const uniqueMap = new Map();
+      const uniqueMap = new Map<string, { id: string; name: string }>();
       combined.forEach((agency) => {
         if (agency && agency.id && !uniqueMap.has(agency.id)) {
           uniqueMap.set(agency.id, agency);
         }
       });
 
-      return Array.from(uniqueMap.values()).sort((a: any, b: any) =>
+      return Array.from(uniqueMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
       );
     },

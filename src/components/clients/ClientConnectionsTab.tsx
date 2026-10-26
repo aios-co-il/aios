@@ -78,7 +78,7 @@ export function ClientConnectionsTab({
       <div className="p-4 text-sm text-muted-foreground">טוען חיבורים...</div>
     );
 
-  const c = conns.data.client as Record<string, any> | null;
+  const c = conns.data.client;
 
   // Show ALL channels regardless of the client's services configuration
   const allChannels = CLIENT_CHANNELS;

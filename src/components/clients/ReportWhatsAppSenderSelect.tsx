@@ -9,6 +9,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import type { Json } from "@/integrations/supabase/types";
+
+const settingValue = (settings: Json, key: string): unknown =>
+  settings && typeof settings === "object" && !Array.isArray(settings)
+    ? settings[key]
+    : undefined;
+
+const settingText = (settings: Json, key: string): string | undefined => {
+  const value = settingValue(settings, key);
+  return typeof value === "string" && value ? value : undefined;
+};
 
 interface Props {
   tenantId: string | undefined;
@@ -51,15 +62,13 @@ export function ReportWhatsAppSenderSelect({
 
   if (instances.length <= 1) return null;
 
-  const labelFor = (i: any): string => {
-    const s = i.settings || {};
+  const labelFor = (i: (typeof instances)[number]): string => {
+    const instanceId = settingValue(i.settings, "instance_id");
     return (
       i.display_name ||
-      s.instance_name ||
-      s.connection_name ||
-      (s.instance_id
-        ? `WhatsApp ··${String(s.instance_id).slice(-4)}`
-        : "WhatsApp")
+      settingText(i.settings, "instance_name") ||
+      settingText(i.settings, "connection_name") ||
+      (instanceId ? `WhatsApp ··${String(instanceId).slice(-4)}` : "WhatsApp")
     );
   };
 
@@ -71,7 +80,7 @@ export function ReportWhatsAppSenderSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {instances.map((i: any) => (
+          {instances.map((i) => (
             <SelectItem key={i.id} value={i.id}>
               {labelFor(i)}
             </SelectItem>

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { TaskDetailDialog } from "@/components/tasks/TaskDetailDialog";
 import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { toTaskDetail } from "@/lib/taskDetail-b13";
 
 interface ClientTasksTabProps {
   clientId: string;
@@ -23,7 +24,8 @@ type DateFilter = "week" | "month" | "all";
 
 export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("month");
-  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editingTask, setEditingTask] =
+    useState<ComponentProps<typeof TaskDetailDialog>["task"]>(null);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
@@ -161,7 +163,7 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
                   isCompleted={false}
                   clientName={clientName}
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,
@@ -202,7 +204,7 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
                   isCompleted
                   clientName={clientName}
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,

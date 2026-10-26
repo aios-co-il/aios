@@ -10,6 +10,10 @@ import {
   pickGscSiteForDomain,
   shouldCreateDashboardForConnections,
 } from "@/lib/clientConnectionProvision";
+import type { Tables } from "@/integrations/supabase/types";
+import { parseCrmTableList } from "@/lib/crmTableSummary-b13";
+
+type TableSettings = Record<string, string | boolean | undefined>;
 
 // Per integration_type: how to build the crm_tables row the existing sync
 // functions + viewers expect (matches what the manual "create table" dialogs write).
@@ -19,7 +23,7 @@ const TABLE_META: Record<
     label: string;
     category: string;
     needsIntegrationId: boolean;
-    build: (idValue: string, integrationId?: string) => Record<string, any>;
+    build: (idValue: string, integrationId?: string) => TableSettings;
   }
 > = {
   google_analytics: {
@@ -122,7 +126,7 @@ async function resolveActiveIntegrationId(
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return (data as any)?.id ?? null;
+  return data?.id ?? null;
 }
 
 /**
@@ -130,7 +134,10 @@ async function resolveActiveIntegrationId(
  * matching Ahrefs domain / GSC site / GA4 property from the website host.
  */
 async function resolveSeoAccountsFromWebsite(
-  client: Record<string, any>,
+  client: Pick<
+    Tables<"clients">,
+    "website" | "ahrefs_domain" | "gsc_site_url" | "ga_property_id"
+  >,
   tenantId: string | null,
 ): Promise<{
   updates: Partial<Record<ChannelFieldKey, string>>;
@@ -236,8 +243,12 @@ export function useProvisionClientChannels() {
         .single();
       if (clientErr || !client) throw clientErr || new Error("הלקוח לא נמצא");
 
-      const c = { ...(client as Record<string, any>) };
-      const services: string[] = Array.isArray(c.services) ? c.services : [];
+      const c = { ...client };
+      const services: string[] = Array.isArray(c.services)
+        ? c.services.filter(
+            (service): service is string => typeof service === "string",
+          )
+        : [];
       const tenantId: string | null = c.tenant_id ?? null;
       const agencyId: string | null = c.agency_id ?? null;
 
@@ -285,7 +296,7 @@ export function useProvisionClientChannels() {
           .from("tenant_integrations")
           .select("id, integration_type, is_active")
           .eq("tenant_id", tenantId);
-        for (const row of (integrations as any[]) ?? []) {
+        for (const row of integrations ?? []) {
           if (row.is_active && !integrationIdByType[row.integration_type]) {
             integrationIdByType[row.integration_type] = row.id;
           }
@@ -297,8 +308,8 @@ export function useProvisionClientChannels() {
         { method: "GET" },
       );
       if (listRes.error) throw listRes.error;
-      const existing = (Array.isArray(listRes.data) ? listRes.data : []).filter(
-        (t: any) => t.client_id === clientId,
+      const existing = parseCrmTableList(listRes.data).filter(
+        (t) => t.client_id === clientId,
       );
 
       // Provision every channel that has a filled identifier — not only those
@@ -323,7 +334,7 @@ export function useProvisionClientChannels() {
           const settings = meta.build(idValue, integrationId);
 
           const found = existing.find(
-            (t: any) => t.integration_type === tbl.integrationType,
+            (t) => t.integration_type === tbl.integrationType,
           );
           if (found) {
             const patch = await supabase.functions.invoke("crm-tables", {
@@ -360,7 +371,14 @@ export function useProvisionClientChannels() {
             summary.skipped.push(`${meta.label}: ${create.error.message}`);
           else {
             summary.created.push(meta.label);
-            const newId = (create.data as any)?.id;
+            const created: unknown = create.data;
+            const newId =
+              typeof created === "object" &&
+              created !== null &&
+              "id" in created &&
+              typeof created.id === "string"
+                ? created.id
+                : undefined;
             if (newId)
               provisioned.push({
                 id: newId,
