@@ -8,10 +8,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { aggregateOrdersByAttribution } from "@/lib/wooAttribution";
+import {
+  aggregateOrdersByAttribution,
+  type WooOrderAttribution,
+} from "@/lib/wooAttribution";
 
 type Props = {
-  orders: any[];
+  orders: Parameters<typeof aggregateOrdersByAttribution>[0];
   formatCurrency: (n: number) => string;
   formatNumber: (n: number) => string;
 };
@@ -66,6 +69,8 @@ export function WooAttributionSection({
   );
 }
 
-export function wooAttributionLabel(order: any): string {
+export function wooAttributionLabel(
+  order: { attribution?: WooOrderAttribution | null } | null | undefined,
+): string {
   return order?.attribution?.label || "לא ידוע";
 }

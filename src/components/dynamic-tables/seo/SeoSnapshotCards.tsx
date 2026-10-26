@@ -1,19 +1,32 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { keywordTop20Rank } from "@/lib/gscPosition";
+import type { JsonObject } from "@/types/dashboard-b18";
+
+/** A tracked/organic keyword row; only the rank-related fields are read here. */
+interface SnapshotKeyword {
+  keyword?: unknown;
+  position?: unknown;
+  gsc_position?: unknown;
+  ahrefs_position?: unknown;
+  best_position?: unknown;
+  _source?: string;
+}
+
+type SnapshotValue = number | string | undefined;
 
 interface SeoSnapshotCardsProps {
-  snapshot: Record<string, any>;
-  prevMonth: Record<string, any>;
-  campaignStart: Record<string, any>;
+  snapshot: JsonObject;
+  prevMonth: JsonObject;
+  campaignStart: JsonObject;
   /** Latest GA organic sessions (current month) — overrides Ahrefs org_traffic */
   gaOrganicSessions?: number | null;
   /** Previous month GA organic sessions */
   gaOrganicSessionsPrev?: number | null;
   /** Live tracked-keyword list — used for Top 3/Top 20 counts */
-  trackedKeywords?: Array<any>;
+  trackedKeywords?: SnapshotKeyword[];
   /** Live organic-keyword list — used as additional input for Top 3/Top 20 counts */
-  organicKeywords?: Array<any>;
+  organicKeywords?: SnapshotKeyword[];
 }
 
 function ChangeIndicator({
@@ -52,17 +65,21 @@ function ChangeIndicator({
 }
 
 // Helper to get a value from snapshot trying multiple key variants
-function getVal(
-  obj: Record<string, any>,
-  ...keys: string[]
-): number | undefined {
+function getVal(obj: JsonObject, ...keys: string[]): SnapshotValue {
   for (const k of keys) {
-    if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+    const value = obj[k];
+    if (value === undefined || value === null) continue;
+    return typeof value === "number" || typeof value === "string"
+      ? value
+      : undefined;
   }
   return undefined;
 }
 
-function countAtOrBelow(kws: Array<any> | undefined, maxPos: number): number {
+function countAtOrBelow(
+  kws: SnapshotKeyword[] | undefined,
+  maxPos: number,
+): number {
   if (!Array.isArray(kws)) return 0;
   let n = 0;
   for (const kw of kws) {
@@ -87,7 +104,7 @@ export function SeoSnapshotCards({
   organicKeywords,
 }: SeoSnapshotCardsProps) {
   // Live fallback counts (merge tracked + organic, dedup by keyword)
-  const mergedByKw = new Map<string, any>();
+  const mergedByKw = new Map<string, SnapshotKeyword>();
   for (const kw of trackedKeywords || []) {
     const name = String(kw?.keyword || "")
       .toLowerCase()
@@ -105,7 +122,7 @@ export function SeoSnapshotCards({
   const liveTop20 = countAtOrBelow(liveList, 20);
 
   const snapTop3 = getVal(snapshot, "org_keywords_top3");
-  const effectiveTop3 = liveTop3 > (snapTop3 ?? 0) ? liveTop3 : snapTop3;
+  const effectiveTop3 = liveTop3 > Number(snapTop3 ?? 0) ? liveTop3 : snapTop3;
   // There is no historical org_keywords_top20 field. Use the merged live keyword
   // rows so a Top 10 snapshot is never mislabeled as Top 20.
   const effectiveTop20 = liveList.length > 0 ? liveTop20 : undefined;
@@ -121,14 +138,14 @@ export function SeoSnapshotCards({
       label: "דירוג דומיין (DR)",
       icon: "🏆",
       isOrganic: false,
-      override: undefined as number | undefined,
+      override: undefined as SnapshotValue,
     },
     {
       keys: ["org_traffic"],
       label: "תנועה אורגנית",
       icon: "📈",
       isOrganic: true,
-      override: undefined as number | undefined,
+      override: undefined as SnapshotValue,
     },
 
     {
@@ -157,21 +174,21 @@ export function SeoSnapshotCards({
       label: "דומיינים מפנים",
       icon: "🔗",
       isOrganic: false,
-      override: undefined as number | undefined,
+      override: undefined as SnapshotValue,
     },
     {
       keys: ["backlinks_live"],
       label: "קישורים נכנסים (פעילים)",
       icon: "🌐",
       isOrganic: false,
-      override: undefined as number | undefined,
+      override: undefined as SnapshotValue,
     },
     {
       keys: ["backlinks_all_time"],
       label: "קישורים נכנסים (כולל)",
       icon: "📊",
       isOrganic: false,
-      override: undefined as number | undefined,
+      override: undefined as SnapshotValue,
     },
   ]
     .map((m) => {
@@ -205,7 +222,7 @@ export function SeoSnapshotCards({
             <span className="text-xl mb-1 block">{metric.icon}</span>
             <p className="text-xs text-muted-foreground mb-1">
               {metric.label}
-              {(metric as any).gaSource && (
+              {metric.gaSource && (
                 <span className="ml-1 text-[10px] text-green-600 font-medium">
                   (Analytics)
                 </span>

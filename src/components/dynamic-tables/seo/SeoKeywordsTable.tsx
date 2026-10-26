@@ -56,10 +56,44 @@ function normalizeKw(raw: string): string {
   return normalizeKeywordPhrase(raw);
 }
 
+/** An Ahrefs / tracked / GSC-only keyword row as merged by the SEO dashboards. */
+export type SeoKeywordRow = {
+  keyword?: string;
+  position?: number | null;
+  position_prev_month?: number | null;
+  position_3month?: number | null;
+  position_yearly?: number | null;
+  traffic?: number | null;
+  volume?: number | null;
+  kd?: number | null;
+  cpc?: number | null;
+  url?: string | null;
+  gsc_clicks?: number | null;
+  gsc_impressions?: number | null;
+  gsc_ctr?: number | null;
+  gsc_position?: number | null;
+  ahrefs_position?: number | null;
+  _position_source?: string;
+  _source?: string;
+  _local_tracked?: boolean;
+};
+
+const isBlankField = (value: unknown) => value == null || value === "";
+
+function fillBlankField<K extends keyof SeoKeywordRow>(
+  target: SeoKeywordRow,
+  source: SeoKeywordRow,
+  key: K,
+) {
+  if (isBlankField(target[key]) && !isBlankField(source[key])) {
+    target[key] = source[key];
+  }
+}
+
 interface SeoKeywordsTableProps {
-  keywords: any[];
-  trackedKeywords?: any[];
-  gscOnlyKeywords?: any[];
+  keywords: SeoKeywordRow[];
+  trackedKeywords?: SeoKeywordRow[];
+  gscOnlyKeywords?: SeoKeywordRow[];
   hasGscData?: boolean;
   show3Month?: boolean;
   showYearly?: boolean;
@@ -123,7 +157,7 @@ function KeywordRow({
   onMarkIrrelevant,
   showIrrelevantAction,
 }: {
-  kw: any;
+  kw: SeoKeywordRow;
   show3Month?: boolean;
   showYearly?: boolean;
   showPrevMonth?: boolean;
@@ -301,7 +335,7 @@ function KeywordRow({
 
       <td
         className="p-3 text-right text-xs max-w-[200px] truncate hidden lg:table-cell"
-        title={kw.url}
+        title={kw.url ?? undefined}
       >
         {kw.url ? (
           <a
@@ -336,7 +370,7 @@ function KeywordTable({
   showIrrelevantAction,
   hideSearch,
 }: {
-  keywords: any[];
+  keywords: SeoKeywordRow[];
   title: string;
   icon: React.ReactNode;
   show3Month?: boolean;
@@ -477,7 +511,7 @@ function KeywordClustersPanel({
   onMarkIrrelevant,
   showIrrelevantAction,
 }: {
-  clusters: KeywordCluster<any>[];
+  clusters: KeywordCluster<SeoKeywordRow>[];
   show3Month?: boolean;
   showYearly?: boolean;
   showPrevMonth?: boolean;
@@ -641,8 +675,8 @@ export function SeoKeywordsTable({
     onLangFilterChange?.(next);
   };
 
-  const dedupeByKeyword = (rows: any[]): any[] => {
-    const groups = new Map<string, any[]>();
+  const dedupeByKeyword = (rows: SeoKeywordRow[]): SeoKeywordRow[] => {
+    const groups = new Map<string, SeoKeywordRow[]>();
     for (const r of rows) {
       const key = String(r?.keyword || "")
         .trim()
@@ -651,7 +685,7 @@ export function SeoKeywordsTable({
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(r);
     }
-    const mergeFields = [
+    const mergeFields: (keyof SeoKeywordRow)[] = [
       "position",
       "position_prev_month",
       "position_3month",
@@ -667,7 +701,7 @@ export function SeoKeywordsTable({
       "_position_source",
       "_source",
     ];
-    const out: any[] = [];
+    const out: SeoKeywordRow[] = [];
     for (const [, variants] of groups) {
       const sorted = [...variants].sort((a, b) => {
         const ap = a.position ?? Number.POSITIVE_INFINITY;
@@ -681,13 +715,7 @@ export function SeoKeywordsTable({
       const best = { ...sorted[0] };
       for (let i = 1; i < sorted.length; i++) {
         for (const f of mergeFields) {
-          if (
-            (best[f] == null || best[f] === "") &&
-            sorted[i][f] != null &&
-            sorted[i][f] !== ""
-          ) {
-            best[f] = sorted[i][f];
-          }
+          fillBlankField(best, sorted[i], f);
         }
       }
       out.push(best);
@@ -703,11 +731,9 @@ export function SeoKeywordsTable({
   // Local "extra tracked" from force-relevant marks (so they also appear under במעקב)
   const localExtraTracked = useMemo(() => {
     const trackedNames = new Set(
-      dedupedTrackedKeywords.map((k: any) =>
-        normalizeKw(String(k.keyword || "")),
-      ),
+      dedupedTrackedKeywords.map((k) => normalizeKw(String(k.keyword || ""))),
     );
-    const extras: any[] = [];
+    const extras: SeoKeywordRow[] = [];
     for (const phrase of forceRelevant) {
       const key = normalizeKw(phrase);
       if (!key || trackedNames.has(key)) continue;
@@ -731,7 +757,7 @@ export function SeoKeywordsTable({
   const mergedKeywords = useMemo(() => {
     const allKeywords = [...effectiveTracked];
     const trackedNames = new Set(
-      effectiveTracked.map((k: any) => String(k.keyword || "").toLowerCase()),
+      effectiveTracked.map((k) => String(k.keyword || "").toLowerCase()),
     );
     for (const kw of keywords) {
       if (!trackedNames.has(String(kw.keyword || "").toLowerCase())) {
@@ -739,7 +765,7 @@ export function SeoKeywordsTable({
       }
     }
     const allNames = new Set(
-      allKeywords.map((k: any) => String(k.keyword || "").toLowerCase()),
+      allKeywords.map((k) => String(k.keyword || "").toLowerCase()),
     );
     for (const kw of gscOnlyKeywords) {
       if (!allNames.has(String(kw.keyword || "").toLowerCase())) {
@@ -833,10 +859,10 @@ export function SeoKeywordsTable({
     forceIrrelevantSet,
   ]);
 
-  const keywordRank = (k: any): number | null =>
+  const keywordRank = (k: SeoKeywordRow): number | null =>
     keywordDisplayPosition(k)?.position ?? null;
 
-  const sortByPosition = (arr: any[]) =>
+  const sortByPosition = (arr: SeoKeywordRow[]) =>
     [...arr].sort((a, b) => {
       const aPos = keywordRank(a) ?? Number.POSITIVE_INFINITY;
       const bPos = keywordRank(b) ?? Number.POSITIVE_INFINITY;

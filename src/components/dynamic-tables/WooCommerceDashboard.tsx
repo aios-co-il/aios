@@ -38,6 +38,7 @@ import {
   sumWooRevenue,
   wooOrderRevenueTimestamp,
 } from "@/lib/wooOrderRevenue";
+import { asJsonObject } from "@/types/dashboard-b18";
 
 interface Props {
   clientId: string;
@@ -69,18 +70,18 @@ export function WooCommerceDashboard({
     queryKey: ["woo-sites-for-client", clientId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("id, site_name, site_url, woo_last_sync_at")
         .eq("client_id", clientId)
         .eq("woocommerce_enabled", true)
         .eq("is_active", true);
       if (error) throw error;
-      return data as any[];
+      return data;
     },
     enabled: !!clientId,
   });
 
-  const siteIds = sites.map((s: any) => s.id);
+  const siteIds = sites.map((s) => s.id);
   const wooDateRange = getWooDashboardDateRangeIso(dateFilter, {
     customFrom,
     customTo,
@@ -111,12 +112,12 @@ export function WooCommerceDashboard({
     const valid = filterWooOrdersForRevenue(orders, wooDateRange);
     const totalRevenue = sumWooRevenue(valid);
     const orderCount = valid.length;
-    const cancelledCount = orders.filter((o: any) =>
-      ["cancelled", "refunded", "failed"].includes(o.status),
+    const cancelledCount = orders.filter((o) =>
+      ["cancelled", "refunded", "failed"].includes(o.status ?? ""),
     ).length;
     const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
     const uniqueCustomers = new Set(
-      valid.map((o: any) => o.customer_email).filter(Boolean),
+      valid.map((o) => o.customer_email).filter(Boolean),
     ).size;
     return {
       totalRevenue,
@@ -133,7 +134,7 @@ export function WooCommerceDashboard({
       string,
       { date: string; revenue: number; orders: number }
     > = {};
-    filterWooOrdersForRevenue(orders, wooDateRange).forEach((o: any) => {
+    filterWooOrdersForRevenue(orders, wooDateRange).forEach((o) => {
       const ts = wooOrderRevenueTimestamp(o);
       if (!ts) return;
       const d = new Date(ts).toISOString().slice(0, 10);
@@ -149,10 +150,11 @@ export function WooCommerceDashboard({
       string,
       { name: string; quantity: number; revenue: number }
     > = {};
-    filterWooOrdersForRevenue(orders, wooDateRange).forEach((o: any) => {
+    filterWooOrdersForRevenue(orders, wooDateRange).forEach((o) => {
       const items = Array.isArray(o.line_items) ? o.line_items : [];
-      items.forEach((item: any) => {
-        const name = item.name || "מוצר ללא שם";
+      items.forEach((lineItem) => {
+        const item = asJsonObject(lineItem);
+        const name = String(item.name || "מוצר ללא שם");
         if (!map[name]) map[name] = { name, quantity: 0, revenue: 0 };
         map[name].quantity += Number(item.quantity || 0);
         map[name].revenue += Number(item.total || 0);
@@ -257,7 +259,7 @@ export function WooCommerceDashboard({
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip
-                  formatter={(value: any, name: string) =>
+                  formatter={(value: unknown, name: string) =>
                     name === "revenue"
                       ? formatCurrency(Number(value))
                       : formatNumber(Number(value))
@@ -344,11 +346,11 @@ export function WooCommerceDashboard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.slice(0, 50).map((o: any) => (
+              {orders.slice(0, 50).map((o) => (
                 <TableRow key={o.id}>
                   <TableCell>#{o.order_number}</TableCell>
                   <TableCell>
-                    {new Date(o.date_created).toLocaleDateString("he-IL")}
+                    {new Date(o.date_created ?? 0).toLocaleDateString("he-IL")}
                   </TableCell>
                   <TableCell>
                     {[o.customer_first_name, o.customer_last_name]
@@ -363,7 +365,7 @@ export function WooCommerceDashboard({
                   <TableCell>
                     <Badge
                       variant={
-                        ["completed", "processing"].includes(o.status)
+                        ["completed", "processing"].includes(o.status ?? "")
                           ? "default"
                           : "secondary"
                       }

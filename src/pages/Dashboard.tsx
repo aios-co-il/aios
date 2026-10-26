@@ -459,13 +459,13 @@ export default function Dashboard() {
               .select("client_id, retainer")
               .eq("tenant_id", tenantId)
               .in("client_id", activeClientIds)
-          : Promise.resolve({ data: null as any }),
+          : Promise.resolve({ data: null }),
         activeClientIds.length > 0
           ? supabase
               .from("client_team")
               .select("campaigner_payment, client_id")
               .in("client_id", activeClientIds)
-          : Promise.resolve({ data: null as any }),
+          : Promise.resolve({ data: null }),
       ]);
 
       const financeIncome =
@@ -480,7 +480,7 @@ export default function Dashboard() {
       // Retainers: prefer client_tenant_financial_data when exists, fallback to legacy clients.retainer
       const hasFinancialRow = new Set<string>();
       const retainerByClient = new Map<string, number>();
-      (retainersData || []).forEach((row: any) => {
+      (retainersData || []).forEach((row) => {
         hasFinancialRow.add(row.client_id);
         retainerByClient.set(row.client_id, Number(row.retainer || 0));
       });
@@ -491,7 +491,7 @@ export default function Dashboard() {
       }, 0);
 
       let manualSupplierPayments = 0;
-      suppliersData?.forEach((supplier: any) => {
+      suppliersData?.forEach((supplier) => {
         if (selectedAgency === "all") {
           manualSupplierPayments +=
             Number(supplier.payment_1 || 0) +
@@ -508,7 +508,7 @@ export default function Dashboard() {
       });
 
       const campaignerPayments = (clientTeamPaymentsData || []).reduce(
-        (sum: number, ct: any) => sum + Number(ct.campaigner_payment || 0),
+        (sum, ct) => sum + Number(ct.campaigner_payment || 0),
         0,
       );
 

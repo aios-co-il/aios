@@ -69,6 +69,7 @@ import {
   downloadPdfBlob,
 } from "@/lib/seoMonthlyPdf";
 import { archiveSeoMonthlyPdf } from "@/lib/seoMonthlyPdfArchive";
+import { thrownCode, thrownMessage } from "@/types/dashboard-b18";
 
 type Props = {
   clientId: string;
@@ -77,6 +78,11 @@ type Props = {
 };
 
 const SHARE_ORIGIN = "https://aios.co.il";
+
+const SEO_MONTHLY_STATUSES = ["up", "stable", "down"] as const;
+type SeoMonthlyStatus = (typeof SEO_MONTHLY_STATUSES)[number];
+const isSeoMonthlyStatus = (value: string): value is SeoMonthlyStatus =>
+  SEO_MONTHLY_STATUSES.some((status) => status === value);
 
 export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const { tenantId: currentTenantId } = useCurrentTenant();
@@ -105,7 +111,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       monthOptions[0]?.value ||
       format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"),
   );
-  const [status, setStatus] = useState<"up" | "stable" | "down">("stable");
+  const [status, setStatus] = useState<SeoMonthlyStatus>("stable");
   const [work, setWork] = useState<SeoMonthlyWork>(emptySeoMonthlyWork());
   const [dirty, setDirty] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -140,7 +146,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   } = useQuery({
     queryKey: ["seo-monthly-work", clientId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("id, month, status, notes, work, tenant_id")
         .eq("client_id", clientId)
@@ -199,7 +205,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
 
   const reportDomain = useMemo(
     () =>
-      (ownDomainReports[0] as any)?.domain ||
+      ownDomainReports[0]?.domain ||
       client?.website ||
       expectedDomain ||
       undefined,
@@ -213,7 +219,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const { data: monthsWithWork } = useQuery({
     queryKey: ["seo-monthly-months", clientId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("month")
         .eq("client_id", clientId)
@@ -237,7 +243,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         startOfMonth(subMonths(new Date(`${selectedMonth}T12:00:00`), 2)),
         "yyyy-MM-dd",
       );
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("month, work")
         .eq("client_id", clientId)
@@ -315,7 +321,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const { data: existingShare } = useQuery({
     queryKey: ["seo-monthly-share", clientId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_shares")
         .select("share_token, is_active, updated_at")
         .eq("client_id", clientId)
@@ -367,20 +373,18 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         row?.tenant_id || client?.tenant_id || tenantId || "";
       if (!saveTenantId) throw new Error("חסר טננט לשמירה");
       const cleaned = sanitizeSeoMonthlyWork(work);
-      const { error } = await (supabase as any)
-        .from("seo_monthly_updates")
-        .upsert(
-          {
-            client_id: clientId,
-            tenant_id: saveTenantId,
-            month: selectedMonth,
-            status,
-            notes: cleaned.summary || null,
-            work: cleaned,
-            updated_by: user.id,
-          },
-          { onConflict: "client_id,month" },
-        );
+      const { error } = await supabase.from("seo_monthly_updates").upsert(
+        {
+          client_id: clientId,
+          tenant_id: saveTenantId,
+          month: selectedMonth,
+          status,
+          notes: cleaned.summary || null,
+          work: cleaned,
+          updated_by: user.id,
+        },
+        { onConflict: "client_id,month" },
+      );
       if (error) throw error;
       return cleaned;
     },
@@ -419,7 +423,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         }
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       const msg = String(err?.message || "");
       if (
         msg.includes("work") &&
@@ -536,7 +540,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
     });
 
     if (existingShare?.share_token) {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("seo_monthly_shares")
         .update({
           snapshot: frozen,
@@ -556,7 +560,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       defaultPrefix: "seo",
     });
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("seo_monthly_shares")
       .insert({
         tenant_id: tenantId,
@@ -570,7 +574,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       .select("share_token")
       .single();
     if (error) throw error;
-    return (data as any).share_token as string;
+    return data.share_token;
   };
 
   const buildAndArchivePdf = async (): Promise<Blob> => {
@@ -605,12 +609,12 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
           returnTo: `${location.pathname}${location.search}${location.hash}`,
         },
       });
-    } catch (err: any) {
-      const msg = String(err?.message || "");
+    } catch (err) {
+      const msg = String(thrownMessage(err) || "");
       if (
         msg.includes("seo_monthly_shares") ||
         msg.includes("schema cache") ||
-        err?.code === "42P01"
+        thrownCode(err) === "42P01"
       ) {
         toast.error(
           "טבלת השיתוף עדיין לא קיימת בפרודקשן — צריך להריץ את המיגרציה seo_monthly_shares",
@@ -634,12 +638,12 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         queryKey: ["seo-monthly-share", clientId, selectedMonth],
       });
       toast.success("קישור השיתוף הועתק — נפתח תמיד עם העדכונים האחרונים");
-    } catch (err: any) {
-      const msg = String(err?.message || "");
+    } catch (err) {
+      const msg = String(thrownMessage(err) || "");
       if (
         msg.includes("seo_monthly_shares") ||
         msg.includes("schema cache") ||
-        err?.code === "42P01"
+        thrownCode(err) === "42P01"
       ) {
         toast.error(
           "טבלת השיתוף עדיין לא קיימת בפרודקשן — צריך להריץ את המיגרציה seo_monthly_shares",
@@ -663,9 +667,12 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       const pdf = await buildAndArchivePdf();
       downloadPdfBlob(pdf, filename);
       toast.success("ה־PDF הורד ונשמר אוטומטית בקבצי הלקוח");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err?.message || "שגיאה ביצוא PDF");
+      const message = thrownMessage(err);
+      toast.error(
+        typeof message === "string" && message ? message : "שגיאה ביצוא PDF",
+      );
     } finally {
       setExportingPdf(false);
     }
@@ -699,7 +706,8 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
               <Select
                 value={status}
                 onValueChange={(v) => {
-                  setStatus(v as any);
+                  if (!isSeoMonthlyStatus(v)) return;
+                  setStatus(v);
                   setDirty(true);
                 }}
               >

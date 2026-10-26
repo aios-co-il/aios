@@ -29,6 +29,7 @@ import {
   useTableDialogAgencies,
 } from "@/hooks/useAgencyClients";
 import { Loader2, AlertCircle, Music2 } from "lucide-react";
+import { asJsonObject } from "@/types/dashboard-b18";
 
 interface Props {
   open: boolean;
@@ -93,7 +94,7 @@ export function TikTokTableDialog({
   }, [agencyId]);
 
   const connected = !!integration?.is_active;
-  const account = (integration?.settings as any) || {};
+  const account = asJsonObject(integration?.settings);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -142,7 +143,7 @@ export function TikTokTableDialog({
       handleClose();
       navigate(buildPath(`/table/${data.slug}`));
     },
-    onError: (e: any) => toast.error("שגיאה ביצירת הטבלה: " + e?.message),
+    onError: (e: Error) => toast.error("שגיאה ביצירת הטבלה: " + e?.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -207,7 +208,12 @@ export function TikTokTableDialog({
           <form onSubmit={handleSubmit} className="space-y-4">
             <Alert>
               <AlertDescription>
-                החשבון המחובר: <strong>{account.display_name}</strong>
+                החשבון המחובר:{" "}
+                <strong>
+                  {typeof account.display_name === "object"
+                    ? null
+                    : account.display_name}
+                </strong>
               </AlertDescription>
             </Alert>
 
