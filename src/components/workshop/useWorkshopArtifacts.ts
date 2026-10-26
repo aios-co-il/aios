@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
@@ -65,23 +65,27 @@ export function useWorkshopArtifacts(
 
   return useQuery({
     queryKey,
-    enabled: !!tenantId && !!projectId,
-    queryFn: async (): Promise<WorkshopArtifact[]> => {
-      const { data, error } = await supabase
-        .from("workshop_artifacts" as never)
-        .select(COLUMNS)
-        .eq("tenant_id", tenantId!)
-        .eq("item_id", projectId!)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      const rows = await clearFailures(
-        tenantId!,
-        (data ?? []) as unknown as WorkshopArtifact[],
-      );
-      const paths = storagePathsIn(rows);
-      if (paths.length === 0) return rows;
-      const signed = await signCreativeVideoPaths(paths).catch(() => ({}));
-      return withSignedUrls(rows, signed);
-    },
+    queryFn:
+      tenantId && projectId
+        ? async (): Promise<WorkshopArtifact[]> => {
+            const { data, error } = await supabase
+              .from("workshop_artifacts" as never)
+              .select(COLUMNS)
+              .eq("tenant_id", tenantId)
+              .eq("item_id", projectId)
+              .order("created_at", { ascending: true });
+            if (error) throw error;
+            const rows = await clearFailures(
+              tenantId,
+              (data ?? []) as unknown as WorkshopArtifact[],
+            );
+            const paths = storagePathsIn(rows);
+            if (paths.length === 0) return rows;
+            const signed = await signCreativeVideoPaths(paths).catch(
+              () => ({}),
+            );
+            return withSignedUrls(rows, signed);
+          }
+        : skipToken,
   });
 }

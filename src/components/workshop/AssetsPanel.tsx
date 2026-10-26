@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ExternalLink,
   FileText,
@@ -184,7 +184,6 @@ export function AssetsPanel({
   const [linkTitle, setLinkTitle] = useState("");
   const [text, setText] = useState("");
   const [textTitle, setTextTitle] = useState("");
-  const [busy, setBusy] = useState(false);
 
   const rows = assets;
   const sections = groupAssets(rows);
@@ -205,34 +204,28 @@ export function AssetsPanel({
     if (error) throw error;
   };
 
-  const run = async (work: () => Promise<void>, failure: string) => {
-    if (!tenantId) return;
-    setBusy(true);
-    try {
-      await work();
-      await refresh();
-    } catch {
-      toast.error(failure);
-    } finally {
-      setBusy(false);
-    }
+  const change = useMutation({
+    mutationFn: ({ task }: { task: () => Promise<void>; failure: string }) =>
+      task(),
+    onSuccess: refresh,
+    onError: (_error, { failure }) => toast.error(failure),
+  });
+  const busy = change.isPending;
+  const run = (task: () => Promise<void>, failure: string) => {
+    if (tenantId) change.mutate({ task, failure });
   };
 
   const upload = (files: FileList | null) => {
-    if (!files?.length) return;
+    const owner = tenantId;
+    if (!files?.length || !owner) return;
     const list = Array.from(files);
-    void run(async () => {
+    run(async () => {
       for (const file of list) {
         if (file.size > MAX_UPLOAD_BYTES) {
           toast.error(`הקובץ ${file.name} גדול מ-10MB`);
           continue;
         }
-        const path = assetStoragePath(
-          tenantId!,
-          projectId,
-          file.name,
-          Date.now(),
-        );
+        const path = assetStoragePath(owner, projectId, file.name, Date.now());
         const { error } = await supabase.storage
           .from(ASSET_BUCKET)
           .upload(path, file);
@@ -259,7 +252,7 @@ export function AssetsPanel({
       toast.error("הקישור לא תקין");
       return;
     }
-    void run(async () => {
+    run(async () => {
       await insert({
         asset_type: "link",
         title: linkTitle.trim() || hostLabel(url),
@@ -274,7 +267,7 @@ export function AssetsPanel({
   const addText = () => {
     const body = text.trim();
     if (!body) return;
-    void run(async () => {
+    run(async () => {
       await insert({
         asset_type: "text",
         title: textTitle.trim() || "בריף",
@@ -287,7 +280,7 @@ export function AssetsPanel({
   };
 
   const toggleReference = (asset: WorkshopAsset) =>
-    void run(async () => {
+    run(async () => {
       const { error } = await supabase
         .from("workshop_assets" as never)
         .update({ use_as_reference: !asset.use_as_reference } as never)
@@ -296,7 +289,7 @@ export function AssetsPanel({
     }, "לא הצלחנו לעדכן את הרפרנס");
 
   const remove = (asset: WorkshopAsset) =>
-    void run(async () => {
+    run(async () => {
       const { error } = await supabase
         .from("workshop_assets" as never)
         .delete()

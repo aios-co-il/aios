@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
@@ -58,18 +63,19 @@ export default function CarmenWorkshop() {
 
   const projects = useQuery({
     queryKey: ["carmen-workshop-projects", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<ProjectRow[]> => {
-      const { data, error } = await supabase
-        .from("marketing_work_items")
-        .select("id,title,status,updated_at,client_id,payload")
-        .eq("tenant_id", tenantId!)
-        .neq("status", "archived")
-        .order("updated_at", { ascending: false })
-        .limit(40);
-      if (error) throw error;
-      return (data ?? []) as unknown as ProjectRow[];
-    },
+    queryFn: tenantId
+      ? async (): Promise<ProjectRow[]> => {
+          const { data, error } = await supabase
+            .from("marketing_work_items")
+            .select("id,title,status,updated_at,client_id,payload")
+            .eq("tenant_id", tenantId)
+            .neq("status", "archived")
+            .order("updated_at", { ascending: false })
+            .limit(40);
+          if (error) throw error;
+          return (data ?? []) as unknown as ProjectRow[];
+        }
+      : skipToken,
   });
 
   const selected = blank
@@ -78,52 +84,63 @@ export default function CarmenWorkshop() {
       projects.data?.[0] ??
       null);
 
-  const assignClient = async (clientId: string | null) => {
-    if (!selected) return;
-    const { error } = await supabase.rpc(
-      "workshop_assign_client" as never,
-      {
-        p_item_id: selected.id,
-        p_client_id: clientId,
-      } as never,
-    );
-    if (error) {
-      toast.error("לא הצלחנו לשייך את הפרויקט ללקוח");
-      return;
-    }
-    const synced = await syncClientAssets(
-      supabase,
-      { tenantId: tenantId!, itemId: selected.id, clientId },
-      (path) =>
-        supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data.publicUrl,
-    );
-    if (synced.error) toast.error("הפרויקט שויך, אך הנכסים של הלקוח לא נטענו");
-    else if (clientId)
-      toast.success(
-        synced.added > 0
-          ? `הפרויקט שויך ללקוח, ו-${synced.added} נכסים שלו נוספו ללשונית הנכסים`
-          : "הפרויקט שויך ללקוח",
+  const assign = useMutation({
+    mutationFn: async ({
+      itemId,
+      clientId,
+    }: {
+      itemId: string;
+      clientId: string | null;
+    }) => {
+      const { error } = await supabase.rpc(
+        "workshop_assign_client" as never,
+        { p_item_id: itemId, p_client_id: clientId } as never,
       );
-    else toast.success("השיוך ללקוח הוסר");
-    await queryClient.invalidateQueries({
-      queryKey: ["workshop-assets", tenantId, selected.id],
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ["carmen-workshop-projects", tenantId],
-    });
+      if (error) throw error;
+      const synced = await syncClientAssets(
+        supabase,
+        { tenantId: tenantId ?? "", itemId, clientId },
+        (path) =>
+          supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data.publicUrl,
+      );
+      return { itemId, clientId, synced };
+    },
+    onError: () => toast.error("לא הצלחנו לשייך את הפרויקט ללקוח"),
+    onSuccess: ({ itemId, clientId, synced }) => {
+      if (synced.error)
+        toast.error("הפרויקט שויך, אך הנכסים של הלקוח לא נטענו");
+      else if (clientId)
+        toast.success(
+          synced.added > 0
+            ? `הפרויקט שויך ללקוח, ו-${synced.added} נכסים שלו נוספו ללשונית הנכסים`
+            : "הפרויקט שויך ללקוח",
+        );
+      else toast.success("השיוך ללקוח הוסר");
+      void queryClient.invalidateQueries({
+        queryKey: ["workshop-assets", tenantId, itemId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["carmen-workshop-projects", tenantId],
+      });
+    },
+  });
+  const assignClient = (clientId: string | null) => {
+    if (selected && tenantId) assign.mutate({ itemId: selected.id, clientId });
   };
 
+  const selectedClientId = selected?.client_id ?? null;
   const client = useQuery({
-    queryKey: ["carmen-workshop-client", selected?.client_id],
-    enabled: !!selected?.client_id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("clients")
-        .select("name")
-        .eq("id", selected!.client_id!)
-        .maybeSingle();
-      return (data?.name as string | undefined) ?? null;
-    },
+    queryKey: ["carmen-workshop-client", selectedClientId],
+    queryFn: selectedClientId
+      ? async () => {
+          const { data } = await supabase
+            .from("clients")
+            .select("name")
+            .eq("id", selectedClientId)
+            .maybeSingle();
+          return (data?.name as string | undefined) ?? null;
+        }
+      : skipToken,
   });
   const clientName = selected?.client_id ? (client.data ?? null) : null;
 
@@ -180,7 +197,7 @@ export default function CarmenWorkshop() {
             <ClientSelector
               tenantId={tenantId}
               value={selected.client_id}
-              onChange={(id) => void assignClient(id)}
+              onChange={assignClient}
               allowGeneral
               generalLabel="ללא לקוח"
             />

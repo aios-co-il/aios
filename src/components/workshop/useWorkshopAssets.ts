@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveCreativeImageUrl } from "@/components/marketing/lib/resolveCreativeImageUrl";
 import { ASSET_BUCKET } from "../../../supabase/functions/_shared/workshop/assets.ts";
@@ -62,18 +62,20 @@ export function useWorkshopAssets(
 
   return useQuery({
     queryKey: workshopAssetsKey(tenantId, projectId),
-    enabled: !!tenantId && !!projectId,
-    queryFn: async (): Promise<WorkshopAsset[]> => {
-      const { data, error } = await supabase
-        .from("workshop_assets" as never)
-        .select(COLUMNS)
-        .eq("tenant_id", tenantId!)
-        .eq("item_id", projectId!)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return Promise.all(
-        ((data ?? []) as unknown as WorkshopAsset[]).map(viewable),
-      );
-    },
+    queryFn:
+      tenantId && projectId
+        ? async (): Promise<WorkshopAsset[]> => {
+            const { data, error } = await supabase
+              .from("workshop_assets" as never)
+              .select(COLUMNS)
+              .eq("tenant_id", tenantId)
+              .eq("item_id", projectId)
+              .order("created_at", { ascending: true });
+            if (error) throw error;
+            return Promise.all(
+              ((data ?? []) as unknown as WorkshopAsset[]).map(viewable),
+            );
+          }
+        : skipToken,
   });
 }
