@@ -1,7 +1,6 @@
 import type { Json } from "../_shared/database.types.ts";
 import { isObject, jsonObject } from "./json-config.ts";
-import type { WaNotifyTarget } from "./tool-contracts-crm.ts";
-import { readWaNotifyTarget } from "./wa-notify.ts";
+import { readWaNotifyTarget, type WaNotifyTarget } from "./wa-notify.ts";
 
 export type JsonRecord = { [key: string]: Json | undefined };
 

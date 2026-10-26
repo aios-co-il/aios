@@ -1,5 +1,8 @@
-import type { WaNotifyTarget } from "./tool-contracts-crm.ts";
+import type { SpawnSubagentParams } from "../_shared/subagent.ts";
 import { isObject } from "./json-config.ts";
+
+/** Originating WhatsApp chat, forwarded to reminders and subagents. */
+export type WaNotifyTarget = NonNullable<SpawnSubagentParams["notify"]>;
 
 function nullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
