@@ -360,7 +360,7 @@ async function handleRpcMessage(
           tools: ctx.grokMode ? compactToolsForGrok(TOOLS) : TOOLS,
         });
       case "tools/call": {
-        const toolName = params?.name as string;
+        const toolName = typeof params?.name === "string" ? params.name : "";
         const rawArgs = params?.arguments ?? {};
         const toolArgs = isRecord(rawArgs) ? rawArgs : {};
         try {

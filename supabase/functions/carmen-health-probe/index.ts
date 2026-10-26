@@ -2,6 +2,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { Database } from "../_shared/database.types.ts";
 import {
   buildHealthWhatsAppDigest,
   buildPulseDashboardAbsoluteUrl,
@@ -25,6 +26,7 @@ import {
   notifyRecallCreditRecovered,
 } from "../_shared/recall-credit-alert.ts";
 import { probeMcp, resyncInternalMcpBearer } from "../_shared/mcp-bearer.ts";
+import { jsonObject } from "../_shared/json-narrow.ts";
 
 // Periodic infrastructure health probe for the Carmen Command Center.
 // Invoked by pg_cron (see migration 20260722160000_service_health_checks.sql).
@@ -98,7 +100,7 @@ function isAccountConnected(table: CampaignTableLike): boolean {
 }
 
 async function buildTenantHealthDigest(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   tenantId: string,
   checks: CheckRow[],
 ): Promise<string> {
@@ -116,10 +118,8 @@ async function buildTenantHealthDigest(
   ]);
   const agencyIds = Array.from(
     new Set([
-      ...(ownedAgencies || []).map((agency: { id: string }) => agency.id),
-      ...(sharedAgencies || []).map(
-        (agency: { agency_id: string }) => agency.agency_id,
-      ),
+      ...(ownedAgencies || []).map((agency) => agency.id),
+      ...(sharedAgencies || []).map((agency) => agency.agency_id),
     ]),
   );
   const { data: allClients } = await supabase
@@ -145,7 +145,10 @@ async function buildTenantHealthDigest(
         .in("client_id", clientIds)
         .in("integration_type", CAMPAIGN_TABLE_TYPES)
     : { data: [] };
-  const tableRows: HealthTable[] = allTables || [];
+  const tableRows: HealthTable[] = (allTables || []).map((table) => ({
+    ...table,
+    integration_settings: jsonObject(table.integration_settings),
+  }));
 
   let issueCount = 0;
   let activeConnections = 0;
@@ -228,7 +231,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabase = createClient(
+  const supabase = createClient<Database>(
     supabaseUrl,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
@@ -286,7 +289,9 @@ Deno.serve(async (req) => {
         detail = "Cursor MCP connection missing";
         status = "down";
       } else {
-        const bearer = row.oauth_tokens?.bearer as string | undefined;
+        const storedBearer = jsonObject(row.oauth_tokens).bearer;
+        const bearer =
+          typeof storedBearer === "string" ? storedBearer : undefined;
         let probe = await probeMcp(row.url, bearer);
         if (probe.state !== "ready") {
           const resynced = await resyncInternalMcpBearer(supabase, row);
@@ -445,28 +450,30 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
       const budget = Number(
-        (llmRow?.settings as Record<string, unknown>)?.monthly_budget_usd ?? 0,
+        jsonObject(llmRow?.settings).monthly_budget_usd ?? 0,
       );
       if (budget > 0) {
         const monthStart = new Date();
         monthStart.setUTCDate(1);
         monthStart.setUTCHours(0, 0, 0, 0);
         const since = monthStart.toISOString();
-        const sumOf = async (table: string, col: string) => {
+        const sumOf = async (
+          table: "ai_usage_log" | "agent_action_log" | "marketing_runs",
+        ) => {
           const { data } = await supabase
             .from(table)
-            .select(col)
+            .select("cost_usd")
             .gte("created_at", since)
             .limit(20000);
           return (data ?? []).reduce(
-            (s: number, r: Record<string, unknown>) => s + Number(r[col] ?? 0),
+            (s: number, r) => s + Number(r.cost_usd ?? 0),
             0,
           );
         };
         const spent =
-          (await sumOf("ai_usage_log", "cost_usd")) +
-          (await sumOf("agent_action_log", "cost_usd")) +
-          (await sumOf("marketing_runs", "cost_usd"));
+          (await sumOf("ai_usage_log")) +
+          (await sumOf("agent_action_log")) +
+          (await sumOf("marketing_runs"));
         const pct = (spent / budget) * 100;
         for (const [threshold, type] of [
           [95, "budget_95"],
@@ -725,7 +732,12 @@ Deno.serve(async (req) => {
     const prevQuota = recentQuota?.[0] ?? null;
     const runCanary =
       recallApi.status === "ok" &&
-      shouldRunRecallCreditCanary(recentQuota ?? []);
+      shouldRunRecallCreditCanary(
+        (recentQuota ?? []).map((row) => ({
+          ...row,
+          detail: row.detail ?? "",
+        })),
+      );
 
     let quota: CheckRow = {
       tenant_id: null,
@@ -860,9 +872,9 @@ Deno.serve(async (req) => {
       const delivery = await supabase.rpc("claude_notify_david", {
         p_message: digest,
         p_tenant: setting.tenant_id,
-        p_chat_id: setting.campaign_pulse_phone || null,
+        p_chat_id: setting.campaign_pulse_phone || undefined,
       });
-      const sent = !delivery.error && delivery.data?.queued === true;
+      const sent = !delivery.error && jsonObject(delivery.data).queued === true;
       deliveries.push({
         tenant_id: setting.tenant_id,
         sent,

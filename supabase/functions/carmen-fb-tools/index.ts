@@ -5,7 +5,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import type { Json } from "../_shared/database.types.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
 import {
   jsonObject,
   type JsonObject,
@@ -28,7 +28,7 @@ const corsHeaders = {
 const FB_VERSION = "v21.0";
 
 async function getFbToken(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -53,7 +53,7 @@ async function getFbToken(
 
 /** Prefer client-owning tenant token (shared/partner orgs), then caller tenant. */
 async function resolveFbToken(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
   client_id?: string | null,
 ): Promise<string | null> {
@@ -72,7 +72,7 @@ async function resolveFbToken(
 }
 
 async function getClientAdAccount(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
   client_id: string,
 ): Promise<string | null> {
@@ -92,7 +92,7 @@ async function getClientAdAccount(
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .order("last_sync_at", { ascending: false, nullsFirst: false });
   for (const t of tables || []) {
-    const s = t?.integration_settings || {};
+    const s = jsonObject(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
     if (acc) return String(acc).replace(/^act_/, "");
   }
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenant_id)
           .maybeSingle();
         if (!media) return err("media_not_found");
-        if (!media.ad_ready && !/^image|^video/.test(media.mime_type))
+        if (!/^image|^video/.test(media.mime_type))
           return err("media_not_ad_ready");
 
         // Get signed URL to download from our bucket then upload to FB.
@@ -361,13 +361,13 @@ Deno.serve(async (req) => {
           .from("marketing_media_library")
           .update({
             usage_count:
-              (
+              ((
                 await supabase
                   .from("marketing_media_library")
                   .select("usage_count")
                   .eq("id", media_id)
                   .single()
-              ).data?.usage_count + 1 || 1,
+              ).data?.usage_count ?? 0) + 1 || 1,
           })
           .eq("id", media_id);
 

@@ -4,6 +4,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Database } from "../_shared/database.types.ts";
 import { type JsonObject, thrownMessage } from "../_shared/json-narrow.ts";
 
 const corsHeaders = {
@@ -25,7 +26,7 @@ type GadsAuth = {
 };
 
 async function getGadsAuth(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
 ): Promise<GadsAuth | null> {
   const { data } = await supabase
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );

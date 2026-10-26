@@ -158,7 +158,8 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
         return rpcResult(id, { tools: await listTools(ctx) });
       case "tools/call": {
         const name = String(params?.name || "");
-        const args = params?.arguments ?? {};
+        const rawArgs = params?.arguments;
+        const args = isRecord(rawArgs) ? rawArgs : {};
         try {
           const data = await runDirect(ctx, { action: "call", name, args });
           const result = data.result;
