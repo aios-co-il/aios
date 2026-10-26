@@ -7,7 +7,12 @@ import { mcpRequestDevTask } from "./cursor-task-queue.ts";
 import {
   trackCursorTaskSession,
   cursorSessionDisplayName,
+  linkCursorSessionToDevTask,
 } from "./cursor-session-tracker.ts";
+import type { Json, TablesUpdate } from "./database.types.ts";
+import { jsonField, toJson } from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
 
 export const DEV_TASK_STATUSES = [
   "draft",
@@ -160,7 +165,7 @@ function isDispatchTimeoutError(message: string): boolean {
 
 /** After a dispatch tool error, verify Cursor actually received the task via durable logs. */
 export async function reconcileDevTaskCursorDelivery(
-  supabase: { from: (t: string) => any },
+  supabase: UntypedSchemaClient,
   args: {
     tenantId: string;
     taskId: string;
@@ -176,8 +181,9 @@ export async function reconcileDevTaskCursorDelivery(
   return null;
 }
 
+/** cursor_task_sessions is missing from the generated schema. */
 async function tryReconcileDevTaskCursorDeliveryOnce(
-  supabase: { from: (t: string) => any },
+  supabase: UntypedSchemaClient,
   args: {
     tenantId: string;
     taskId: string;
@@ -346,7 +352,7 @@ export function buildDevTaskPrompt(task: DevTaskRow): {
 }
 
 export async function logDevTaskEvent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     devTaskId: string;
     tenantId: string;
@@ -362,12 +368,12 @@ export async function logDevTaskEvent(
     event_type: args.eventType,
     actor: args.actor ?? "system",
     actor_user_id: args.actorUserId ?? null,
-    detail: args.detail ?? {},
+    detail: toJson(args.detail ?? {}),
   });
 }
 
 export async function findDuplicateDevTasks(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   title: string,
   threshold = 0.5,
@@ -381,16 +387,16 @@ export async function findDuplicateDevTasks(
     .limit(50);
   if (error) throw error;
   return (data || [])
-    .map((row: DevTaskRow) => ({
-      task: row,
+    .map((row) => ({
+      task: row as DevTaskRow,
       score: titleSimilarity(title, row.title),
     }))
-    .filter((x: { score: number }) => x.score >= threshold)
-    .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+    .filter((x) => x.score >= threshold)
+    .sort((a, b) => b.score - a.score);
 }
 
 export async function createDevTask(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     brief: DevTaskBrief;
@@ -444,7 +450,7 @@ export async function createDevTask(
 }
 
 export async function approveDevTask(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   taskId: string,
   userId: string,
@@ -484,7 +490,7 @@ export function extractClaudeSessionUrl(text: string): string {
  * (the task's agent-session link column); cursor_session_id stays empty.
  */
 async function dispatchDevTaskToClaude(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   task: DevTaskRow,
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
 ): Promise<DispatchDevTaskResult> {
@@ -533,17 +539,18 @@ async function dispatchDevTaskToClaude(
     const raw = await resp.text();
     if (!resp.ok)
       throw new Error(`claude-mcp ${resp.status}: ${raw.slice(0, 400)}`);
-    let parsed: any = {};
+    let parsed: Json = {};
     try {
       parsed = JSON.parse(raw);
     } catch {
       /* keep raw */
     }
-    const content = parsed?.result?.content;
+    const result = jsonField(parsed, "result");
+    const content = jsonField(result, "content");
     const flat = Array.isArray(content)
-      ? content.map((c: any) => c?.text ?? "").join("\n")
+      ? content.map((c) => jsonField(c, "text") ?? "").join("\n")
       : raw;
-    if (parsed?.result?.isError) throw new Error(flat.slice(0, 400));
+    if (jsonField(result, "isError")) throw new Error(flat.slice(0, 400));
     sessionUrl = extractClaudeSessionUrl(flat) || "";
     if (!sessionUrl && !/Dispatched/i.test(flat)) {
       throw new Error(`claude-mcp: unexpected reply: ${flat.slice(0, 200)}`);
@@ -554,7 +561,7 @@ async function dispatchDevTaskToClaude(
   }
 
   const delivered = !dispatchError;
-  const patch: Record<string, unknown> = {
+  const patch: TablesUpdate<"dev_tasks"> = {
     status: delivered ? "in_progress" : "approved",
     dispatch_error: dispatchError,
     dispatched_at: new Date().toISOString(),
@@ -593,7 +600,7 @@ async function dispatchDevTaskToClaude(
 }
 
 export async function dispatchDevTask(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
 ): Promise<DispatchDevTaskResult> {
   const { data: task, error } = await supabase
@@ -689,7 +696,7 @@ export async function dispatchDevTask(
       ? `[verified_delivered] ${dispatchError}`
       : dispatchError;
 
-  const patch: Record<string, unknown> = {
+  const patch: TablesUpdate<"dev_tasks"> = {
     status: delivered ? "sent_to_cursor" : "approved",
     dispatch_error: dispatchErrorStored,
     dispatched_at: new Date().toISOString(),
@@ -714,7 +721,7 @@ export async function dispatchDevTask(
     await trackCursorTaskSession(supabase, {
       tenantId: args.tenantId,
       cursorAgentId,
-      sessionUrl: patch.cursor_session_url as string,
+      sessionUrl: patch.cursor_session_url,
       displayName: cursorSessionDisplayName({
         taskTitle: task.title,
         sourceTool: "dev-task-center",
@@ -722,11 +729,11 @@ export async function dispatchDevTask(
       taskTitle: task.title,
       sourceTool: "dev-task-center",
     });
-    await supabase
-      .from("cursor_task_sessions")
-      .update({ dev_task_id: args.taskId })
-      .eq("cursor_agent_id", cursorAgentId)
-      .eq("tenant_id", args.tenantId);
+    await linkCursorSessionToDevTask(supabase, {
+      tenantId: args.tenantId,
+      cursorAgentId,
+      devTaskId: args.taskId,
+    });
   }
 
   await logDevTaskEvent(supabase, {
@@ -784,7 +791,7 @@ export function extractPrUrlFromAgentReply(content: string): string | null {
 
 /** Resolve the dev task Carmen dispatched for this Command Center conversation. */
 export async function resolveDevTaskForAgentReply(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     conversationId: string;
@@ -869,7 +876,7 @@ export async function resolveDevTaskForAgentReply(
 
 /** Mark dev task done when a coding agent delivers the answer back to Carmen. */
 export async function completeDevTaskFromAgentReply(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     conversationId: string;
@@ -886,7 +893,7 @@ export async function completeDevTaskFromAgentReply(
   }
 
   const prUrl = extractPrUrlFromAgentReply(args.content);
-  const patch: Record<string, unknown> = {
+  const patch: TablesUpdate<"dev_tasks"> = {
     status: "done",
     updated_at: new Date().toISOString(),
   };
@@ -918,7 +925,7 @@ export async function completeDevTaskFromAgentReply(
 }
 
 export async function completeDevTaskById(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     taskId: string;
@@ -938,7 +945,7 @@ export async function completeDevTaskById(
 
   const prUrl =
     args.prUrl || extractPrUrlFromAgentReply(args.summary || "") || null;
-  const patch: Record<string, unknown> = {
+  const patch: TablesUpdate<"dev_tasks"> = {
     status: "done",
     updated_at: new Date().toISOString(),
   };
@@ -968,7 +975,7 @@ export async function completeDevTaskById(
 }
 
 export async function attachDevTaskSession(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     taskId: string;

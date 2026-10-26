@@ -1,6 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
+import type { Tables } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/json-fields.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,17 +11,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-type GreenApiIntegration = {
-  id: string;
-  tenant_id: string;
-  user_id?: string | null;
-  api_key?: string | null;
-  settings?: {
-    instance_id?: string;
-    country_code?: string;
-    default_country_code?: string;
-  } | null;
-};
+type GreenApiIntegration = Pick<
+  Tables<"tenant_integrations">,
+  "id" | "tenant_id" | "user_id" | "api_key" | "settings"
+>;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -89,9 +85,7 @@ Deno.serve(async (req) => {
             auth: { persistSession: false, autoRefreshToken: false },
           },
     );
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = serviceClient();
     const {
       clientId,
       leadId,
@@ -177,7 +171,8 @@ Deno.serve(async (req) => {
       admin
         .from("tenant_users")
         .select("user_id")
-        .eq("tenant_id", tenantId)
+        // Unresolved tenant is still sent as "undefined" and matches nothing.
+        .eq("tenant_id", String(tenantId))
         .eq("user_id", userId)
         .maybeSingle(),
       admin.rpc("is_super_admin", { _user_id: userId }),
@@ -232,7 +227,8 @@ Deno.serve(async (req) => {
       integration = data;
     }
 
-    if (!integration?.api_key || !integration?.settings?.instance_id) {
+    const instanceId = jsonField(integration?.settings, "instance_id");
+    if (!integration?.api_key || !instanceId) {
       console.error("Green API integration not configured for user:", userId);
       return new Response(
         JSON.stringify({
@@ -246,7 +242,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const instanceId = integration.settings.instance_id;
     const apiToken = integration.api_key;
 
     // Normalize phone to international format suitable for WhatsApp (chatId)
@@ -264,11 +259,11 @@ Deno.serve(async (req) => {
       }
 
       // Determine country code from integration settings or fallback to IL (972)
-      const configuredCc = (
-        integration.settings?.country_code ||
-        integration.settings?.default_country_code ||
-        ""
-      ).toString();
+      const configuredCc = String(
+        jsonField(integration.settings, "country_code") ||
+          jsonField(integration.settings, "default_country_code") ||
+          "",
+      );
       const defaultCountryCode =
         configuredCc && /^(\d{1,3})$/.test(configuredCc) ? configuredCc : "972";
 
@@ -325,7 +320,11 @@ Deno.serve(async (req) => {
     // Send message via Green API
     const greenApiUrl = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`;
 
-    const messageBody: any = {
+    const messageBody: {
+      chatId: string;
+      message: string;
+      quotedMessageId?: string;
+    } = {
       chatId: chatId,
       message: message,
     };

@@ -6,8 +6,10 @@ import type { CriterionStatus } from "./autonomous-goal-engine.ts";
 import type { BrainRequestRow, BrainRequestType } from "./goal-cursor-brain.ts";
 import { extractJsonFromBrainResponse } from "./goal-cursor-brain.ts";
 import type { EfficiencyReviewResult } from "./goal-efficiency-review.ts";
+import { toJson } from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
-type SupabaseLike = { from: (t: string) => any };
+type SupabaseLike = DbClient;
 
 export async function applyBrainResponse(
   supabase: SupabaseLike,
@@ -23,7 +25,7 @@ export async function applyBrainResponse(
   await supabase
     .from("goal_brain_requests")
     .update({
-      response_json: payload,
+      response_json: toJson(payload),
       status: "completed",
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -105,7 +107,7 @@ async function applyPlanResponse(
   await supabase
     .from("goals")
     .update({
-      plan: slice,
+      plan: toJson(slice),
       engine_status: "EXECUTING",
       next_run_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -144,7 +146,7 @@ async function applyStepExecuteResponse(
       goal_id: request.goal_id,
       criterion_id: criterion?.id ?? null,
       evidence_type: String(row.type || "observation"),
-      content: (row.content as Record<string, unknown>) || {},
+      content: toJson((row.content as Record<string, unknown>) || {}),
       source_action_id: request.action_id ?? null,
     });
   }
@@ -176,7 +178,7 @@ async function applyStepExecuteResponse(
       .from("goal_actions")
       .update({
         status: "completed",
-        result: json,
+        result: toJson(json),
         completed_at: new Date().toISOString(),
       })
       .eq("id", request.action_id);
@@ -309,12 +311,12 @@ async function applyManualGuidanceResponse(
     goal_id: request.goal_id,
     event_type: "manual_guidance_applied",
     actor: "cursor_direct_brain",
-    detail: {
+    detail: toJson({
       request_id: request.id,
       summary,
       replan: !!json.replan,
       actions: json.actions || [],
-    },
+    }),
   });
 
   if (json.replan) {

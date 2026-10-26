@@ -2,6 +2,8 @@
 // suggest-first: only HIGH-confidence matches auto-assign; anything else is
 // stored as a suggestion for a human to confirm in the recordings feed.
 // Never sends anything anywhere — assignment only.
+import type { DbClient } from "./supabase-clients.ts";
+
 
 export interface MatchResult {
   matchType: "client" | "internal" | "unknown";
@@ -10,9 +12,8 @@ export interface MatchResult {
   campaignerIds: string[];
 }
 
-// deno-lint-ignore no-explicit-any
 export async function matchRecordingToClient(
-  admin: any,
+  admin: DbClient,
   openaiKey: string,
   opts: {
     tenant_id: string;

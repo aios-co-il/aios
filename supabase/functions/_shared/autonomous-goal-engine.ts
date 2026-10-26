@@ -3,8 +3,11 @@
  * Goal Contract, persisted loop, Completion Gate, stuck detection.
  */
 
+import type { Json, Tables } from "./database.types.ts";
 import { createUnifiedGoal, logGoalEvent } from "./goal-execution.ts";
+import { asJsonObject, toJson } from "./json-fields.ts";
 import { modelRouterJSON, type ModelProfile } from "./model-router.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export const ENGINE_STATUSES = [
   "PLANNING",
@@ -50,12 +53,12 @@ export type AutonomousGoalRow = {
   description?: string | null;
   objective?: string | null;
   status: string;
-  engine_status: EngineStatus;
+  engine_status: string;
   autonomous_mode: boolean;
-  constraints: Record<string, unknown>;
-  scope: Record<string, unknown>;
-  risk_level: RiskLevel;
-  plan: unknown[];
+  constraints: Json;
+  scope: Json;
+  risk_level: string;
+  plan: Json;
   next_run_at?: string | null;
   last_iteration_at?: string | null;
   iteration_count: number;
@@ -78,9 +81,9 @@ export type GoalCriterionRow = {
   description: string;
   required: boolean;
   verification_type: string;
-  verification_config: Record<string, unknown>;
+  verification_config: Json;
   evidence_required?: string | null;
-  status: CriterionStatus;
+  status: string;
   last_verified_at?: string | null;
   sort_order: number;
 };
@@ -94,7 +97,7 @@ export type GoalPlanStepRow = {
   action_type: string;
   status: string;
   priority: number;
-  metadata: Record<string, unknown>;
+  metadata: Json;
   sort_order: number;
   sub_project_key?: string | null;
   sub_project_label?: string | null;
@@ -103,7 +106,18 @@ export type GoalPlanStepRow = {
   cursor_session_url?: string | null;
 };
 
-type SupabaseLike = { from: (t: string) => any };
+type SupabaseLike = DbClient;
+
+type GoalActionSummary = Pick<
+  Tables<"goal_actions">,
+  | "id"
+  | "action_type"
+  | "tool_name"
+  | "status"
+  | "input_hash"
+  | "error"
+  | "started_at"
+>;
 
 export function hashInput(input: unknown): string {
   const s = JSON.stringify(input);
@@ -247,7 +261,7 @@ export async function seedSuccessCriteria(
         description: c.description,
         required: c.required ?? true,
         verification_type: c.verification_type ?? "manual",
-        verification_config: c.verification_config ?? {},
+        verification_config: toJson(c.verification_config ?? {}),
         evidence_required:
           c.evidence_required ?? "הוכחה ברורה שהקריטריון מתקיים",
         status: "NOT_TESTED",
@@ -308,8 +322,8 @@ export async function loadGoalState(
   goal: AutonomousGoalRow;
   criteria: GoalCriterionRow[];
   planSteps: GoalPlanStepRow[];
-  recentActions: any[];
-  blockers: any[];
+  recentActions: GoalActionSummary[];
+  blockers: Tables<"goal_blockers">[];
 } | null> {
   const { data: goal, error } = await supabase
     .from("goals")
@@ -524,7 +538,7 @@ async function monitorInProgressCursorSteps(
           status: "done",
           completed_at: new Date().toISOString(),
           metadata: {
-            ...step.metadata,
+            ...asJsonObject(step.metadata),
             pr_url: dt.pr_url,
             completed_via: "dev_task_status",
           },
@@ -682,7 +696,7 @@ async function executePlanStep(
           },
           completed_at: new Date().toISOString(),
         })
-        .eq("id", action.id);
+        .eq("id", action!.id);
       const stepStatus = parallelTrack ? "in_progress" : "done";
       await supabase
         .from("goal_plan_steps")
@@ -711,7 +725,7 @@ async function executePlanStep(
           result: { phase: "verify_requested" },
           completed_at: new Date().toISOString(),
         })
-        .eq("id", action.id);
+        .eq("id", action!.id);
       await supabase
         .from("goal_plan_steps")
         .update({
@@ -753,7 +767,7 @@ async function executePlanStep(
       prompt,
       iterationId,
       stepId: step.id,
-      actionId: action.id,
+      actionId: action!.id,
     });
 
     if (queued.dispatched || queued.awaiting) {
@@ -796,8 +810,8 @@ async function executePlanStep(
         goal_id: state.goal.id,
         criterion_id: criterion?.id ?? null,
         evidence_type: ev.type,
-        content: ev.content,
-        source_action_id: action.id,
+        content: toJson(ev.content),
+        source_action_id: action!.id,
       });
     }
     for (const upd of result.data?.criterion_updates || []) {
@@ -818,10 +832,10 @@ async function executePlanStep(
       .from("goal_actions")
       .update({
         status: "completed",
-        result: result.data,
+        result: result.data === null ? null : toJson(result.data),
         completed_at: new Date().toISOString(),
       })
-      .eq("id", action.id);
+      .eq("id", action!.id);
     await supabase
       .from("goal_plan_steps")
       .update({
@@ -839,7 +853,7 @@ async function executePlanStep(
         error: msg,
         completed_at: new Date().toISOString(),
       })
-      .eq("id", action.id);
+      .eq("id", action!.id);
     await supabase
       .from("goal_plan_steps")
       .update({ status: "failed" })
@@ -920,7 +934,7 @@ export async function runGoalIteration(
         iteration_number: iterationNumber,
         phase: goal.engine_status,
         status: "running",
-        context_snapshot: buildContextPackage(state),
+        context_snapshot: toJson(buildContextPackage(state)),
       })
       .select("id")
       .single();

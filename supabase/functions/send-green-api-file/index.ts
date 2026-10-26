@@ -5,6 +5,21 @@ import {
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
+import type { Tables } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/json-fields.ts";
+
+type GreenApiIntegration = Pick<
+  Tables<"tenant_integrations">,
+  "api_key" | "settings"
+>;
+
+function isConfigured(
+  integration: GreenApiIntegration | null | undefined,
+): integration is GreenApiIntegration {
+  return !!(
+    integration?.api_key && jsonField(integration.settings, "instance_id")
+  );
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,7 +212,7 @@ Deno.serve(async (req) => {
     //   1) explicit instance chosen by the caller (validated to this tenant + active),
     //   2) else the current user's own connection,
     //   3) else any active green_api connection within the same tenant.
-    let integration: any = null;
+    let integration: GreenApiIntegration | null = null;
 
     if (chosenIntegrationId) {
       const { data: chosen } = await supabaseClient
@@ -208,11 +223,10 @@ Deno.serve(async (req) => {
         .eq("integration_type", "green_api")
         .eq("is_active", true)
         .maybeSingle();
-      if (chosen?.api_key && chosen?.settings?.instance_id)
-        integration = chosen;
+      if (isConfigured(chosen)) integration = chosen;
     }
 
-    if (!integration?.api_key || !integration?.settings?.instance_id) {
+    if (!isConfigured(integration)) {
       const { data: userIntegration } = await supabaseClient
         .from("tenant_integrations")
         .select("*")
@@ -224,7 +238,7 @@ Deno.serve(async (req) => {
       if (userIntegration) integration = userIntegration;
     }
 
-    if (!integration?.api_key || !integration?.settings?.instance_id) {
+    if (!isConfigured(integration)) {
       const { data: tenantIntegration } = await supabaseClient
         .from("tenant_integrations")
         .select("*")
@@ -237,7 +251,7 @@ Deno.serve(async (req) => {
       integration = tenantIntegration;
     }
 
-    if (!integration?.api_key || !integration?.settings?.instance_id) {
+    if (!isConfigured(integration)) {
       return new Response(
         JSON.stringify({ error: "Green API not configured" }),
         {
@@ -247,11 +261,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const instanceId = integration.settings.instance_id;
+    const instanceId = jsonField(integration.settings, "instance_id");
     const apiToken = integration.api_key;
-    const defaultCountryCode = (
-      integration.settings?.country_code || "972"
-    ).toString();
+    const defaultCountryCode = String(
+      jsonField(integration.settings, "country_code") || "972",
+    );
 
     // Determine chatId — reject missing group chat id; phone fallback when provided
     const chatTarget = resolveGreenApiChatTarget({
@@ -274,7 +288,6 @@ Deno.serve(async (req) => {
 
     // Determine API endpoint based on file type
     let endpoint: string;
-    let body: any;
 
     const mimeType = file.type;
     const fileName = file.name;

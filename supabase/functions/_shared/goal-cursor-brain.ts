@@ -13,6 +13,8 @@ import {
   cursorApiKey,
 } from "./agent-channel/cursor-api.ts";
 import { hmacSha256Hex, timingSafeEqual } from "./security.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import type { Json } from "./database.types.ts";
 
 export const BRAIN_REQUEST_TYPES = [
   "plan",
@@ -29,15 +31,15 @@ export type BrainRequestRow = {
   iteration_id?: string | null;
   step_id?: string | null;
   action_id?: string | null;
-  request_type: BrainRequestType;
-  status: "pending" | "sent" | "completed" | "failed" | "busy";
+  request_type: string;
+  status: string;
   cursor_session_id?: string | null;
   prompt_summary?: string | null;
-  response_json?: Record<string, unknown> | null;
+  response_json?: Json | null;
   error_message?: string | null;
 };
 
-type SupabaseLike = { from: (t: string) => any };
+type SupabaseLike = DbClient;
 
 const TOKEN_VERSION = "goal-brain-v1";
 

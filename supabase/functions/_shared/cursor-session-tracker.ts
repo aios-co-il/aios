@@ -1,5 +1,11 @@
 /** Persist Cursor Cloud Agent bc-… sessions linked to AIOS tasks. */
 
+import type { DbClient } from "./supabase-clients.ts";
+import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
+
+/** cursor_task_sessions and tasks.cursor_session_* are missing from the generated schema. */
+type CursorSessionsClient = UntypedSchemaClient;
+
 export type CursorSessionStatus = "running" | "completed" | "failed" | "busy";
 
 export type TrackCursorSessionInput = {
@@ -37,7 +43,7 @@ export function cursorSessionDisplayName(args: {
 }
 
 export async function fetchHumanTaskTitle(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   taskId: string,
 ): Promise<string | null> {
@@ -55,7 +61,7 @@ export async function fetchHumanTaskTitle(
 }
 
 export async function trackCursorTaskSession(
-  supabase: { from: (t: string) => any },
+  supabase: CursorSessionsClient,
   input: TrackCursorSessionInput,
 ): Promise<void> {
   const agentId = String(input.cursorAgentId || "").trim();
@@ -99,7 +105,7 @@ export async function trackCursorTaskSession(
 }
 
 export async function touchCursorTaskSession(
-  supabase: { from: (t: string) => any },
+  supabase: CursorSessionsClient,
   cursorAgentId: string,
   status?: CursorSessionStatus,
 ): Promise<void> {
@@ -114,8 +120,19 @@ export async function touchCursorTaskSession(
     .eq("cursor_agent_id", id);
 }
 
+export async function linkCursorSessionToDevTask(
+  supabase: CursorSessionsClient,
+  args: { tenantId: string; cursorAgentId: string; devTaskId: string },
+): Promise<void> {
+  await supabase
+    .from("cursor_task_sessions")
+    .update({ dev_task_id: args.devTaskId })
+    .eq("cursor_agent_id", args.cursorAgentId)
+    .eq("tenant_id", args.tenantId);
+}
+
 export async function completeCursorSessionsForTask(
-  supabase: { from: (t: string) => any },
+  supabase: CursorSessionsClient,
   tenantId: string,
   humanTaskId: string,
 ): Promise<void> {
@@ -151,9 +168,10 @@ export type CursorTaskSessionRow = {
 };
 
 export async function listCursorTaskSessions(
-  supabase: { from: (t: string) => any },
+  supabase: CursorSessionsClient,
   tenantId: string,
-  opts?: { status?: CursorSessionStatus | "active"; limit?: number },
+  /** A CursorSessionStatus, or "active" for running + busy. */
+  opts?: { status?: string; limit?: number },
 ): Promise<CursorTaskSessionRow[]> {
   let query = supabase
     .from("cursor_task_sessions")
@@ -172,7 +190,7 @@ export async function listCursorTaskSessions(
 }
 
 export async function findCursorSessionForTask(
-  supabase: { from: (t: string) => any },
+  supabase: CursorSessionsClient,
   tenantId: string,
   taskId: string,
 ): Promise<CursorTaskSessionRow | null> {
