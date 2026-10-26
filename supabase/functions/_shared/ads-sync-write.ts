@@ -3,7 +3,7 @@
  * crm_records, then record the run on crm_tables (see sync-outcome.ts).
  *
  * The clients are duck-typed so the same code runs with supabase-js in Deno and
- * with an in-memory fake in node:test.
+ * with an in-memory fake in the Deno tests.
  */
 import {
   replacedRecordsFilter,

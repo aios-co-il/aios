@@ -1,5 +1,5 @@
 /**
- * Minimal in-memory stand-in for the supabase-js query builder, for node:test.
+ * Minimal in-memory stand-in for the supabase-js query builder, for Deno tests.
  * Supports the calls the sync/pulse helpers make: select/insert/update/delete,
  * eq/in/gte/lte/or (with nested and()/or() and `data->>key` columns), order,
  * range and maybeSingle. Filters are evaluated like PostgREST does on text.
