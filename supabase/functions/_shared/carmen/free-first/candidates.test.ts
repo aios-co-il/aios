@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertNotStrictEquals,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   candidatesFromConnections,
   failureKindFor,
@@ -30,66 +33,78 @@ const conns = [
   },
 ];
 
-test("brains without a key are skipped; tier and client data follow the profile", () => {
-  const out = candidatesFromConnections(conns);
-  assert.deepEqual(
-    out.map((c) => [c.id, c.tier, c.approvedForClientData]),
-    [
-      ["a", "premium", false],
-      ["b", "free", true],
-      ["c", "free", false],
-    ],
-  );
+Deno.test(
+  "brains without a key are skipped; tier and client data follow the profile",
+  () => {
+    const out = candidatesFromConnections(conns);
+    assertEquals(
+      out.map((c) => [c.id, c.tier, c.approvedForClientData]),
+      [
+        ["a", "premium", false],
+        ["b", "free", true],
+        ["c", "free", false],
+      ],
+    );
+  },
+);
+
+Deno.test(
+  "smart routing sends a plain question to the approved free brain",
+  () => {
+    const task = classifyCarmenTask("תכתוב קופי למודעה", {
+      containsClientData: true,
+    });
+    const decision = routeCarmenTask(
+      task,
+      { mode: "free_first", allowAutomaticPremium: false },
+      candidatesFromConnections(conns),
+    );
+    assertStrictEquals(decision.status, "ready");
+    assertStrictEquals(decision.modelId, "b");
+  },
+);
+
+Deno.test(
+  "without an approved free brain a paid one is never run automatically",
+  () => {
+    const task = classifyCarmenTask("תכתוב קופי למודעה", {
+      containsClientData: true,
+    });
+    const decision = routeCarmenTask(
+      task,
+      { mode: "free_first", allowAutomaticPremium: false },
+      candidatesFromConnections(conns.filter((c) => c.id !== "b")),
+    );
+    assertNotStrictEquals(decision.status, "ready");
+  },
+);
+
+Deno.test("HTTP statuses map to failover kinds", () => {
+  assertStrictEquals(failureKindFor(0), "timeout");
+  assertStrictEquals(failureKindFor(429), "rate_limit");
+  assertStrictEquals(failureKindFor(401), "authentication");
+  assertStrictEquals(failureKindFor(503), "provider_unavailable");
+  assertStrictEquals(failureKindFor(400), "invalid_request");
 });
 
-test("smart routing sends a plain question to the approved free brain", () => {
-  const task = classifyCarmenTask("תכתוב קופי למודעה", {
-    containsClientData: true,
-  });
-  const decision = routeCarmenTask(
-    task,
-    { mode: "free_first", allowAutomaticPremium: false },
-    candidatesFromConnections(conns),
-  );
-  assert.equal(decision.status, "ready");
-  assert.equal(decision.modelId, "b");
-});
-
-test("without an approved free brain a paid one is never run automatically", () => {
-  const task = classifyCarmenTask("תכתוב קופי למודעה", {
-    containsClientData: true,
-  });
-  const decision = routeCarmenTask(
-    task,
-    { mode: "free_first", allowAutomaticPremium: false },
-    candidatesFromConnections(conns.filter((c) => c.id !== "b")),
-  );
-  assert.notEqual(decision.status, "ready");
-});
-
-test("HTTP statuses map to failover kinds", () => {
-  assert.equal(failureKindFor(0), "timeout");
-  assert.equal(failureKindFor(429), "rate_limit");
-  assert.equal(failureKindFor(401), "authentication");
-  assert.equal(failureKindFor(503), "provider_unavailable");
-  assert.equal(failureKindFor(400), "invalid_request");
-});
-
-test("only brains shown in the picker and granted to the user are routable", () => {
-  const routes = [
-    { slug: "groq-a", connection_id: "a", active: true },
-    { slug: "groq-b", connection_id: "b", active: false },
-    { slug: "groq-c", connection_id: "c", active: true },
-    { slug: "orphan", connection_id: null, active: true },
-  ];
-  const ids = (allowed: (s: string) => boolean) =>
-    pickableConnections(conns, routes, allowed).map((c) => c.id);
-  assert.deepEqual(
-    ids(() => true),
-    ["a", "c"],
-  );
-  assert.deepEqual(
-    ids((s) => s !== "groq-c"),
-    ["a"],
-  );
-});
+Deno.test(
+  "only brains shown in the picker and granted to the user are routable",
+  () => {
+    const routes = [
+      { slug: "groq-a", connection_id: "a", active: true },
+      { slug: "groq-b", connection_id: "b", active: false },
+      { slug: "groq-c", connection_id: "c", active: true },
+      { slug: "orphan", connection_id: null, active: true },
+    ];
+    const ids = (allowed: (s: string) => boolean) =>
+      pickableConnections(conns, routes, allowed).map((c) => c.id);
+    assertEquals(
+      ids(() => true),
+      ["a", "c"],
+    );
+    assertEquals(
+      ids((s) => s !== "groq-c"),
+      ["a"],
+    );
+  },
+);

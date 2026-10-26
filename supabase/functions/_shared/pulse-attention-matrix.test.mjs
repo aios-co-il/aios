@@ -1,8 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
-/** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
-const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
+import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildPulseAttentionRows,
   evaluateEfficiencyIssue,
@@ -10,8 +6,11 @@ import {
   resolvePlatformTarget,
 } from "./pulse-attention-matrix.mjs";
 
-test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
-  assert.equal(
+/** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
+const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
+
+Deno.test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
+  assertStrictEquals(
     readApprovedPlatformTarget(
       { pulse_platform_targets: { leads: { cpl: 90 } } },
       "leads",
@@ -20,11 +19,14 @@ test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
   );
 });
 
-test("resolvePlatformTarget falls back to 30d baseline", () => {
-  assert.equal(resolvePlatformTarget({}, "leads", 75)?.source, "baseline_30d");
+Deno.test("resolvePlatformTarget falls back to 30d baseline", () => {
+  assertStrictEquals(
+    resolvePlatformTarget({}, "leads", 75)?.source,
+    "baseline_30d",
+  );
 });
 
-test("evaluateEfficiencyIssue flags approved target breach", () => {
+Deno.test("evaluateEfficiencyIssue flags approved target breach", () => {
   const issue = evaluateEfficiencyIssue({
     currentEfficiency: 120,
     trend7dPct: null,
@@ -35,116 +37,122 @@ test("evaluateEfficiencyIssue flags approved target breach", () => {
       source: "approved",
     },
   });
-  assert.equal(issue?.level, "alert");
+  assertStrictEquals(issue?.level, "alert");
 });
 
-test("leads-only google table reclassifies mis-tagged ecommerce rows to CPL", () => {
-  const rows = buildPulseAttentionRows({
-    campaignRows: [
-      {
-        client_id: "client-2",
-        table_id: "ga-leads",
-        platform: "google",
-        goal: "ecommerce",
-        campaign_name: "בר תרגומים leads",
-        spend_7d: 500,
-        outcomes_7d: 20,
-        revenue_7d: 0,
-        efficiency_7d: 0.04,
-        baseline_efficiency_7d: 0.05,
-        trend_7d_pct: 12,
-        last_change_at: RECENT_CHANGE,
-      },
-    ],
-    tables: [
-      {
-        id: "ga-leads",
-        client_id: "client-2",
-        integration_type: "google_ads",
-        integration_settings: { target_cpl: 35 },
-      },
-    ],
-    clients: [
-      {
-        clientId: "client-2",
-        clientName: "בר תרגומים",
-        campaignerName: "דוד",
-        moodStatus: "happy",
-        lastClientCallAt: "2026-09-18T10:00:00Z",
-        daysSinceLastCommunication: 3,
-        recentCommunicationStatus: null,
-        hasRecentComplaintUpdate: false,
-      },
-    ],
-  });
+Deno.test(
+  "leads-only google table reclassifies mis-tagged ecommerce rows to CPL",
+  () => {
+    const rows = buildPulseAttentionRows({
+      campaignRows: [
+        {
+          client_id: "client-2",
+          table_id: "ga-leads",
+          platform: "google",
+          goal: "ecommerce",
+          campaign_name: "בר תרגומים leads",
+          spend_7d: 500,
+          outcomes_7d: 20,
+          revenue_7d: 0,
+          efficiency_7d: 0.04,
+          baseline_efficiency_7d: 0.05,
+          trend_7d_pct: 12,
+          last_change_at: RECENT_CHANGE,
+        },
+      ],
+      tables: [
+        {
+          id: "ga-leads",
+          client_id: "client-2",
+          integration_type: "google_ads",
+          integration_settings: { target_cpl: 35 },
+        },
+      ],
+      clients: [
+        {
+          clientId: "client-2",
+          clientName: "בר תרגומים",
+          campaignerName: "דוד",
+          moodStatus: "happy",
+          lastClientCallAt: "2026-09-18T10:00:00Z",
+          daysSinceLastCommunication: 3,
+          recentCommunicationStatus: null,
+          hasRecentComplaintUpdate: false,
+        },
+      ],
+    });
 
-  assert.equal(
-    rows.length,
-    0,
-    "healthy CPL client should not appear only because of false ROAS",
-  );
-});
+    assertStrictEquals(
+      rows.length,
+      0,
+      "healthy CPL client should not appear only because of false ROAS",
+    );
+  },
+);
 
-test("platform attention uses leads CPL when leads spend dominates mixed goals", () => {
-  const rows = buildPulseAttentionRows({
-    campaignRows: [
-      {
-        client_id: "client-1",
-        platform: "meta",
-        goal: "ecommerce",
-        campaign_name: "misclassified shop",
-        spend_7d: 50,
-        outcomes_7d: 2,
-        revenue_7d: 200,
-        efficiency_7d: 4,
-        baseline_efficiency_7d: 3.5,
-        trend_7d_pct: 10,
-        last_change_at: "2026-09-18T10:00:00Z",
-      },
-      {
-        client_id: "client-1",
-        platform: "meta",
-        goal: "leads",
-        campaign_name: "main leads",
-        spend_7d: 900,
-        outcomes_7d: 30,
-        revenue_7d: 0,
-        efficiency_7d: 30,
-        baseline_efficiency_7d: 25,
-        trend_7d_pct: 18,
-        last_change_at: "2026-09-17T10:00:00Z",
-      },
-    ],
-    tables: [
-      {
-        id: "table-leads",
-        client_id: "client-1",
-        integration_type: "facebook_insights",
-        integration_settings: { target_roas: 4, target_cpl: 40 },
-      },
-    ],
-    clients: [
-      {
-        clientId: "client-1",
-        clientName: "דורון אקו",
-        campaignerName: "דוד",
-        moodStatus: "wavering",
-        lastClientCallAt: "2026-09-18T10:00:00Z",
-        daysSinceLastCommunication: 5,
-        recentCommunicationStatus: null,
-        hasRecentComplaintUpdate: false,
-      },
-    ],
-  });
+Deno.test(
+  "platform attention uses leads CPL when leads spend dominates mixed goals",
+  () => {
+    const rows = buildPulseAttentionRows({
+      campaignRows: [
+        {
+          client_id: "client-1",
+          platform: "meta",
+          goal: "ecommerce",
+          campaign_name: "misclassified shop",
+          spend_7d: 50,
+          outcomes_7d: 2,
+          revenue_7d: 200,
+          efficiency_7d: 4,
+          baseline_efficiency_7d: 3.5,
+          trend_7d_pct: 10,
+          last_change_at: "2026-09-18T10:00:00Z",
+        },
+        {
+          client_id: "client-1",
+          platform: "meta",
+          goal: "leads",
+          campaign_name: "main leads",
+          spend_7d: 900,
+          outcomes_7d: 30,
+          revenue_7d: 0,
+          efficiency_7d: 30,
+          baseline_efficiency_7d: 25,
+          trend_7d_pct: 18,
+          last_change_at: "2026-09-17T10:00:00Z",
+        },
+      ],
+      tables: [
+        {
+          id: "table-leads",
+          client_id: "client-1",
+          integration_type: "facebook_insights",
+          integration_settings: { target_roas: 4, target_cpl: 40 },
+        },
+      ],
+      clients: [
+        {
+          clientId: "client-1",
+          clientName: "דורון אקו",
+          campaignerName: "דוד",
+          moodStatus: "wavering",
+          lastClientCallAt: "2026-09-18T10:00:00Z",
+          daysSinceLastCommunication: 5,
+          recentCommunicationStatus: null,
+          hasRecentComplaintUpdate: false,
+        },
+      ],
+    });
 
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].primaryGoal, "leads");
-  assert.equal(rows[0].target?.kind, "cpl");
-  assert.equal(rows[0].target?.value, 40);
-  assert.equal(rows[0].currentEfficiency, 30);
-});
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(rows[0].primaryGoal, "leads");
+    assertStrictEquals(rows[0].target?.kind, "cpl");
+    assertStrictEquals(rows[0].target?.value, 40);
+    assertStrictEquals(rows[0].currentEfficiency, 30);
+  },
+);
 
-test("buildPulseAttentionRows includes only rows with issues", () => {
+Deno.test("buildPulseAttentionRows includes only rows with issues", () => {
   const rows = buildPulseAttentionRows({
     campaignRows: [
       {
@@ -182,54 +190,57 @@ test("buildPulseAttentionRows includes only rows with issues", () => {
       },
     ],
   });
-  assert.ok(rows.length >= 1);
-  assert.ok(
+  assert(rows.length >= 1);
+  assert(
     rows.some((row) => row.issues.efficiency || row.issues.lastCommunication),
   );
 });
 
-test("a Google sales campaign detected from its conversion goal keeps ROAS in a leads report", () => {
-  const rows = buildPulseAttentionRows({
-    campaignRows: [
-      {
-        client_id: "client-3",
-        table_id: "ga-leads",
-        platform: "google",
-        goal: "ecommerce",
-        classification_source: "platform_goal",
-        campaign_name: "PMax",
-        spend_7d: 1000,
-        outcomes_7d: 2,
-        revenue_7d: 500,
-        efficiency_7d: 0.5,
-        baseline_efficiency_7d: 3,
-        trend_7d_pct: -80,
-        last_change_at: RECENT_CHANGE,
-      },
-    ],
-    tables: [
-      {
-        id: "ga-leads",
-        client_id: "client-3",
-        integration_type: "google_ads",
-        integration_settings: { target_roas: 3 },
-      },
-    ],
-    clients: [
-      {
-        clientId: "client-3",
-        clientName: "חנות",
-        campaignerName: "דוד",
-        moodStatus: "happy",
-        lastClientCallAt: RECENT_CHANGE,
-        daysSinceLastCommunication: 1,
-        recentCommunicationStatus: null,
-        hasRecentComplaintUpdate: false,
-      },
-    ],
-  });
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].primaryGoal, "ecommerce");
-  assert.equal(rows[0].target.kind, "roas");
-  assert.equal(rows[0].currentEfficiency, 0.5);
-});
+Deno.test(
+  "a Google sales campaign detected from its conversion goal keeps ROAS in a leads report",
+  () => {
+    const rows = buildPulseAttentionRows({
+      campaignRows: [
+        {
+          client_id: "client-3",
+          table_id: "ga-leads",
+          platform: "google",
+          goal: "ecommerce",
+          classification_source: "platform_goal",
+          campaign_name: "PMax",
+          spend_7d: 1000,
+          outcomes_7d: 2,
+          revenue_7d: 500,
+          efficiency_7d: 0.5,
+          baseline_efficiency_7d: 3,
+          trend_7d_pct: -80,
+          last_change_at: RECENT_CHANGE,
+        },
+      ],
+      tables: [
+        {
+          id: "ga-leads",
+          client_id: "client-3",
+          integration_type: "google_ads",
+          integration_settings: { target_roas: 3 },
+        },
+      ],
+      clients: [
+        {
+          clientId: "client-3",
+          clientName: "חנות",
+          campaignerName: "דוד",
+          moodStatus: "happy",
+          lastClientCallAt: RECENT_CHANGE,
+          daysSinceLastCommunication: 1,
+          recentCommunicationStatus: null,
+          hasRecentComplaintUpdate: false,
+        },
+      ],
+    });
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(rows[0].primaryGoal, "ecommerce");
+    assertStrictEquals(rows[0].target.kind, "roas");
+    assertStrictEquals(rows[0].currentEfficiency, 0.5);
+  },
+);

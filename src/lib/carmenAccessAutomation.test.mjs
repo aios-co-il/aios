@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import { mergePrivatePhoneAllowlist } from "./carmenPrivatePhoneAllowlist.mjs";
 
 test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
@@ -18,19 +17,21 @@ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", ()
       { phone: "972503333333", label: "דוד", surfaces: ["whatsapp_private"] },
     ],
   });
-  assert.equal(out.length, 3);
-  assert.ok(
+  expect(out.length).toBe(3);
+  expect(
     out.some((r) => r.phone === "972501111111" && r.source === "automation"),
-  );
-  assert.ok(
+  ).toBeTruthy();
+  expect(
     out.some(
       (r) =>
         r.phone === "972502222222" &&
         r.label === "אנה" &&
         r.relationship_note === "דבר קצר",
     ),
-  );
-  assert.ok(out.some((r) => r.phone === "972503333333" && r.label === "דוד"));
+  ).toBeTruthy();
+  expect(
+    out.some((r) => r.phone === "972503333333" && r.label === "דוד"),
+  ).toBeTruthy();
 });
 
 test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", () => {
@@ -44,9 +45,9 @@ test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", (
       },
     ],
   });
-  assert.equal(out.length, 1);
-  assert.equal(out[0].label, "דוד מדיניות");
-  assert.equal(out[0].source, "policy");
+  expect(out.length).toBe(1);
+  expect(out[0].label).toBe("דוד מדיניות");
+  expect(out[0].source).toBe("policy");
 });
 
 test("mergePrivatePhoneAllowlist: skips identities without private surface", () => {
@@ -59,7 +60,7 @@ test("mergePrivatePhoneAllowlist: skips identities without private surface", () 
       },
     ],
   });
-  assert.equal(out.length, 0);
+  expect(out.length).toBe(0);
 });
 
 test("pickCarmenAutomationConfig merges phones across private+group triggers", async () => {
@@ -89,6 +90,6 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
       ),
     ),
   ];
-  assert.equal(preferred.carmen_scope_mode, "specific_phone");
-  assert.deepEqual(mergedPhones, ["972507677613", "972545612156"]);
+  expect(preferred.carmen_scope_mode).toBe("specific_phone");
+  expect(mergedPhones).toStrictEqual(["972507677613", "972545612156"]);
 });

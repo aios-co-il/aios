@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildCampaignShutdownJobFromBrief,
   inferShutdownScopeFromText,
@@ -30,41 +28,47 @@ const SAMPLE = [
   },
 ];
 
-test("general Binat shutdown uses all_client_campaigns and includes DMM_CHALLANGE", () => {
-  const scope = inferShutdownScopeFromText(
-    "כל ערב 20:30 לכבות ולבדוק קמפיינים של בינת",
-  );
-  assert.equal(scope.mode, "all_client_campaigns");
-  const { checked } = selectCampaignsForShutdown(SAMPLE, scope);
-  const names = checked.map((c) => c.campaign_name);
-  assert.ok(names.includes("DMM_CHALLANGE | 22.9"));
-  assert.ok(names.includes("WEBINAR | Sep launch"));
-  assert.ok(!names.includes("Old archived"));
-});
+Deno.test(
+  "general Binat shutdown uses all_client_campaigns and includes DMM_CHALLANGE",
+  () => {
+    const scope = inferShutdownScopeFromText(
+      "כל ערב 20:30 לכבות ולבדוק קמפיינים של בינת",
+    );
+    assertStrictEquals(scope.mode, "all_client_campaigns");
+    const { checked } = selectCampaignsForShutdown(SAMPLE, scope);
+    const names = checked.map((c) => c.campaign_name);
+    assert(names.includes("DMM_CHALLANGE | 22.9"));
+    assert(names.includes("WEBINAR | Sep launch"));
+    assert(!names.includes("Old archived"));
+  },
+);
 
-test("explicit webinar-only brief narrows scope", () => {
+Deno.test("explicit webinar-only brief narrows scope", () => {
   const scope = inferShutdownScopeFromText("רק קמפייני webinar של בינת");
-  assert.equal(scope.mode, "name_includes");
+  assertStrictEquals(scope.mode, "name_includes");
   const { checked, skipped_out_of_scope } = selectCampaignsForShutdown(
     SAMPLE,
     scope,
   );
-  assert.deepEqual(
+  assertEquals(
     checked.map((c) => c.campaign_name),
     ["WEBINAR | Sep launch"],
   );
-  assert.ok(
+  assert(
     skipped_out_of_scope.some((c) => c.campaign_name.includes("DMM_CHALLANGE")),
   );
 });
 
-test("buildCampaignShutdownJobFromBrief defaults notify + broad scope", () => {
-  const job = buildCampaignShutdownJobFromBrief(
-    "כיבוי קמפיינים 20:30",
-    "בדיקה וכיבוי קמפיינים של Binat",
-  );
-  assert.ok(job);
-  assert.equal(job.scope.mode, "all_client_campaigns");
-  assert.equal(job.notify_david, true);
-  assert.equal(job.client_name_search, "Binat");
-});
+Deno.test(
+  "buildCampaignShutdownJobFromBrief defaults notify + broad scope",
+  () => {
+    const job = buildCampaignShutdownJobFromBrief(
+      "כיבוי קמפיינים 20:30",
+      "בדיקה וכיבוי קמפיינים של Binat",
+    );
+    assert(job);
+    assertStrictEquals(job.scope.mode, "all_client_campaigns");
+    assertStrictEquals(job.notify_david, true);
+    assertStrictEquals(job.client_name_search, "Binat");
+  },
+);

@@ -1,16 +1,15 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   getClientMoodChanges,
   normalizeClientMoodStatus,
 } from "./clientMoodHistory.ts";
 
 test("normalizes legacy communication statuses to client mood statuses", () => {
-  assert.equal(normalizeClientMoodStatus("normal"), "happy");
-  assert.equal(normalizeClientMoodStatus("sensitive"), "wavering");
-  assert.equal(normalizeClientMoodStatus("complaint"), "churn_risk");
-  assert.equal(normalizeClientMoodStatus("not_progressing"), "not_progressing");
-  assert.equal(normalizeClientMoodStatus("unknown"), null);
+  expect(normalizeClientMoodStatus("normal")).toBe("happy");
+  expect(normalizeClientMoodStatus("sensitive")).toBe("wavering");
+  expect(normalizeClientMoodStatus("complaint")).toBe("churn_risk");
+  expect(normalizeClientMoodStatus("not_progressing")).toBe("not_progressing");
+  expect(normalizeClientMoodStatus("unknown")).toBe(null);
 });
 
 test("keeps a transition whose log has no timestamp", () => {
@@ -19,17 +18,16 @@ test("keeps a transition whose log has no timestamp", () => {
     { id: "2", status: "churn_risk", created_at: "2026-09-02T10:00:00Z" },
   ]);
 
-  assert.deepEqual(
+  expect(
     changes.map(({ id, moodStatus, previousMoodStatus }) => ({
       id,
       moodStatus,
       previousMoodStatus,
     })),
-    [
-      { id: "2", moodStatus: "churn_risk", previousMoodStatus: "happy" },
-      { id: "1", moodStatus: "happy", previousMoodStatus: null },
-    ],
-  );
+  ).toStrictEqual([
+    { id: "2", moodStatus: "churn_risk", previousMoodStatus: "happy" },
+    { id: "1", moodStatus: "happy", previousMoodStatus: null },
+  ]);
 });
 
 test("returns only real mood transitions in newest-first order", () => {
@@ -40,15 +38,14 @@ test("returns only real mood transitions in newest-first order", () => {
     { id: "2", status: "happy", created_at: "2026-09-02T10:00:00Z" },
   ]);
 
-  assert.deepEqual(
+  expect(
     changes.map(({ id, moodStatus, previousMoodStatus }) => ({
       id,
       moodStatus,
       previousMoodStatus,
     })),
-    [
-      { id: "3", moodStatus: "wavering", previousMoodStatus: "happy" },
-      { id: "1", moodStatus: "happy", previousMoodStatus: null },
-    ],
-  );
+  ).toStrictEqual([
+    { id: "3", moodStatus: "wavering", previousMoodStatus: "happy" },
+    { id: "1", moodStatus: "happy", previousMoodStatus: null },
+  ]);
 });
