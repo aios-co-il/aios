@@ -36,16 +36,16 @@ begin
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_assets' and policyname = 'workshop_assets_insert') then
     create policy workshop_assets_insert on public.workshop_assets for insert to authenticated
-      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_assets' and policyname = 'workshop_assets_update') then
     create policy workshop_assets_update on public.workshop_assets for update to authenticated
-      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())))
-      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())))
+      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_assets' and policyname = 'workshop_assets_delete') then
     create policy workshop_assets_delete on public.workshop_assets for delete to authenticated
-      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
 end $$;
 

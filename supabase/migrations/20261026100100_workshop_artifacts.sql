@@ -40,16 +40,16 @@ begin
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_artifacts' and policyname = 'workshop_artifacts_insert') then
     create policy workshop_artifacts_insert on public.workshop_artifacts for insert to authenticated
-      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_artifacts' and policyname = 'workshop_artifacts_update') then
     create policy workshop_artifacts_update on public.workshop_artifacts for update to authenticated
-      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())))
-      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())))
+      with check (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workshop_artifacts' and policyname = 'workshop_artifacts_delete') then
     create policy workshop_artifacts_delete on public.workshop_artifacts for delete to authenticated
-      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())) or public.is_super_admin((select auth.uid())));
+      using (tenant_id in (select tenant_id from public.tenant_users where user_id = (select auth.uid())));
   end if;
 end $$;
 
