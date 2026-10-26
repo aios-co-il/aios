@@ -91,7 +91,7 @@ export function AgencyProvider({ children }: { children: ReactNode }) {
   } = useQuery({
     queryKey: ["agencies-filter", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [] as any[];
+      if (!currentTenantId) return [];
 
       const [
         { data: ownedAgencies, error: ownedError },

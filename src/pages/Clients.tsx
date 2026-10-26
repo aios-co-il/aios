@@ -150,7 +150,10 @@ export default function Clients() {
   const [selectedCampaigner, setSelectedCampaigner] = useState<string>("all");
   const [selectedMoodStatus, setSelectedMoodStatus] = useState<string>("all");
   const [selectedService, setSelectedService] = useState<string>("all");
-  const [deletingClient, setDeletingClient] = useState<any>(null);
+  const [deletingClient, setDeletingClient] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [duplicatingClient, setDuplicatingClient] = useState<{
     id: string;
     name: string;
@@ -181,7 +184,7 @@ export default function Clients() {
 
   const runBulkMetaSync = async () => {
     if (!tenantId || !clients) return;
-    const withMeta = clients.filter((c: any) => c.meta_ads_account_id?.trim());
+    const withMeta = clients.filter((c) => c.meta_ads_account_id?.trim());
     if (withMeta.length === 0) {
       toast.info("אין לקוחות עם Meta Ads Account ID");
       return;
@@ -245,7 +248,7 @@ export default function Clients() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -269,7 +272,7 @@ export default function Clients() {
       const combined = [...(ownedAgencies || []), ...shared];
 
       // Remove duplicates
-      const uniqueMap = new Map();
+      const uniqueMap = new Map<string, { id: string; name: string }>();
       combined.forEach((agency) => {
         if (agency && agency.id) {
           uniqueMap.set(agency.id, agency);
@@ -287,7 +290,7 @@ export default function Clients() {
   const { data: ownedAgencies } = useQuery({
     queryKey: ["owned-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("agencies")
         .select("id")
@@ -298,7 +301,7 @@ export default function Clients() {
     enabled: !!tenantId,
   });
 
-  const ownedAgencyIds = (ownedAgencies || []).map((a: any) => a.id);
+  const ownedAgencyIds = (ownedAgencies || []).map((a) => a.id);
 
   // Fetch tenant-specific financial data for clients
   const { data: clientFinancialData } = useQuery({
@@ -317,7 +320,7 @@ export default function Clients() {
 
   const getClientFinancialData = (clientId: string) => {
     return (
-      clientFinancialData?.find((f: any) => f.client_id === clientId) || null
+      clientFinancialData?.find((f) => f.client_id === clientId) || null
     );
   };
 
@@ -360,7 +363,7 @@ export default function Clients() {
       agencies?.length || 0,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const selectStr = CLIENT_LIST_SELECT;
 
       let query = supabase
@@ -374,7 +377,7 @@ export default function Clients() {
           `tenant_id.eq.${tenantId},agency_id.eq.${selectedAgency}`,
         );
       } else if (agencies && agencies.length > 0) {
-        const ids = agencies.map((a: any) => a.id);
+        const ids = agencies.map((a) => a.id);
         query = query.or(
           `tenant_id.eq.${tenantId},agency_id.in.(${ids.join(",")})`,
         );
@@ -402,7 +405,7 @@ export default function Clients() {
       const isTenantMatch = client.tenant_id === tenantId;
       if (isTenantMatch) return true;
       // Allow cross-tenant only if agency is explicitly shared with this tenant
-      const agencyIds = (agencies || []).map((a: any) => a.id);
+      const agencyIds = (agencies || []).map((a) => a.id);
       if (client.agency_id && agencyIds.includes(client.agency_id)) return true;
       return false;
     });
@@ -418,7 +421,7 @@ export default function Clients() {
   const { data: clientTeam } = useQuery({
     queryKey: ["client-team", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id, campaigner_id");
@@ -583,7 +586,7 @@ export default function Clients() {
       const ids = Array.isArray(campaignerClientIds) ? campaignerClientIds : [];
       accessibleClients = clients?.filter((client) => ids.includes(client.id));
     } else if (isSeoOnlyViewer) {
-      accessibleClients = clients?.filter((client: any) =>
+      accessibleClients = clients?.filter((client) =>
         isSeoTaggedClient(client),
       );
     } else if (isTeamManager && userAgencyIds && userAgencyIds.length > 0) {
@@ -610,7 +613,7 @@ export default function Clients() {
       ? filteredClients?.filter((client) => {
           // Use client_team data from the client object (already fetched with the client)
           const hasMatch = client.client_team?.some(
-            (ct: any) => ct.campaigner_id === selectedCampaigner,
+            (ct) => ct.campaigner_id === selectedCampaigner,
           );
           return !!hasMatch;
         })
@@ -627,9 +630,11 @@ export default function Clients() {
   // Filter by product/service tag
   const serviceFilteredClients =
     selectedService && selectedService !== "all"
-      ? moodFilteredClients?.filter((client: any) => {
+      ? moodFilteredClients?.filter((client) => {
           const services: string[] = Array.isArray(client.services)
-            ? client.services
+            ? client.services.filter(
+                (service): service is string => typeof service === "string",
+              )
             : [];
           if (selectedService === "seo") {
             return isSeoTaggedClient(client);
@@ -665,10 +670,9 @@ export default function Clients() {
       return;
     }
     import("xlsx").then((XLSX) => {
-      const exportData = visibleClients.map((client: any) => ({
+      const exportData = visibleClients.map((client) => ({
         "שם הלקוח": client.name,
-        סוכנות:
-          agencies?.find((a: any) => a.id === client.agency_id)?.name || "",
+        סוכנות: agencies?.find((a) => a.id === client.agency_id)?.name || "",
         סטטוס: getStatusText(client.status),
         ריטיינר: client.retainer || "",
         "תקציב חודשי": client.monthly_budget || "",
@@ -1205,7 +1209,7 @@ export default function Clients() {
                         קמפיינרים משויכים:
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {client.client_team.map((ct: any, index: number) => (
+                        {client.client_team.map((ct, index) => (
                           <Badge
                             key={index}
                             variant="secondary"
@@ -1374,7 +1378,7 @@ export default function Clients() {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            window.open(client.folder_link, "_blank")
+                            window.open(client.folder_link ?? undefined, "_blank")
                           }
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -1392,7 +1396,7 @@ export default function Clients() {
                       <div onClick={(e) => e.stopPropagation()}>
                         <CampaignerAssignmentPicker
                           assignedCampaignerIds={(client.client_team || []).map(
-                            (assignment: any) => assignment.campaigner_id,
+                            (assignment) => assignment.campaigner_id,
                           )}
                           triggerClassName="h-9 w-full"
                           onAssign={(campaignerId) =>
@@ -1739,7 +1743,10 @@ export default function Clients() {
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                              window.open(client.folder_link, "_blank")
+                              window.open(
+                                client.folder_link ?? undefined,
+                                "_blank",
+                              )
                             }
                             className="h-8 w-8 p-0"
                           >
@@ -1754,7 +1761,7 @@ export default function Clients() {
                           client.client_team.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {client.client_team.map(
-                                (ct: any, idx: number) => (
+                                (ct, idx) => (
                                   <Badge
                                     key={idx}
                                     variant="secondary"
@@ -1772,7 +1779,7 @@ export default function Clients() {
                             assignedCampaignerIds={(
                               client.client_team || []
                             ).map(
-                              (assignment: any) => assignment.campaigner_id,
+                              (assignment) => assignment.campaigner_id,
                             )}
                             triggerClassName="h-8 w-full text-xs"
                             onAssign={(campaignerId) =>
@@ -1833,7 +1840,7 @@ export default function Clients() {
                 לקוחות עם Meta Ads Account ID:{" "}
                 <strong>
                   {
-                    (clients || []).filter((c: any) =>
+                    (clients || []).filter((c) =>
                       c.meta_ads_account_id?.trim(),
                     ).length
                   }

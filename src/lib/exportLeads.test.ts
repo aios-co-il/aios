@@ -1,4 +1,6 @@
 import { expect, test } from "vitest";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "../integrations/supabase/types.ts";
 import {
   applyLeadExportTenantScope,
   buildLeadExportRows,
@@ -162,53 +164,44 @@ test("owner export keeps all current-tenant leads when an agency is selected", (
   ).toBe(false);
 });
 
+function parseOrder(
+  order: string | null,
+): Array<{ column: string; ascending?: boolean }> {
+  if (!order) return [];
+  return order.split(",").map((part) => {
+    const [column, direction] = part.split(".");
+    return { column, ascending: direction !== "desc" };
+  });
+}
+
+/** A real client whose REST calls are served from in-memory rows; filters are ignored. */
 function makeClient(
-  tables: Record<string, any[]>,
+  tables: Record<string, unknown[]>,
   ordersByTable: Record<
     string,
     Array<{ column: string; ascending?: boolean }>
   > = {},
 ) {
-  return {
-    from(table: string) {
-      const rows = tables[table] || [];
-      const state = {
-        from: 0,
-        to: Math.max(rows.length - 1, 0),
-        usedRange: false,
-      };
-      ordersByTable[table] = [];
-      const api: any = {
-        select: () => api,
-        eq: () => api,
-        is: () => api,
-        in: () => api,
-        or: () => api,
-        gte: () => api,
-        lte: () => api,
-        order: (column: string, opts?: { ascending?: boolean }) => {
-          ordersByTable[table].push({ column, ascending: opts?.ascending });
-          return api;
-        },
-        range: (from: number, to: number) => {
-          state.from = from;
-          state.to = to;
-          state.usedRange = true;
-          return api;
-        },
-        then: (resolve: any, reject: any) => {
-          const slice = state.usedRange
-            ? rows.slice(state.from, state.to + 1)
-            : rows;
-          return Promise.resolve({ data: slice, error: null }).then(
-            resolve,
-            reject,
-          );
-        },
-      };
-      return api;
-    },
+  const fetch = async (input: RequestInfo | URL): Promise<Response> => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const table = url.pathname.split("/").pop() || "";
+    const rows = tables[table] || [];
+    ordersByTable[table] = parseOrder(url.searchParams.get("order"));
+    const offset = url.searchParams.get("offset");
+    const limit = url.searchParams.get("limit");
+    const slice =
+      offset !== null && limit !== null
+        ? rows.slice(Number(offset), Number(offset) + Number(limit))
+        : rows;
+    return new Response(JSON.stringify(slice), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   };
+  return createClient<Database>("http://supabase.test", "test-key", {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch },
+  });
 }
 
 test("fetchAllLeadsForExport pages past the loaded UI window", async () => {

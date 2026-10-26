@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
@@ -77,6 +78,16 @@ const MakeIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
   </svg>
 );
 
+function settingsObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+}
+
+function settingString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 interface MakeConnection {
   id: number;
   name: string;
@@ -112,10 +123,8 @@ export default function GoogleAdsSettings() {
   // connections + sharing, exactly like the Google Analytics settings page.
   const { data: adsConnections = [], isLoading: loadingAdsConnections } =
     useUserIntegrations(currentTenant?.id, "google_ads");
-  const hasAnyDirectConnection = (adsConnections as any[]).length > 0;
-  const hasOwnDirectConnection = (adsConnections as any[]).some(
-    (i: any) => i._isOwn,
-  );
+  const hasAnyDirectConnection = adsConnections.length > 0;
+  const hasOwnDirectConnection = adsConnections.some((i) => i._isOwn);
 
   // Fetch Google Ads integration (direct API)
   const { data: googleAdsIntegration, isLoading: loadingIntegration } =
@@ -260,10 +269,8 @@ export default function GoogleAdsSettings() {
     enabled: !!isMakeApiConnected,
   });
 
-  const googleAdsConnections =
-    (googleAdsConnectionsResult as any)?.connections ?? [];
-  const makeConnectionsError = (googleAdsConnectionsResult as any)?.error as
-    string | null | undefined;
+  const googleAdsConnections = googleAdsConnectionsResult?.connections ?? [];
+  const makeConnectionsError = googleAdsConnectionsResult?.error;
 
   // Pre-select connection if already saved
   useEffect(() => {
@@ -505,7 +512,7 @@ export default function GoogleAdsSettings() {
   const isConnected = isGoogleIntegrationConnected(googleAdsIntegration);
   const isMakeConfigured = makeIntegration?.is_active;
   const isViaMakeConnected = googleAdsViaMakeIntegration?.is_active;
-  const settings = googleAdsIntegration?.settings as any;
+  const settings = settingsObject(googleAdsIntegration?.settings);
   const viaMakeSettings = googleAdsViaMakeIntegration?.settings as {
     connection_name?: string;
   } | null;
@@ -514,7 +521,7 @@ export default function GoogleAdsSettings() {
     (googleAdsIntegration &&
       googleAdsIntegration.is_active === false &&
       googleAdsIntegration.has_credential);
-  const lastAuthError = settings?.last_auth_error as string | undefined;
+  const lastAuthError = settingString(settings?.last_auth_error);
 
   return (
     <div className="container mx-auto p-6 space-y-6" dir="rtl">
@@ -1012,7 +1019,7 @@ export default function GoogleAdsSettings() {
                   className={hasAnyDirectConnection ? "bg-green-500" : ""}
                 >
                   {hasAnyDirectConnection
-                    ? `${(adsConnections as any[]).length} חשבונות מחוברים`
+                    ? `${adsConnections.length} חשבונות מחוברים`
                     : "לא מחובר"}
                 </Badge>
                 <span className="text-right">Google Ads API</span>
@@ -1029,18 +1036,21 @@ export default function GoogleAdsSettings() {
                 </div>
               ) : hasAnyDirectConnection ? (
                 <div className="space-y-4">
-                  {(adsConnections as any[]).map((integ: any) => {
-                    const s = integ.settings as Record<string, any> | null;
+                  {adsConnections.map((integ) => {
+                    const integId = String(integ.id);
+                    const ownerId = settingString(integ.user_id) ?? null;
+                    const s = settingsObject(integ.settings);
+                    const connectedAt = settingString(s?.connected_at);
                     const email =
-                      (s?.google_email as string) ||
-                      (s?.customer_name as string) ||
+                      settingString(s?.google_email) ||
+                      settingString(s?.customer_name) ||
                       "חשבון Google Ads";
                     const isOwn = integ._isOwn;
                     const sharedByName = integ._sharedByName;
                     const needsReauthRow = Boolean(s?.needs_reauth);
                     return (
                       <div
-                        key={integ.id}
+                        key={integId}
                         className={`flex items-center justify-between p-3 border rounded-lg ${needsReauthRow ? "bg-destructive/10 border-destructive/40" : "bg-muted/30"}`}
                       >
                         <div className="flex items-center gap-3">
@@ -1067,12 +1077,12 @@ export default function GoogleAdsSettings() {
                                 </Badge>
                               )}
                             </div>
-                            {s?.connected_at && (
+                            {connectedAt && (
                               <p className="text-xs text-muted-foreground">
                                 חובר:{" "}
-                                {new Date(
-                                  s.connected_at as string,
-                                ).toLocaleDateString("he-IL")}
+                                {new Date(connectedAt).toLocaleDateString(
+                                  "he-IL",
+                                )}
                               </p>
                             )}
                             {needsReauthRow && (
@@ -1103,9 +1113,9 @@ export default function GoogleAdsSettings() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              setSharingIntegrationId(integ.id);
+                              setSharingIntegrationId(integId);
                               setSharingIntegrationName(email);
-                              setSharingOwnerId(integ.user_id);
+                              setSharingOwnerId(ownerId);
                             }}
                             title={
                               isOwn
@@ -1121,7 +1131,7 @@ export default function GoogleAdsSettings() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                disconnectMutation.mutate(integ.id)
+                                disconnectMutation.mutate(integId)
                               }
                               disabled={disconnectMutation.isPending}
                             >

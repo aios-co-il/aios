@@ -38,7 +38,7 @@ import { SaveAsTemplateDialog } from "@/components/forms/SaveAsTemplateDialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useTenant } from "@/contexts/TenantContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useUserTenants } from "@/hooks/useUserTenants";
+import { useUserTenants, type UserTenant } from "@/hooks/useUserTenants";
 
 export default function Tenants() {
   const navigate = useNavigate();
@@ -86,10 +86,10 @@ export default function Tenants() {
 
   // Organize tenants into organizations and sub-organizations
   const organizeTenants = () => {
-    const orgs: any[] = [];
-    const subs: Record<string, any[]> = {};
+    const orgs: UserTenant[] = [];
+    const subs: Record<string, UserTenant[]> = {};
 
-    (tenants || []).forEach((tenant: any) => {
+    (tenants || []).forEach((tenant) => {
       if (tenant.org_type === "organization" || tenant.org_type === "root") {
         orgs.push(tenant);
       } else if (
@@ -158,7 +158,7 @@ export default function Tenants() {
         window.location.href = "/";
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה",
         description: error.message || "Failed to switch tenant",
@@ -176,7 +176,7 @@ export default function Tenants() {
       return;
     }
 
-    const tenant = tenants?.find((t: any) => t.id === tenantId);
+    const tenant = tenants?.find((t) => t.id === tenantId);
     if (!tenant) return;
 
     // Check if user has permission to access this tenant
@@ -197,7 +197,10 @@ export default function Tenants() {
         .eq("role", "owner")
         .maybeSingle();
 
-      if (!ownerCheck && !tenant.allow_super_admin_access) {
+      if (
+        !ownerCheck &&
+        !("allow_super_admin_access" in tenant && tenant.allow_super_admin_access)
+      ) {
         toast({
           title: "אין הרשאה",
           description: "אין לך הרשאה לגשת לארגון זה",
@@ -217,7 +220,7 @@ export default function Tenants() {
     switchTenantMutation.mutate(tenantId);
   };
 
-  const renderOrgActions = (org: any) => {
+  const renderOrgActions = (org: UserTenant) => {
     return (
       <>
         {/* רק לארגון שורש (root) - כפתור "הוסף ארגון" */}
@@ -335,7 +338,7 @@ export default function Tenants() {
     );
   };
 
-  const renderSubOrgActions = (sub: any) => {
+  const renderSubOrgActions = (sub: UserTenant) => {
     return (
       <>
         {/* עריכת שם */}
@@ -431,7 +434,7 @@ export default function Tenants() {
           </h1>
           {currentTenant && (
             <p className="text-muted-foreground mt-2">
-              ארגון נוכחי: <strong>{(currentTenant as any)?.name}</strong>
+              ארגון נוכחי: <strong>{currentTenant?.name}</strong>
             </p>
           )}
         </div>
@@ -472,7 +475,7 @@ export default function Tenants() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {organizations.map((org: any) => (
+                  {organizations.map((org) => (
                     <React.Fragment key={org.id}>
                       <TableRow
                         className={
@@ -553,7 +556,7 @@ export default function Tenants() {
                       </TableRow>
 
                       {expandedOrgs[org.id] &&
-                        subOrganizations[org.id]?.map((sub: any) => (
+                        subOrganizations[org.id]?.map((sub) => (
                           <TableRow
                             key={sub.id}
                             className={

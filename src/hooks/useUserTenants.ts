@@ -2,6 +2,39 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
+import type { Tables } from "@/integrations/supabase/types";
+
+export type UserTenant = Pick<
+  Tables<"tenants">,
+  | "id"
+  | "name"
+  | "slug"
+  | "org_type"
+  | "parent_tenant_id"
+  | "subdomain"
+  | "contact_name"
+  | "contact_email"
+  | "status"
+  | "notes"
+  | "trial_ends_at"
+>;
+
+function isUserTenant(value: unknown): value is UserTenant {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    !!value.id &&
+    "name" in value &&
+    !!value.name
+  );
+}
+
+function readTenants(payload: unknown): unknown {
+  return typeof payload === "object" && payload !== null && "tenants" in payload
+    ? payload.tenants
+    : undefined;
+}
 
 /**
  * Stable fetch of user tenants via backend function, only after auth token is ready.
@@ -40,7 +73,7 @@ export function useUserTenants(userId?: string | null) {
     queryKey: ["user-tenants", userId, token, currentTenantId],
     enabled: !!userId && !!token,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await supabase.functions.invoke<unknown>(
         "list-user-tenants",
         {
           headers: {
@@ -54,18 +87,18 @@ export function useUserTenants(userId?: string | null) {
 
       if (error) {
         console.error("Error fetching user tenants:", error);
-        return [] as any[];
+        return [];
       }
 
-      const tenants = (data as any)?.tenants;
+      const tenants = readTenants(data);
       // Ensure tenants is always an array before filtering
       if (!Array.isArray(tenants)) {
         console.warn("Tenants data is not an array:", tenants);
-        return [] as any[];
+        return [];
       }
 
       // sanitize
-      return tenants.filter((t: any) => t && t.id && t.name);
+      return tenants.filter(isUserTenant);
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -77,7 +110,7 @@ export function useUserTenants(userId?: string | null) {
 
   return useMemo(
     () => ({
-      userTenants: (query.data as any[]) ?? [],
+      userTenants: query.data ?? [],
       isLoading: query.isLoading || query.isFetching,
       refetch: query.refetch,
     }),
