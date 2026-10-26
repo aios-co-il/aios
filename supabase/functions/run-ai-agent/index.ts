@@ -6455,8 +6455,6 @@ async function executeTool(
             message: args.message_text,
             tenantId,
             [`${args.contact_type}_id`]: args.contact_id,
-            // Carmen's client send (client card auto-log, AIO-242).
-            sendKind: "carmen",
           }),
         },
       );

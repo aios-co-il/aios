@@ -196,9 +196,10 @@ Deno.test("server callers name their kind", () => {
       "supabase/functions/broadcast-dispatch/index.ts",
       /sendKind: "broadcast", sendRef: b\.id/,
     ],
+    // Only a send to the client's own phone (automation-client-send.test.ts).
     [
       "supabase/functions/trigger-automation/index.ts",
-      /sendKind: "automation"/,
+      /\.\.\.\(clientRecipientId \? \{ sendKind: "automation" \} : \{\}\)/,
     ],
     [
       "supabase/functions/trigger-automation/index.ts",
@@ -206,11 +207,57 @@ Deno.test("server callers name their kind", () => {
     ],
     ["supabase/functions/manus-notify/index.ts", /sendKind: "staff_alert"/],
     ["supabase/functions/claude-notify/index.ts", /sendKind: "staff_alert"/],
-    ["supabase/functions/run-ai-agent/index.ts", /sendKind: "carmen"/],
+    // Carmen's real client-facing sends: the action-step route every Carmen
+    // reply and background result takes, the webhook fallbacks and the group
+    // introduction.
+    ["supabase/functions/_shared/carmen.ts", /sendKind = "carmen",/],
+    [
+      "supabase/functions/_shared/carmen.ts",
+      /senderUserId: connectionUserId,\s+message,\s+sendKind,\s+\};/,
+    ],
+    [
+      "supabase/functions/manus-wa-webhook/index.ts",
+      /phoneNumber: carmenTargetPhone,\s+senderUserId: connectionUserId,\s+message,\s+\/\/ [^\n]*\n\s+sendKind: "carmen",/,
+    ],
+    [
+      "supabase/functions/meta-whatsapp-webhook/index.ts",
+      /phoneNumber: item\.peerPhone,\s+message,\s+\/\/ [^\n]*\n\s+sendKind: "carmen",/,
+    ],
+    [
+      "supabase/functions/carmen-introduce-group/index.ts",
+      /groupId: group\.id,[\s\S]*?sendKind: "carmen",\s+\}\);/,
+    ],
+    // A person's ManyChat WhatsApp message is chat; other channels are not.
+    [
+      "supabase/functions/send-chat-message/index.ts",
+      /\.\.\.\(channel === "whatsapp" \? \{ send_kind: "chat" \} : \{\}\)/,
+    ],
   ];
   for (const [path, pattern] of stamps)
     assertMatch(repoFile(path), pattern, path);
 });
+
+Deno.test(
+  "Carmen-line notifications to team members are staff alerts, never Carmen client sends",
+  () => {
+    const trigger = repoFile("supabase/functions/trigger-automation/index.ts");
+    const calls = trigger
+      .split("await sendCarmenReplyViaActionStep({")
+      .slice(1)
+      .map((call) => call.slice(0, call.indexOf("});")));
+    assertStrictEquals(calls.length, 2, "task and follow-up notifications");
+    for (const call of calls) {
+      assertMatch(call, /isGroup: false,/);
+      assertMatch(call, /sendKind: "staff_alert",/);
+    }
+    // run-ai-agent's send_message tool never reaches a sender (no
+    // senderUserId), so it claims no kind.
+    assertNotMatch(
+      repoFile("supabase/functions/run-ai-agent/index.ts"),
+      /sendKind: "carmen"/,
+    );
+  },
+);
 
 Deno.test(
   "broadcast-dispatch stamps every chat_messages row it writes itself",
@@ -380,6 +427,7 @@ Deno.test(
       /pulse_alert_rules #> '\{manager,card_log_system_sends\}'\) = 'true'::jsonb/,
     );
     for (const fn of [
+      "whatsapp_group_link_tenant_ok(uuid, uuid)",
       "whatsapp_group_client_ids(uuid)",
       "resolve_whatsapp_group_client(uuid)",
       "client_card_logs_system_sends(uuid)",
@@ -422,6 +470,125 @@ Deno.test(
       outsideFunctions,
       /ALTER TABLE public\.chat_messages[^;]*(?:CONSTRAINT|DEFAULT|NOT NULL)/,
     );
+  },
+);
+
+Deno.test(
+  "names and group links are read only from the sending or the client's tenant",
+  () => {
+    // A report's target id and a message's group id are the caller's: another
+    // tenant's table, dashboard or group name never reaches this card.
+    const report = functionBody("log_report_delivery_on_client_card");
+    assertMatch(
+      report,
+      /FROM public\.crm_tables AS t\s+WHERE t\.id = NEW\.target_id\s+AND t\.tenant_id IN \(NEW\.tenant_id, v_client_tenant\);/,
+    );
+    assertMatch(
+      report,
+      /FROM public\.crm_dashboards AS d\s+WHERE d\.id = NEW\.target_id\s+AND d\.tenant_id IN \(NEW\.tenant_id, v_client_tenant\);/,
+    );
+    assertMatch(
+      report,
+      /FROM public\.report_schedules AS s\s+WHERE s\.id = NEW\.schedule_id\s+AND s\.tenant_id = NEW\.tenant_id;/,
+    );
+    const chat = functionBody("log_system_send_on_client_card");
+    assertMatch(
+      chat,
+      /FROM public\.whatsapp_groups AS g\s+WHERE g\.id = NEW\.group_id\s+AND g\.tenant_id IN \(NEW\.tenant_id, v_client_tenant\);/,
+    );
+    assertMatch(
+      MIGRATION,
+      /FROM public\.broadcasts AS b\s+WHERE b\.id = NEW\.send_ref::uuid\s+AND b\.tenant_id = NEW\.tenant_id;/,
+    );
+    // A link from an unrelated tenant can neither claim a group nor make it
+    // ambiguous: the function and the view both apply the tenant rule.
+    const links = functionBody("whatsapp_group_client_ids");
+    assertMatch(links, /FROM public\.whatsapp_groups AS g\s+JOIN \(/);
+    assertMatch(
+      links,
+      /ON public\.whatsapp_group_link_tenant_ok\(g\.tenant_id, links\.tenant_id\)\s+WHERE g\.id = p_group/,
+    );
+    assertMatch(
+      MIGRATION,
+      /JOIN public\.whatsapp_groups AS g\s+ON g\.id = links\.group_id\s+AND public\.whatsapp_group_link_tenant_ok\(g\.tenant_id, links\.tenant_id\);/,
+    );
+    const rule = functionBody("whatsapp_group_link_tenant_ok");
+    assertMatch(rule, /SELECT p_group_tenant = p_link_tenant/);
+    assertMatch(rule, /FROM public\.agency_tenant_access AS ata/);
+  },
+);
+
+Deno.test("a browser row logs only chat, as the signed-in person", () => {
+  const chat = functionBody("log_system_send_on_client_card");
+  assertMatch(
+    chat,
+    /v_role := coalesce\(auth\.jwt\(\) ->> 'role', auth\.role\(\), ''\);/,
+  );
+  assertMatch(
+    chat,
+    /IF v_role IN \('authenticated', 'anon'\) THEN\s+IF v_kind <> 'chat' THEN\s+RETURN NULL;\s+END IF;\s+v_sender := auth\.uid\(\);\s+ELSE\s+v_sender := NEW\.sent_by_user_id;/,
+  );
+  assertMatch(
+    chat,
+    /v_actor := public\.client_card_profile_or_null\(v_sender\);/,
+  );
+  assertNotMatch(
+    chat,
+    /client_card_profile_or_null\(NEW\.sent_by_user_id\)/,
+    "the named sender is never trusted for attribution",
+  );
+  // Nor may a browser forge a system_send row or claim a trigger's key.
+  assertMatch(
+    MIGRATION,
+    /CREATE POLICY "Users can create client updates in their tenant"\s+ON public\.client_updates\s+FOR INSERT\s+WITH CHECK \(\s+public\.is_super_admin\(auth\.uid\(\)\)\s+OR \(\s+tenant_id = public\.get_user_tenant_id\(auth\.uid\(\)\)\s+AND source = 'human'\s+\)\s+\);/,
+  );
+});
+
+Deno.test(
+  "a chat send counts on the client's daily entry only for a tenant that may write the card",
+  () => {
+    const chat = functionBody("log_system_send_on_client_card");
+    // Access is checked before the entry is touched (an update bypasses the
+    // writer's own tenant check) ...
+    const access = chat.indexOf("ata.access_level = 'read_write'");
+    assert(access > 0);
+    assert(access < chat.indexOf("FOR UPDATE"));
+    // ... so the daily entry is the client's, whichever tenant wrote it first:
+    // an agency tenant's sends count on it instead of being dropped.
+    assertNotMatch(chat, /u\.tenant_id = NEW\.tenant_id/);
+    assertStrictEquals(chat.match(/FOR UPDATE;/g)?.length, 2);
+    // A damaged count restarts instead of stopping the day's counting.
+    assertMatch(
+      chat,
+      /WHEN \(v_meta ->> 'count'\) ~ '\^\[0-9\]\{1,9\}\$' THEN \(v_meta ->> 'count'\)::integer\s+ELSE 1/,
+    );
+    // A send never waits long for today's entry (a lock timeout is caught).
+    assertMatch(
+      MIGRATION,
+      /FUNCTION public\.log_system_send_on_client_card\(\)\s+RETURNS trigger\s+LANGUAGE plpgsql\s+SECURITY DEFINER\s+SET search_path TO 'public'\s+SET lock_timeout TO '2s'/,
+    );
+  },
+);
+
+Deno.test(
+  "a delivery logs only what went out, with a meeting date outside the title quotes",
+  () => {
+    const report = functionBody("log_report_delivery_on_client_card");
+    assertMatch(
+      report,
+      /IF cardinality\(v_channels\) = 0 THEN\s+RETURN NULL;\s+END IF;/,
+    );
+    assertMatch(
+      report,
+      /v_meeting_date := nullif\(btrim\(NEW\.details ->> 'meeting_date'\), ''\);/,
+    );
+    assertMatch(
+      report,
+      /' "' \|\| v_title \|\| '"' ELSE '' END\s+\|\| CASE WHEN v_meeting_date IS NOT NULL THEN ' \(' \|\| v_meeting_date \|\| '\)' ELSE '' END/,
+    );
+    const dialog = repoFile("src/components/recordings/ShareSummaryDialog.tsx");
+    assertMatch(dialog, /title: meetingName,/);
+    assertMatch(dialog, /meeting_date: meetingDate \|\| null,/);
   },
 );
 

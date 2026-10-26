@@ -3,14 +3,14 @@ import { sendCarmenReplyViaActionStep } from "./carmen.ts";
 
 // Minimal stand-in for the PostgREST builder: every filter returns `this`, and the
 // builder resolves to the rows it was seeded with.
-function stubSupabase(stepRows) {
+function stubSupabase(stepRows, group = null) {
   const builder = {
     select: () => builder,
     eq: () => builder,
     in: () => builder,
     order: () => builder,
     limit: () => Promise.resolve({ data: stepRows }),
-    maybeSingle: () => Promise.resolve({ data: null }),
+    maybeSingle: () => Promise.resolve({ data: group }),
   };
   return { from: () => builder };
 }
@@ -95,6 +95,8 @@ Deno.test(
         tenantId: "tenant-1",
         senderUserId: "user-1",
         message: "שלום",
+        // Carmen's send (client card auto-log, AIO-242).
+        sendKind: "carmen",
         integrationId: "meta-1",
         phoneNumber: "972507677613",
       });
@@ -121,6 +123,57 @@ Deno.test(
       assertStrictEquals(sent, true);
       assert(calls[0].url.endsWith("/functions/v1/send-manus-wa-message"));
       assertStrictEquals(calls[0].body.integrationId, "manus-1");
+    });
+  },
+);
+
+Deno.test(
+  "a Carmen reply in a client group is stamped carmen and carries the group",
+  async () => {
+    await withStubbedRuntime(async (calls) => {
+      const sent = await sendCarmenReplyViaActionStep({
+        ...baseArgs,
+        supabase: stubSupabase(
+          [
+            {
+              action_type: "send_green_api_message",
+              configuration: { green_api_integration_id: "green-1" },
+            },
+          ],
+          { id: "group-uuid" },
+        ),
+        chatId: "120363416882903532@g.us",
+        isGroup: true,
+      });
+
+      assertStrictEquals(sent, true);
+      assert(calls[0].url.endsWith("/functions/v1/send-green-api-message"));
+      assertStrictEquals(calls[0].body.sendKind, "carmen");
+      assertStrictEquals(calls[0].body.groupId, "group-uuid");
+      assertStrictEquals(calls[0].body.phoneNumber, undefined);
+    });
+  },
+);
+
+Deno.test(
+  "a Carmen-line notification to a team member is a staff alert",
+  async () => {
+    await withStubbedRuntime(async (calls) => {
+      const sent = await sendCarmenReplyViaActionStep({
+        ...baseArgs,
+        supabase: stubSupabase([
+          {
+            action_type: "send_manus_message",
+            configuration: { integration_id: "manus-1" },
+          },
+        ]),
+        chatId: "972507677613@c.us",
+        isGroup: false,
+        sendKind: "staff_alert",
+      });
+
+      assertStrictEquals(sent, true);
+      assertStrictEquals(calls[0].body.sendKind, "staff_alert");
     });
   },
 );

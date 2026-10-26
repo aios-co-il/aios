@@ -39,6 +39,10 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTable, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
+import {
+  reportDeliveryOutcome,
+  type ReportDeliveryChannel,
+} from "@/lib/reportDelivery";
 import { getReportLastSyncAt } from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -487,6 +491,48 @@ export function ClientReportPanel({
     }
   }, [shareLink, table.id, table.name, tenantId, queryClient]);
 
+  // The send's only client card log: a database trigger writes the "דוח נשלח"
+  // entry from this row when the tenant turned card logging on (AIO-242).
+  // Only the channels that went out are recorded (partial when one failed).
+  const recordReportDelivery = async (
+    sent: ReportDeliveryChannel[],
+    shareUrl: string | null,
+  ) => {
+    const outcome = reportDeliveryOutcome({
+      requested: { whatsapp: sendWhatsApp, email: sendEmail },
+      sent,
+    });
+    if (!outcome) return;
+    try {
+      const { error: deliveryLogError } = await supabase
+        .from("report_deliveries")
+        .insert({
+          tenant_id: tenantId,
+          client_id: clientId,
+          target_type: "table",
+          target_id: table.id,
+          channels: outcome.channels,
+          status: outcome.status,
+          details: {
+            source: "manual",
+            title: table.name,
+            share_url: shareUrl,
+            email_recipients: outcome.channels.includes("email")
+              ? emailRecipients
+              : [],
+          },
+        });
+      if (deliveryLogError)
+        console.warn("Failed to log report delivery:", deliveryLogError);
+      else
+        queryClient.invalidateQueries({
+          queryKey: ["client-updates", clientId],
+        });
+    } catch (e) {
+      console.warn("Failed to log report delivery:", e);
+    }
+  };
+
   const handleSend = async () => {
     if (!screenshotBlob) {
       toast.error("לא נוצר צילום מסך");
@@ -498,9 +544,11 @@ export function ClientReportPanel({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
+    let effectiveShareLink: string | null = shareLink || null;
     try {
       // Auto-create share link if missing
-      const effectiveShareLink = shareLink || (await ensureShareLink());
+      if (!effectiveShareLink) effectiveShareLink = await ensureShareLink();
 
       if (sendWhatsApp) {
         const hasGroup = selectedGroupId && selectedGroupId !== "__none__";
@@ -548,6 +596,7 @@ export function ClientReportPanel({
         );
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "שגיאה בשליחה");
+        sentChannels.push("whatsapp");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
       }
 
@@ -632,36 +681,9 @@ export function ClientReportPanel({
           if (error) throw new Error(error.message || "שגיאה בשליחה");
           if (data?.error) throw new Error(data.error);
         }
+        sentChannels.push("email");
         toast.success("הדוח נשלח באימייל בהצלחה");
       }
-
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "table",
-          target_id: table.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-          status: "sent",
-          details: {
-            source: "manual",
-            title: table.name,
-            share_url: effectiveShareLink,
-            email_recipients: sendEmail ? emailRecipients : [],
-          },
-        });
-      // This row is the send's only client card log: a database trigger
-      // writes the "דוח נשלח" entry when the tenant turned card logging on.
-      if (deliveryLogError)
-        console.warn("Failed to log report delivery:", deliveryLogError);
-      else
-        queryClient.invalidateQueries({
-          queryKey: ["client-updates", clientId],
-        });
     } catch (error: any) {
       console.error("Error sending report:", error);
       const msg = String(error?.message || "");
@@ -681,6 +703,7 @@ export function ClientReportPanel({
         toast.error("שגיאה בשליחת הדוח: " + msg);
       }
     } finally {
+      await recordReportDelivery(sentChannels, effectiveShareLink);
       setIsSending(false);
     }
   };

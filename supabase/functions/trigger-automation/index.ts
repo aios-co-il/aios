@@ -3,6 +3,11 @@ import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.t
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import {
+  findAutomationClientRecipient,
+  recipientClientIds,
+  recordAutomationClientSend,
+} from "../_shared/automation-client-send.ts";
+import {
   buildWaNotifyFromOrigin,
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
@@ -1295,6 +1300,7 @@ async function sendTaskNotificationFromTenantCarmen(
     phoneNumber: recipient.phone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
   if (!sent) {
     await releaseTaskNotificationDelivery(supabase, {
@@ -1445,6 +1451,7 @@ async function sendClientFollowUpFromTenantCarmen(
     phoneNumber: recipientPhone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
 
   console.log("[client-follow-up-carmen]", {
@@ -5701,6 +5708,8 @@ async function resolveWaIntegration(
       idInstance: config.external_instance_id,
       apiTokenInstance: config.external_api_token,
       providerType: "green_api" as const,
+      connectionUserId: null,
+      integrationId: null,
     };
   }
 
@@ -5743,7 +5752,13 @@ async function resolveWaIntegration(
     if (!idInstance || !apiTokenInstance)
       throw new Error("הגדרות Green API חסרות");
   }
-  return { idInstance, apiTokenInstance, providerType };
+  return {
+    idInstance,
+    apiTokenInstance,
+    providerType,
+    connectionUserId: (integration.user_id as string | null) ?? null,
+    integrationId: (integration.id as string | null) ?? null,
+  };
 }
 
 async function sendWaMessage(opts: {
@@ -5964,6 +5979,13 @@ async function executeMetaWhatsappMessage(
   const phoneField = String(config.phone_field || "phone");
   const sendingToClient =
     phoneField === "client_phone" || phoneField === "recipient_phone";
+  // Logged on the client card only when the message went to the client's own
+  // phone, never to a lead, a team member or a manual number (AIO-242).
+  const clientRecipientId = await findAutomationClientRecipient(supabase, {
+    tenantId,
+    destination: phoneNumber,
+    candidateClientIds: [data?.client_id],
+  });
   const payload: Record<string, unknown> = {
     tenantId,
     integrationId: integration.id,
@@ -5973,8 +5995,7 @@ async function executeMetaWhatsappMessage(
     leadId: sendingToClient
       ? data?.lead_id || null
       : data?.lead_id || data?.id || null,
-    // An automation send (client card auto-log, AIO-242).
-    sendKind: "automation",
+    ...(clientRecipientId ? { sendKind: "automation" } : {}),
   };
 
   if (sendMode === "template") {
@@ -6099,8 +6120,13 @@ async function executeGreenApiMessage(
     }
 
     // Resolve integration once
-    const { idInstance, apiTokenInstance, providerType } =
-      await resolveWaIntegration(supabase, config, tenantId);
+    const {
+      idInstance,
+      apiTokenInstance,
+      providerType,
+      connectionUserId,
+      integrationId,
+    } = await resolveWaIntegration(supabase, config, tenantId);
 
     // Build message once (using available data; no per-recipient contactRecord override)
     let message = replaceTemplateVariables(
@@ -6154,6 +6180,21 @@ async function executeGreenApiMessage(
             results.push({ chatId, status: "skipped", result: r });
           } else {
             results.push({ chatId, status: "sent", result: r });
+            // Client card auto-log (AIO-242): only a send to a client.
+            await recordAutomationClientSend(supabase, {
+              tenantId,
+              chatId,
+              message,
+              provider: providerType,
+              connectionUserId,
+              integrationId,
+              providerResponse: r,
+              candidateClientIds: [
+                ...recipientClientIds(config.recipients),
+                data?.client_id,
+                data?.id,
+              ],
+            });
           }
         } catch (sendErr) {
           if (sendClaimInserted) {
@@ -6540,6 +6581,19 @@ async function executeGreenApiMessage(
     }
     throw sendErr;
   }
+
+  // Client card auto-log (AIO-242): only a send to a client's own phone or a
+  // group that belongs to one client.
+  await recordAutomationClientSend(supabase, {
+    tenantId,
+    chatId,
+    message,
+    provider: providerType,
+    connectionUserId: integration?.user_id ?? null,
+    integrationId: integration?.id ?? null,
+    providerResponse: sendResult,
+    candidateClientIds: [contactRecord?.id, data?.client_id, data?.id],
+  });
 
   return {
     success: true,

@@ -39,6 +39,10 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  reportDeliveryOutcome,
+  type ReportDeliveryChannel,
+} from "@/lib/reportDelivery";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
 const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
@@ -172,6 +176,42 @@ export function SendReportDialog({
     else setEmailSender("aios");
   }, [gmailToken]);
 
+  // Same delivery record as the client card's report panel. It is the send's
+  // only client card log (a database trigger writes the entry, AIO-242), and
+  // it records only the channels that went out (partial when one failed).
+  const recordReportDelivery = async (sent: ReportDeliveryChannel[]) => {
+    if (!clientId) return;
+    const outcome = reportDeliveryOutcome({
+      requested: { whatsapp: sendWhatsApp, email: sendEmail },
+      sent,
+    });
+    if (!outcome) return;
+    try {
+      const { error: deliveryLogError } = await supabase
+        .from("report_deliveries")
+        .insert({
+          tenant_id: tenantId,
+          client_id: clientId,
+          target_type: "table",
+          target_id: tableId,
+          channels: outcome.channels,
+          status: outcome.status,
+          details: {
+            source: "manual",
+            title: tableName,
+            share_url: shareLink ?? null,
+            email_recipients: outcome.channels.includes("email")
+              ? [emailAddress]
+              : [],
+          },
+        });
+      if (deliveryLogError)
+        console.warn("Failed to log report delivery:", deliveryLogError);
+    } catch (e) {
+      console.warn("Failed to log report delivery:", e);
+    }
+  };
+
   const handleSend = async () => {
     if (!screenshotBlob) {
       toast.error("לא נוצר צילום מסך");
@@ -184,6 +224,7 @@ export function SendReportDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -250,6 +291,7 @@ export function SendReportDialog({
         const result = await response.json();
         if (!response.ok)
           throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
+        sentChannels.push("whatsapp");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
       }
 
@@ -355,32 +397,7 @@ export function SendReportDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
-      }
-
-      // Same delivery record as the client card's report panel. It is the
-      // send's only client card log (a database trigger writes the entry).
-      if (clientId) {
-        const { error: deliveryLogError } = await supabase
-          .from("report_deliveries")
-          .insert({
-            tenant_id: tenantId,
-            client_id: clientId,
-            target_type: "table",
-            target_id: tableId,
-            channels: [
-              ...(sendWhatsApp ? ["whatsapp"] : []),
-              ...(sendEmail ? ["email"] : []),
-            ],
-            status: "sent",
-            details: {
-              source: "manual",
-              title: tableName,
-              share_url: shareLink ?? null,
-              email_recipients: sendEmail ? [emailAddress] : [],
-            },
-          });
-        if (deliveryLogError)
-          console.warn("Failed to log report delivery:", deliveryLogError);
+        sentChannels.push("email");
       }
 
       onOpenChange(false);
@@ -388,6 +405,7 @@ export function SendReportDialog({
       console.error("Error sending report:", error);
       toast.error("שגיאה בשליחת הדוח: " + error.message);
     } finally {
+      await recordReportDelivery(sentChannels);
       setIsSending(false);
     }
   };

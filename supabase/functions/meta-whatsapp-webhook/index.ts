@@ -669,6 +669,8 @@ Deno.serve(async (request) => {
                         senderUserId: target.userId,
                         phoneNumber: item.peerPhone,
                         message,
+                        // Carmen's reply (client card auto-log, AIO-242).
+                        sendKind: "carmen",
                       }),
                     },
                   );

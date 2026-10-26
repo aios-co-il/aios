@@ -35,8 +35,12 @@
 --      update_type 'report_sent', source 'system_send', source_ref <delivery>,
 --      content: דוח "דוח לידים" נשלח ללקוח בוואטסאפ ובאימייל
 --               קישור: https://aios.co.il/shared/table/abc
---    A 'failed' delivery writes nothing; a 'partial' one lists only the
---    channels that succeeded and says some channels failed.
+--    A 'failed' delivery, or one where no channel went out, writes nothing; a
+--    'partial' one lists only the channels that succeeded and says some
+--    channels failed. A meeting summary's date (details.meeting_date) follows
+--    the quoted title: סיכום הפגישה "<name>" (26.10.2026) נשלח ללקוח ...
+--    Table and dashboard names are read only from the sending tenant or the
+--    client's tenant, so a target id from another tenant never leaks its name.
 --
 -- 3. chat_messages AFTER INSERT, for direction 'outbound' with send_kind
 --    chat / broadcast (sent_by_user_id set) or carmen / automation, when the
@@ -62,12 +66,28 @@
 --                 (client_id, source, source_ref)).
 --    Inbound rows, service-role rows without a kind, rows with no
 --    resolvable client and rows in a group linked to several clients
---    (ambiguous) write nothing.
+--    (ambiguous) write nothing. Nor does a row whose tenant may not write the
+--    client's card (not its client, and no agency read_write access to it).
+--    A row written with a signed-in person's token (the browser, or a sender
+--    acting for that person) logs only chat, attributed to that person
+--    (auth.uid()), never to the sent_by_user_id it names: broadcast, carmen
+--    and automation entries come only from the server. Several tenants
+--    sending to one client thread on one day share one entry and one count.
+--    The group name is read only from the sending tenant or the client's.
 --
 -- 4. client_whatsapp_group_links (C4): which client owns a WhatsApp group,
 --    the union of clients.whatsapp_group_id, team_channel_whatsapp_links and
---    carmen_client_group_access. Read-only, service role and SECURITY DEFINER
---    callers only; Carmen's group access code never reads it.
+--    carmen_client_group_access. A link counts only when its tenant is the
+--    group's tenant or related to it through agency_tenant_access, so another
+--    tenant can neither claim a group nor make it ambiguous. Read-only,
+--    service role and SECURITY DEFINER callers only; Carmen's group access
+--    code never reads it.
+--
+-- 5. The browser may insert only human client_updates rows (AIO-232 also
+--    allowed system_send for the report panel and meeting summary dialog,
+--    which now record a report_deliveries row instead). Every system_send
+--    entry is written by these triggers, so nobody can forge one or claim
+--    its dedupe key ahead of the trigger.
 
 -- ─── 1. chat_messages columns ───────────────────────────────────────────────
 
@@ -82,24 +102,57 @@ COMMENT ON COLUMN public.chat_messages.send_ref IS
 
 -- ─── 2. Client <-> WhatsApp group links (C4) ────────────────────────────────
 
+-- True when a link written in p_link_tenant may speak for a group of
+-- p_group_tenant: the same tenant, or tenants related by agency access.
+CREATE OR REPLACE FUNCTION public.whatsapp_group_link_tenant_ok(
+  p_group_tenant uuid,
+  p_link_tenant uuid
+)
+RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+AS $$
+  SELECT p_group_tenant = p_link_tenant
+    OR EXISTS (
+      SELECT 1
+      FROM public.agency_tenant_access AS ata
+      WHERE (ata.accessing_tenant_id = p_group_tenant
+          AND ata.source_tenant_id = p_link_tenant)
+        OR (ata.accessing_tenant_id = p_link_tenant
+          AND ata.source_tenant_id = p_group_tenant)
+    )
+$$;
+
+REVOKE ALL ON FUNCTION public.whatsapp_group_link_tenant_ok(uuid, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.whatsapp_group_link_tenant_ok(uuid, uuid)
+  TO service_role;
+
 CREATE OR REPLACE FUNCTION public.whatsapp_group_client_ids(p_group uuid)
 RETURNS SETOF uuid
   LANGUAGE sql
   STABLE
   SET search_path TO ''
 AS $$
-  SELECT c.id
-  FROM public.clients AS c
-  WHERE c.whatsapp_group_id = p_group
-  UNION
-  SELECT l.client_id
-  FROM public.team_channel_whatsapp_links AS l
-  WHERE l.whatsapp_group_id = p_group
-    AND l.client_id IS NOT NULL
-  UNION
-  SELECT a.client_id
-  FROM public.carmen_client_group_access AS a
-  WHERE a.whatsapp_group_id = p_group
+  SELECT DISTINCT links.client_id
+  FROM public.whatsapp_groups AS g
+  JOIN (
+    SELECT c.id AS client_id, c.tenant_id
+    FROM public.clients AS c
+    WHERE c.whatsapp_group_id = p_group
+    UNION
+    SELECT l.client_id, l.tenant_id
+    FROM public.team_channel_whatsapp_links AS l
+    WHERE l.whatsapp_group_id = p_group
+      AND l.client_id IS NOT NULL
+    UNION
+    SELECT a.client_id, a.tenant_id
+    FROM public.carmen_client_group_access AS a
+    WHERE a.whatsapp_group_id = p_group
+  ) AS links
+    ON public.whatsapp_group_link_tenant_ok(g.tenant_id, links.tenant_id)
+  WHERE g.id = p_group
 $$;
 
 REVOKE ALL ON FUNCTION public.whatsapp_group_client_ids(uuid)
@@ -108,7 +161,7 @@ GRANT EXECUTE ON FUNCTION public.whatsapp_group_client_ids(uuid)
   TO service_role;
 
 COMMENT ON FUNCTION public.whatsapp_group_client_ids(uuid) IS
-  'Distinct clients linked to a WhatsApp group through clients.whatsapp_group_id, team_channel_whatsapp_links or carmen_client_group_access.';
+  'Distinct clients linked to a WhatsApp group through clients.whatsapp_group_id, team_channel_whatsapp_links or carmen_client_group_access, counting only links from the group''s tenant or a tenant related to it by agency access.';
 
 -- The one client a group belongs to; NULL when none or several (ambiguous).
 CREATE OR REPLACE FUNCTION public.resolve_whatsapp_group_client(p_group uuid)
@@ -166,7 +219,9 @@ FROM (
     'carmen_client_group_access'::text
   FROM public.carmen_client_group_access AS a
 ) AS links
-JOIN public.whatsapp_groups AS g ON g.id = links.group_id;
+JOIN public.whatsapp_groups AS g
+  ON g.id = links.group_id
+  AND public.whatsapp_group_link_tenant_ok(g.tenant_id, links.tenant_id);
 
 REVOKE ALL ON public.client_whatsapp_group_links FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.client_whatsapp_group_links TO service_role;
@@ -228,6 +283,8 @@ DECLARE
   v_update_type text;
   v_label text;
   v_title text;
+  v_meeting_date text;
+  v_client_tenant uuid;
   v_channels text[];
   v_channel_words text[] := ARRAY[]::text[];
   v_channel text;
@@ -254,12 +311,24 @@ BEGIN
       ELSE 'דוח'
     END;
 
+    -- Names come only from the sending tenant or the client's tenant: the
+    -- target id is the caller's, and another tenant's name must not leak.
+    SELECT c.tenant_id INTO v_client_tenant
+    FROM public.clients AS c
+    WHERE c.id = NEW.client_id;
     v_title := nullif(btrim(NEW.details ->> 'title'), '');
     IF v_title IS NULL AND NEW.target_type = 'table' THEN
-      SELECT t.name INTO v_title FROM public.crm_tables AS t WHERE t.id = NEW.target_id;
+      SELECT t.name INTO v_title
+      FROM public.crm_tables AS t
+      WHERE t.id = NEW.target_id
+        AND t.tenant_id IN (NEW.tenant_id, v_client_tenant);
     ELSIF v_title IS NULL AND NEW.target_type = 'dashboard' THEN
-      SELECT d.name INTO v_title FROM public.crm_dashboards AS d WHERE d.id = NEW.target_id;
+      SELECT d.name INTO v_title
+      FROM public.crm_dashboards AS d
+      WHERE d.id = NEW.target_id
+        AND d.tenant_id IN (NEW.tenant_id, v_client_tenant);
     END IF;
+    v_meeting_date := nullif(btrim(NEW.details ->> 'meeting_date'), '');
 
     -- The channels that went out: per-channel results when the sender
     -- recorded them (scheduled-report-worker), else the requested channels.
@@ -270,6 +339,10 @@ BEGIN
       WHERE ch.value ->> 'ok' = 'true';
     ELSE
       v_channels := coalesce(NEW.channels, ARRAY[]::text[]);
+    END IF;
+    -- Nothing went out (e.g. a schedule with no channel): nothing to log.
+    IF cardinality(v_channels) = 0 THEN
+      RETURN NULL;
     END IF;
     FOREACH v_channel IN ARRAY v_channels LOOP
       IF v_channel = 'whatsapp' THEN
@@ -283,6 +356,7 @@ BEGIN
 
     v_content := v_label
       || CASE WHEN v_title IS NOT NULL THEN ' "' || v_title || '"' ELSE '' END
+      || CASE WHEN v_meeting_date IS NOT NULL THEN ' (' || v_meeting_date || ')' ELSE '' END
       || ' נשלח ללקוח'
       || CASE
            WHEN cardinality(v_channel_words) > 0
@@ -299,7 +373,8 @@ BEGIN
       SELECT public.client_card_profile_or_null(s.created_by)
       INTO v_actor
       FROM public.report_schedules AS s
-      WHERE s.id = NEW.schedule_id;
+      WHERE s.id = NEW.schedule_id
+        AND s.tenant_id = NEW.tenant_id;
     END IF;
 
     PERFORM public.record_client_card_entry(
@@ -341,15 +416,23 @@ CREATE TRIGGER report_deliveries_log_on_client_card
 
 -- ─── 5. chat_messages -> client card ────────────────────────────────────────
 
+-- lock_timeout: a send waits at most 2 seconds for today's chat entry; a
+-- lock timeout is caught below like any other error, so the send goes
+-- through and only that one count is lost.
 CREATE OR REPLACE FUNCTION public.log_system_send_on_client_card()
 RETURNS trigger
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path TO 'public'
+  SET lock_timeout TO '2s'
 AS $$
 DECLARE
   v_kind text := NEW.send_kind;
+  v_role text;
+  v_sender uuid;
   v_client uuid := NEW.client_id;
+  v_client_tenant uuid;
+  v_client_agency uuid;
   v_sent_at timestamptz := coalesce(NEW.created_at, now());
   v_day date;
   v_where text := '';
@@ -371,7 +454,19 @@ BEGIN
       OR v_kind NOT IN ('chat', 'broadcast', 'carmen', 'automation') THEN
       RETURN NULL;
     END IF;
-    IF NEW.sent_by_user_id IS NULL AND v_kind NOT IN ('carmen', 'automation') THEN
+    -- Who wrote the row. A signed-in person's token (the browser, or a sender
+    -- acting for that person) may log only chat, as that person; broadcast,
+    -- carmen and automation entries come only from the server.
+    v_role := coalesce(auth.jwt() ->> 'role', auth.role(), '');
+    IF v_role IN ('authenticated', 'anon') THEN
+      IF v_kind <> 'chat' THEN
+        RETURN NULL;
+      END IF;
+      v_sender := auth.uid();
+    ELSE
+      v_sender := NEW.sent_by_user_id;
+    END IF;
+    IF v_sender IS NULL AND v_kind NOT IN ('carmen', 'automation') THEN
       RETURN NULL;
     END IF;
     IF NOT public.client_card_logs_system_sends(NEW.tenant_id) THEN
@@ -385,17 +480,41 @@ BEGIN
       RETURN NULL;
     END IF;
 
+    -- The sending tenant must be allowed to write this client's card: its
+    -- own client, or an agency client it has read_write access to. Same rule
+    -- as record_client_card_entry, checked here because a later chat send
+    -- only updates today's entry.
+    SELECT c.tenant_id, c.agency_id
+    INTO v_client_tenant, v_client_agency
+    FROM public.clients AS c
+    WHERE c.id = v_client;
+    IF NOT FOUND THEN
+      RETURN NULL;
+    END IF;
+    IF v_client_tenant IS DISTINCT FROM NEW.tenant_id AND NOT EXISTS (
+      SELECT 1
+      FROM public.agency_tenant_access AS ata
+      WHERE ata.accessing_tenant_id = NEW.tenant_id
+        AND ata.source_tenant_id = v_client_tenant
+        AND ata.agency_id = v_client_agency
+        AND ata.access_level = 'read_write'
+    ) THEN
+      RETURN NULL;
+    END IF;
+
     IF NEW.group_id IS NOT NULL THEN
+      -- Only a group of the sending tenant or the client's tenant is named.
       SELECT nullif(btrim(g.group_name), '') INTO v_group_name
       FROM public.whatsapp_groups AS g
-      WHERE g.id = NEW.group_id;
+      WHERE g.id = NEW.group_id
+        AND g.tenant_id IN (NEW.tenant_id, v_client_tenant);
       v_where := CASE
         WHEN v_group_name IS NOT NULL THEN ' בקבוצה "' || v_group_name || '"'
         ELSE ' בקבוצת הלקוח'
       END;
     END IF;
 
-    v_actor := public.client_card_profile_or_null(NEW.sent_by_user_id);
+    v_actor := public.client_card_profile_or_null(v_sender);
 
     IF v_kind = 'broadcast' THEN
       IF NEW.send_ref ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
@@ -461,7 +580,9 @@ BEGIN
       RETURN NULL;
     END IF;
 
-    -- chat: one entry per client thread per Israel day, no message text.
+    -- chat: one entry per client thread per Israel day, no message text. The
+    -- entry is the client's: an agency tenant sending to the same thread that
+    -- day counts on it too (access was checked above).
     v_day := (v_sent_at AT TIME ZONE 'Asia/Jerusalem')::date;
     v_ref := 'chat:' || v_client::text || ':'
       || coalesce(NEW.group_id::text, 'dm') || ':'
@@ -473,7 +594,6 @@ BEGIN
     WHERE u.client_id = v_client
       AND u.source = 'system_send'
       AND u.source_ref = v_ref
-      AND u.tenant_id = NEW.tenant_id
     FOR UPDATE;
 
     IF v_entry_id IS NULL THEN
@@ -512,14 +632,16 @@ BEGIN
       WHERE u.client_id = v_client
         AND u.source = 'system_send'
         AND u.source_ref = v_ref
-        AND u.tenant_id = NEW.tenant_id
       FOR UPDATE;
       IF v_entry_id IS NULL THEN
         RETURN NULL;
       END IF;
     END IF;
 
-    v_count := coalesce((v_meta ->> 'count')::integer, 1) + 1;
+    v_count := CASE
+        WHEN (v_meta ->> 'count') ~ '^[0-9]{1,9}$' THEN (v_meta ->> 'count')::integer
+        ELSE 1
+      END + 1;
     v_last := greatest(coalesce((v_meta ->> 'last_sent_at')::timestamptz, v_sent_at), v_sent_at);
     UPDATE public.client_updates AS u
     SET
@@ -556,3 +678,21 @@ CREATE TRIGGER chat_messages_log_system_send
     AND NEW.send_kind IN ('chat', 'broadcast', 'carmen', 'automation')
   )
   EXECUTE FUNCTION public.log_system_send_on_client_card();
+
+-- ─── 6. Browser inserts: human rows only ────────────────────────────────────
+
+-- AIO-232 let the browser insert system_send rows for the report panel and
+-- the meeting summary dialog; both now record a report_deliveries row and the
+-- triggers above write the entry. A browser system_send row could only forge
+-- an entry or claim a trigger's dedupe key ahead of it.
+DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
+CREATE POLICY "Users can create client updates in their tenant"
+  ON public.client_updates
+  FOR INSERT
+  WITH CHECK (
+    public.is_super_admin(auth.uid())
+    OR (
+      tenant_id = public.get_user_tenant_id(auth.uid())
+      AND source = 'human'
+    )
+  );

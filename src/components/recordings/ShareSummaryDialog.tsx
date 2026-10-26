@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -39,6 +39,10 @@ import {
   Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  reportDeliveryOutcome,
+  type ReportDeliveryChannel,
+} from "@/lib/reportDelivery";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
 
 export interface ShareableRecording {
@@ -81,6 +85,7 @@ export function ShareSummaryDialog({
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const queryClient = useQueryClient();
 
   const meetingName = recording.meeting_topic || "פגישה";
   const meetingDate = recording.start_time
@@ -148,27 +153,35 @@ export function ShareSummaryDialog({
 
   // Record the send in report_deliveries. That row is the send's only client
   // card log: a database trigger writes the "סיכום פגישה נשלח" entry (a system
-  // send, never client contact) when the tenant turned card logging on.
-  const logSummaryDelivery = async () => {
+  // send, never client contact) when the tenant turned card logging on. Only
+  // the channels that went out are recorded (partial when a later one failed).
+  const recordSummaryDelivery = async (sent: ReportDeliveryChannel[]) => {
     if (!recording.client_id) return;
+    const outcome = reportDeliveryOutcome({
+      requested: { whatsapp: sendWhatsApp, email: sendEmail },
+      sent,
+    });
+    if (!outcome) return;
     try {
       const { error } = await supabase.from("report_deliveries").insert({
         tenant_id: tenantId,
         client_id: recording.client_id,
         target_type: "meeting_summary",
         target_id: recording.id,
-        channels: [
-          ...(sendWhatsApp ? ["whatsapp"] : []),
-          ...(sendEmail ? ["email"] : []),
-        ],
-        status: "sent",
+        channels: outcome.channels,
+        status: outcome.status,
         details: {
           source: "manual",
-          title: `${meetingName}${meetingDate ? ` (${meetingDate})` : ""}`,
+          title: meetingName,
+          meeting_date: meetingDate || null,
           recording_id: recording.id,
         },
       });
       if (error) console.error("report_deliveries log failed:", error);
+      else
+        queryClient.invalidateQueries({
+          queryKey: ["client-updates", recording.client_id],
+        });
     } catch (err) {
       console.error("report_deliveries log failed:", err);
     }
@@ -185,6 +198,7 @@ export function ShareSummaryDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -233,6 +247,7 @@ export function ShareSummaryDialog({
         const msgResult = await msgResponse.json();
         if (!msgResponse.ok)
           throw new Error(msgResult.error || "שגיאה בשליחה בוואטסאפ");
+        sentChannels.push("whatsapp");
 
         // Optional: the DOCX as an attached document
         if (attachDocx && recording.summary_file_url) {
@@ -377,9 +392,9 @@ export function ShareSummaryDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הסיכום נשלח באימייל בהצלחה");
         }
+        sentChannels.push("email");
       }
 
-      await logSummaryDelivery();
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending summary:", error);
@@ -387,6 +402,7 @@ export function ShareSummaryDialog({
         "שגיאה בשליחת הסיכום: " + (error instanceof Error ? error.message : ""),
       );
     } finally {
+      await recordSummaryDelivery(sentChannels);
       setIsSending(false);
     }
   };
