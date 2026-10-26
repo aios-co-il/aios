@@ -5,8 +5,14 @@ import {
   resolveCursorDirectSession,
 } from "../cursor-direct-session.ts";
 import { lightweightBrainEnabled } from "../carmen-brain-flags.ts";
+import { asRecord } from "../unknown-record.ts";
 
 export type OpenChatProvider = "cursor";
+
+/** Same client shape the fixed Cursor Direct session lookup takes. */
+type OpenChatClient = NonNullable<
+  Parameters<typeof resolveCursorDirectSession>[0]
+>;
 
 export function asCloudAgentId(value?: string | null): string | null {
   return asCursorSessionId(value);
@@ -96,9 +102,7 @@ export function busyOpenChatMessage(
 }
 
 export async function collectOpenChatIds(
-  sb: {
-    from: (table: string) => any;
-  },
+  sb: OpenChatClient,
   args: {
     tenantId: string;
     provider: OpenChatProvider;
@@ -135,8 +139,10 @@ export async function collectOpenChatIds(
       .not("external_session_id", "is", null)
       .order("last_activity_at", { ascending: false })
       .limit(5);
-    for (const row of sessions || []) {
-      ids.push(...uniqueCloudAgentIds(row?.external_session_id));
+    const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
+    for (const row of rows) {
+      const id = asRecord(row).external_session_id;
+      ids.push(...uniqueCloudAgentIds(typeof id === "string" ? id : null));
     }
   } catch {
     /* ignore */

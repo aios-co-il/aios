@@ -6,7 +6,29 @@ import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
+  MessageEventType,
 } from "../_shared/agent-channel/types.ts";
+import {
+  asRecord,
+  errorMessageOr,
+  isRecord,
+  type UnknownRecord,
+} from "../_shared/unknown-record.ts";
+
+const EVENT_TYPES: ReadonlySet<string> = new Set<MessageEventType>([
+  "message",
+  "progress",
+  "approval_request",
+  "system",
+]);
+
+function isMessageEventType(value: unknown): value is MessageEventType {
+  return typeof value === "string" && EVENT_TYPES.has(value);
+}
+
+function optionalText(value: unknown): string | undefined {
+  return value ? String(value) : undefined;
+}
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -27,9 +49,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
-  let body: any;
+  let body: UnknownRecord;
   try {
-    body = await req.json();
+    body = asRecord(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
@@ -45,7 +67,10 @@ Deno.serve(async (req) => {
 
   const sb = serviceClient();
   const session = sessionId ? await loadSession(sb, sessionId) : null;
-  const origin = resolveCallbackOrigin(body.origin, session?.provider);
+  const origin = resolveCallbackOrigin(
+    typeof body.origin === "string" ? body.origin : null,
+    session?.provider,
+  );
   const tenantId = String(body.tenant_id || session?.tenant_id || "").trim();
   if (!tenantId || !sessionId)
     return json(401, { error: "session_id and tenant_id are required" });
@@ -64,21 +89,26 @@ Deno.serve(async (req) => {
     session_id: sessionId,
     origin: origin || (session?.provider as ChannelProvider) || "cursor",
     content,
-    event_type: body.event_type || "message",
-    speaker: body.speaker,
+    event_type: isMessageEventType(body.event_type)
+      ? body.event_type
+      : "message",
+    speaker: optionalText(body.speaker),
     idempotency_key:
-      req.headers.get("Idempotency-Key") || body.idempotency_key || null,
-    external_message_id: body.external_message_id || null,
+      req.headers.get("Idempotency-Key") ||
+      optionalText(body.idempotency_key),
+    external_message_id: optionalText(body.external_message_id),
     parliament_round:
-      body.parliament_round ?? session?.parliament_round ?? null,
-    metadata: body.metadata || {},
+      typeof body.parliament_round === "number"
+        ? body.parliament_round
+        : (session?.parliament_round ?? undefined),
+    metadata: isRecord(body.metadata) ? body.metadata : {},
   };
 
   try {
     const result = await ingestChannelReply(payload);
     return json(200, { ok: true, ...result });
-  } catch (e: any) {
-    console.error("[agent-channel-callback]", e?.message ?? e);
-    return json(400, { error: String(e?.message ?? e) });
+  } catch (e) {
+    console.error("[agent-channel-callback]", errorMessageOr(e));
+    return json(400, { error: String(errorMessageOr(e)) });
   }
 });

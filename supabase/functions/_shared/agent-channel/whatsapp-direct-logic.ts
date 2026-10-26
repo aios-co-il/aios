@@ -1,4 +1,6 @@
 // Pure helpers for WhatsApp → direct channel routing (unit-tested under node).
+import { asRecord } from "../unknown-record.ts";
+
 export type WhatsAppDirectProvider = "claude" | "cursor";
 
 export type WhatsAppReplyTarget = {
@@ -61,4 +63,20 @@ export function whatsAppReplyText(provider: string, content: string): string {
   const label = LABEL[provider as WhatsAppDirectProvider] || provider;
   const body = content.length > 3500 ? `${content.slice(0, 3500)}…` : content;
   return `🤖 ${label}:\n${body}`;
+}
+
+/** The WhatsApp chat a direct-channel session should answer, from its metadata. */
+export function replyTargetFrom(sessionMetadata: unknown): WhatsAppReplyTarget | null {
+  const raw = asRecord(asRecord(sessionMetadata).reply_whatsapp);
+  const { integration_id, phone_number, connection_user_id } = raw;
+  if (
+    typeof integration_id !== "string" ||
+    typeof phone_number !== "string" ||
+    typeof connection_user_id !== "string" ||
+    !integration_id ||
+    !phone_number ||
+    !connection_user_id
+  )
+    return null;
+  return { integration_id, phone_number, connection_user_id };
 }

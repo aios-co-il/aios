@@ -4,6 +4,7 @@ import {
   resolveCodingCursorModel,
 } from "../cursorCreativeModel.ts";
 import { getRepoUrl } from "../github-repo.ts";
+import { asRecord, parseJsonRecord } from "../unknown-record.ts";
 
 export type CloudAgentResult = { url: string; id: string; reused: boolean };
 export type FollowUpOutcome =
@@ -38,17 +39,12 @@ export async function cursorFetch(
 }
 
 export function parseAgentResponse(raw: string): { url: string; id: string } {
-  let data: any = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  const agent = data?.agent || data;
-  const id = String(agent?.id || data?.id || "");
+  const data = parseJsonRecord(raw);
+  const agent = asRecord(data.agent || data);
+  const id = String(agent.id || data.id || "");
   const url = String(
-    agent?.url ||
-      data?.url ||
+    agent.url ||
+      data.url ||
       (id ? `https://cursor.com/agents/${id}` : "") ||
       "(agent created)",
   );

@@ -25,6 +25,12 @@ import {
 } from "./store.ts";
 import { isCursorSpendLimitError } from "./cloud-errors.ts";
 import { launchParliamentSeat } from "./direct.ts";
+import type { Tables } from "../database.types.ts";
+
+type ParliamentRun = Pick<
+  Tables<"agent_runs">,
+  "id" | "tenant_id" | "user_id" | "agent_id" | "goal" | "context"
+>;
 
 function stateFromRun(run: { context?: unknown }): ParliamentState | null {
   const ctx = (
@@ -303,7 +309,7 @@ export async function onParliamentCallback(args: {
 }
 
 async function rebuildCtx(
-  run: any,
+  run: ParliamentRun,
   conversationId: string,
   state: ParliamentState,
 ): Promise<SendContext> {
@@ -450,7 +456,7 @@ export async function cancelParliament(conversationId: string): Promise<void> {
 
 async function loadRunningParliament(conversationId: string): Promise<{
   sb: ReturnType<typeof serviceClient>;
-  run: any | null;
+  run: ParliamentRun | null;
   state: ParliamentState | null;
 }> {
   const sb = serviceClient();

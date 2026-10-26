@@ -18,9 +18,16 @@ import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
 import {
+  type ChannelAttachment,
   type InputMode,
   type SendResult,
 } from "../_shared/agent-channel/types.ts";
+import {
+  asRecord,
+  errorMessageOr,
+  isRecord,
+  type UnknownRecord,
+} from "../_shared/unknown-record.ts";
 import {
   cancelParliament,
   clarifyParliamentSeat,
@@ -41,44 +48,38 @@ import {
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
 
-function parseAttachments(raw: unknown) {
-  if (!Array.isArray(raw))
-    return [] as Array<{
-      name: string;
-      url: string;
-      type: "image" | "file";
-      size?: number;
-      path?: string;
-    }>;
+const INPUT_MODES: ReadonlySet<string> = new Set<InputMode>([
+  "typed",
+  "realtime_voice",
+  "transcribe_only",
+  "external_channel_callback",
+]);
+
+function isInputMode(value: unknown): value is InputMode {
+  return typeof value === "string" && INPUT_MODES.has(value);
+}
+
+function parseAttachment(item: unknown): ChannelAttachment | null {
+  if (!isRecord(item)) return null;
+  const name = String(item.name || "").trim();
+  const url = String(item.url || "").trim();
+  const type = item.type === "image" ? "image" : "file";
+  if (!name || !url.startsWith("http")) return null;
+  return {
+    name,
+    url,
+    type,
+    size: typeof item.size === "number" ? item.size : undefined,
+    path: typeof item.path === "string" ? item.path : undefined,
+  };
+}
+
+function parseAttachments(raw: unknown): ChannelAttachment[] {
+  if (!Array.isArray(raw)) return [];
   return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const name = String((item as any).name || "").trim();
-      const url = String((item as any).url || "").trim();
-      const type = (item as any).type === "image" ? "image" : "file";
-      if (!name || !url.startsWith("http")) return null;
-      return {
-        name,
-        url,
-        type,
-        size:
-          typeof (item as any).size === "number"
-            ? (item as any).size
-            : undefined,
-        path:
-          typeof (item as any).path === "string"
-            ? (item as any).path
-            : undefined,
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 6) as Array<{
-    name: string;
-    url: string;
-    type: "image" | "file";
-    size?: number;
-    path?: string;
-  }>;
+    .map(parseAttachment)
+    .filter((item): item is ChannelAttachment => item !== null)
+    .slice(0, 6);
 }
 
 function json(status: number, body: unknown) {
@@ -97,9 +98,9 @@ Deno.serve(async (req) => {
   if (!auth || auth.kind !== "user" || !auth.userId)
     return json(401, { error: "Unauthorized" });
 
-  let body: any;
+  let body: UnknownRecord;
   try {
-    body = await req.json();
+    body = asRecord(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
@@ -301,7 +302,7 @@ Deno.serve(async (req) => {
   }
 
   const conv = await ensureConversation(sb, {
-    conversationId: body.conversation_id || null,
+    conversationId: body.conversation_id ? String(body.conversation_id) : null,
     tenantId,
     userId: auth.userId,
     agentId,
@@ -394,7 +395,7 @@ Deno.serve(async (req) => {
         skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
       ),
       attachments,
-      inputMode: (body.input_mode || "typed") as InputMode,
+      inputMode: isInputMode(body.input_mode) ? body.input_mode : "typed",
       idempotencyKey,
       brainAllowed: (slug) => brainLevel(accessRow, slug) !== null,
       history: Array.isArray(body.conversation_history)
@@ -413,10 +414,10 @@ Deno.serve(async (req) => {
       await setConversationStatus(sb, conv.id, "idle");
     }
     return json(200, result);
-  } catch (e: any) {
+  } catch (e) {
     await setConversationStatus(sb, conv.id, "error");
-    console.error("[agent-channel-send]", e?.message ?? e);
-    return json(500, { error: String(e?.message ?? e) });
+    console.error("[agent-channel-send]", errorMessageOr(e));
+    return json(500, { error: String(errorMessageOr(e)) });
   }
 });
 

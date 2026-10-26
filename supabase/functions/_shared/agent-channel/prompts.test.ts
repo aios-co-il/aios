@@ -53,9 +53,7 @@ Deno.test(
       sessionId: "s",
       tenantId: "t",
       environment: "production",
-      attachments: [
-        { type: "image", name: "a.png", url: "https://x/a.png" } as any,
-      ],
+      attachments: [{ type: "image", name: "a.png", url: "https://x/a.png" }],
     });
     assertMatch(input, /no text — see attached files/);
     assertMatch(input, /a\.png → https:\/\/x\/a\.png/);
