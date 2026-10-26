@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { buildFlowStepRows, flowStepSpecs } from "./flow-steps.ts";
 
 function sequentialIds() {
@@ -7,19 +6,28 @@ function sequentialIds() {
   return () => `id-${n++}`;
 }
 
-test("flowStepSpecs rejects non-object steps within the built range", () => {
-  assert.equal(flowStepSpecs([{ type: "agent" }, null]), null);
-  assert.equal(flowStepSpecs(["text"]), null);
-  assert.equal(flowStepSpecs([[{ type: "agent" }]]), null);
-});
+Deno.test(
+  "flowStepSpecs rejects non-object steps within the built range",
+  () => {
+    assertStrictEquals(flowStepSpecs([{ type: "agent" }, null]), null);
+    assertStrictEquals(flowStepSpecs(["text"]), null);
+    assertStrictEquals(flowStepSpecs([[{ type: "agent" }]]), null);
+  },
+);
 
-test("flowStepSpecs keeps the first 20 object steps and ignores the rest", () => {
-  const steps = Array.from({ length: 21 }, (_, i) => ({ label: `s${i}` }));
-  assert.equal(flowStepSpecs(steps)?.length, 20);
-  assert.equal(flowStepSpecs([...steps.slice(0, 20), null])?.length, 20);
-});
+Deno.test(
+  "flowStepSpecs keeps the first 20 object steps and ignores the rest",
+  () => {
+    const steps = Array.from({ length: 21 }, (_, i) => ({ label: `s${i}` }));
+    assertStrictEquals(flowStepSpecs(steps)?.length, 20);
+    assertStrictEquals(
+      flowStepSpecs([...steps.slice(0, 20), null])?.length,
+      20,
+    );
+  },
+);
 
-test("buildFlowStepRows chains a trigger, agent and action step", () => {
+Deno.test("buildFlowStepRows chains a trigger, agent and action step", () => {
   const rows = buildFlowStepRows({
     automationId: "auto-1",
     tenantId: "tenant-1",
@@ -33,7 +41,7 @@ test("buildFlowStepRows chains a trigger, agent and action step", () => {
     ],
     newId: sequentialIds(),
   });
-  assert.deepEqual(
+  assertEquals(
     rows.map((r) => [r.id, r.parent_step_id, r.sort_order, r.position_y]),
     [
       ["id-0", null, 0, 60],
@@ -42,7 +50,7 @@ test("buildFlowStepRows chains a trigger, agent and action step", () => {
       ["id-3", "id-2", 3, 450],
     ],
   );
-  assert.deepEqual(rows[0], {
+  assertEquals(rows[0], {
     id: "id-0",
     automation_id: "auto-1",
     tenant_id: "tenant-1",
@@ -56,23 +64,23 @@ test("buildFlowStepRows chains a trigger, agent and action step", () => {
     condition_branch: null,
     label: "טריגר",
   });
-  assert.equal(rows[1].step_type, "agent");
-  assert.equal(rows[1].action_type, "agent");
-  assert.equal(rows[1].label, "agent");
-  assert.deepEqual(rows[1].configuration, {
+  assertStrictEquals(rows[1].step_type, "agent");
+  assertStrictEquals(rows[1].action_type, "agent");
+  assertStrictEquals(rows[1].label, "agent");
+  assertEquals(rows[1].configuration, {
     agent_id: "agent-1",
     skin_slugs: ["sales"],
     step_instruction: "hi",
     tone: "warm",
   });
-  assert.equal(rows[2].action_type, "notification");
-  assert.equal(rows[2].label, "notify");
-  assert.deepEqual(rows[2].configuration, {});
-  assert.equal(rows[3].action_type, "send_whatsapp");
-  assert.equal(rows[3].label, "action");
+  assertStrictEquals(rows[2].action_type, "notification");
+  assertStrictEquals(rows[2].label, "notify");
+  assertEquals(rows[2].configuration, {});
+  assertStrictEquals(rows[3].action_type, "send_whatsapp");
+  assertStrictEquals(rows[3].label, "action");
 });
 
-test("buildFlowStepRows lets step config override agent defaults", () => {
+Deno.test("buildFlowStepRows lets step config override agent defaults", () => {
   const [, step] = buildFlowStepRows({
     automationId: "a",
     tenantId: "t",
@@ -82,7 +90,7 @@ test("buildFlowStepRows lets step config override agent defaults", () => {
     steps: [{ config: { agent_id: "custom", step_instruction: "own" } }],
     newId: sequentialIds(),
   });
-  assert.deepEqual(step.configuration, {
+  assertEquals(step.configuration, {
     agent_id: "custom",
     skin_slugs: [],
     step_instruction: "own",
