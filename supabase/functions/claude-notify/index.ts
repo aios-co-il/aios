@@ -15,7 +15,12 @@
 // SECURITY DEFINER function, so Claude never has to handle the secret directly.
 //
 // Body: { tenant_id, message, chat_id? }
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, Json } from "../_shared/database.types.ts";
+import { asRecord, type UnknownRecord } from "../_shared/unknown-record.ts";
 import {
   normalizeNotifyPhone,
   pickNotifyDelivery,
@@ -32,7 +37,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(body: any, status = 200) {
+type JsonObject = { [key: string]: Json | undefined };
+
+function isJsonObject(value: Json): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -50,7 +61,7 @@ function bearerFrom(req: Request): string | undefined {
 // mechanism Carmen uses for her own replies (kept in sync with
 // _shared/carmen.ts → sendCarmenReplyViaActionStep).
 async function sendViaActionStep(
-  sb: any,
+  sb: SupabaseClient<Database>,
   args: {
     automationId: string;
     tenantId: string;
@@ -85,7 +96,7 @@ async function sendViaActionStep(
   const step = steps?.[0];
   if (!step) return false;
 
-  const cfg = step.configuration || {};
+  const cfg = isJsonObject(step.configuration) ? step.configuration : {};
   const integrationId =
     cfg.green_api_integration_id || cfg.integration_id || null;
 
@@ -105,7 +116,14 @@ async function sendViaActionStep(
     step.action_type === "send_manus_message"
       ? "send-manus-wa-message"
       : "send-green-api-message";
-  const body: any = { tenantId, senderUserId: connectionUserId, message };
+  const body: {
+    tenantId: string;
+    senderUserId: string;
+    message: string;
+    integrationId?: Json;
+    groupId?: string;
+    phoneNumber?: string;
+  } = { tenantId, senderUserId: connectionUserId, message };
   if (integrationId) body.integrationId = integrationId;
   if (groupId) body.groupId = groupId;
   else body.phoneNumber = phoneNumber;
@@ -139,19 +157,19 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let body: any;
+  let body: UnknownRecord;
   try {
-    body = await req.json();
+    body = asRecord(await req.json());
   } catch {
     return json({ error: "bad json" }, 400);
   }
-  const tenantId = String(body?.tenant_id ?? "").trim();
-  const message = String(body?.message ?? "").trim();
-  const explicitChatId = body?.chat_id ? String(body.chat_id).trim() : null;
+  const tenantId = String(body.tenant_id ?? "").trim();
+  const message = String(body.message ?? "").trim();
+  const explicitChatId = body.chat_id ? String(body.chat_id).trim() : null;
   if (!tenantId || !message)
     return json({ error: "tenant_id and message are required" }, 400);
 
-  const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const sb = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
@@ -180,8 +198,8 @@ Deno.serve(async (req) => {
     ]);
 
   const staff = (campaigners || [])
-    .filter((c: any) => !!normalizeNotifyPhone(c.phone))
-    .map((c: any) => ({
+    .filter((c) => !!normalizeNotifyPhone(c.phone))
+    .map((c) => ({
       phone: c.phone as string,
       full_name: c.full_name as string | null,
       role: Array.isArray(c.role) ? (c.role[0] ?? null) : (c.role ?? null),
@@ -190,7 +208,7 @@ Deno.serve(async (req) => {
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
     campaignPulsePhone: heartbeat?.campaign_pulse_phone ?? null,
-    sessions: (sessions || []).map((s: any) => ({
+    sessions: (sessions || []).map((s) => ({
       chat_id: s.chat_id,
       phone: s.phone,
       sender_name: s.sender_name,

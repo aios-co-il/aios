@@ -1,4 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
+import type { Database } from "../_shared/database.types.ts";
+import { asRecord } from "../_shared/unknown-record.ts";
+
+type GithubAgentClient = SupabaseClient<Database>;
 import { getRepoSlug } from "../_shared/github-repo.ts";
 
 const corsHeaders = {
@@ -49,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const token = authHeader.replace("Bearer ", "");
 
     // Internal calls from run-ai-agent come in with the service-role key as
@@ -153,7 +160,7 @@ Deno.serve(async (req: Request) => {
 // Get GitHub token from secure storage
 // ==========================================
 async function getGithubToken(
-  supabase: any,
+  supabase: GithubAgentClient,
   tenantId: string,
 ): Promise<string | null> {
   const { data } = await supabase
@@ -170,7 +177,7 @@ async function getGithubToken(
 // Chat Support - understands user requests
 // ==========================================
 async function handleChatSupport(
-  supabase: any,
+  supabase: GithubAgentClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -278,7 +285,7 @@ ${JSON.stringify(userContext, null, 2)}
 // Analyze Error
 // ==========================================
 async function handleAnalyzeError(
-  supabase: any,
+  supabase: GithubAgentClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -378,7 +385,7 @@ Return JSON:
 // Fix Code - creates PR on GitHub
 // ==========================================
 async function handleFixCode(
-  supabase: any,
+  supabase: GithubAgentClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -411,8 +418,14 @@ async function handleFixCode(
 
   if (!approval) throw new Error("Approved action not found");
 
-  const { file_path, new_code } = approval.proposed_changes;
-  if (!file_path || !new_code) throw new Error("Missing fix details");
+  const { file_path, new_code } = asRecord(approval.proposed_changes);
+  if (
+    typeof file_path !== "string" ||
+    typeof new_code !== "string" ||
+    !file_path ||
+    !new_code
+  )
+    throw new Error("Missing fix details");
 
   // Get repo info from credentials metadata
   const { data: cred } = await supabase
@@ -422,7 +435,9 @@ async function handleFixCode(
     .eq("credential_type", "github_token")
     .single();
 
-  const repo = cred?.metadata?.repo || getRepoSlug();
+  const credRepo = asRecord(cred?.metadata).repo;
+  const repo =
+    typeof credRepo === "string" && credRepo ? credRepo : getRepoSlug();
   const [owner, repoName] = repo.split("/");
 
   try {
@@ -549,7 +564,7 @@ async function handleFixCode(
 // Check user permissions
 // ==========================================
 async function handleCheckPermissions(
-  supabase: any,
+  supabase: GithubAgentClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -566,7 +581,7 @@ async function handleCheckPermissions(
 // Handle approval/rejection
 // ==========================================
 async function handleApproval(
-  supabase: any,
+  supabase: GithubAgentClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -615,7 +630,7 @@ async function handleApproval(
 // ==========================================
 // Helpers
 // ==========================================
-async function getUserContext(supabase: any, userId: string, tenantId: string) {
+async function getUserContext(supabase: GithubAgentClient, userId: string, tenantId: string) {
   const [rolesResult, permissionsResult, profileResult] = await Promise.all([
     supabase
       .from("user_roles")
@@ -633,16 +648,19 @@ async function getUserContext(supabase: any, userId: string, tenantId: string) {
       .single(),
   ]);
 
+  const { display_name, email } = asRecord(profileResult.data);
   return {
     user_id: userId,
     tenant_id: tenantId,
-    display_name: profileResult.data?.display_name || "Unknown",
-    email: profileResult.data?.email || "",
-    roles: (rolesResult.data || []).map((r: any) => r.role),
-    permissions: (permissionsResult.data || []).reduce((acc: any, p: any) => {
-      acc[p.module] = p.can_access;
-      return acc;
-    }, {}),
+    display_name:
+      typeof display_name === "string" && display_name
+        ? display_name
+        : "Unknown",
+    email: typeof email === "string" ? email : "",
+    roles: (rolesResult.data || []).map((r) => r.role),
+    permissions: Object.fromEntries(
+      (permissionsResult.data || []).map((p) => [p.module, p.can_access]),
+    ),
   };
 }
 

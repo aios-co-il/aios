@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isOwnerSender,
   parseWhatsAppDirectCommand,
+  replyTargetFrom,
   whatsAppReplyText,
 } from "./whatsapp-direct-logic.ts";
 
@@ -71,5 +72,35 @@ test("only the owner writing from their profile phone may open a direct channel"
   assert.equal(
     isOwnerSender({ senderPhone: "", ownerPhones: [""], roles: ["owner"] }),
     false,
+  );
+});
+
+test("reads the WhatsApp reply target from session metadata", () => {
+  const target = {
+    integration_id: "int-1",
+    phone_number: "972500000000",
+    connection_user_id: "user-1",
+  };
+  assert.deepEqual(replyTargetFrom({ reply_whatsapp: target }), target);
+});
+
+test("no reply target for non-WhatsApp or malformed session metadata", () => {
+  assert.equal(replyTargetFrom(null), null);
+  assert.equal(replyTargetFrom({}), null);
+  assert.equal(
+    replyTargetFrom({
+      reply_whatsapp: { integration_id: "int-1", phone_number: "972500000000" },
+    }),
+    null,
+  );
+  assert.equal(
+    replyTargetFrom({
+      reply_whatsapp: {
+        integration_id: 7,
+        phone_number: "972500000000",
+        connection_user_id: "user-1",
+      },
+    }),
+    null,
   );
 });

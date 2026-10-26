@@ -14,6 +14,7 @@ import type {
   SendResult,
 } from "./types.ts";
 import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
+import { errorMessageOr, isRecord } from "../unknown-record.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -264,8 +265,7 @@ export async function insertMessage(
     .select("*")
     .single();
   if (error) {
-    const code = (error as any).code;
-    if (code === "23505" && row.idempotency_key) {
+    if (error.code === "23505" && row.idempotency_key) {
       const { data: existing } = await sb
         .from("ai_conversation_messages")
         .select("*")
@@ -282,8 +282,8 @@ export async function insertMessage(
     content: row.content,
     speaker: row.speaker,
     channel: row.channel,
-    input_mode: (row.metadata as any)?.input_mode,
-    delivery_mode: (row.metadata as any)?.delivery_mode,
+    input_mode: row.metadata?.input_mode,
+    delivery_mode: row.metadata?.delivery_mode,
   });
   return { row: data as ConversationMessageRow, duplicate: false };
 }
@@ -504,17 +504,26 @@ export async function logChannelAction(
       error_message: args.error ?? null,
     });
   } catch (e) {
-    console.error(
-      "[agent-channel] action log failed",
-      (e as any)?.message ?? e,
-    );
+    console.error("[agent-channel] action log failed", errorMessageOr(e));
   }
 }
 
 export function duplicateSendResult(
   existing: ConversationMessageRow,
 ): SendResult | null {
-  const dispatch = (existing.metadata as any)?.dispatch;
-  if (!dispatch) return null;
-  return dispatch as SendResult;
+  const dispatch = existing.metadata?.dispatch;
+  return isSendResult(dispatch) ? dispatch : null;
+}
+
+function isSendResult(value: unknown): value is SendResult {
+  return (
+    isRecord(value) &&
+    value.ok === true &&
+    typeof value.kind === "string" &&
+    typeof value.conversation_id === "string" &&
+    typeof value.status === "string" &&
+    typeof value.stream === "boolean" &&
+    typeof value.accepted_message === "string" &&
+    isRecord(value.capabilities)
+  );
 }

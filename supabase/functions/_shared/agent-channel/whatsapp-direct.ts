@@ -15,6 +15,7 @@ import {
   isOwnerSender,
   LABEL,
   parseWhatsAppDirectCommand,
+  replyTargetFrom,
   whatsAppReplyText,
   type WhatsAppDirectProvider,
   type WhatsAppReplyTarget,
@@ -55,7 +56,9 @@ export async function routeWhatsAppDirect(args: {
         .eq("id", profile.campaigner_id)
         .maybeSingle()
     : { data: null };
-  const roles = (memberships || []).map((row: any) => String(row.role));
+  const roles = (memberships || []).map((row: { role: unknown }) =>
+    String(row.role),
+  );
   const ownerPhones = [profile?.phone, campaigner?.phone];
   if (!isOwnerSender({ senderPhone: args.senderPhone, ownerPhones, roles })) {
     return { handled: false };
@@ -108,7 +111,7 @@ export async function routeWhatsAppDirect(args: {
     .eq("event_type", "message")
     .order("created_at", { ascending: false })
     .limit(10);
-  const history = (recent || []).reverse().map((row: any) => ({
+  const history = (recent || []).reverse().map((row: { role: unknown; content: unknown }) => ({
     role: String(row.role),
     content: String(row.content),
   }));
@@ -175,14 +178,8 @@ export async function deliverWhatsAppReply(
   provider: string,
   content: string,
 ): Promise<boolean | null> {
-  const target = (sessionMetadata as any)?.reply_whatsapp as
-    WhatsAppReplyTarget | undefined;
-  if (
-    !target?.integration_id ||
-    !target.phone_number ||
-    !target.connection_user_id
-  )
-    return null;
+  const target = replyTargetFrom(sessionMetadata);
+  if (!target) return null;
   const res = await fetch(
     `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`,
     {
