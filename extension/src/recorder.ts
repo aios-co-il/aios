@@ -2,6 +2,23 @@ import * as tus from "tus-js-client";
 import { APP_ORIGIN, SUPABASE_URL } from "./config";
 import { supabase } from "./supabase";
 
+declare global {
+  interface Window {
+    MediaStreamTrackProcessor?: new (init: { track: MediaStreamTrack }) => {
+      readable: ReadableStream<VideoFrame>;
+    };
+    MediaStreamTrackGenerator?: new (init: {
+      kind: "video";
+    }) => MediaStreamTrack & { writable: WritableStream<VideoFrame> };
+    documentPictureInPicture?: {
+      requestWindow(options: {
+        width: number;
+        height: number;
+      }): Promise<Window>;
+    };
+  }
+}
+
 const params = new URLSearchParams(location.search);
 const tenantId = params.get("tenant") ?? "";
 const tenantSlug = params.get("slug") ?? "";
@@ -48,11 +65,9 @@ let pipWindow: Window | null = null;
 // Compositing (insertable streams) burns the camera bubble INTO the recorded
 // frames — a perfect borderless circle, nothing floating on screen. Falls back
 // to the always-on-top PiP bubble on browsers without the API.
-// deno-lint-ignore no-explicit-any
 const supportsCompositing =
-  typeof (window as any).MediaStreamTrackProcessor !== "undefined" &&
-  // deno-lint-ignore no-explicit-any
-  typeof (window as any).MediaStreamTrackGenerator !== "undefined";
+  typeof window.MediaStreamTrackProcessor !== "undefined" &&
+  typeof window.MediaStreamTrackGenerator !== "undefined";
 
 const cameraSetup = el<HTMLDivElement>("camera-setup");
 const camPreview = el<HTMLVideoElement>("cam-preview");
@@ -98,18 +113,18 @@ cornerSelect.addEventListener("change", () => {
 function buildCompositedTrack(
   displayTrack: MediaStreamTrack,
 ): MediaStreamTrack {
+  const ScreenProcessor = window.MediaStreamTrackProcessor;
+  const Generator = window.MediaStreamTrackGenerator;
   if (
     !supportsCompositing ||
+    !ScreenProcessor ||
+    !Generator ||
     !cameraStream ||
     cameraStream.getVideoTracks().length === 0
   ) {
     return displayTrack;
   }
   try {
-    // deno-lint-ignore no-explicit-any
-    const ScreenProcessor = (window as any).MediaStreamTrackProcessor;
-    // deno-lint-ignore no-explicit-any
-    const Generator = (window as any).MediaStreamTrackGenerator;
     const screenProc = new ScreenProcessor({ track: displayTrack });
     const camProc = new ScreenProcessor({
       track: cameraStream.getVideoTracks()[0],
@@ -128,7 +143,7 @@ function buildCompositedTrack(
       },
       [screenProc.readable, camProc.readable, generator.writable],
     );
-    return generator as MediaStreamTrack;
+    return generator;
   } catch (err) {
     console.error("compositing failed, recording raw screen:", err);
     return displayTrack;
@@ -153,8 +168,7 @@ async function startCameraBubble() {
     return;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dpp = (window as any).documentPictureInPicture;
+    const dpp = window.documentPictureInPicture;
     if (!dpp) throw new Error("Document PiP unsupported");
     pipWindow = await dpp.requestWindow({ width: 200, height: 200 });
     const doc = pipWindow!.document;
