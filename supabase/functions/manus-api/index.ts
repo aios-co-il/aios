@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asJsonObject } from "../_shared/manus-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,20 @@ const corsHeaders = {
 };
 
 const MANUS_API_URL = "https://api.manus.ai/v1";
+
+type ManusTaskBody = {
+  prompt: unknown;
+  agentProfile: unknown;
+  taskMode?: unknown;
+  connectors?: unknown;
+  attachments?: unknown;
+};
+
+type ManusMessageBody = {
+  message: unknown;
+  agentProfile?: unknown;
+  connectors?: unknown;
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -77,7 +92,7 @@ serve(async (req) => {
       );
     }
 
-    const apiKey = (integration.settings as any)?.api_key;
+    const apiKey = asJsonObject(integration.settings)?.api_key;
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "Manus API key not found" }),
@@ -89,12 +104,12 @@ serve(async (req) => {
     }
 
     const manusHeaders = {
-      API_KEY: apiKey,
+      API_KEY: String(apiKey),
       "Content-Type": "application/json",
       accept: "application/json",
     };
 
-    let result: any;
+    let result: unknown;
 
     switch (action) {
       case "create_task": {
@@ -107,7 +122,7 @@ serve(async (req) => {
           });
         }
 
-        const taskBody: any = {
+        const taskBody: ManusTaskBody = {
           prompt,
           agentProfile: agentProfile || "manus-1.6",
         };
@@ -233,7 +248,7 @@ serve(async (req) => {
         }
 
         // Save webhook_id in integration settings
-        const currentSettings = (integration.settings as any) || {};
+        const currentSettings = asJsonObject(integration.settings) ?? {};
         await supabaseClient
           .from("tenant_integrations")
           .update({
@@ -272,7 +287,7 @@ serve(async (req) => {
         // task_id defaults to 'agent-default-main_task' for direct communication.
         const { taskId, message, agentProfile, connectors } = params;
         const targetTaskId = taskId || "agent-default-main_task";
-        const msgBody: any = { message };
+        const msgBody: ManusMessageBody = { message };
         if (agentProfile) msgBody.agentProfile = agentProfile;
         if (connectors) msgBody.connectors = connectors;
         const res = await fetch(
