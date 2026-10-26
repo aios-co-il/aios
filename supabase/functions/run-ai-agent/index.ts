@@ -189,6 +189,7 @@ import {
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { errorMessage } from "./error-message.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
@@ -395,7 +396,7 @@ async function openaiAdminGet(
       ok: false,
       status: 0,
       json: null,
-      error: redactSecretsFromText(e instanceof Error ? e.message : String(e)),
+      error: redactSecretsFromText(errorMessage(e) || String(e)),
     };
   }
 }
@@ -585,7 +586,7 @@ async function sendStaffWhatsappMessage(args: {
         errors.push(`${type}: ${data.error || res.status}`);
       }
     } catch (e) {
-      errors.push(`${type}: ${e instanceof Error ? e.message : e}`);
+      errors.push(`${type}: ${errorMessage(e) || e}`);
     }
   }
   return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
@@ -4819,20 +4820,20 @@ async function fbAnalyzeCampaignInline(
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
     );
-    const j = await readMetaResponse(r);
+    const j = await readMetaResponse(r).catch(() => null);
     return j?.data?.[0] || null;
   };
   const fetchAds = async () => {
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/ads?fields=id,name,effective_status,status&limit=200&access_token=${token}`,
     );
-    const j = await readMetaResponse(r);
+    const j = await readMetaResponse(r).catch(() => null);
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return [];
     const ads = j.data;
     // Ad-level insights for last_7d
     const insightsUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?level=ad&date_preset=last_7d&fields=ad_id,ad_name,spend,actions,impressions,clicks&limit=200&access_token=${token}`;
     const ir = await fetch(insightsUrl);
-    const ij = await readMetaResponse(ir);
+    const ij = await readMetaResponse(ir).catch(() => null);
     const byAd = new Map<string, MetaAdMetrics>();
     for (const row of ij?.data || []) {
       const leads = fbLeadsFromActions(row.actions || []);
@@ -4872,7 +4873,7 @@ async function fbAnalyzeCampaignInline(
   const metaRes = await fetch(
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
   );
-  const meta = await readMetaResponse(metaRes);
+  const meta = await readMetaResponse(metaRes).catch(() => null);
   if (meta?.error) return { error: "fb_api_error", fb_error: meta.error };
 
   const [today, last7, last30, ads] = await Promise.all([
@@ -4886,7 +4887,7 @@ async function fbAnalyzeCampaignInline(
   const cpl30 = cplFrom(last30);
   const anomalies: string[] = [];
   if (
-    meta.effective_status &&
+    meta?.effective_status &&
     !["ACTIVE", "CAMPAIGN_PAUSED", "PAUSED"].includes(meta.effective_status)
   ) {
     anomalies.push(`קמפיין במצב חריג: ${meta.effective_status}`);
@@ -4937,13 +4938,13 @@ async function fbAnalyzeCampaignInline(
     success: true,
     source: "live_meta_inline",
     campaign: {
-      id: meta.id,
-      name: meta.name,
-      status: meta.status,
-      effective_status: meta.effective_status,
-      objective: meta.objective,
-      daily_budget: meta.daily_budget,
-      lifetime_budget: meta.lifetime_budget,
+      id: meta?.id,
+      name: meta?.name,
+      status: meta?.status,
+      effective_status: meta?.effective_status,
+      objective: meta?.objective,
+      daily_budget: meta?.daily_budget,
+      lifetime_budget: meta?.lifetime_budget,
     },
     metrics: {
       today: { ...today, cpl: cplToday },
@@ -5684,7 +5685,7 @@ async function tryCreateCalendarEventForTask(
   } catch (e) {
     console.warn(
       "[create_task] calendar sync error:",
-      e instanceof Error ? e.message : undefined,
+      errorMessage(e),
     );
   }
 }
