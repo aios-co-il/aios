@@ -37,6 +37,7 @@ import {
   instantPulseAlertsGate,
   runGatedInstantPulseAlerts,
   type InstantPulseAlertResult,
+  type PulseExceptionWording,
 } from "../_shared/pulse-instant-alerts.ts";
 import {
   buildPulseCampaignRows,
@@ -907,7 +908,8 @@ Deno.serve(async (req) => {
       sent: 0,
       skipped: 0,
       candidates: 0,
-      analyzed: 0,
+      wording_calls: 0,
+      worded: 0,
       held: 0,
     };
     const instantGate = instantPulseAlertsGate({
@@ -927,24 +929,20 @@ Deno.serve(async (req) => {
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          analyzeException: async (candidate) => {
-            const evidence = JSON.stringify(candidate.evidence || {});
-            return await aiChatJSON<{
-              confirmed: boolean;
-              summary?: string | null;
-              recommended_check?: string | null;
-            }>(
+          // Wording only (AIO-243): the deterministic checks already decided
+          // to send this alert; the model may add a short summary and check.
+          phraseException: async (candidate, { signal }) =>
+            await aiChatJSON<PulseExceptionWording>(
               [
-                "את מאמתת מועמד חריגה שכבר סונן דטרמיניסטית. אל תבצעי ניתוח מתקדם ואל תמציאי נתונים.",
-                "אשרי רק אם הראיות מראות חריגה מתמשכת מיעד מאושר או הוצאה ללא תוצאות.",
-                'החזירי JSON בלבד: {"confirmed":boolean,"summary":"משפט קצר","recommended_check":"בדיקה אחת"}.',
-                `לקוח: ${candidate.client_name}`,
-                `קמפיין: ${candidate.campaign_key || "לא ידוע"}`,
-                `סיבה: ${candidate.message}`,
-                `ראיות: ${evidence}`,
+                "את מנסחת תוספת קצרה להתראת דופק שהקוד כבר החליט לשלוח לפי כללים קבועים. ההתראה תישלח בכל מקרה: אל תשפטי אם היא מוצדקת ואל תבטלי אותה.",
+                "אל תכתבי מספרים, אחוזים, סכומים או תאריכים. הנתונים כבר מופיעים בהודעה, ואל תוסיפי נתון שלא מופיע בה.",
+                'החזירי JSON בלבד בעברית: {"summary":"משפט אחד קצר שמסביר מה קורה בקמפיין","recommended_check":"בדיקה אחת קונקרטית שכדאי לעשות בקמפיין"}.',
+                `הודעת ההתראה:\n${candidate.message}`,
+                `ראיות: ${JSON.stringify(candidate.evidence || {})}`,
               ].join("\n"),
-            );
-          },
+              undefined,
+              { signal },
+            ),
         });
       } catch (instantAlertError) {
         console.warn(
@@ -1124,7 +1122,7 @@ Deno.serve(async (req) => {
         {
           type: "deterministic_campaign_pulse",
           sent,
-          ai_used: instantAlerts.analyzed > 0,
+          ai_used: instantAlerts.wording_calls > 0,
           external_api_calls: metaActivityCalls,
           dashboard_url: dashboardUrl,
           clients_checked: snapshots.length,
@@ -1153,7 +1151,7 @@ Deno.serve(async (req) => {
         setting.campaign_pulse_enabled &&
         !manualDeliveryBypass &&
         !deliveryClaimed,
-      ai_used: instantAlerts.analyzed > 0,
+      ai_used: instantAlerts.wording_calls > 0,
       external_api_calls: metaActivityCalls,
     });
   }

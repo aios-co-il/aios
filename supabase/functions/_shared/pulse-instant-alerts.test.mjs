@@ -8,7 +8,8 @@ import {
 import { readFile } from "node:fs/promises";
 import {
   DEFAULT_PULSE_ALERT_RULES,
-  confirmPulseExceptionCandidate,
+  PULSE_WORDING_MAX_CHARS,
+  applyPulseExceptionWording,
   decideInstantAlertDelivery,
   deliverInstantPulseAlerts,
   evaluatePulseInstantAlerts,
@@ -16,6 +17,7 @@ import {
   isSameInstantAlertFinding,
   parsePulseAlertRules,
   runGatedInstantPulseAlerts,
+  sanitizePulseWordingLine,
 } from "./pulse-instant-alerts.ts";
 
 Deno.test("parsePulseAlertRules applies defaults", () => {
@@ -133,27 +135,6 @@ Deno.test(
     );
   },
 );
-
-Deno.test("automatic AI verification may veto a filtered exception", () => {
-  const candidate = {
-    client_id: "c1",
-    client_name: "Acme",
-    rule_type: "campaign_exception",
-    message: "evidence",
-    evidence: { target_value: 30 },
-  };
-  assertStrictEquals(
-    confirmPulseExceptionCandidate(candidate, { confirmed: false }),
-    null,
-  );
-  const confirmed = confirmPulseExceptionCandidate(candidate, {
-    confirmed: true,
-    summary: "החריגה מאומתת",
-    recommended_check: "בדיקת אירוע ההמרה",
-  });
-  assertMatch(confirmed.message, /אימות AI/);
-  assertStrictEquals(confirmed.evidence.ai_confirmation.confirmed, true);
-});
 
 // ── AIO-226: dedupe, gating and Shabbat ──────────────────────────────────────
 
@@ -589,6 +570,325 @@ Deno.test(
   },
 );
 
+// ── AIO-243: the model only words a campaign_exception, never vetoes it ─────
+
+const EXCEPTION_CAMPAIGN = {
+  campaign_key: "meta:id:123",
+  campaign_name: "Leads",
+  goal: "leads",
+  status_reason: "חריגה מתמשכת מהיעד המאושר (CPL 30)",
+  alert_eligible: true,
+  target_kind: "cpl",
+  target_value: 30,
+  efficiency_3d: 52,
+  efficiency_7d: 48,
+  trend_3d_pct: 40,
+  trend_7d_pct: 31,
+  data_fresh_through: "2026-10-27",
+  last_change_at: "2026-10-20T08:00:00Z",
+};
+const exceptionSnapshot = (...campaigns) => ({
+  ...healthy([]),
+  campaign_breakdown: campaigns.length ? campaigns : [EXCEPTION_CAMPAIGN],
+});
+const deterministicExceptionMessage = (snapshot = exceptionSnapshot()) => {
+  const rows = evaluatePulseInstantAlerts(
+    [snapshot],
+    [],
+    NO_CONTACT_OFF,
+    WEDNESDAY.getTime(),
+  );
+  assertEquals(
+    rows.map((row) => row.rule_type),
+    ["campaign_exception"],
+  );
+  return rows[0].message;
+};
+const STATIC_CHECK =
+  "בדיקה מומלצת: לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.";
+
+Deno.test(
+  "a campaign_exception is queued whatever the model answers, with the deterministic text",
+  async () => {
+    // Like fetch: settles only when aborted, and then rejects (after the
+    // timeout already won, so the rejection must not go unhandled).
+    const rejectsOnAbort = (signal) =>
+      new Promise((_resolve, reject) =>
+        signal.addEventListener("abort", () => reject(new Error("aborted"))),
+      );
+    let abortedSignal = null;
+    const cases = [
+      {
+        label: "model says confirmed:false",
+        extra: { phraseException: async () => ({ confirmed: false }) },
+        ai_wording: { applied: false, error: "no_wording" },
+        calls: 1,
+      },
+      {
+        label: "model returns null",
+        extra: { phraseException: async () => null },
+        ai_wording: { applied: false, error: "no_wording" },
+        calls: 1,
+      },
+      {
+        label: "model call throws",
+        extra: {
+          phraseException: async () => {
+            throw new Error("upstream 500");
+          },
+        },
+        ai_wording: { applied: false, error: "call_failed" },
+        calls: 1,
+      },
+      {
+        label: "model call throws synchronously",
+        extra: {
+          phraseException: () => {
+            throw new Error("bad client");
+          },
+        },
+        ai_wording: { applied: false, error: "call_failed" },
+        calls: 1,
+      },
+      {
+        label: "model call times out",
+        extra: {
+          phraseException: (_candidate, { signal }) => {
+            abortedSignal = signal;
+            return rejectsOnAbort(signal);
+          },
+          wordingTimeoutMs: 10,
+        },
+        ai_wording: { applied: false, error: "timeout" },
+        calls: 1,
+      },
+      {
+        label: "no model wired",
+        extra: {},
+        ai_wording: { applied: false, error: "not_configured" },
+        calls: 0,
+      },
+    ];
+    const expected = deterministicExceptionMessage();
+    for (const { label, extra, ai_wording, calls } of cases) {
+      const supabase = fakeSupabase();
+      const { result, sends } = await run(
+        supabase,
+        WEDNESDAY,
+        [exceptionSnapshot()],
+        { rules: NO_CONTACT_OFF, ...extra },
+      );
+      assertStrictEquals(result.sent, 1, label);
+      assertStrictEquals(result.skipped, 0, label);
+      assertStrictEquals(result.wording_calls, calls, label);
+      assertStrictEquals(result.worded, 0, label);
+      assertStrictEquals(sends.length, 1, label);
+      assertStrictEquals(sends[0].message, expected, label);
+      assertStrictEquals(supabase.log.length, 1, label);
+      assertStrictEquals(supabase.log[0].message, expected, label);
+      assertEquals(supabase.log[0].evidence.ai_wording, ai_wording, label);
+      assertStrictEquals(
+        "ai_confirmation" in supabase.log[0].evidence,
+        false,
+        label,
+      );
+    }
+    assert(abortedSignal?.aborted, "the timed-out call is aborted");
+  },
+);
+
+Deno.test(
+  "model wording is added while every deterministic line stays as built",
+  async () => {
+    const supabase = fakeSupabase();
+    const { result, sends } = await run(
+      supabase,
+      WEDNESDAY,
+      [exceptionSnapshot()],
+      {
+        rules: NO_CONTACT_OFF,
+        phraseException: async () => ({
+          summary:
+            "**העלות לליד** גבוהה מהיעד המאושר\nכבר כמה ימים, בלי שינוי בקמפיין",
+          recommended_check: "בדיקה מומלצת: לבדוק את אירוע ההמרה בפיקסל",
+        }),
+      },
+    );
+    assertStrictEquals(result.sent, 1);
+    assertStrictEquals(result.wording_calls, 1);
+    assertStrictEquals(result.worded, 1);
+    const base = deterministicExceptionMessage().split("\n");
+    const lines = sends[0].message.split("\n");
+    const checkAt = base.indexOf(STATIC_CHECK);
+    assert(checkAt > 0);
+    assertEquals(lines, [
+      ...base.slice(0, checkAt),
+      "סיכום כרמן: העלות לליד גבוהה מהיעד המאושר כבר כמה ימים, בלי שינוי בקמפיין",
+      "בדיקה מומלצת: לבדוק את אירוע ההמרה בפיקסל",
+      ...base.slice(checkAt + 1),
+    ]);
+    assertStrictEquals(
+      lines.filter((line) => line.startsWith("בדיקה מומלצת:")).length,
+      1,
+    );
+    assertNotMatch(sends[0].message, /אימות AI/);
+    assertEquals(supabase.log[0].evidence.ai_wording, { applied: true });
+    assertStrictEquals(supabase.log[0].evidence.target_value, 30);
+  },
+);
+
+Deno.test("model wording with invented numbers is dropped", async () => {
+  const supabase = fakeSupabase();
+  const { result, sends } = await run(
+    supabase,
+    WEDNESDAY,
+    [exceptionSnapshot()],
+    {
+      rules: NO_CONTACT_OFF,
+      phraseException: async () => ({
+        summary: "העלות לליד הגיעה ל־75 ₪, פי 2 מהיעד",
+        // 20 appears only inside the last-change date, which counts whole.
+        recommended_check: "להוריד את התקציב ב־20%",
+      }),
+    },
+  );
+  assertStrictEquals(result.sent, 1);
+  assertStrictEquals(result.worded, 0);
+  assertStrictEquals(sends[0].message, deterministicExceptionMessage());
+  assertEquals(supabase.log[0].evidence.ai_wording, {
+    applied: false,
+    error: "invented_number",
+  });
+});
+
+Deno.test(
+  "wording keeps numbers the evidence already shows and drops only a bad line",
+  () => {
+    const candidate = {
+      client_id: "c1",
+      client_name: "Acme",
+      rule_type: "campaign_exception",
+      message: deterministicExceptionMessage(),
+      evidence: { target_value: 30, efficiency_3d: 52, efficiency_7d: 48 },
+    };
+    const worded = applyPulseExceptionWording(candidate, {
+      summary: "ב־3 הימים האחרונים CPL 52 מעל יעד 30",
+      recommended_check: "להעלות את התקציב פי 3.5",
+    });
+    assertEquals(worded.ai_wording, {
+      applied: true,
+      error: "invented_number",
+    });
+    assertMatch(
+      worded.message,
+      /\nסיכום כרמן: ב־3 הימים האחרונים CPL 52 מעל יעד 30\n/,
+    );
+    assert(worded.message.includes(STATIC_CHECK));
+  },
+);
+
+Deno.test("wording lines are single, plain and capped", () => {
+  const allowed = new Set(["3"]);
+  assertEquals(
+    sanitizePulseWordingLine("  *חשוב*\n_לבדוק_ ~פיקסל~ `קוד`  ", allowed),
+    { ok: true, text: "חשוב לבדוק פיקסל קוד" },
+  );
+  assertEquals(
+    sanitizePulseWordingLine("\u200fהקמפיין\u202b מעל\tהיעד\u2069", allowed),
+    { ok: true, text: "הקמפיין מעל היעד" },
+  );
+  assertEquals(
+    sanitizePulseWordingLine("סיכום כרמן: הקמפיין מעל היעד", allowed),
+    { ok: true, text: "הקמפיין מעל היעד" },
+  );
+  const long = sanitizePulseWordingLine("מילה ".repeat(100), allowed);
+  assert(long.ok);
+  assert(long.text.length <= PULSE_WORDING_MAX_CHARS);
+  assert(long.text.endsWith("…"));
+  assertEquals(sanitizePulseWordingLine("ב־٣ ימים", allowed), {
+    ok: false,
+    reason: "invented_number",
+  });
+  assertEquals(sanitizePulseWordingLine("ראו https://x.example", allowed), {
+    ok: false,
+    reason: "invalid_text",
+  });
+  assertEquals(sanitizePulseWordingLine({ text: "x" }, allowed), {
+    ok: false,
+    reason: "invalid_text",
+  });
+  assertEquals(sanitizePulseWordingLine("   ", allowed), {
+    ok: false,
+    reason: "missing",
+  });
+});
+
+Deno.test(
+  "a failed wording call does not stop the next alert of the same run",
+  async () => {
+    const second = {
+      ...EXCEPTION_CAMPAIGN,
+      campaign_key: "meta:id:456",
+      campaign_name: "Retargeting",
+    };
+    const supabase = fakeSupabase();
+    let calls = 0;
+    const { result, sends } = await run(
+      supabase,
+      WEDNESDAY,
+      [exceptionSnapshot(EXCEPTION_CAMPAIGN, second)],
+      {
+        rules: NO_CONTACT_OFF,
+        phraseException: async () => {
+          calls += 1;
+          if (calls === 1) throw new Error("model down");
+          return { summary: "הקמפיין מעל היעד המאושר" };
+        },
+      },
+    );
+    assertStrictEquals(result.sent, 2);
+    assertStrictEquals(result.wording_calls, 2);
+    assertStrictEquals(result.worded, 1);
+    assertStrictEquals(sends.length, 2);
+    assertMatch(sends[0].message, /קמפיין: Leads/);
+    assertNotMatch(sends[0].message, /סיכום כרמן/);
+    assertMatch(sends[1].message, /קמפיין: Retargeting/);
+    assertMatch(sends[1].message, /סיכום כרמן: הקמפיין מעל היעד המאושר/);
+    assertEquals(
+      supabase.log.map((row) => row.evidence.ai_wording),
+      [{ applied: false, error: "call_failed" }, { applied: true }],
+    );
+  },
+);
+
+Deno.test(
+  "dedupe still suppresses a repeated campaign_exception without a model call",
+  async () => {
+    const supabase = fakeSupabase();
+    let calls = 0;
+    const extra = {
+      rules: NO_CONTACT_OFF,
+      phraseException: async () => {
+        calls += 1;
+        return { confirmed: false };
+      },
+    };
+    const first = await run(supabase, WEDNESDAY, [exceptionSnapshot()], extra);
+    assertStrictEquals(first.result.sent, 1);
+    const again = await run(
+      supabase,
+      new Date(WEDNESDAY.getTime() + 3600e3),
+      [exceptionSnapshot()],
+      extra,
+    );
+    assertStrictEquals(again.result.sent, 0);
+    assertStrictEquals(again.result.skipped, 1);
+    assertStrictEquals(again.sends.length, 0);
+    assertStrictEquals(calls, 1);
+    assertStrictEquals(supabase.log.length, 1);
+  },
+);
+
 Deno.test(
   "campaign-pulse-snapshot sends instant alerts only through the gate",
   async () => {
@@ -602,6 +902,9 @@ Deno.test(
       /instantPulseAlertsGate\(\{\s*campaignPulseEnabled: setting\.campaign_pulse_enabled,\s*rules: setting\.pulse_alert_rules,\s*body,\s*\}\)/,
     );
     assertMatch(snapshot, /runGatedInstantPulseAlerts\(instantGate,/);
+    // AIO-243: the model only words the alert; it has no confirm/veto field.
+    assertMatch(snapshot, /phraseException: async \(candidate, \{ signal \}\)/);
+    assertNotMatch(snapshot, /analyzeException|"confirmed"|ai_confirmation/);
     const manual = await readFile(
       new URL("../campaign-pulse-manual-trigger/index.ts", import.meta.url),
       "utf8",

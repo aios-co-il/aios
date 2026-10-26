@@ -88,37 +88,220 @@ type QueueWhatsApp = (
   chatId: string | null,
 ) => Promise<boolean>;
 
-type AnalyzeException = (candidate: PulseInstantAlertCandidate) => Promise<{
-  confirmed: boolean;
+/**
+ * Optional model wording for a campaign_exception (AIO-243). The model never
+ * decides whether an alert is sent: the deterministic candidate goes out
+ * either way, and these two short Hebrew lines are only added when valid.
+ */
+export type PulseExceptionWording = {
   summary?: string | null;
   recommended_check?: string | null;
-} | null>;
+};
 
-export function confirmPulseExceptionCandidate(
+export type PhrasePulseException = (
   candidate: PulseInstantAlertCandidate,
-  analysis: {
-    confirmed: boolean;
-    summary?: string | null;
-    recommended_check?: string | null;
-  } | null,
-): PulseInstantAlertCandidate | null {
-  if (!analysis?.confirmed) return null;
+  opts: { signal: AbortSignal },
+) => Promise<PulseExceptionWording | null>;
+
+export type PulseAiWordingEvidence = {
+  applied: boolean;
+  error?:
+    | "not_configured"
+    | "timeout"
+    | "call_failed"
+    | "no_wording"
+    | "invented_number"
+    | "invalid_text";
+};
+
+export const PULSE_WORDING_TIMEOUT_MS = 8000;
+export const PULSE_WORDING_MAX_CHARS = 240;
+export const PULSE_WORDING_SUMMARY_LABEL = "סיכום כרמן:";
+const RECOMMENDED_CHECK_LABEL = "בדיקה מומלצת:";
+const DEFAULT_EXCEPTION_CHECK_LINE = `${RECOMMENDED_CHECK_LABEL} לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.`;
+
+// A number, or a date/time/range compared whole, so "2026-10-20T08:00" in the
+// evidence does not make "20" or "8" look like known numbers.
+const NUMBER_TOKEN = /\d+(?:(?:[.,:/-]|T)\d+)*/g;
+
+function numberTokens(text: string): string[] {
+  return (text.match(NUMBER_TOKEN) || []).map((token) => {
+    if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(token)) {
+      return String(Number(token.replaceAll(",", ""))); // 1,200 → 1200
+    }
+    if (/^\d+(?:[.,]\d+)?$/.test(token)) {
+      return String(Number(token.replace(",", "."))); // 52.0 → 52, 3,5 → 3.5
+    }
+    return token;
+  });
+}
+
+function evidenceValueTokens(value: unknown, out: string[]): void {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    out.push(...numberTokens(String(value)));
+  } else if (typeof value === "string") {
+    out.push(...numberTokens(value));
+  } else if (Array.isArray(value)) {
+    for (const item of value) evidenceValueTokens(item, out);
+  } else if (value && typeof value === "object") {
+    for (const item of Object.values(value)) evidenceValueTokens(item, out);
+  }
+}
+
+/** Every number the deterministic message and evidence values already show. */
+function deterministicNumbers(
+  candidate: PulseInstantAlertCandidate,
+): Set<string> {
+  const tokens = numberTokens(candidate.message);
+  evidenceValueTokens(candidate.evidence || {}, tokens);
+  return new Set(tokens);
+}
+
+type WordingLine =
+  | { ok: true; text: string }
+  | { ok: false; reason: "missing" | "invented_number" | "invalid_text" };
+
+/**
+ * One model line, made safe for WhatsApp: a single line without markdown or
+ * direction-control characters, at most PULSE_WORDING_MAX_CHARS long, and
+ * without any number the deterministic evidence does not already contain.
+ */
+export function sanitizePulseWordingLine(
+  raw: unknown,
+  allowedNumbers: Set<string>,
+): WordingLine {
+  if (raw === null || raw === undefined)
+    return { ok: false, reason: "missing" };
+  if (typeof raw !== "string") return { ok: false, reason: "invalid_text" };
+  let text = raw
+    .replace(/\p{Cc}/gu, " ") // newlines, tabs and other control characters
+    .replace(/\p{Cf}/gu, "") // zero-width and direction marks
+    .replace(/[*_~`#>|[\]{}<]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    // The message adds its own labels; drop one the model repeated.
+    .replace(/^[-•:\s]*(?:(?:סיכום כרמן|סיכום|בדיקה מומלצת)\s*:)?[-•:\s]*/, "")
+    .trim();
+  if (!text) return { ok: false, reason: "missing" };
+  if (/https?:\/\/|www\./i.test(text))
+    return { ok: false, reason: "invalid_text" };
+  // Digits from other scripts cannot be checked against the evidence.
+  if (/(?![0-9])\p{Nd}/u.test(text))
+    return { ok: false, reason: "invented_number" };
+  if (numberTokens(text).some((token) => !allowedNumbers.has(token))) {
+    return { ok: false, reason: "invented_number" };
+  }
+  if (text.length > PULSE_WORDING_MAX_CHARS) {
+    const cut = text.slice(0, PULSE_WORDING_MAX_CHARS - 1);
+    const lastSpace = cut.lastIndexOf(" ");
+    const kept =
+      lastSpace > PULSE_WORDING_MAX_CHARS / 2 ? cut.slice(0, lastSpace) : cut;
+    text = `${kept.trim()}…`;
+  }
+  return { ok: true, text };
+}
+
+/**
+ * Adds valid model wording to the deterministic message. Every data line
+ * stays exactly as built by code; the summary goes above the recommended
+ * check, and a model check replaces only the generic static check line.
+ */
+export function applyPulseExceptionWording(
+  candidate: PulseInstantAlertCandidate,
+  wording: PulseExceptionWording | null | undefined,
+): { message: string; ai_wording: PulseAiWordingEvidence } {
+  if (!wording || typeof wording !== "object") {
+    return {
+      message: candidate.message,
+      ai_wording: { applied: false, error: "no_wording" },
+    };
+  }
+  const allowed = deterministicNumbers(candidate);
+  const summary = sanitizePulseWordingLine(wording.summary, allowed);
+  const check = sanitizePulseWordingLine(wording.recommended_check, allowed);
+  const lines = candidate.message.split("\n");
+  const staticCheckAt = lines.indexOf(DEFAULT_EXCEPTION_CHECK_LINE);
+  const useCheck = check.ok && staticCheckAt >= 0;
+  const summaryLine = summary.ok
+    ? `${PULSE_WORDING_SUMMARY_LABEL} ${summary.text}`
+    : null;
+
+  if (useCheck) {
+    lines[staticCheckAt] = `${RECOMMENDED_CHECK_LABEL} ${check.text}`;
+  }
+  if (summaryLine) {
+    if (staticCheckAt >= 0) lines.splice(staticCheckAt, 0, summaryLine);
+    else lines.push("", summaryLine);
+  }
+
+  const applied = Boolean(summaryLine) || useCheck;
+  const rejected = [summary, check].flatMap((line) =>
+    line.ok ? [] : [line.reason],
+  );
+  let error: PulseAiWordingEvidence["error"];
+  if (rejected.includes("invented_number")) error = "invented_number";
+  else if (rejected.includes("invalid_text")) error = "invalid_text";
+  else if (!applied) error = "no_wording";
   return {
-    ...candidate,
-    message: [
-      candidate.message,
-      analysis.summary ? `\nאימות AI: ${analysis.summary}` : "",
-      analysis.recommended_check
-        ? `בדיקה מומלצת: ${analysis.recommended_check}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    evidence: {
-      ...(candidate.evidence || {}),
-      ai_confirmation: analysis,
-    },
+    message: applied ? lines.join("\n") : candidate.message,
+    ai_wording: error ? { applied, error } : { applied },
   };
+}
+
+/**
+ * Asks the model for wording with a hard timeout. Any failure, timeout or
+ * invalid answer leaves the deterministic message unchanged; nothing here
+ * throws, so one bad call never stops the remaining alerts of the run.
+ */
+export async function wordPulseException(
+  candidate: PulseInstantAlertCandidate,
+  phrase: PhrasePulseException | undefined,
+  timeoutMs = PULSE_WORDING_TIMEOUT_MS,
+): Promise<{
+  message: string;
+  ai_wording: PulseAiWordingEvidence;
+  called: boolean;
+}> {
+  if (!phrase) {
+    return {
+      message: candidate.message,
+      ai_wording: { applied: false, error: "not_configured" },
+      called: false,
+    };
+  }
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = Symbol("timeout");
+  try {
+    // Promise.race also handles a rejection that arrives after the timeout.
+    const answer = await Promise.race([
+      phrase(candidate, { signal: controller.signal }),
+      new Promise<typeof timedOut>((resolve) => {
+        timer = setTimeout(() => resolve(timedOut), timeoutMs);
+      }),
+    ]);
+    if (answer === timedOut) {
+      controller.abort();
+      return {
+        message: candidate.message,
+        ai_wording: { applied: false, error: "timeout" },
+        called: true,
+      };
+    }
+    return { ...applyPulseExceptionWording(candidate, answer), called: true };
+  } catch (error) {
+    console.warn(
+      "[pulse-instant-alerts] exception wording failed; sending deterministic text",
+      error instanceof Error ? error.message : String(error),
+    );
+    return {
+      message: candidate.message,
+      ai_wording: { applied: false, error: "call_failed" },
+      called: true,
+    };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
@@ -325,7 +508,7 @@ export function evaluatePulseInstantAlerts(
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",
-          "בדיקה מומלצת: לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.",
+          DEFAULT_EXCEPTION_CHECK_LINE,
           "AIOS → דשבורד דופק",
         ].join("\n"),
       });
@@ -568,7 +751,13 @@ export async function deliverInstantPulseAlerts(input: {
   criticalIssues: CriticalIssueLike[];
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
-  analyzeException?: AnalyzeException;
+  /**
+   * Optional wording for campaign_exception alerts. It never decides whether
+   * an alert is sent; see wordPulseException.
+   */
+  phraseException?: PhrasePulseException;
+  /** Wording timeout override for tests. */
+  wordingTimeoutMs?: number;
   /** Clock override for tests. */
   now?: Date;
 }): Promise<InstantPulseAlertResult> {
@@ -590,13 +779,15 @@ export async function deliverInstantPulseAlerts(input: {
       sent: 0,
       skipped: 0,
       candidates: evaluated.length,
-      analyzed: 0,
+      wording_calls: 0,
+      worded: 0,
       held,
     };
 
   let sent = 0;
   let skipped = 0;
-  let analyzed = 0;
+  let wordingCalls = 0;
+  let worded = 0;
 
   for (const candidate of candidates) {
     const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
@@ -618,24 +809,6 @@ export async function deliverInstantPulseAlerts(input: {
       continue;
     }
 
-    if (candidate.rule_type === "campaign_exception") {
-      // AI is never used during collection or trend calculation. It receives
-      // only a deterministic exception candidate and may veto the notification.
-      if (!input.analyzeException) {
-        skipped += 1;
-        continue;
-      }
-      const analysis = await input.analyzeException(candidate);
-      analyzed += 1;
-      const confirmed = confirmPulseExceptionCandidate(candidate, analysis);
-      if (!confirmed) {
-        skipped += 1;
-        continue;
-      }
-      candidate.message = confirmed.message;
-      candidate.evidence = confirmed.evidence;
-    }
-
     const recipients = await resolveInstantAlertRecipients(
       input.supabase,
       input.tenantId,
@@ -651,6 +824,25 @@ export async function deliverInstantPulseAlerts(input: {
       continue;
     }
 
+    let wordingApplied = false;
+    if (candidate.rule_type === "campaign_exception") {
+      // The deterministic checks above decide delivery (AIO-243). The model
+      // may only add wording; it cannot stop the alert, and a failure or
+      // timeout sends the deterministic text and moves on.
+      const wording = await wordPulseException(
+        candidate,
+        input.phraseException,
+        input.wordingTimeoutMs,
+      );
+      if (wording.called) wordingCalls += 1;
+      wordingApplied = wording.ai_wording.applied;
+      candidate.message = wording.message;
+      candidate.evidence = {
+        ...(candidate.evidence || {}),
+        ai_wording: wording.ai_wording,
+      };
+    }
+
     let delivered = false;
     for (const recipient of recipients) {
       const queued = await input.queueWhatsApp(
@@ -661,6 +853,7 @@ export async function deliverInstantPulseAlerts(input: {
     }
     if (delivered) {
       sent += 1;
+      if (wordingApplied) worded += 1;
       await input.supabase.from("pulse_instant_alert_log").insert({
         tenant_id: input.tenantId,
         client_id: candidate.client_id,
@@ -677,14 +870,24 @@ export async function deliverInstantPulseAlerts(input: {
     }
   }
 
-  return { sent, skipped, candidates: evaluated.length, analyzed, held };
+  return {
+    sent,
+    skipped,
+    candidates: evaluated.length,
+    wording_calls: wordingCalls,
+    worded,
+    held,
+  };
 }
 
 export type InstantPulseAlertResult = {
   sent: number;
   skipped: number;
   candidates: number;
-  analyzed: number;
+  /** Model wording calls made for campaign_exception alerts. */
+  wording_calls: number;
+  /** Alerts sent with model wording added to the deterministic text. */
+  worded: number;
   /** Non-critical candidates held for Shabbat (re-evaluated after it). */
   held: number;
   /** Why the run sent nothing at all, when the gate stopped it. */
@@ -701,7 +904,8 @@ export async function runGatedInstantPulseAlerts(
       sent: 0,
       skipped: 0,
       candidates: 0,
-      analyzed: 0,
+      wording_calls: 0,
+      worded: 0,
       held: 0,
       suppressed: gate.reason,
     };
