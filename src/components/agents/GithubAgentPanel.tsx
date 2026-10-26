@@ -30,6 +30,14 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { jsonString, thrownMessage } from "./agentUiHelpers";
+
+interface ChatSupportResponse {
+  response?: string;
+  action_needed?: string;
+  requires_approval?: boolean;
+  severity?: string;
+}
 
 export function GithubAgentPanel() {
   const { tenantId } = useCurrentTenant();
@@ -40,7 +48,9 @@ export function GithubAgentPanel() {
     import.meta.env.VITE_GITHUB_REPO ?? "",
   );
   const [chatMessage, setChatMessage] = useState("");
-  const [chatResponse, setChatResponse] = useState<any>(null);
+  const [chatResponse, setChatResponse] = useState<ChatSupportResponse | null>(
+    null,
+  );
   const [isSending, setIsSending] = useState(false);
 
   // Get saved credentials
@@ -49,12 +59,12 @@ export function GithubAgentPanel() {
     queryFn: async () => {
       if (!tenantId) return null;
       const { data } = await supabase
-        .from("agent_credentials" as any)
+        .from("agent_credentials")
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("credential_type", "github_token")
         .single();
-      return data as any;
+      return data;
     },
     enabled: !!tenantId,
   });
@@ -65,12 +75,12 @@ export function GithubAgentPanel() {
     queryFn: async () => {
       if (!tenantId) return [];
       const { data } = await supabase
-        .from("agent_approval_queue" as any)
+        .from("agent_approval_queue")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(20);
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!tenantId,
   });
@@ -81,12 +91,12 @@ export function GithubAgentPanel() {
     queryFn: async () => {
       if (!tenantId) return [];
       const { data } = await supabase
-        .from("agent_action_log" as any)
+        .from("agent_action_log")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(30);
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!tenantId,
   });
@@ -101,15 +111,15 @@ export function GithubAgentPanel() {
 
       if (credential) {
         await supabase
-          .from("agent_credentials" as any)
+          .from("agent_credentials")
           .update({
             encrypted_value: tokenInput,
             metadata: { repo: repoInput },
             updated_at: new Date().toISOString(),
           })
-          .eq("id", (credential as any).id);
+          .eq("id", credential.id);
       } else {
-        await supabase.from("agent_credentials" as any).insert({
+        await supabase.from("agent_credentials").insert({
           tenant_id: tenantId,
           credential_type: "github_token",
           credential_name: "default",
@@ -126,7 +136,7 @@ export function GithubAgentPanel() {
       toast.success("GitHub Token נשמר בהצלחה");
       setTokenInput("");
     },
-    onError: (e: any) => toast.error("שגיאה: " + e.message),
+    onError: (e) => toast.error("שגיאה: " + e.message),
   });
 
   // Send chat support message
@@ -136,13 +146,14 @@ export function GithubAgentPanel() {
     setChatResponse(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("github-agent", {
-        body: {
-          action: "chat_support",
-          tenant_id: tenantId,
-          message: chatMessage,
-        },
-      });
+      const { data, error } =
+        await supabase.functions.invoke<ChatSupportResponse>("github-agent", {
+          body: {
+            action: "chat_support",
+            tenant_id: tenantId,
+            message: chatMessage,
+          },
+        });
 
       if (error) throw error;
       setChatResponse(data);
@@ -153,8 +164,8 @@ export function GithubAgentPanel() {
       queryClient.invalidateQueries({
         queryKey: ["agent-action-log", tenantId],
       });
-    } catch (e: any) {
-      toast.error("שגיאה: " + (e.message || "Unknown"));
+    } catch (e) {
+      toast.error("שגיאה: " + (thrownMessage(e) || "Unknown"));
     } finally {
       setIsSending(false);
     }
@@ -177,8 +188,8 @@ export function GithubAgentPanel() {
       queryClient.invalidateQueries({
         queryKey: ["agent-action-log", tenantId],
       });
-    } catch (e: any) {
-      toast.error("שגיאה: " + e.message);
+    } catch (e) {
+      toast.error("שגיאה: " + thrownMessage(e));
     }
   };
 
@@ -236,13 +247,12 @@ export function GithubAgentPanel() {
           <TabsTrigger value="chat">צ'אט תמיכה</TabsTrigger>
           <TabsTrigger value="approvals">
             תור אישורים
-            {approvals.filter((a: any) => a.status === "pending").length >
-              0 && (
+            {approvals.filter((a) => a.status === "pending").length > 0 && (
               <Badge
                 variant="destructive"
                 className="mr-1 h-5 w-5 p-0 text-xs flex items-center justify-center"
               >
-                {approvals.filter((a: any) => a.status === "pending").length}
+                {approvals.filter((a) => a.status === "pending").length}
               </Badge>
             )}
           </TabsTrigger>
@@ -329,7 +339,7 @@ export function GithubAgentPanel() {
               </CardContent>
             </Card>
           ) : (
-            approvals.map((approval: any) => (
+            approvals.map((approval) => (
               <Card
                 key={approval.id}
                 className={
@@ -384,9 +394,9 @@ export function GithubAgentPanel() {
                       </div>
                     )}
                     {approval.status === "executed" &&
-                      approval.execution_result?.pr_url && (
+                      jsonString(approval.execution_result, "pr_url") && (
                         <a
-                          href={approval.execution_result.pr_url}
+                          href={jsonString(approval.execution_result, "pr_url")}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -412,7 +422,7 @@ export function GithubAgentPanel() {
               </CardContent>
             </Card>
           ) : (
-            actionLog.map((log: any) => (
+            actionLog.map((log) => (
               <div
                 key={log.id}
                 className="flex items-center gap-3 p-3 rounded-lg border text-sm"
@@ -430,8 +440,8 @@ export function GithubAgentPanel() {
                   {log.action_type}
                 </Badge>
                 <span className="flex-1 text-muted-foreground truncate">
-                  {log.action_details?.message ||
-                    log.action_details?.error ||
+                  {jsonString(log.action_details, "message") ||
+                    jsonString(log.action_details, "error") ||
                     JSON.stringify(log.action_details).substring(0, 100)}
                 </span>
                 <span className="text-xs text-muted-foreground shrink-0">
@@ -464,7 +474,7 @@ export function GithubAgentPanel() {
                     Token מוגדר
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    ({(credential as any).metadata?.repo})
+                    ({jsonString(credential.metadata, "repo")})
                   </span>
                 </div>
               )}

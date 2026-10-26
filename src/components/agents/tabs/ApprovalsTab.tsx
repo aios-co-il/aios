@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +37,13 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
-function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
+function ApprovalCard({
+  item,
+  canDecide,
+}: {
+  item: Tables<"agent_approval_queue">;
+  canDecide: boolean;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
@@ -70,7 +77,7 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
       qc.invalidateQueries({ queryKey: ["agent-approvals-global", tenantId] });
       toast.success(d === "approved" ? "אושר" : "נדחה");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const expired = item.expires_at && new Date(item.expires_at) < new Date();
@@ -145,7 +152,11 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
   );
 }
 
-export function ApprovalsTab({ agent }: { agent: any }) {
+export function ApprovalsTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id">;
+}) {
   const [tab, setTab] = useState("pending");
 
   const { data: items = [], isLoading } = useQuery({

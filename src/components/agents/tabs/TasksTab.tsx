@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { asJsonObject, isOneOf, thrownMessage } from "../agentUiHelpers";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,7 @@ import {
   Bell,
   Send,
   AlertCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
@@ -48,14 +51,19 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const STATUS_META: Record<string, { label: string; icon: any; color: string }> =
-  {
-    pending: { label: "ממתין", icon: Clock, color: "text-muted-foreground" },
-    scheduled: { label: "מתוזמן", icon: Calendar, color: "text-blue-500" },
-    running: { label: "רץ", icon: Loader2, color: "text-amber-500" },
-    completed: { label: "הושלם", icon: CheckCircle2, color: "text-green-500" },
-    failed: { label: "נכשל", icon: XCircle, color: "text-destructive" },
-  };
+const STATUS_META: Record<
+  string,
+  { label: string; icon: LucideIcon; color: string }
+> = {
+  pending: { label: "ממתין", icon: Clock, color: "text-muted-foreground" },
+  scheduled: { label: "מתוזמן", icon: Calendar, color: "text-blue-500" },
+  running: { label: "רץ", icon: Loader2, color: "text-amber-500" },
+  completed: { label: "הושלם", icon: CheckCircle2, color: "text-green-500" },
+  failed: { label: "נכשל", icon: XCircle, color: "text-destructive" },
+};
+
+const SCHEDULE_TYPES = ["immediate", "scheduled", "recurring"] as const;
+type ScheduleType = (typeof SCHEDULE_TYPES)[number];
 
 const SCHEDULE_LABELS: Record<string, string> = {
   immediate: "מיידי",
@@ -67,7 +75,7 @@ export function TasksTab({
   agent,
   hideFullViewLink,
 }: {
-  agent: any;
+  agent: Pick<Tables<"ai_agents">, "id">;
   /** Hide the "full view" button that navigates to /agent-tasks (e.g. when embedded in Carmen's screen). */
   hideFullViewLink?: boolean;
 }) {
@@ -110,7 +118,7 @@ export function TasksTab({
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
       toast.success("המשימה הופעלה");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const remove = useMutation({
@@ -125,7 +133,7 @@ export function TasksTab({
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
   const testReminder = useMutation({
     mutationFn: async () => {
@@ -150,7 +158,7 @@ export function TasksTab({
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
       toast.success("בדיקה תוזמנה ל-2 דקות מעכשיו. בדקי את הוואטסאפ.");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -228,14 +236,15 @@ export function TasksTab({
               : null;
           const scheduledIl = ilFmt(t.scheduled_at);
           const lastRunIl = ilFmt(t.last_run);
-          const result = (t as any).result || {};
+          const result = asJsonObject(t.result) ?? {};
           const lastOutput =
             result.last_output || result.output || result.error || null;
-          const toolLog: any[] = result.tool_log || result.tools || [];
+          const toolLog = result.tool_log || result.tools || [];
           const sentWa =
             Array.isArray(toolLog) &&
-            toolLog.some((x: any) => {
-              const n = String(x?.name || x?.tool || "");
+            toolLog.some((x) => {
+              const entry = asJsonObject(x);
+              const n = String(entry?.name || entry?.tool || "");
               return n === "send_whatsapp_via_gateway" || n === "send_message";
             });
           const sendStatus = t.last_run
@@ -373,9 +382,7 @@ function NewTaskDialog({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [scheduleType, setScheduleType] = useState<
-    "immediate" | "scheduled" | "recurring"
-  >("immediate");
+  const [scheduleType, setScheduleType] = useState<ScheduleType>("immediate");
   const [scheduledAt, setScheduledAt] = useState("");
   const [cron, setCron] = useState("0 9 * * *");
   const [submitting, setSubmitting] = useState(false);
@@ -384,7 +391,7 @@ function NewTaskDialog({
     if (!tenantId || !title.trim()) return;
     setSubmitting(true);
     try {
-      const payload: any = {
+      const payload: TablesInsert<"agent_tasks"> = {
         tenant_id: tenantId,
         agent_id: agentId,
         title: title.trim(),
@@ -400,8 +407,8 @@ function NewTaskDialog({
       if (error) throw error;
       toast.success("המשימה נוצרה");
       onCreated();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error(thrownMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -434,7 +441,9 @@ function NewTaskDialog({
           <Label>סוג הרצה</Label>
           <Select
             value={scheduleType}
-            onValueChange={(v: any) => setScheduleType(v)}
+            onValueChange={(v) => {
+              if (isOneOf(SCHEDULE_TYPES, v)) setScheduleType(v);
+            }}
           >
             <SelectTrigger>
               <SelectValue />

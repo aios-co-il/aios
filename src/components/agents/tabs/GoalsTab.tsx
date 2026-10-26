@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { isOneOf } from "../agentUiHelpers";
 import {
   Select,
   SelectContent,
@@ -31,11 +32,13 @@ const PRIORITY_LABELS: Record<string, string> = {
   medium: "בינונית",
   low: "נמוכה",
 };
-const PRIORITY_COLORS: Record<string, string> = {
+const PRIORITY_COLORS: Record<string, BadgeProps["variant"]> = {
   high: "destructive",
   medium: "default",
   low: "secondary",
 };
+const PRIORITIES = ["high", "medium", "low"] as const;
+type Priority = (typeof PRIORITIES)[number];
 const STATUS_LABELS: Record<string, string> = {
   active: "פעילה",
   paused: "מושהית",
@@ -94,7 +97,7 @@ export function GoalsTab({ agentId }: { agentId: string }) {
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-medium truncate">{g.title}</h4>
                   <Badge
-                    variant={PRIORITY_COLORS[g.priority] as any}
+                    variant={PRIORITY_COLORS[g.priority]}
                     className="text-[10px] h-4"
                   >
                     {PRIORITY_LABELS[g.priority]}
@@ -179,7 +182,7 @@ function GoalDialog({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
+  const [priority, setPriority] = useState<Priority>("medium");
   const [targetDate, setTargetDate] = useState("");
 
   return (
@@ -207,7 +210,12 @@ function GoalDialog({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>עדיפות</Label>
-            <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
+            <Select
+              value={priority}
+              onValueChange={(v) => {
+                if (isOneOf(PRIORITIES, v)) setPriority(v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables, TablesUpdate } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  jsonPrimitive,
+  jsonString,
+  type JsonObject,
+} from "@/components/agents/agentUiHelpers";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -279,17 +287,19 @@ const STATUS_CONFIG: Record<
 };
 
 // ─── TaskResultDisplay ─────────────────────────────────────────────────────────
-function TaskResultDisplay({ result }: { result: any }) {
+function TaskResultDisplay({ result }: { result: Json }) {
   const { buildPath } = useTenantPath();
-  const toolLog = result?.tool_log || [];
-  const output = result?.output || "";
+  const toolLog = asJsonArray(asJsonObject(result)?.tool_log);
+  const output = jsonString(result, "output") || "";
   const images: string[] = [];
-  const socialPosts: any[] = [];
-  for (const log of toolLog) {
-    if (log.tool === "generate_ad_image" && log.result?.image_url)
-      images.push(log.result.image_url);
-    if (log.tool === "create_social_post" && log.result?.success)
-      socialPosts.push(log.result);
+  const socialPosts: JsonObject[] = [];
+  for (const entry of toolLog) {
+    const log = asJsonObject(entry);
+    const logResult = asJsonObject(log?.result);
+    const imageUrl = jsonString(logResult, "image_url");
+    if (log?.tool === "generate_ad_image" && imageUrl) images.push(imageUrl);
+    if (log?.tool === "create_social_post" && logResult?.success)
+      socialPosts.push(logResult);
   }
   const hasVisualContent = images.length > 0 || socialPosts.length > 0;
   return (
@@ -344,13 +354,13 @@ function TaskResultDisplay({ result }: { result: any }) {
                   צפה בפוסטים <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              {post.title && (
+              {jsonPrimitive(post.title) && (
                 <p className="text-sm font-semibold text-emerald-900 mb-1">
-                  {post.title}
+                  {jsonPrimitive(post.title)}
                 </p>
               )}
               <p className="text-xs text-emerald-800 whitespace-pre-wrap line-clamp-4">
-                {post.content}
+                {jsonPrimitive(post.content)}
               </p>
             </div>
           ))}
@@ -473,13 +483,13 @@ function TaskCard({
   onRerun,
   isRunning,
 }: {
-  task: any;
+  task: AgentTaskRow;
   avatarFor: (name: string) => string;
-  onRun: (task: any) => void;
+  onRun: (task: AgentTaskRow) => void;
   onDelete: (id: string) => void;
-  onToggleEnabled: (task: any) => void;
-  onEdit: (task: any) => void;
-  onRerun: (task: any) => void;
+  onToggleEnabled: (task: AgentTaskRow) => void;
+  onEdit: (task: AgentTaskRow) => void;
+  onRerun: (task: AgentTaskRow) => void;
   isRunning: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -490,9 +500,10 @@ function TaskCard({
   const taskSkills = (task.task_skills || []) as string[];
   const skillNames = taskSkills
     .map((id: string) => BUILT_IN_SKILLS.find((s) => s.id === id))
-    .filter(Boolean)
-    .map((s: any) => `${s.icon} ${s.name}`);
+    .filter((s) => s !== undefined)
+    .map((s) => `${s.icon} ${s.name}`);
   const taskMode = CARMEN_MODES.find((m) => m.id === task.task_mode);
+  const resultError = jsonPrimitive(asJsonObject(task.result)?.error);
 
   return (
     <div
@@ -531,7 +542,7 @@ function TaskCard({
                   <GitFork className="h-2.5 w-2.5" /> מקבילי
                 </Badge>
               )}
-              {task.assigned_agent && (
+              {"assigned_agent" in task && Boolean(task.assigned_agent) && (
                 <Badge
                   variant="outline"
                   className="text-[10px] gap-1 bg-violet-50 text-violet-700 border-violet-200"
@@ -589,7 +600,7 @@ function TaskCard({
               <span>{agentName}</span>
               <span>·</span>
               <span>{format(new Date(task.created_at), "dd/MM HH:mm")}</span>
-              {task.run_count > 0 && (
+              {(task.run_count ?? 0) > 0 && (
                 <>
                   <span>·</span>
                   <span>הורץ {task.run_count} פעמים</span>
@@ -620,9 +631,9 @@ function TaskCard({
                 {expanded && <TaskResultDisplay result={task.result} />}
               </div>
             )}
-            {task.status === "failed" && task.result?.error && (
+            {task.status === "failed" && resultError && (
               <div className="mt-2 p-2 bg-red-50 rounded-lg text-xs text-red-900">
-                {task.result.error}
+                {resultError}
               </div>
             )}
           </div>
@@ -713,12 +724,18 @@ function TaskCard({
 }
 
 // ─── Default form ──────────────────────────────────────────────────────────────
+type ScheduleType = "once" | "scheduled" | "recurring";
+
+type AgentTaskRow = Tables<"agent_tasks"> & {
+  ai_agents: Pick<Tables<"ai_agents">, "name"> | null;
+};
+
 const defaultForm = {
   title: "",
   description: "",
   agent_id: "",
   priority: 5,
-  schedule_type: "once" as "once" | "scheduled" | "recurring",
+  schedule_type: "once" as ScheduleType,
   cron_preset: "0 7 * * *",
   custom_cron: "",
   task_skills: [] as string[],
@@ -737,7 +754,7 @@ export default function AgentTasksPage() {
   const isMobile = useIsMobile();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<AgentTaskRow | null>(null);
   const [filterAgent, setFilterAgent] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [form, setForm] = useState({ ...defaultForm });
@@ -767,7 +784,8 @@ export default function AgentTasksPage() {
       if (filterAgent !== "all") query = query.eq("agent_id", filterAgent);
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data } = await query;
-      return (data as any[]) || [];
+      const rows: AgentTaskRow[] = data || [];
+      return rows;
     },
     enabled: !!tenantId,
     refetchInterval: 5000,
@@ -816,11 +834,11 @@ export default function AgentTasksPage() {
       setForm({ ...defaultForm });
       toast.success("משימה נוצרה בהצלחה");
     },
-    onError: (e: any) => toast.error("שגיאה ביצירת משימה: " + e.message),
+    onError: (e) => toast.error("שגיאה ביצירת משימה: " + e.message),
   });
 
   const runTask = useMutation({
-    mutationFn: async (task: any) => {
+    mutationFn: async (task: AgentTaskRow) => {
       await supabase
         .from("agent_tasks")
         .update({ status: "running", started_at: new Date().toISOString() })
@@ -841,10 +859,11 @@ export default function AgentTasksPage() {
       ]
         .filter(Boolean)
         .join("\n");
-
-      if (task.parallel_execution && task.parallel_subtasks?.length > 0) {
+      const subtasks = asJsonArray(task.parallel_subtasks);
+      if (task.parallel_execution && subtasks.length > 0) {
         const results = await Promise.all(
-          task.parallel_subtasks.map(async (sub: any) => {
+          subtasks.map(async (entry) => {
+            const sub: JsonObject = asJsonObject(entry) ?? {};
             const { data } = await supabase.functions.invoke("run-ai-agent", {
               body: {
                 agent_id: task.agent_id,
@@ -903,7 +922,7 @@ export default function AgentTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] });
       toast.success("המשימה הושלמה");
     },
-    onError: (err: any) => {
+    onError: (err) => {
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] });
       toast.error("שגיאה בהרצת המשימה: " + err.message);
     },
@@ -925,7 +944,7 @@ export default function AgentTasksPage() {
   });
 
   const toggleEnabled = useMutation({
-    mutationFn: async (task: any) => {
+    mutationFn: async (task: AgentTaskRow) => {
       const newStatus = task.status === "active" ? "paused" : "active";
       const { error } = await supabase
         .from("agent_tasks")
@@ -938,7 +957,13 @@ export default function AgentTasksPage() {
   });
 
   const updateTask = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: TablesUpdate<"agent_tasks">;
+    }) => {
       const { error } = await supabase
         .from("agent_tasks")
         .update(updates)
@@ -953,11 +978,11 @@ export default function AgentTasksPage() {
     onError: () => toast.error("שגיאה בעדכון המשימה"),
   });
 
-  const handleEdit = (task: any) => {
+  const handleEdit = (task: AgentTaskRow) => {
     setEditingTask(task);
   };
 
-  const handleRerun = async (task: any) => {
+  const handleRerun = async (task: AgentTaskRow) => {
     const { error } = await supabase
       .from("agent_tasks")
       .update({
@@ -1194,7 +1219,7 @@ export default function AgentTasksPage() {
                             </h3>
                             {BUILT_IN_SKILLS.slice(0, 6).map((skill) => {
                               const count = tasks.filter((t) =>
-                                (t.task_skills || []).includes(skill.id),
+                                asJsonArray(t.task_skills).includes(skill.id),
                               ).length;
                               return (
                                 <div
@@ -1467,19 +1492,19 @@ export default function AgentTasksPage() {
               <div className="grid grid-cols-3 gap-2 mt-2">
                 {[
                   {
-                    value: "once",
+                    value: "once" as const,
                     icon: <Play className="h-4 w-4" />,
                     label: "חד-פעמי",
                     desc: "הרץ מיד או ידנית",
                   },
                   {
-                    value: "scheduled",
+                    value: "scheduled" as const,
                     icon: <Calendar className="h-4 w-4" />,
                     label: "מתוזמן",
                     desc: "בתאריך ושעה ספציפיים",
                   },
                   {
-                    value: "recurring",
+                    value: "recurring" as const,
                     icon: <Repeat className="h-4 w-4" />,
                     label: "חוזר",
                     desc: "לפי Cron",
@@ -1491,7 +1516,7 @@ export default function AgentTasksPage() {
                     onClick={() =>
                       setForm((f) => ({
                         ...f,
-                        schedule_type: opt.value as any,
+                        schedule_type: opt.value,
                       }))
                     }
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs transition-all ${

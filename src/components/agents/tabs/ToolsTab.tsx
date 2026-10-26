@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +12,11 @@ import { toast } from "sonner";
 import { Wrench, Search } from "lucide-react";
 import { AGENT_TOOLS_CATALOG as ALL_TOOLS } from "@/lib/agentToolsCatalog";
 
-export function ToolsTab({ agent }: { agent: any }) {
+export function ToolsTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id" | "allowed_tools">;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [selected, setSelected] = useState<Set<string>>(
@@ -35,7 +40,7 @@ export function ToolsTab({ agent }: { agent: any }) {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
       toast.success("הכלים נשמרו");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const toggle = (name: string) => {
