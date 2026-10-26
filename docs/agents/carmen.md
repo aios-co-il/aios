@@ -90,7 +90,8 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 ## Approvals (`agent_approval_queue`)
 
-- A chat "כן" runs only a pending row the same user requested in the same conversation (`context.conversation_key`) within 30 minutes. Otherwise Carmen lists the candidates with 4-digit codes, and "כן <קוד>" picks one. Rules and tests: `_shared/wa-approval-flow.mjs`.
+- A chat "כן" runs only a pending row the same user requested in the same conversation (`context.conversation_key`) within 30 minutes. Otherwise Carmen lists the candidates with 4-digit codes (6 digits when two listed rows share 4), and "כן <קוד>" picks one; "לא <קוד>" lets the requester or an approver reject. Rules and tests: `_shared/wa-approval-flow.mjs`.
+- The approver is the caller Carmen resolved. For a user JWT that is always the JWT user: `run-ai-agent` strips `lead_data` (caller phone), `wa_notify` and the `whatsapp` surface from non-service requests (`_shared/run-agent-trust.mjs`), so only WhatsApp webhooks and automations, which call with the service key, can act for a phone.
 - Money, external_send, config and destructive rows need `owner`, `agency_owner` or `super_admin`. `carmen-approval-execute` checks the approver's tenant and role, refuses expired rows and claims a row once (`executing`, then `executed` or `failed`).
 - The approvals screen calls `carmen-approval-execute` directly; `resume-agent-run` handles only `run-ai-agent-v2` run steps. Browser roles can read the queue but not write it.
 

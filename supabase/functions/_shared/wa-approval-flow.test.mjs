@@ -5,8 +5,12 @@ import test from "node:test";
 import {
   APPROVAL_CONFIRM_WINDOW_MS,
   CARMEN_EXECUTOR_TOOLS,
+  APPROVAL_ERROR_MESSAGES_HE,
   approvalBindingContext,
+  approvalCodeMatches,
   approvalConversationKey,
+  approvalDisplayCode,
+  approvalLongCode,
   approvalPickToolResult,
   approvalRiskClass,
   approvalShortCode,
@@ -509,4 +513,142 @@ test("execute_pending_approval never runs a row other than the bound one", () =>
     nowMs: NOW,
   });
   assert.equal(none.error, "no_bound_approval");
+});
+
+// ── Review fixes (AIO-230) ─────────────────────────────────────────────────
+
+test("execution replies speak Hebrew and do not blame Meta for other tools", () => {
+  const broadcast = {
+    title: "שליחת ברודקאסט",
+    tool_name: "send_broadcast_now",
+  };
+  const refused = formatApprovalExecutionReply(
+    { success: false, error: "approver_role_required" },
+    broadcast,
+  );
+  assert.match(refused, /בעלים או מנהל\/ת סוכנות/);
+  assert.match(refused, /לא בוצע כלום\.$/);
+  assert.doesNotMatch(refused, /approver_role_required|Meta/);
+  for (const code of ["expired", "not_pending", "no_identity", "unknown_tool"])
+    assert.ok(
+      formatApprovalExecutionReply({ error: code }, broadcast).includes(
+        APPROVAL_ERROR_MESSAGES_HE[code],
+      ),
+      code,
+    );
+  // Someone else is running it right now: do not say nothing was done.
+  const busy = formatApprovalExecutionReply(
+    { error: "in_progress" },
+    broadcast,
+  );
+  assert.match(busy, /כבר בביצוע/);
+  assert.doesNotMatch(busy, /לא בוצע כלום/);
+  // Unknown upstream errors pass through as text, objects are not "[object Object]".
+  assert.match(
+    formatApprovalExecutionReply({ error: "Meta API 500" }, broadcast),
+    /Meta API 500/,
+  );
+  assert.doesNotMatch(
+    formatApprovalExecutionReply({ result: { error: { code: 1 } } }, broadcast),
+    /object Object/,
+  );
+  assert.doesNotMatch(
+    formatApprovalExecutionReply({ error: "constructor" }, broadcast),
+    /function/,
+  );
+});
+
+function collidingId(id) {
+  const code = approvalShortCode(id);
+  for (let i = 0; i < 1_000_000; i++) {
+    const other = `${i.toString(16).padStart(8, "0")}-0000-4000-8000-000000000009`;
+    if (other !== id && approvalShortCode(other) === code) return other;
+  }
+  throw new Error("no collision found");
+}
+
+test("colliding short codes get 6-digit codes so each row can still be picked", () => {
+  const twin = collidingId(ID1);
+  assert.equal(approvalShortCode(twin), approvalShortCode(ID1));
+  assert.notEqual(approvalLongCode(twin), approvalLongCode(ID1));
+  const rows = [
+    row(ID1, { requested_by: DANA }),
+    row(twin, { requested_by: DANA }),
+    row(ID3, { requested_by: DANA }),
+  ];
+  // The shared 4 digits are ambiguous; nothing runs.
+  const ambiguous = resolveApprovalConfirm(rows, {
+    ...owner,
+    code: approvalShortCode(ID1),
+  });
+  assert.equal(ambiguous.kind, "ambiguous");
+  const reply = formatApprovalPickReply(ambiguous, { nowMs: NOW });
+  assert.ok(reply.includes(approvalLongCode(ID1)), reply);
+  assert.ok(reply.includes(approvalLongCode(twin)), reply);
+  // Only colliding rows get the long code.
+  assert.equal(approvalDisplayCode(rows[2], rows), approvalShortCode(ID3));
+  assert.equal(approvalDisplayCode(rows[0], rows), approvalLongCode(ID1));
+  assert.equal(approvalDisplayCode(rows[0], [rows[0]]), approvalShortCode(ID1));
+  // "כן <6 digits>" picks exactly one.
+  for (const id of [ID1, twin]) {
+    const reply6 = parseApprovalReply(`כן ${approvalLongCode(id)}`);
+    assert.equal(reply6.approve, true);
+    const pick = resolveApprovalConfirm(rows, { ...owner, code: reply6.code });
+    assert.equal(pick.kind, "match");
+    assert.equal(pick.row.id, id);
+  }
+  // Tool results list the long codes too.
+  const tool = approvalPickToolResult(ambiguous, { nowMs: NOW });
+  assert.deepEqual(
+    tool.candidates.map((c) => c.code).sort(),
+    [approvalLongCode(ID1), approvalLongCode(twin)].sort(),
+  );
+  assert.equal(approvalCodeMatches(rows[2], approvalShortCode(ID3)), true);
+  assert.equal(approvalCodeMatches(rows[2], approvalLongCode(ID1)), false);
+});
+
+test("codes are 4 or 6 digits; 5 digits is not a code", () => {
+  assert.equal(parseApprovalReply("כן 123456").code, "123456");
+  assert.equal(parseApprovalReply("לא 123456").reject, true);
+  assert.equal(parseApprovalReply("כן 12345").code, null);
+  assert.equal(parseApprovalReply("כן 1234567").code, null);
+});
+
+test("'לא <קוד>' lets a requester withdraw their own approver-only row", () => {
+  const dana = {
+    userId: DANA,
+    roles: ["campaigner"],
+    conversationKey: CONV,
+    nowMs: NOW,
+  };
+  const money = row(ID1, { requested_by: DANA, tool_name: "fb_update_budget" });
+  const others = row(ID2, {
+    requested_by: DAVID,
+    tool_name: "fb_update_budget",
+  });
+  const code = approvalShortCode(ID1);
+  // Approve: the role gate still refuses.
+  assert.equal(
+    resolveApprovalConfirm([money], { ...dana, code }).kind,
+    "code_not_found",
+  );
+  // Reject: the requester may withdraw it, by code or as the bound row.
+  const byCode = resolveApprovalConfirm([money, others], {
+    ...dana,
+    code,
+    mode: "reject",
+  });
+  assert.equal(byCode.kind, "match");
+  assert.equal(byCode.row.id, ID1);
+  const bound = resolveApprovalConfirm([money], { ...dana, mode: "reject" });
+  assert.equal(bound.kind, "match");
+  // Not someone else's row.
+  assert.equal(
+    resolveApprovalConfirm([money, others], {
+      ...dana,
+      code: approvalShortCode(ID2),
+      mode: "reject",
+    }).kind,
+    "code_not_found",
+  );
 });

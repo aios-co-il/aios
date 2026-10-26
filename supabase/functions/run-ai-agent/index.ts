@@ -124,8 +124,8 @@ import {
   APPROVAL_PICK_COLUMNS,
   approvalBindingContext,
   approvalConversationKey,
+  approvalDisplayCode,
   approvalPickToolResult,
-  approvalShortCode,
   buildApprovalPickPromptRule,
   formatApprovalExecutionReply,
   formatApprovalPickReply,
@@ -5632,11 +5632,10 @@ async function tryCreateCalendarEventForTask(
 
 // ─── Bound approvals (AIO-230); rules live in _shared/wa-approval-flow.mjs ───
 
-/** Run an approval row through carmen-approval-execute, which re-checks the approver. */
-async function runApprovalExecutor(
-  approvalId: string,
-  approvedBy: string | null,
-): Promise<any> {
+/** POST a decision to carmen-approval-execute, which checks the approver's tenant and role. */
+async function postApprovalDecision(
+  body: Record<string, unknown>,
+): Promise<{ ok: boolean; status: number; json: any }> {
   const r = await fetch(
     `${SUPABASE_URL}/functions/v1/carmen-approval-execute`,
     {
@@ -5646,14 +5645,26 @@ async function runApprovalExecutor(
         "Content-Type": "application/json",
         apikey: SUPABASE_SERVICE_ROLE_KEY,
       },
-      body: JSON.stringify({
-        approval_id: approvalId,
-        approved_by: approvedBy,
-      }),
+      body: JSON.stringify(body),
     },
   );
-  const j = await r.json().catch(() => ({}));
-  const ok = !!(r.ok && (j?.success === true || j?.already_executed === true));
+  const json = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, json };
+}
+
+/** Run an approval row through carmen-approval-execute, which re-checks the approver. */
+async function runApprovalExecutor(
+  approvalId: string,
+  approvedBy: string | null,
+): Promise<any> {
+  const { ok: httpOk, json: j } = await postApprovalDecision({
+    approval_id: approvalId,
+    approved_by: approvedBy,
+  });
+  const ok = !!(
+    httpOk &&
+    (j?.success === true || j?.already_executed === true)
+  );
   return {
     ...j,
     success: ok,
@@ -11892,7 +11903,7 @@ async function executeTool(
       const approvals = pick.pickable
         .slice(0, args.limit || 10)
         .map((r: any) => ({
-          code: approvalShortCode(r.id),
+          code: approvalDisplayCode(r, pick.pickable),
           id: r.id,
           title: r.title,
           description: r.description,
@@ -11938,21 +11949,36 @@ async function executeTool(
       return { ...exec, title: pick.row.title || exec.title || null };
     }
     case "reject_pending_approval": {
-      const { error } = await supabase
-        .from("agent_approval_queue")
-        .update({
-          status: "rejected",
-          approved_by: actorUserId,
-          approved_at: new Date().toISOString(),
-          execution_result: { reason: args.reason || null },
-        })
-        .eq("id", args.approval_id)
-        .eq("tenant_id", tenantId);
-      if (error) throw error;
+      // AIO-230: carmen-approval-execute rejects only an undecided row, and only for
+      // its requester or an approver in the row's tenant.
+      const approvalId = asUuidOrNull(args.approval_id);
+      const { data: own } = approvalId
+        ? await supabase
+            .from("agent_approval_queue")
+            .select("id")
+            .eq("id", approvalId)
+            .eq("tenant_id", tenantId)
+            .maybeSingle()
+        : { data: null };
+      if (!own)
+        return {
+          success: false,
+          error: "approval_not_found",
+          approval_id: args.approval_id ?? null,
+        };
+      const r = await postApprovalDecision({
+        approval_id: approvalId,
+        approved_by: actorUserId,
+        decision: "reject",
+        reason: args.reason || null,
+      });
+      if (r.ok && r.json?.success === true)
+        return { success: true, approval_id: approvalId, status: "rejected" };
       return {
-        success: true,
-        approval_id: args.approval_id,
-        status: "rejected",
+        success: false,
+        approval_id: approvalId,
+        error: r.json?.error || `reject_failed_${r.status}`,
+        status: r.json?.status ?? null,
       };
     }
 
@@ -13578,6 +13604,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import { bindRunAgentCaller } from "../_shared/run-agent-trust.mjs";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -13681,7 +13708,8 @@ async function handleRunAgent(
     const resolvedTenantId = tenant_id || agent.tenant_id;
     const resolvedUserId = user_id || "system";
 
-    // 2.5. Resolve caller identity from phone number (WhatsApp sessions)
+    // 2.5. Resolve caller identity from phone number (WhatsApp sessions).
+    // lead_data is service-only: stripped from user-JWT requests in Deno.serve.
     let callerCampaignerId: string | null = null;
     let callerName: string | null = user_name || null;
     const callerPhone = lead_data?.phone || null;
@@ -15258,6 +15286,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           phone: callerPhone,
         }),
         code: approvalReply.code,
+        mode: userSaidApprove ? "approve" : "reject",
       });
       if (userSaidApprove) {
         systemPrompt += buildApprovalPickPromptRule(approvalPick);
@@ -16283,14 +16312,11 @@ Deno.serve(async (req) => {
   } catch {
     /* ignore */
   }
-  // Never trust a browser-supplied user id. Bind interactive requests to the
-  // verified JWT identity; service-to-service calls keep their explicit user.
-  if (auth.kind === "user") bodyJson.user_id = auth.userId;
-  if (auth.kind !== "service") {
-    delete bodyJson.model_override;
-    // Per-automation Carmen instructions are admin config: service-to-service only.
-    delete bodyJson.carmen_automation;
-  }
+  // Never trust a browser-supplied identity. A user JWT runs as that user, without
+  // the caller phone (lead_data), WhatsApp target (wa_notify), whatsapp surface or
+  // admin config — approvals are bound to the identity those fields would set.
+  // Service-to-service calls keep their explicit user (_shared/run-agent-trust.mjs).
+  bindRunAgentCaller(bodyJson, auth);
 
   if (bodyJson.direct_tool) {
     if (auth.kind !== "service") {

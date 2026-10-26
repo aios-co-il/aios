@@ -190,6 +190,22 @@ export function buildApprovalConfirmPromptRule(pending) {
   );
 }
 
+/** carmen-approval-execute / chat error codes in the words the user sees (as in ApprovalsTab). */
+export const APPROVAL_ERROR_MESSAGES_HE = Object.freeze({
+  approver_role_required: "הפעולה הזו דורשת אישור של בעלים או מנהל/ת סוכנות",
+  not_requester: "רק מי שביקש את הפעולה או מנהל/ת יכולים להחליט עליה",
+  approver_required: "לא זוהה משתמש מאשר",
+  no_identity: "לא זוהה משתמש מאשר",
+  approval_not_found: "הבקשה לא נמצאה",
+  expired: "פג תוקף הבקשה",
+  in_progress: "הבקשה כבר בביצוע",
+  not_pending: "הבקשה כבר טופלה",
+  "approval already decided": "הבקשה כבר טופלה",
+  rejected: "הבקשה נדחתה קודם",
+  unknown_tool: "אין מנגנון ביצוע לפעולה הזו",
+  unauthorized: "אין הרשאה לבצע את הפעולה",
+});
+
 export function formatApprovalExecutionReply(execResult, pendingRow) {
   const title = pendingRow?.title || pendingRow?.tool_name || "הפעולה";
   const ok = !!(
@@ -200,12 +216,20 @@ export function formatApprovalExecutionReply(execResult, pendingRow) {
     const already = execResult.already_executed ? " (כבר בוצע קודם)" : "";
     return `בוצע: ${title}${already}.`;
   }
-  const err =
+  const code =
     execResult?.error ||
     execResult?.result?.error ||
     execResult?.message ||
     "הביצוע נכשל";
-  return `לא הצלחתי לבצע את "${title}": ${err}. לא בוצע כלום ב-Meta.`;
+  const err =
+    typeof code !== "string"
+      ? String(code?.message || JSON.stringify(code))
+      : Object.hasOwn(APPROVAL_ERROR_MESSAGES_HE, code)
+        ? APPROVAL_ERROR_MESSAGES_HE[code]
+        : code;
+  // A row someone else is running right now may still succeed.
+  const nothingDone = code === "in_progress" ? "" : " לא בוצע כלום.";
+  return `לא הצלחתי לבצע את "${title}": ${err}.${nothingDone}`;
 }
 
 export function buildApprovalFlowAcceptanceCases() {
@@ -513,13 +537,45 @@ export function approvalShortCode(id) {
   return String(n).padStart(4, "0");
 }
 
+/** 6-digit code for a row whose 4-digit code collides with another listed row. */
+export function approvalLongCode(id) {
+  const hex = String(id || "")
+    .replace(/[^0-9a-f]/gi, "")
+    .slice(0, 12);
+  const n = hex ? parseInt(hex, 16) % 1_000_000 : 0;
+  return String(n).padStart(6, "0");
+}
+
+/** Does a typed code (4 or 6 digits) name this row? */
+export function approvalCodeMatches(row, code) {
+  const c = String(code || "");
+  if (!row?.id || !c) return false;
+  return c.length === 6
+    ? approvalLongCode(row.id) === c
+    : approvalShortCode(row.id) === c;
+}
+
+/**
+ * Code shown for `row` in a list of `rows`: the 4-digit code, or the 6-digit one
+ * when another listed row has the same 4 digits, so every listed row can be picked.
+ */
+export function approvalDisplayCode(row, rows = []) {
+  const short = approvalShortCode(row?.id);
+  const list = Array.isArray(rows) ? rows : [];
+  const clash = list.some(
+    (r) => r?.id && r.id !== row?.id && approvalShortCode(r.id) === short,
+  );
+  return clash ? approvalLongCode(row?.id) : short;
+}
+
 const APPROVE_WITH_CODE_RE =
-  /^(?:כן|מאשר|מאשרת|אשר|אשרי|תאשרי|yes|approve|ok)[\s,:\-–]*(?:קוד\s*)?#?(\d{4})[\s.!]*$/iu;
+  /^(?:כן|מאשר|מאשרת|אשר|אשרי|תאשרי|yes|approve|ok)[\s,:\-–]*(?:קוד\s*)?#?(\d{6}|\d{4})[\s.!]*$/iu;
 const REJECT_WITH_CODE_RE =
-  /^(?:לא|דחה|דחי|בטל|בטלי|no|reject|cancel)[\s,:\-–]*(?:קוד\s*)?#?(\d{4})[\s.!]*$/iu;
+  /^(?:לא|דחה|דחי|בטל|בטלי|no|reject|cancel)[\s,:\-–]*(?:קוד\s*)?#?(\d{6}|\d{4})[\s.!]*$/iu;
 
 /**
  * Classify a chat reply. "כן 4821" approves code 4821; "לא 4821" rejects it.
+ * A 6-digit code is shown only when two listed rows share 4 digits.
  * @returns {{ approve: boolean, reject: boolean, code: string|null }}
  */
 export function parseApprovalReply(text) {
@@ -536,8 +592,9 @@ export function parseApprovalReply(text) {
 }
 
 /**
- * Decide which pending row a confirmation refers to.
+ * Decide which pending row a confirmation (or, with mode 'reject', a "לא") refers to.
  * rows: newest-first agent_approval_queue rows (APPROVAL_PICK_COLUMNS) of the tenant.
+ * Reject mode uses the reject gate, so a requester can withdraw their own approver-only row.
  * @returns {{
  *   kind: 'match'|'forbidden'|'ambiguous'|'none'|'code_not_found'|'no_identity',
  *   via?: 'bound'|'code', row?: any, reason?: string, code?: string,
@@ -551,6 +608,7 @@ export function resolveApprovalConfirm(
     roles,
     conversationKey,
     code,
+    mode = "approve",
     nowMs = Date.now(),
     windowMs = APPROVAL_CONFIRM_WINDOW_MS,
   } = {},
@@ -565,10 +623,12 @@ export function resolveApprovalConfirm(
       isCarmenExecutableApproval(r),
   );
   const who = { userId, roles };
-  const pickable = live.filter((r) => canApproveRow(r, who).ok);
+  const gate = (r) =>
+    mode === "reject" ? canRejectRow(r, who) : canApproveRow(r, who);
+  const pickable = live.filter((r) => gate(r).ok);
 
   if (code) {
-    const byCode = pickable.filter((r) => approvalShortCode(r.id) === code);
+    const byCode = pickable.filter((r) => approvalCodeMatches(r, code));
     if (byCode.length === 1)
       return {
         kind: "match",
@@ -603,7 +663,7 @@ export function resolveApprovalConfirm(
         return Number.isFinite(created) && nowMs - created <= windowMs;
       })
     : [];
-  const allowed = bound.filter((r) => canApproveRow(r, who).ok);
+  const allowed = bound.filter((r) => gate(r).ok);
   const blocked = bound.length - allowed.length;
 
   if (bound.length === 1) {
@@ -620,7 +680,7 @@ export function resolveApprovalConfirm(
       kind: "forbidden",
       via: "bound",
       row: bound[0],
-      reason: canApproveRow(bound[0], who).reason,
+      reason: gate(bound[0]).reason,
       candidates: [],
       pickable,
       blocked,
@@ -632,7 +692,7 @@ export function resolveApprovalConfirm(
         kind: "forbidden",
         via: "bound",
         row: bound[0],
-        reason: canApproveRow(bound[0], who).reason,
+        reason: gate(bound[0]).reason,
         candidates: [],
         pickable,
         blocked,
@@ -680,7 +740,7 @@ export function formatApprovalCandidateLines(
   const lines = list.slice(0, limit).map((r) => {
     const title = r.title || r.tool_name || "פעולה";
     const age = approvalAgeHe(r.created_at, nowMs);
-    return `• ${approvalShortCode(r.id)} · ${title}${age ? ` (${age})` : ""}`;
+    return `• ${approvalDisplayCode(r, list)} · ${title}${age ? ` (${age})` : ""}`;
   });
   if (list.length > limit)
     lines.push(`ועוד ${list.length - limit} בקשות במסך האישורים`);
@@ -703,7 +763,7 @@ export function formatApprovalPickReply(pick, { nowMs = Date.now() } = {}) {
   const lines = formatApprovalCandidateLines(pick.candidates, { nowMs });
   if (lines.length === 0)
     return "לא ביצעתי כלום: אין כרגע בקשה פתוחה שאפשר לאשר מכאן.";
-  const example = approvalShortCode(pick.candidates[0].id);
+  const example = approvalDisplayCode(pick.candidates[0], pick.candidates);
   const intro =
     pick.kind === "code_not_found"
       ? `לא מצאתי בקשה פתוחה עם הקוד ${pick.code}. הבקשות שאפשר לאשר:`
@@ -745,7 +805,7 @@ export function approvalPickToolResult(
     pick?.kind === "match" && requestedId && requestedId !== pick.row?.id;
   const listed = otherRow ? pick.pickable : pick?.candidates;
   const candidates = (listed || []).slice(0, 10).map((r) => ({
-    code: approvalShortCode(r.id),
+    code: approvalDisplayCode(r, listed),
     approval_id: r.id,
     title: r.title || r.tool_name || null,
     tool_name: r.tool_name || null,

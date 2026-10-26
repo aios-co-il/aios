@@ -74,6 +74,8 @@ async function invokeEdgeFn(name: string, payload: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
+  // Set once this call has claimed a row ('executing'); the catch below closes it.
+  let claimedId: string | null = null;
   try {
     const auth = await requireAuth(req);
     if (!auth)
@@ -203,6 +205,7 @@ Deno.serve(async (req) => {
       );
     }
     row = claimed;
+    claimedId = approval_id;
 
     // Special handling: schedule_campaign_toggle inserts into campaign_schedules instead of running FB/Google
     if (row.tool_name === "schedule_campaign_toggle") {
@@ -998,6 +1001,26 @@ Deno.serve(async (req) => {
     );
   } catch (e: any) {
     console.error("[carmen-approval-execute]", e);
+    // A row this call claimed must not stay 'executing' forever. The action may or
+    // may not have run, so it is closed as failed and never retried automatically.
+    if (claimedId) {
+      try {
+        await createClient(SB_URL, SB_SERVICE)
+          .from("agent_approval_queue")
+          .update({
+            status: "failed",
+            executed_at: new Date().toISOString(),
+            execution_result: {
+              error: String(e?.message || e),
+              outcome_unknown: true,
+            },
+          })
+          .eq("id", claimedId)
+          .eq("status", "executing");
+      } catch (markErr) {
+        console.error("[carmen-approval-execute] mark failed", markErr);
+      }
+    }
     return new Response(JSON.stringify({ error: String(e?.message || e) }), {
       status: 500,
       headers: corsHeaders,
