@@ -467,8 +467,7 @@ serve(async (req: Request) => {
       }),
       {
         status:
-          message === "Unauthorized" ||
-          String(message).includes("Only owners")
+          message === "Unauthorized" || String(message).includes("Only owners")
             ? 403
             : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

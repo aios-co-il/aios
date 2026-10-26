@@ -5,7 +5,6 @@
 import type { Json, TablesUpdate } from "./database.types.ts";
 import { jsonArray, jsonField, unknownField } from "./json-fields.ts";
 
-
 export const PRESET_SECRETS: Record<string, string> = {
   cursor: "CURSOR_MCP_BEARER",
   grok: "GROK_MCP_BEARER",

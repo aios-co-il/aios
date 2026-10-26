@@ -315,7 +315,10 @@ serve(async (req) => {
       if (body?.recording_id) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
+        const supabase = createClient<Database>(
+          supabaseUrl,
+          supabaseServiceKey,
+        );
         await setTranscriptionStatus(
           supabase,
           body.recording_id,
@@ -830,8 +833,7 @@ async function downloadZoomMedia(
       const tokenResp = await fetch("https://zoom.us/oauth/token", {
         method: "POST",
         headers: {
-          Authorization:
-            "Basic " + btoa(`${clientId}:${clientSecret}`),
+          Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
@@ -962,8 +964,7 @@ async function downloadZoomMedia(
             recording.recording_type || "",
           ).toLowerCase();
           const exactType = files.filter(
-            (f) =>
-              String(f?.recording_type || "").toLowerCase() === targetType,
+            (f) => String(f?.recording_type || "").toLowerCase() === targetType,
           );
           const prioritized = [...exactType, ...files].filter(Boolean);
 

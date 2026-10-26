@@ -512,10 +512,7 @@ async function getStickyAgentId(
     const lastId = String(last?.cursor_agent_id || "");
     return lastId.startsWith("bc-") ? lastId : null;
   } catch (e) {
-    console.error(
-      "[cursor-mcp] getStickyAgentId failed:",
-      thrownMessage(e),
-    );
+    console.error("[cursor-mcp] getStickyAgentId failed:", thrownMessage(e));
     return null;
   }
 }
@@ -539,10 +536,7 @@ async function saveStickyAgent(
       { onConflict: "tenant_id" },
     );
   } catch (e) {
-    console.error(
-      "[cursor-mcp] saveStickyAgent failed:",
-      thrownMessage(e),
-    );
+    console.error("[cursor-mcp] saveStickyAgent failed:", thrownMessage(e));
   }
 }
 

@@ -42,7 +42,9 @@ test("extractRecallDownloads returns nulls for a bot without recordings", () => 
 
 test("extractRecallDownloads drops non-string urls", () => {
   const out = extractRecallDownloads({
-    recordings: [{ media_shortcuts: { video_mixed: { data: { download_url: 5 } } } }],
+    recordings: [
+      { media_shortcuts: { video_mixed: { data: { download_url: 5 } } } },
+    ],
   });
   assert.equal(out.videoUrl, null);
   assert.equal(out.durationSeconds, null);

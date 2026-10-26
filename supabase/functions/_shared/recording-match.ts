@@ -4,7 +4,6 @@
 // Never sends anything anywhere — assignment only.
 import type { DbClient } from "./supabase-clients.ts";
 
-
 export interface MatchResult {
   matchType: "client" | "internal" | "unknown";
   clientId: string | null;

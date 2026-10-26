@@ -188,8 +188,9 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: unknownField(e, "message") || "unknown" }),
       {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
