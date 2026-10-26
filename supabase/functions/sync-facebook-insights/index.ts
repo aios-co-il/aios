@@ -13,6 +13,30 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
+  getArray,
+  getPath,
+  getString,
+  isJsonObject,
+} from "../_shared/provider-json-b24.ts";
+
+interface AdsetRow {
+  id?: string;
+  campaign_id?: string;
+  optimization_goal?: string;
+  promoted_object?: unknown;
+}
+
+function adsetRows(payload: unknown): AdsetRow[] {
+  return getArray(payload, "data")
+    .filter(isJsonObject)
+    .map((row) => ({
+      id: getString(row, "id"),
+      campaign_id: getString(row, "campaign_id"),
+      optimization_goal: getString(row, "optimization_goal"),
+      promoted_object: row.promoted_object,
+    }));
+}
+import {
   replacedRecordsFilter,
   resolveAdsSyncWindow,
   resolvePruneStart,
@@ -335,16 +359,16 @@ Deno.serve(async (req) => {
     // Fetch ad sets' promoted_object so we know the EXACT event each campaign is
     // optimized for (its "Result" in Ads Manager) — e.g. the custom pixel event
     // "NewLead" rather than the broad fb_pixel_lead — keeping leads from inflating.
-    const adsets: any[] = [];
+    const adsets: AdsetRow[] = [];
     {
       let next: string | null =
         `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
       while (next) {
         const r = await fetch(next);
-        const d: any = await r.json();
-        if (d.error) break;
-        if (Array.isArray(d.data)) adsets.push(...d.data);
-        next = d.paging?.next || null;
+        const d: unknown = await r.json();
+        if (getPath(d, "error")) break;
+        adsets.push(...adsetRows(d));
+        next = getString(d, "paging", "next") || null;
       }
     }
     const campaignObjectives: Record<string, string | null | undefined> = {};
@@ -409,7 +433,7 @@ Deno.serve(async (req) => {
       .select("key")
       .eq("table_id", table_id);
     const existingFieldKeys = new Set(
-      (existingFields || []).map((f: any) => f.key),
+      (existingFields || []).map((f: { key: string }) => f.key),
     );
     const fieldsToInsert = fieldKeys
       .map((key, i) => ({
@@ -511,9 +535,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in sync-facebook-insights:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getPath(error, "message") }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

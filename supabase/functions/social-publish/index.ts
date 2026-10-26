@@ -2,6 +2,7 @@
 // Body: { tenant_id, page_id (UUID of social_pages row), post_type, caption?, media_url?, link? }
 // post_type: 'post' | 'photo' | 'video' | 'reel' | 'story' | 'link'
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { getPath } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,8 +12,18 @@ const corsHeaders = {
 };
 const GRAPH = "https://graph.facebook.com/v21.0";
 
+interface PublishPage {
+  page_access_token: string;
+  page_id: string;
+  ig_business_id?: string | null;
+}
+
+function errorText(error: unknown): string {
+  return String(getPath(error, "message") || error);
+}
+
 async function publishFacebook(
-  page: any,
+  page: PublishPage,
   post_type: string,
   caption?: string,
   media_url?: string,
@@ -68,9 +79,9 @@ async function publishFacebook(
       method: "POST",
       headers: { Authorization: `OAuth ${token}`, file_url: media_url },
     });
-    const upJ = await upRes.json().catch(() => ({}));
-    if ((upJ as any)?.error)
-      throw new Error(JSON.stringify((upJ as any).error));
+    const upJ: unknown = await upRes.json().catch(() => ({}));
+    const upError = getPath(upJ, "error");
+    if (upError) throw new Error(JSON.stringify(upError));
     // Step 3: finish & publish
     const fin = await fetch(
       `${GRAPH}/${page.page_id}/video_reels?upload_phase=finish&video_id=${videoId}&video_state=PUBLISHED&description=${encodeURIComponent(caption || "")}&access_token=${token}`,
@@ -125,7 +136,7 @@ async function publishFacebook(
 }
 
 async function publishInstagram(
-  page: any,
+  page: PublishPage,
   post_type: string,
   caption?: string,
   media_url?: string,
@@ -250,14 +261,14 @@ Deno.serve(async (req) => {
       .single();
 
     try {
-      const result =
+      const result: unknown =
         page.platform === "instagram"
           ? await publishInstagram(page, post_type, caption, media_url)
           : await publishFacebook(page, post_type, caption, media_url, link);
 
-      if ((result as any)?.error)
-        throw new Error(JSON.stringify((result as any).error));
-      const externalId = (result as any).id || (result as any).post_id;
+      const resultError = getPath(result, "error");
+      if (resultError) throw new Error(JSON.stringify(resultError));
+      const externalId = getPath(result, "id") || getPath(result, "post_id");
       const permalink =
         page.platform === "facebook"
           ? `https://www.facebook.com/${externalId}`
@@ -280,24 +291,24 @@ Deno.serve(async (req) => {
         }),
         { headers: corsHeaders },
       );
-    } catch (publishErr: any) {
+    } catch (publishErr) {
       await supabase
         .from("social_publications")
         .update({
           status: "failed",
-          error_message: String(publishErr?.message || publishErr),
+          error_message: errorText(publishErr),
         })
         .eq("id", pub!.id);
       return new Response(
         JSON.stringify({
           error: "publish_failed",
-          message: String(publishErr?.message || publishErr),
+          message: errorText(publishErr),
         }),
         { status: 400, headers: corsHeaders },
       );
     }
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errorText(e) }), {
       status: 500,
       headers: corsHeaders,
     });

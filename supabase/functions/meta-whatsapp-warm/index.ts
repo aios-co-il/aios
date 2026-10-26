@@ -12,6 +12,8 @@
  *  - pause_campaign / retry_failed
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, Json } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
   DEFAULT_LEAD_OPTIN_BODY,
   DEFAULT_LEAD_OPTIN_BUTTON_TEXT,
@@ -21,6 +23,7 @@ import {
   LEAD_OPTIN_BUTTON_PAYLOAD,
   LEAD_OPTIN_TEMPLATE_NAME,
 } from "../_shared/meta-whatsapp.ts";
+import { getPath } from "../_shared/provider-json-b24.ts";
 
 function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -30,6 +33,14 @@ function normalizePhone(raw: string | null | undefined): string | null {
     digits = `972${digits.slice(1)}`;
   if (digits.startsWith("9720")) digits = `972${digits.slice(4)}`;
   return digits;
+}
+
+function settingsObject(value: Json | null): {
+  [key: string]: Json | undefined;
+} {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 }
 
 const corsHeaders = {
@@ -51,7 +62,7 @@ const reply = (body: unknown, status = 200) =>
   });
 
 async function authorize(
-  admin: any,
+  admin: DbClient,
   jwt: string,
   tenantId: string,
   integrationId: string,
@@ -108,7 +119,7 @@ async function authorize(
 }
 
 async function buildAudience(
-  admin: any,
+  admin: DbClient,
   tenantId: string,
   integrationId: string,
   source: string,
@@ -205,7 +216,7 @@ async function buildAudience(
   return [...byPhone.values()];
 }
 
-async function refreshCampaignStats(admin: any, campaignId: string) {
+async function refreshCampaignStats(admin: DbClient, campaignId: string) {
   const { data: rows } = await admin
     .from("wa_warm_recipients")
     .select("status")
@@ -233,7 +244,7 @@ Deno.serve(async (request) => {
     if (!supabaseUrl || !serviceKey || !jwt)
       return reply({ error: "unauthorized" }, 401);
 
-    const admin = createClient(supabaseUrl, serviceKey, {
+    const admin = createClient<Database>(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
@@ -246,8 +257,8 @@ Deno.serve(async (request) => {
     }
 
     const auth = await authorize(admin, jwt, tenantId, integrationId);
-    if ("error" in auth && auth.error instanceof Response) return auth.error;
-    const { user, integration, canManage } = auth as any;
+    if (auth.error) return auth.error;
+    const { user, integration, canManage } = auth;
 
     // ── configure auto-reply on the lead number ──────────────────────────
     if (action === "configure_auto_reply") {
@@ -257,7 +268,7 @@ Deno.serve(async (request) => {
         String(body.thanks_text ?? DEFAULT_LEAD_THANKS_TEXT).trim() ||
         DEFAULT_LEAD_THANKS_TEXT;
       const settings = {
-        ...(integration.settings ?? {}),
+        ...settingsObject(integration.settings),
         warm_auto_reply_enabled: enabled,
         warm_auto_reply_text: thanksText,
         warm_optin_button_payload: LEAD_OPTIN_BUTTON_PAYLOAD,
@@ -281,7 +292,7 @@ Deno.serve(async (request) => {
     // ── ensure opt-in template exists (submit to Meta for approval) ───────
     if (action === "ensure_optin_template") {
       if (!canManage) return reply({ error: "manage_access_required" }, 403);
-      const settings = integration.settings ?? {};
+      const settings = settingsObject(integration.settings);
       const wabaId = String(settings.waba_id ?? "");
       const graphVersion = String(
         settings.graph_version ?? DEFAULT_META_GRAPH_VERSION,
@@ -312,7 +323,7 @@ Deno.serve(async (request) => {
       });
       const listJson = await listRes.json().catch(() => ({}));
       const existing = (listJson?.data ?? []).find(
-        (t: any) => t.name === templateName,
+        (t: unknown) => getPath(t, "name") === templateName,
       );
       if (existing) {
         return reply({
@@ -714,7 +725,7 @@ Deno.serve(async (request) => {
         .select("id, error")
         .eq("campaign_id", campaignId)
         .eq("status", "failed");
-      const retryable = (failed ?? []).filter((r: any) => {
+      const retryable = (failed ?? []).filter((r) => {
         const e = String(r.error ?? "");
         return !/131049|131042|#200|מגבלת מעורבות|תשלום/.test(e);
       });
@@ -724,7 +735,7 @@ Deno.serve(async (request) => {
           .update({ status: "pending", error: null })
           .in(
             "id",
-            retryable.map((r: any) => r.id),
+            retryable.map((r) => r.id),
           );
       }
       await admin
