@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,7 @@ import {
   Download,
   History,
   Pencil,
+  type LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import SignatureFieldPlacer, {
@@ -74,6 +76,19 @@ import {
 } from "@/components/signatures/signatureDocumentMedia";
 import { SignatureOriginalFileLink } from "@/components/signatures/SignatureOriginalFileLink";
 import { SignedSignatureReview } from "@/components/signatures/SignedSignatureReview";
+import { jsonField } from "@/lib/pageTypeGuards";
+import {
+  documentFieldsToJson,
+  signaturePositionToJson,
+} from "@/lib/signatureFieldsJson";
+
+type SignatureDocumentRow = Tables<"signature_documents">;
+type SignatureDocumentRef = Pick<SignatureDocumentRow, "id" | "title"> &
+  Partial<SignatureDocumentRow>;
+type CreateTab = "create" | "upload" | "url";
+
+const isCreateTab = (value: string): value is CreateTab =>
+  value === "create" || value === "upload" || value === "url";
 
 interface Recipient {
   name: string;
@@ -105,7 +120,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelled: { label: "בוטל", color: "bg-destructive/10 text-destructive" },
 };
 
-const statusIcons: Record<string, any> = {
+const statusIcons: Record<string, LucideIcon> = {
   draft: FileText,
   pending: Clock,
   partially_signed: Clock,
@@ -126,9 +141,7 @@ export default function Signatures() {
   const { userId } = useCurrentUser();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createTab, setCreateTab] = useState<"create" | "upload" | "url">(
-    "create",
-  );
+  const [createTab, setCreateTab] = useState<CreateTab>("create");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
@@ -137,7 +150,9 @@ export default function Signatures() {
   ]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
-  const [selectedDoc, setSelectedDoc] = useState<any>(null);
+  const [selectedDoc, setSelectedDoc] = useState<SignatureDocumentRef | null>(
+    null,
+  );
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [showPlacement, setShowPlacement] = useState(false);
   const [isTemplate, setIsTemplate] = useState(false);
@@ -148,7 +163,9 @@ export default function Signatures() {
   >([]);
   const skipDialogResetRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [editingDoc, setEditingDoc] = useState<any>(null);
+  const [editingDoc, setEditingDoc] = useState<SignatureDocumentRef | null>(
+    null,
+  );
   const [renameDoc, setRenameDoc] = useState<{
     id: string;
     title: string;
@@ -157,7 +174,8 @@ export default function Signatures() {
   } | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameContent, setRenameContent] = useState("");
-  const [sendDialogDoc, setSendDialogDoc] = useState<any>(null);
+  const [sendDialogDoc, setSendDialogDoc] =
+    useState<SignatureDocumentRef | null>(null);
   const [sendDialogRecipient, setSendDialogRecipient] = useState<
     | {
         name?: string;
@@ -173,13 +191,13 @@ export default function Signatures() {
   >("all");
 
   const canEditDocFields = (doc: {
-    status: string;
+    status?: string;
     is_template?: boolean;
     file_url?: string | null;
   }) => (doc.status === "draft" || !!doc.is_template) && !!doc.file_url;
 
   const canSendFromDoc = (doc: {
-    status: string;
+    status?: string;
     is_template?: boolean;
     file_url?: string | null;
     content?: string | null;
@@ -187,7 +205,7 @@ export default function Signatures() {
     !!doc.is_template ||
     (doc.status === "draft" && !!(doc.file_url || doc.content));
 
-  const openFieldEditor = (doc: any) => {
+  const openFieldEditor = (doc: SignatureDocumentRef) => {
     if (!canEditDocFields(doc)) {
       toast.error("עריכת שדות זמינה רק למסמכי טיוטה עם קובץ");
       return;
@@ -217,6 +235,7 @@ export default function Signatures() {
   const { data: freshDoc } = useQuery({
     queryKey: ["signature-document", selectedDoc?.id],
     queryFn: async () => {
+      if (!selectedDoc?.id) throw new Error("No signature document selected");
       const { data, error } = await supabase
         .from("signature_documents")
         .select("*")
@@ -322,7 +341,7 @@ export default function Signatures() {
       const insertPayload = {
         ...baseDoc,
         ...(documentFields.length > 0
-          ? { document_fields: documentFields as any }
+          ? { document_fields: documentFieldsToJson(documentFields) }
           : {}),
       };
       const doc = await insertSignatureDocument(insertPayload);
@@ -343,8 +362,10 @@ export default function Signatures() {
             name: r.name,
             email: r.email,
             sign_order: i + 1,
-            signature_position: position as any,
-            field_values: fieldPrefill as any,
+            signature_position: position
+              ? signaturePositionToJson(position)
+              : position,
+            field_values: fieldPrefill,
           };
         });
 
@@ -368,7 +389,7 @@ export default function Signatures() {
         queryKey: ["signature-documents", tenantId],
       });
     },
-    onError: (err: any) => toast.error("שגיאה: " + err.message),
+    onError: (err: Error) => toast.error("שגיאה: " + err.message),
   });
 
   const handleSaveOnly = async () => {
@@ -426,7 +447,7 @@ export default function Signatures() {
   };
 
   const openSendDialog = (
-    doc: any,
+    doc: SignatureDocumentRef,
     recipient?: {
       name?: string;
       email?: string;
@@ -498,7 +519,7 @@ export default function Signatures() {
       content?: string | null;
       file_url?: string | null;
       document_type?: string | null;
-      document_fields?: unknown;
+      document_fields?: Json;
     }) => {
       if (!tenantId || !userId) throw new Error("Missing tenant or user");
       return insertSignatureDocument({
@@ -512,7 +533,7 @@ export default function Signatures() {
         is_template: true,
         template_name: doc.title,
         ...(Array.isArray(doc.document_fields) && doc.document_fields.length > 0
-          ? { document_fields: doc.document_fields as any }
+          ? { document_fields: doc.document_fields }
           : {}),
       });
     },
@@ -741,7 +762,7 @@ export default function Signatures() {
           toast.success("נוצר מסמך חדש מהתבנית — התבנית נשארה לשימוש חוזר");
           return;
         }
-        setSelectedDoc((prev: any) =>
+        setSelectedDoc((prev) =>
           prev &&
           (prev.id === result.documentId || prev.id === sendDialogDoc?.id)
             ? { ...prev, id: result.documentId, status: "pending" }
@@ -943,7 +964,9 @@ export default function Signatures() {
 
               <Tabs
                 value={createTab}
-                onValueChange={(v) => setCreateTab(v as any)}
+                onValueChange={(v) => {
+                  if (isCreateTab(v)) setCreateTab(v);
+                }}
               >
                 <TabsList className="w-full">
                   <TabsTrigger value="create" className="flex-1">
@@ -1559,7 +1582,7 @@ export default function Signatures() {
                       </p>
                     ) : (
                       <div className="space-y-3">
-                        {docRecipients.map((r: any) => (
+                        {docRecipients.map((r) => (
                           <div
                             key={r.id}
                             className="flex items-center justify-between p-3 border rounded-lg"
@@ -1625,7 +1648,7 @@ export default function Signatures() {
                       </p>
                     ) : (
                       <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {docEvents.map((ev: any) => (
+                        {docEvents.map((ev) => (
                           <div
                             key={ev.id}
                             className="flex items-center justify-between text-sm border-b pb-2 last:border-0"
@@ -1633,7 +1656,7 @@ export default function Signatures() {
                             <div>
                               <span className="font-medium">
                                 {ev.event_type === "sent" &&
-                                ev.metadata?.channel === "link"
+                                jsonField(ev.metadata, "channel") === "link"
                                   ? "קישור לחתימה הוכן"
                                   : eventLabels[ev.event_type] || ev.event_type}
                               </span>

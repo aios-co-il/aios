@@ -23,13 +23,14 @@ export default function LandingPageSubmissions() {
   const { data: sites = [], isLoading } = useQuery({
     queryKey: ["wp-sites-for-submissions", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("id, site_name, site_url, client_id")
         .eq("tenant_id", tenantId)
         .eq("is_active", true);
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!tenantId,
   });

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAgency } from "@/contexts/AgencyContext";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Video,
@@ -54,6 +55,21 @@ import { cn } from "@/lib/utils";
 import { fetchRecordingsFeed } from "@/lib/recordingsFeedQuery";
 import { fetchRecordingFolders } from "@/lib/recordingsFeed";
 import { recordingsPollInterval } from "@/lib/recordingsPollInterval";
+
+type FeedRow = Tables<"zoom_recordings"> & {
+  clients?: { name: string } | null;
+  agencies?: { name: string } | null;
+};
+
+const storagePathsOf = (rec: FeedRecording): string[] =>
+  [
+    rec.file_path,
+    "audio_file_path" in rec ? rec.audio_file_path : null,
+    rec.thumbnail_path,
+    ...("audio_file_paths" in rec && Array.isArray(rec.audio_file_paths)
+      ? rec.audio_file_paths
+      : []),
+  ].filter((path): path is string => typeof path === "string" && !!path);
 
 type SidebarSelection =
   | { kind: "all" }
@@ -168,7 +184,7 @@ export default function Recordings() {
       recordingIds: string[];
       selection: EntityAssignmentSelection;
     }) => {
-      const update: Record<string, unknown> = {
+      const update: TablesUpdate<"zoom_recordings"> = {
         client_id: null,
         lead_id: null,
         suggested_client_id: null,
@@ -187,7 +203,7 @@ export default function Recordings() {
         update.agency_id = selection.ids[0];
       }
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("zoom_recordings")
         .update(update)
         .in("id", recordingIds);
@@ -197,7 +213,7 @@ export default function Recordings() {
       invalidate();
       toast({ title: "השיוך עודכן" });
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה בשיוך",
         description: err.message,
@@ -213,7 +229,7 @@ export default function Recordings() {
       recordingIds: string[];
       folderId: string | null;
     }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("zoom_recordings")
         .update({ folder_id: folderId })
         .in("id", recordingIds);
@@ -223,7 +239,7 @@ export default function Recordings() {
       invalidate();
       toast({ title: "ההקלטה הועברה" });
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה בהעברה",
         description: err.message,
@@ -249,7 +265,7 @@ export default function Recordings() {
       invalidate();
       toast({ title: "שם ההקלטה עודכן" });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה בשינוי השם",
         description: err.message,
@@ -297,7 +313,7 @@ export default function Recordings() {
       invalidate();
       toast({ title: "ההקלטה נמחקה בהצלחה" });
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה במחיקה",
         description: err.message,
@@ -329,7 +345,7 @@ export default function Recordings() {
         description: `נמצאו ${data.meetings_found} פגישות, עובדו ${data.recordings_processed} הקלטות`,
       });
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה במשיכת הקלטות",
         description: err.message,
@@ -364,7 +380,7 @@ export default function Recordings() {
         folder_id: selection.kind === "folder" ? selection.folderId : null,
         meeting_id: `manual_${Date.now()}`,
         recording_type: "manual",
-      } as any);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -375,7 +391,7 @@ export default function Recordings() {
       setUploadFile(null);
       setUploadClientId("");
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה בהעלאה",
         description: err.message,
@@ -385,7 +401,8 @@ export default function Recordings() {
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
-      const { error } = await (supabase as any)
+      if (!currentTenantId) throw new Error("No tenant");
+      const { error } = await supabase
         .from("recording_folders")
         .insert({ tenant_id: currentTenantId, name });
       if (error) throw error;
@@ -397,7 +414,7 @@ export default function Recordings() {
       setNewFolderName("");
       setCreatingFolder(false);
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast({
         title: "שגיאה ביצירת תיקייה",
         description: err.message,
@@ -407,7 +424,7 @@ export default function Recordings() {
 
   const renameFolderMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("recording_folders")
         .update({ name })
         .eq("id", id);
@@ -424,7 +441,7 @@ export default function Recordings() {
   const deleteFolderMutation = useMutation({
     mutationFn: async (id: string) => {
       // folder_id on recordings is ON DELETE SET NULL — recordings survive.
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("recording_folders")
         .delete()
         .eq("id", id);
@@ -443,8 +460,8 @@ export default function Recordings() {
   // ── Grouping (one card per meeting_id) ───────────────────────
 
   const groupedRecordings: FeedRecording[] = useMemo(() => {
-    const groups = new Map<string, any[]>();
-    recordings.forEach((rec: any) => {
+    const groups = new Map<string, FeedRow[]>();
+    recordings.forEach((rec: FeedRow) => {
       const key = rec.meeting_id || rec.id;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(rec);
@@ -453,44 +470,40 @@ export default function Recordings() {
     return Array.from(groups.values()).map((group) => {
       const videoRec =
         group.find(
-          (r: any) => r.recording_type === "shared_screen_with_speaker_view",
+          (r) => r.recording_type === "shared_screen_with_speaker_view",
         ) ||
-        group.find((r: any) => r.recording_type === "speaker_view") ||
-        group.find((r: any) => r.recording_type === "screen_capture");
-      const audioRec = group.find(
-        (r: any) => r.recording_type === "audio_only",
-      );
+        group.find((r) => r.recording_type === "speaker_view") ||
+        group.find((r) => r.recording_type === "screen_capture");
+      const audioRec = group.find((r) => r.recording_type === "audio_only");
       const primary = videoRec || audioRec || group[0];
       const transcribedRec = group.find(
-        (r: any) => r.transcription_status === "completed" && r.transcription,
+        (r) => r.transcription_status === "completed" && r.transcription,
       );
 
       return {
         ...primary,
         transcription_status:
-          group.find((r: any) => r.transcription_status === "completed")
+          group.find((r) => r.transcription_status === "completed")
             ?.transcription_status ||
-          group.find((r: any) => r.transcription_status === "processing")
+          group.find((r) => r.transcription_status === "processing")
             ?.transcription_status ||
-          group.find((r: any) => r.transcription_status === "failed")
+          group.find((r) => r.transcription_status === "failed")
             ?.transcription_status ||
           null,
         transcription: transcribedRec?.transcription || null,
         summary_file_url:
-          group.find((r: any) => r.summary_file_url)?.summary_file_url || null,
-        summary_md: group.find((r: any) => r.summary_md)?.summary_md || null,
+          group.find((r) => r.summary_file_url)?.summary_file_url || null,
+        summary_md: group.find((r) => r.summary_md)?.summary_md || null,
         thumbnail_path:
-          group.find((r: any) => r.thumbnail_path)?.thumbnail_path || null,
+          group.find((r) => r.thumbnail_path)?.thumbnail_path || null,
         suggested_client_id:
-          group.find((r: any) => r.suggested_client_id)?.suggested_client_id ||
-          null,
+          group.find((r) => r.suggested_client_id)?.suggested_client_id || null,
         campaigner_ids:
-          group.find((r: any) => r.campaigner_ids?.length)?.campaigner_ids ||
-          null,
-        agency_id: group.find((r: any) => r.agency_id)?.agency_id || null,
-        agencies: group.find((r: any) => r.agencies)?.agencies || null,
+          group.find((r) => r.campaigner_ids?.length)?.campaigner_ids || null,
+        agency_id: group.find((r) => r.agency_id)?.agency_id || null,
+        agencies: group.find((r) => r.agencies)?.agencies || null,
         summary_scope:
-          group.find((r: any) => r.summary_scope)?.summary_scope || null,
+          group.find((r) => r.summary_scope)?.summary_scope || null,
         _group: group,
       } as FeedRecording;
     });
@@ -550,7 +563,7 @@ export default function Recordings() {
 
   const campaignerNamesFor = (rec: FeedRecording) =>
     (rec.campaigner_ids || [])
-      .map((id) => (campaigners as any[]).find((c) => c.id === id)?.full_name)
+      .map((id) => campaigners.find((c) => c.id === id)?.full_name)
       .filter(Boolean) as string[];
 
   // Accepting a suggestion assigns the client and re-runs the pipeline —
@@ -560,7 +573,7 @@ export default function Recordings() {
     const suggestedClient = clients.find(
       (client) => client.id === rec.suggested_client_id,
     );
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("zoom_recordings")
       .update({
         client_id: rec.suggested_client_id,
@@ -587,20 +600,13 @@ export default function Recordings() {
   const rejectSuggestion = async (rec: FeedRecording) => {
     await supabase
       .from("zoom_recordings")
-      .update({ suggested_client_id: null } as any)
+      .update({ suggested_client_id: null })
       .in("id", groupIds(rec));
     invalidate();
   };
 
   const handleDelete = (rec: FeedRecording) => {
-    const filePaths = (rec._group || [rec])
-      .flatMap((r: any) => [
-        r.file_path,
-        r.audio_file_path,
-        r.thumbnail_path,
-        ...(r.audio_file_paths || []),
-      ])
-      .filter(Boolean);
+    const filePaths = (rec._group || [rec]).flatMap(storagePathsOf);
     deleteMutation.mutate({ recordingIds: groupIds(rec), filePaths });
   };
 
@@ -881,7 +887,7 @@ export default function Recordings() {
                   onCreateSummary={(r) => {
                     const audioRec =
                       r._group?.find(
-                        (g: any) => g.recording_type === "audio_only",
+                        (g) => g.recording_type === "audio_only",
                       ) || r;
                     setSummarizeRec({ ...audioRec, _group: r._group });
                   }}
@@ -1045,7 +1051,7 @@ export default function Recordings() {
         <SummaryViewerDialog
           open={!!summaryViewRec}
           onOpenChange={(open) => !open && setSummaryViewRec(null)}
-          recording={summaryViewRec as any}
+          recording={summaryViewRec}
           tenantId={currentTenantId}
           recordingIds={groupIds(summaryViewRec)}
           onSaved={(summaryMd) =>
@@ -1060,7 +1066,7 @@ export default function Recordings() {
         <ShareSummaryDialog
           open={!!shareRec}
           onOpenChange={(open) => !open && setShareRec(null)}
-          recording={shareRec as any}
+          recording={shareRec}
           tenantId={currentTenantId}
         />
       )}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,15 +36,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+type EntityType = "task" | "client" | "lead";
+
+const isEntityType = (value: string): value is EntityType =>
+  value === "task" || value === "client" || value === "lead";
+
 interface CustomField {
   id: string;
-  entity_type: "task" | "client" | "lead";
+  entity_type: EntityType;
   field_key: string;
   field_label: string;
   field_type: string;
   is_required: boolean;
   is_visible: boolean;
-  options: any;
+  options: Json;
   sort_order: number;
 }
 
@@ -118,9 +124,7 @@ const SYSTEM_FIELDS: Record<
 export default function FieldsManagement() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
-  const [selectedEntity, setSelectedEntity] = useState<
-    "task" | "client" | "lead"
-  >("task");
+  const [selectedEntity, setSelectedEntity] = useState<EntityType>("task");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<CustomField | null>(null);
@@ -457,7 +461,9 @@ export default function FieldsManagement() {
         <TabsContent value="fields" className="mt-6">
           <Tabs
             value={selectedEntity}
-            onValueChange={(value) => setSelectedEntity(value as any)}
+            onValueChange={(value) => {
+              if (isEntityType(value)) setSelectedEntity(value);
+            }}
           >
             <TabsList>
               <TabsTrigger value="task">משימות</TabsTrigger>
