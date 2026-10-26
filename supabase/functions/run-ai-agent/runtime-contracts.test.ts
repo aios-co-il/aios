@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { errorMessage } from "./error-message.ts";
 import { jsonObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 
@@ -84,4 +85,12 @@ test("persisted configuration keeps nested mappings intact while primitives have
   for (const value of [null, undefined, true, 42, "legacy", []]) {
     assert.deepEqual(jsonObject(value), {});
   }
+});
+
+test("errorMessage reads message from errors and error-like objects", () => {
+  assert.equal(errorMessage(new Error("boom")), "boom");
+  assert.equal(errorMessage({ message: "postgrest" }), "postgrest");
+  assert.equal(errorMessage("plain string"), undefined);
+  assert.equal(errorMessage(null), undefined);
+  assert.equal(errorMessage({ code: 1 }), undefined);
 });
