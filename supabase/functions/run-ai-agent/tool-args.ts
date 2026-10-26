@@ -83,3 +83,12 @@ export function argEnum<Value extends string>(
   }
   return match;
 }
+
+/** Boolean argument; LLMs often quote booleans, so "true"/"false" count too. Other present values throw. */
+export function argBoolean(args: JsonRecord, key: string): boolean | undefined {
+  const value = args[key];
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === "false") return value === "true";
+  throw new Error(`${key} must be boolean`);
+}

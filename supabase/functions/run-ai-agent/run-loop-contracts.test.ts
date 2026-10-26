@@ -18,6 +18,7 @@ import {
   readConversationTurns,
 } from "./run-request.ts";
 import {
+  argBoolean,
   argEnum,
   argNullableNumber,
   argNullableString,
@@ -313,4 +314,15 @@ Deno.test("tool args narrow arrays, objects and enums", () => {
   assertStrictEquals(argEnum({ s: "" }, "s", statuses), undefined);
   assertStrictEquals(argEnum({}, "s", statuses), undefined);
   assertThrows(() => argEnum({ s: "x" }, "s", statuses), Error, "open, done");
+});
+
+test("argBoolean accepts booleans and quoted booleans and rejects other values", () => {
+  assert.equal(argBoolean({ on: true }, "on"), true);
+  assert.equal(argBoolean({ on: false }, "on"), false);
+  assert.equal(argBoolean({ on: "true" }, "on"), true);
+  assert.equal(argBoolean({ on: "false" }, "on"), false);
+  assert.equal(argBoolean({}, "on"), undefined);
+  assert.throws(() => argBoolean({ on: "yes" }, "on"), /on must be boolean/);
+  assert.throws(() => argBoolean({ on: 1 }, "on"), /on must be boolean/);
+  assert.throws(() => argBoolean({ on: null }, "on"), /on must be boolean/);
 });

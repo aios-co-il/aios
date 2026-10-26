@@ -209,6 +209,7 @@ import type {
 } from "./tool-contracts-marketing.ts";
 import { loadKbLiveRow } from "./kb-live-row.ts";
 import {
+  argBoolean,
   argEnum,
   argNullableNumber,
   argNullableString,
@@ -9306,7 +9307,7 @@ async function executeTool(
       // The former insert never set client_onboarding.agency_id (NOT NULL) and sent
       // status "pending", which is not an onboarding_status, so the DB rejected every call.
       throw new Error(
-        "create_onboarding: client_onboarding requires agency_id and a valid onboarding_status",
+        "create_onboarding is unavailable: it cannot create onboarding records (client_onboarding needs agency_id and a valid onboarding_status). Tell the user to add the onboarding in the app.",
       );
     }
     case "list_onboarding": {
@@ -9389,7 +9390,9 @@ async function executeTool(
     }
     case "create_sales_person": {
       // The former insert never set sales_people.agency_id (NOT NULL), so the DB rejected every call.
-      throw new Error("create_sales_person: sales_people requires agency_id");
+      throw new Error(
+        "create_sales_person is unavailable: it cannot create sales people (sales_people needs agency_id). Tell the user to add the sales person in the app.",
+      );
     }
     // AGENCIES
     case "list_agencies": {
@@ -10310,7 +10313,7 @@ async function executeTool(
       // The former insert sent a description column finance does not have and never set
       // agency_id (NOT NULL), so the DB rejected every call.
       throw new Error(
-        "create_finance_entry: finance requires agency_id and has no description column",
+        "create_finance_entry is unavailable: it cannot create finance entries (finance needs agency_id and has no description column). Tell the user to add the entry in the app.",
       );
     }
     case "get_finance_summary": {
@@ -11738,8 +11741,7 @@ async function executeTool(
       const { data, error } = await supabase
         .from("tenant_integrations")
         .update({
-          is_active:
-            typeof args.is_active === "boolean" ? args.is_active : undefined,
+          is_active: argBoolean(args, "is_active"),
         })
         .eq("id", requireArgString(args, "integration_id"))
         .in("tenant_id", accessibleTenantIds)
@@ -11788,9 +11790,7 @@ async function executeTool(
       }
       if (args.active !== undefined)
         updates.active =
-          args.active === null || typeof args.active === "boolean"
-            ? args.active
-            : undefined;
+          args.active === null ? null : argBoolean(args, "active");
       const { data, error } = await supabase
         .from("ai_agents")
         .update(updates)
