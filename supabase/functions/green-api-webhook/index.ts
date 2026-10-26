@@ -228,7 +228,7 @@ function extractMessageText(messageData: unknown, typeMessage: string): string {
 async function forwardToTeamChannels(
   supabaseClient: DbClient,
   tenantId: string,
-  connectionUserId: string,
+  connectionUserId: string | null,
   chatId: string,
   senderName: string | null,
   messageText: string,
@@ -281,6 +281,13 @@ async function forwardToTeamChannels(
     }
 
     for (const link of links) {
+      if (!connectionUserId) {
+        console.error(
+          "❌ Failed to forward to team channel:",
+          "integration has no connection user",
+        );
+        continue;
+      }
       const prefix = `📱 *וואטסאפ* | ${senderName || chatId.split("@")[0]}`;
       const content = `${prefix}\n${messageText}`;
 
@@ -406,25 +413,14 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = integration.tenant_id;
+    // user_id can be null: such messages are still stored. Filters use match() so the
+    // request stays `connection_user_id=eq.null`, exactly as before.
     const connectionUserId = integration.user_id;
-    if (!connectionUserId) {
-      console.error(
-        "❌ Green API integration has no connection user:",
-        integration.id,
-      );
-      return new Response(
-        JSON.stringify({ error: "No active integration for this instance" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 404,
-        },
-      );
-    }
     const apiToken = integration.api_key;
     const { data: connectionProfile } = await supabaseClient
       .from("profiles")
       .select("full_name")
-      .eq("id", connectionUserId)
+      .match({ id: connectionUserId })
       .maybeSingle();
     const connectionDisplayName = connectionProfile?.full_name || null;
 
@@ -475,7 +471,7 @@ Deno.serve(async (req) => {
         .from("chat_messages")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("raw_provider_data->>idMessage", idMessage)
         .maybeSingle();
 
@@ -602,7 +598,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("group_id", groupId)
           .maybeSingle();
 
@@ -677,7 +673,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("client_id", clientId)
           .maybeSingle();
 
@@ -706,7 +702,7 @@ Deno.serve(async (req) => {
             .from("blocked_contacts")
             .select("id")
             .eq("tenant_id", tenantId)
-            .eq("connection_user_id", connectionUserId)
+            .match({ connection_user_id: connectionUserId })
             .eq("lead_id", leadId)
             .maybeSingle();
 
@@ -727,7 +723,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("sender_phone", phoneNumber)
           .maybeSingle();
 
@@ -814,7 +810,7 @@ Deno.serve(async (req) => {
               .from("chat_messages")
               .update({ read_at: new Date().toISOString() })
               .eq("tenant_id", tenantId)
-              .eq("connection_user_id", connectionUserId)
+              .match({ connection_user_id: connectionUserId })
               .eq("group_id", group.id)
               .eq("direction", "inbound")
               .is("read_at", null);
@@ -837,7 +833,7 @@ Deno.serve(async (req) => {
               .from("chat_messages")
               .update({ read_at: new Date().toISOString() })
               .eq("tenant_id", tenantId)
-              .eq("connection_user_id", connectionUserId)
+              .match({ connection_user_id: connectionUserId })
               .eq("client_id", client.id)
               .eq("direction", "inbound")
               .is("read_at", null);
@@ -861,7 +857,7 @@ Deno.serve(async (req) => {
                 .from("chat_messages")
                 .update({ read_at: new Date().toISOString() })
                 .eq("tenant_id", tenantId)
-                .eq("connection_user_id", connectionUserId)
+                .match({ connection_user_id: connectionUserId })
                 .eq("lead_id", lead.id)
                 .eq("direction", "inbound")
                 .is("read_at", null);
@@ -875,7 +871,7 @@ Deno.serve(async (req) => {
                 .from("chat_messages")
                 .update({ read_at: new Date().toISOString() })
                 .eq("tenant_id", tenantId)
-                .eq("connection_user_id", connectionUserId)
+                .match({ connection_user_id: connectionUserId })
                 .eq("sender_phone", phoneNumber)
                 .is("client_id", null)
                 .is("lead_id", null)
@@ -923,7 +919,7 @@ Deno.serve(async (req) => {
         .from("chat_messages")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("raw_provider_data->>idMessage", incomingIdMessage)
         .limit(1)
         .maybeSingle();
@@ -1221,7 +1217,7 @@ Deno.serve(async (req) => {
         .from("blocked_contacts")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("group_id", groupId)
         .maybeSingle();
 
@@ -1359,7 +1355,7 @@ Deno.serve(async (req) => {
           .or("name.ilike.%לא נקרא%,name.ilike.%unread%")
           .maybeSingle();
 
-        if (unreadTag) {
+        if (unreadTag && connectionUserId) {
           const tagData = {
             tag_id: unreadTag.id,
             user_id: connectionUserId,
@@ -1517,7 +1513,7 @@ Deno.serve(async (req) => {
       .from("blocked_contacts")
       .select("id")
       .eq("tenant_id", tenantId)
-      .eq("connection_user_id", connectionUserId)
+      .match({ connection_user_id: connectionUserId })
       .eq("sender_phone", phoneNumber)
       .maybeSingle();
 
@@ -1561,7 +1557,7 @@ Deno.serve(async (req) => {
         .from("blocked_contacts")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("client_id", clientId)
         .maybeSingle();
 
@@ -1621,7 +1617,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("lead_id", leadId)
           .maybeSingle();
 
@@ -1702,8 +1698,6 @@ Deno.serve(async (req) => {
       ...(senderProfileImage ? { senderProfileImage } : {}),
       ...(voiceMetaForStore ? { _voice: voiceMetaForStore } : {}),
     };
-    // Don't persist the transient resolve helper field.
-    delete rawDataWithAvatar._voiceResolve;
 
     const { error: insertError } = await supabaseClient
       .from("chat_messages")
@@ -1748,7 +1742,7 @@ Deno.serve(async (req) => {
         .or("name.ilike.%לא נקרא%,name.ilike.%unread%")
         .maybeSingle();
 
-      if (unreadTag) {
+      if (unreadTag && connectionUserId) {
         // Prepare the tag association data
         const tagData: TablesInsert<"chat_contact_tags"> = {
           tag_id: unreadTag.id,
@@ -1846,7 +1840,8 @@ Deno.serve(async (req) => {
     if (
       (isIncoming || isManualOutgoing) &&
       !isKnownBotGroupMessage &&
-      carmenRole !== "none"
+      carmenRole !== "none" &&
+      connectionUserId
     ) {
       try {
         // A manual outgoing message inside a group is still a GROUP turn. Keep
