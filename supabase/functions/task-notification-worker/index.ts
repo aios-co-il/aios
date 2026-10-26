@@ -1,9 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   taskNotificationScope,
+  taskNotificationsHeldUntil,
   taskOverdueNotifyAt,
   taskReminderAt,
 } from "./schedule.ts";
+import { releaseHeldTaskNotifications } from "../_shared/task-notification-hold.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +45,12 @@ type TaskRow = {
   completion_creator_notified_at: string | null;
   overdue_notified_at: string | null;
   overdue_creator_notified_at: string | null;
+  recurrence_frequency: string | null;
+  recurrence_previous_task_id: string | null;
 };
+
+const TASK_COLUMNS =
+  "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at,recurrence_frequency,recurrence_previous_task_id";
 
 async function invokeNotification(
   task: TaskRow,
@@ -91,6 +98,30 @@ async function invokeNotification(
   throw new Error(
     body?.reason || body?.error || "task notification was not handled",
   );
+}
+
+/** Replays a peer notification that trigger-automation held over Shabbat. */
+async function deliverHeldNotification(requestBody: unknown) {
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/trigger-automation`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(requestBody),
+    },
+  );
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok && response.status !== 202) {
+    throw new Error(
+      body?.reason ||
+        body?.error ||
+        `trigger-automation returned ${response.status}`,
+    );
+  }
+  return body;
 }
 
 async function claimAndSend(
@@ -159,9 +190,7 @@ async function fetchTask(
 ) {
   const { data, error } = await supabase
     .from("tasks")
-    .select(
-      "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at",
-    )
+    .select(TASK_COLUMNS)
     .eq("id", taskId)
     .maybeSingle();
   if (error) throw error;
@@ -409,6 +438,26 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Shabbat (Saturday 00:00 → Sunday 08:30 Israel): claim nothing. Task
+    // markers stay NULL, so the first run after the window sends each held
+    // notification exactly once.
+    const heldUntil = taskNotificationsHeldUntil(new Date());
+    if (heldUntil) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          held: "shabbat",
+          hold_until: heldUntil.toISOString(),
+          processed: 0,
+          results: [],
+          errors: [],
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
     let tasks: TaskRow[] = [];
 
     if (body?.task_id) {
@@ -416,8 +465,7 @@ Deno.serve(async (req) => {
       if (task) tasks = [task];
     } else {
       const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-      const taskColumns =
-        "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at";
+      const taskColumns = TASK_COLUMNS;
       const [
         assignments,
         reminders,
@@ -515,6 +563,16 @@ Deno.serve(async (req) => {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+
+    // Peer notifications parked by trigger-automation over Shabbat.
+    if (!body?.task_id) {
+      results.push(
+        ...(await releaseHeldTaskNotifications(
+          supabase,
+          deliverHeldNotification,
+        )),
+      );
     }
 
     console.log("[task-notification-worker]", {

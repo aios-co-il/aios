@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { isJerusalemShabbat } from "../_shared/calendarTimeZone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -179,7 +180,8 @@ Deno.serve(async (req) => {
       const summary = summaryLines.join("\n");
 
       // 7. Send daily anomaly digest once per day to assigned campaigner (only at 09:00 IL ≈ 06:00 UTC)
-      const isDigestHour = now.getUTCHours() === 6;
+      // No staff digest on Shabbat (AIO-226).
+      const isDigestHour = now.getUTCHours() === 6 && !isJerusalemShabbat(now);
       if (
         isDigestHour &&
         anomalyCount > 0 &&

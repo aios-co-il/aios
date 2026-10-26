@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
           deliver: true,
           force_delivery: true,
           preview_only: true,
+          // A digest preview must never fire instant alerts to the team.
+          skip_instant_alerts: true,
           source: "approved_manual_trigger",
         }),
       },

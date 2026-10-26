@@ -23,6 +23,7 @@ import {
   releaseTaskNotificationDelivery,
   taskNotificationRecipientKey,
 } from "../_shared/task-notification-dedupe.ts";
+import { holdTaskNotificationForShabbat } from "../_shared/task-notification-hold.ts";
 import {
   formatTaskNotificationMessage,
   resolveTaskNotificationLinkTenantId,
@@ -1509,6 +1510,17 @@ Deno.serve(async (req) => {
     }
 
     if (TASK_NOTIFICATION_TYPES.has(requestBody.trigger_type)) {
+      // No task WhatsApp on Shabbat (AIO-226): held, then sent Sunday 08:30.
+      const shabbatHold = await holdTaskNotificationForShabbat(
+        supabase,
+        requestBody,
+      );
+      if (shabbatHold) {
+        return new Response(JSON.stringify(shabbatHold), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 202,
+        });
+      }
       const taskNotification = await sendTaskNotificationFromTenantCarmen(
         supabase,
         requestBody,

@@ -6,6 +6,8 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import { jerusalemYmd } from "./calendarTimeZone.ts";
+import { isAlertHeldForShabbat } from "./critical-alerts.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -118,6 +120,108 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
   connection_lost: 24,
   campaign_exception: 7 * 24,
 };
+
+/**
+ * Deterministic fingerprint for the client-level rules (rule:client:bucket).
+ * campaign_exception keeps its own campaign/reason/target fingerprint.
+ */
+export function legacyRuleFingerprint(
+  ruleType: Exclude<PulseAlertRuleType, "campaign_exception">,
+  clientId: string,
+  bucket: string,
+): string {
+  return `${ruleType}:${clientId}:${bucket}`;
+}
+
+/**
+ * pulse_instant_alert_log rows written before AIO-226 have fingerprint NULL
+ * (the client-level rules had none). Inside the throttle window such a row is
+ * the same finding, so deploying the fingerprints causes no resend wave.
+ */
+export function isSameInstantAlertFinding(
+  loggedFingerprint: string | null | undefined,
+  candidateFingerprint: string | null | undefined,
+): boolean {
+  const logged = loggedFingerprint ?? null;
+  if (logged === null) return true;
+  return logged === (candidateFingerprint ?? null);
+}
+
+export type InstantAlertLogRow = {
+  fingerprint?: string | null;
+  severity_score?: number | string | null;
+};
+
+/**
+ * Decide against the log rows of this client + rule (+ campaign) inside the
+ * rule's throttle window, newest first. Any matching row suppresses a resend,
+ * so a finding that flaps A → B → A inside the window is not sent again.
+ * Only campaign_exception resends when it got materially (10%) worse.
+ */
+export function decideInstantAlertDelivery(
+  candidate: Pick<
+    PulseInstantAlertCandidate,
+    "rule_type" | "fingerprint" | "severity_score"
+  >,
+  recentRows: InstantAlertLogRow[],
+): { send: boolean; reason: "new" | "duplicate" | "materially_worse" } {
+  const match = recentRows.find((row) =>
+    isSameInstantAlertFinding(row.fingerprint, candidate.fingerprint),
+  );
+  if (!match) return { send: true, reason: "new" };
+  if (
+    candidate.rule_type === "campaign_exception" &&
+    Number(candidate.severity_score || 0) >
+      Number(match.severity_score || 0) * 1.1
+  ) {
+    return { send: true, reason: "materially_worse" };
+  }
+  return { send: false, reason: "duplicate" };
+}
+
+/** campaign-pulse-manual-trigger marks its preview runs with this source. */
+export const PULSE_MANUAL_TRIGGER_SOURCE = "approved_manual_trigger";
+
+export type InstantPulseAlertsGate =
+  | { run: true; reason: null }
+  | {
+      run: false;
+      reason:
+        | "skip_instant_alerts"
+        | "preview_only"
+        | "manual_trigger"
+        | "pulse_disabled"
+        | "instant_wa_disabled";
+    };
+
+/**
+ * Instant alerts run on a snapshot refresh only when the tenant has the pulse
+ * on, the instant WhatsApp switch on, and the request is a real refresh: not a
+ * preview, not the manual trigger, and not a caller that asked for a refresh
+ * without alerts (`skip_instant_alerts: true`, e.g. Carmen's refresh tool).
+ */
+export function instantPulseAlertsGate(input: {
+  campaignPulseEnabled: unknown;
+  rules: unknown;
+  body: Record<string, unknown> | null | undefined;
+}): InstantPulseAlertsGate {
+  const body = input.body || {};
+  if (body.skip_instant_alerts === true)
+    return { run: false, reason: "skip_instant_alerts" };
+  if (body.preview_only === true) return { run: false, reason: "preview_only" };
+  if (body.source === PULSE_MANUAL_TRIGGER_SOURCE)
+    return { run: false, reason: "manual_trigger" };
+  if (input.campaignPulseEnabled !== true)
+    return { run: false, reason: "pulse_disabled" };
+  if (
+    !input.rules ||
+    typeof input.rules !== "object" ||
+    parsePulseAlertRules(input.rules).instant_wa_enabled !== true
+  ) {
+    return { run: false, reason: "instant_wa_disabled" };
+  }
+  return { run: true, reason: null };
+}
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
@@ -233,6 +337,11 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "no_contact",
+          fingerprint: legacyRuleFingerprint(
+            "no_contact",
+            snapshot.client_id,
+            missing ? "missing" : `last:${jerusalemYmd(new Date(lastContact))}`,
+          ),
           message: [
             "🟡 *התראת דופק — אין עדכון קשר*",
             `לקוח: ${clientName}`,
@@ -260,6 +369,11 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "cpl_spike",
+          fingerprint: legacyRuleFingerprint(
+            "cpl_spike",
+            snapshot.client_id,
+            "spike",
+          ),
           message: [
             "🔴 *התראת דופק — עליית CPL*",
             `לקוח: ${clientName}`,
@@ -304,6 +418,13 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "connection_lost",
+          // One open finding per client: the issue mix (stale sync, stopped
+          // campaign, missing table) flaps between runs and must not resend.
+          fingerprint: legacyRuleFingerprint(
+            "connection_lost",
+            snapshot.client_id,
+            "open",
+          ),
           message: [
             "🔴 *התראת דופק — חיבור/קמפיין*",
             `לקוח: ${clientName}`,
@@ -319,20 +440,16 @@ export function evaluatePulseInstantAlerts(
   return candidates;
 }
 
-async function latestAlertDelivery(
+async function recentAlertDeliveries(
   supabase: any,
   tenantId: string,
   clientId: string,
   ruleType: PulseAlertRuleType,
   throttleHours: number,
+  nowMs: number,
   campaignKey?: string | null,
-): Promise<{
-  fingerprint?: string | null;
-  severity_score?: number | null;
-} | null> {
-  const since = new Date(
-    Date.now() - throttleHours * 60 * 60 * 1000,
-  ).toISOString();
+): Promise<InstantAlertLogRow[] | null> {
+  const since = new Date(nowMs - throttleHours * 60 * 60 * 1000).toISOString();
   let query = supabase
     .from("pulse_instant_alert_log")
     .select("fingerprint, severity_score")
@@ -341,14 +458,14 @@ async function latestAlertDelivery(
     .eq("rule_type", ruleType)
     .gte("sent_at", since)
     .order("sent_at", { ascending: false })
-    .limit(1);
+    .limit(50);
   if (campaignKey) query = query.eq("campaign_key", campaignKey);
   const { data, error } = await query;
   if (error) {
     console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
     return null;
   }
-  return data?.[0] || null;
+  return data || [];
 }
 
 async function resolveInstantAlertRecipients(
@@ -417,19 +534,30 @@ export async function deliverInstantPulseAlerts(input: {
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
   analyzeException?: AnalyzeException;
-}): Promise<{
-  sent: number;
-  skipped: number;
-  candidates: number;
-  analyzed: number;
-}> {
-  const candidates = evaluatePulseInstantAlerts(
+  /** Clock override for tests. */
+  now?: Date;
+}): Promise<InstantPulseAlertResult> {
+  const now = input.now ?? new Date();
+  const evaluated = evaluatePulseInstantAlerts(
     input.snapshots,
     input.criticalIssues,
     input.rules,
+    now.getTime(),
   );
+  // Shabbat: only critical kinds (connection_lost) go out. The rest are not
+  // logged, so the first run after Shabbat re-evaluates and sends them once.
+  const candidates = evaluated.filter(
+    (candidate) => !isAlertHeldForShabbat(candidate.rule_type, now),
+  );
+  const held = evaluated.length - candidates.length;
   if (!candidates.length)
-    return { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+    return {
+      sent: 0,
+      skipped: 0,
+      candidates: evaluated.length,
+      analyzed: 0,
+      held,
+    };
 
   let sent = 0;
   let skipped = 0;
@@ -437,22 +565,20 @@ export async function deliverInstantPulseAlerts(input: {
 
   for (const candidate of candidates) {
     const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
-    const previousDelivery = await latestAlertDelivery(
+    const recent = await recentAlertDeliveries(
       input.supabase,
       input.tenantId,
       candidate.client_id,
       candidate.rule_type,
       throttleHours,
+      now.getTime(),
       candidate.campaign_key,
     );
-    const sameFinding =
-      previousDelivery &&
-      previousDelivery.fingerprint === candidate.fingerprint;
-    const materiallyWorse =
-      previousDelivery &&
-      Number(candidate.severity_score || 0) >
-        Number(previousDelivery.severity_score || 0) * 1.1;
-    if (previousDelivery && sameFinding && !materiallyWorse) {
+    // A failed dedupe lookup must not turn into a resend.
+    if (
+      recent === null ||
+      !decideInstantAlertDelivery(candidate, recent).send
+    ) {
       skipped += 1;
       continue;
     }
@@ -516,5 +642,34 @@ export async function deliverInstantPulseAlerts(input: {
     }
   }
 
-  return { sent, skipped, candidates: candidates.length, analyzed };
+  return { sent, skipped, candidates: evaluated.length, analyzed, held };
+}
+
+export type InstantPulseAlertResult = {
+  sent: number;
+  skipped: number;
+  candidates: number;
+  analyzed: number;
+  /** Non-critical candidates held for Shabbat (re-evaluated after it). */
+  held: number;
+  /** Why the run sent nothing at all, when the gate stopped it. */
+  suppressed?: Exclude<InstantPulseAlertsGate["reason"], null>;
+};
+
+/** campaign-pulse-snapshot entry point: applies the gate, then delivers. */
+export async function runGatedInstantPulseAlerts(
+  gate: InstantPulseAlertsGate,
+  input: Parameters<typeof deliverInstantPulseAlerts>[0],
+): Promise<InstantPulseAlertResult> {
+  if (!gate.run) {
+    return {
+      sent: 0,
+      skipped: 0,
+      candidates: 0,
+      analyzed: 0,
+      held: 0,
+      suppressed: gate.reason,
+    };
+  }
+  return await deliverInstantPulseAlerts(input);
 }
