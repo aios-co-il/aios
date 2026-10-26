@@ -1,3 +1,13 @@
+import {
+  jerusalemLocalTimeToUtc,
+  jerusalemWeekdayIndex,
+  jerusalemYmd,
+  shiftYmd,
+} from "../_shared/calendarTimeZone.ts";
+import { taskNotificationsHeldUntil } from "../_shared/task-notification-hold.ts";
+
+export { taskNotificationsHeldUntil };
+
 const ISRAEL_TIME_ZONE = "Asia/Jerusalem";
 const MORNING_HOUR = 8;
 const MORNING_MINUTE = 30;
@@ -75,6 +85,11 @@ function isBeforeMorning(parts: LocalParts) {
   );
 }
 
+/** A planned send inside the Shabbat window moves to Sunday 08:30. */
+function outsideShabbat(at: Date): Date {
+  return taskNotificationsHeldUntil(at) ?? at;
+}
+
 export function taskOverdueNotifyAt(task: {
   due_date: string | null;
 }): Date | null {
@@ -84,19 +99,68 @@ export function taskOverdueNotifyAt(task: {
     { year, month, day, hour: 0, minute: 0 },
     1,
   );
-  return israelLocalToUtc({
-    ...dayAfterDue,
-    hour: MORNING_HOUR,
-    minute: MORNING_MINUTE,
-  });
+  return outsideShabbat(
+    israelLocalToUtc({
+      ...dayAfterDue,
+      hour: MORNING_HOUR,
+      minute: MORNING_MINUTE,
+    }),
+  );
 }
 
-export function taskReminderAt(task: {
+type ReminderTask = {
   priority: number;
   created_at: string;
   due_date: string | null;
   due_time: string | null;
-}): Date | null {
+  recurrence_frequency?: string | null;
+  recurrence_previous_task_id?: string | null;
+};
+
+export function isRecurringTask(task: {
+  recurrence_frequency?: string | null;
+  recurrence_previous_task_id?: string | null;
+}): boolean {
+  return Boolean(task.recurrence_frequency || task.recurrence_previous_task_id);
+}
+
+/**
+ * When the open-task reminder goes out.
+ *
+ * One-off tasks keep the day-before heads-up. A recurring occurrence is created
+ * (and the worker invoked) as soon as the previous one is done, so the same
+ * rule sent its reminder on the day BEFORE the task's day (AIO-226). Recurring
+ * occurrences are never reminded before 08:30 Israel time on their own date.
+ * Nothing goes out on Shabbat: a task due on Saturday is reminded on Friday
+ * morning, anything else in the window waits until Sunday 08:30.
+ */
+export function taskReminderAt(task: ReminderTask): Date | null {
+  let at = plannedReminderAt(task);
+  if (!at) return null;
+  if (isRecurringTask(task) && task.due_date) {
+    const ownDayStart = jerusalemLocalTimeToUtc(
+      task.due_date,
+      MORNING_HOUR,
+      MORNING_MINUTE,
+    );
+    if (at.getTime() < ownDayStart.getTime()) at = ownDayStart;
+  }
+  if (
+    task.due_date &&
+    taskNotificationsHeldUntil(at) &&
+    jerusalemYmd(at) === task.due_date &&
+    jerusalemWeekdayIndex(jerusalemLocalTimeToUtc(task.due_date, 12)) === 6
+  ) {
+    return jerusalemLocalTimeToUtc(
+      shiftYmd(task.due_date, -1),
+      MORNING_HOUR,
+      MORNING_MINUTE,
+    );
+  }
+  return outsideShabbat(at);
+}
+
+function plannedReminderAt(task: ReminderTask): Date | null {
   if (task.priority >= 8) {
     const fiveHoursLater = new Date(
       Date.parse(task.created_at) + 5 * 60 * 60 * 1000,

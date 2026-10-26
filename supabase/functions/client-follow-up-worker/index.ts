@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isFollowUpDue } from "./schedule.ts";
+import { jerusalemShabbatHoldUntil } from "../_shared/calendarTimeZone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -343,6 +344,25 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Shabbat (Saturday 00:00 → Sunday 08:30 Israel): claim nothing; the
+    // first run after the window sends each held reminder once (AIO-226).
+    const heldUntil = jerusalemShabbatHoldUntil(new Date());
+    if (heldUntil) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          held: "shabbat",
+          hold_until: heldUntil.toISOString(),
+          processed: 0,
+          results: [],
+          errors: [],
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
     let clients: ClientRow[] = [];
     const clientColumns =
       "id,tenant_id,agency_id,name,status,follow_up_date,follow_up_campaigner_notified_at,follow_up_manager_notified_at";

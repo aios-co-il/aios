@@ -33,7 +33,11 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
+import {
+  instantPulseAlertsGate,
+  runGatedInstantPulseAlerts,
+  type InstantPulseAlertResult,
+} from "../_shared/pulse-instant-alerts.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -266,7 +270,11 @@ Deno.serve(async (req) => {
     const retention = await runDailyClientRetention(supabase, body.tenant_id);
     return json(retention, retention.error ? 500 : 200);
   }
-  // Only explicit deliver:true may send WhatsApp — sync crons refresh snapshots only.
+  // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
+  // Instant alerts have their own gate (instantPulseAlertsGate): pulse and
+  // instant_wa_enabled on, not preview_only, not the manual trigger, and no
+  // `skip_instant_alerts: true` in the body. A caller that only wants fresh
+  // numbers (e.g. an ad-hoc run) sends skip_instant_alerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
     body.force_delivery === true && body.source === "approved_manual_trigger";
@@ -895,10 +903,21 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts = { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+    let instantAlerts: InstantPulseAlertResult = {
+      sent: 0,
+      skipped: 0,
+      candidates: 0,
+      analyzed: 0,
+      held: 0,
+    };
+    const instantGate = instantPulseAlertsGate({
+      campaignPulseEnabled: setting.campaign_pulse_enabled,
+      rules: setting.pulse_alert_rules,
+      body,
+    });
     if (snapshots.length) {
       try {
-        instantAlerts = await deliverInstantPulseAlerts({
+        instantAlerts = await runGatedInstantPulseAlerts(instantGate, {
           supabase,
           tenantId,
           tenantSlug,
