@@ -1,3 +1,4 @@
+import { readField } from "@/lib/jsonReaders";
 import type { AgentRole } from "../types/visualWorkspaceTypes";
 
 const AGENT_ROLES: readonly AgentRole[] = [
@@ -45,10 +46,6 @@ export interface RecentMessage {
 export type IdRows = readonly { id: string }[] | null;
 
 type FieldValue<T> = T | null | undefined;
-
-function readField<K extends string>(row: object, key: K): unknown {
-  return key in row ? (row as { [P in K]: unknown })[key] : undefined;
-}
 
 function textField(row: object, key: string): FieldValue<string> {
   const value = readField(row, key);
