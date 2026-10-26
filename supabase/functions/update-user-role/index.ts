@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -139,17 +140,18 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in update-user-role function:", error);
+    const message = unknownField(error, "message");
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: message,
       }),
       {
         status:
-          error.message === "Unauthorized" ||
-          error.message === "Only owners or super admins can update user roles"
+          message === "Unauthorized" ||
+          message === "Only owners or super admins can update user roles"
             ? 403
             : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
