@@ -12,6 +12,10 @@ import {
   resolveGscAccessToken,
   writeSeoShareCacheToDb,
 } from "../_shared/gscKeywords.ts";
+import {
+  toPublicCachedShareBody,
+  toPublicTableSettings,
+} from "../_shared/public-table-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -292,23 +296,6 @@ async function writeSeoShareCache(
   );
 }
 
-/**
- * Display preferences (which tabs a client sees) live in `integration_settings`
- * and must not wait out the share cache, so a cached payload gets the current
- * settings before it goes out.
- */
-function withLiveTableSettings(cachedBody: string, table: any): string {
-  try {
-    const payload = JSON.parse(cachedBody);
-    if (!payload?.table) return cachedBody;
-    payload.table.integration_settings =
-      table?.integration_settings ?? payload.table.integration_settings;
-    return JSON.stringify(payload);
-  } catch {
-    return cachedBody;
-  }
-}
-
 function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -546,9 +533,15 @@ Deno.serve(async (req) => {
           : seoPart === "core"
             ? `${shareToken}:core`
             : shareToken;
+      // Display preferences (which tabs a client sees) must not wait out the
+      // cache, and bodies cached before the settings allowlist hold full
+      // settings, so every cached table gets the current, filtered settings.
       const cachedSeoBody = await readSeoShareCache(supabase, cacheKey);
-      if (cachedSeoBody) {
-        return new Response(withLiveTableSettings(cachedSeoBody, table), {
+      const publicCachedBody = cachedSeoBody
+        ? toPublicCachedShareBody(cachedSeoBody, table.integration_settings)
+        : null;
+      if (publicCachedBody) {
+        return new Response(publicCachedBody, {
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
@@ -1009,7 +1002,9 @@ Deno.serve(async (req) => {
           id: table.id,
           name: table.name,
           integration_type: table.integration_type,
-          integration_settings: table.integration_settings,
+          integration_settings: toPublicTableSettings(
+            table.integration_settings,
+          ),
           agency_name: agencyName,
           client_id: targetClientId || null,
         },
@@ -1020,7 +1015,9 @@ Deno.serve(async (req) => {
           ? {
               id: gaTable.id,
               name: gaTable.name,
-              integration_settings: gaTable.integration_settings,
+              integration_settings: toPublicTableSettings(
+                gaTable.integration_settings,
+              ),
             }
           : null,
         ga_records: gaRecords,
@@ -1028,7 +1025,9 @@ Deno.serve(async (req) => {
           ? {
               id: gscTable.id,
               name: gscTable.name,
-              integration_settings: gscTable.integration_settings,
+              integration_settings: toPublicTableSettings(
+                gscTable.integration_settings,
+              ),
             }
           : null,
         gsc_records: gscRecords,
@@ -1103,7 +1102,9 @@ Deno.serve(async (req) => {
           id: table.id,
           name: table.name,
           integration_type: table.integration_type,
-          integration_settings: table.integration_settings,
+          integration_settings: toPublicTableSettings(
+            table.integration_settings,
+          ),
           agency_name: agencyName,
         },
         fields: fields || [],
