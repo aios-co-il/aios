@@ -46,7 +46,7 @@ const REDACTED = "[redacted]";
 const SECRET_REDACTIONS: Array<[RegExp, string]> = [
   // access_token=…, "refresh_token": "…" and friends, in a query string or JSON.
   [
-    /\b(access_token|refresh_token|client_secret|appsecret_proof|fb_exchange_token|developer_token|api_key|apikey|webhook_secret)("?\s*[:=]\s*"?)(?!\[redacted\])[^&\s"',;)}\]]+/gi,
+    /\b(access[_-]token|refresh[_-]token|client[_-]secret|appsecret[_-]proof|fb[_-]exchange[_-]token|developer[_-]token|api[_-]?key|webhook[_-]secret)(["']?\s*[:=]\s*["']?)(?!\[redacted\])[^&\s"',;)}\]]+/gi,
     `$1$2${REDACTED}`,
   ],
   // Any other query string on a URL.
@@ -56,13 +56,21 @@ const SECRET_REDACTIONS: Array<[RegExp, string]> = [
   ],
   [/\b(Bearer\s+)(?!\[redacted\])[\w.~+/=-]+/gi, `$1${REDACTED}`],
   // Bare Meta (EAA…) and Google (ya29.…) access tokens.
-  [/\bEAA[A-Za-z0-9]{20,}/g, REDACTED],
+  [/(?<![A-Za-z0-9])EAA[A-Za-z0-9]{20,}/g, REDACTED],
   [/\bya29\.[\w.-]+/g, REDACTED],
 ];
 
 /** Upstream error text with credentials removed; safe to store or return. */
+/** Percent-encoded separators a URL inside an error can carry (%3D, %3A, %2F…). */
+function decodeUrlSeparators(text: string): string {
+  return text.replace(/%(2[26F]|3[ADF])/gi, (_, hex: string) =>
+    String.fromCharCode(parseInt(hex, 16)),
+  );
+}
+
 export function redactSyncError(text: unknown): string {
-  let redacted = String(text ?? "");
+  // Decode encoded separators first so an encoded token URL matches the rules below.
+  let redacted = decodeUrlSeparators(String(text ?? ""));
   for (const [pattern, replacement] of SECRET_REDACTIONS) {
     redacted = redacted.replace(pattern, replacement);
   }

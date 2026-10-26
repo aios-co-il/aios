@@ -313,3 +313,15 @@ test("a token in a level error reaches neither the outcome nor the settings mirr
     }
   }
 });
+
+test("redacts percent-encoded, single-quoted and hyphenated credentials", () => {
+  const encoded = redactSyncError(
+    "fetch failed: https%3A%2F%2Fgraph.facebook.com%2Fv21.0%2Fact_1%2Finsights%3Faccess_token%3DEAAB1234567890abcdefghijklmnop",
+  );
+  assert.doesNotMatch(encoded, /EAAB1234567890/);
+  const quoted = redactSyncError("{'access_token': 'secret-value-1'}");
+  assert.doesNotMatch(quoted, /secret-value-1/);
+  const hyphen = redactSyncError("developer-token: dev-secret-2");
+  assert.doesNotMatch(hyphen, /dev-secret-2/);
+  assert.equal(redactSyncError(redactSyncError(encoded)), encoded);
+});
