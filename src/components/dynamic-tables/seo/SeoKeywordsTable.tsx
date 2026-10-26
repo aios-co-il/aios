@@ -39,7 +39,12 @@ import {
 import { useSeoKeywordRelevance } from "@/hooks/useSeoKeywordRelevance";
 import { clusterKeywords, type KeywordCluster } from "@/lib/seoKeywordClusters";
 import { toast } from "sonner";
-import type { Json } from "@/integrations/supabase/types";
+import {
+  compareByPosition,
+  dedupeKeywordRows,
+  positionDelta,
+  type SeoKeywordRow,
+} from "./keywordRows";
 
 const HEBREW_REGEX = /[\u0590-\u05FF]/;
 const ENGLISH_REGEX = /[A-Za-z]/;
@@ -55,40 +60,6 @@ function matchesLang(keyword: string, lang: LangFilter): boolean {
 
 function normalizeKw(raw: string): string {
   return normalizeKeywordPhrase(raw);
-}
-
-/** An Ahrefs / tracked / GSC-only keyword row as merged by the SEO dashboards. */
-export type SeoKeywordRow = {
-  keyword?: string;
-  position?: Json;
-  position_prev_month?: Json;
-  position_3month?: Json;
-  position_yearly?: Json;
-  traffic?: Json;
-  volume?: Json;
-  kd?: Json;
-  cpc?: Json;
-  url?: Json;
-  gsc_clicks?: Json;
-  gsc_impressions?: Json;
-  gsc_ctr?: Json;
-  gsc_position?: Json;
-  ahrefs_position?: Json;
-  _position_source?: string;
-  _source?: string;
-  _local_tracked?: boolean;
-};
-
-const isBlankField = (value: unknown) => value == null || value === "";
-
-function fillBlankField<K extends keyof SeoKeywordRow>(
-  target: SeoKeywordRow,
-  source: SeoKeywordRow,
-  key: K,
-) {
-  if (isBlankField(target[key]) && !isBlankField(source[key])) {
-    target[key] = source[key];
-  }
 }
 
 interface SeoKeywordsTableProps {
@@ -169,18 +140,9 @@ function KeywordRow({
   /** Show "לא רלוונטי" even when the row is not dimmed. */
   showIrrelevantAction?: boolean;
 }) {
-  const posChangeMonth =
-    kw.position_prev_month != null && kw.position != null
-      ? Number(kw.position_prev_month) - Number(kw.position)
-      : null;
-  const posChange3m =
-    kw.position_3month != null && kw.position != null
-      ? Number(kw.position_3month) - Number(kw.position)
-      : null;
-  const posChangeYear =
-    kw.position_yearly != null && kw.position != null
-      ? Number(kw.position_yearly) - Number(kw.position)
-      : null;
+  const posChangeMonth = positionDelta(kw.position_prev_month, kw.position);
+  const posChange3m = positionDelta(kw.position_3month, kw.position);
+  const posChangeYear = positionDelta(kw.position_yearly, kw.position);
   const gscClicks = kw.gsc_clicks != null ? Number(kw.gsc_clicks) : null;
   const ahrefsTraffic = kw.traffic != null ? Number(kw.traffic) : null;
   const displayClicks =
@@ -676,56 +638,8 @@ export function SeoKeywordsTable({
     onLangFilterChange?.(next);
   };
 
-  const dedupeByKeyword = (rows: SeoKeywordRow[]): SeoKeywordRow[] => {
-    const groups = new Map<string, SeoKeywordRow[]>();
-    for (const r of rows) {
-      const key = String(r?.keyword || "")
-        .trim()
-        .toLowerCase();
-      if (!key) continue;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
-    }
-    const mergeFields: (keyof SeoKeywordRow)[] = [
-      "position",
-      "position_prev_month",
-      "position_3month",
-      "position_yearly",
-      "traffic",
-      "volume",
-      "kd",
-      "cpc",
-      "url",
-      "gsc_clicks",
-      "gsc_impressions",
-      "gsc_ctr",
-      "_position_source",
-      "_source",
-    ];
-    const out: SeoKeywordRow[] = [];
-    for (const [, variants] of groups) {
-      const sorted = [...variants].sort((a, b) => {
-        const ap = a.position ?? Number.POSITIVE_INFINITY;
-        const bp = b.position ?? Number.POSITIVE_INFINITY;
-        if (ap !== bp) return Number(ap) - Number(bp);
-        const at = Number(a.traffic ?? 0),
-          bt = Number(b.traffic ?? 0);
-        if (at !== bt) return bt - at;
-        return Number(b.volume ?? 0) - Number(a.volume ?? 0);
-      });
-      const best = { ...sorted[0] };
-      for (let i = 1; i < sorted.length; i++) {
-        for (const f of mergeFields) {
-          fillBlankField(best, sorted[i], f);
-        }
-      }
-      out.push(best);
-    }
-    return out;
-  };
-
   const dedupedTrackedKeywords = useMemo(
-    () => dedupeByKeyword(trackedKeywords),
+    () => dedupeKeywordRows(trackedKeywords),
     [trackedKeywords],
   );
 
@@ -773,7 +687,7 @@ export function SeoKeywordsTable({
         allKeywords.push(kw);
       }
     }
-    return dedupeByKeyword(allKeywords);
+    return dedupeKeywordRows(allKeywords);
   }, [keywords, effectiveTracked, gscOnlyKeywords]);
 
   const langCounts = useMemo(() => {
@@ -1253,10 +1167,7 @@ export function SeoKeywordsTable({
 
             <TabsContent value="all" className="mt-0">
               <KeywordTable
-                keywords={[...allKeywords].sort(
-                  (a, b) =>
-                    Number(a.position ?? 999) - Number(b.position ?? 999),
-                )}
+                keywords={[...allKeywords].sort(compareByPosition)}
                 title={`כל הביטויים (${allKeywords.length})`}
                 icon={<span>📋</span>}
                 show3Month={show3Month}

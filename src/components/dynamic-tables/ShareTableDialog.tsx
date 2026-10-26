@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { thrownCode } from "@/lib/jsonReaders";
 import {
   Dialog,
   DialogContent,
@@ -154,7 +155,7 @@ export function ShareTableDialog({
     },
     onError: (err: Error) => {
       const msg = err?.message || String(err);
-      if ("code" in err && err.code === "23505") {
+      if (thrownCode(err) === "23505") {
         toast.error("הסלאג כבר תפוס — נסה שוב או ערוך הסלאג אחרי יצירה");
       } else if (msg.includes("row-level security") || msg.includes("RLS")) {
         toast.error("אין הרשאה ליצור קישור שיתוף לטבלה הזו");
@@ -212,7 +213,7 @@ export function ShareTableDialog({
       setEditingValue("");
     },
     onError: (err: Error) => {
-      if ("code" in err && err.code === "23505") {
+      if (thrownCode(err) === "23505") {
         toast.error("הסלאג הזה כבר תפוס, בחר אחר");
       } else {
         toast.error("שגיאה בעדכון הסלאג");

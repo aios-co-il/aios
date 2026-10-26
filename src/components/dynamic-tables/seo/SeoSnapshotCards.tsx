@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { keywordTop20Rank } from "@/lib/gscPosition";
 import type { JsonObject } from "@/lib/jsonReaders";
+import { getVal, type SnapshotValue } from "./snapshotValues";
 
 /** A tracked/organic keyword row; only the rank-related fields are read here. */
 interface SnapshotKeyword {
@@ -12,8 +13,6 @@ interface SnapshotKeyword {
   best_position?: unknown;
   _source?: string;
 }
-
-type SnapshotValue = number | string | undefined;
 
 interface SeoSnapshotCardsProps {
   snapshot: JsonObject;
@@ -62,18 +61,6 @@ function ChangeIndicator({
       {Math.abs(diff).toLocaleString()} {label}
     </span>
   );
-}
-
-// Helper to get a value from snapshot trying multiple key variants
-function getVal(obj: JsonObject, ...keys: string[]): SnapshotValue {
-  for (const k of keys) {
-    const value = obj[k];
-    if (value === undefined || value === null) continue;
-    return typeof value === "number" || typeof value === "string"
-      ? value
-      : undefined;
-  }
-  return undefined;
 }
 
 function countAtOrBelow(

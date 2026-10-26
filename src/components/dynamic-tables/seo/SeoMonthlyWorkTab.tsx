@@ -126,12 +126,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .eq("id", clientId)
         .maybeSingle();
       if (error) throw error;
-      return data as {
-        id: string;
-        name: string;
-        website: string | null;
-        tenant_id: string;
-      } | null;
+      return data;
     },
     enabled: !!clientId,
   });
@@ -153,14 +148,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .eq("month", selectedMonth)
         .maybeSingle();
       if (error) throw error;
-      return data as {
-        id: string;
-        month: string;
-        status: "up" | "stable" | "down";
-        notes: string | null;
-        work: unknown;
-        tenant_id: string;
-      } | null;
+      return data;
     },
     enabled: !!clientId && !!selectedMonth,
   });
@@ -225,9 +213,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .eq("client_id", clientId)
         .order("month", { ascending: true });
       if (error) throw error;
-      return (data as Array<{ month: string }>).map((r) =>
-        r.month.slice(0, 10),
-      );
+      return data.map((r) => r.month.slice(0, 10));
     },
     enabled: !!clientId,
     staleTime: 5 * 60 * 1000,
@@ -251,7 +237,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .lte("month", selectedMonth)
         .order("month", { ascending: false });
       if (error) throw error;
-      return data as Array<{ month: string; work: unknown }>;
+      return data;
     },
     enabled: !!clientId && !!selectedMonth,
     staleTime: 60 * 1000,
@@ -333,11 +319,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
           return null;
         throw error;
       }
-      return data as {
-        share_token: string;
-        is_active: boolean;
-        updated_at: string;
-      } | null;
+      return data;
     },
     enabled: !!clientId && !!selectedMonth,
   });

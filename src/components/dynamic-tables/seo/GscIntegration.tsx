@@ -5,6 +5,7 @@ import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import type { Json } from "@/integrations/supabase/types";
 import type { ClientIntegration } from "@/lib/tenantIntegrationsClient";
 import { asJsonObject, isJsonObject } from "@/lib/jsonReaders";
+import { toGscSites, type GscSite } from "./gscSites";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,11 +138,6 @@ function computeRange(range: GscDateRange): {
   };
 }
 
-type GscSite = {
-  siteUrl: string;
-  permissionLevel?: string;
-};
-
 /** The integration whose GSC settings drive site selection (own, shared or org fallback). */
 type SelectedGscIntegration = {
   id: string;
@@ -155,23 +151,6 @@ const toSelectedGscIntegration = (
   typeof integration.id === "string"
     ? { id: integration.id, settings: integration.settings }
     : null;
-
-const toGscSites = (value: Json | undefined): GscSite[] =>
-  Array.isArray(value)
-    ? value.flatMap((site) =>
-        isJsonObject(site) && typeof site.siteUrl === "string"
-          ? [
-              {
-                siteUrl: site.siteUrl,
-                permissionLevel:
-                  typeof site.permissionLevel === "string"
-                    ? site.permissionLevel
-                    : undefined,
-              },
-            ]
-          : [],
-      )
-    : [];
 
 const jsonString = (value: Json | undefined): string | null =>
   typeof value === "string" ? value : null;
