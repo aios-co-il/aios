@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import {
   asJsonArray,
   asJsonObject,
@@ -11,48 +10,45 @@ import {
 
 describe("agentUiHelpers", () => {
   it("asJsonObject accepts plain objects only", () => {
-    assert.deepEqual(asJsonObject({ a: 1 }), { a: 1 });
-    assert.equal(asJsonObject([1]), null);
-    assert.equal(asJsonObject("x"), null);
-    assert.equal(asJsonObject(null), null);
-    assert.equal(asJsonObject(undefined), null);
+    expect(asJsonObject({ a: 1 })).toEqual({ a: 1 });
+    expect(asJsonObject([1])).toBe(null);
+    expect(asJsonObject("x")).toBe(null);
+    expect(asJsonObject(null)).toBe(null);
+    expect(asJsonObject(undefined)).toBe(null);
   });
 
   it("asJsonArray returns arrays and [] otherwise", () => {
-    assert.deepEqual(asJsonArray([1, "a"]), [1, "a"]);
-    assert.deepEqual(asJsonArray({ length: 2 }), []);
-    assert.deepEqual(asJsonArray("abc"), []);
-    assert.deepEqual(asJsonArray(null), []);
+    expect(asJsonArray([1, "a"])).toEqual([1, "a"]);
+    expect(asJsonArray({ length: 2 })).toEqual([]);
+    expect(asJsonArray("abc")).toEqual([]);
+    expect(asJsonArray(null)).toEqual([]);
   });
 
   it("jsonString reads string fields only", () => {
-    assert.equal(jsonString({ repo: "a/b" }, "repo"), "a/b");
-    assert.equal(jsonString({ repo: 5 }, "repo"), undefined);
-    assert.equal(jsonString(["repo"], "repo"), undefined);
-    assert.equal(jsonString(null, "repo"), undefined);
+    expect(jsonString({ repo: "a/b" }, "repo")).toBe("a/b");
+    expect(jsonString({ repo: 5 }, "repo")).toBe(undefined);
+    expect(jsonString(["repo"], "repo")).toBe(undefined);
+    expect(jsonString(null, "repo")).toBe(undefined);
   });
 
   it("jsonPrimitive drops nested objects and arrays", () => {
-    assert.equal(jsonPrimitive("t"), "t");
-    assert.equal(jsonPrimitive(3), 3);
-    assert.equal(jsonPrimitive(null), null);
-    assert.equal(jsonPrimitive({ a: 1 }), undefined);
-    assert.equal(jsonPrimitive([1]), undefined);
+    expect(jsonPrimitive("t")).toBe("t");
+    expect(jsonPrimitive(3)).toBe(3);
+    expect(jsonPrimitive(null)).toBe(null);
+    expect(jsonPrimitive({ a: 1 })).toBe(undefined);
+    expect(jsonPrimitive([1])).toBe(undefined);
   });
 
   it("isOneOf narrows to the listed values", () => {
     const kinds = ["edge", "mcp"] as const;
-    assert.equal(isOneOf(kinds, "edge"), true);
-    assert.equal(isOneOf(kinds, "other"), false);
+    expect(isOneOf(kinds, "edge")).toBe(true);
+    expect(isOneOf(kinds, "other")).toBe(false);
   });
 
   it("thrownMessage reads message from error-like values", () => {
-    assert.equal(thrownMessage(new Error("boom")), "boom");
-    assert.equal(
-      thrownMessage({ message: "pg error", code: "42" }),
-      "pg error",
-    );
-    assert.equal(thrownMessage("plain"), undefined);
-    assert.equal(thrownMessage(null), undefined);
+    expect(thrownMessage(new Error("boom"))).toBe("boom");
+    expect(thrownMessage({ message: "pg error", code: "42" })).toBe("pg error");
+    expect(thrownMessage("plain")).toBe(undefined);
+    expect(thrownMessage(null)).toBe(undefined);
   });
 });
