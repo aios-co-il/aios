@@ -1,5 +1,7 @@
 // List all Ahrefs projects (Rank Tracker) available for the connected API key.
 // This endpoint is FREE and does not consume API credits.
+import { getArray, getPath } from "../_shared/provider-json-b24.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -59,24 +61,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    const json = await res.json();
-    const projects = (json?.projects || []).map((p: any) => ({
-      project_id: p.project_id,
-      project_name: p.project_name,
-      url: p.url,
+    const json: unknown = await res.json();
+    const projects = getArray(json, "projects").map((p) => ({
+      project_id: getPath(p, "project_id"),
+      project_name: getPath(p, "project_name"),
+      url: getPath(p, "url"),
       // Strip trailing slash & protocol so the UI can show a clean domain
-      domain: String(p.url || "")
+      domain: String(getPath(p, "url") || "")
         .replace(/^https?:\/\//, "")
         .replace(/^www\./, "")
         .replace(/\/.*$/, ""),
-      mode: p.mode,
-      protocol: p.protocol,
-      keyword_count: p.keyword_count,
-      access: p.access,
+      mode: getPath(p, "mode"),
+      protocol: getPath(p, "protocol"),
+      keyword_count: getPath(p, "keyword_count"),
+      access: getPath(p, "access"),
     }));
 
     // Sort alphabetically by project_name for the picker UX
-    projects.sort((a: any, b: any) =>
+    projects.sort((a, b) =>
       String(a.project_name).localeCompare(String(b.project_name)),
     );
 
