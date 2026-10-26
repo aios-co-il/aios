@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCrmTableList } from "./crmTableSummary-b13";
+import { parseCrmTableList } from "./crmTableSummary";
 
 const base = { name: "Report", slug: "report" };
 

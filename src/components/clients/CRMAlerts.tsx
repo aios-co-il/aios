@@ -32,7 +32,7 @@ import {
   type HealthInput,
   type OverallStatus,
 } from "@/lib/healthScore";
-import { parseClientServices } from "@/lib/clientServices-b13";
+import { parseClientServices } from "@/lib/clientServices";
 
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
 

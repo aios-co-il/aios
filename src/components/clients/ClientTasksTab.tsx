@@ -13,7 +13,7 @@ import { TaskDetailDialog } from "@/components/tasks/TaskDetailDialog";
 import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { toTaskDetail } from "@/lib/taskDetail-b13";
+import { toTaskDetail } from "@/lib/taskDetail";
 
 interface ClientTasksTabProps {
   clientId: string;

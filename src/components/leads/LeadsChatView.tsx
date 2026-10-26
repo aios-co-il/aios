@@ -70,8 +70,8 @@ import {
   LeadSourceLines,
 } from "@/components/leads/LeadOriginLines";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
-import { thrownMessage } from "@/lib/thrownMessage";
-import type { LeadsPageLead } from "@/types/crm-b14";
+import { errorMessageOf } from "@/lib/errorMessage";
+import type { LeadsPageLead } from "@/types/leadsPage";
 
 interface LeadsChatViewProps {
   leads: LeadsPageLead[];
@@ -213,7 +213,7 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-archive", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בהעברה לארכיון: " + thrownMessage(error));
+      toast.error("שגיאה בהעברה לארכיון: " + errorMessageOf(error));
     }
   };
 
@@ -258,7 +258,7 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-archive", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בהעברה לארכיון: " + thrownMessage(error));
+      toast.error("שגיאה בהעברה לארכיון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -279,7 +279,7 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בעדכון: " + thrownMessage(error));
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -300,7 +300,7 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בעדכון: " + thrownMessage(error));
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }

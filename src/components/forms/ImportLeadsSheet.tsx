@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 interface ImportLeadsSheetProps {
   trigger?: React.ReactNode;

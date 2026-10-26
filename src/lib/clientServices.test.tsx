@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientServices } from "./clientServices-b13";
+import { parseClientServices } from "./clientServices";
 
 describe("parseClientServices", () => {
   it("returns service codes from a JSON array", () => {

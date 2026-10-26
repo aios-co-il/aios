@@ -51,8 +51,8 @@ import {
   type ClientMoodStatus,
 } from "@/lib/clientMoodHistory";
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
-import { isClientMoodStatus } from "@/lib/crmEnums-b13";
-import { toTaskDetail } from "@/lib/taskDetail-b13";
+import { isClientMoodStatus } from "@/lib/crmEnums";
+import { toTaskDetail } from "@/lib/taskDetail";
 
 interface ClientUpdatesTabProps {
   clientId: string;

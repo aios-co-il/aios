@@ -27,8 +27,8 @@ import {
   type FlagKey,
   type OverallStatus,
 } from "@/lib/healthScore";
-import { isClientMoodStatus } from "@/lib/crmEnums-b13";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { isClientMoodStatus } from "@/lib/crmEnums";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 const ALL_FLAGS: FlagKey[] = [
   "sensitive",

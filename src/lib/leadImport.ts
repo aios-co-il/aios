@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { isLeadSource } from "@/lib/crmEnums-b13";
+import { isLeadSource } from "@/lib/crmEnums";
 
 export type LeadInsert = TablesInsert<"leads">;
 

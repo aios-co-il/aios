@@ -4,7 +4,7 @@ import {
   isClientMoodStatus,
   isClientStatus,
   isLeadSource,
-} from "./crmEnums-b13";
+} from "./crmEnums";
 
 describe("CRM enum guards", () => {
   it("accepts database enum values", () => {

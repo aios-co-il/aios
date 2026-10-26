@@ -2,7 +2,7 @@ import type {
   LeadRelationsRow,
   LeadsKanbanCache,
   LeadsPageLead,
-} from "../types/crm-b14.ts";
+} from "../types/leadsPage.ts";
 
 /** A JSON row the page treats as a lead: an object with a string id. */
 export function isLeadsPageLead(value: unknown): value is LeadsPageLead {

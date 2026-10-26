@@ -66,8 +66,8 @@ import { useAgencies } from "@/hooks/useEntityLists";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import type { Tables } from "@/integrations/supabase/types";
-import { parseClientServices } from "@/lib/clientServices-b13";
-import { invalidEnumMessage } from "@/lib/crmEnums-b13";
+import { parseClientServices } from "@/lib/clientServices";
+import { invalidEnumMessage } from "@/lib/crmEnums";
 
 type ClientRow = Tables<"clients">;
 type EditableClient = Pick<ClientRow, "id" | "name"> &

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isJson, toJson } from "./json-b13";
+import { isJson, toJson } from "./json";
 
 describe("isJson", () => {
   it("accepts JSON primitives, arrays and plain objects", () => {

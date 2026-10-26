@@ -17,8 +17,8 @@ import {
   dropBlankFields,
   toLeadInsert,
   type LeadDraft,
-} from "@/lib/leadImport-b13";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+} from "@/lib/leadImport";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 export function ImportLeadsCSV() {
   const [open, setOpen] = useState(false);

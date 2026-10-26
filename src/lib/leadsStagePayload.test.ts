@@ -8,7 +8,7 @@ import {
   patchLeadInKanbanCache,
   stageLeadsFromPayload,
 } from "./leadsStagePayload.ts";
-import type { LeadsKanbanCache, LeadsPageLead } from "../types/crm-b14.ts";
+import type { LeadsKanbanCache, LeadsPageLead } from "../types/leadsPage.ts";
 
 const lead = (id: string, status: string) => ({
   id,

@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
 import type { Json, Tables } from "@/integrations/supabase/types";
-import { parseClientServices } from "@/lib/clientServices-b13";
+import { parseClientServices } from "@/lib/clientServices";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const TIER_OPTIONS = [

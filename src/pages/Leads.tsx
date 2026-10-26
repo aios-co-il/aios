@@ -160,12 +160,12 @@ import {
   patchLeadInKanbanCache,
   stageLeadsFromPayload,
 } from "@/lib/leadsStagePayload";
-import { thrownMessage } from "@/lib/thrownMessage";
+import { errorMessageOf } from "@/lib/errorMessage";
 import type {
   LeadsKanbanCache,
   LeadsPageLead,
   LeadsStageBucket,
-} from "@/types/crm-b14";
+} from "@/types/leadsPage";
 import {
   applyLeadStageQuery,
   applyResponseStatusFilter,
@@ -414,7 +414,7 @@ function LeadCardContent({
     } catch (error) {
       toast({
         title: "שגיאה בהעברה לארכיון",
-        description: thrownMessage(error),
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     }
@@ -2755,7 +2755,7 @@ export default function Leads() {
     } catch (error) {
       toast({
         title: "שגיאה בייצוא",
-        description: thrownMessage(error) || "לא הצלחנו לייצא את הלידים",
+        description: errorMessageOf(error) || "לא הצלחנו לייצא את הלידים",
         variant: "destructive",
       });
     } finally {
@@ -2873,7 +2873,7 @@ export default function Leads() {
     } catch (error) {
       toast({
         title: "שגיאה בטעינת לידים נוספים",
-        description: thrownMessage(error),
+        description: errorMessageOf(error),
         variant: "destructive",
       });
       return 0;
@@ -3040,7 +3040,7 @@ export default function Leads() {
     } catch (error) {
       toast({
         title: "שגיאה בטעינת לידים נוספים",
-        description: thrownMessage(error),
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     } finally {
@@ -4628,7 +4628,7 @@ function TableWithStickyScroll({
     } catch (error) {
       toast({
         title: "שגיאה בטעינת כל הלידים",
-        description: thrownMessage(error),
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     } finally {

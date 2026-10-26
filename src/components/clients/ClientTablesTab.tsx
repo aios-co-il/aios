@@ -47,10 +47,7 @@ import {
   prefetchReportTableView,
 } from "@/lib/prefetchReportChunks";
 import { toast } from "sonner";
-import {
-  parseCrmTableList,
-  type CrmTableSummary,
-} from "@/lib/crmTableSummary-b13";
+import { parseCrmTableList, type CrmTableSummary } from "@/lib/crmTableSummary";
 
 interface ClientTablesTabProps {
   clientId: string;

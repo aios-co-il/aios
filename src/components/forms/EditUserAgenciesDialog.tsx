@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
 interface EditUserAgenciesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

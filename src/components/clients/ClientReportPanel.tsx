@@ -46,8 +46,8 @@ import {
   buildDefaultReportRecipientEmails,
   buildReportEmailOptions,
 } from "@/lib/defaultReportEmailRecipients";
-import type { CrmTableSummary } from "@/lib/crmTableSummary-b13";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import type { CrmTableSummary } from "@/lib/crmTableSummary";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 interface ClientReportPanelProps {
   table: CrmTableSummary;

@@ -31,8 +31,8 @@ import {
 } from "@/lib/pulseDashboard";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
-import { toJson } from "@/lib/json-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
+import { toJson } from "@/lib/json";
 
 const OVERRIDE_OPTIONS: OverallStatus[] = ["green", "yellow", "red"];
 

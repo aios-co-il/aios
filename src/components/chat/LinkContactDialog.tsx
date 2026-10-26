@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 const linkSchema = z.object({
   type: z.enum(["client", "lead", "group"]),

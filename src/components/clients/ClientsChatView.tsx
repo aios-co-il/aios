@@ -94,9 +94,9 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import type { AgencyOption, ClientListRow } from "@/types/crm-b13";
-import { isClientMoodStatus, isClientStatus } from "@/lib/crmEnums-b13";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import type { AgencyOption, ClientListRow } from "@/types/crm";
+import { isClientMoodStatus, isClientStatus } from "@/lib/crmEnums";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 type ClientUpdate = TablesUpdate<"clients">;
 type EditableClientField =

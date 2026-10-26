@@ -31,8 +31,8 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
-import { toLeadInsert, type LeadDraft } from "@/lib/leadImport-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
+import { toLeadInsert, type LeadDraft } from "@/lib/leadImport";
 import {
   Table,
   TableBody,

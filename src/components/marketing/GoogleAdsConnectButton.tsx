@@ -17,7 +17,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
-import { thrownMessage } from "@/lib/thrownMessage";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 interface ConnectionStatus {
   connected: boolean;
@@ -52,7 +52,7 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
         onConnected?.(data.accounts);
       }
     } catch (e) {
-      setStatus({ connected: false, error: thrownMessage(e) });
+      setStatus({ connected: false, error: errorMessageOf(e) });
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
         setConnecting(false);
       }
     } catch (e) {
-      toast.error(`שגיאה: ${thrownMessage(e)}`);
+      toast.error(`שגיאה: ${errorMessageOf(e)}`);
       setConnecting(false);
     }
   };
@@ -115,7 +115,7 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
       toast.success("Google Ads נותק");
       setStatus({ connected: false });
     } catch (e) {
-      toast.error(`שגיאה: ${thrownMessage(e)}`);
+      toast.error(`שגיאה: ${errorMessageOf(e)}`);
     } finally {
       setDisconnecting(false);
     }

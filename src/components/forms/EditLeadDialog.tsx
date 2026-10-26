@@ -5,9 +5,9 @@ import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import type { EditableLead } from "@/types/crm-b13";
-import { isLeadSource } from "@/lib/crmEnums-b13";
-import { toJson } from "@/lib/json-b13";
+import type { EditableLead } from "@/types/crm";
+import { isLeadSource } from "@/lib/crmEnums";
+import { toJson } from "@/lib/json";
 import { buildLeadStatusChangedData } from "../../../supabase/functions/_shared/automation-status.ts";
 import { Button } from "@/components/ui/button";
 import {

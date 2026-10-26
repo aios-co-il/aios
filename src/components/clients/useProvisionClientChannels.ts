@@ -11,7 +11,7 @@ import {
   shouldCreateDashboardForConnections,
 } from "@/lib/clientConnectionProvision";
 import type { Tables } from "@/integrations/supabase/types";
-import { parseCrmTableList } from "@/lib/crmTableSummary-b13";
+import { parseCrmTableList } from "@/lib/crmTableSummary";
 
 type TableSettings = Record<string, string | boolean | undefined>;
 

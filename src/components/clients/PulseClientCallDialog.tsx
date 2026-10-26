@@ -27,7 +27,7 @@ import {
   isClientCallUpdate,
   resolveClientUpdateType,
 } from "@/lib/clientUpdateType";
-import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 export type PulseClientCallTarget = {
   clientId: string;

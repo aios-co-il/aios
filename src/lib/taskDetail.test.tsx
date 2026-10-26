@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toTaskDetail } from "./taskDetail-b13";
+import { toTaskDetail } from "./taskDetail";
 
 describe("toTaskDetail", () => {
   it("keeps known recurrence frequencies and other fields", () => {
