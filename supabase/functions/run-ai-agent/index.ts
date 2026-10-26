@@ -5775,7 +5775,7 @@ async function executeTool(
   waNotify?: WaNotifyTarget | null,
   surface?: string | null,
   conversationId?: string | null,
-): Promise<any> {
+): Promise<unknown> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
   const db: AgentDatabaseClient = supabase;
