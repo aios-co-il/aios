@@ -1,7 +1,14 @@
 // Carmen FB Tools — single dispatcher for create/update/pause/resume/replace_lead_form on Meta.
 // All write actions require confirmed=true. Approval gating is handled upstream by run-ai-agent
 // via agent_approval_queue; this function performs the actual API call once approved.
+// Callers (AIO-239, ../_shared/ad-tools-auth.ts): the service role (approval execute, scheduler,
+// shutdown runner) with the tenant in the body, or a user JWT scoped to the user's own tenant.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeFbToolRequest } from "../_shared/ad-tools-auth.ts";
+import {
+  createAdScopeStore,
+  createAdToolIdentity,
+} from "../_shared/ad-tools-store.ts";
 import {
   applyVariantToAssetFeedSpec,
   applyVariantToObjectStorySpec,
@@ -132,12 +139,32 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceRoleKey,
     );
-    const body = await req.json().catch(() => ({}));
-    const { tenant_id, action, confirmed } = body;
+    const parsed = await req.json().catch(() => ({}));
+    const body = parsed && typeof parsed === "object" ? parsed : {};
+    const { action, confirmed } = body;
+
+    // Never trust tenant_id from the body for a user: the gate derives it.
+    const gate = await authorizeFbToolRequest({
+      authorization: req.headers.get("Authorization"),
+      serviceRoleKey,
+      body,
+      identity: createAdToolIdentity(supabase),
+      store: createAdScopeStore(supabase),
+      fetchAccountId: async (tenantId, entityId) => {
+        const t = await resolveFbToken(supabase, tenantId, body.client_id);
+        const obj = t ? await fbGet(entityId, "account_id", t) : null;
+        return obj?.account_id ? String(obj.account_id) : null;
+      },
+    });
+    if (!gate.ok)
+      return err(gate.error, gate.status, { message: gate.message });
+    const caller = gate.caller;
+    const tenant_id = caller.tenantId;
 
     if (!tenant_id || !action) return err("tenant_id and action required");
     if (!confirmed)
@@ -621,9 +648,10 @@ Deno.serve(async (req) => {
       .from("agent_action_log")
       .insert({
         tenant_id,
+        user_id: caller.kind === "user" ? caller.userId : null,
         action_type: `fb_${action}`,
         status: "success",
-        action_details: { request: body, result },
+        action_details: { request: body, result, caller: caller.kind },
       })
       .then(
         () => {},

@@ -6,7 +6,9 @@
 // owner fallback, never a group chat whose session row stores the
 // recipient's phone as last speaker). Pulse/notify is always 1:1.
 //
-// Auth: Authorization: Bearer == MANUS_MCP_BEARER (same shared secret as manus-mcp).
+// Auth (fails closed, AIO-239): Authorization: Bearer must be MANUS_MCP_BEARER
+// (same shared secret as manus-mcp) or this project's service-role key. With
+// MANUS_MCP_BEARER unset only the service-role key is accepted.
 //
 // Body: { tenant_id, message, chat_id? }
 
@@ -16,6 +18,7 @@ import {
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
+import { authorizeSecretOrServiceRole } from "../_shared/edge-caller-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,13 +35,6 @@ function json(body: any, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function bearerFrom(req: Request): string | undefined {
-  const h =
-    req.headers.get("authorization") || req.headers.get("Authorization");
-  const m = h?.match(/^Bearer\s+(.+)$/i);
-  return m ? m[1].trim() : undefined;
 }
 
 async function sendViaActionStep(
@@ -130,10 +126,12 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
-  const required = Deno.env.get("MANUS_MCP_BEARER");
-  if (required && bearerFrom(req) !== required) {
-    return json({ error: "unauthorized" }, 401);
-  }
+  const auth = authorizeSecretOrServiceRole({
+    authorization: req.headers.get("Authorization"),
+    secret: Deno.env.get("MANUS_MCP_BEARER"),
+    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  });
+  if (!auth.ok) return json({ error: "unauthorized" }, 401);
 
   let body: any;
   try {

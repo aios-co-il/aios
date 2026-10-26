@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { trustedInternalCron } from "../_shared/edge-caller-auth.ts";
 import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
@@ -49,7 +50,6 @@ Deno.serve(async (req) => {
     const requestBody = await req.json();
     const {
       table_id,
-      _internal_cron,
       start_date,
       end_date,
       scheduled_history_from,
@@ -58,9 +58,17 @@ Deno.serve(async (req) => {
       update_last_sync = true,
     } = requestBody;
 
-    // Auth: skip user check when called internally by cron
+    // Auth: `_internal_cron: true` skips the user check only when the bearer is
+    // this project's service-role key (cron-sync-facebook-ecommerce). From anyone
+    // else (anon key, user JWT) it is ignored and the caller must be a signed-in
+    // user whose RLS can see the table (AIO-239).
+    const internalCron = trustedInternalCron(
+      requestBody,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    );
     let userId: string | null = null;
-    if (!_internal_cron) {
+    if (!internalCron) {
       const {
         data: { user },
         error: authError,
@@ -82,7 +90,7 @@ Deno.serve(async (req) => {
     }
 
     // Use admin client for reads to support both user and cron contexts
-    const readClient = _internal_cron ? supabaseAdmin : supabase;
+    const readClient = internalCron ? supabaseAdmin : supabase;
 
     // Get table with integration settings
     const { data: table, error: tableError } = await readClient
