@@ -657,9 +657,7 @@ export default function AccountingIntegrations() {
   const totalOneTime = showOneTime
     ? filteredClients.reduce((sum, c) => {
         const items = clientOneTimeMap.get(c.id) || [];
-        return (
-          sum + items.reduce((s, i) => s + (i.amount || 0), 0)
-        );
+        return sum + items.reduce((s, i) => s + (i.amount || 0), 0);
       }, 0)
     : 0;
   const totalIncome = totalRetainer + totalOneTime;

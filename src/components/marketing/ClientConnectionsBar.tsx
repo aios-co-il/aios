@@ -33,10 +33,8 @@ export function ClientConnectionsBar({ clientId }: Props) {
         meta_ads: !!client.data?.meta_ads_account_id,
         google_ads: !!client.data?.google_ads_account_id,
         website: !!client.data?.website,
-        facebook:
-          pages.data?.some((p) => p.platform === "facebook") ?? false,
-        instagram:
-          pages.data?.some((p) => p.platform === "instagram") ?? false,
+        facebook: pages.data?.some((p) => p.platform === "facebook") ?? false,
+        instagram: pages.data?.some((p) => p.platform === "instagram") ?? false,
         wordpress: (wp.data?.length ?? 0) > 0,
       };
     },

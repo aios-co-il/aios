@@ -592,8 +592,7 @@ export function TestFlowWithLeadDialog({
           ].filter(Boolean);
           if (fbEntries.length > 0) {
             const notes = manualData.notes || "";
-            testData.notes =
-              (notes ? notes + "\n" : "") + fbEntries.join("\n");
+            testData.notes = (notes ? notes + "\n" : "") + fbEntries.join("\n");
           }
         }
 
@@ -1288,35 +1287,33 @@ export function TestFlowWithLeadDialog({
                             </p>
                           )}
                           {Array.isArray(cfgObject(result.data)?.results) && (
-                              <div className="space-y-1 mt-1">
-                                {parseFlowStepResults(
-                                  cfgObject(result.data)?.results,
-                                ).map(
-                                  (step, si) => (
-                                    <div
-                                      key={si}
-                                      className="text-xs flex items-center gap-1"
-                                    >
-                                      {step.success ? (
-                                        <CheckCircle className="h-3 w-3 text-green-600" />
-                                      ) : (
-                                        <XCircle className="h-3 w-3 text-destructive" />
-                                      )}
-                                      <span>
-                                        {step.step_type === "agent"
-                                          ? "סוכן AI"
-                                          : step.action_type || step.step_type}
-                                      </span>
-                                      {step.error && (
-                                        <span className="text-destructive">
-                                          - {step.error}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            )}
+                            <div className="space-y-1 mt-1">
+                              {parseFlowStepResults(
+                                cfgObject(result.data)?.results,
+                              ).map((step, si) => (
+                                <div
+                                  key={si}
+                                  className="text-xs flex items-center gap-1"
+                                >
+                                  {step.success ? (
+                                    <CheckCircle className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <XCircle className="h-3 w-3 text-destructive" />
+                                  )}
+                                  <span>
+                                    {step.step_type === "agent"
+                                      ? "סוכן AI"
+                                      : step.action_type || step.step_type}
+                                  </span>
+                                  {step.error && (
+                                    <span className="text-destructive">
+                                      - {step.error}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

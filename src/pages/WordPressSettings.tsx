@@ -102,10 +102,7 @@ import {
   parseElementorDiscovery,
   type ElementorDiscovery,
 } from "@/lib/elementorDiscovery";
-import type {
-  TablesInsert,
-  TablesUpdate,
-} from "@/integrations/supabase/types";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import {
   asJsonObject,
   asStringMap,
@@ -312,9 +309,7 @@ export default function WordPressSettings() {
           .select("id, name, tenant_id, tenants(name)")
           .order("name");
         if (error) throw error;
-        return withSharedTenantAccess(
-          (data || []).map((a) => mapAgencyRow(a)),
-        );
+        return withSharedTenantAccess((data || []).map((a) => mapAgencyRow(a)));
       }
 
       if (!tenantId) return [];
@@ -599,9 +594,7 @@ export default function WordPressSettings() {
           .select("id, name, tenant_id, tenants(name)")
           .order("name");
         if (error) throw error;
-        return withSharedTenantAccess(
-          (data || []).map((a) => mapAgencyRow(a)),
-        );
+        return withSharedTenantAccess((data || []).map((a) => mapAgencyRow(a)));
       }
 
       if (!tenantId) return [];
@@ -790,7 +783,9 @@ export default function WordPressSettings() {
       const clean = Object.fromEntries(
         Object.entries(mapping).filter(([_, v]) => v && v.length > 0),
       );
-      const payload: TablesUpdate<"social_media_wordpress_sites"> = { updated_at: new Date().toISOString() };
+      const payload: TablesUpdate<"social_media_wordpress_sites"> = {
+        updated_at: new Date().toISOString(),
+      };
       if (mode === "form") payload.campaign_form_mapping = clean;
       else payload.campaign_url_mapping = clean;
       const { data, error } = await supabase

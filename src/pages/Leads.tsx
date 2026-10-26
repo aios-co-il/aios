@@ -921,9 +921,7 @@ function readFacebookSyncResult(data: unknown): FacebookSyncResult {
 // Bubble pop animation
 const playBubbleAnimation = () => {
   // Create bubble sound using Web Audio API
-  const audioContext = new (
-    window.AudioContext || window.webkitAudioContext
-  )();
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
 
@@ -1935,16 +1933,14 @@ export default function Leads() {
         .eq("active", true)
         .order("full_name");
       if (error) throw error;
-      return (data || []).map(
-        (person): SurfaceSalesPerson => ({
-          id: person.id,
-          full_name: person.full_name,
-          agency_id: person.agency_id,
-          agencyIds: (person.sales_person_agencies || [])
-            .map((row) => row.agency_id)
-            .filter((id): id is string => Boolean(id)),
-        }),
-      );
+      return (data || []).map((person): SurfaceSalesPerson => ({
+        id: person.id,
+        full_name: person.full_name,
+        agency_id: person.agency_id,
+        agencyIds: (person.sales_person_agencies || [])
+          .map((row) => row.agency_id)
+          .filter((id): id is string => Boolean(id)),
+      }));
     },
     enabled: !!tenantId,
     staleTime: 1000 * 60 * 10, // 10 minutes - sales people rarely change
@@ -2987,8 +2983,7 @@ export default function Leads() {
           if (newStatus !== stageId) return false;
           // Check if lead originally wasn't in this stage
           const inOtherStage = Object.values(kanbanStageData).some(
-            (sd) =>
-              sd !== stageData && sd.leads.some((l) => l.id === leadId),
+            (sd) => sd !== stageData && sd.leads.some((l) => l.id === leadId),
           );
           return inOtherStage;
         },
@@ -4975,8 +4970,7 @@ function TableWithStickyScroll({
                           onValueChange={(value) =>
                             updateLeadResponseStatus.mutate({
                               leadId: lead.id,
-                              responseStatus:
-                                value === "none" ? null : value,
+                              responseStatus: value === "none" ? null : value,
                             })
                           }
                         >

@@ -542,8 +542,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: unknownField(error, "message") }),
       {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

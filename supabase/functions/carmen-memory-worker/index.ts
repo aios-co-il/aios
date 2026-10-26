@@ -182,11 +182,7 @@ async function indexCampaigner(
   }
 }
 
-async function indexTask(
-  supabase: DbClient,
-  tenant_id: string,
-  t: JsonObject,
-) {
+async function indexTask(supabase: DbClient, tenant_id: string, t: JsonObject) {
   const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
   if (!assignee) return;
   await upsertPointer(supabase, {

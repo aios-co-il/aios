@@ -68,10 +68,7 @@ Deno.serve(async (req) => {
           .eq("status", "running")
           .gte("last_run", stuckCutoffIso),
       ]);
-      const limit = Math.max(
-        1,
-        Number(settings?.max_concurrent_tasks) || 3,
-      );
+      const limit = Math.max(1, Number(settings?.max_concurrent_tasks) || 3);
       slots.set(tenantId, limit - (count ?? 0));
     }
     const left = slots.get(tenantId)!;

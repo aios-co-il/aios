@@ -411,27 +411,21 @@ export const FlowNodeRF = memo(function FlowNodeRF({
           </div>
         )}
 
-        {nodeData.step_type === "delay" &&
-          delayValue && (
-            <p className="text-xs text-muted-foreground">
-              {delayValue}{" "}
-              {cfgText(config.delay_unit) || "דקות"}
-            </p>
-          )}
+        {nodeData.step_type === "delay" && delayValue && (
+          <p className="text-xs text-muted-foreground">
+            {delayValue} {cfgText(config.delay_unit) || "דקות"}
+          </p>
+        )}
 
         {nodeData.step_type === "loop" && (
           <p className="text-xs text-muted-foreground">
-            {loopField
-              ? `על: {{${loopField}}}`
-              : "הגדר שדה לולאה"}
+            {loopField ? `על: {{${loopField}}}` : "הגדר שדה לולאה"}
           </p>
         )}
 
         {nodeData.step_type === "code" && (
           <p className="text-xs text-muted-foreground font-mono truncate">
-            {code
-              ? code.substring(0, 40) + "..."
-              : "// כתוב קוד JavaScript"}
+            {code ? code.substring(0, 40) + "..." : "// כתוב קוד JavaScript"}
           </p>
         )}
 
@@ -446,13 +440,13 @@ export const FlowNodeRF = memo(function FlowNodeRF({
           skinSlugs.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-0.5">
               {skinSlugs.slice(0, 3).map((s) => (
-                  <span
-                    key={s}
-                    className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 rounded px-1 font-medium"
-                  >
-                    {s}
-                  </span>
-                ))}
+                <span
+                  key={s}
+                  className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 rounded px-1 font-medium"
+                >
+                  {s}
+                </span>
+              ))}
             </div>
           )}
 
@@ -472,8 +466,7 @@ export const FlowNodeRF = memo(function FlowNodeRF({
           config?.hour !== undefined && (
             <p className="text-xs text-muted-foreground">
               {String(config.hour).padStart(2, "0")}:
-              {String(config.minute ?? 0).padStart(2, "0")} בכל
-              יום
+              {String(config.minute ?? 0).padStart(2, "0")} בכל יום
             </p>
           )}
       </div>

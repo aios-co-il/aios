@@ -457,10 +457,8 @@ async function getStickyAgentId(
       .select("cursor_agent_id")
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    const sticky: Pick<
-      Tables<"grok_sticky_agents">,
-      "cursor_agent_id"
-    > | null = data;
+    const sticky: Pick<Tables<"grok_sticky_agents">, "cursor_agent_id"> | null =
+      data;
     const id = String(sticky?.cursor_agent_id || "");
     if (id.startsWith("bc-")) return id;
     const { data: last } = await sb
@@ -478,10 +476,7 @@ async function getStickyAgentId(
     const lastId = String(lastDispatch?.cursor_agent_id || "");
     return lastId.startsWith("bc-") ? lastId : null;
   } catch (e) {
-    console.error(
-      "[grok-mcp] getStickyAgentId failed:",
-      thrownMessage(e),
-    );
+    console.error("[grok-mcp] getStickyAgentId failed:", thrownMessage(e));
     return null;
   }
 }
@@ -505,10 +500,7 @@ async function saveStickyAgent(
       { onConflict: "tenant_id" },
     );
   } catch (e) {
-    console.error(
-      "[grok-mcp] saveStickyAgent failed:",
-      thrownMessage(e),
-    );
+    console.error("[grok-mcp] saveStickyAgent failed:", thrownMessage(e));
   }
 }
 
@@ -730,10 +722,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       lines.join("\n")
     );
   } catch (e) {
-    console.error(
-      "[grok-mcp] recentDispatchContext failed:",
-      thrownMessage(e),
-    );
+    console.error("[grok-mcp] recentDispatchContext failed:", thrownMessage(e));
     return "";
   }
 }

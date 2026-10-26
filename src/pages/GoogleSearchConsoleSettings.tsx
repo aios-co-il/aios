@@ -196,9 +196,9 @@ export default function GoogleSearchConsoleSettings() {
                           {connectedAt && (
                             <span className="text-xs text-green-700/80">
                               חובר בתאריך:{" "}
-                              {new Date(
-                                connectedAt,
-                              ).toLocaleDateString("he-IL")}
+                              {new Date(connectedAt).toLocaleDateString(
+                                "he-IL",
+                              )}
                             </span>
                           )}
                         </div>
@@ -213,7 +213,9 @@ export default function GoogleSearchConsoleSettings() {
                                   setSharingIntegrationName(
                                     readText(settings, "google_email") || "GSC",
                                   );
-                                  setSharingOwnerId(integration.user_id ?? null);
+                                  setSharingOwnerId(
+                                    integration.user_id ?? null,
+                                  );
                                 }}
                               >
                                 <Share2 className="h-4 w-4 ml-2" />

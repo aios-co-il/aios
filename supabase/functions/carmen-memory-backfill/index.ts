@@ -11,12 +11,7 @@ import {
 } from "./legacy-rows.ts";
 
 type SeedModule =
-  | "system_map"
-  | "clients"
-  | "team"
-  | "tasks"
-  | "messages"
-  | "conversations";
+  "system_map" | "clients" | "team" | "tasks" | "messages" | "conversations";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

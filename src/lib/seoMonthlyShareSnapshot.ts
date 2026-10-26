@@ -177,8 +177,7 @@ function normalizeKeywordRow(raw: unknown): SeoShareKeyword | null {
   const prevRaw = kw.position_prev_month;
   const prevPosition =
     typeof prevRaw === "number" && Number.isFinite(prevRaw) ? prevRaw : null;
-  const url =
-    String(kw.url || kw.best_position_url || "").trim() || undefined;
+  const url = String(kw.url || kw.best_position_url || "").trim() || undefined;
   return { keyword, position, volume, prevPosition, url };
 }
 

@@ -336,7 +336,10 @@ function stringOrNull(value: unknown): string | null {
 
 function downloadUrl(shortcuts: unknown, kind: string): string | null {
   return stringOrNull(
-    unknownField(unknownField(unknownField(shortcuts, kind), "data"), "download_url"),
+    unknownField(
+      unknownField(unknownField(shortcuts, kind), "data"),
+      "download_url",
+    ),
   );
 }
 
@@ -369,7 +372,10 @@ export function extractRecallDownloads(bot: unknown): {
   const audioUrl = downloadUrl(shortcuts, "audio_mixed");
   const transcriptUrl = downloadUrl(shortcuts, "transcript");
   const transcriptStatus = stringOrNull(
-    unknownField(unknownField(unknownField(shortcuts, "transcript"), "status"), "code"),
+    unknownField(
+      unknownField(unknownField(shortcuts, "transcript"), "status"),
+      "code",
+    ),
   );
 
   let durationSeconds: number | null = null;
@@ -501,9 +507,7 @@ export function recallTranscriptToText(data: RecallTranscriptPayload): string {
     const lines: { at: number; line: string }[] = [];
     for (const u of obj.utterances) {
       const speaker =
-        u.participant?.name ||
-        nameById.get(u.participant?.id ?? -1) ||
-        "משתתף";
+        u.participant?.name || nameById.get(u.participant?.id ?? -1) || "משתתף";
       const text = (u.words || [])
         .map((w) => w.text)
         .filter(Boolean)

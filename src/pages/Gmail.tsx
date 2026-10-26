@@ -268,9 +268,7 @@ export default function Gmail() {
         const entry = asJsonObject(item);
         return entry.label_id || entry.id || "";
       })
-      .filter(
-        (id): id is string => typeof id === "string" && id.trim() !== "",
-      );
+      .filter((id): id is string => typeof id === "string" && id.trim() !== "");
     if (normalized.length > 0) return normalized;
     return undefined;
   }, [selectedCategoryLabelId, allowedLabels]);
@@ -1196,9 +1194,7 @@ export default function Gmail() {
                           {/* Category badges inline */}
                           {msgCategories.length > 0 &&
                             msgCategories.map((cId) => {
-                              const cat = categories.find(
-                                (c) => c.id === cId,
-                              );
+                              const cat = categories.find((c) => c.id === cId);
                               return cat ? (
                                 <span
                                   key={cId}

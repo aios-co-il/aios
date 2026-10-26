@@ -89,9 +89,7 @@ export default function CampaignAlerts() {
   const { tenant } = useCurrentTenant();
   const tenantId = tenant?.id;
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<AlertFilter>(
-    "all",
-  );
+  const [filter, setFilter] = useState<AlertFilter>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [scanning, setScanning] = useState(false);
 

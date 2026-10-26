@@ -43,7 +43,11 @@ test("taskResultOutput prefers final_output, else the last non-blank assistant m
 test("readWhatsAppNotify accepts complete targets and drops malformed ones", () => {
   assert.deepEqual(readWhatsAppNotify(notify), notify);
   assert.deepEqual(
-    readWhatsAppNotify({ ...notify, automation_id: undefined, phone_number: undefined }),
+    readWhatsAppNotify({
+      ...notify,
+      automation_id: undefined,
+      phone_number: undefined,
+    }),
     notify,
   );
   assert.deepEqual(readWhatsAppNotify({ ...notify, extra: 1 }), notify);

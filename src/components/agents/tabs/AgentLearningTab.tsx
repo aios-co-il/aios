@@ -284,7 +284,11 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
   );
 }
 
-export function AgentLearningTab({ agent }: { agent: { id: string; name: string } }) {
+export function AgentLearningTab({
+  agent,
+}: {
+  agent: { id: string; name: string };
+}) {
   if (isCarmenName(agent.name)) {
     // Rendered inside an agent-settings tab — never as a standalone page.
     return <CarmenInsights embedded />;

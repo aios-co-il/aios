@@ -93,8 +93,11 @@ async function clientIdFrom(
   return data?.client_id ?? null;
 }
 
-export const clientIdForSocialPage = (sb: DbClient, pageId: string, t: string[]) =>
-  clientIdFrom(sb, "social_pages", pageId, t);
+export const clientIdForSocialPage = (
+  sb: DbClient,
+  pageId: string,
+  t: string[],
+) => clientIdFrom(sb, "social_pages", pageId, t);
 export const clientIdForSocialComment = (
   sb: DbClient,
   commentId: string,

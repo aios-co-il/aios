@@ -319,9 +319,7 @@ export default function Clients() {
   });
 
   const getClientFinancialData = (clientId: string) => {
-    return (
-      clientFinancialData?.find((f) => f.client_id === clientId) || null
-    );
+    return clientFinancialData?.find((f) => f.client_id === clientId) || null;
   };
 
   // For super admins: fetch all tenant IDs they own so we can show cross-tenant clients
@@ -1378,7 +1376,10 @@ export default function Clients() {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            window.open(client.folder_link ?? undefined, "_blank")
+                            window.open(
+                              client.folder_link ?? undefined,
+                              "_blank",
+                            )
                           }
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -1760,17 +1761,15 @@ export default function Clients() {
                         {client.client_team &&
                           client.client_team.length > 0 && (
                             <div className="flex flex-wrap gap-1">
-                              {client.client_team.map(
-                                (ct, idx) => (
-                                  <Badge
-                                    key={idx}
-                                    variant="secondary"
-                                    className="text-xs bg-primary/10 text-primary hover:bg-primary/20"
-                                  >
-                                    {ct.campaigners.full_name}
-                                  </Badge>
-                                ),
-                              )}
+                              {client.client_team.map((ct, idx) => (
+                                <Badge
+                                  key={idx}
+                                  variant="secondary"
+                                  className="text-xs bg-primary/10 text-primary hover:bg-primary/20"
+                                >
+                                  {ct.campaigners.full_name}
+                                </Badge>
+                              ))}
                             </div>
                           )}
                         {/* Hide add campaigner option for pure campaigners */}
@@ -1778,9 +1777,7 @@ export default function Clients() {
                           <CampaignerAssignmentPicker
                             assignedCampaignerIds={(
                               client.client_team || []
-                            ).map(
-                              (assignment) => assignment.campaigner_id,
-                            )}
+                            ).map((assignment) => assignment.campaigner_id)}
                             triggerClassName="h-8 w-full text-xs"
                             onAssign={(campaignerId) =>
                               assignCampaignerMutation.mutateAsync({
@@ -1840,9 +1837,8 @@ export default function Clients() {
                 לקוחות עם Meta Ads Account ID:{" "}
                 <strong>
                   {
-                    (clients || []).filter((c) =>
-                      c.meta_ads_account_id?.trim(),
-                    ).length
+                    (clients || []).filter((c) => c.meta_ads_account_id?.trim())
+                      .length
                   }
                 </strong>
               </div>

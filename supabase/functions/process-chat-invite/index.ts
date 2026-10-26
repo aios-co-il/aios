@@ -278,9 +278,12 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("process-chat-invite error:", error);
-    return new Response(JSON.stringify({ error: unknownField(error, "message") }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: unknownField(error, "message") }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

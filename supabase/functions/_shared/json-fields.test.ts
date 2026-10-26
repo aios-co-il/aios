@@ -10,7 +10,9 @@ import {
 } from "./json-fields.ts";
 
 test("jsonField reads object keys and ignores arrays, primitives and null", () => {
-  assert.deepEqual(jsonField({ result: { tools: [] } }, "result"), { tools: [] });
+  assert.deepEqual(jsonField({ result: { tools: [] } }, "result"), {
+    tools: [],
+  });
   assert.deepEqual(jsonField({ a: 1 }, "a"), 1);
   assert.equal(jsonField([1, 2], "length"), undefined);
   assert.equal(jsonField("text", "length"), undefined);

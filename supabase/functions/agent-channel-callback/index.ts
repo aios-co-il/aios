@@ -94,8 +94,7 @@ Deno.serve(async (req) => {
       : "message",
     speaker: optionalText(body.speaker),
     idempotency_key:
-      req.headers.get("Idempotency-Key") ||
-      optionalText(body.idempotency_key),
+      req.headers.get("Idempotency-Key") || optionalText(body.idempotency_key),
     external_message_id: optionalText(body.external_message_id),
     parliament_round:
       typeof body.parliament_round === "number"

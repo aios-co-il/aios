@@ -195,10 +195,7 @@ export async function loadMcpTools(
           .eq("id", conn.id)
           .eq("tenant_id", tenantId);
       } catch (e) {
-        console.warn(
-          "[mcp-tools] cache refresh failed:",
-          thrownMessage(e),
-        );
+        console.warn("[mcp-tools] cache refresh failed:", thrownMessage(e));
       }
     }
 

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -169,7 +173,9 @@ export function EmailActionConfig({
               </Label>
               <Select
                 value={
-                  cfgText(configuration?.sender_domain_id) || selectedDomain?.id || ""
+                  cfgText(configuration?.sender_domain_id) ||
+                  selectedDomain?.id ||
+                  ""
                 }
                 onValueChange={(v) => onConfigChange("sender_domain_id", v)}
               >

@@ -1130,9 +1130,7 @@ export default function GoogleAdsSettings() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() =>
-                                disconnectMutation.mutate(integId)
-                              }
+                              onClick={() => disconnectMutation.mutate(integId)}
                               disabled={disconnectMutation.isPending}
                             >
                               נתק

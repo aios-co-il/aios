@@ -116,10 +116,7 @@ function bearerFrom(req: Request): string | undefined {
   return m ? m[1].trim() : undefined;
 }
 
-async function handleTool(
-  name: string,
-  args: UnknownRecord,
-): Promise<string> {
+async function handleTool(name: string, args: UnknownRecord): Promise<string> {
   const conversationId = String(
     args?.conversation_id ?? args?.conversationId ?? "",
   ).trim();
@@ -242,10 +239,6 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("[agent-channel-mcp]", errorMessageOr(e));
-    return rpcError(
-      id,
-      -32603,
-      `Internal error: ${String(errorMessageOr(e))}`,
-    );
+    return rpcError(id, -32603, `Internal error: ${String(errorMessageOr(e))}`);
   }
 });

@@ -114,9 +114,7 @@ export default function FacebookSettings() {
       if (selectedLeadAdsId) setSelectedLeadAdsId("");
       return;
     }
-    const stillExists = leadAdsList.some(
-      (i) => i.id === selectedLeadAdsId,
-    );
+    const stillExists = leadAdsList.some((i) => i.id === selectedLeadAdsId);
     if (!stillExists) {
       const ownFirst = leadAdsList.find((i) => i._isOwn) || leadAdsList[0];
       setSelectedLeadAdsId(ownFirst.id);
@@ -429,8 +427,7 @@ export default function FacebookSettings() {
   );
 
   // Check if this integration is shared from another
-  const isSharedConnection = !!leadAdsIntegration
-    ?.shared_from_integration_id;
+  const isSharedConnection = !!leadAdsIntegration?.shared_from_integration_id;
   const isOwnConnection = leadAdsIntegration?.is_active && !isSharedConnection;
 
   // Check if token is valid (Facebook tokens start with "EAA" and are long)

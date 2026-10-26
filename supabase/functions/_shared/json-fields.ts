@@ -10,7 +10,10 @@ export function asJsonObject(value: Json | undefined): JsonObject | undefined {
 }
 
 /** `value?.[key]` for parsed JSON: undefined unless `value` is a JSON object. */
-export function jsonField(value: Json | undefined, key: string): Json | undefined {
+export function jsonField(
+  value: Json | undefined,
+  key: string,
+): Json | undefined {
   return asJsonObject(value)?.[key];
 }
 
@@ -21,7 +24,10 @@ export function jsonArray(value: Json | undefined): Json[] {
 
 /** A property of a thrown/unknown value, like `(value as any)?.[key]`. */
 export function unknownField(value: unknown, key: string): unknown {
-  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+  if (
+    (typeof value !== "object" && typeof value !== "function") ||
+    value === null
+  ) {
     return undefined;
   }
   return key in value ? Reflect.get(value, key) : undefined;

@@ -38,11 +38,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
-import {
-  cfgObject,
-  cfgText,
-  errorMessage,
-} from "@/lib/automationStepConfig";
+import { cfgObject, cfgText, errorMessage } from "@/lib/automationStepConfig";
 import { parseFlowStepResults } from "./automationRunResults";
 import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
 
@@ -300,11 +296,8 @@ export function ExecutionHistoryPanel({
                                 )}
                                 {isFlow && flowSteps.length > 0 && (
                                   <span className="text-xs text-muted-foreground">
-                                    {
-                                      flowSteps.filter((s) => s.success)
-                                        .length
-                                    }
-                                    /{flowSteps.length} שלבים
+                                    {flowSteps.filter((s) => s.success).length}/
+                                    {flowSteps.length} שלבים
                                   </span>
                                 )}
                                 {log.error_message && (
@@ -527,9 +520,7 @@ export function ExecutionHistoryPanel({
 
                         {/* Agent output summary for quick view */}
                         {agentOutput &&
-                          !flowSteps.some(
-                            (s) => s.action_type === "agent",
-                          ) && (
+                          !flowSteps.some((s) => s.action_type === "agent") && (
                             <div className="rounded-md bg-muted p-2">
                               <p className="text-xs font-medium text-muted-foreground mb-1">
                                 תוצאת סוכן AI:
