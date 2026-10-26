@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   defaultProject,
   groupByDepartment,
@@ -28,12 +27,12 @@ const row = (over: Partial<WorkshopListRow>): WorkshopListRow => ({
 });
 
 test("statuses read in Hebrew", () => {
-  assert.equal(statusLabel("draft"), "טיוטה");
-  assert.equal(statusLabel("in_progress"), "בעבודה");
-  assert.equal(statusLabel("waiting_approval"), "ממתין לאישור");
-  assert.equal(statusLabel("approved"), "מאושר");
-  assert.equal(statusLabel("published"), "פורסם");
-  assert.equal(statusLabel("failed"), "נכשל");
+  expect(statusLabel("draft")).toBe("טיוטה");
+  expect(statusLabel("in_progress")).toBe("בעבודה");
+  expect(statusLabel("waiting_approval")).toBe("ממתין לאישור");
+  expect(statusLabel("approved")).toBe("מאושר");
+  expect(statusLabel("published")).toBe("פורסם");
+  expect(statusLabel("failed")).toBe("נכשל");
 });
 
 test("departments come in registry order with their items", () => {
@@ -44,16 +43,13 @@ test("departments come in registry order with their items", () => {
     row({ id: "w", department_hint: "web" }),
     row({ id: "c2", stage_type: "copy" }),
   ]);
-  assert.deepEqual(
-    groups.map((g) => [g.department, g.items.map((i) => i.id)]),
-    [
-      ["creative", ["b"]],
-      ["copy", ["c", "c2"]],
-      ["seo", ["s"]],
-      ["web", ["w"]],
-    ],
-  );
-  assert.equal(groups[1].label, "קופי");
+  expect(groups.map((g) => [g.department, g.items.map((i) => i.id)])).toEqual([
+    ["creative", ["b"]],
+    ["copy", ["c", "c2"]],
+    ["seo", ["s"]],
+    ["web", ["w"]],
+  ]);
+  expect(groups[1].label).toBe("קופי");
 });
 
 test("one client in view groups by department only", () => {
@@ -61,10 +57,10 @@ test("one client in view groups by department only", () => {
     [row({ id: "a", client_id: "c1", has_board: true })],
     false,
   );
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].count, 1);
-  assert.equal(groups[0].departments[0].department, "creative");
-  assert.deepEqual(groupProjects([], false), []);
+  expect(groups.length).toBe(1);
+  expect(groups[0].count).toBe(1);
+  expect(groups[0].departments[0].department).toBe("creative");
+  expect(groupProjects([], false)).toEqual([]);
 });
 
 test("every client in view groups by client, unassigned last", () => {
@@ -77,28 +73,21 @@ test("every client in view groups by client, unassigned last", () => {
     ],
     true,
   );
-  assert.deepEqual(
-    groups.map((g) => [g.clientId, g.name, g.count]),
-    [
-      ["cb", "Beta", 2],
-      ["ca", "Alpha", 1],
-      [null, "ללא לקוח", 1],
-    ],
-  );
-  assert.deepEqual(
-    groups[0].departments.map((d) => d.department),
-    ["creative"],
-  );
-  assert.equal(groups[1].departments[0].department, "copy");
+  expect(groups.map((g) => [g.clientId, g.name, g.count])).toEqual([
+    ["cb", "Beta", 2],
+    ["ca", "Alpha", 1],
+    [null, "ללא לקוח", 1],
+  ]);
+  expect(groups[0].departments.map((d) => d.department)).toEqual(["creative"]);
+  expect(groups[1].departments[0].department).toBe("copy");
 });
 
 test("with no project in the URL the latest board opens", () => {
-  assert.equal(
+  expect(
     defaultProject([
       row({ id: "copy", has_copy: true }),
       row({ id: "board", has_board: true }),
     ])?.id,
-    "board",
-  );
-  assert.equal(defaultProject([row({ id: "copy" })]), null);
+  ).toBe("board");
+  expect(defaultProject([row({ id: "copy" })])).toBe(null);
 });
