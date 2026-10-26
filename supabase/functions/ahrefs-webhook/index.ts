@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asArray, asRecord, asRecords } from "../_shared/provider-json-b23.ts";
+
+const targetDomainOf = (table: Record<string, unknown>) =>
+  asRecord(table.integration_settings).targetDomain;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -201,10 +205,9 @@ Deno.serve(async (req) => {
               .eq("client_id", resolved_client_id)
               .eq("integration_type", "ahrefs");
 
-            const domainTableExists = existingTables?.some((t: any) => {
-              const settings = t.integration_settings as any;
-              return settings?.targetDomain === domain;
-            });
+            const domainTableExists = asRecords(existingTables).some(
+              (t) => targetDomainOf(t) === domain,
+            );
 
             if (!domainTableExists) {
               await supabase.from("crm_tables").insert({
@@ -235,23 +238,19 @@ Deno.serve(async (req) => {
               .eq("integration_type", "ahrefs");
 
             // Find the table matching this specific domain
+            const tableRows = asRecords(crmTables);
             const matchingTable =
-              crmTables?.find((t: any) => {
-                const settings = t.integration_settings as any;
-                return settings?.targetDomain === domain;
-              }) || (crmTables && crmTables.length > 0 ? crmTables[0] : null);
+              tableRows.find((t) => targetDomainOf(t) === domain) ||
+              (tableRows.length > 0 ? tableRows[0] : null);
 
             if (matchingTable) {
               const crmTableId = matchingTable.id;
-              const rd = (report_data as any) || {};
-              const snapshot = rd.snapshot || {};
-              const organicKeywords = Array.isArray(rd.organic_keywords)
-                ? rd.organic_keywords
-                : [];
-              const trackedKeywords = Array.isArray(rd.tracked_keywords)
-                ? rd.tracked_keywords
-                : [];
-              const allKeywords = [...organicKeywords, ...trackedKeywords];
+              const rd = asRecord(report_data);
+              const snapshot = asRecord(rd.snapshot);
+              const allKeywords = [
+                ...asArray(rd.organic_keywords),
+                ...asArray(rd.tracked_keywords),
+              ].map(asRecord);
               const reportDateVal =
                 report_date || new Date().toISOString().split("T")[0];
 
@@ -260,10 +259,14 @@ Deno.serve(async (req) => {
                 .from("crm_records")
                 .delete()
                 .eq("table_id", crmTableId)
-                .contains("data", { report_date: reportDateVal } as any);
+                .contains("data", { report_date: reportDateVal });
 
               // Build records
-              const crmRecords: any[] = [];
+              const crmRecords: {
+                table_id: unknown;
+                tenant_id: unknown;
+                data: Record<string, unknown>;
+              }[] = [];
               if (allKeywords.length > 0) {
                 for (const kw of allKeywords) {
                   crmRecords.push({
@@ -275,7 +278,7 @@ Deno.serve(async (req) => {
                       position_prev_month: kw.position_prev_month ?? null,
                       position_change:
                         kw.position_prev_month != null && kw.position != null
-                          ? kw.position_prev_month - kw.position
+                          ? Number(kw.position_prev_month) - Number(kw.position)
                           : null,
                       traffic: kw.traffic ?? 0,
                       traffic_prev_month: kw.traffic_prev_month ?? 0,

@@ -2,6 +2,7 @@
 // re-invoking import-broadcast-list-sheet with each list's stored source_config.
 // Schedule via pg_cron (e.g. hourly).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { asRecord, errorMessage } from "../_shared/provider-json-b23.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
       .eq("source", "google_sheet")
       .limit(50);
 
-    const results: any[] = [];
+    const results: { id: unknown; ok: boolean; total: unknown }[] = [];
     for (const l of lists || []) {
       const cfg = l.source_config || {};
       if (!cfg.sheetId) continue;
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
           }),
         },
       );
-      const j = await r.json().catch(() => ({}));
+      const j: unknown = await r.json().catch(() => ({}));
       if (!r.ok) {
         await db
           .from("broadcast_lists")
@@ -56,17 +57,20 @@ Deno.serve(async (req) => {
           })
           .eq("id", l.id);
       }
-      results.push({ id: l.id, ok: r.ok, total: j?.total });
+      results.push({ id: l.id, ok: r.ok, total: asRecord(j).total });
     }
     return new Response(
       JSON.stringify({ success: true, synced: results.length, results }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[broadcast-list-sync-cron]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({ error: String(errorMessage(e) || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

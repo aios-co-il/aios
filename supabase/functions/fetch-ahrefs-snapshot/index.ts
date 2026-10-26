@@ -3,6 +3,30 @@
 // (SEO crm_table auto-creation, crm_records seeding) happen in one place.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { mergeTrackedKeywordRows } from "../_shared/gscPosition.ts";
+import {
+  asRecord,
+  asRecords,
+  isRecord,
+  optString,
+} from "../_shared/provider-json-b23.ts";
+
+type OrganicRow = {
+  keyword: unknown;
+  position: unknown;
+  traffic: unknown;
+  volume: unknown;
+  kd: unknown;
+  cpc: unknown;
+  url: unknown;
+};
+
+type KeywordMetrics = { volume: unknown; kd: unknown; cpc: unknown };
+
+/** Keyword rows from keywords-explorer/overview (`keywords` or `metrics`). */
+const overviewKeywordRows = (json: unknown) => {
+  const body = asRecord(json);
+  return asRecords(Array.isArray(body.keywords) ? body.keywords : body.metrics);
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,18 +214,19 @@ Deno.serve(async (req) => {
           console.warn(`projects list fetch failed: status=${res.status}`);
           return null;
         }
-        const json = await res.json();
-        const projects = Array.isArray(json?.projects) ? json.projects : [];
+        const projects = asRecords(asRecord(await res.json()).projects);
         const target = normalizeDomain(targetDomain);
+        const projectDomain = (p: Record<string, unknown>) =>
+          normalizeDomain(optString(p.url));
         const match =
-          projects.find((p: any) => normalizeDomain(p.url) === target) ||
-          projects.find((p: any) => normalizeDomain(p.url).endsWith(target)) ||
-          projects.find((p: any) => target.endsWith(normalizeDomain(p.url)));
+          projects.find((p) => projectDomain(p) === target) ||
+          projects.find((p) => projectDomain(p).endsWith(target)) ||
+          projects.find((p) => target.endsWith(projectDomain(p)));
         if (!match) return null;
         return {
           projectId: String(match.project_id),
-          mode: match.mode,
-          protocol: match.protocol,
+          mode: optString(match.mode),
+          protocol: optString(match.protocol),
         };
       } catch (e) {
         console.warn(
@@ -232,11 +257,8 @@ Deno.serve(async (req) => {
         )
         .order("updated_at", { ascending: false })
         .limit(20);
-      for (const table of (seoTables as any[]) || []) {
-        const settings = (table?.integration_settings || {}) as Record<
-          string,
-          unknown
-        >;
+      for (const table of asRecords(seoTables)) {
+        const settings = asRecord(table.integration_settings);
         const pid = settings.ahrefs_project_id;
         if (!pid) continue;
         const tableDomain = normalizeDomain(
@@ -261,16 +283,17 @@ Deno.serve(async (req) => {
         .not("metadata->ahrefs_project_id", "is", null)
         .order("report_date", { ascending: false })
         .limit(20);
-      const rows = (lastWithProject as any[]) || [];
+      const rows = asRecords(lastWithProject);
       const match =
-        rows.find((r: any) => normalizeDomain(r.domain) === domain) || rows[0];
-      const meta = match?.metadata as any;
-      const savedPid = meta?.ahrefs_project_id;
+        rows.find((r) => normalizeDomain(optString(r.domain)) === domain) ||
+        rows[0];
+      const meta = asRecord(match?.metadata);
+      const savedPid = meta.ahrefs_project_id;
       if (savedPid) {
         return {
-          projectId: savedPid,
-          mode: meta?.used_mode,
-          protocol: meta?.used_protocol,
+          projectId: typeof savedPid === "number" ? savedPid : String(savedPid),
+          mode: optString(meta.used_mode),
+          protocol: optString(meta.used_protocol),
         };
       }
 
@@ -278,11 +301,12 @@ Deno.serve(async (req) => {
     };
 
     // Helper: pull tracked keywords from Rank Tracker (FREE endpoints).
-    const fetchTrackedKeywords = async (
-      pid: string | number,
-    ): Promise<{ tracked: any[]; source: string | null }> => {
-      const trackedByKey = new Map<string, any>();
-      const normalizeTracked = (k: any, source: string, device?: string) => ({
+    const fetchTrackedKeywords = async (pid: string | number) => {
+      const normalizeTracked = (
+        k: Record<string, unknown>,
+        source: string,
+        device?: string,
+      ) => ({
         keyword: String(k.keyword || "").trim(),
         position: k.position ?? k.best_position ?? null,
         position_prev_month: k.position_prev ?? k.best_position_prev ?? null,
@@ -299,9 +323,17 @@ Deno.serve(async (req) => {
         _source: source,
         _device: device ?? null,
       });
-      const addRows = (rows: any[], source: string, device?: string) => {
+      const trackedByKey = new Map<
+        string,
+        ReturnType<typeof normalizeTracked>
+      >();
+      const addRows = (rows: unknown[], source: string, device?: string) => {
         for (const row of rows) {
-          if (!row || typeof row.keyword !== "string" || !row.keyword.trim())
+          if (
+            !isRecord(row) ||
+            typeof row.keyword !== "string" ||
+            !row.keyword.trim()
+          )
             continue;
           const n = normalizeTracked(row, source, device);
           const key = [
@@ -354,8 +386,8 @@ Deno.serve(async (req) => {
             },
           });
           if (r.ok) {
-            const j = await r.json();
-            const overviews = Array.isArray(j?.overviews) ? j.overviews : [];
+            const j = asRecord(await r.json());
+            const overviews = Array.isArray(j.overviews) ? j.overviews : [];
             addRows(overviews, "rank-tracker-overview", device);
             console.log(
               `tracked_only Rank Tracker: project=${pid} date=${trackerDate} device=${device} rows=${overviews.length}`,
@@ -378,8 +410,8 @@ Deno.serve(async (req) => {
           },
         });
         if (r.ok) {
-          const j = await r.json();
-          const rows = Array.isArray(j?.keywords) ? j.keywords : [];
+          const j = asRecord(await r.json());
+          const rows = Array.isArray(j.keywords) ? j.keywords : [];
           addRows(rows, "management-project-keywords");
           console.log(
             `tracked_only Project Keywords fallback: project=${pid} rows=${rows.length}`,
@@ -392,7 +424,9 @@ Deno.serve(async (req) => {
 
     // Rank Tracker can fail and leave a keyword list with no positions.
     // Keep ranks already stored on earlier reports for this domain.
-    const fillTrackedFromHistory = async (rows: any[]) => {
+    const fillTrackedFromHistory = async (
+      rows: Record<string, unknown>[],
+    ): Promise<Record<string, unknown>[]> => {
       const { data: prevReports } = await supabase
         .from("ahrefs_reports")
         .select("report_data, domain")
@@ -400,15 +434,15 @@ Deno.serve(async (req) => {
         .eq("client_id", client.id)
         .order("report_date", { ascending: false })
         .limit(20);
-      const all = (prevReports as any[]) || [];
+      const all = asRecords(prevReports);
       const sameDomain = all.filter(
-        (r) => normalizeDomain(r.domain) === domain,
+        (r) => normalizeDomain(optString(r.domain)) === domain,
       );
       const history = sameDomain.length > 0 ? sameDomain : all;
       let filled = Array.isArray(rows) ? rows : [];
       for (const prev of history) {
         filled = mergeTrackedKeywordRows(
-          prev?.report_data?.tracked_keywords,
+          asRecord(prev.report_data).tracked_keywords,
           filled,
         );
       }
@@ -449,18 +483,19 @@ Deno.serve(async (req) => {
         .eq("client_id", client.id)
         .order("report_date", { ascending: false })
         .limit(20);
+      const latestRows = asRecords(latestReports);
       const latest =
-        ((latestReports as any[]) || []).find(
-          (r: any) => normalizeDomain(r.domain) === domain,
-        ) || ((latestReports as any[]) || [])[0];
+        latestRows.find(
+          (r) => normalizeDomain(optString(r.domain)) === domain,
+        ) || latestRows[0];
 
       if (latest) {
         const mergedReportData = {
-          ...(latest.report_data || {}),
+          ...asRecord(latest.report_data),
           tracked_keywords: tracked,
         };
         const mergedMetadata = {
-          ...(latest.metadata || {}),
+          ...asRecord(latest.metadata),
           ahrefs_project_id: String(projectId),
           tracked_source: source,
           tracked_only_synced_at: new Date().toISOString(),
@@ -573,7 +608,7 @@ Deno.serve(async (req) => {
         : baseModes;
 
     // 1) Domain overview (snapshot) — try mode/protocol combos, then dates
-    let overviewJson: any = null;
+    let overviewJson: unknown = null;
     let usedDate: string | null = null;
     let usedMode = "subdomains";
     let usedProtocol = "both";
@@ -633,13 +668,13 @@ Deno.serve(async (req) => {
         },
       );
     }
-    const m = overviewJson?.metrics || overviewJson || {};
+    const m = asRecord(asRecord(overviewJson).metrics || overviewJson);
     const reportDate = usedDate;
 
     // 2) Organic keywords (top ~500) — use the same mode/protocol that worked
     // NOTE: Ahrefs v3 organic-keywords returns best_position / sum_traffic (not position / traffic).
-    const mapOrganicRows = (rows: any[]) =>
-      (rows || []).map((k: any) => ({
+    const mapOrganicRows = (rows: unknown): OrganicRow[] =>
+      asRecords(rows).map((k) => ({
         keyword: k.keyword,
         position: k.best_position ?? k.position ?? null,
         traffic: k.sum_traffic ?? k.traffic ?? 0,
@@ -649,7 +684,9 @@ Deno.serve(async (req) => {
         url: k.best_position_url ?? k.url ?? "",
       }));
 
-    const fetchOrganicKeywords = async (target: string): Promise<any[]> => {
+    const fetchOrganicKeywords = async (
+      target: string,
+    ): Promise<OrganicRow[]> => {
       const kwUrl = `https://api.ahrefs.com/v3/site-explorer/organic-keywords?target=${encodeURIComponent(target)}&date=${reportDate}&country=${country}&protocol=${usedProtocol}&mode=${usedMode}&output=json&limit=500&select=keyword,volume,keyword_difficulty,cpc,sum_traffic,best_position,best_position_url`;
       const kwRes = await fetch(kwUrl, {
         headers: {
@@ -664,11 +701,10 @@ Deno.serve(async (req) => {
         );
         return [];
       }
-      const kwJson = await kwRes.json();
-      return mapOrganicRows(kwJson?.keywords || []);
+      return mapOrganicRows(asRecord(await kwRes.json()).keywords);
     };
 
-    let organic_keywords: any[] = await fetchOrganicKeywords(domain);
+    let organic_keywords: OrganicRow[] = await fetchOrganicKeywords(domain);
     if (organic_keywords.length === 0 && !domain.startsWith("www.")) {
       const wwwRows = await fetchOrganicKeywords(`www.${domain}`);
       if (wwwRows.length > 0) organic_keywords = wwwRows;
@@ -679,15 +715,15 @@ Deno.serve(async (req) => {
     // Compute Top 3 / Top 10 keyword counts from the organic keywords list (up to limit=500).
     // Fallback to tracked_keywords (rank tracker) when organic is empty so the snapshot stays useful.
     const top3Count = organic_keywords.filter(
-      (k: any) =>
+      (k) =>
         typeof k.position === "number" && k.position >= 1 && k.position <= 3,
     ).length;
     const top10Count = organic_keywords.filter(
-      (k: any) =>
+      (k) =>
         typeof k.position === "number" && k.position >= 1 && k.position <= 10,
     ).length;
 
-    const snapshot: Record<string, any> = {
+    const snapshot: Record<string, unknown> = {
       dr: m.domain_rating,
       org_traffic: m.org_traffic ?? m.organic_traffic,
       org_keywords_total: m.org_keywords ?? m.organic_keywords,
@@ -711,8 +747,8 @@ Deno.serve(async (req) => {
           },
         });
         if (r.ok) {
-          const j = await r.json();
-          const mm = j?.metrics || j || {};
+          const j: unknown = await r.json();
+          const mm = asRecord(asRecord(j).metrics || j);
           return {
             date: ds,
             dr: mm.domain_rating,
@@ -742,7 +778,7 @@ Deno.serve(async (req) => {
     };
 
     // 4) Tracked (Rank Tracker) keywords — auto-resolved project above when possible.
-    let tracked_keywords: any[] = [];
+    let tracked_keywords: Record<string, unknown>[] = [];
     let trackedSource: string | null = null;
     if (projectId) {
       try {
@@ -778,7 +814,7 @@ Deno.serve(async (req) => {
       Array.isArray(tracked_keywords) &&
       tracked_keywords.length > 0
     ) {
-      organic_keywords = tracked_keywords.map((k: any) => ({
+      organic_keywords = tracked_keywords.map((k) => ({
         keyword: k.keyword,
         position: k.position ?? k.best_position ?? null,
         traffic: k.traffic ?? 0,
@@ -789,8 +825,8 @@ Deno.serve(async (req) => {
       }));
     }
 
-    const posOf = (k: any) => {
-      const p = k?.position ?? k?.best_position;
+    const posOf = (k: OrganicRow) => {
+      const p = k.position;
       return typeof p === "number" && p >= 1 ? p : null;
     };
     if (organic_keywords.length > 0) {
@@ -814,20 +850,14 @@ Deno.serve(async (req) => {
     //    and (b) every GSC keyword passed in that's not already in organic/tracked.
     //    These are the same data the user sees in the GSC tab and the
     //    "ביטויים במעקב" tab, so they need volume to be useful.
-    const gsc_keyword_metrics: Record<
-      string,
-      { volume: number | null; kd: number | null; cpc: number | null }
-    > = {};
+    const gsc_keyword_metrics: Record<string, KeywordMetrics> = {};
     try {
-      const norm = (s: any) =>
+      const norm = (s: unknown) =>
         String(s || "")
           .toLowerCase()
           .trim();
 
-      const haveVolume = new Map<
-        string,
-        { volume: number | null; kd: number | null; cpc: number | null }
-      >();
+      const haveVolume = new Map<string, KeywordMetrics>();
       for (const k of organic_keywords) {
         const key = norm(k.keyword);
         if (!key) continue;
@@ -892,12 +922,7 @@ Deno.serve(async (req) => {
               );
               continue;
             }
-            const j2 = await res2.json();
-            const rows2 = Array.isArray(j2?.keywords)
-              ? j2.keywords
-              : Array.isArray(j2?.metrics)
-                ? j2.metrics
-                : [];
+            const rows2 = overviewKeywordRows(await res2.json());
             for (const r of rows2) {
               const key = norm(r.keyword);
               if (!key) continue;
@@ -909,12 +934,7 @@ Deno.serve(async (req) => {
             }
             continue;
           }
-          const j = await res.json();
-          const rows = Array.isArray(j?.keywords)
-            ? j.keywords
-            : Array.isArray(j?.metrics)
-              ? j.metrics
-              : [];
+          const rows = overviewKeywordRows(await res.json());
           for (const r of rows) {
             const key = norm(r.keyword);
             if (!key) continue;

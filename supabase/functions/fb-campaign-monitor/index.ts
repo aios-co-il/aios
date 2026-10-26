@@ -1,6 +1,16 @@
 // Cron: scans all tenants' active Facebook campaigns, detects anomalies, writes to campaign_alerts.
 import type {} from "../_shared/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  asArray,
+  asRecord,
+  errorMessage,
+  isRecord,
+  optString,
+} from "../_shared/provider-json-b23.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +27,40 @@ type AlertInput = {
   ad_account_id?: string;
   alert_type: string;
   severity: "info" | "warning" | "critical";
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 };
+
+type ScanStats = {
+  tenants: number;
+  campaigns_scanned: number;
+  alerts_created: number;
+  errors: number;
+};
+
+type FbAccount = { id?: string; name?: string; account_status: unknown };
+
+type FbCampaign = {
+  id?: string;
+  name?: string;
+  effective_status?: string;
+  issues_info: unknown;
+};
+
+const toAccount = (row: unknown): FbAccount => {
+  const acc = asRecord(row);
+  return {
+    id: optString(acc.id),
+    name: optString(acc.name),
+    account_status: acc.account_status,
+  };
+};
+
+const toCampaign = (row: Record<string, unknown>): FbCampaign => ({
+  id: optString(row.id),
+  name: optString(row.name),
+  effective_status: optString(row.effective_status),
+  issues_info: row.issues_info,
+});
 
 // KPI exceptions are owned by campaign-pulse-snapshot so they share its
 // target-aware filter, AI verification and campaign-level dedupe. This monitor
@@ -30,7 +72,7 @@ const NOTIFY_TYPES = new Set([
 ]);
 
 async function resolveRecipients(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
   client_id?: string | null,
 ) {
@@ -42,7 +84,9 @@ async function resolveRecipients(
     .select("user_id, role")
     .eq("tenant_id", tenant_id)
     .in("role", ["owner", "admin", "agency_owner", "agency_manager"]);
-  const managerIds = (managers || []).map((m: any) => m.user_id);
+  const managerIds = (managers || []).map(
+    (m: { user_id: string }) => m.user_id,
+  );
   if (managerIds.length) {
     const { data: profs } = await supabase
       .from("profiles")
@@ -63,7 +107,9 @@ async function resolveRecipients(
         .from("campaigner_agencies")
         .select("campaigner_id")
         .eq("agency_id", client.agency_id);
-      const campIds = (links || []).map((l: any) => l.campaigner_id);
+      const campIds = (links || []).map(
+        (l: { campaigner_id: string }) => l.campaigner_id,
+      );
       if (campIds.length) {
         const { data: camps } = await supabase
           .from("campaigners")
@@ -78,7 +124,7 @@ async function resolveRecipients(
 }
 
 async function notifyWhatsapp(
-  supabase: any,
+  supabase: SupabaseClient,
   alert: AlertInput,
   alert_id: string,
 ) {
@@ -138,7 +184,7 @@ async function notifyWhatsapp(
     .eq("id", alert_id);
 }
 
-async function upsertAlert(supabase: any, alert: AlertInput) {
+async function upsertAlert(supabase: SupabaseClient, alert: AlertInput) {
   // Avoid duplicates: skip if same open alert exists in last 24h
   const { data: existing } = await supabase
     .from("campaign_alerts")
@@ -161,16 +207,17 @@ async function upsertAlert(supabase: any, alert: AlertInput) {
 }
 
 async function scanCampaign(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
-  acc: any,
-  c: any,
-  stats: any,
+  acc: FbAccount,
+  c: FbCampaign,
+  stats: ScanStats,
 ) {
   const isStopped =
     c.effective_status &&
     !["ACTIVE", "PAUSED", "CAMPAIGN_PAUSED"].includes(c.effective_status);
-  const hasIssues = c.issues_info && c.issues_info.length > 0;
+  const hasIssues = asArray(c.issues_info).length > 0;
+  if (!c.id) return;
 
   if (isStopped) {
     const r = await upsertAlert(supabase, {
@@ -204,11 +251,11 @@ async function scanCampaign(
 }
 
 async function scanAccount(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
   token: string,
-  acc: any,
-  stats: any,
+  acc: FbAccount,
+  stats: ScanStats,
 ) {
   if (Number(acc.account_status) !== 1) {
     const r = await upsertAlert(supabase, {
@@ -224,7 +271,7 @@ async function scanAccount(
   }
 
   const fields = "id,name,status,effective_status,daily_budget,issues_info";
-  const [campJson, adsJ] = await Promise.all([
+  const [campJson, adsJ]: unknown[] = await Promise.all([
     fetch(
       `https://graph.facebook.com/v21.0/${acc.id}/campaigns?fields=${fields}&limit=200&access_token=${token}`,
     ).then((r) => r.json()),
@@ -232,29 +279,36 @@ async function scanAccount(
       `https://graph.facebook.com/v21.0/${acc.id}/ads?fields=id,name,effective_status,campaign{id,name}&limit=200&effective_status=["DISAPPROVED","PENDING_REVIEW"]&access_token=${token}`,
     ).then((r) => r.json()),
   ]);
-  if (campJson?.error) {
+  if (asRecord(campJson).error) {
     stats.errors++;
     return;
   }
 
-  const campaigns = campJson?.data || [];
-  stats.campaigns_scanned += campaigns.length;
+  const rawCampaigns = asArray(asRecord(campJson).data);
+  stats.campaigns_scanned += rawCampaigns.length;
+  const campaigns = rawCampaigns.filter(isRecord).map(toCampaign);
   // Parallel per-campaign in chunks to limit concurrency
   const chunkSize = 8;
   for (let i = 0; i < campaigns.length; i += chunkSize) {
     await Promise.all(
       campaigns
         .slice(i, i + chunkSize)
-        .map((c: any) => scanCampaign(supabase, tenant_id, acc, c, stats)),
+        .map((c) => scanCampaign(supabase, tenant_id, acc, c, stats)),
     );
   }
 
-  for (const ad of adsJ?.data || []) {
-    if (["DISAPPROVED", "PENDING_REVIEW"].includes(ad.effective_status)) {
+  for (const ad of asArray(asRecord(adsJ).data).filter(isRecord)) {
+    const campaign = asRecord(ad.campaign);
+    const campaignId = optString(campaign.id) || optString(ad.id);
+    if (
+      campaignId &&
+      (ad.effective_status === "DISAPPROVED" ||
+        ad.effective_status === "PENDING_REVIEW")
+    ) {
       const r = await upsertAlert(supabase, {
         tenant_id,
-        campaign_id: ad.campaign?.id || ad.id,
-        campaign_name: ad.campaign?.name,
+        campaign_id: campaignId,
+        campaign_name: optString(campaign.name),
         ad_account_id: acc.id,
         alert_type: "ad_disapproved",
         severity:
@@ -271,42 +325,46 @@ async function scanAccount(
 }
 
 async function scanTenant(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
   token: string,
-  stats: any,
+  stats: ScanStats,
 ) {
   stats.tenants++;
   try {
     const accRes = await fetch(
       `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status&limit=50&access_token=${token}`,
     );
-    const accJson = await accRes.json();
-    if (accJson?.error) {
+    const accJson = asRecord(await accRes.json());
+    if (accJson.error) {
       stats.errors++;
       return;
     }
-    const accounts = accJson?.data || [];
+    const accounts = asArray(accJson.data).map(toAccount);
     // Parallel accounts
     await Promise.all(
-      accounts.map((acc: any) =>
-        scanAccount(supabase, tenant_id, token, acc, stats).catch((e: any) => {
+      accounts.map((acc) =>
+        scanAccount(supabase, tenant_id, token, acc, stats).catch((e) => {
           console.error(
             "[fb-campaign-monitor] account error",
             acc.id,
-            e?.message,
+            errorMessage(e),
           );
           stats.errors++;
         }),
       ),
     );
-  } catch (e: any) {
-    console.error("[fb-campaign-monitor] tenant error", tenant_id, e?.message);
+  } catch (e) {
+    console.error(
+      "[fb-campaign-monitor] tenant error",
+      tenant_id,
+      errorMessage(e),
+    );
     stats.errors++;
   }
 }
 
-async function getTokensByTenant(supabase: any) {
+async function getTokensByTenant(supabase: SupabaseClient) {
   const { data: integrations } = await supabase
     .from("tenant_integrations")
     .select("tenant_id, api_key, shared_from_integration_id")
@@ -338,7 +396,7 @@ async function runTenantScan(tenant_id: string) {
   const tokens = await getTokensByTenant(supabase);
   const token = tokens.get(tenant_id);
   if (!token) return { error: "no_token" };
-  const stats = {
+  const stats: ScanStats = {
     tenants: 0,
     campaigns_scanned: 0,
     alerts_created: 0,
@@ -383,13 +441,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
-  let body: any = {};
+  let body: unknown = {};
   try {
     body = await req.json();
   } catch (_) {
     /* ignore */
   }
-  const tenant_id: string | undefined = body?.tenant_id;
+  const rawTenantId = asRecord(body).tenant_id;
+  const tenant_id: string | undefined = rawTenantId
+    ? String(rawTenantId)
+    : undefined;
 
   try {
     if (tenant_id) {
@@ -414,10 +475,10 @@ Deno.serve(async (req) => {
       status: 202,
       headers: corsHeaders,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[fb-campaign-monitor]", err);
     return new Response(
-      JSON.stringify({ error: String(err?.message || err) }),
+      JSON.stringify({ error: String(errorMessage(err) || err) }),
       { status: 500, headers: corsHeaders },
     );
   }

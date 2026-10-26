@@ -6,6 +6,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 
+type CalendarWatchToken = {
+  user_id: string;
+  watch_channel_id: string | null;
+  watch_expires_at: string | null;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -30,13 +36,18 @@ serve(async (_req) => {
     if (error) throw error;
 
     const due = (tokens || []).filter(
-      (t: any) =>
+      (t: CalendarWatchToken) =>
         !t.watch_channel_id ||
         !t.watch_expires_at ||
         t.watch_expires_at < renewBefore,
     );
 
-    const results: any[] = [];
+    const results: {
+      user_id: string;
+      ok: boolean;
+      body?: unknown;
+      error?: string;
+    }[] = [];
     for (const t of due) {
       try {
         const r = await fetch(
@@ -50,7 +61,7 @@ serve(async (_req) => {
             body: JSON.stringify({ user_id: t.user_id }),
           },
         );
-        const body = await r.json().catch(() => ({}));
+        const body: unknown = await r.json().catch(() => ({}));
         results.push({ user_id: t.user_id, ok: r.ok, body });
       } catch (e) {
         results.push({ user_id: t.user_id, ok: false, error: String(e) });

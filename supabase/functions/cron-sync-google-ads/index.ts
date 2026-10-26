@@ -4,6 +4,30 @@ import {
   jerusalemToday,
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
+import {
+  asRecord,
+  errorMessage,
+  optString,
+} from "../_shared/provider-json-b23.ts";
+
+type CrmTableRow = {
+  id: string;
+  name: string;
+  tenant_id: string;
+  integration_settings: unknown;
+};
+
+type SyncResult = {
+  table: string;
+  status: string;
+  source?: string;
+  reason?: string;
+  date?: string;
+  days?: number;
+};
+
+const dataSourceOf = (table: CrmTableRow) =>
+  asRecord(table.integration_settings).data_source;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +60,7 @@ async function makeAPICall(
   region: string,
   endpoint: string,
   method = "GET",
-  body?: any,
+  body?: unknown,
 ) {
   const baseUrl = MAKE_API_REGIONS[region] || MAKE_API_REGIONS.eu2;
   const url = `${baseUrl}${endpoint}`;
@@ -126,8 +150,9 @@ async function patchAndRunScenario(
       if (mod.module && isHttpModule(mod.module) && mod.mapper) {
         mod.mapper.url = webhookUrl;
         const gid =
-          bp.flow.find((m: any) => m.module && isGoogleAdsModule(m.module))
-            ?.id || 3;
+          bp.flow.find(
+            (m: { module?: string }) => m.module && isGoogleAdsModule(m.module),
+          )?.id || 3;
         const bodyTemplate = `{"table_id":"${tableId}","campaign_type":"${campaignType}","tenant_id":"${tenantId}","start_date":"${startDate}","end_date":"${endDate}","records":[{"date":"{{${gid}.dimensions.date}}","campaign_id":"{{${gid}.dimensions.campaignId}}","campaign_name":"{{${gid}.dimensions.campaignName}}","impressions":"{{${gid}.metrics.impressions}}","clicks":"{{${gid}.metrics.clicks}}","cost":"{{${gid}.metrics.cost}}","conversions":"{{${gid}.metrics.conversions}}","ctr":"{{${gid}.metrics.ctr}}","average_cpc":"{{${gid}.metrics.averageCpc}}","cost_micros":"{{${gid}.metrics.costMicros}}","conversions_value":"{{${gid}.metrics.conversionsValue}}","all_conversions":"{{${gid}.metrics.allConversions}}"}]}`;
         mod.mapper.jsonStringBodyContent = bodyTemplate;
         if (mod.mapper.data) delete mod.mapper.data;
@@ -213,7 +238,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: any[] = [];
+    const results: SyncResult[] = [];
     const webhookUrl = `${supabaseUrl}/functions/v1/webhook-google-ads-sync`;
 
     // ---- Direct API path: self-chaining batches ----
@@ -228,8 +253,9 @@ Deno.serve(async (req) => {
     const CHUNK_GAP_MS = 1200;
     const NEXT_BATCH_GAP_MS = 6000;
 
-    const allDirect = (tables as any[]).filter((t: any) => {
-      const ds = (t.integration_settings as any)?.data_source;
+    const tableRows: CrmTableRow[] = tables;
+    const allDirect = tableRows.filter((t) => {
+      const ds = dataSourceOf(t);
       return !ds || ds === "direct_api";
     });
     const directBatch = allDirect.slice(offset, offset + BATCH_SIZE);
@@ -272,21 +298,17 @@ Deno.serve(async (req) => {
     };
 
     const syncOne = async (
-      table: any,
+      table: CrmTableRow,
     ): Promise<{ ok: boolean; rateLimited: boolean; reason?: string }> => {
       if (operational_only) {
         return postSync({ table_id: table.id, operational_only: true });
       }
-      const settings = (table.integration_settings || {}) as {
-        scheduled_history_from?: string;
-        scheduled_synced_through?: string;
-        scheduled_lookback_on?: string;
-      };
+      const settings = asRecord(table.integration_settings);
       const plan = planScheduledSyncWindows(
         jerusalemToday(),
-        settings.scheduled_history_from,
-        settings.scheduled_synced_through,
-        settings.scheduled_lookback_on,
+        optString(settings.scheduled_history_from),
+        optString(settings.scheduled_synced_through),
+        optString(settings.scheduled_lookback_on),
       );
       if (plan.catchup) {
         const chunk = await postSync({
@@ -308,12 +330,14 @@ Deno.serve(async (req) => {
       });
     };
 
-    const runInChunks = async (batch: any[]): Promise<any[]> => {
-      const retryable: any[] = [];
+    const runInChunks = async (
+      batch: CrmTableRow[],
+    ): Promise<CrmTableRow[]> => {
+      const retryable: CrmTableRow[] = [];
       for (let i = 0; i < batch.length; i += DIRECT_CHUNK) {
         const chunk = batch.slice(i, i + DIRECT_CHUNK);
         const outcomes = await Promise.all(
-          chunk.map(async (table: any) => {
+          chunk.map(async (table) => {
             const r = await syncOne(table);
             if (r.ok)
               return {
@@ -420,8 +444,8 @@ Deno.serve(async (req) => {
     }
 
     for (const [tenantId, tenantTables] of byTenant) {
-      const makeTables = tenantTables.filter((t: any) => {
-        const ds = (t.integration_settings as any)?.data_source;
+      const makeTables = tenantTables.filter((t: CrmTableRow) => {
+        const ds = dataSourceOf(t);
         return ds === "make_api" || ds === "webhook";
       });
 
@@ -445,9 +469,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const s = makeInt.settings as any;
-      const apiToken = s?.api_token;
-      const region = s?.region || "eu2";
+      const s = asRecord(makeInt.settings);
+      const apiToken = s.api_token ? String(s.api_token) : undefined;
+      const region = String(s.region || "eu2");
 
       if (!apiToken) {
         for (const t of makeTables)
@@ -460,11 +484,11 @@ Deno.serve(async (req) => {
       }
 
       for (const table of makeTables) {
-        const intSettings = table.integration_settings as any;
-        const scenarioId = intSettings?.make_scenario_id;
-        const customerId = intSettings?.customer_id;
-        const campaignType = intSettings?.campaign_type || "leads";
-        const connectionId = intSettings?.make_connection_id;
+        const intSettings = asRecord(table.integration_settings);
+        const scenarioId = intSettings.make_scenario_id;
+        const customerId = intSettings.customer_id;
+        const campaignType = String(intSettings.campaign_type || "leads");
+        const connectionId = intSettings.make_connection_id;
 
         if (!scenarioId) {
           results.push({
@@ -585,11 +609,11 @@ Deno.serve(async (req) => {
             { name: string; recent: number; prior: number }
           > = {};
           for (const rec of records) {
-            const d = rec.data as any;
-            const date = String(d?.date || "");
-            const cid = String(d?.campaign_id || "");
-            const name = String(d?.campaign_name || cid);
-            const cost = parseFloat(String(d?.cost || d?.spend || 0)) || 0;
+            const d = asRecord(rec.data);
+            const date = String(d.date || "");
+            const cid = String(d.campaign_id || "");
+            const name = String(d.campaign_name || cid);
+            const cost = parseFloat(String(d.cost || d.spend || 0)) || 0;
             if (!cid || !date) continue;
             const c = (perCampaign[cid] ||= { name, recent: 0, prior: 0 });
             if (date >= last2Cutoff) c.recent += cost;
@@ -651,10 +675,10 @@ Deno.serve(async (req) => {
             }
           }
         }
-      } catch (zeroErr: any) {
+      } catch (zeroErr) {
         console.error(
           `[google-ads zero-spend] tenant ${tenantId}:`,
-          zeroErr.message,
+          errorMessage(zeroErr),
         );
       }
     }

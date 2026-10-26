@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json-b23.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,
@@ -23,13 +24,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await req.json();
     } catch {
       /* cron posts an empty body */
     }
-    const batchOffset = Number(body.batch_offset) || 0;
+    const batchOffset = Number(asRecord(body).batch_offset) || 0;
     const BATCH_SIZE = 4;
 
     // Skip explicitly paused campaigns (campaign_active = false) — those are
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
     const today = jerusalemToday();
 
     const postSync = async (payload: Record<string, unknown>) => {
@@ -70,8 +71,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ ...payload, _internal_cron: true }),
         },
       );
-      const responseBody = await res.json().catch(() => ({}));
-      return { ok: res.ok, status: res.status, body: responseBody };
+      const responseBody: unknown = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, body: asRecord(responseBody) };
     };
 
     for (const table of tables) {
@@ -116,7 +117,7 @@ Deno.serve(async (req) => {
         });
         console.log(
           `[cron] ${table.name} (${table.id}): ${refreshed.status}`,
-          refreshed.body?.records_synced ?? refreshed.body?.error,
+          refreshed.body.records_synced ?? refreshed.body.error,
         );
         results.push({
           table_id: table.id,
@@ -124,13 +125,13 @@ Deno.serve(async (req) => {
           ok: refreshed.ok,
           ...refreshed.body,
         });
-      } catch (e: any) {
-        console.error(`[cron] failed for ${table.id}:`, e.message);
+      } catch (e) {
+        console.error(`[cron] failed for ${table.id}:`, errorMessage(e));
         results.push({
           table_id: table.id,
           name: table.name,
           ok: false,
-          error: e.message,
+          error: errorMessage(e),
         });
       }
     }
@@ -175,9 +176,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in cron-sync-facebook-ecommerce:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: errorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
