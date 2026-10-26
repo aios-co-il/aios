@@ -84,6 +84,11 @@ Deno.test("the block is appended once, only for Carmen", () => {
     "בסיס",
   );
   assertStrictEquals(appendCarmenPulseRules(null, { isCarmen: false }), "");
+  // pin_skills_only sessions expose no tools, so the tool rules stay out.
+  assertStrictEquals(
+    appendCarmenPulseRules("בסיס", { isCarmen: true, pinSkillsOnly: true }),
+    "בסיס",
+  );
 });
 
 Deno.test(
@@ -113,7 +118,7 @@ Deno.test(
     const branchStart = runAiAgent.indexOf("if (shouldUseV2Prompt(agent)) {");
     const v1Start = runAiAgent.indexOf("// ─── V1 PROMPT BUILDING");
     const append = runAiAgent.indexOf(
-      "systemPrompt = appendCarmenPulseRules(systemPrompt, { isCarmen, surface });",
+      "systemPrompt = appendCarmenPulseRules(systemPrompt, {\n      isCarmen,\n      surface,\n      pinSkillsOnly,\n    });",
     );
     const filterTools = runAiAgent.indexOf("// 4. Filter tools");
     assert(branchStart > 0 && v1Start > branchStart);
@@ -185,6 +190,26 @@ Deno.test(
 Deno.test(
   "run-ai-agent forces refresh_campaign_pulse on refresh phrases and keeps it in PRIORITY_TOOLS",
   () => {
+    // Routing comes from decidePulseRefreshRouting with the resolved caller.
+    assertMatch(
+      runAiAgent,
+      /const pulseRefreshRoute = decidePulseRefreshRouting\(\{\s*text: cmd,\s*isCarmen,\s*pinSkillsOnly,\s*digestSurface: pulseSurfacePrefersWhatsAppDigest\(surface\),\s*caller: \{\s*campaignerId: callerCampaignerId,\s*userId: callerUserId,\s*role: callerRole,\s*\},\s*\}\);/,
+    );
+    // The digest shortcut is gated on the bare-request route only.
+    assertMatch(
+      runAiAgent,
+      /toolName === "refresh_campaign_pulse" &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
+    );
+    assert(!runAiAgent.includes("isPulseRefreshRequest("));
+    // The tool learns who is asking, so WhatsApp strangers are refused.
+    assertMatch(
+      runAiAgent,
+      /runCampaignPulseRefresh\(\s*\{\s*tenantId,\s*clientId: args\.client_id,\s*surface,\s*callerCampaignerId,\s*callerUserId: actorUserId,\s*\}/,
+    );
+    assertMatch(
+      runAiAgent,
+      /accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
+    );
     const priority = runAiAgent.slice(
       runAiAgent.indexOf("const PRIORITY_TOOLS = new Set(["),
       runAiAgent.indexOf("function capToolsForTarget("),
@@ -194,7 +219,7 @@ Deno.test(
     assert(runAiAgent.includes('case "refresh_campaign_pulse": {'));
     assertMatch(
       runAiAgent,
-      /isPulseRefreshCommand &&[\s\S]{0,200}function: \{ name: "refresh_campaign_pulse" \}/,
+      /pulseRefreshRoute\.forceRefresh &&[\s\S]{0,200}function: \{ name: "refresh_campaign_pulse" \}/,
     );
     const catalog = read("../../../src/lib/agentToolsCatalog.ts");
     assert(catalog.includes('name: "refresh_campaign_pulse"'));
@@ -289,3 +314,41 @@ Deno.test("the claim table and function are locked to the service role", () => {
     /GRANT EXECUTE ON FUNCTION public\.claim_campaign_pulse_refresh\(uuid, integer, uuid\)\s+TO service_role;/,
   );
 });
+
+Deno.test(
+  "V1 and the memory tools no longer send the pulse through recall_recent_action",
+  () => {
+    assert(!runAiAgent.includes("לפני הרצה של pulse_check"));
+    assert(!runAiAgent.includes("בסיום של pulse_check"));
+    assertMatch(
+      runAiAgent,
+      /לפני סקירת קמפיינים \/ סקירת לידים \/ כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action\(action_type, max_age_hours=8\)\. בדיקת דופק לא צריכה את זה/,
+    );
+    // V2 says the same.
+    assertMatch(v2Prompt(null), /בדיקת דופק לא צריכה את זה/);
+  },
+);
+
+Deno.test("pulse_check keeps the client-call details of the live text", () => {
+  const text = CARMEN_PULSE_SKILL_ROWS.find(
+    (row) => row.slug === "pulse_check",
+  ).system_prompt;
+  assertMatch(text, /לא תועדה שיחה ב-14 הימים האחרונים/);
+  assertMatch(text, /עדכון שבועי שאומר בחיוב.*נחשב שיחה/);
+  assertMatch(text, /"לא הצלחתי לדבר" לא נחשב/);
+});
+
+Deno.test(
+  "the migration inserts triggers sorted, so a re-run changes nothing",
+  () => {
+    for (const row of CARMEN_PULSE_SKILL_ROWS) {
+      const literal = `ARRAY[${row.triggers.map((v) => `'${v}'`).join(", ")}]::text[]`;
+      assert(
+        migration.includes(
+          `ARRAY(\n    SELECT DISTINCT phrase\n    FROM unnest(${literal}) AS phrase\n    ORDER BY phrase\n  ),`,
+        ),
+        row.slug,
+      );
+    }
+  },
+);

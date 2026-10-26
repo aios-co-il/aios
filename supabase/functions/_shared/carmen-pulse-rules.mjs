@@ -7,7 +7,7 @@
 // 20261026131000 migration writes to the global ai_skills rows; a test keeps
 // the three in sync. Bump CARMEN_PULSE_RULES_VERSION whenever the rules change.
 
-export const CARMEN_PULSE_RULES_VERSION = "2026-10-26.1";
+export const CARMEN_PULSE_RULES_VERSION = "2026-10-26.2";
 
 const BLOCK_MARKER = "=== כללי דופק קמפיינים";
 
@@ -34,15 +34,16 @@ export function buildCarmenPulseRulesBlock({ surface } = {}) {
 }
 
 /**
- * Appends the pulse block to a finished Carmen prompt. Non-Carmen agents and a
- * prompt that already carries the block come back unchanged.
+ * Appends the pulse block to a finished Carmen prompt. Non-Carmen agents,
+ * isolated pin_skills_only sessions (they have no tools) and a prompt that
+ * already carries the block come back unchanged.
  */
 export function appendCarmenPulseRules(
   systemPrompt,
-  { isCarmen, surface } = {},
+  { isCarmen, surface, pinSkillsOnly = false } = {},
 ) {
   const base = String(systemPrompt ?? "");
-  if (!isCarmen || base.includes(BLOCK_MARKER)) return base;
+  if (!isCarmen || pinSkillsOnly || base.includes(BLOCK_MARKER)) return base;
   return `${base}\n\n${buildCarmenPulseRulesBlock({ surface })}`;
 }
 
@@ -55,7 +56,8 @@ export const PULSE_CHECK_SKILL_ROW = Object.freeze({
   goal: "למסור את מצב הקמפיינים של הלקוחות מתוך בדיקת הדופק, בלי לשלוח הודעות ובלי להמציא נתונים.",
   system_prompt: `בקשה ל"דופק" או ל"בדיקת דופק" בלי בקשה לרענן — קראי ל-get_latest_campaign_pulse והציגי את הבדיקה האחרונה שנשמרה.
 "רענני דופק", "דופק עדכני" או "בדיקת דופק מלאה ועדכנית" — קראי ל-refresh_campaign_pulse. הכלי מחשב את הדופק מחדש מהנתונים שכבר סונכרנו, לא שולח הודעות, ומרענן לכל היותר פעם ב-10 דקות לארגון; אחרת הוא מחזיר את הבדיקה הקיימת עם זמן החישוב.
-הבדיקה כוללת את מועד שיחת הלקוח האחרונה שתועדה ומי תיעד אותה, והתראות קריטיות פתוחות (קמפיין שנעצר, מודעה שנדחתה) ללקוחות שטבלת הקמפיין שלהם פעילה.
+הבדיקה כוללת את מועד השיחה הטלפונית האחרונה עם הלקוח שתועדה בכרטיס הלקוח ומי תיעד אותה, והתראה כשלא תועדה שיחה ב-14 הימים האחרונים. עדכון שבועי שאומר בחיוב שהקמפיינר דיבר עם הלקוח בטלפון נחשב שיחה; ניסוח שלילי כמו "לא הצלחתי לדבר" לא נחשב.
+הבדיקה כוללת גם התראות קריטיות פתוחות (קמפיין שנעצר, מודעה שנדחתה) ללקוחות שטבלת הקמפיין שלהם פעילה.
 לקמפיינרים הכלים מסננים אוטומטית ללקוחות המשויכים להם.
 "בדיקת תקינות" היא health probe — לא דופק.`,
   constraints: `המקור היחיד למספרי הדופק הוא get_latest_campaign_pulse או refresh_campaign_pulse. אסור להשלים נתונים מהזיכרון, ואסור להריץ analyze_campaign_performance או check_ad_accounts_health במקום הדופק. בוואטסאפ אסור טבלאות — רק whatsapp_digest כלשונו. רענון לא שולח הודעות ולא מחליף אישור לשינוי בקמפיין.`,

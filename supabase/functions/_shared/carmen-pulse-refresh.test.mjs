@@ -6,12 +6,14 @@ import {
   assertThrows,
 } from "jsr:@std/assert@1";
 import {
+  buildPulseRefreshDigestReply,
   buildPulseRefreshNote,
   buildPulseRefreshRequestBody,
   createPulseRefreshDeps,
   decidePulseRefresh,
   interpretPulseSnapshotResponse,
   PULSE_REFRESH_MIN_INTERVAL_SECONDS,
+  pulseRefreshCallerRefusal,
   runCampaignPulseRefresh,
 } from "./carmen-pulse-refresh.mjs";
 
@@ -424,3 +426,212 @@ Deno.test(
     assertEquals(gate, { run: false, reason: "skip_instant_alerts" });
   },
 );
+
+Deno.test(
+  "an unidentified WhatsApp sender cannot refresh the tenant's pulse",
+  async () => {
+    const { deps, calls } = fakeDeps();
+    // A client contact in a client group: no campaigner, no user.
+    const result = await runCampaignPulseRefresh(
+      { tenantId: TENANT, surface: "whatsapp" },
+      deps,
+    );
+    assertStrictEquals(result.error, "caller_not_identified");
+    assertMatch(result.message, /אנשי צוות/);
+    assertStrictEquals(result.whatsapp_digest, undefined);
+    assertStrictEquals(
+      calls.assert.length +
+        calls.claim.length +
+        calls.invoke.length +
+        calls.loadPulse,
+      0,
+    );
+    for (const caller of [
+      { callerCampaignerId: "c-1" },
+      { callerUserId: "44444444-4444-4444-8444-444444444444" },
+    ]) {
+      assertStrictEquals(
+        pulseRefreshCallerRefusal({ surface: "whatsapp", ...caller }),
+        null,
+      );
+    }
+    // Other surfaces resolve the caller from the signed-in user or the task.
+    for (const surface of ["internal_chat", "task", "agent_direct", null]) {
+      assertStrictEquals(pulseRefreshCallerRefusal({ surface }), null);
+    }
+    const campaigner = await runCampaignPulseRefresh(
+      { tenantId: TENANT, surface: "whatsapp", callerCampaignerId: "c-1" },
+      deps,
+    );
+    assertStrictEquals(campaigner.refresh.status, "refreshed");
+  },
+);
+
+Deno.test(
+  "a lost claim without a newer snapshot does not claim the pulse was refreshed",
+  async () => {
+    // The claim is taken before the snapshot runs. If that run failed or is
+    // still going, the stored pulse is older than the interval.
+    const { deps } = fakeDeps({
+      claimRefresh: async () => false,
+      loadPulse: async () => ({ count: 3, freshness: "2026-10-26T04:00:00Z" }),
+    });
+    const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+    assertStrictEquals(result.refresh.status, "rate_limited");
+    assertStrictEquals(
+      result.refresh_note,
+      "⏱️ רענון של הדופק כבר הופעל בדקות האחרונות ועדיין לא נשמרה בדיקה חדשה; אפשר לנסות שוב בעוד כמה דקות. זו הבדיקה האחרונה שנשמרה (חושבה ב-06:00).",
+    );
+    assertStrictEquals(
+      buildPulseRefreshNote("rate_limited", {
+        freshness: "2026-10-26T09:58:00Z",
+        now: NOW,
+      }),
+      "⏱️ הדופק רוענן בדקות האחרונות; אפשר לרענן שוב בעוד כמה דקות. זו הבדיקה האחרונה שנשמרה (חושבה ב-11:58).",
+    );
+  },
+);
+
+Deno.test(
+  "an empty pulse after a refresh does not repeat the 'never create a check' rule",
+  async () => {
+    const empty = {
+      count: 0,
+      freshness: null,
+      whatsapp_digest: null,
+      instructions_to_agent:
+        "לא נמצא Snapshot שמור. אמרי שאין בדיקת דופק זמינה. אסור ליצור בדיקה חדשה, להריץ כלי חלופי או להמציא נתונים.",
+    };
+    const refreshed = await runCampaignPulseRefresh(
+      { tenantId: TENANT },
+      fakeDeps({ loadPulse: async () => ({ ...empty }) }).deps,
+    );
+    assertStrictEquals(refreshed.refresh.status, "refreshed");
+    assert(!refreshed.instructions_to_agent.includes("אסור ליצור בדיקה חדשה"));
+    assertMatch(refreshed.instructions_to_agent, /הרענון רץ, אבל לא נמצאה/);
+    const notConfigured = await runCampaignPulseRefresh(
+      { tenantId: TENANT },
+      fakeDeps({
+        invokeSnapshot: async () => ({
+          ok: true,
+          status: 200,
+          body: { results: [] },
+        }),
+        loadPulse: async () => ({ ...empty }),
+      }).deps,
+    );
+    assertStrictEquals(notConfigured.refresh.status, "not_configured");
+    assert(
+      !notConfigured.instructions_to_agent.includes("אסור ליצור בדיקה חדשה"),
+    );
+    assertMatch(notConfigured.instructions_to_agent, /אין בדיקת דופק שמורה/);
+  },
+);
+
+Deno.test(
+  "Supabase deps: a client must sit in an accessible tenant and pass the caller scope",
+  async () => {
+    const lookups = [];
+    const scopeChecks = [];
+    const makeSupabase = (client) => ({
+      from(table) {
+        const q = { table, eq: [], in: [] };
+        lookups.push(q);
+        const chain = {
+          select: () => chain,
+          eq: (column, value) => (q.eq.push([column, value]), chain),
+          in: (column, values) => (q.in.push([column, values]), chain),
+          maybeSingle: async () => ({ data: client, error: null }),
+        };
+        return chain;
+      },
+    });
+    const accessibleTenantIds = [TENANT, OTHER_TENANT];
+    const visible = createPulseRefreshDeps({
+      supabase: makeSupabase({ id: CLIENT }),
+      tenantId: TENANT,
+      accessibleTenantIds,
+      assertCallerCanAccessClient: async (clientId) => {
+        scopeChecks.push(clientId);
+      },
+    });
+    await visible.assertClientVisible(CLIENT);
+    assertStrictEquals(lookups[0].table, "clients");
+    assertEquals(lookups[0].eq, [["id", CLIENT]]);
+    assertEquals(lookups[0].in, [["tenant_id", accessibleTenantIds]]);
+    assertEquals(scopeChecks, [CLIENT]);
+
+    // A campaigner's scope check refuses a client that is not theirs.
+    const notMine = createPulseRefreshDeps({
+      supabase: makeSupabase({ id: CLIENT }),
+      tenantId: TENANT,
+      accessibleTenantIds,
+      assertCallerCanAccessClient: async () => {
+        throw new Error("הלקוח לא משויך אליך");
+      },
+    });
+    const refused = await runCampaignPulseRefresh(
+      { tenantId: TENANT, clientId: CLIENT },
+      { ...fakeDeps().deps, assertClientVisible: notMine.assertClientVisible },
+    );
+    assertEquals(refused, {
+      error: "client_not_accessible",
+      message: "הלקוח לא משויך אליך",
+    });
+
+    // A client outside every accessible tenant never reaches the scope check.
+    scopeChecks.length = 0;
+    const missing = createPulseRefreshDeps({
+      supabase: makeSupabase(null),
+      tenantId: TENANT,
+      accessibleTenantIds,
+      assertCallerCanAccessClient: async (clientId) => {
+        scopeChecks.push(clientId);
+      },
+    });
+    let message = null;
+    try {
+      await missing.assertClientVisible(CLIENT);
+    } catch (error) {
+      message = error.message;
+    }
+    assertStrictEquals(message, "הלקוח לא נמצא או מחוץ להרשאה שלך");
+    assertEquals(scopeChecks, []);
+
+    // Without a scope check the client is refused, never allowed by default.
+    const unchecked = createPulseRefreshDeps({
+      supabase: makeSupabase({ id: CLIENT }),
+      tenantId: TENANT,
+    });
+    let uncheckedError = null;
+    try {
+      await unchecked.assertClientVisible(CLIENT);
+    } catch (error) {
+      uncheckedError = error;
+    }
+    assert(uncheckedError, "missing scope check refuses");
+  },
+);
+
+Deno.test("the WhatsApp refresh reply is the note, then the digest", () => {
+  assertStrictEquals(
+    buildPulseRefreshDigestReply({
+      refresh_note: " 🔄 רעננתי את בדיקת הדופק עכשיו (12:00). ",
+      whatsapp_digest: "🟢 12 תקינים\n",
+    }),
+    "🔄 רעננתי את בדיקת הדופק עכשיו (12:00).\n\n🟢 12 תקינים",
+  );
+  assertStrictEquals(
+    buildPulseRefreshDigestReply({ whatsapp_digest: "🟢 12 תקינים" }),
+    "🟢 12 תקינים",
+  );
+  // No digest (refused caller, empty pulse, tool error): no shortcut.
+  for (const result of [
+    { error: "caller_not_identified", message: "x" },
+    { refresh_note: "⚠️", whatsapp_digest: null },
+    { refresh_note: "⚠️", whatsapp_digest: "   " },
+    null,
+  ]) {
+    assertStrictEquals(buildPulseRefreshDigestReply(result), null);
+  }
+});

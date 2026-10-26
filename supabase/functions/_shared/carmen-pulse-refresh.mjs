@@ -103,7 +103,10 @@ export function formatPulseTime(value, now) {
 }
 
 /** The one line Carmen puts before the pulse after a refresh request. */
-export function buildPulseRefreshNote(status, { freshness, now }) {
+export function buildPulseRefreshNote(
+  status,
+  { freshness, now, minIntervalSeconds = PULSE_REFRESH_MIN_INTERVAL_SECONDS },
+) {
   const at = formatPulseTime(freshness, now);
   const stored = at
     ? `זו הבדיקה האחרונה שנשמרה (חושבה ב-${at}).`
@@ -116,7 +119,15 @@ export function buildPulseRefreshNote(status, { freshness, now }) {
     case "fresh_snapshot":
       return `⏱️ בדיקת הדופק כבר עדכנית, ולכן לא הרצתי אותה שוב. ${stored}`;
     case "rate_limited":
-      return `⏱️ הדופק רוענן בדקות האחרונות; אפשר לרענן שוב בעוד כמה דקות. ${stored}`;
+      // The claim is taken before the snapshot runs, so it does not prove a
+      // newer snapshot exists: the other refresh may still run, or it failed.
+      return decidePulseRefresh({
+        lastCalculatedAt: freshness,
+        now,
+        minIntervalSeconds,
+      }).refresh
+        ? `⏱️ רענון של הדופק כבר הופעל בדקות האחרונות ועדיין לא נשמרה בדיקה חדשה; אפשר לנסות שוב בעוד כמה דקות. ${stored}`
+        : `⏱️ הדופק רוענן בדקות האחרונות; אפשר לרענן שוב בעוד כמה דקות. ${stored}`;
     case "not_configured":
       return `⚠️ בדיקת הדופק לא מופעלת לארגון הזה, ולכן אין מה לרענן. ${stored}`;
     case "refresh_timeout":
@@ -127,8 +138,40 @@ export function buildPulseRefreshNote(status, { freshness, now }) {
 }
 
 /**
+ * WhatsApp callers run-ai-agent could not identify (client contacts in a client
+ * group, unknown numbers) have no campaigner and no user, so the pulse would
+ * not be scoped to them. They may not trigger a refresh of the whole tenant.
+ */
+export function pulseRefreshCallerRefusal({
+  surface,
+  callerCampaignerId,
+  callerUserId,
+} = {}) {
+  if (surface === "whatsapp" && !callerCampaignerId && !callerUserId) {
+    return {
+      error: "caller_not_identified",
+      message: "רענון הדופק זמין רק לאנשי צוות שמזוהים במערכת.",
+    };
+  }
+  return null;
+}
+
+/** The WhatsApp/task answer for a bare refresh request: note, then digest. */
+export function buildPulseRefreshDigestReply(result) {
+  const digest =
+    typeof result?.whatsapp_digest === "string"
+      ? result.whatsapp_digest.trim()
+      : "";
+  if (!digest) return null;
+  const note =
+    typeof result?.refresh_note === "string" ? result.refresh_note.trim() : "";
+  return note ? `${note}\n\n${digest}` : digest;
+}
+
+/**
  * Runs the refresh and returns the pulse like get_latest_campaign_pulse.
  *
+ * input: { tenantId, clientId?, surface?, callerCampaignerId?, callerUserId? }
  * deps:
  *   now()                          → Date
  *   assertClientVisible(clientId)  → throws when the caller may not see it
@@ -138,6 +181,8 @@ export function buildPulseRefreshNote(status, { freshness, now }) {
  *   loadPulse()                    → get_latest_campaign_pulse result
  */
 export async function runCampaignPulseRefresh(input, deps) {
+  const refusal = pulseRefreshCallerRefusal(input);
+  if (refusal) return refusal;
   const tenantId = String(input?.tenantId ?? "").trim();
   const clientId = String(input?.clientId ?? "").trim();
   const minIntervalSeconds =
@@ -215,7 +260,16 @@ export async function runCampaignPulseRefresh(input, deps) {
   const refreshNote = buildPulseRefreshNote(refresh.status, {
     freshness: pulse.freshness ?? null,
     now,
+    minIntervalSeconds,
   });
+  // get_latest_campaign_pulse's empty answer forbids creating a new check;
+  // that does not fit the refresh tool itself.
+  const pulseInstructions =
+    pulse.count === 0
+      ? refresh.status === "refreshed"
+        ? "הרענון רץ, אבל לא נמצאה בדיקת דופק ללקוחות שבהרשאה שלך. אמרי זאת, בלי להמציא נתונים ובלי להריץ כלי חלופי."
+        : "אין בדיקת דופק שמורה. אמרי זאת לפי refresh_note, בלי להמציא נתונים ובלי להריץ כלי חלופי."
+      : pulse.instructions_to_agent || null;
   return {
     ...pulse,
     auto_refreshed: refresh.status === "refreshed",
@@ -226,7 +280,7 @@ export async function runCampaignPulseRefresh(input, deps) {
       refresh.status === "refreshed"
         ? null
         : "הרענון לא רץ עכשיו: אל תטעני שהנתונים חושבו מחדש, ואל תקראי שוב ל-refresh_campaign_pulse באותה שיחה.",
-      pulse.instructions_to_agent || null,
+      pulseInstructions,
     ]
       .filter(Boolean)
       .join(" "),
@@ -237,6 +291,8 @@ export async function runCampaignPulseRefresh(input, deps) {
 export function createPulseRefreshDeps({
   supabase,
   tenantId,
+  accessibleTenantIds = [tenantId],
+  assertCallerCanAccessClient,
   requestedBy = null,
   supabaseUrl,
   serviceKey,
@@ -245,6 +301,21 @@ export function createPulseRefreshDeps({
 }) {
   return {
     now: () => new Date(),
+    // The client must sit in a tenant the caller can open; managers then pass
+    // assertCallerCanAccessClient, campaigners only for their own clients.
+    assertClientVisible: async (clientId) => {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("id", clientId)
+        .in("tenant_id", accessibleTenantIds)
+        .maybeSingle();
+      if (!client) throw new Error("הלקוח לא נמצא או מחוץ להרשאה שלך");
+      if (typeof assertCallerCanAccessClient !== "function") {
+        throw new Error("לא ניתן לבדוק הרשאה ללקוח");
+      }
+      await assertCallerCanAccessClient(clientId);
+    },
     latestCalculatedAt: async () => {
       const { data, error } = await supabase
         .from("campaign_pulse_snapshots")

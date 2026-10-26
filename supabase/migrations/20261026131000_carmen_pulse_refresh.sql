@@ -8,9 +8,10 @@
 --    preview_only:true, so it sends no digest and no instant alert.
 -- 2. The global pulse_check and ecommerce_pulse skins get the text of Carmen's
 --    versioned pulse-rules block (supabase/functions/_shared/carmen-pulse-rules.mjs,
---    which is also the registry fallback; a node test keeps them identical).
+--    which is also the registry fallback; a Deno test keeps them identical).
 --    The upsert inserts a missing row and overwrites an existing one, keeping
---    trigger phrases added in the UI and the row's is_active flag. The
+--    trigger phrases added in the UI and the row's is_active flag. Triggers
+--    are stored sorted on both paths, so re-running it does not bump version. The
 --    ecommerce_pulse skin no longer names Shopify/WooCommerce order tools,
 --    which do not exist.
 --    Tenant override rows (scope = 'tenant') for these slugs are left
@@ -93,7 +94,8 @@ VALUES (
   $$למסור את מצב הקמפיינים של הלקוחות מתוך בדיקת הדופק, בלי לשלוח הודעות ובלי להמציא נתונים.$$,
   $$בקשה ל"דופק" או ל"בדיקת דופק" בלי בקשה לרענן — קראי ל-get_latest_campaign_pulse והציגי את הבדיקה האחרונה שנשמרה.
 "רענני דופק", "דופק עדכני" או "בדיקת דופק מלאה ועדכנית" — קראי ל-refresh_campaign_pulse. הכלי מחשב את הדופק מחדש מהנתונים שכבר סונכרנו, לא שולח הודעות, ומרענן לכל היותר פעם ב-10 דקות לארגון; אחרת הוא מחזיר את הבדיקה הקיימת עם זמן החישוב.
-הבדיקה כוללת את מועד שיחת הלקוח האחרונה שתועדה ומי תיעד אותה, והתראות קריטיות פתוחות (קמפיין שנעצר, מודעה שנדחתה) ללקוחות שטבלת הקמפיין שלהם פעילה.
+הבדיקה כוללת את מועד השיחה הטלפונית האחרונה עם הלקוח שתועדה בכרטיס הלקוח ומי תיעד אותה, והתראה כשלא תועדה שיחה ב-14 הימים האחרונים. עדכון שבועי שאומר בחיוב שהקמפיינר דיבר עם הלקוח בטלפון נחשב שיחה; ניסוח שלילי כמו "לא הצלחתי לדבר" לא נחשב.
+הבדיקה כוללת גם התראות קריטיות פתוחות (קמפיין שנעצר, מודעה שנדחתה) ללקוחות שטבלת הקמפיין שלהם פעילה.
 לקמפיינרים הכלים מסננים אוטומטית ללקוחות המשויכים להם.
 "בדיקת תקינות" היא health probe — לא דופק.$$,
   $$המקור היחיד למספרי הדופק הוא get_latest_campaign_pulse או refresh_campaign_pulse. אסור להשלים נתונים מהזיכרון, ואסור להריץ analyze_campaign_performance או check_ad_accounts_health במקום הדופק. בוואטסאפ אסור טבלאות — רק whatsapp_digest כלשונו. רענון לא שולח הודעות ולא מחליף אישור לשינוי בקמפיין.$$,
@@ -105,7 +107,12 @@ VALUES (
   $$בוואטסאפ — whatsapp_digest מהכלי בלבד (סיכום סטטוסים, בלוק "🔴 דורש טיפול" כשקיים וקישור לדשבורד); אחרי רענון, שורת refresh_note לפניו.
 אסור: טבלת Markdown, רשימת לקוחות מלאה, או משפט על מה נמצא בדשבורד.$$,
   ARRAY['get_latest_campaign_pulse', 'refresh_campaign_pulse']::text[],
-  ARRAY['בדיקת דופק', 'בדיקת דוח', 'סיכום קמפיינים', 'מצב קמפיינים', 'pulse check', 'דופק עדכני', 'רענני דופק', 'רענון דופק']::text[],
+  -- Sorted like the ON CONFLICT branch, so a re-run changes nothing.
+  ARRAY(
+    SELECT DISTINCT phrase
+    FROM unnest(ARRAY['בדיקת דופק', 'בדיקת דוח', 'סיכום קמפיינים', 'מצב קמפיינים', 'pulse check', 'דופק עדכני', 'רענני דופק', 'רענון דופק']::text[]) AS phrase
+    ORDER BY phrase
+  ),
   true,
   false
 )
@@ -145,7 +152,12 @@ VALUES (
 3. ניתוח מעמיק ללקוח אחד — analyze_campaign_performance עם client_id.$$,
   NULL,
   ARRAY['get_latest_campaign_pulse', 'refresh_campaign_pulse', 'analyze_campaign_performance']::text[],
-  ARRAY['איקומרס', 'ecommerce', 'e-commerce', 'רכישות', 'roas', 'cpp']::text[],
+  -- Sorted like the ON CONFLICT branch, so a re-run changes nothing.
+  ARRAY(
+    SELECT DISTINCT phrase
+    FROM unnest(ARRAY['איקומרס', 'ecommerce', 'e-commerce', 'רכישות', 'roas', 'cpp']::text[]) AS phrase
+    ORDER BY phrase
+  ),
   true,
   false
 )

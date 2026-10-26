@@ -30,14 +30,15 @@ import {
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
 import {
+  decidePulseRefreshRouting,
   isCachedPulseRequest,
-  isPulseRefreshRequest,
 } from "../_shared/pulse-request.mjs";
 import {
   appendCarmenPulseRules,
   CARMEN_PULSE_RULES_VERSION,
 } from "../_shared/carmen-pulse-rules.mjs";
 import {
+  buildPulseRefreshDigestReply,
   createPulseRefreshDeps,
   runCampaignPulseRefresh,
 } from "../_shared/carmen-pulse-refresh.mjs";
@@ -1233,7 +1234,7 @@ const ALL_TOOLS = [
   {
     name: "recall_recent_action",
     description:
-      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
+      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. בדיקת דופק לא צריכה את זה: get_latest_campaign_pulse מחזיר את הבדיקה השמורה, ו-refresh_campaign_pulse מרענן אותה. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
     parameters: {
       type: "object",
       properties: {
@@ -1253,7 +1254,7 @@ const ALL_TOOLS = [
   {
     name: "record_action_episode",
     description:
-      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של pulse_check / סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
+      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
     parameters: {
       type: "object",
       properties: {
@@ -7628,26 +7629,24 @@ async function executeTool(
         client_name: args.client_name || undefined,
       };
       return await runCampaignPulseRefresh(
-        { tenantId, clientId: args.client_id },
+        {
+          tenantId,
+          clientId: args.client_id,
+          surface,
+          callerCampaignerId,
+          callerUserId: actorUserId,
+        },
         {
           ...createPulseRefreshDeps({
             supabase,
             tenantId,
+            accessibleTenantIds,
+            assertCallerCanAccessClient: (clientId: string) =>
+              assertCallerCanAccessClient(supabase, clientId, callerScope),
             requestedBy: actorUserId,
             supabaseUrl: Deno.env.get("SUPABASE_URL"),
             serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
           }),
-          assertClientVisible: async (clientId: string) => {
-            // Managers skip assertCallerCanAccessClient's tenant check.
-            const { data: client } = await supabase
-              .from("clients")
-              .select("id")
-              .eq("id", clientId)
-              .in("tenant_id", accessibleTenantIds)
-              .maybeSingle();
-            if (!client) throw new Error("הלקוח לא נמצא או מחוץ להרשאה שלך");
-            await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          },
           loadPulse: () =>
             executeTool(
               "get_latest_campaign_pulse",
@@ -14624,7 +14623,7 @@ async function handleRunAgent(
         .toISOString()
         .split("T")[0];
       const todayISO = now.toISOString().split("T")[0];
-      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8).\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
+      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
       systemPrompt += `\n\n=== הקשר ארגוני ===\n${tenantContext}`;
 
       // Inject memory context — instructions get top priority and a strict directive
@@ -14899,7 +14898,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Versioned pulse rules (AIO-237), appended after the V1/V2 prompt so they
     // reach V1 with an empty or custom system_prompt and V2 alike. On WhatsApp
     // and scheduled tasks the block also keeps the pulse to the short digest.
-    systemPrompt = appendCarmenPulseRules(systemPrompt, { isCarmen, surface });
+    systemPrompt = appendCarmenPulseRules(systemPrompt, {
+      isCarmen,
+      surface,
+      pinSkillsOnly,
+    });
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
@@ -14935,9 +14938,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Only unqualified summaries use empty tool args; scoped requests must
     // retain their client/agency filters through normal tool routing.
     const isStoredPulseRequest = !pinSkillsOnly && isCachedPulseRequest(cmd);
-    // "רענני דופק" / "דופק עדכני" / the voice "בדיקת דופק מלאה ועדכנית" (AIO-237).
-    const isPulseRefreshCommand =
-      isCarmen && !pinSkillsOnly && isPulseRefreshRequest(cmd);
+    // "רענני דופק" / "דופק עדכני" / the voice "בדיקת דופק מלאה ועדכנית" (AIO-237):
+    // staff only; the digest shortcut only for a bare request.
+    const pulseRefreshRoute = decidePulseRefreshRouting({
+      text: cmd,
+      isCarmen,
+      pinSkillsOnly,
+      digestSurface: pulseSurfacePrefersWhatsAppDigest(surface),
+      caller: {
+        campaignerId: callerCampaignerId,
+        userId: callerUserId,
+        role: callerRole,
+      },
+    });
     const userAskedBackground =
       /\b(ברקע|תמשיכ[יה]\s+לבד|background|אל\s+תחכ[יה]|תעדכנ[יה]\s+אחר[\s-]?כך|תרוצ[יה]\s+ברקע)\b/i.test(
         cmd,
@@ -15717,7 +15730,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
         if (
           round === 0 &&
-          isPulseRefreshCommand &&
+          pulseRefreshRoute.forceRefresh &&
           cappedTools.some(
             (t: any) => t.function?.name === "refresh_campaign_pulse",
           )
@@ -15965,15 +15978,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         if (
           round === 0 &&
           toolName === "refresh_campaign_pulse" &&
-          isPulseRefreshCommand &&
-          pulseSurfacePrefersWhatsAppDigest(surface) &&
-          typeof result?.whatsapp_digest === "string" &&
-          result.whatsapp_digest.trim()
+          pulseRefreshRoute.digestShortcut
         ) {
-          pulseDigestShortcut = [result.refresh_note, result.whatsapp_digest]
-            .filter((part: unknown) => typeof part === "string" && part.trim())
-            .map((part: string) => part.trim())
-            .join("\n\n");
+          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
         }
       }
 
