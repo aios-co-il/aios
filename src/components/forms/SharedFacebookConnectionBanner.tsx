@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { jsonString } from "@/types/marketing-b21";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,6 @@ interface SharedFacebookConnectionBannerProps {
   integration: {
     id: string;
     shared_from_integration_id?: string | null;
-    settings?: Json;
   } | null;
 }
 
