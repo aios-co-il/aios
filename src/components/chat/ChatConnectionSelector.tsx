@@ -37,10 +37,25 @@ function encode(v: ChatFilter): string {
   return `conn:${v.integrationId}`;
 }
 
+type ChatPlatform = Extract<ChatFilter, { kind: "platform" }>["platform"];
+const PLATFORMS: readonly ChatPlatform[] = [
+  "whatsapp",
+  "telegram",
+  "manychat",
+  "agents",
+];
+
+function isChatPlatform(s: string): s is ChatPlatform {
+  return PLATFORMS.some((p) => p === s);
+}
+
 function decode(s: string): ChatFilter {
   if (s === VALUE_ALL) return { kind: "all" };
   if (s.startsWith("platform:")) {
-    return { kind: "platform", platform: s.slice("platform:".length) as any };
+    const platform = s.slice("platform:".length);
+    return isChatPlatform(platform)
+      ? { kind: "platform", platform }
+      : { kind: "all" };
   }
   if (s.startsWith("conn:")) {
     return { kind: "connection", integrationId: s.slice("conn:".length) };

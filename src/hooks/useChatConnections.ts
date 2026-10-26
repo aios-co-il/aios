@@ -67,7 +67,7 @@ export function useChatConnections(tenantId: string | undefined) {
         .eq("user_id", userId);
       const sharedIds = (perms || []).map((p) => p.integration_id);
 
-      let shared: any[] = [];
+      let shared: NonNullable<typeof own> = [];
       if (sharedIds.length > 0) {
         const { data, error } = await supabase
           .from("tenant_integrations")
@@ -122,7 +122,7 @@ export function useChatConnections(tenantId: string | undefined) {
         }));
       }
 
-      const ownIds = new Set((own || []).map((i: any) => i.id));
+      const ownIds = new Set((own || []).map((i) => i.id));
       const combinedRaw = [
         ...(own || []),
         ...shared.filter((i) => !ownIds.has(i.id)),
@@ -145,11 +145,11 @@ export function useChatConnections(tenantId: string | undefined) {
           .select("id, full_name")
           .in("id", ownerIds);
         ownerProfiles = Object.fromEntries(
-          (profiles || []).map((p: any) => [p.id, p.full_name || ""]),
+          (profiles || []).map((p) => [p.id, p.full_name || ""]),
         );
       }
 
-      return combinedRaw.map((i: any): ChatConnection => {
+      return combinedRaw.map((i): ChatConnection => {
         const type = i.integration_type as ChatProviderKey;
         const isOwn = i.user_id === userId;
         const baseLabel = PROVIDER_LABEL[type];
@@ -173,7 +173,7 @@ export function useChatConnections(tenantId: string | undefined) {
               ? "meta_whatsapp"
               : type === "green_api"
                 ? "green_api"
-                : (type as any);
+                : type;
         const platform: ChatConnection["platform"] =
           type === "telegram"
             ? "telegram"

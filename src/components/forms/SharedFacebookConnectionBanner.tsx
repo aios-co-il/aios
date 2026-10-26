@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { jsonString } from "@/types/marketing-b21";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Share2, CheckCircle2 } from "lucide-react";
@@ -8,7 +10,7 @@ interface SharedFacebookConnectionBannerProps {
   integration: {
     id: string;
     shared_from_integration_id?: string | null;
-    settings?: any;
+    settings?: Json;
   } | null;
 }
 
@@ -51,9 +53,8 @@ export function SharedFacebookConnectionBanner({
   }
 
   const sourceTenantName =
-    (sourceIntegration.tenants as any)?.name || "ארגון אחר";
-  const sourceSettings = sourceIntegration.settings as any;
-  const pageName = sourceSettings?.page_name;
+    jsonString(sourceIntegration.tenants, "name") || "ארגון אחר";
+  const pageName = jsonString(sourceIntegration.settings, "page_name");
 
   return (
     <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800 text-right">

@@ -59,7 +59,7 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
       });
       toast.success("ההרשאה נוספה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Grant permission error:", error);
       toast.error("שגיאה במתן הרשאה");
     },
@@ -84,7 +84,7 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
       });
       toast.success("ההרשאה נשללה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Revoke permission error:", error);
       toast.error("שגיאה בשלילת הרשאה");
     },
