@@ -216,6 +216,9 @@ export function SendReportDialog({
           formData.append("phoneNumber", directPhone.trim());
         }
         if (clientId) formData.append("clientId", clientId);
+        // A report send: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "report");
+        formData.append("sendRef", tableId);
 
         const controller = new AbortController();
         const timeoutId = window.setTimeout(
@@ -352,6 +355,32 @@ export function SendReportDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
+      }
+
+      // Same delivery record as the client card's report panel. It is the
+      // send's only client card log (a database trigger writes the entry).
+      if (clientId) {
+        const { error: deliveryLogError } = await supabase
+          .from("report_deliveries")
+          .insert({
+            tenant_id: tenantId,
+            client_id: clientId,
+            target_type: "table",
+            target_id: tableId,
+            channels: [
+              ...(sendWhatsApp ? ["whatsapp"] : []),
+              ...(sendEmail ? ["email"] : []),
+            ],
+            status: "sent",
+            details: {
+              source: "manual",
+              title: tableName,
+              share_url: shareLink ?? null,
+              email_recipients: sendEmail ? [emailAddress] : [],
+            },
+          });
+        if (deliveryLogError)
+          console.warn("Failed to log report delivery:", deliveryLogError);
       }
 
       onOpenChange(false);

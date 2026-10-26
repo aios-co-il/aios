@@ -20,6 +20,7 @@ import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
 } from "../_shared/broadcast/template/email-attachments.ts";
+import { resolveBroadcastRecipientClientId } from "../_shared/broadcast/recipient-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +77,8 @@ async function greenApiSendImage(
   chatPhone: string,
   imageUrl: string,
   caption: string,
+  broadcastId: string,
+  clientId: string | null,
 ) {
   const { data: integ } = await db
     .from("tenant_integrations")
@@ -111,6 +114,7 @@ async function greenApiSendImage(
   if (res.ok) {
     await db.from("chat_messages").insert({
       tenant_id: tenantId,
+      client_id: clientId,
       connection_user_id: senderUserId,
       sent_by_user_id: senderUserId,
       message_text: caption || "[תמונה]",
@@ -119,6 +123,8 @@ async function greenApiSendImage(
       provider: "green_api",
       sender_phone: digits,
       raw_provider_data: json,
+      send_kind: "broadcast",
+      send_ref: broadcastId,
     });
   }
   return { ok: res.ok, json };
@@ -131,6 +137,9 @@ async function sendOne(
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
   const body = renderTemplate(b.body_text || "", vars);
+  // Every WhatsApp send of a broadcast is stamped with it, so the client card
+  // gets one entry per broadcast per client (AIO-242).
+  const sendStamp = { sendKind: "broadcast", sendRef: b.id };
 
   // ── Email (Resend) ──
   if (b.channel === "email") {
@@ -189,6 +198,7 @@ async function sendOne(
             tenantId: b.tenant_id,
             integrationId: b.integration_id,
             senderUserId,
+            ...sendStamp,
           });
           return res.ok
             ? { ok: true, messageId: res.json?.messageId }
@@ -200,6 +210,7 @@ async function sendOne(
           tenantId: b.tenant_id,
           integrationId: b.integration_id,
           senderUserId,
+          ...sendStamp,
         });
         return res.ok
           ? { ok: true, messageId: res.json?.messageId }
@@ -229,6 +240,22 @@ async function sendOne(
           }),
         });
         const json2 = await res2.json().catch(() => ({}));
+        if (res2.ok) {
+          // Same chat history row as the text path, with the group.
+          await db.from("chat_messages").insert({
+            tenant_id: b.tenant_id,
+            group_id: groupId,
+            connection_user_id: senderUserId,
+            sent_by_user_id: senderUserId,
+            message_text: body || "[תמונה]",
+            direction: "outbound",
+            channel: "whatsapp",
+            provider: "green_api",
+            raw_provider_data: json2,
+            send_kind: "broadcast",
+            send_ref: b.id,
+          });
+        }
         return res2.ok
           ? { ok: true, messageId: json2?.idMessage }
           : { ok: false, error: JSON.stringify(json2).slice(0, 300) };
@@ -238,6 +265,7 @@ async function sendOne(
         message: body,
         tenantId: b.tenant_id,
         senderUserId,
+        ...sendStamp,
       });
       return res.ok
         ? { ok: true, messageId: res.json?.messageId }
@@ -254,6 +282,9 @@ async function sendOne(
   if (!senderUserId) return { ok: false, error: "missing_created_by" };
   if (!r.phone) return { ok: false, error: "missing_phone" };
 
+  const clientId = await resolveBroadcastRecipientClientId(db, b.tenant_id, r);
+  const recipientStamp = clientId ? { ...sendStamp, clientId } : sendStamp;
+
   try {
     if (b.provider === "manus_wa") {
       if (hasMedia) {
@@ -264,6 +295,7 @@ async function sendOne(
           tenantId: b.tenant_id,
           integrationId: b.integration_id,
           senderUserId,
+          ...recipientStamp,
         });
         return res.ok
           ? { ok: true, messageId: res.json?.messageId }
@@ -275,6 +307,7 @@ async function sendOne(
         tenantId: b.tenant_id,
         integrationId: b.integration_id,
         senderUserId,
+        ...recipientStamp,
       });
       return res.ok
         ? { ok: true, messageId: res.json?.messageId }
@@ -291,6 +324,8 @@ async function sendOne(
         r.phone,
         b.media_url,
         body,
+        b.id,
+        clientId,
       );
       return res.ok
         ? { ok: true, messageId: res.json?.idMessage }
@@ -301,6 +336,7 @@ async function sendOne(
       message: body,
       tenantId: b.tenant_id,
       senderUserId,
+      ...recipientStamp,
     });
     return res.ok
       ? { ok: true, messageId: res.json?.messageId }

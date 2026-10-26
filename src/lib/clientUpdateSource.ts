@@ -3,6 +3,10 @@ import {
   isClientCardSource,
   isHumanClientCardSource,
 } from "../../supabase/functions/_shared/client-card-sources.ts";
+import {
+  SYSTEM_SEND_UPDATE_TYPE_LABELS,
+  type SystemSendUpdateType,
+} from "../../supabase/functions/_shared/send-kind.ts";
 
 /** Source filter for the client card history; Carmen covers both her sources. */
 export type ClientUpdateSourceFilter =
@@ -49,3 +53,16 @@ export function canModifyClientUpdate(input: {
     return !!input.currentUserId && input.currentUserId === input.rowUserId;
   return input.canManageAutomaticEntries;
 }
+
+/**
+ * Update types the database writes for system sends (AIO-242), with their
+ * Hebrew labels, so the card history can show and filter them.
+ */
+export const SYSTEM_SEND_UPDATE_TYPE_OPTIONS: ReadonlyArray<{
+  value: SystemSendUpdateType;
+  label: string;
+}> = (
+  Object.entries(SYSTEM_SEND_UPDATE_TYPE_LABELS) as Array<
+    [SystemSendUpdateType, string]
+  >
+).map(([value, label]) => ({ value, label }));

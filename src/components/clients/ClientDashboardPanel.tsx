@@ -533,6 +533,9 @@ export function ClientDashboardPanel({
         else if (directPhone) formData.append("phoneNumber", directPhone);
         if (waSenderId) formData.append("integrationId", waSenderId);
         if (clientId) formData.append("clientId", clientId);
+        // A dashboard share: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "dashboard_share");
+        formData.append("sendRef", dashboard.id);
 
         const {
           data: { session },
@@ -654,12 +657,18 @@ export function ClientDashboardPanel({
           status: "sent",
           details: {
             source: "manual",
+            title: dashboard.name,
             share_url: effectiveShareUrl,
             email_recipients: sendEmail ? emailRecipients : [],
           },
         });
+      // This row is the share's only client card log (database trigger).
       if (deliveryLogError)
         console.warn("Failed to log dashboard delivery:", deliveryLogError);
+      else
+        queryClient.invalidateQueries({
+          queryKey: ["client-updates", clientId],
+        });
     } catch (e: any) {
       console.error("Send error:", e);
       toast.error(`שגיאה בשליחה: ${e?.message || "לא ידוע"}`);

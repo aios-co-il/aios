@@ -14,15 +14,26 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
+  readCardLogSystemSends,
   type PulseAlertRules,
+  type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  onSave: (rules: PulseAlertRules) => Promise<void> | void;
+  /**
+   * Saves the alert rules and, for owners, the manager settings. The caller
+   * merges both into the stored pulse_alert_rules (mergePulseAlertRules).
+   */
+  onSave: (
+    rules: PulseAlertRules,
+    manager: PulseManagerSettings,
+  ) => Promise<void> | void;
   saving?: boolean;
+  /** Tenant and agency owners see the client card logging switch. */
+  canManageCardLog?: boolean;
 };
 
 export function PulseAlertRulesDialog({
@@ -31,13 +42,17 @@ export function PulseAlertRulesDialog({
   value,
   onSave,
   saving = false,
+  canManageCardLog = false,
 }: PulseAlertRulesDialogProps) {
   const [rules, setRules] = useState<PulseAlertRules>(
     DEFAULT_PULSE_ALERT_RULES,
   );
+  const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (!open) return;
+    setRules(parsePulseAlertRules(value));
+    setCardLogSystemSends(readCardLogSystemSends(value));
   }, [open, value]);
 
   return (
@@ -146,6 +161,27 @@ export function PulseAlertRulesDialog({
               }
             />
           </div>
+
+          {canManageCardLog && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div>
+                <Label className="text-sm" htmlFor="card-log-system-sends">
+                  תיעוד אוטומטי בכרטיס הלקוח של הודעות שנשלחו מהמערכת
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  דוחות, דשבורדים, סיכומי פגישות, דיוורים והודעות של כרמן
+                  ואוטומציות נרשמים בכרטיס הלקוח. הודעות שנשלחו מהצ׳אט נרשמות
+                  כסיכום יומי, בלי תוכן ההודעות. רישומים אלה לא נחשבים כשיחה עם
+                  הלקוח.
+                </p>
+              </div>
+              <Switch
+                id="card-log-system-sends"
+                checked={cardLogSystemSends}
+                onCheckedChange={setCardLogSystemSends}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -154,7 +190,14 @@ export function PulseAlertRulesDialog({
           </Button>
           <Button
             disabled={saving}
-            onClick={() => onSave(parsePulseAlertRules(rules))}
+            onClick={() =>
+              onSave(
+                parsePulseAlertRules(rules),
+                canManageCardLog
+                  ? { card_log_system_sends: cardLogSystemSends }
+                  : {},
+              )
+            }
           >
             שמור חוקים
           </Button>

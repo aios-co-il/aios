@@ -534,6 +534,9 @@ export function ClientReportPanel({
         }
         if (waSenderId) formData.append("integrationId", waSenderId);
         if (clientId) formData.append("clientId", clientId);
+        // A report send: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "report");
+        formData.append("sendRef", table.id);
 
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
@@ -546,34 +549,6 @@ export function ClientReportPanel({
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "שגיאה בשליחה");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
-
-        // Auto-save the WhatsApp text as a weekly update in the client updates tab
-        if (messageText.trim()) {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            // A system send: shown with the "נשלח מהמערכת" chip and never
-            // counted as client contact, whatever the message says.
-            const { error: logError } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: user?.id,
-                content: messageText.trim(),
-                update_type: "weekly_update",
-                source: "system_send",
-              } as any);
-            if (logError)
-              console.warn("Failed to auto-save weekly update:", logError);
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", clientId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save weekly update:", e);
-          }
-        }
       }
 
       if (sendEmail) {
@@ -658,34 +633,6 @@ export function ClientReportPanel({
           if (data?.error) throw new Error(data.error);
         }
         toast.success("הדוח נשלח באימייל בהצלחה");
-
-        // Auto-save the email text as a monthly SEO update
-        if (messageText.trim()) {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            // A system send: shown with the "נשלח מהמערכת" chip and never
-            // counted as client contact, whatever the message says.
-            const { error: logError } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: user?.id,
-                content: messageText.trim(),
-                update_type: "monthly_seo",
-                source: "system_send",
-              } as any);
-            if (logError)
-              console.warn("Failed to auto-save monthly SEO update:", logError);
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", clientId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save monthly SEO update:", e);
-          }
-        }
       }
 
       const { error: deliveryLogError } = await supabase
@@ -702,12 +649,19 @@ export function ClientReportPanel({
           status: "sent",
           details: {
             source: "manual",
+            title: table.name,
             share_url: effectiveShareLink,
             email_recipients: sendEmail ? emailRecipients : [],
           },
         });
+      // This row is the send's only client card log: a database trigger
+      // writes the "דוח נשלח" entry when the tenant turned card logging on.
       if (deliveryLogError)
         console.warn("Failed to log report delivery:", deliveryLogError);
+      else
+        queryClient.invalidateQueries({
+          queryKey: ["client-updates", clientId],
+        });
     } catch (error: any) {
       console.error("Error sending report:", error);
       const msg = String(error?.message || "");

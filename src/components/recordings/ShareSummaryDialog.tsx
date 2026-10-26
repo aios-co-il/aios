@@ -146,37 +146,31 @@ export function ShareSummaryDialog({
     else setEmailSender("aios");
   }, [gmailToken]);
 
-  // Log the send on the client card as a system entry: it shows the
-  // "נשלח מהמערכת" chip and never counts as client contact.
-  const logClientUpdate = async () => {
+  // Record the send in report_deliveries. That row is the send's only client
+  // card log: a database trigger writes the "סיכום פגישה נשלח" entry (a system
+  // send, never client contact) when the tenant turned card logging on.
+  const logSummaryDelivery = async () => {
     if (!recording.client_id) return;
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user?.id) return;
-      const channels = [
-        sendWhatsApp ? "בוואטסאפ" : null,
-        sendEmail ? "באימייל" : null,
-      ].filter(Boolean);
-      const { error } = await supabase.from("client_updates").insert({
+      const { error } = await supabase.from("report_deliveries").insert({
         tenant_id: tenantId,
         client_id: recording.client_id,
-        user_id: user.id,
-        update_type: "meeting_summary",
-        source: "system_send",
-        content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח${channels.length ? ` ${channels.join(" ו")}` : ""}`,
-        metadata: {
+        target_type: "meeting_summary",
+        target_id: recording.id,
+        channels: [
+          ...(sendWhatsApp ? ["whatsapp"] : []),
+          ...(sendEmail ? ["email"] : []),
+        ],
+        status: "sent",
+        details: {
+          source: "manual",
+          title: `${meetingName}${meetingDate ? ` (${meetingDate})` : ""}`,
           recording_id: recording.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
         },
       });
-      if (error) console.error("client_updates log failed:", error);
+      if (error) console.error("report_deliveries log failed:", error);
     } catch (err) {
-      console.error("client_updates log failed:", err);
+      console.error("report_deliveries log failed:", err);
     }
   };
 
@@ -230,6 +224,9 @@ export function ShareSummaryDialog({
                 ? { groupId: selectedGroupId }
                 : { phoneNumber: directPhone }),
               ...(recording.client_id ? { clientId: recording.client_id } : {}),
+              // Logged on the client card once, from report_deliveries.
+              sendKind: "meeting_summary",
+              sendRef: recording.id,
             }),
           },
         );
@@ -255,6 +252,8 @@ export function ShareSummaryDialog({
             else formData.append("phoneNumber", directPhone);
             if (recording.client_id)
               formData.append("clientId", recording.client_id);
+            formData.append("sendKind", "meeting_summary");
+            formData.append("sendRef", recording.id);
             const fileResponse = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
               {
@@ -380,7 +379,7 @@ export function ShareSummaryDialog({
         }
       }
 
-      await logClientUpdate();
+      await logSummaryDelivery();
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending summary:", error);

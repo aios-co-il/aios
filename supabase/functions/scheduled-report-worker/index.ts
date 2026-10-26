@@ -132,6 +132,9 @@ Deno.serve(async (req) => {
                 phoneNumber: schedule.phone || schedule.clients?.phone,
                 message,
                 senderUserId: schedule.created_by,
+                // Logged on the client card once, from report_deliveries.
+                sendKind: "report",
+                sendRef: schedule.id,
               }),
             },
           );

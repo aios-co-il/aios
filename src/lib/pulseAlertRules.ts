@@ -35,3 +35,51 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
     disconnected_enabled: input.disconnected_enabled !== false,
   };
 }
+
+/**
+ * Manager-round settings stored under pulse_alert_rules.manager. Other code
+ * may keep more keys there; they are always preserved.
+ */
+export type PulseManagerSettings = {
+  /**
+   * Log what AIOS sends to a client (reports, dashboard shares, meeting
+   * summaries, broadcasts, Carmen and automation messages, chat replies) on
+   * the client card automatically. Off unless an owner turns it on.
+   */
+  card_log_system_sends?: boolean;
+};
+
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+/** Whether the tenant logs system sends on the client card (default false). */
+export function readCardLogSystemSends(raw: unknown): boolean {
+  return asRecord(asRecord(raw).manager).card_log_system_sends === true;
+}
+
+/**
+ * The pulse_alert_rules value to save: the stored JSON with the edited alert
+ * rules and manager settings laid over it. Keys this screen does not know
+ * (other manager settings, future rules) are kept as they are.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings = {},
+): Record<string, unknown> {
+  const current = asRecord(stored);
+  const merged: Record<string, unknown> = {
+    ...current,
+    ...parsePulseAlertRules({ ...current, ...rules }),
+  };
+  const managerPatch = Object.fromEntries(
+    Object.entries(manager).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(managerPatch).length > 0 || "manager" in current) {
+    merged.manager = { ...asRecord(current.manager), ...managerPatch };
+  }
+  return merged;
+}

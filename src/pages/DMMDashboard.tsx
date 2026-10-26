@@ -581,6 +581,8 @@ export function CampaignPulseDashboard({
         .from("client_updates")
         .select("client_id, update_type, content, created_at")
         .in("client_id", clientIds)
+        // Messages AIOS sent to the client are not the client's complaints.
+        .neq("source", "system_send")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(300);

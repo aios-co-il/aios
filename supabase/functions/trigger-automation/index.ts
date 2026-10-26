@@ -5973,6 +5973,8 @@ async function executeMetaWhatsappMessage(
     leadId: sendingToClient
       ? data?.lead_id || null
       : data?.lead_id || data?.id || null,
+    // An automation send (client card auto-log, AIO-242).
+    sendKind: "automation",
   };
 
   if (sendMode === "template") {
@@ -6754,6 +6756,8 @@ async function executeGreenApiToCampaigner(
       channel: "whatsapp",
       provider: "green_api",
       raw_provider_data: { automation: true, send_target, sendResult },
+      // A message to the campaigner, never logged on a client card (AIO-242).
+      send_kind: "staff_alert",
     });
 
     if (chatError) {

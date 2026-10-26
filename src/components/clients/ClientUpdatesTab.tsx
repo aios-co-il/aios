@@ -36,6 +36,12 @@ import {
   AlertTriangle,
   Activity,
   StickyNote,
+  FileText,
+  LayoutDashboard,
+  Megaphone,
+  Bot,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -49,6 +55,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveClientUpdateType } from "@/lib/clientUpdateType";
 import {
   CLIENT_UPDATE_SOURCE_FILTERS,
+  SYSTEM_SEND_UPDATE_TYPE_OPTIONS,
   canModifyClientUpdate,
   matchesClientUpdateSourceFilter,
   type ClientUpdateSourceFilter,
@@ -109,12 +116,26 @@ const INTERACTION_TYPES = [
   { value: "other", label: "אחר", icon: AlertTriangle },
   { value: "pulse_override", label: "תיקון דופק", icon: Activity },
 ];
-// Types other writers use (Carmen's add_client_update): shown and filterable,
-// not offered in the composer.
+// Icons for the entries AIOS writes when it sends something to the client.
+const SYSTEM_SEND_TYPE_ICONS: Record<string, LucideIcon> = {
+  report_sent: FileText,
+  dashboard_shared: LayoutDashboard,
+  meeting_summary_sent: Video,
+  broadcast_sent: Megaphone,
+  whatsapp_sent: MessageSquare,
+  carmen_message: Bot,
+  automation_message: Zap,
+};
+// Types other writers use (Carmen's add_client_update, system sends): shown
+// and filterable, not offered in the composer.
 const DISPLAY_UPDATE_TYPES = [
   ...INTERACTION_TYPES,
   { value: "note", label: "הערה", icon: StickyNote },
   { value: "complaint", label: "תלונה", icon: AlertTriangle },
+  ...SYSTEM_SEND_UPDATE_TYPE_OPTIONS.map((option) => ({
+    ...option,
+    icon: SYSTEM_SEND_TYPE_ICONS[option.value] ?? Send,
+  })),
 ];
 
 export function ClientUpdatesTab({

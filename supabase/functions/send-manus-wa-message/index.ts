@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { sendKindColumns } from "../_shared/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,6 +84,8 @@ Deno.serve(async (req) => {
       tenantId: providedTenantId,
       senderUserId,
       integrationId,
+      sendKind,
+      sendRef,
     } = body;
 
     if (isServiceRole) {
@@ -385,6 +388,8 @@ Deno.serve(async (req) => {
       sent_by_user_id: userId,
       raw_provider_data: respData,
       sender_phone: groupChatId ? null : to,
+      // What kind of system send this is (client card auto-log, AIO-242).
+      ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
     if (insertError) console.error("Failed to save message:", insertError);
 
