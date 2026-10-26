@@ -76,15 +76,13 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       icon?: string;
     }) => {
       if (!agentId || !tenantId) throw new Error("missing agent/tenant");
-      const { error } = await supabase
-        .from("agent_knowledge_folders")
-        .insert({
-          agent_id: agentId,
-          tenant_id: tenantId,
-          name: input.name,
-          parent_folder_id: input.parent_folder_id ?? null,
-          icon: input.icon ?? null,
-        });
+      const { error } = await supabase.from("agent_knowledge_folders").insert({
+        agent_id: agentId,
+        tenant_id: tenantId,
+        name: input.name,
+        parent_folder_id: input.parent_folder_id ?? null,
+        icon: input.icon ?? null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -112,18 +110,16 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
   const createItem = useMutation({
     mutationFn: async (input: Partial<KnowledgeItem>) => {
       if (!agentId || !tenantId) throw new Error("missing agent/tenant");
-      const { error } = await supabase
-        .from("agent_knowledge_items")
-        .insert({
-          agent_id: agentId,
-          tenant_id: tenantId,
-          folder_id: input.folder_id ?? null,
-          title: input.title ?? "ללא כותרת",
-          content: input.content ?? null,
-          kind: input.kind ?? "note",
-          url: input.url ?? null,
-          tags: input.tags ?? [],
-        });
+      const { error } = await supabase.from("agent_knowledge_items").insert({
+        agent_id: agentId,
+        tenant_id: tenantId,
+        folder_id: input.folder_id ?? null,
+        title: input.title ?? "ללא כותרת",
+        content: input.content ?? null,
+        kind: input.kind ?? "note",
+        url: input.url ?? null,
+        tags: input.tags ?? [],
+      });
       if (error) throw error;
     },
     onSuccess: () => {

@@ -163,12 +163,10 @@ async function analyze(history: unknown[]): Promise<Insight | null> {
   if (!OPENAI_API_KEY) return null;
   const trimmed = history.slice(-40);
   const transcript = trimmed
-    .map(
-      (raw) => {
-        const m = readHistoryEntry(raw);
-        return `[${m.role || m.direction || "?"}] ${shortText(m.content || m.message || m.text, 500)}`;
-      },
-    )
+    .map((raw) => {
+      const m = readHistoryEntry(raw);
+      return `[${m.role || m.direction || "?"}] ${shortText(m.content || m.message || m.text, 500)}`;
+    })
     .join("\n");
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {

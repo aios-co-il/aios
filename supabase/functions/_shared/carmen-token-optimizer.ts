@@ -386,7 +386,10 @@ export async function selectRelevantToolsForMessage(
     );
     return { tools: result, fullSchemaNames };
   } catch (e) {
-    console.error("[AGENT] tool router failed, using full set:", errorMessage(e));
+    console.error(
+      "[AGENT] tool router failed, using full set:",
+      errorMessage(e),
+    );
     return allFull(toolDefs);
   }
 }
