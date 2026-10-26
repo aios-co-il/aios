@@ -1,7 +1,31 @@
 // run-agent-eval — runs an eval dataset against an agent and scores results via LLM judge.
 // Body: { eval_id, tenant_id, user_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { errorMessage } from "../_shared/error-message.ts";
 import { resolveModelId } from "../_shared/models.ts";
+import type { Json } from "../_shared/database.types.ts";
+
+type EvalCaseResult = {
+  input: Json;
+  expected: Json;
+  actual: Json;
+  score: number;
+  reasoning: string;
+  passed: boolean;
+  run_id?: string;
+};
+
+/** A dataset case's input/expected value; "" when missing or the case is not an object. */
+function caseField(testCase: Json, key: "input" | "expected"): Json {
+  if (
+    typeof testCase !== "object" ||
+    testCase === null ||
+    Array.isArray(testCase)
+  ) {
+    return "";
+  }
+  return testCase[key] ?? "";
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +38,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const AI_GATEWAY_URL = "https://api.openai.com/v1/chat/completions";
 
-function jsonResponse(body: any, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,9 +46,9 @@ function jsonResponse(body: any, status = 200) {
 }
 
 async function judge(
-  input: string,
-  expected: string,
-  actual: string,
+  input: Json,
+  expected: Json,
+  actual: Json,
 ): Promise<{ score: number; reasoning: string }> {
   const resp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
@@ -77,7 +101,7 @@ Deno.serve(async (req) => {
       .single();
     if (!evalRow) return jsonResponse({ error: "eval not found" }, 404);
 
-    const dataset: any[] = Array.isArray(evalRow.dataset)
+    const dataset: Json[] = Array.isArray(evalRow.dataset)
       ? evalRow.dataset
       : [];
     const threshold = evalRow.pass_threshold ?? 70;
@@ -94,13 +118,13 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    const results: any[] = [];
+    const results: EvalCaseResult[] = [];
     let totalScore = 0;
     let passed = 0;
 
     for (const tc of dataset) {
-      const input = tc.input ?? "";
-      const expected = tc.expected ?? "";
+      const input = caseField(tc, "input");
+      const expected = caseField(tc, "expected");
       try {
         const { data: invokeData } = await supabase.functions.invoke(
           "run-ai-agent-v2",
@@ -129,13 +153,13 @@ Deno.serve(async (req) => {
           passed: pass,
           run_id: invokeData?.run_id,
         });
-      } catch (e: any) {
+      } catch (e) {
         results.push({
           input,
           expected,
           actual: null,
           score: 0,
-          reasoning: String(e?.message ?? e),
+          reasoning: String(errorMessage(e) ?? e),
           passed: false,
         });
       }
@@ -160,8 +184,8 @@ Deno.serve(async (req) => {
       total: dataset.length,
       avg_score: avg,
     });
-  } catch (e: any) {
-    console.error("[run-agent-eval]", e?.message);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+  } catch (e) {
+    console.error("[run-agent-eval]", errorMessage(e));
+    return jsonResponse({ error: String(errorMessage(e) ?? e) }, 500);
   }
 });

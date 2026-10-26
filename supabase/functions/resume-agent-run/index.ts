@@ -1,6 +1,17 @@
 // resume-agent-run — apply approval decision, log the outcome on the action trace,
 // and re-invoke run-ai-agent-v2 to continue the ReAct loop from the next step.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { errorMessage } from "../_shared/error-message.ts";
+
+/** Handlers report a failed execution as `{ ok: false, ... }`. */
+function reportsFailure(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "ok" in result &&
+    result.ok === false
+  );
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +62,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    let executionResult: any = null;
+    let executionResult: unknown = null;
 
     if (
       decision === "approved" &&
@@ -72,8 +83,8 @@ Deno.serve(async (req) => {
         executionResult = error
           ? { ok: false, error: String(error?.message ?? error) }
           : (data ?? { ok: true });
-      } catch (e: any) {
-        executionResult = { ok: false, error: String(e?.message ?? e) };
+      } catch (e) {
+        executionResult = { ok: false, error: String(errorMessage(e) ?? e) };
       }
     } else if (decision === "approved" && approval.tool_name) {
       // Look up the tool handler
@@ -100,8 +111,8 @@ Deno.serve(async (req) => {
           );
           if (error) throw error;
           executionResult = data ?? { ok: true };
-        } catch (e: any) {
-          executionResult = { ok: false, error: String(e?.message ?? e) };
+        } catch (e) {
+          executionResult = { ok: false, error: String(errorMessage(e) ?? e) };
         }
       } else {
         executionResult = {
@@ -126,7 +137,7 @@ Deno.serve(async (req) => {
           decision !== "approved"
             ? "rejected"
             : approval.action_type === "agent_direct_tool" &&
-                executionResult?.ok === false
+                reportsFailure(executionResult)
               ? "failed"
               : "executed",
         approved_by: reviewer_id ?? null,
@@ -155,7 +166,7 @@ Deno.serve(async (req) => {
           .update({
             step_kind: "tool",
             observation: executionResult,
-            status: executionResult?.ok === false ? "error" : "success",
+            status: reportsFailure(executionResult) ? "error" : "success",
             action_type: "tool",
           })
           .eq("id", pendingLog.id);
@@ -196,15 +207,15 @@ Deno.serve(async (req) => {
         tool_name: approval.tool_name,
         result: executionResult,
       },
-      status: executionResult?.ok === false ? "error" : "success",
+      status: reportsFailure(executionResult) ? "error" : "success",
     });
 
     return new Response(JSON.stringify({ ok: true, executionResult }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    console.error("[resume-agent-run] error:", e?.message);
-    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
+  } catch (e) {
+    console.error("[resume-agent-run] error:", errorMessage(e));
+    return new Response(JSON.stringify({ error: String(errorMessage(e) ?? e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
