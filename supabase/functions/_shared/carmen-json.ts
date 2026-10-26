@@ -20,17 +20,35 @@ export function jsonString(value: Json | undefined): string | null {
   return typeof value === "string" ? value : null;
 }
 
-/** Keeps only string-valued LID alias entries of a configuration object. */
+function aliasPhone(phone: Json | undefined): string | null {
+  if (typeof phone === "string") return phone;
+  if (typeof phone === "number" && Number.isFinite(phone)) return String(phone);
+  return null;
+}
+
+/** Keeps string and finite-number LID alias entries (numbers as strings). */
 export function toCarmenAutomationConfig(
   config: JsonObject,
 ): CarmenAutomationConfig {
   const { carmen_lid_aliases: rawAliases, ...rest } = config;
   if (rawAliases === undefined) return rest;
   const aliases: { [lid: string]: string } = {};
-  for (const [lid, phone] of Object.entries(asJsonObject(rawAliases))) {
-    if (typeof phone === "string") aliases[lid] = phone;
+  for (const [lid, value] of Object.entries(asJsonObject(rawAliases))) {
+    const phone = aliasPhone(value);
+    if (phone !== null) aliases[lid] = phone;
   }
   return { ...rest, carmen_lid_aliases: aliases };
+}
+
+/** The trigger step's configuration merged over the automation's own. */
+export function mergeCarmenStepConfig(
+  automationConfig: Json | undefined,
+  stepConfig: JsonObject,
+): CarmenAutomationConfig {
+  return toCarmenAutomationConfig({
+    ...asJsonObject(automationConfig),
+    ...stepConfig,
+  });
 }
 
 /** A field of a JSON value; null, arrays and scalars have no fields. */

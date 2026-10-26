@@ -4,6 +4,7 @@ import {
   isChatTurn,
   jsonField,
   jsonString,
+  mergeCarmenStepConfig,
   toCarmenAutomationConfig,
 } from "./carmen-json.ts";
 
@@ -32,18 +33,53 @@ Deno.test("isChatTurn accepts user/assistant turns with string content", () => {
   assertStrictEquals(isChatTurn("user"), false);
 });
 
-Deno.test("automation config keeps fields and only string LID aliases", () => {
+Deno.test("automation config keeps string and numeric LID aliases", () => {
   assertEquals(toCarmenAutomationConfig({ agent_id: "a" }), {
     agent_id: "a",
   });
   assertEquals(
     toCarmenAutomationConfig({
       agent_id: "a",
-      carmen_lid_aliases: { "123": "972501234567", "456": 7 },
+      carmen_lid_aliases: {
+        "123": "972501234567",
+        "456": 972509876543,
+        "789": null,
+        "790": true,
+        "791": { phone: "972501111111" },
+      },
     }),
-    { agent_id: "a", carmen_lid_aliases: { "123": "972501234567" } },
+    {
+      agent_id: "a",
+      carmen_lid_aliases: { "123": "972501234567", "456": "972509876543" },
+    },
   );
   assertEquals(toCarmenAutomationConfig({ carmen_lid_aliases: null }), {
     carmen_lid_aliases: {},
   });
+});
+
+Deno.test("step configuration overrides the automation configuration", () => {
+  assertEquals(
+    mergeCarmenStepConfig(
+      {
+        agent_id: "auto",
+        end_keyword: "bye",
+        carmen_lid_aliases: { "1": "2" },
+      },
+      { agent_id: "step", carmen_lid_aliases: { "9": 972501234567 } },
+    ),
+    {
+      agent_id: "step",
+      end_keyword: "bye",
+      carmen_lid_aliases: { "9": "972501234567" },
+    },
+  );
+});
+
+Deno.test("non-object automation configuration merges as empty", () => {
+  for (const automationConfig of [null, undefined, "x", 5, ["a"]]) {
+    assertEquals(mergeCarmenStepConfig(automationConfig, { agent_id: "s" }), {
+      agent_id: "s",
+    });
+  }
 });

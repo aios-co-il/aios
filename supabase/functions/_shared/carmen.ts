@@ -38,11 +38,16 @@ import {
   asJsonObject,
   isChatTurn,
   jsonString,
-  toCarmenAutomationConfig,
-  jsonField,
+  mergeCarmenStepConfig,
   type CarmenAutomationConfig,
   type JsonObject,
 } from "./carmen-json.ts";
+import {
+  buildCarmenMergedHistory,
+  chatTurnsOnly,
+  lastAssistantReply,
+  sessionHistoryEntries,
+} from "./carmen-session-history.ts";
 import type { Json, Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
 
@@ -614,52 +619,7 @@ export async function buildGroupRosterNote(
   }
 }
 
-// Merge background chat-history context with the in-session conversation history.
-// Drops items from the background context that overlap with the session by timestamp,
-// and prepends a short note so the model treats them as background, not as a new question.
-export function buildCarmenMergedHistory(
-  recentContext: Array<{ role: string; content: string; timestamp?: string }>,
-  sessionHistory: Json[],
-  hardCap = 40,
-): Json[] {
-  const sessionTimestamps = new Set(
-    (sessionHistory || [])
-      .map((m) => {
-        const ts = jsonField(m, "timestamp");
-        return ts ? String(ts) : null;
-      })
-      .filter((ts): ts is string => Boolean(ts)),
-  );
-  const oldestSessionTs =
-    sessionHistory && sessionHistory.length
-      ? sessionHistory
-          .map((m) => jsonField(m, "timestamp"))
-          .filter((ts): ts is string => typeof ts === "string" && ts !== "")
-          .sort()[0]
-      : null;
-
-  const dedupedContext = recentContext.filter((m) => {
-    if (!m?.timestamp) return true;
-    if (sessionTimestamps.has(m.timestamp)) return false;
-    if (oldestSessionTs && m.timestamp >= oldestSessionTs) return false;
-    return true;
-  });
-
-  const merged: Json[] = [];
-  if (dedupedContext.length > 0) {
-    merged.push({
-      role: "user",
-      content:
-        "[רקע: להלן היסטוריית הצ׳אט מהימים האחרונים מאותה שיחה. השתמשי בה כדי לענות על שאלות לגבי מה שנאמר או הוחלט קודם. אל תתייחסי להודעות האלה כשאלה חדשה.]",
-      timestamp: new Date(0).toISOString(),
-    });
-    merged.push(...dedupedContext);
-  }
-  merged.push(...(sessionHistory || []));
-
-  if (merged.length <= hardCap) return merged;
-  return [merged[0], ...merged.slice(-(hardCap - 1))];
-}
+export { buildCarmenMergedHistory };
 
 export async function findCarmenAgent(
   supabase: DbClient,
@@ -965,10 +925,7 @@ export async function findCarmenSessionAutomation(
     if (!auto) continue;
     return {
       ...auto,
-      configuration: toCarmenAutomationConfig({
-        ...asJsonObject(auto.configuration),
-        ...s.configuration,
-      }),
+      configuration: mergeCarmenStepConfig(auto.configuration, s.configuration),
     };
   }
   return null;
@@ -1232,10 +1189,7 @@ export async function syncCarmenToAIConversation(
     const tenantId = session.tenant_id;
     if (!userId || !tenantId) return null;
 
-    const messages = conversationHistory.map((msg) => ({
-      role: jsonField(msg, "role"),
-      content: jsonField(msg, "content"),
-    }));
+    const messages = chatTurnsOnly(conversationHistory);
 
     if (session.ai_conversation_id) {
       await supabase
@@ -2166,22 +2120,12 @@ export async function handleCarmenMessage(
     // source of "כן/כאן/כן/כאן" loops. We only require an exact equality OR strict
     // prefix match (not just any substring) so legitimate replies starting with the
     // same word still get through.
-    const history: Json[] = Array.isArray(activeSession.conversation_history)
-      ? activeSession.conversation_history
-      : [];
-    const lastAssistant = [...history]
-      .reverse()
-      .find((m) => jsonField(m, "role") === "assistant");
-    const lastAssistantContent = jsonField(lastAssistant, "content");
-    if (lastAssistantContent) {
-      const a = String(lastAssistantContent).trim();
+    const history = sessionHistoryEntries(activeSession.conversation_history);
+    const lastReply = lastAssistantReply(history, Date.now());
+    if (lastReply) {
+      const a = lastReply.text;
       const b = String(messageText || "").trim();
-      const lastTimestamp = jsonField(lastAssistant, "timestamp");
-      const lastTs =
-        typeof lastTimestamp === "string" || typeof lastTimestamp === "number"
-          ? new Date(lastTimestamp).getTime()
-          : 0;
-      const ageMs = lastTs ? Date.now() - lastTs : Number.MAX_SAFE_INTEGER;
+      const ageMs = lastReply.ageMs;
       // Within a 90-second window after Carmen's reply, drop any inbound that
       // equals or strictly starts-with the assistant text — this is the provider
       // mirror echo. After 90s, only equality counts (so legitimate repeats are
