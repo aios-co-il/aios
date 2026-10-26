@@ -1,0 +1,2109 @@
+From 656e9edd9d192c46a6edd1d5a4ac7610190e85fa Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Thu, 15 Oct 2026 09:23:51 +0000
+Subject: [PATCH 01/12] refactor(whatsapp): type manus webhook inputs
+
+Remove 44 explicit-any warnings for AIO-106 while preserving routing and media handling. Validate raw JSON envelopes and document the existing voice metadata input contract.
+---
+ .../functions/_shared/wa-voice-resolve.mjs    |   8 +
+ supabase/functions/manus-wa-webhook/index.ts  | 214 ++++++++++++------
+ 2 files changed, 154 insertions(+), 68 deletions(-)
+
+diff --git a/supabase/functions/_shared/wa-voice-resolve.mjs b/supabase/functions/_shared/wa-voice-resolve.mjs
+index 9a6660651..5ffdc257c 100644
+--- a/supabase/functions/_shared/wa-voice-resolve.mjs
++++ b/supabase/functions/_shared/wa-voice-resolve.mjs
+@@ -59,6 +59,14 @@ export function formatVoiceMessageText({ transcript, status, isVoice }) {
+ 
+ /**
+  * Build metadata Carmen / chat_messages can persist under raw_provider_data._voice.
++ * @param {{
++ *   status: string,
++ *   transcript?: string | null,
++ *   source?: string,
++ *   messageId?: string | null,
++ *   audioUrl?: string | null,
++ *   isVoice?: boolean
++ * }} options
+  */
+ export function buildVoiceMeta({
+   status,
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 24e2ff2a4..4e6b55623 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -35,6 +35,13 @@ import {
+ import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
+ import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
+ 
++function createServiceClient() {
++  return createClient(
++    Deno.env.get("SUPABASE_URL") ?? "",
++    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
++  );
++}
++
+ const corsHeaders = {
+   "Access-Control-Allow-Origin": "*",
+   "Access-Control-Allow-Headers":
+@@ -67,13 +74,84 @@ function isUnresolvedGroupAuthor(
+   return !isIsraeliMobileTail(authorPhone);
+ }
+ 
++/** Inspect a JSON object without assuming the provider's envelope shape. */
++function pickObj(...candidates: unknown[]): Record<string, unknown> | null {
++  for (const candidate of candidates) {
++    if (
++      candidate &&
++      typeof candidate === "object" &&
++      !Array.isArray(candidate)
++    ) {
++      return candidate as Record<string, unknown>;
++    }
++  }
++  return null;
++}
++
++// Provider variants keep their original values until the consuming routing/media
++// code applies its existing coercion. Only the fields this webhook reads belong
++// to the contract; the original object is still retained for raw_provider_data.
++interface ManusPayload {
++  event?: unknown;
++  from?: unknown;
++  to?: unknown;
++  body?: unknown;
++  fromMe?: unknown;
++  direction?: unknown;
++  id?: unknown;
++  messageId?: unknown;
++  senderName?: unknown;
++  author?: unknown;
++  hasMedia?: unknown;
++  chatId?: unknown;
++  senderLid?: unknown;
++  senderPn?: unknown;
++  participantPn?: unknown;
++  senderPhone?: unknown;
++  senderNumber?: unknown;
++  quotedMsgId?: unknown;
++  quotedMessageId?: unknown;
++  quotedMsg?: unknown;
++  groupId?: unknown;
++  fromName?: unknown;
++  authorName?: unknown;
++  participant?: unknown;
++  groupName?: unknown;
++  chatName?: unknown;
++  subject?: unknown;
++  ack?: unknown;
++  type?: unknown;
++  messageType?: unknown;
++  mediaType?: unknown;
++  mimeType?: unknown;
++  mime_type?: unknown;
++  media?: unknown;
++  file?: unknown;
++  attachment?: unknown;
++  audio?: unknown;
++}
++interface ManusMessageContainer {
++  audioMessage?: unknown;
++  message?: unknown;
++  type?: unknown;
++  contextInfo?: unknown;
++  participant?: unknown;
++  author?: unknown;
++  conversation?: unknown;
++  text?: unknown;
++  body?: unknown;
++  imageMessage?: unknown;
++  videoMessage?: unknown;
++  documentMessage?: unknown;
++}
++
+ // ── Incoming voice notes → transcript (OpenAI Whisper) ────────────────
+ // Returns structured result: clear 🎤 transcript when available, otherwise an
+ // explicit status (no_audio_url / transcription_failed / …) — never silent.
+ type MediaAuth = {
+   apiKey?: string;
+   gateway?: string;
+-  supabase?: any;
++  supabase?: ReturnType<typeof createServiceClient>;
+   tenantId?: string;
+ };
+ type VoiceResolveResult = {
+@@ -84,7 +162,10 @@ type VoiceResolveResult = {
+ // Tracks URL-less Manus payloads that were positively matched to a Green API voice transcript.
+ // WeakSet keeps the classification request-local without mutating the payload persisted to the database.
+ const pairedVoicePayloads = new WeakSet<object>();
+-function pickAudioUrl(payload: any, msgContainer: any): string | null {
++function pickAudioUrl(
++  payload: ManusPayload,
++  msgContainer: ManusMessageContainer,
++): string | null {
+   return pickAudioUrlFromContainers([
+     payload,
+     payload?.media,
+@@ -97,8 +178,8 @@ function pickAudioUrl(payload: any, msgContainer: any): string | null {
+   ]);
+ }
+ function looksAudio(
+-  payload: any,
+-  msgContainer: any,
++  payload: ManusPayload,
++  msgContainer: ManusMessageContainer,
+   url: string | null,
+ ): boolean {
+   return looksLikeAudioPayload({
+@@ -111,8 +192,8 @@ function looksAudio(
+     mime:
+       payload?.mimeType ||
+       payload?.mime_type ||
+-      payload?.media?.mimetype ||
+-      msgContainer?.audioMessage?.mimetype,
++      pickObj(payload?.media)?.mimetype ||
++      pickObj(msgContainer?.audioMessage)?.mimetype,
+     url,
+   });
+ }
+@@ -141,7 +222,7 @@ async function fetchMedia(url: string, auth?: MediaAuth): Promise<Blob | null> {
+ // transcript by the provider message id — KEEP the 🎤 marker so Carmen knows
+ // this is a voice transcript (stripping it caused her to deny she can read voice).
+ async function findPairedGreenTranscript(
+-  payload: any,
++  payload: ManusPayload,
+   auth?: MediaAuth,
+ ): Promise<string | null> {
+   if (!auth?.supabase || !auth.tenantId) return null;
+@@ -184,8 +265,8 @@ async function findPairedGreenTranscript(
+ // shape so the exact Manus voice-note format can be pinned down. Best-effort.
+ function logMediaDebug(
+   auth: MediaAuth | undefined,
+-  payload: any,
+-  msgContainer: any,
++  payload: ManusPayload,
++  msgContainer: ManusMessageContainer,
+   url: string | null,
+   isAudio: boolean,
+   status: string,
+@@ -210,7 +291,7 @@ function logMediaDebug(
+           looks_audio: isAudio,
+           msg_keys: msgContainer ? Object.keys(msgContainer) : null,
+           audioMessage_keys: msgContainer?.audioMessage
+-            ? Object.keys(msgContainer.audioMessage)
++            ? Object.keys(Object(msgContainer.audioMessage))
+             : null,
+           preview: JSON.stringify(payload ?? {}).slice(0, 1500),
+         },
+@@ -224,8 +305,8 @@ function logMediaDebug(
+   }
+ }
+ async function resolveMessageText(
+-  payload: any,
+-  msgContainer: any,
++  payload: ManusPayload,
++  msgContainer: ManusMessageContainer,
+   auth?: MediaAuth,
+ ): Promise<VoiceResolveResult> {
+   const messageId =
+@@ -285,12 +366,12 @@ async function resolveMessageText(
+ 
+   const url = urlEarly;
+   const isAudio = audioEarly;
+-  let status = isAudio
++  let status: (typeof VOICE_STATUSES)[keyof typeof VOICE_STATUSES] = isAudio
+     ? url
+       ? VOICE_STATUSES.TRANSCRIPTION_FAILED
+       : VOICE_STATUSES.NO_AUDIO_URL
+     : VOICE_STATUSES.NOT_VOICE_MEDIA;
+-  let source: string = "none";
++  let source: "none" | "direct_whisper" = "none";
+   let transcript: string | null = null;
+ 
+   if (url && isAudio) {
+@@ -361,7 +442,7 @@ async function resolveMessageText(
+   const meta = buildVoiceMeta({
+     status,
+     transcript,
+-    source: source as any,
++    source,
+     messageId,
+     audioUrl: url,
+     isVoice,
+@@ -379,8 +460,8 @@ async function resolveMessageText(
+ 
+ // Was the inbound message a voice note? (drives Carmen's voice-out mirroring)
+ function messageIsVoice(
+-  payload: any,
+-  msgContainer: any,
++  payload: ManusPayload,
++  msgContainer: ManusMessageContainer,
+   resolved?: VoiceResolveResult,
+ ): boolean {
+   if (resolved?.isVoice) return true;
+@@ -431,13 +512,10 @@ Deno.serve(async (req) => {
+     return new Response(null, { headers: corsHeaders });
+ 
+   try {
+-    const supabase = createClient(
+-      Deno.env.get("SUPABASE_URL") ?? "",
+-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+-    );
++    const supabase = createServiceClient();
+ 
+     const url = new URL(req.url);
+-    const rawPayload = await req.json();
++    const rawPayload: unknown = await req.json();
+ 
+     // Diagnostic: log top-level shape so we can see exactly what Manus sends
+     try {
+@@ -453,14 +531,7 @@ Deno.serve(async (req) => {
+ 
+     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
+     // { data }, { message }, { payload }, { event, data: {...} }, etc.
+-    function pickObj(...candidates: unknown[]): Record<string, any> | null {
+-      for (const c of candidates) {
+-        if (c && typeof c === "object" && !Array.isArray(c))
+-          return c as Record<string, any>;
+-      }
+-      return null;
+-    }
+-    const outer = rawPayload as Record<string, any>;
++    const outer = pickObj(rawPayload) || {};
+     const inner =
+       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
+     const key = pickObj(inner.key, outer.key) || {};
+@@ -549,13 +620,16 @@ Deno.serve(async (req) => {
+       );
+ 
+     // Build a unified payload object that the rest of the code uses
+-    const payload: Record<string, any> = {
++    const payload: ManusPayload = {
+       ...outer,
+       ...inner,
+       event: normalizedEvent,
+       from: fromField,
+       to: toField,
+-      body: typeof bodyField === "string" ? bodyField : (bodyField?.text ?? ""),
++      body:
++        typeof bodyField === "string"
++          ? bodyField
++          : (pickObj(bodyField)?.text ?? ""),
+       fromMe: fromMeField,
+       direction: directionField,
+       id: idField,
+@@ -610,8 +684,8 @@ Deno.serve(async (req) => {
+       return ok({ error: "No active integration" }, 404);
+     }
+ 
+-    const settings = (integ.settings as any) || {};
+-    const expectedSecret: string = settings.webhook_secret || "";
++    const settings = pickObj(integ.settings) || {};
++    const expectedSecret = settings.webhook_secret || "";
+ 
+     // Auto-heal: if DB has no secret yet, accept the first webhook secret we see and persist it.
+     if (!expectedSecret && headerSecret) {
+@@ -629,7 +703,7 @@ Deno.serve(async (req) => {
+         "— received headers:",
+         JSON.stringify(Object.fromEntries(req.headers)),
+         "received secret:",
+-        headerSecret ? `${headerSecret.slice(0, 6)}…` : "(none)",
++        headerSecret ? `${String(headerSecret).slice(0, 6)}…` : "(none)",
+       );
+       return ok({ received: true, ignored: "secret_mismatch" }, 200);
+     }
+@@ -824,7 +898,7 @@ Deno.serve(async (req) => {
+         });
+       if (claimErr) {
+         // 23505 = unique_violation → another invocation already processing this msg
+-        if ((claimErr as any).code === "23505") {
++        if (claimErr.code === "23505") {
+           console.log("[manus-wa] duplicate webhook dropped", {
+             messageId,
+             bodyPreview: String(messageText).slice(0, 60),
+@@ -873,18 +947,21 @@ Deno.serve(async (req) => {
+             .limit(10);
+           pendings = fallback.data;
+         } else {
+-          pendings = (pendings || []).filter((row: any) => !row.group_chat_id);
++          pendings = (pendings || []).filter((row) => !row.group_chat_id);
+         }
+         if (pendings && pendings.length > 0) {
+           const quotedId = String(
+-            (payload as any).quotedMsgId ||
+-              (payload as any).quotedMessageId ||
+-              (payload as any)?.quotedMsg?.id ||
+-              (msgContainer as any)?.contextInfo?.stanzaId ||
++            payload.quotedMsgId ||
++              payload.quotedMessageId ||
++              pickObj(payload.quotedMsg)?.id ||
++              pickObj(msgContainer.contextInfo)?.stanzaId ||
+               "",
+           );
+           const hit = pendings.find(
+-            (p: any) =>
++            (p: {
++              code: string | null;
++              activation_message_id: string | null;
++            }) =>
+               (p.code &&
+                 new RegExp(`(^|\\D)${p.code}(\\D|$)`).test(messageText)) ||
+               (p.activation_message_id &&
+@@ -1024,9 +1101,9 @@ Deno.serve(async (req) => {
+         .limit(5);
+       const pairedOutgoing =
+         (greenMatches || []).find(
+-          (m: any) =>
++          (m: { raw_provider_data: unknown }) =>
+             !messageId ||
+-            String(m.raw_provider_data?.idMessage || "") === messageId,
++            String(pickObj(m.raw_provider_data)?.idMessage || "") === messageId,
+         ) || greenMatches?.[0];
+       if (pairedOutgoing?.sender_phone) {
+         isOutgoingFromPhone = true;
+@@ -1104,7 +1181,7 @@ Deno.serve(async (req) => {
+           ? [
+               ...new Set(
+                 cfg.carmen_allowed_phones
+-                  .map((p: any) => String(p).replace(/\D/g, ""))
++                  .map((p: unknown) => String(p).replace(/\D/g, ""))
+                   .filter(Boolean),
+               ),
+             ]
+@@ -1236,7 +1313,7 @@ Deno.serve(async (req) => {
+           ? [
+               ...new Set(
+                 cfg.carmen_allowed_phones
+-                  .map((p: any) => String(p).replace(/\D/g, ""))
++                  .map((p: unknown) => String(p).replace(/\D/g, ""))
+                   .filter(Boolean),
+               ),
+             ]
+@@ -1303,7 +1380,7 @@ Deno.serve(async (req) => {
+     if (isGroup) {
+       // Prefer explicit group fields. `from` is often the sender's personal phone in groups,
+       // and `to` may be empty — in which case we must fall back to chatId/groupId from the payload.
+-      const groupIdRaw = String((payload as any).groupId || "");
++      const groupIdRaw = String(payload.groupId || "");
+       const groupChatId = fromRaw.endsWith("@g.us")
+         ? fromRaw
+         : toRaw.endsWith("@g.us")
+@@ -1326,7 +1403,9 @@ Deno.serve(async (req) => {
+           .eq("group_chat_id", groupChatId)
+           .limit(10);
+         const rows = wgRows || [];
+-        const ownRegistered = rows.some((r: any) => r.tenant_id === tenantId);
++        const ownRegistered = rows.some(
++          (r: { tenant_id: string }) => r.tenant_id === tenantId,
++        );
+         if (!ownRegistered && rows.length > 0) {
+           // The bot's own tenant has no whatsapp_groups claim here. A group is
+           // often registered under ANOTHER tenant just because the operator's
+@@ -1342,7 +1421,8 @@ Deno.serve(async (req) => {
+             .eq("action_type", "carmen_whatsapp_session")
+             .limit(10);
+           const ownHasOpenMode = (ownSteps || []).some(
+-            (s: any) => s?.configuration?.carmen_open_member_groups === true,
++            (s: { configuration: unknown }) =>
++              pickObj(s.configuration)?.carmen_open_member_groups === true,
+           );
+           if (!ownHasOpenMode) groupTenantId = rows[0].tenant_id as string;
+         }
+@@ -1375,13 +1455,11 @@ Deno.serve(async (req) => {
+         payload.participant,
+         payload.senderLid,
+         key.participant,
+-        (msgContainer as any)?.participant,
+-        (msgContainer as any)?.author,
++        msgContainer?.participant,
++        msgContainer?.author,
+         // Manus sends bare digits here (no @), which the filter below dropped.
+         ...manusGroupSenderCandidates(payload, groupChatId),
+-      ].filter(
+-        (v: any) => typeof v === "string" && v.includes("@"),
+-      ) as string[];
++      ].filter((v): v is string => typeof v === "string" && v.includes("@"));
+       // Prefer a real @c.us participant over an anonymous @lid author when both exist.
+       const authorRaw =
+         authorCandidates.find((c) => c.endsWith("@c.us")) ||
+@@ -1577,7 +1655,7 @@ Deno.serve(async (req) => {
+           .select("id, created_at")
+           .eq("tenant_id", tenantId)
+           .eq("direction", "outbound")
+-          .eq("group_id", null as any)
++          .eq("group_id", null)
+           .in("provider", ["manus_wa", "green_api"])
+           .eq("message_text", messageText)
+           .gte("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString())
+@@ -1640,7 +1718,7 @@ Deno.serve(async (req) => {
+             tenant_id: groupTenantId,
+             external_message_id: currentFingerprint,
+           });
+-        if ((fingerprintError as any)?.code === "23505") {
++        if (fingerprintError?.code === "23505") {
+           console.log("[manus-wa group] semantic duplicate dropped", {
+             groupChatId,
+             authorPhone,
+@@ -1676,9 +1754,9 @@ Deno.serve(async (req) => {
+             wgId = wgRow.id;
+           } else {
+             const groupName = String(
+-              (payload as any).groupName ||
+-                (payload as any).chatName ||
+-                (payload as any).subject ||
++              payload.groupName ||
++                payload.chatName ||
++                payload.subject ||
+                 groupChatId,
+             );
+             const { data: upserted, error: upsertErr } = await supabase
+@@ -1851,11 +1929,11 @@ Deno.serve(async (req) => {
+           ),
+           sendVoice: makeVoiceSender(groupTenantId),
+           sendMessage: async (_chatId: string, message: string) => {
+-            const settingsAny = (integ.settings as any) || {};
++            const gatewaySettings = settings;
+             const baseUrl =
+-              settingsAny.gateway_url ||
++              gatewaySettings.gateway_url ||
+               "https://whatsappgw-pzpyrrww.manus.space";
+-            const instanceId = settingsAny.instance_id;
++            const instanceId = gatewaySettings.instance_id;
+             const apiKey = integ.api_key;
+             if (!instanceId || !apiKey) return false;
+             // IMPORTANT: bound the gateway call with a timeout. Without it, a stalled Manus
+@@ -1889,9 +1967,9 @@ Deno.serve(async (req) => {
+                 elapsedMs: Date.now() - started,
+               });
+               return res.ok;
+-            } catch (err: any) {
++            } catch (err) {
+               clearTimeout(timer);
+-              const isAbort = err?.name === "AbortError";
++              const isAbort = pickObj(err)?.name === "AbortError";
+               console.error(
+                 "manus-wa Carmen group sendMessage error:",
+                 isAbort
+@@ -1908,8 +1986,8 @@ Deno.serve(async (req) => {
+           authorPhone,
+           isOutgoingFromPhone,
+           handled: result.handled,
+-          outcome: (result as any).outcome,
+-          reason: (result as any).reason,
++          outcome: "outcome" in result ? result.outcome : undefined,
++          reason: "reason" in result ? result.reason : undefined,
+           body: String(messageText).slice(0, 60),
+         });
+       } catch (err) {
+@@ -2129,8 +2207,8 @@ Deno.serve(async (req) => {
+         pairedFromGreenApi,
+         isOutgoingFromPhone,
+         handled: result.handled,
+-        outcome: (result as any).outcome,
+-        reason: (result as any).reason,
++        outcome: "outcome" in result ? result.outcome : undefined,
++        reason: "reason" in result ? result.reason : undefined,
+         body: String(messageText).slice(0, 60),
+       });
+     } catch (err) {
+-- 
+2.43.0
+
+
+From 4d2e36206f9faea50d5ac18007cb319b3c2c3437 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:09:28 +0000
+Subject: [PATCH 02/12] fix(whatsapp): reuse shared client and reject invalid
+ payloads
+
+---
+ supabase/functions/manus-wa-webhook/index.ts | 24 ++++++++------------
+ 1 file changed, 10 insertions(+), 14 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 4e6b55623..237135968 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -3,7 +3,9 @@
+ // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
+ // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
+ import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
++import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
++import type { Database } from "../_shared/database.types.ts";
++import { serviceClient } from "../_shared/agent-channel/store.ts";
+ import {
+   findCarmenSessionAutomation,
+   groupMessageInvokesCarmen,
+@@ -35,13 +37,6 @@ import {
+ import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
+ import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
+ 
+-function createServiceClient() {
+-  return createClient(
+-    Deno.env.get("SUPABASE_URL") ?? "",
+-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+-  );
+-}
+-
+ const corsHeaders = {
+   "Access-Control-Allow-Origin": "*",
+   "Access-Control-Allow-Headers":
+@@ -151,7 +146,7 @@ interface ManusMessageContainer {
+ type MediaAuth = {
+   apiKey?: string;
+   gateway?: string;
+-  supabase?: ReturnType<typeof createServiceClient>;
++  supabase?: SupabaseClient<Database>;
+   tenantId?: string;
+ };
+ type VoiceResolveResult = {
+@@ -512,7 +507,7 @@ Deno.serve(async (req) => {
+     return new Response(null, { headers: corsHeaders });
+ 
+   try {
+-    const supabase = createServiceClient();
++    const supabase = serviceClient() as SupabaseClient<Database>;
+ 
+     const url = new URL(req.url);
+     const rawPayload: unknown = await req.json();
+@@ -531,7 +526,8 @@ Deno.serve(async (req) => {
+ 
+     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
+     // { data }, { message }, { payload }, { event, data: {...} }, etc.
+-    const outer = pickObj(rawPayload) || {};
++    const outer = pickObj(rawPayload);
++    if (!outer) return ok({ error: "Invalid payload" }, 400);
+     const inner =
+       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
+     const key = pickObj(inner.key, outer.key) || {};
+@@ -703,7 +699,7 @@ Deno.serve(async (req) => {
+         "— received headers:",
+         JSON.stringify(Object.fromEntries(req.headers)),
+         "received secret:",
+-        headerSecret ? `${String(headerSecret).slice(0, 6)}…` : "(none)",
++        headerSecret ? `${headerSecret.slice(0, 6)}…` : "(none)",
+       );
+       return ok({ received: true, ignored: "secret_mismatch" }, 200);
+     }
+@@ -716,7 +712,7 @@ Deno.serve(async (req) => {
+     const mediaAuth: MediaAuth = {
+       apiKey: integ.api_key as string | undefined,
+       gateway:
+-        (settings.gateway_url as string) ||
++        (settingsettings.gateway_url as string) ||
+         "https://whatsappgw-pzpyrrww.manus.space",
+       supabase,
+       tenantId,
+@@ -1931,7 +1927,7 @@ Deno.serve(async (req) => {
+           sendMessage: async (_chatId: string, message: string) => {
+             const gatewaySettings = settings;
+             const baseUrl =
+-              gatewaySettings.gateway_url ||
++              gatewaySettingsettings.gateway_url ||
+               "https://whatsappgw-pzpyrrww.manus.space";
+             const instanceId = gatewaySettings.instance_id;
+             const apiKey = integ.api_key;
+-- 
+2.43.0
+
+
+From 85e84b5b25a97eeed39ba48e5b4b4dccddabcd56 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:11:48 +0000
+Subject: [PATCH 03/12] test(whatsapp): cover invalid bodies with header and
+ query instances
+
+---
+ .../manus-wa-webhook/payload.test.mjs         | 75 +++++++++++++++++++
+ 1 file changed, 75 insertions(+)
+ create mode 100644 supabase/functions/manus-wa-webhook/payload.test.mjs
+
+diff --git a/supabase/functions/manus-wa-webhook/payload.test.mjs b/supabase/functions/manus-wa-webhook/payload.test.mjs
+new file mode 100644
+index 000000000..d769b6ace
+--- /dev/null
++++ b/supabase/functions/manus-wa-webhook/payload.test.mjs
+@@ -0,0 +1,75 @@
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import test from "node:test";
++import vm from "node:vm";
++import ts from "typescript";
++
++// Execute the real handler with external imports removed and database access trapped.
++const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
++const { outputText } = ts.transpileModule(source, {
++  compilerOptions: {
++    target: ts.ScriptTarget.ES2022,
++    module: ts.ModuleKind.ESNext,
++  },
++  transformers: {
++    before: [
++      (context) => (file) =>
++        ts.visitEachChild(
++          file,
++          (node) => (ts.isImportDeclaration(node) ? undefined : node),
++          context,
++        ),
++    ],
++  },
++});
++
++for (const variant of ["body", "header", "query"]) {
++  for (const payload of [null, [], "invalid", 42]) {
++    test(`rejects ${JSON.stringify(payload)} with ${variant} instance before database access`, async () => {
++      let handler;
++      let databaseCalls = 0;
++      const client = {
++        from() {
++          databaseCalls++;
++          throw new Error("Unexpected database access");
++        },
++      };
++      const context = vm.createContext({
++        exports: {},
++        URL,
++        Request,
++        Response,
++        console: { log() {}, error() {} },
++        serviceClient: () => client,
++        Deno: {
++          serve(fn) {
++            handler = fn;
++          },
++          env: {
++            get() {
++              return "test";
++            },
++          },
++        },
++      });
++      vm.runInContext(outputText.replace(/export \{\};?/, ""), context);
++      const request = new Request(
++        `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
++        {
++          method: "POST",
++          headers: {
++            "Content-Type": "application/json",
++            ...(variant === "header"
++              ? { "x-wa-gateway-instance": "test" }
++              : {}),
++          },
++          body: JSON.stringify(payload),
++        },
++      );
++      const response = await handler(request);
++      assert.equal(response.status, 400, await response.clone().text());
++      assert.deepEqual(await response.json(), { error: "Invalid payload" });
++      assert.equal(databaseCalls, 0);
++    });
++  }
++}
+-- 
+2.43.0
+
+
+From d4d315008655c52686f1d8452ee7c2296b7c9c05 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:12:58 +0000
+Subject: [PATCH 04/12] ci(whatsapp): run webhook payload regressions
+
+---
+ .github/workflows/ci-frontend.yml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index a04a77184..f1d2b0c8f 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -186,6 +186,9 @@ jobs:
+       - name: Edge function tests (Deno)
+         run: deno test -A --no-check supabase/functions
+ 
++      - name: Manus webhook payload regression tests
++        run: node --test --test-isolation=none supabase/functions/manus-wa-webhook/payload.test.mjs
++
+       - name: Build frontend
+         run: pnpm build
+ 
+-- 
+2.43.0
+
+
+From 5a537ba7b9082b729d08461ce7568f78d33867f8 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:16:06 +0000
+Subject: [PATCH 05/12] fix(whatsapp): align JSON and query contracts with
+ generated schema
+
+---
+ supabase/functions/manus-wa-webhook/index.ts | 134 ++++++++++---------
+ 1 file changed, 73 insertions(+), 61 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 237135968..becb55ee3 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -4,7 +4,7 @@
+ // redeploy trigger: refuse Carmen turns without a canonical chat_id (2026-08-27b)
+ import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+-import type { Database } from "../_shared/database.types.ts";
++import type { Database, Json } from "../_shared/database.types.ts";
+ import { serviceClient } from "../_shared/agent-channel/store.ts";
+ import {
+   findCarmenSessionAutomation,
+@@ -70,14 +70,14 @@ function isUnresolvedGroupAuthor(
+ }
+ 
+ /** Inspect a JSON object without assuming the provider's envelope shape. */
+-function pickObj(...candidates: unknown[]): Record<string, unknown> | null {
++function pickObj(...candidates: unknown[]): Record<string, Json> | null {
+   for (const candidate of candidates) {
+     if (
+       candidate &&
+       typeof candidate === "object" &&
+       !Array.isArray(candidate)
+     ) {
+-      return candidate as Record<string, unknown>;
++      return candidate as Record<string, Json>;
+     }
+   }
+   return null;
+@@ -87,57 +87,57 @@ function pickObj(...candidates: unknown[]): Record<string, unknown> | null {
+ // code applies its existing coercion. Only the fields this webhook reads belong
+ // to the contract; the original object is still retained for raw_provider_data.
+ interface ManusPayload {
+-  event?: unknown;
+-  from?: unknown;
+-  to?: unknown;
+-  body?: unknown;
+-  fromMe?: unknown;
+-  direction?: unknown;
+-  id?: unknown;
+-  messageId?: unknown;
+-  senderName?: unknown;
+-  author?: unknown;
+-  hasMedia?: unknown;
+-  chatId?: unknown;
+-  senderLid?: unknown;
+-  senderPn?: unknown;
+-  participantPn?: unknown;
+-  senderPhone?: unknown;
+-  senderNumber?: unknown;
+-  quotedMsgId?: unknown;
+-  quotedMessageId?: unknown;
+-  quotedMsg?: unknown;
+-  groupId?: unknown;
+-  fromName?: unknown;
+-  authorName?: unknown;
+-  participant?: unknown;
+-  groupName?: unknown;
+-  chatName?: unknown;
+-  subject?: unknown;
+-  ack?: unknown;
+-  type?: unknown;
+-  messageType?: unknown;
+-  mediaType?: unknown;
+-  mimeType?: unknown;
+-  mime_type?: unknown;
+-  media?: unknown;
+-  file?: unknown;
+-  attachment?: unknown;
+-  audio?: unknown;
++  event?: Json;
++  from?: Json;
++  to?: Json;
++  body?: Json;
++  fromMe?: Json;
++  direction?: Json;
++  id?: Json;
++  messageId?: Json;
++  senderName?: Json;
++  author?: Json;
++  hasMedia?: Json;
++  chatId?: Json;
++  senderLid?: Json;
++  senderPn?: Json;
++  participantPn?: Json;
++  senderPhone?: Json;
++  senderNumber?: Json;
++  quotedMsgId?: Json;
++  quotedMessageId?: Json;
++  quotedMsg?: Json;
++  groupId?: Json;
++  fromName?: Json;
++  authorName?: Json;
++  participant?: Json;
++  groupName?: Json;
++  chatName?: Json;
++  subject?: Json;
++  ack?: Json;
++  type?: Json;
++  messageType?: Json;
++  mediaType?: Json;
++  mimeType?: Json;
++  mime_type?: Json;
++  media?: Json;
++  file?: Json;
++  attachment?: Json;
++  audio?: Json;
+ }
+ interface ManusMessageContainer {
+-  audioMessage?: unknown;
+-  message?: unknown;
+-  type?: unknown;
+-  contextInfo?: unknown;
+-  participant?: unknown;
+-  author?: unknown;
+-  conversation?: unknown;
+-  text?: unknown;
+-  body?: unknown;
+-  imageMessage?: unknown;
+-  videoMessage?: unknown;
+-  documentMessage?: unknown;
++  audioMessage?: Json;
++  message?: Json;
++  type?: Json;
++  contextInfo?: Json;
++  participant?: Json;
++  author?: Json;
++  conversation?: Json;
++  text?: Json;
++  body?: Json;
++  imageMessage?: Json;
++  videoMessage?: Json;
++  documentMessage?: Json;
+ }
+ 
+ // ── Incoming voice notes → transcript (OpenAI Whisper) ────────────────
+@@ -152,7 +152,7 @@ type MediaAuth = {
+ type VoiceResolveResult = {
+   messageText: string;
+   isVoice: boolean;
+-  voiceMeta: Record<string, unknown>;
++  voiceMeta: Record<string, Json>;
+ };
+ // Tracks URL-less Manus payloads that were positively matched to a Green API voice transcript.
+ // WeakSet keeps the classification request-local without mutating the payload persisted to the database.
+@@ -502,7 +502,7 @@ function ok(body: Record<string, unknown>, status = 200) {
+   });
+ }
+ 
+-Deno.serve(async (req) => {
++Deno.serve(async (req: Request) => {
+   if (req.method === "OPTIONS")
+     return new Response(null, { headers: corsHeaders });
+ 
+@@ -705,7 +705,8 @@ Deno.serve(async (req) => {
+     }
+ 
+     const tenantId = integ.tenant_id;
+-    const connectionUserId = integ.user_id;
++    // Existing routing requires the integration owner; preserve its runtime value.
++    const connectionUserId = integ.user_id!;
+     const event = payload.event;
+ 
+     // Credentials + diagnostics for resolving inbound voice-note media.
+@@ -733,7 +734,8 @@ Deno.serve(async (req) => {
+         .maybeSingle();
+ 
+       if (msg) {
+-        const update: Record<string, unknown> = {};
++        const update: Database["public"]["Tables"]["chat_messages"]["Update"] =
++          {};
+         if (ack >= 3 && !msg.read_at) update.read_at = new Date().toISOString();
+         if (Object.keys(update).length > 0) {
+           await supabase.from("chat_messages").update(update).eq("id", msg.id);
+@@ -929,7 +931,15 @@ Deno.serve(async (req) => {
+             .eq("tenant_id", tenantId)
+             .eq("status", "pending")
+             .gte("created_at", pendingSince)
+-            .limit(10);
++            .limit(10)
++            .returns<
++              Array<
++                Pick<
++                  Database["public"]["Tables"]["wa_pending_activations"]["Row"],
++                  "id" | "phone" | "code" | "activation_message_id"
++                > & { group_chat_id?: string | null }
++              >
++            >();
+         const pendingRes = await pendingQuery();
+         const pendingErr = pendingRes.error;
+         let pendings = pendingRes.data;
+@@ -1107,8 +1117,10 @@ Deno.serve(async (req) => {
+         counterpartRaw = `${counterpartPhone}@c.us`;
+         normalized = normalizePhone(counterpartPhone);
+         sourcePhoneNumber = String(
+-          pairedOutgoing.raw_provider_data?.senderData?.sender ||
+-            pairedOutgoing.raw_provider_data?.instanceData?.wid ||
++          pickObj(pickObj(pairedOutgoing.raw_provider_data)?.senderData)
++            ?.sender ||
++            pickObj(pickObj(pairedOutgoing.raw_provider_data)?.instanceData)
++              ?.wid ||
+             "",
+         )
+           .split("@")[0]
+@@ -1573,7 +1585,7 @@ Deno.serve(async (req) => {
+           }
+           for (const row of paired || []) {
+             const participant = String(
+-              row?.raw_provider_data?.senderData?.sender ||
++              pickObj(pickObj(row?.raw_provider_data)?.senderData)?.sender ||
+                 row?.sender_phone ||
+                 "",
+             )
+@@ -1651,7 +1663,7 @@ Deno.serve(async (req) => {
+           .select("id, created_at")
+           .eq("tenant_id", tenantId)
+           .eq("direction", "outbound")
+-          .eq("group_id", null)
++          .filter("group_id", "eq", null)
+           .in("provider", ["manus_wa", "green_api"])
+           .eq("message_text", messageText)
+           .gte("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString())
+-- 
+2.43.0
+
+
+From d6549665d9f5b15536b8148eb5d7eaee5daee63a Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:18:45 +0000
+Subject: [PATCH 06/12] fix(whatsapp): use settings directly in group sender
+
+---
+ supabase/functions/manus-wa-webhook/index.ts | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index becb55ee3..846bfed2d 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -1937,11 +1937,9 @@ Deno.serve(async (req: Request) => {
+           ),
+           sendVoice: makeVoiceSender(groupTenantId),
+           sendMessage: async (_chatId: string, message: string) => {
+-            const gatewaySettings = settings;
+             const baseUrl =
+-              gatewaySettingsettings.gateway_url ||
+-              "https://whatsappgw-pzpyrrww.manus.space";
+-            const instanceId = gatewaySettings.instance_id;
++              settings.gateway_url || "https://whatsappgw-pzpyrrww.manus.space";
++            const instanceId = settings.instance_id;
+             const apiKey = integ.api_key;
+             if (!instanceId || !apiKey) return false;
+             // IMPORTANT: bound the gateway call with a timeout. Without it, a stalled Manus
+-- 
+2.43.0
+
+
+From 86686910572bede82b695362d8f81cbd498d372a Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:19:21 +0000
+Subject: [PATCH 07/12] fix(whatsapp): retain media gateway settings reference
+
+---
+ supabase/functions/manus-wa-webhook/index.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 846bfed2d..10776918d 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -713,7 +713,7 @@ Deno.serve(async (req: Request) => {
+     const mediaAuth: MediaAuth = {
+       apiKey: integ.api_key as string | undefined,
+       gateway:
+-        (settingsettings.gateway_url as string) ||
++        (settings.gateway_url as string) ||
+         "https://whatsappgw-pzpyrrww.manus.space",
+       supabase,
+       tenantId,
+-- 
+2.43.0
+
+
+From 6065eae224b122c2b7d717eecb2915afe23ccbf3 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:44:16 +0000
+Subject: [PATCH 08/12] fix(whatsapp): type factory results and use native
+ handler-boundary tests
+
+---
+ .github/workflows/ci-frontend.yml             |  6 +-
+ .../functions/_shared/agent-channel/store.ts  |  3 +
+ supabase/functions/manus-wa-webhook/index.ts  | 46 +++++-----
+ .../manus-wa-webhook/payload.test.mjs         | 75 -----------------
+ .../manus-wa-webhook/payload.test.ts          | 84 +++++++++++++++++++
+ .../manus-wa-webhook/request-handler.ts       | 37 ++++++++
+ 6 files changed, 156 insertions(+), 95 deletions(-)
+ delete mode 100644 supabase/functions/manus-wa-webhook/payload.test.mjs
+ create mode 100644 supabase/functions/manus-wa-webhook/payload.test.ts
+ create mode 100644 supabase/functions/manus-wa-webhook/request-handler.ts
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index f1d2b0c8f..c6ea399dd 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -186,8 +186,12 @@ jobs:
+       - name: Edge function tests (Deno)
+         run: deno test -A --no-check supabase/functions
+ 
++      - uses: denoland/setup-deno@v2
++        with:
++          deno-version: v2.9.6
++
+       - name: Manus webhook payload regression tests
+-        run: node --test --test-isolation=none supabase/functions/manus-wa-webhook/payload.test.mjs
++        run: deno test supabase/functions/manus-wa-webhook/payload.test.ts
+ 
+       - name: Build frontend
+         run: pnpm build
+diff --git a/supabase/functions/_shared/agent-channel/store.ts b/supabase/functions/_shared/agent-channel/store.ts
+index 4f1e91c79..cb2949f76 100644
+--- a/supabase/functions/_shared/agent-channel/store.ts
++++ b/supabase/functions/_shared/agent-channel/store.ts
+@@ -18,6 +18,9 @@ import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
+ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+ 
++// Typed callers select their generated schema without changing legacy channel inference.
++export function serviceClient(): SupabaseClient;
++export function serviceClient<Schema>(): SupabaseClient<Schema>;
+ export function serviceClient(): SupabaseClient {
+   return createClient(SUPABASE_URL, SERVICE_KEY, {
+     auth: { persistSession: false },
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 10776918d..11dc605b4 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -1,3 +1,4 @@
++import { createWebhookHandler } from "./request-handler.ts";
+ // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
+ // operator on outbound messages (stops Carmen replying in the operator's private chats).
+ // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
+@@ -502,15 +503,18 @@ function ok(body: Record<string, unknown>, status = 200) {
+   });
+ }
+ 
+-Deno.serve(async (req: Request) => {
++const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
++  req,
++  outer,
++) => {
+   if (req.method === "OPTIONS")
+     return new Response(null, { headers: corsHeaders });
+ 
+   try {
+-    const supabase = serviceClient() as SupabaseClient<Database>;
++    const supabase = serviceClient<Database>();
+ 
+     const url = new URL(req.url);
+-    const rawPayload: unknown = await req.json();
++    const rawPayload = outer;
+ 
+     // Diagnostic: log top-level shape so we can see exactly what Manus sends
+     try {
+@@ -526,8 +530,6 @@ Deno.serve(async (req: Request) => {
+ 
+     // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
+     // { data }, { message }, { payload }, { event, data: {...} }, etc.
+-    const outer = pickObj(rawPayload);
+-    if (!outer) return ok({ error: "Invalid payload" }, 400);
+     const inner =
+       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
+     const key = pickObj(inner.key, outer.key) || {};
+@@ -927,22 +929,21 @@ Deno.serve(async (req: Request) => {
+         const pendingQuery = () =>
+           supabase
+             .from("wa_pending_activations")
+-            .select("id, phone, code, activation_message_id, group_chat_id")
++            .select("*")
+             .eq("tenant_id", tenantId)
+             .eq("status", "pending")
+             .gte("created_at", pendingSince)
+-            .limit(10)
+-            .returns<
+-              Array<
+-                Pick<
+-                  Database["public"]["Tables"]["wa_pending_activations"]["Row"],
+-                  "id" | "phone" | "code" | "activation_message_id"
+-                > & { group_chat_id?: string | null }
+-              >
+-            >();
++            .limit(10);
+         const pendingRes = await pendingQuery();
+         const pendingErr = pendingRes.error;
+-        let pendings = pendingRes.data;
++        let pendings =
++          pendingRes.data?.map((row) => ({
++            id: row.id,
++            phone: row.phone,
++            code: row.code,
++            activation_message_id: row.activation_message_id,
++            group_chat_id: "group_chat_id" in row ? row.group_chat_id : null,
++          })) ?? null;
+         if (pendingErr) {
+           const fallback = await supabase
+             .from("wa_pending_activations")
+@@ -951,7 +952,9 @@ Deno.serve(async (req: Request) => {
+             .eq("status", "pending")
+             .gte("created_at", pendingSince)
+             .limit(10);
+-          pendings = fallback.data;
++          pendings =
++            fallback.data?.map((row) => ({ ...row, group_chat_id: null })) ??
++            null;
+         } else {
+           pendings = (pendings || []).filter((row) => !row.group_chat_id);
+         }
+@@ -1961,7 +1964,10 @@ Deno.serve(async (req: Request) => {
+                     "X-Api-Key": apiKey,
+                     "Content-Type": "application/json",
+                   },
+-                  body: JSON.stringify({ groupId: groupChatId, body: message }),
++                  body: JSON.stringify({
++                    groupId: groupChatId,
++                    body: message,
++                  }),
+                   signal: controller.signal,
+                 },
+               );
+@@ -2233,4 +2239,6 @@ Deno.serve(async (req: Request) => {
+     console.error("manus-wa-webhook error:", msg);
+     return ok({ error: msg }, 500);
+   }
+-});
++};
++
++Deno.serve(createWebhookHandler(handleManusPayload));
+diff --git a/supabase/functions/manus-wa-webhook/payload.test.mjs b/supabase/functions/manus-wa-webhook/payload.test.mjs
+deleted file mode 100644
+index d769b6ace..000000000
+--- a/supabase/functions/manus-wa-webhook/payload.test.mjs
++++ /dev/null
+@@ -1,75 +0,0 @@
+-import assert from "node:assert/strict";
+-import { readFileSync } from "node:fs";
+-import test from "node:test";
+-import vm from "node:vm";
+-import ts from "typescript";
+-
+-// Execute the real handler with external imports removed and database access trapped.
+-const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+-const { outputText } = ts.transpileModule(source, {
+-  compilerOptions: {
+-    target: ts.ScriptTarget.ES2022,
+-    module: ts.ModuleKind.ESNext,
+-  },
+-  transformers: {
+-    before: [
+-      (context) => (file) =>
+-        ts.visitEachChild(
+-          file,
+-          (node) => (ts.isImportDeclaration(node) ? undefined : node),
+-          context,
+-        ),
+-    ],
+-  },
+-});
+-
+-for (const variant of ["body", "header", "query"]) {
+-  for (const payload of [null, [], "invalid", 42]) {
+-    test(`rejects ${JSON.stringify(payload)} with ${variant} instance before database access`, async () => {
+-      let handler;
+-      let databaseCalls = 0;
+-      const client = {
+-        from() {
+-          databaseCalls++;
+-          throw new Error("Unexpected database access");
+-        },
+-      };
+-      const context = vm.createContext({
+-        exports: {},
+-        URL,
+-        Request,
+-        Response,
+-        console: { log() {}, error() {} },
+-        serviceClient: () => client,
+-        Deno: {
+-          serve(fn) {
+-            handler = fn;
+-          },
+-          env: {
+-            get() {
+-              return "test";
+-            },
+-          },
+-        },
+-      });
+-      vm.runInContext(outputText.replace(/export \{\};?/, ""), context);
+-      const request = new Request(
+-        `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
+-        {
+-          method: "POST",
+-          headers: {
+-            "Content-Type": "application/json",
+-            ...(variant === "header"
+-              ? { "x-wa-gateway-instance": "test" }
+-              : {}),
+-          },
+-          body: JSON.stringify(payload),
+-        },
+-      );
+-      const response = await handler(request);
+-      assert.equal(response.status, 400, await response.clone().text());
+-      assert.deepEqual(await response.json(), { error: "Invalid payload" });
+-      assert.equal(databaseCalls, 0);
+-    });
+-  }
+-}
+diff --git a/supabase/functions/manus-wa-webhook/payload.test.ts b/supabase/functions/manus-wa-webhook/payload.test.ts
+new file mode 100644
+index 000000000..1144c69d8
+--- /dev/null
++++ b/supabase/functions/manus-wa-webhook/payload.test.ts
+@@ -0,0 +1,84 @@
++import { createWebhookHandler } from "./request-handler.ts";
++
++function assert(condition: boolean, message: string): asserts condition {
++  if (!condition) throw new Error(message);
++}
++
++for (const variant of ["body", "header", "query"]) {
++  for (const payload of [null, [], "invalid", 42]) {
++    Deno.test(
++      `rejects ${JSON.stringify(payload)} with ${variant} instance before database access`,
++      async () => {
++        let calls = 0;
++        const handler = createWebhookHandler(async () => {
++          calls++;
++          throw new Error("Unexpected database access");
++        });
++        const response = await handler(
++          new Request(
++            `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
++            {
++              method: "POST",
++              headers: {
++                "Content-Type": "application/json",
++                ...(variant === "header"
++                  ? { "x-wa-gateway-instance": "test" }
++                  : {}),
++              },
++              body: JSON.stringify(payload),
++            },
++          ),
++        );
++        assert(response.status === 400, "Expected invalid-payload 400");
++        assert(
++          (await response.json()).error === "Invalid payload",
++          "Expected invalid-payload response",
++        );
++        assert(
++          calls === 0,
++          "Invalid payload must not invoke downstream/database code",
++        );
++      },
++    );
++  }
++}
++Deno.test(
++  "passes flat and wrapped objects unchanged to processing",
++  async () => {
++    for (const payload of [
++      { instanceId: "test", body: "hi" },
++      { data: { instanceId: "test", body: "hi" }, extra: 42 },
++    ]) {
++      const handler = createWebhookHandler(async (_request, received) => {
++        assert(
++          JSON.stringify(received) === JSON.stringify(payload),
++          "Payload changed",
++        );
++        return new Response("processed");
++      });
++      const response = await handler(
++        new Request("https://example.test", {
++          method: "POST",
++          body: JSON.stringify(payload),
++        }),
++      );
++      assert(
++        (await response.text()) === "processed",
++        "Expected downstream response",
++      );
++    }
++  },
++);
++Deno.test("OPTIONS does not parse a body or invoke processing", async () => {
++  const handler = createWebhookHandler(async () => {
++    throw new Error("Unexpected processing");
++  });
++  const response = await handler(
++    new Request("https://example.test", { method: "OPTIONS" }),
++  );
++  assert(response.status === 200, "Expected preflight success");
++  assert(
++    response.headers.get("Access-Control-Allow-Origin") === "*",
++    "Expected CORS header",
++  );
++});
+diff --git a/supabase/functions/manus-wa-webhook/request-handler.ts b/supabase/functions/manus-wa-webhook/request-handler.ts
+new file mode 100644
+index 000000000..792457c2a
+--- /dev/null
++++ b/supabase/functions/manus-wa-webhook/request-handler.ts
+@@ -0,0 +1,37 @@
++import type { Json } from "../_shared/database.types.ts";
++
++type Payload = Record<string, Json>;
++const corsHeaders = {
++  "Access-Control-Allow-Origin": "*",
++  "Access-Control-Allow-Headers":
++    "authorization, x-client-info, apikey, content-type, x-wa-gateway-instance, x-wa-gateway-secret, x-webhook-secret, x-manus-secret, x-webhook-signature",
++};
++
++function isPayload(value: unknown): value is Payload {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++
++/** Keep request decoding importable without starting a server or loading providers. */
++export function createWebhookHandler(
++  processPayload: (request: Request, payload: Payload) => Promise<Response>,
++) {
++  return async (request: Request): Promise<Response> => {
++    if (request.method === "OPTIONS")
++      return new Response(null, { headers: corsHeaders });
++    try {
++      const payload: unknown = await request.json();
++      if (!isPayload(payload))
++        return Response.json(
++          { error: "Invalid payload" },
++          { status: 400, headers: corsHeaders },
++        );
++      return await processPayload(request, payload);
++    } catch (error) {
++      console.error("Manus webhook request failed:", error);
++      return Response.json(
++        { error: error instanceof Error ? error.message : String(error) },
++        { status: 500, headers: corsHeaders },
++      );
++    }
++  };
++}
+-- 
+2.43.0
+
+
+From 7b285aaa4fc05a84d8c4885abb50610403c1c6e1 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:46:30 +0000
+Subject: [PATCH 09/12] refactor(supabase): create clients with the selected
+ schema type
+
+---
+ supabase/functions/_shared/agent-channel/store.ts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/supabase/functions/_shared/agent-channel/store.ts b/supabase/functions/_shared/agent-channel/store.ts
+index cb2949f76..783d0d926 100644
+--- a/supabase/functions/_shared/agent-channel/store.ts
++++ b/supabase/functions/_shared/agent-channel/store.ts
+@@ -21,8 +21,8 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+ // Typed callers select their generated schema without changing legacy channel inference.
+ export function serviceClient(): SupabaseClient;
+ export function serviceClient<Schema>(): SupabaseClient<Schema>;
+-export function serviceClient(): SupabaseClient {
+-  return createClient(SUPABASE_URL, SERVICE_KEY, {
++export function serviceClient<Schema>(): SupabaseClient<Schema> {
++  return createClient<Schema>(SUPABASE_URL, SERVICE_KEY, {
+     auth: { persistSession: false },
+   });
+ }
+-- 
+2.43.0
+
+
+From 38e62f7207d4dc4060bc1678bdde11539063fbf7 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 14:34:34 +0000
+Subject: [PATCH 10/12] refactor(supabase): use one typed client factory and
+ native handler spies
+
+---
+ .../_shared/agent-channel/logic.test.ts       | 96 ++++++++++++-------
+ .../functions/_shared/agent-channel/logic.ts  | 45 +++++++++
+ .../_shared/agent-channel/parliament.ts       | 50 +++++-----
+ .../functions/_shared/agent-channel/store.ts  |  8 +-
+ supabase/functions/manus-wa-webhook/index.ts  |  2 +-
+ ...ayload.test.ts => request-handler.test.ts} | 14 +--
+ 6 files changed, 141 insertions(+), 74 deletions(-)
+ rename supabase/functions/manus-wa-webhook/{payload.test.ts => request-handler.test.ts} (90%)
+
+diff --git a/supabase/functions/_shared/agent-channel/logic.test.ts b/supabase/functions/_shared/agent-channel/logic.test.ts
+index 9ec716222..817fc62c4 100644
+--- a/supabase/functions/_shared/agent-channel/logic.test.ts
++++ b/supabase/functions/_shared/agent-channel/logic.test.ts
+@@ -1,8 +1,5 @@
+-import {
+-  assertEquals,
+-  assertMatch,
+-  assertStrictEquals,
+-} from "jsr:@std/assert@1";
++import assert from "node:assert/strict";
++import test from "node:test";
+ import {
+   acceptedMessageFor,
+   canAdvanceToReview,
+@@ -10,6 +7,8 @@ import {
+   capabilitiesForProvider,
+   markParliamentFailed,
+   parliamentSeatsFromConfig,
++  parseBrainRoute,
++  withParliamentContext,
+   recordParliamentAnswer,
+   resolveCallbackOrigin,
+   type ParliamentState,
+@@ -26,9 +25,9 @@ function base(): ParliamentState {
+   };
+ }
+ 
+-Deno.test("parliament MVP seats default to cursor+grok+codex", () => {
+-  assertEquals(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
+-  assertEquals(
++test("parliament MVP seats default to cursor+grok+codex", () => {
++  assert.deepEqual(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
++  assert.deepEqual(
+     parliamentSeatsFromConfig({
+       seats: ["cursor", "grok", "codex", "claude", "extra"],
+     }),
+@@ -36,48 +35,75 @@ Deno.test("parliament MVP seats default to cursor+grok+codex", () => {
+   );
+ });
+ 
+-Deno.test("partial failure does not block synthesis", () => {
++test("partial failure does not block synthesis", () => {
+   let state = recordParliamentAnswer(base(), "cursor", "ship it", 1);
+   state = markParliamentFailed(state, "grok", "timeout");
+-  assertStrictEquals(canAdvanceToReview(state), true);
++  assert.equal(canAdvanceToReview(state), true);
+   state = { ...state, status: "round2", round: 2 };
+   state = recordParliamentAnswer(state, "cursor", "still ship it", 2);
+-  assertStrictEquals(canSynthesize(state), true);
++  assert.equal(canSynthesize(state), true);
+ });
+ 
+-Deno.test("reused Cursor Direct copy says the chat was already open", () => {
+-  assertMatch(
++test("reused Cursor Direct copy says the chat was already open", () => {
++  assert.match(
+     acceptedMessageFor("cursor", "https://cursor.com/agents/bc-1", {
+       reused: true,
+     }),
+     /שכבר פתוח/,
+   );
+-  assertMatch(
++  assert.match(
+     acceptedMessageFor("codex", "https://chatgpt.com/c/abc", { reused: true }),
+     /ChatGPT Workspace/,
+   );
+ });
+ 
+-Deno.test("direct channels require a callback; internal streams", () => {
+-  assertStrictEquals(capabilitiesForProvider("internal").streaming_reply, true);
+-  assertStrictEquals(
+-    capabilitiesForProvider("internal").callback_required,
+-    false,
+-  );
+-  assertStrictEquals(capabilitiesForProvider("cursor").callback_required, true);
+-  assertStrictEquals(capabilitiesForProvider("codex").callback_required, true);
+-  assertStrictEquals(
+-    capabilitiesForProvider("chatgpt").callback_required,
+-    true,
+-  );
++test("direct channels require a callback; internal streams", () => {
++  assert.equal(capabilitiesForProvider("internal").streaming_reply, true);
++  assert.equal(capabilitiesForProvider("internal").callback_required, false);
++  assert.equal(capabilitiesForProvider("cursor").callback_required, true);
++  assert.equal(capabilitiesForProvider("codex").callback_required, true);
++  assert.equal(capabilitiesForProvider("chatgpt").callback_required, true);
++});
++
++test("resolveCallbackOrigin prefers session codex over stated chatgpt", () => {
++  assert.equal(resolveCallbackOrigin("chatgpt", "codex"), "codex");
++  assert.equal(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
++  assert.equal(resolveCallbackOrigin(undefined, "codex"), "codex");
++  assert.equal(resolveCallbackOrigin(null, null), "internal");
+ });
+ 
+-Deno.test(
+-  "resolveCallbackOrigin prefers session codex over stated chatgpt",
+-  () => {
+-    assertStrictEquals(resolveCallbackOrigin("chatgpt", "codex"), "codex");
+-    assertStrictEquals(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
+-    assertStrictEquals(resolveCallbackOrigin(undefined, "codex"), "codex");
+-    assertStrictEquals(resolveCallbackOrigin(null, null), "internal");
+-  },
+-);
++test("database route parser validates enums and handles absent routes", () => {
++  const row = {
++    id: "route",
++    tenant_id: "tenant",
++    agent_id: null,
++    slug: "parliament",
++    label: "Parliament",
++    route_type: "parliament",
++    provider: "parliament",
++    connection_id: null,
++    config: { rounds: 2 },
++    active: true,
++    created_at: "now",
++    updated_at: "now",
++  };
++  assert.deepEqual(parseBrainRoute(row)?.config, { rounds: 2 });
++  assert.equal(parseBrainRoute(row)?.route_type, "parliament");
++  assert.equal(parseBrainRoute(null), null);
++  assert.equal(parseBrainRoute({ ...row, route_type: "invalid" }), null);
++  assert.equal(parseBrainRoute({ ...row, provider: "invalid" }), null);
++  assert.deepEqual(parseBrainRoute({ ...row, config: null })?.config, {});
++});
++
++test("parliament context keeps existing metadata and serializable state", () => {
++  const state = base();
++  const context = { conversation_id: "conversation", nested: { keep: true } };
++  const result = withParliamentContext(context, state);
++  assert.deepEqual(result, { ...context, parliament: state });
++  assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
++  assert.deepEqual(context, {
++    conversation_id: "conversation",
++    nested: { keep: true },
++  });
++  assert.deepEqual(withParliamentContext(null, state), { parliament: state });
++});
+diff --git a/supabase/functions/_shared/agent-channel/logic.ts b/supabase/functions/_shared/agent-channel/logic.ts
+index bbe513490..b4ab855d2 100644
+--- a/supabase/functions/_shared/agent-channel/logic.ts
++++ b/supabase/functions/_shared/agent-channel/logic.ts
+@@ -1,5 +1,7 @@
++import type { Database, Json } from "../database.types.ts";
+ import type {
+   AdapterCapabilities,
++  BrainRouteRow,
+   ChannelProvider,
+   CloudDirectProvider,
+   ConversationStatus,
+@@ -359,3 +361,46 @@ export function resolveCallbackOrigin(
+   }
+   return raw || session || "internal";
+ }
++
++/** Narrow generated database strings before exposing a route to channel code. */
++export function parseBrainRoute(
++  row: Database["public"]["Tables"]["agent_brain_routes"]["Row"] | null,
++): BrainRouteRow | null {
++  if (!row) return null;
++  const { route_type, provider, config } = row;
++  if (
++    route_type !== "internal" &&
++    route_type !== "direct_channel" &&
++    route_type !== "parliament"
++  )
++    return null;
++  if (
++    provider !== null &&
++    provider !== "cursor" &&
++    provider !== "grok" &&
++    provider !== "codex" &&
++    provider !== "claude" &&
++    provider !== "chatgpt" &&
++    provider !== "internal" &&
++    provider !== "parliament"
++  )
++    return null;
++  return {
++    ...row,
++    route_type,
++    provider,
++    config:
++      config && typeof config === "object" && !Array.isArray(config)
++        ? config
++        : {},
++  };
++}
++
++/** Preserve run metadata while storing a JSON-compatible parliament state. */
++export function withParliamentContext(
++  context: unknown,
++  state: ParliamentState,
++): Json {
++  const previous = context && typeof context === "object" ? context : {};
++  return { ...previous, parliament: state };
++}
+diff --git a/supabase/functions/_shared/agent-channel/parliament.ts b/supabase/functions/_shared/agent-channel/parliament.ts
+index ee91974e0..badc214e2 100644
+--- a/supabase/functions/_shared/agent-channel/parliament.ts
++++ b/supabase/functions/_shared/agent-channel/parliament.ts
+@@ -11,6 +11,8 @@ import {
+   livingSeats,
+   markParliamentFailed,
+   parliamentRounds,
++  parseBrainRoute,
++  withParliamentContext,
+   parliamentSeatsFromConfig,
+   recordParliamentAnswer,
+   type ParliamentState,
+@@ -36,17 +38,6 @@ function stateFromRun(run: { context?: unknown }): ParliamentState | null {
+   return raw;
+ }
+ 
+-function withParliament(
+-  context: unknown,
+-  state: ParliamentState,
+-): Record<string, unknown> {
+-  const ctx = (context && typeof context === "object" ? context : {}) as Record<
+-    string,
+-    unknown
+-  >;
+-  return { ...ctx, parliament: state };
+-}
+-
+ export async function startParliament(ctx: SendContext): Promise<SendResult> {
+   const sb = serviceClient();
+   const seats = parliamentSeatsFromConfig(ctx.route.config).filter(
+@@ -134,7 +125,7 @@ export async function startParliament(ctx: SendContext): Promise<SendResult> {
+   });
+   await sb
+     .from("agent_runs")
+-    .update({ context: withParliament(parent.context, nextState) })
++    .update({ context: withParliamentContext(parent.context, nextState) })
+     .eq("id", parent.id);
+ 
+   const living = livingSeats(nextState);
+@@ -239,7 +230,7 @@ export async function onParliamentCallback(args: {
+   state = recordParliamentAnswer(state, args.origin, args.content, round);
+   await sb
+     .from("agent_runs")
+-    .update({ context: withParliament(run.context, state) })
++    .update({ context: withParliamentContext(run.context, state) })
+     .eq("id", runId);
+ 
+   if (
+@@ -250,7 +241,7 @@ export async function onParliamentCallback(args: {
+     state = { ...state, round: 2, status: "round2" };
+     await sb
+       .from("agent_runs")
+-      .update({ context: withParliament(run.context, state) })
++      .update({ context: withParliamentContext(run.context, state) })
+       .eq("id", runId);
+     await insertMessage(sb, {
+       tenant_id: args.tenantId,
+@@ -279,7 +270,7 @@ export async function onParliamentCallback(args: {
+           );
+           await sb
+             .from("agent_runs")
+-            .update({ context: withParliament(run.context, failed) })
++            .update({ context: withParliamentContext(run.context, failed) })
+             .eq("id", runId);
+         }),
+       );
+@@ -313,18 +304,22 @@ async function rebuildCtx(
+     .select("brain_route_id")
+     .eq("id", conversationId)
+     .maybeSingle();
+-  const { data: route } = await sb
+-    .from("agent_brain_routes")
+-    .select("*")
+-    .eq("id", conv?.brain_route_id)
+-    .maybeSingle();
++  const routeId = conv?.brain_route_id;
++  const { data: storedRoute } = routeId
++    ? await sb
++        .from("agent_brain_routes")
++        .select("*")
++        .eq("id", routeId)
++        .maybeSingle()
++    : { data: null };
++  const route = parseBrainRoute(storedRoute);
+   return {
+     tenantId: run.tenant_id,
+     userId: run.user_id || "system",
+     agentId: run.agent_id,
+     conversationId,
+     route: route || {
+-      id: conv?.brain_route_id,
++      id: routeId || `fallback-parliament-${conversationId}`,
+       tenant_id: run.tenant_id,
+       agent_id: run.agent_id,
+       slug: "parliament",
+@@ -352,7 +347,10 @@ async function synthesizeParliament(
+   const sb = serviceClient();
+   await sb
+     .from("agent_runs")
+-    .update({ context: withParliament(context, state), status: "running" })
++    .update({
++      context: withParliamentContext(context, state),
++      status: "running",
++    })
+     .eq("id", runId);
+   const prompt = buildSynthesisPrompt(state);
+   const synthesis = (await aiChat(prompt)) || fallbackSynthesis(state);
+@@ -373,7 +371,7 @@ async function synthesizeParliament(
+     .update({
+       status: "completed",
+       final_answer: synthesis,
+-      context: withParliament(context, { ...state, status: "done" }),
++      context: withParliamentContext(context, { ...state, status: "done" }),
+       completed_at: new Date().toISOString(),
+     })
+     .eq("id", runId);
+@@ -424,7 +422,7 @@ export async function cancelParliament(conversationId: string): Promise<void> {
+     .update({
+       status: "cancelled",
+       context: state
+-        ? withParliament(run.context, { ...state, status: "cancelled" })
++        ? withParliamentContext(run.context, { ...state, status: "cancelled" })
+         : run.context,
+       completed_at: new Date().toISOString(),
+     })
+@@ -492,7 +490,7 @@ export async function forceContinueParliament(
+   let state = skipSilentSeats(loaded.state);
+   await sb
+     .from("agent_runs")
+-    .update({ context: withParliament(run.context, state) })
++    .update({ context: withParliamentContext(run.context, state) })
+     .eq("id", run.id);
+ 
+   const living = livingSeats(state);
+@@ -504,7 +502,7 @@ export async function forceContinueParliament(
+     state = { ...state, round: 2, status: "round2" };
+     await sb
+       .from("agent_runs")
+-      .update({ context: withParliament(run.context, state) })
++      .update({ context: withParliamentContext(run.context, state) })
+       .eq("id", run.id);
+     await insertMessage(sb, {
+       tenant_id: run.tenant_id,
+diff --git a/supabase/functions/_shared/agent-channel/store.ts b/supabase/functions/_shared/agent-channel/store.ts
+index 783d0d926..0ff0e9a27 100644
+--- a/supabase/functions/_shared/agent-channel/store.ts
++++ b/supabase/functions/_shared/agent-channel/store.ts
+@@ -1,3 +1,4 @@
++import type { Database } from "../database.types.ts";
+ import {
+   createClient,
+   type SupabaseClient,
+@@ -18,11 +19,8 @@ import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
+ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+ 
+-// Typed callers select their generated schema without changing legacy channel inference.
+-export function serviceClient(): SupabaseClient;
+-export function serviceClient<Schema>(): SupabaseClient<Schema>;
+-export function serviceClient<Schema>(): SupabaseClient<Schema> {
+-  return createClient<Schema>(SUPABASE_URL, SERVICE_KEY, {
++export function serviceClient(): SupabaseClient<Database> {
++  return createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
+     auth: { persistSession: false },
+   });
+ }
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 11dc605b4..de73a1320 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -511,7 +511,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
+     return new Response(null, { headers: corsHeaders });
+ 
+   try {
+-    const supabase = serviceClient<Database>();
++    const supabase = serviceClient();
+ 
+     const url = new URL(req.url);
+     const rawPayload = outer;
+diff --git a/supabase/functions/manus-wa-webhook/payload.test.ts b/supabase/functions/manus-wa-webhook/request-handler.test.ts
+similarity index 90%
+rename from supabase/functions/manus-wa-webhook/payload.test.ts
+rename to supabase/functions/manus-wa-webhook/request-handler.test.ts
+index 1144c69d8..ae192345e 100644
+--- a/supabase/functions/manus-wa-webhook/payload.test.ts
++++ b/supabase/functions/manus-wa-webhook/request-handler.test.ts
+@@ -1,3 +1,7 @@
++import {
++  spy,
++  assertSpyCalls,
++} from "https://raw.githubusercontent.com/denoland/std/0.224.0/testing/mock.ts";
+ import { createWebhookHandler } from "./request-handler.ts";
+ 
+ function assert(condition: boolean, message: string): asserts condition {
+@@ -9,11 +13,10 @@ for (const variant of ["body", "header", "query"]) {
+     Deno.test(
+       `rejects ${JSON.stringify(payload)} with ${variant} instance before database access`,
+       async () => {
+-        let calls = 0;
+-        const handler = createWebhookHandler(async () => {
+-          calls++;
++        const failedHandler = spy(async () => {
+           throw new Error("Unexpected database access");
+         });
++        const handler = createWebhookHandler(failedHandler);
+         const response = await handler(
+           new Request(
+             `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
+@@ -34,10 +37,7 @@ for (const variant of ["body", "header", "query"]) {
+           (await response.json()).error === "Invalid payload",
+           "Expected invalid-payload response",
+         );
+-        assert(
+-          calls === 0,
+-          "Invalid payload must not invoke downstream/database code",
+-        );
++        assertSpyCalls(failedHandler, 0);
+       },
+     );
+   }
+-- 
+2.43.0
+
+
+From fd086fdd34f661da1c8b1313247e6716953df34c Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 14:53:50 +0000
+Subject: [PATCH 11/12] style(agents): separate route guards and use explicit
+ blocks
+
+---
+ supabase/functions/_shared/agent-channel/logic.ts | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/supabase/functions/_shared/agent-channel/logic.ts b/supabase/functions/_shared/agent-channel/logic.ts
+index b4ab855d2..64abb678a 100644
+--- a/supabase/functions/_shared/agent-channel/logic.ts
++++ b/supabase/functions/_shared/agent-channel/logic.ts
+@@ -366,14 +366,19 @@ export function resolveCallbackOrigin(
+ export function parseBrainRoute(
+   row: Database["public"]["Tables"]["agent_brain_routes"]["Row"] | null,
+ ): BrainRouteRow | null {
+-  if (!row) return null;
++  if (!row) {
++    return null;
++  }
++
+   const { route_type, provider, config } = row;
+   if (
+     route_type !== "internal" &&
+     route_type !== "direct_channel" &&
+     route_type !== "parliament"
+-  )
++  ) {
+     return null;
++  }
++
+   if (
+     provider !== null &&
+     provider !== "cursor" &&
+@@ -383,8 +388,10 @@ export function parseBrainRoute(
+     provider !== "chatgpt" &&
+     provider !== "internal" &&
+     provider !== "parliament"
+-  )
++  ) {
+     return null;
++  }
++
+   return {
+     ...row,
+     route_type,
+-- 
+2.43.0
+
+
+From 123b06a554ea3acc4c22cc394e8838d1beb709fa Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 16:59:04 +0000
+Subject: [PATCH 12/12] test(whatsapp): use Deno asserts in agent-channel logic
+ tests
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018yMLzGJhHxrHKDgAcXxJSS
+---
+ .../_shared/agent-channel/logic.test.ts       | 135 ++++++++++--------
+ 1 file changed, 78 insertions(+), 57 deletions(-)
+
+diff --git a/supabase/functions/_shared/agent-channel/logic.test.ts b/supabase/functions/_shared/agent-channel/logic.test.ts
+index 817fc62c4..b4dba5440 100644
+--- a/supabase/functions/_shared/agent-channel/logic.test.ts
++++ b/supabase/functions/_shared/agent-channel/logic.test.ts
+@@ -1,5 +1,8 @@
+-import assert from "node:assert/strict";
+-import test from "node:test";
++import {
++  assertEquals,
++  assertMatch,
++  assertStrictEquals,
++} from "jsr:@std/assert@1";
+ import {
+   acceptedMessageFor,
+   canAdvanceToReview,
+@@ -25,9 +28,9 @@ function base(): ParliamentState {
+   };
+ }
+ 
+-test("parliament MVP seats default to cursor+grok+codex", () => {
+-  assert.deepEqual(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
+-  assert.deepEqual(
++Deno.test("parliament MVP seats default to cursor+grok+codex", () => {
++  assertEquals(parliamentSeatsFromConfig({}), ["cursor", "grok", "codex"]);
++  assertEquals(
+     parliamentSeatsFromConfig({
+       seats: ["cursor", "grok", "codex", "claude", "extra"],
+     }),
+@@ -35,75 +38,93 @@ test("parliament MVP seats default to cursor+grok+codex", () => {
+   );
+ });
+ 
+-test("partial failure does not block synthesis", () => {
++Deno.test("partial failure does not block synthesis", () => {
+   let state = recordParliamentAnswer(base(), "cursor", "ship it", 1);
+   state = markParliamentFailed(state, "grok", "timeout");
+-  assert.equal(canAdvanceToReview(state), true);
++  assertStrictEquals(canAdvanceToReview(state), true);
+   state = { ...state, status: "round2", round: 2 };
+   state = recordParliamentAnswer(state, "cursor", "still ship it", 2);
+-  assert.equal(canSynthesize(state), true);
++  assertStrictEquals(canSynthesize(state), true);
+ });
+ 
+-test("reused Cursor Direct copy says the chat was already open", () => {
+-  assert.match(
++Deno.test("reused Cursor Direct copy says the chat was already open", () => {
++  assertMatch(
+     acceptedMessageFor("cursor", "https://cursor.com/agents/bc-1", {
+       reused: true,
+     }),
+     /שכבר פתוח/,
+   );
+-  assert.match(
++  assertMatch(
+     acceptedMessageFor("codex", "https://chatgpt.com/c/abc", { reused: true }),
+     /ChatGPT Workspace/,
+   );
+ });
+ 
+-test("direct channels require a callback; internal streams", () => {
+-  assert.equal(capabilitiesForProvider("internal").streaming_reply, true);
+-  assert.equal(capabilitiesForProvider("internal").callback_required, false);
+-  assert.equal(capabilitiesForProvider("cursor").callback_required, true);
+-  assert.equal(capabilitiesForProvider("codex").callback_required, true);
+-  assert.equal(capabilitiesForProvider("chatgpt").callback_required, true);
++Deno.test("direct channels require a callback; internal streams", () => {
++  assertStrictEquals(capabilitiesForProvider("internal").streaming_reply, true);
++  assertStrictEquals(
++    capabilitiesForProvider("internal").callback_required,
++    false,
++  );
++  assertStrictEquals(capabilitiesForProvider("cursor").callback_required, true);
++  assertStrictEquals(capabilitiesForProvider("codex").callback_required, true);
++  assertStrictEquals(
++    capabilitiesForProvider("chatgpt").callback_required,
++    true,
++  );
+ });
+ 
+-test("resolveCallbackOrigin prefers session codex over stated chatgpt", () => {
+-  assert.equal(resolveCallbackOrigin("chatgpt", "codex"), "codex");
+-  assert.equal(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
+-  assert.equal(resolveCallbackOrigin(undefined, "codex"), "codex");
+-  assert.equal(resolveCallbackOrigin(null, null), "internal");
+-});
++Deno.test(
++  "resolveCallbackOrigin prefers session codex over stated chatgpt",
++  () => {
++    assertStrictEquals(resolveCallbackOrigin("chatgpt", "codex"), "codex");
++    assertStrictEquals(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
++    assertStrictEquals(resolveCallbackOrigin(undefined, "codex"), "codex");
++    assertStrictEquals(resolveCallbackOrigin(null, null), "internal");
++  },
++);
+ 
+-test("database route parser validates enums and handles absent routes", () => {
+-  const row = {
+-    id: "route",
+-    tenant_id: "tenant",
+-    agent_id: null,
+-    slug: "parliament",
+-    label: "Parliament",
+-    route_type: "parliament",
+-    provider: "parliament",
+-    connection_id: null,
+-    config: { rounds: 2 },
+-    active: true,
+-    created_at: "now",
+-    updated_at: "now",
+-  };
+-  assert.deepEqual(parseBrainRoute(row)?.config, { rounds: 2 });
+-  assert.equal(parseBrainRoute(row)?.route_type, "parliament");
+-  assert.equal(parseBrainRoute(null), null);
+-  assert.equal(parseBrainRoute({ ...row, route_type: "invalid" }), null);
+-  assert.equal(parseBrainRoute({ ...row, provider: "invalid" }), null);
+-  assert.deepEqual(parseBrainRoute({ ...row, config: null })?.config, {});
+-});
++Deno.test(
++  "database route parser validates enums and handles absent routes",
++  () => {
++    const row = {
++      id: "route",
++      tenant_id: "tenant",
++      agent_id: null,
++      slug: "parliament",
++      label: "Parliament",
++      route_type: "parliament",
++      provider: "parliament",
++      connection_id: null,
++      config: { rounds: 2 },
++      active: true,
++      created_at: "now",
++      updated_at: "now",
++    };
++    assertEquals(parseBrainRoute(row)?.config, { rounds: 2 });
++    assertStrictEquals(parseBrainRoute(row)?.route_type, "parliament");
++    assertStrictEquals(parseBrainRoute(null), null);
++    assertStrictEquals(
++      parseBrainRoute({ ...row, route_type: "invalid" }),
++      null,
++    );
++    assertStrictEquals(parseBrainRoute({ ...row, provider: "invalid" }), null);
++    assertEquals(parseBrainRoute({ ...row, config: null })?.config, {});
++  },
++);
+ 
+-test("parliament context keeps existing metadata and serializable state", () => {
+-  const state = base();
+-  const context = { conversation_id: "conversation", nested: { keep: true } };
+-  const result = withParliamentContext(context, state);
+-  assert.deepEqual(result, { ...context, parliament: state });
+-  assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
+-  assert.deepEqual(context, {
+-    conversation_id: "conversation",
+-    nested: { keep: true },
+-  });
+-  assert.deepEqual(withParliamentContext(null, state), { parliament: state });
+-});
++Deno.test(
++  "parliament context keeps existing metadata and serializable state",
++  () => {
++    const state = base();
++    const context = { conversation_id: "conversation", nested: { keep: true } };
++    const result = withParliamentContext(context, state);
++    assertEquals(result, { ...context, parliament: state });
++    assertEquals(JSON.parse(JSON.stringify(result)), result);
++    assertEquals(context, {
++      conversation_id: "conversation",
++      nested: { keep: true },
++    });
++    assertEquals(withParliamentContext(null, state), { parliament: state });
++  },
++);
+-- 
+2.43.0
+

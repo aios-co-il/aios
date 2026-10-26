@@ -1,0 +1,939 @@
+From 941483c0ebf1388b94e1c6683cd515223edc6f6e Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:43:33 +0000
+Subject: [PATCH 1/6] feat(whatsapp): validate provider envelope with
+ permissive Zod schema
+
+---
+ .github/workflows/ci-frontend.yml             |  7 ++++
+ supabase/functions/manus-wa-webhook/index.ts  |  7 +++-
+ .../manus-wa-webhook/payload-schema.test.ts   | 40 +++++++++++++++++++
+ .../manus-wa-webhook/payload-schema.ts        |  4 ++
+ 4 files changed, 56 insertions(+), 2 deletions(-)
+ create mode 100644 supabase/functions/manus-wa-webhook/payload-schema.test.ts
+ create mode 100644 supabase/functions/manus-wa-webhook/payload-schema.ts
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index a04a77184..856f71695 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -186,6 +186,13 @@ jobs:
+       - name: Edge function tests (Deno)
+         run: deno test -A --no-check supabase/functions
+ 
++      - uses: denoland/setup-deno@v2
++        with:
++          deno-version: v2.9.6
++
++      - name: Manus webhook schema regression tests
++        run: deno test supabase/functions/manus-wa-webhook/payload-schema.test.ts
++
+       - name: Build frontend
+         run: pnpm build
+ 
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 24e2ff2a4..9b2818bcf 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -1,3 +1,4 @@
++import { manusPayloadSchema } from "./payload-schema.ts";
+ // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
+ // operator on outbound messages (stops Carmen replying in the operator's private chats).
+ // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
+@@ -437,7 +438,9 @@ Deno.serve(async (req) => {
+     );
+ 
+     const url = new URL(req.url);
+-    const rawPayload = await req.json();
++    const parsedPayload = manusPayloadSchema.safeParse(await req.json());
++    if (!parsedPayload.success) return ok({ error: "Invalid payload" }, 400);
++    const rawPayload = parsedPayload.data;
+ 
+     // Diagnostic: log top-level shape so we can see exactly what Manus sends
+     try {
+@@ -460,7 +463,7 @@ Deno.serve(async (req) => {
+       }
+       return null;
+     }
+-    const outer = rawPayload as Record<string, any>;
++    const outer = rawPayload;
+     const inner =
+       pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
+     const key = pickObj(inner.key, outer.key) || {};
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.test.ts b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+new file mode 100644
+index 000000000..b6f892c62
+--- /dev/null
++++ b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+@@ -0,0 +1,40 @@
++import { manusPayloadSchema } from "./payload-schema.ts";
++
++for (const value of [null, [], "invalid", 42, true]) {
++  Deno.test(`rejects non-object envelope ${JSON.stringify(value)}`, () => {
++    if (manusPayloadSchema.safeParse(value).success)
++      throw new Error("Invalid envelope accepted");
++  });
++}
++for (const [name, value] of Object.entries({
++  flat: {
++    instanceId: "test",
++    from: "972500000000",
++    body: "hi",
++    custom: { future: true },
++  },
++  wrappedData: { event: "message", data: { body: "hi" } },
++  wrappedMessage: { message: { message: { conversation: "hi" } } },
++  wrappedPayload: {
++    payload: { audioMessage: { url: "https://example.test/audio" } },
++  },
++  wrappedBody: { body: { key: { participant: "972500000000@c.us" } } },
++  voice: {
++    media: { url: "https://example.test/audio", mimetype: "audio/ogg" },
++    hasMedia: true,
++  },
++  ack: { event: "message_ack", ack: 3, messageId: "message" },
++  ping: {},
++  group: {
++    chatId: "group@g.us",
++    participant: "member@lid",
++    quotedMsg: { id: "quoted" },
++  },
++})) {
++  Deno.test(`preserves ${name} provider fields`, () => {
++    const result = manusPayloadSchema.safeParse(value);
++    if (!result.success) throw new Error("Valid object rejected");
++    if (JSON.stringify(result.data) !== JSON.stringify(value))
++      throw new Error("Provider fields changed");
++  });
++}
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.ts b/supabase/functions/manus-wa-webhook/payload-schema.ts
+new file mode 100644
+index 000000000..e6d6eb5f9
+--- /dev/null
++++ b/supabase/functions/manus-wa-webhook/payload-schema.ts
+@@ -0,0 +1,4 @@
++import { z } from "npm:zod@3.25.76";
++
++// Validate only the envelope: provider fields and nested payload variants stay open.
++export const manusPayloadSchema = z.record(z.string(), z.unknown());
+-- 
+2.43.0
+
+
+From 72a59ad81ab588a10e6d74f7f8db64871a3cb674 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 14:47:00 +0000
+Subject: [PATCH 2/6] feat(whatsapp): validate known gateway fields and
+ recursive wrappers
+
+---
+ .../manus-wa-webhook/payload-schema.test.ts   |  64 ++++++++++-
+ .../manus-wa-webhook/payload-schema.ts        | 104 +++++++++++++++++-
+ 2 files changed, 160 insertions(+), 8 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.test.ts b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+index b6f892c62..8f147ccf5 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.test.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+@@ -1,11 +1,12 @@
++import assert from "node:assert/strict";
+ import { manusPayloadSchema } from "./payload-schema.ts";
+ 
+ for (const value of [null, [], "invalid", 42, true]) {
+   Deno.test(`rejects non-object envelope ${JSON.stringify(value)}`, () => {
+-    if (manusPayloadSchema.safeParse(value).success)
+-      throw new Error("Invalid envelope accepted");
++    assert.equal(manusPayloadSchema.safeParse(value).success, false);
+   });
+ }
++
+ for (const [name, value] of Object.entries({
+   flat: {
+     instanceId: "test",
+@@ -20,7 +21,11 @@ for (const [name, value] of Object.entries({
+   },
+   wrappedBody: { body: { key: { participant: "972500000000@c.us" } } },
+   voice: {
+-    media: { url: "https://example.test/audio", mimetype: "audio/ogg" },
++    media: {
++      url: "https://example.test/audio",
++      mimetype: "audio/ogg",
++      providerToken: "opaque",
++    },
+     hasMedia: true,
+   },
+   ack: { event: "message_ack", ack: 3, messageId: "message" },
+@@ -30,11 +35,58 @@ for (const [name, value] of Object.entries({
+     participant: "member@lid",
+     quotedMsg: { id: "quoted" },
+   },
++  numericIds: { instance_id: 7, id: 42, from: 972500000000 },
++  flags: { fromMe: "false", hasMedia: 1, key: { fromMe: true } },
++  nullable: {
++    from: null,
++    messageId: null,
++    media: null,
++    data: null,
++    body: null,
++  },
++  futureEvent: {
++    event: "provider_new_event",
++    direction: "provider_new_direction",
++    providerField: [1, { keep: true }],
++  },
++  nestedExtensions: {
++    data: {
++      message: {
++        key: { remoteJid: "group@g.us", future: 1 },
++        audioMessage: { url: "opaque-media-reference", future: { keep: true } },
++        future: true,
++      },
++    },
++  },
++  textObject: { text: { body: "hi" } },
+ })) {
+   Deno.test(`preserves ${name} provider fields`, () => {
+     const result = manusPayloadSchema.safeParse(value);
+-    if (!result.success) throw new Error("Valid object rejected");
+-    if (JSON.stringify(result.data) !== JSON.stringify(value))
+-      throw new Error("Provider fields changed");
++    assert.equal(result.success, true);
++    if (result.success) assert.deepEqual(result.data, value);
++  });
++}
++
++for (const [name, value] of Object.entries({
++  event: { event: {} },
++  identifier: { from: [] },
++  sender: { senderName: 42 },
++  ack: { ack: {} },
++  flag: { fromMe: "yes" },
++  mediaFlag: { hasMedia: [] },
++  key: { key: [] },
++  keyIdentifier: { key: { remoteJid: {} } },
++  wrapper: { data: "invalid" },
++  nestedWrapper: { data: { message: [] } },
++  wrappedMessageId: { payload: { messageId: false } },
++  body: { body: [] },
++  media: { audioMessage: [] },
++  mediaUrl: { audioMessage: { url: 42 } },
++  mediaMime: { media: { mimetype: false } },
++  quotedMessage: { quotedMsg: { id: {} } },
++  context: { contextInfo: { stanzaId: [] } },
++})) {
++  Deno.test(`rejects malformed known ${name} field`, () => {
++    assert.equal(manusPayloadSchema.safeParse(value).success, false);
+   });
+ }
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.ts b/supabase/functions/manus-wa-webhook/payload-schema.ts
+index e6d6eb5f9..efce2bb4d 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.ts
+@@ -1,4 +1,104 @@
+ import { z } from "npm:zod@3.25.76";
+ 
+-// Validate only the envelope: provider fields and nested payload variants stay open.
+-export const manusPayloadSchema = z.record(z.string(), z.unknown());
++// Keep provider values intact: IDs may be numeric, flags may use gateway strings,
++// nulls trigger the existing fallback logic, and unknown fields pass through.
++const identifier = z.union([z.string(), z.number().finite()]).nullish();
++const text = z.string().nullish();
++const flag = z
++  .union([
++    z.boolean(),
++    z.literal("true"),
++    z.literal("false"),
++    z.literal(0),
++    z.literal(1),
++  ])
++  .nullish();
++
++const media = z
++  .object({
++    url: text,
++    downloadUrl: text,
++    mediaUrl: text,
++    mimetype: text,
++    mimeType: text,
++    mime_type: text,
++  })
++  .passthrough();
++
++const key = z
++  .object({
++    id: identifier,
++    remoteJid: identifier,
++    participant: identifier,
++    fromMe: flag,
++  })
++  .passthrough()
++  .nullish();
++
++// The gateway uses the same message fields at the top level and inside wrappers.
++// Do not restrict event/direction strings to today's vocabulary or coerce values.
++export const manusPayloadSchema: z.ZodType<Record<string, unknown>> = z.lazy(
++  () =>
++    z
++      .object({
++        event: text,
++        type: text,
++        messageType: text,
++        instanceId: identifier,
++        instance_id: identifier,
++        secret: text,
++        id: identifier,
++        messageId: identifier,
++        from: identifier,
++        to: identifier,
++        chatId: identifier,
++        remoteJid: identifier,
++        recipientId: identifier,
++        participant: identifier,
++        participantPn: identifier,
++        senderPn: identifier,
++        senderLid: identifier,
++        senderPhone: identifier,
++        senderNumber: identifier,
++        author: identifier,
++        senderName: text,
++        fromName: text,
++        authorName: text,
++        pushName: text,
++        groupId: identifier,
++        groupName: text,
++        chatName: text,
++        subject: text,
++        fromMe: flag,
++        hasMedia: flag,
++        direction: text,
++        ack: identifier,
++        body: z.union([z.string(), manusPayloadSchema]).nullish(),
++        text: z.union([z.string(), manusPayloadSchema]).nullish(),
++        content: z.union([z.string(), manusPayloadSchema]).nullish(),
++        conversation: text,
++        data: manusPayloadSchema.nullish(),
++        payload: manusPayloadSchema.nullish(),
++        message: manusPayloadSchema.nullish(),
++        key,
++        contextInfo: z
++          .object({ stanzaId: identifier, participant: identifier })
++          .passthrough()
++          .nullish(),
++        quotedMsgId: identifier,
++        quotedMessageId: identifier,
++        quotedMsg: z.object({ id: identifier }).passthrough().nullish(),
++        mediaType: text,
++        mimeType: text,
++        mime_type: text,
++        media: z.union([z.string(), media]).nullish(),
++        file: z.union([z.string(), media]).nullish(),
++        attachment: z.union([z.string(), media]).nullish(),
++        audio: z.union([z.string(), media]).nullish(),
++        audioMessage: media.nullish(),
++        imageMessage: media.nullish(),
++        videoMessage: media.nullish(),
++        documentMessage: media.nullish(),
++      })
++      .passthrough(),
++);
+-- 
+2.43.0
+
+
+From 0efd43c644b4c92b9348c77ebb508fa46d040f39 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 15:23:44 +0000
+Subject: [PATCH 3/6] refactor(whatsapp): compose explicit payload layers
+ without lazy recursion
+
+---
+ .../manus-wa-webhook/payload-schema.test.ts   |  33 ++++
+ .../manus-wa-webhook/payload-schema.ts        | 148 ++++++++++--------
+ 2 files changed, 114 insertions(+), 67 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.test.ts b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+index 8f147ccf5..92587885c 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.test.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+@@ -90,3 +90,36 @@ for (const [name, value] of Object.entries({
+     assert.equal(manusPayloadSchema.safeParse(value).success, false);
+   });
+ }
++
++Deno.test(
++  "validates each consumed container layer without recursive schemas",
++  () => {
++    for (const outer of ["data", "message", "payload", "body"]) {
++      const valid = {
++        [outer]: {
++          message: { from: "member@lid", audioMessage: { url: "opaque" } },
++        },
++      };
++      assert.deepEqual(manusPayloadSchema.parse(valid), valid);
++      assert.equal(
++        manusPayloadSchema.safeParse({ [outer]: { message: { from: [] } } })
++          .success,
++        false,
++      );
++    }
++  },
++);
++
++Deno.test(
++  "preserves deeper extensions beyond the layers the handler consumes",
++  () => {
++    const payload = {
++      data: {
++        message: {
++          data: { providerExtension: { from: ["opaque", "extension"] } },
++        },
++      },
++    };
++    assert.deepEqual(manusPayloadSchema.parse(payload), payload);
++  },
++);
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.ts b/supabase/functions/manus-wa-webhook/payload-schema.ts
+index efce2bb4d..e9bea9a20 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.ts
+@@ -35,70 +35,84 @@ const key = z
+   .passthrough()
+   .nullish();
+ 
+-// The gateway uses the same message fields at the top level and inside wrappers.
+-// Do not restrict event/direction strings to today's vocabulary or coerce values.
+-export const manusPayloadSchema: z.ZodType<Record<string, unknown>> = z.lazy(
+-  () =>
+-    z
+-      .object({
+-        event: text,
+-        type: text,
+-        messageType: text,
+-        instanceId: identifier,
+-        instance_id: identifier,
+-        secret: text,
+-        id: identifier,
+-        messageId: identifier,
+-        from: identifier,
+-        to: identifier,
+-        chatId: identifier,
+-        remoteJid: identifier,
+-        recipientId: identifier,
+-        participant: identifier,
+-        participantPn: identifier,
+-        senderPn: identifier,
+-        senderLid: identifier,
+-        senderPhone: identifier,
+-        senderNumber: identifier,
+-        author: identifier,
+-        senderName: text,
+-        fromName: text,
+-        authorName: text,
+-        pushName: text,
+-        groupId: identifier,
+-        groupName: text,
+-        chatName: text,
+-        subject: text,
+-        fromMe: flag,
+-        hasMedia: flag,
+-        direction: text,
+-        ack: identifier,
+-        body: z.union([z.string(), manusPayloadSchema]).nullish(),
+-        text: z.union([z.string(), manusPayloadSchema]).nullish(),
+-        content: z.union([z.string(), manusPayloadSchema]).nullish(),
+-        conversation: text,
+-        data: manusPayloadSchema.nullish(),
+-        payload: manusPayloadSchema.nullish(),
+-        message: manusPayloadSchema.nullish(),
+-        key,
+-        contextInfo: z
+-          .object({ stanzaId: identifier, participant: identifier })
+-          .passthrough()
+-          .nullish(),
+-        quotedMsgId: identifier,
+-        quotedMessageId: identifier,
+-        quotedMsg: z.object({ id: identifier }).passthrough().nullish(),
+-        mediaType: text,
+-        mimeType: text,
+-        mime_type: text,
+-        media: z.union([z.string(), media]).nullish(),
+-        file: z.union([z.string(), media]).nullish(),
+-        attachment: z.union([z.string(), media]).nullish(),
+-        audio: z.union([z.string(), media]).nullish(),
+-        audioMessage: media.nullish(),
+-        imageMessage: media.nullish(),
+-        videoMessage: media.nullish(),
+-        documentMessage: media.nullish(),
+-      })
+-      .passthrough(),
+-);
++const providerObject = z.record(z.string(), z.unknown());
++
++// Shared fields apply to messages and envelopes; opaque extensions stay intact.
++const messageFields = z
++  .object({
++    event: text,
++    type: text,
++    messageType: text,
++    instanceId: identifier,
++    instance_id: identifier,
++    secret: text,
++    id: identifier,
++    messageId: identifier,
++    from: identifier,
++    to: identifier,
++    chatId: identifier,
++    remoteJid: identifier,
++    recipientId: identifier,
++    participant: identifier,
++    participantPn: identifier,
++    senderPn: identifier,
++    senderLid: identifier,
++    senderPhone: identifier,
++    senderNumber: identifier,
++    author: identifier,
++    senderName: text,
++    fromName: text,
++    authorName: text,
++    pushName: text,
++    groupId: identifier,
++    groupName: text,
++    chatName: text,
++    subject: text,
++    fromMe: flag,
++    hasMedia: flag,
++    direction: text,
++    ack: identifier,
++    body: z.union([z.string(), providerObject]).nullish(),
++    text: z.union([z.string(), providerObject]).nullish(),
++    content: z.union([z.string(), providerObject]).nullish(),
++    conversation: text,
++    data: providerObject.nullish(),
++    payload: providerObject.nullish(),
++    message: providerObject.nullish(),
++    key,
++    contextInfo: z
++      .object({ stanzaId: identifier, participant: identifier })
++      .passthrough()
++      .nullish(),
++    quotedMsgId: identifier,
++    quotedMessageId: identifier,
++    quotedMsg: z.object({ id: identifier }).passthrough().nullish(),
++    mediaType: text,
++    mimeType: text,
++    mime_type: text,
++    media: z.union([z.string(), media]).nullish(),
++    file: z.union([z.string(), media]).nullish(),
++    attachment: z.union([z.string(), media]).nullish(),
++    audio: z.union([z.string(), media]).nullish(),
++    audioMessage: media.nullish(),
++    imageMessage: media.nullish(),
++    videoMessage: media.nullish(),
++    documentMessage: media.nullish(),
++  })
++  .passthrough();
++
++function withContainers(child: z.ZodType<Record<string, unknown>>) {
++  return messageFields.extend({
++    data: child.nullish(),
++    payload: child.nullish(),
++    message: child.nullish(),
++    body: z.union([z.string(), child]).nullish(),
++    text: z.union([z.string(), child]).nullish(),
++    content: z.union([z.string(), child]).nullish(),
++  });
++}
++
++// Normalization reads the outer event, one wrapper, then its message container.
++// Model those three layers directly; deeper provider extensions remain opaque.
++const wrappedMessage = withContainers(messageFields);
++export const manusPayloadSchema = withContainers(wrappedMessage);
+-- 
+2.43.0
+
+
+From b4c19dd9f0ac2c77b61eec2155bc60ea2fa4b3bb Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 15:28:30 +0000
+Subject: [PATCH 4/6] fix(whatsapp): preserve child schema inference in
+ container composition
+
+---
+ .../manus-wa-webhook/payload-schema.test.ts          | 12 ++++++++++++
+ .../functions/manus-wa-webhook/payload-schema.ts     |  4 +++-
+ 2 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.test.ts b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+index 92587885c..758328368 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.test.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+@@ -123,3 +123,15 @@ Deno.test(
+     assert.deepEqual(manusPayloadSchema.parse(payload), payload);
+   },
+ );
++
++Deno.test("preserves inferred types through both container layers", () => {
++  const parsed = manusPayloadSchema.parse({
++    data: { message: { from: "member@lid", audioMessage: { url: "opaque" } } },
++  });
++  // These assignments also fail Deno's type check if composition widens to unknown.
++  const sender: string | number | null | undefined = parsed.data?.message?.from;
++  const mediaUrl: string | null | undefined =
++    parsed.data?.message?.audioMessage?.url;
++  assert.equal(sender, "member@lid");
++  assert.equal(mediaUrl, "opaque");
++});
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.ts b/supabase/functions/manus-wa-webhook/payload-schema.ts
+index e9bea9a20..b60d8391a 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.ts
+@@ -101,7 +101,9 @@ const messageFields = z
+   })
+   .passthrough();
+ 
+-function withContainers(child: z.ZodType<Record<string, unknown>>) {
++function withContainers<Child extends z.ZodType<Record<string, unknown>>>(
++  child: Child,
++) {
+   return messageFields.extend({
+     data: child.nullish(),
+     payload: child.nullish(),
+-- 
+2.43.0
+
+
+From c2c24fc71c0e1b50bcf456ba3cb853decc9b2f7e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 15:12:22 +0000
+Subject: [PATCH 5/6] fix(whatsapp): ack malformed Manus envelopes and log
+ rejected shapes
+
+Return 400 only for non-object JSON; object envelopes that fail the schema are
+logged with issues and a preview and acknowledged with 200. Drop the redundant
+payload alias and cover the body gate with tests.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018yMLzGJhHxrHKDgAcXxJSS
+---
+ supabase/functions/manus-wa-webhook/index.ts  | 98 ++++++++++++-------
+ .../manus-wa-webhook/payload-schema.test.ts   | 39 +++++++-
+ .../manus-wa-webhook/payload-schema.ts        | 22 +++++
+ 3 files changed, 121 insertions(+), 38 deletions(-)
+
+diff --git a/supabase/functions/manus-wa-webhook/index.ts b/supabase/functions/manus-wa-webhook/index.ts
+index 9b2818bcf..1cc7acdab 100644
+--- a/supabase/functions/manus-wa-webhook/index.ts
++++ b/supabase/functions/manus-wa-webhook/index.ts
+@@ -1,4 +1,4 @@
+-import { manusPayloadSchema } from "./payload-schema.ts";
++import { parseManusBody } from "./payload-schema.ts";
+ // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
+ // operator on outbound messages (stops Carmen replying in the operator's private chats).
+ // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
+@@ -438,9 +438,21 @@ Deno.serve(async (req) => {
+     );
+ 
+     const url = new URL(req.url);
+-    const parsedPayload = manusPayloadSchema.safeParse(await req.json());
+-    if (!parsedPayload.success) return ok({ error: "Invalid payload" }, 400);
+-    const rawPayload = parsedPayload.data;
++    const parsedBody = parseManusBody(await req.json());
++    if (parsedBody.status === "not_object") {
++      return ok({ error: "Invalid payload" }, 400);
++    }
++    if (parsedBody.status === "invalid") {
++      // ACK so Manus doesn't disable the webhook, but leave a trace of the shape.
++      console.error(
++        "[manus-wa] invalid payload issues=",
++        JSON.stringify(parsedBody.issues),
++        "preview=",
++        parsedBody.preview,
++      );
++      return ok({ received: true, ignored: "invalid_payload" });
++    }
++    const rawPayload = parsedBody.payload;
+ 
+     // Diagnostic: log top-level shape so we can see exactly what Manus sends
+     try {
+@@ -463,32 +475,36 @@ Deno.serve(async (req) => {
+       }
+       return null;
+     }
+-    const outer = rawPayload;
+     const inner =
+-      pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
+-    const key = pickObj(inner.key, outer.key) || {};
+-    const msgContainer = pickObj(inner.message, outer.message) || {};
++      pickObj(
++        rawPayload.data,
++        rawPayload.message,
++        rawPayload.payload,
++        rawPayload.body,
++      ) || {};
++    const key = pickObj(inner.key, rawPayload.key) || {};
++    const msgContainer = pickObj(inner.message, rawPayload.message) || {};
+ 
+     // Only treat as 'message' when there is actual message content (from/body/key).
+     // Otherwise keep the raw event (or 'ping' / 'unknown') so we don't falsely trigger Carmen.
+     const rawEventField =
+-      outer.event ??
++      rawPayload.event ??
+       inner.event ??
+-      outer.type ??
++      rawPayload.type ??
+       inner.type ??
+-      outer.messageType ??
++      rawPayload.messageType ??
+       inner.messageType ??
+       null;
+     const looksLikeMessage = !!(
+-      outer.from ||
++      rawPayload.from ||
+       inner.from ||
+       inner.chatId ||
+-      outer.chatId ||
+-      outer.body ||
++      rawPayload.chatId ||
++      rawPayload.body ||
+       inner.body ||
+       inner.text ||
+-      outer.text ||
+-      pickObj(inner.message, outer.message)
++      rawPayload.text ||
++      pickObj(inner.message, rawPayload.message)
+     );
+     const normalizedEvent =
+       (rawEventField === "chat" ||
+@@ -498,51 +514,59 @@ Deno.serve(async (req) => {
+         ? "message"
+         : (rawEventField ?? (looksLikeMessage ? "message" : "ping"));
+     const fromField =
+-      outer.from ??
++      rawPayload.from ??
+       inner.from ??
+       inner.chatId ??
+-      outer.chatId ??
++      rawPayload.chatId ??
+       key.remoteJid ??
+       inner.remoteJid ??
+       "";
+     const toField =
+-      outer.to ?? inner.to ?? inner.recipientId ?? outer.recipientId ?? "";
++      rawPayload.to ??
++      inner.to ??
++      inner.recipientId ??
++      rawPayload.recipientId ??
++      "";
+     const bodyField =
+-      outer.body ??
++      rawPayload.body ??
+       inner.body ??
+       inner.text ??
+-      outer.text ??
++      rawPayload.text ??
+       inner.content ??
+-      outer.content ??
++      rawPayload.content ??
+       msgContainer.conversation ??
+       msgContainer.text ??
+       msgContainer.body ??
+       "";
+     const fromMeField =
+-      outer.fromMe ??
++      rawPayload.fromMe ??
+       inner.fromMe ??
+       key.fromMe ??
+-      (outer.direction === "outgoing" || inner.direction === "outgoing");
+-    const directionField = outer.direction ?? inner.direction;
++      (rawPayload.direction === "outgoing" || inner.direction === "outgoing");
++    const directionField = rawPayload.direction ?? inner.direction;
+     const idField =
+-      outer.id ?? inner.id ?? outer.messageId ?? inner.messageId ?? key.id;
++      rawPayload.id ??
++      inner.id ??
++      rawPayload.messageId ??
++      inner.messageId ??
++      key.id;
+     const senderNameField =
+-      outer.senderName ??
++      rawPayload.senderName ??
+       inner.senderName ??
+-      outer.fromName ??
++      rawPayload.fromName ??
+       inner.fromName ??
+-      outer.pushName ??
++      rawPayload.pushName ??
+       inner.pushName ??
+       null;
+     const authorField =
+-      outer.author ??
++      rawPayload.author ??
+       inner.author ??
+-      outer.participant ??
++      rawPayload.participant ??
+       inner.participant ??
+       key.participant ??
+       null;
+     const hasMediaField =
+-      outer.hasMedia ??
++      rawPayload.hasMedia ??
+       inner.hasMedia ??
+       !!(
+         msgContainer.imageMessage ||
+@@ -553,7 +577,7 @@ Deno.serve(async (req) => {
+ 
+     // Build a unified payload object that the rest of the code uses
+     const payload: Record<string, any> = {
+-      ...outer,
++      ...rawPayload,
+       ...inner,
+       event: normalizedEvent,
+       from: fromField,
+@@ -562,7 +586,7 @@ Deno.serve(async (req) => {
+       fromMe: fromMeField,
+       direction: directionField,
+       id: idField,
+-      messageId: outer.messageId ?? inner.messageId ?? idField,
++      messageId: rawPayload.messageId ?? inner.messageId ?? idField,
+       senderName: senderNameField,
+       author: authorField,
+       hasMedia: hasMediaField,
+@@ -575,15 +599,15 @@ Deno.serve(async (req) => {
+       req.headers.get("x-manus-secret") ||
+       req.headers.get("x-webhook-signature") ||
+       url.searchParams.get("secret") ||
+-      (outer?.secret as string | undefined) ||
++      (rawPayload?.secret as string | undefined) ||
+       (inner?.secret as string | undefined) ||
+       "";
+ 
+     const headerInstanceId = req.headers.get("x-wa-gateway-instance") || "";
+     const instanceId =
+-      outer.instanceId ||
++      rawPayload.instanceId ||
+       inner.instanceId ||
+-      outer.instance_id ||
++      rawPayload.instance_id ||
+       inner.instance_id ||
+       headerInstanceId ||
+       url.searchParams.get("instanceId") ||
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.test.ts b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+index 758328368..f9668172d 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.test.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.test.ts
+@@ -1,5 +1,5 @@
+ import assert from "node:assert/strict";
+-import { manusPayloadSchema } from "./payload-schema.ts";
++import { manusPayloadSchema, parseManusBody } from "./payload-schema.ts";
+ 
+ for (const value of [null, [], "invalid", 42, true]) {
+   Deno.test(`rejects non-object envelope ${JSON.stringify(value)}`, () => {
+@@ -135,3 +135,40 @@ Deno.test("preserves inferred types through both container layers", () => {
+   assert.equal(sender, "member@lid");
+   assert.equal(mediaUrl, "opaque");
+ });
++
++for (const value of [null, [], "invalid", 42, true]) {
++  Deno.test(
++    `body gate rejects non-object JSON ${JSON.stringify(value)}`,
++    () => {
++      assert.deepEqual(parseManusBody(value), { status: "not_object" });
++    },
++  );
++}
++
++Deno.test(
++  "body gate passes flat and wrapped text payloads through unchanged",
++  () => {
++    const flat = { event: "message", from: "972500000000", body: "hi" };
++    const wrapped = {
++      data: { key: { id: "1" }, message: { conversation: "hi" } },
++    };
++    for (const payload of [flat, wrapped]) {
++      assert.deepEqual(parseManusBody(payload), { status: "ok", payload });
++    }
++  },
++);
++
++Deno.test(
++  "body gate acknowledges malformed object envelopes with issues and preview",
++  () => {
++    const result = parseManusBody({
++      message: "oops",
++      filler: "x".repeat(2000),
++    });
++    assert.equal(result.status, "invalid");
++    if (result.status === "invalid") {
++      assert.ok(result.issues.length > 0);
++      assert.equal(result.preview.length, 800);
++    }
++  },
++);
+diff --git a/supabase/functions/manus-wa-webhook/payload-schema.ts b/supabase/functions/manus-wa-webhook/payload-schema.ts
+index b60d8391a..29fcade0b 100644
+--- a/supabase/functions/manus-wa-webhook/payload-schema.ts
++++ b/supabase/functions/manus-wa-webhook/payload-schema.ts
+@@ -118,3 +118,25 @@ function withContainers<Child extends z.ZodType<Record<string, unknown>>>(
+ // Model those three layers directly; deeper provider extensions remain opaque.
+ const wrappedMessage = withContainers(messageFields);
+ export const manusPayloadSchema = withContainers(wrappedMessage);
++
++export type ManusBodyResult =
++  | { status: "ok"; payload: z.infer<typeof manusPayloadSchema> }
++  | { status: "not_object" }
++  | { status: "invalid"; issues: z.ZodIssue[]; preview: string };
++
++// Non-object JSON is a malformed request (400). An object envelope that fails
++// the schema is acknowledged and logged so the provider keeps the webhook on.
++export function parseManusBody(body: unknown): ManusBodyResult {
++  if (!body || typeof body !== "object" || Array.isArray(body)) {
++    return { status: "not_object" };
++  }
++  const parsed = manusPayloadSchema.safeParse(body);
++  if (parsed.success) {
++    return { status: "ok", payload: parsed.data };
++  }
++  return {
++    status: "invalid",
++    issues: parsed.error.issues,
++    preview: JSON.stringify(body).slice(0, 800),
++  };
++}
+-- 
+2.43.0
+
+
+From df5a7da5d2b8cadc44061675a5d261f1b555226e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 17:01:20 +0000
+Subject: [PATCH 6/6] ci(whatsapp): drop duplicate Manus schema Deno step
+
+The Edge function Deno step already discovers payload-schema.test.ts.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018yMLzGJhHxrHKDgAcXxJSS
+---
+ .github/workflows/ci-frontend.yml | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index 856f71695..a04a77184 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -186,13 +186,6 @@ jobs:
+       - name: Edge function tests (Deno)
+         run: deno test -A --no-check supabase/functions
+ 
+-      - uses: denoland/setup-deno@v2
+-        with:
+-          deno-version: v2.9.6
+-
+-      - name: Manus webhook schema regression tests
+-        run: deno test supabase/functions/manus-wa-webhook/payload-schema.test.ts
+-
+       - name: Build frontend
+         run: pnpm build
+ 
+-- 
+2.43.0
+
