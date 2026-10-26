@@ -14,7 +14,7 @@ import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
-  tenantId: string;
+  tenantId?: string;
   configuration: StepConfig;
   onConfigChange: StepConfigChange;
   onBulkConfigChange?: StepConfigBulkChange;
