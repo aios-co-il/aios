@@ -4,7 +4,7 @@ import {
   readIslandItems,
   readRecentMessages,
   toAgentRole,
-} from "./islandRows-b19";
+} from "./islandRows";
 
 describe("toAgentRole", () => {
   it("keeps known roles and falls back to ceo", () => {

@@ -18,16 +18,13 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import {
-  readIslandAgents,
-  readIslandItems,
   toAgentRole,
   type IslandAgent,
   type IslandItem,
-} from "../utils/islandRows-b19";
+} from "../utils/islandRows";
+import { fetchIslandAgents, fetchIslandItems } from "../utils/islandQueries";
 
 type IslandTask = Pick<Tables<"tasks">, "id" | "title" | "status">;
-
-type RowsQuery = PromiseLike<{ data: unknown[] | null }>;
 
 interface Props {
   island: IslandSummary | null;
@@ -45,103 +42,22 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
   useEffect(() => {
     if (!island || !tenantId) return;
     setLoading(true);
-    const sb = supabase;
     (async () => {
-      const fetchTasks = sb
+      const fetchTasks = supabase
         .from("tasks")
         .select("id,title,status,due_date,client_id")
         .eq("tenant_id", tenantId)
         .in("status", ["open", "in_progress"])
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
-      const fetchAgents: RowsQuery = sb
-        .from("ai_agents")
-        .select("id,name,role,model,active")
-        .eq("tenant_id", tenantId)
-        .limit(10);
-
-      let itemsQ: RowsQuery | null = null;
-      switch (island.id) {
-        case "marketing":
-          itemsQ = sb
-            .from("automations")
-            .select("id,name,is_active,trigger_type")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "sales":
-          itemsQ = sb
-            .from("leads")
-            .select("id,name,phone,status,created_at")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "creative":
-          itemsQ = sb
-            .from("social_publications")
-            .select("id,content,status,scheduled_at")
-            .eq("tenant_id", tenantId)
-            .order("scheduled_at", { ascending: false, nullsFirst: false })
-            .limit(15);
-          break;
-        case "finance":
-          itemsQ = sb
-            .from("supplier_invoices")
-            .select("id,supplier_name,amount,status,invoice_date")
-            .eq("tenant_id", tenantId)
-            .order("invoice_date", { ascending: false })
-            .limit(15);
-          break;
-        case "development":
-          itemsQ = sb
-            .from("automation_executions")
-            .select("id,automation_id,status,created_at")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "customer_success":
-          itemsQ = sb
-            .from("clients")
-            .select("id,name,status,mood_status,health_score")
-            .eq("tenant_id", tenantId)
-            .order("name")
-            .limit(20);
-          break;
-        case "system":
-          itemsQ = sb
-            .from("tenant_integrations")
-            .select("id,integration_name,is_active")
-            .eq("tenant_id", tenantId)
-            .limit(20);
-          break;
-        case "agents":
-          itemsQ = sb
-            .from("ai_agents")
-            .select("id,name,role,model,active")
-            .eq("tenant_id", tenantId)
-            .limit(20);
-          break;
-        case "management":
-          itemsQ = sb
-            .from("goals")
-            .select("id,title,status,progress")
-            .eq("tenant_id", tenantId)
-            .neq("status", "completed")
-            .limit(15);
-          break;
-      }
-
       const [it, tsk, ag] = await Promise.all([
-        itemsQ,
+        fetchIslandItems(island.id, tenantId),
         fetchTasks,
-        fetchAgents,
+        fetchIslandAgents(tenantId),
       ]);
-      setItems(readIslandItems(it?.data ?? []));
+      setItems(it);
       setTasks(tsk?.data ?? []);
-      setAgents(readIslandAgents(ag?.data ?? []));
+      setAgents(ag);
       setLoading(false);
     })();
   }, [island, tenantId]);

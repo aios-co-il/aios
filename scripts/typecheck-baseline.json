@@ -1927,6 +1927,97 @@
       "message": "Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">'.\n  Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\">'.",
       "source": "id",
       "count": 2
+    },
+    {
+      "file": "src/visual-workspace/components/CustomerSheet.tsx",
+      "code": 2322,
+      "message": "Type 'SelectQueryError<\"column 'message' does not exist on 'chat_messages'.\">[] | null' is not assignable to type 'IdRows'.\n  Type 'SelectQueryError<\"column 'message' does not exist on 'chat_messages'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "messageRows",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/hooks/useVisualWorkspaceData.ts",
+      "code": 2345,
+      "message": "Argument of type '\"is_active\"' is not assignable to parameter of type '\"id\" | \"name\" | \"description\" | \"active\" | \"tenant_id\" | \"source_tenant_id\" | \"created_at\" | \"updated_at\" | \"action_type\" | \"trigger_type\" | \"configuration\" | \"conditions\" | \"is_flow\" | \"source_automation_id\"'.",
+      "source": "\"is_active\"",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/hooks/useVisualWorkspaceData.ts",
+      "code": 2345,
+      "message": "Argument of type '\"status\"' is not assignable to parameter of type '\"details\" | \"id\" | \"tenant_id\" | \"client_id\" | \"campaign_id\" | \"created_at\" | \"updated_at\" | \"acknowledged_at\" | \"acknowledged_by\" | \"ad_account_id\" | \"alert_type\" | \"campaign_name\" | \"notified_at\" | \"resolved_at\" | \"severity\"'.",
+      "source": "\"status\"",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/hooks/useVisualWorkspaceData.ts",
+      "code": 2345,
+      "message": "Argument of type '\"status\"' is not assignable to parameter of type '\"id\" | \"tenant_id\" | \"supplier_id\" | \"created_at\" | \"notes\" | \"file_name\" | \"invoice_date\" | \"file_url\" | \"ai_extracted\" | \"invoice_amount\" | \"invoice_month\" | \"invoice_name\"'.",
+      "source": "\"status\"",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2322,
+      "message": "Type 'SelectQueryError<\"column 'role' does not exist on 'ai_agents'.\">[] | null' is not assignable to type 'IdRows'.\n  Type 'SelectQueryError<\"column 'role' does not exist on 'ai_agents'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "rows",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'content' does not exist on 'social_publications'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'content' does not exist on 'social_publications'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"social_publications\") .select(\"id,content,status,scheduled_at\") .eq(\"tenant_id\", tenantId) .order(\"scheduled_at\", { ascending: false, nullsFirst: false }) .limit(15) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'created_at' does not exist on 'automation_executions'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'created_at' does not exist on 'automation_executions'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"automation_executions\") .select(\"id,automation_id,status,created_at\") .eq(\"tenant_id\", tenantId) .order(\"created_at\", { ascending: false }) .limit(15) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'integration_name' does not exist on 'tenant_integrations'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'integration_name' does not exist on 'tenant_integrations'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"tenant_integrations\") .select(\"id,integration_name,is_active\") .eq(\"tenant_id\", tenantId) .limit(20) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'is_active' does not exist on 'automations'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'is_active' does not exist on 'automations'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"automations\") .select(\"id,name,is_active,trigger_type\") .eq(\"tenant_id\", tenantId) .order(\"created_at\", { ascending: false }) .limit(15) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'name' does not exist on 'leads'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'name' does not exist on 'leads'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"leads\") .select(\"id,name,phone,status,created_at\") .eq(\"tenant_id\", tenantId) .order(\"created_at\", { ascending: false }) .limit(15) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'progress' does not exist on 'goals'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'progress' does not exist on 'goals'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"goals\") .select(\"id,title,status,progress\") .eq(\"tenant_id\", tenantId) .neq(\"status\", \"completed\") .limit(15) ).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'role' does not exist on 'ai_agents'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'role' does not exist on 'ai_agents'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "(await fetchAgentRows(tenantId, 20)).data",
+      "count": 1
+    },
+    {
+      "file": "src/visual-workspace/utils/islandQueries.ts",
+      "code": 2345,
+      "message": "Argument of type 'SelectQueryError<\"column 'supplier_name' does not exist on 'supplier_invoices'.\">[] | null' is not assignable to parameter of type 'IdRows'.\n  Type 'SelectQueryError<\"column 'supplier_name' does not exist on 'supplier_invoices'.\">[]' is not assignable to type 'IdRows'.\n    Property 'id' is missing in type '{ error: true; } & String' but required in type '{ id: string; }'.",
+      "source": "( await supabase .from(\"supplier_invoices\") .select(\"id,supplier_name,amount,status,invoice_date\") .eq(\"tenant_id\", tenantId) .order(\"invoice_date\", { ascending: false }) .limit(15) ).data",
+      "count": 1
     }
   ]
 }

@@ -13,13 +13,6 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
-type TaskDetails = Tables<"tasks"> & { description?: string | null };
-
-type TaskUpdate = Tables<"task_updates"> & {
-  update_text?: string | null;
-  note?: string | null;
-};
-
 interface Props {
   taskId: string | null;
   onClose: () => void;
@@ -27,16 +20,15 @@ interface Props {
 
 export function TaskSheet({ taskId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
-  const [task, setTask] = useState<TaskDetails | null>(null);
-  const [updates, setUpdates] = useState<TaskUpdate[]>([]);
+  const [task, setTask] = useState<Tables<"tasks"> | null>(null);
+  const [updates, setUpdates] = useState<Tables<"task_updates">[]>([]);
 
   useEffect(() => {
     if (!taskId) return;
     setLoading(true);
-    const sb = supabase;
     Promise.all([
-      sb.from("tasks").select("*").eq("id", taskId).maybeSingle(),
-      sb
+      supabase.from("tasks").select("*").eq("id", taskId).maybeSingle(),
+      supabase
         .from("task_updates")
         .select("*")
         .eq("task_id", taskId)
@@ -72,14 +64,6 @@ export function TaskSheet({ taskId, onClose }: Props) {
                   <Badge variant="secondary">{task.priority}</Badge>
                 )}
               </div>
-              {task.description && (
-                <div>
-                  <div className="text-xs text-slate-500 mb-1">תיאור</div>
-                  <p className="text-xs whitespace-pre-wrap">
-                    {task.description}
-                  </p>
-                </div>
-              )}
               {task.due_date && (
                 <div>
                   <div className="text-xs text-slate-500">תאריך יעד</div>
@@ -107,7 +91,7 @@ export function TaskSheet({ taskId, onClose }: Props) {
                               locale: he,
                             })}
                         </div>
-                        <div>{u.content || u.update_text || u.note}</div>
+                        <div>{u.content}</div>
                       </div>
                     ))}
                   </div>

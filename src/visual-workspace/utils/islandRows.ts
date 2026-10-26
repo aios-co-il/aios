@@ -42,6 +42,8 @@ export interface RecentMessage {
   sender_name?: string | null;
 }
 
+export type IdRows = readonly { id: string }[] | null;
+
 type FieldValue<T> = T | null | undefined;
 
 function readField<K extends string>(row: object, key: K): unknown {

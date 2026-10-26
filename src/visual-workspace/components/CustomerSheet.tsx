@@ -14,8 +14,9 @@ import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 import {
   readRecentMessages,
+  type IdRows,
   type RecentMessage,
-} from "../utils/islandRows-b19";
+} from "../utils/islandRows";
 
 type OpenTask = Pick<Tables<"tasks">, "id" | "title" | "status" | "due_date">;
 
@@ -48,9 +49,10 @@ export function CustomerSheet({ clientId, onClose }: Props) {
         .order("created_at", { ascending: false })
         .limit(5),
     ]).then(([c, t, m]) => {
+      const messageRows: IdRows = m.data;
       setClient(c.data);
       setTasks(t.data ?? []);
-      setMessages(readRecentMessages(m.data ?? []));
+      setMessages(readRecentMessages(messageRows ?? []));
       setLoading(false);
     });
   }, [clientId]);

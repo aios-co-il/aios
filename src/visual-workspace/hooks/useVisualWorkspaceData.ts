@@ -131,7 +131,7 @@ export function useVisualWorkspaceData() {
             .from("campaign_alerts")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .filter("status", "eq", "open"),
+            .eq("status", "open"),
         ),
         safeCount(
           sb
@@ -166,7 +166,7 @@ export function useVisualWorkspaceData() {
             .from("automations")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .filter("is_active", "eq", true),
+            .eq("is_active", true),
         ),
         safeCount(
           sb
@@ -228,7 +228,7 @@ export function useVisualWorkspaceData() {
             .from("supplier_invoices")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .filter("status", "neq", "paid"),
+            .neq("status", "paid"),
         ),
       ]);
 
