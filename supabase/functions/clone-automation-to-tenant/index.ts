@@ -2,7 +2,8 @@
 // (Name kept as "clone-automation-to-tenant" for backwards-compat with existing UI callers.)
 // The automation itself stays in the source tenant — only one trigger fires.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { asList, messageOf, prop } from "../_shared/automation-json.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,9 +17,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(
@@ -30,7 +28,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey);
+    const admin = serviceClient();
     const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
@@ -43,11 +41,13 @@ serve(async (req: Request) => {
       });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const automationId: string = body?.automation_id;
-    const targetTenantIds: string[] = Array.isArray(body?.target_tenant_ids)
-      ? body.target_tenant_ids
-      : [];
+    const body: unknown = await req.json().catch(() => ({}));
+    const rawAutomationId = prop(body, "automation_id");
+    const automationId =
+      typeof rawAutomationId === "string" ? rawAutomationId : "";
+    const targetTenantIds = asList(prop(body, "target_tenant_ids")).map((id) =>
+      String(id),
+    );
 
     if (!automationId || targetTenantIds.length === 0) {
       return new Response(
@@ -80,14 +80,12 @@ serve(async (req: Request) => {
       .from("user_roles")
       .select("role, tenant_id")
       .eq("user_id", user.id);
-    const isSuperAdmin = (roles || []).some(
-      (r: any) => r.role === "super_admin",
-    );
+    const isSuperAdmin = (roles || []).some((r) => r.role === "super_admin");
     const ADMIN_ROLES = new Set(["owner", "team_manager", "agency_owner"]);
     const hasSourceAdmin =
       isSuperAdmin ||
       (roles || []).some(
-        (r: any) => r.tenant_id === source.tenant_id && ADMIN_ROLES.has(r.role),
+        (r) => r.tenant_id === source.tenant_id && ADMIN_ROLES.has(r.role),
       );
     if (!hasSourceAdmin) {
       return new Response(
@@ -104,7 +102,7 @@ serve(async (req: Request) => {
       .select("tenant_id")
       .eq("user_id", user.id);
     const memberTenantIds = new Set(
-      (memberships || []).map((m: any) => m.tenant_id),
+      (memberships || []).map((m) => m.tenant_id),
     );
 
     const results: Array<{
@@ -151,11 +149,11 @@ serve(async (req: Request) => {
           continue;
         }
         results.push({ tenant_id: targetTenantId, success: true });
-      } catch (e: any) {
+      } catch (e) {
         results.push({
           tenant_id: targetTenantId,
           success: false,
-          error: e?.message || "Unknown error",
+          error: messageOf(e) || "Unknown error",
         });
       }
     }
@@ -164,10 +162,10 @@ serve(async (req: Request) => {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("share-automation error:", error);
     return new Response(
-      JSON.stringify({ error: error?.message || "Internal error" }),
+      JSON.stringify({ error: messageOf(error) || "Internal error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
