@@ -1511,14 +1511,26 @@ Deno.serve(async (req) => {
 
     if (TASK_NOTIFICATION_TYPES.has(requestBody.trigger_type)) {
       // No task WhatsApp on Shabbat (AIO-226): held, then sent Sunday 08:30.
+      // A queued hold is replayed with the service key, so the caller must
+      // pass the generic path's tenant check before anything is queued.
       const shabbatHold = await holdTaskNotificationForShabbat(
         supabase,
         requestBody,
+        {
+          authorizeTenant: (tenantId) =>
+            authorizeTenantCaller(
+              supabase,
+              userClient,
+              req.headers.get("Authorization"),
+              supabaseKey,
+              tenantId,
+            ),
+        },
       );
       if (shabbatHold) {
-        return new Response(JSON.stringify(shabbatHold), {
+        return new Response(JSON.stringify(shabbatHold.body), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 202,
+          status: shabbatHold.status,
         });
       }
       const taskNotification = await sendTaskNotificationFromTenantCarmen(

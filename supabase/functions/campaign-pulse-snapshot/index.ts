@@ -273,8 +273,8 @@ Deno.serve(async (req) => {
   // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
   // Instant alerts have their own gate (instantPulseAlertsGate): pulse and
   // instant_wa_enabled on, not preview_only, not the manual trigger, and no
-  // `skip_instant_alerts: true` in the body. Callers that only want fresh
-  // numbers (Carmen's refresh tool, ad-hoc runs) send skip_instant_alerts.
+  // `skip_instant_alerts: true` in the body. A caller that only wants fresh
+  // numbers (e.g. an ad-hoc run) sends skip_instant_alerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
     body.force_delivery === true && body.source === "approved_manual_trigger";

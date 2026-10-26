@@ -6,8 +6,8 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
-import { jerusalemYmd } from "./calendarTimeZone.ts";
-import { isAlertHeldForShabbat } from "./critical-alerts.ts";
+import { isJerusalemShabbat, jerusalemYmd } from "./calendarTimeZone.ts";
+import { isAlertHeldForShabbat, isCriticalAlert } from "./critical-alerts.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -39,6 +39,13 @@ export type PulseInstantAlertCandidate = {
   fingerprint?: string | null;
   severity_score?: number | null;
   evidence?: Record<string, unknown>;
+  /**
+   * connection_lost only: true when the cause is a real connection loss
+   * (stale or missing sync, no connected campaign table, an account-level
+   * stop/disable). Only these may go out on Shabbat; a connection_lost made
+   * only of single-campaign issues (stopped campaign, disapproved ad) waits.
+   */
+  shabbat_critical?: boolean;
 };
 
 export type PulseSnapshotAlertInput = {
@@ -198,7 +205,7 @@ export type InstantPulseAlertsGate =
  * Instant alerts run on a snapshot refresh only when the tenant has the pulse
  * on, the instant WhatsApp switch on, and the request is a real refresh: not a
  * preview, not the manual trigger, and not a caller that asked for a refresh
- * without alerts (`skip_instant_alerts: true`, e.g. Carmen's refresh tool).
+ * without alerts (`skip_instant_alerts: true`).
  */
 export function instantPulseAlertsGate(input: {
   campaignPulseEnabled: unknown;
@@ -386,10 +393,12 @@ export function evaluatePulseInstantAlerts(
     }
 
     if (rules.disconnected_enabled) {
+      // Real connection loss: no connected table or a stale/missing sync.
+      const isLostConnectionFlag = (flag: string) =>
+        flag.includes("אין טבלת קמפיין") || flag.includes("סנכרון ישן");
       const connectionFlags = flags.filter(
         (flag) =>
-          flag.includes("אין טבלת קמפיין") ||
-          flag.includes("סנכרון ישן") ||
+          isLostConnectionFlag(flag) ||
           flag.includes("קמפיין נעצר") ||
           flag.includes("קמפיינים נעצרו"),
       );
@@ -397,17 +406,24 @@ export function evaluatePulseInstantAlerts(
         snapshot.status === "no_data" ||
         snapshot.lead_goal_status === "no_data" ||
         snapshot.ecommerce_goal_status === "no_data";
+      const noDataWithoutTable =
+        statusNoData && flags.some((flag) => flag.includes("אין טבלת"));
       const critical = criticalByClient.get(snapshot.client_id) || [];
       const criticalLabels = critical.map((issue) => {
         if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
         if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
         return issue.alertType || "בעיית קמפיין";
       });
+      // An open account-level stop/disable (e.g. account_disabled) is critical
+      // (critical-alerts.ts); campaign_stopped / ad_disapproved are not.
+      const criticalAccountIssue = critical.some((issue) =>
+        isCriticalAlert(issue.alertType),
+      );
 
       const hasConnectionIssue =
         connectionFlags.length > 0 ||
         criticalLabels.length > 0 ||
-        (statusNoData && flags.some((flag) => flag.includes("אין טבלת")));
+        noDataWithoutTable;
 
       if (hasConnectionIssue) {
         const detail = [
@@ -425,6 +441,10 @@ export function evaluatePulseInstantAlerts(
             snapshot.client_id,
             "open",
           ),
+          shabbat_critical:
+            connectionFlags.some(isLostConnectionFlag) ||
+            noDataWithoutTable ||
+            criticalAccountIssue,
           message: [
             "🔴 *התראת דופק — חיבור/קמפיין*",
             `לקוח: ${clientName}`,
@@ -524,6 +544,21 @@ async function resolveInstantAlertRecipients(
   }));
 }
 
+/**
+ * Shabbat policy for one candidate: non-critical rules wait, and so does a
+ * connection_lost that is only single-campaign issues (shabbat_critical false).
+ */
+export function isPulseAlertHeldForShabbat(
+  candidate: Pick<PulseInstantAlertCandidate, "rule_type" | "shabbat_critical">,
+  now: Date = new Date(),
+): boolean {
+  if (!isJerusalemShabbat(now)) return false;
+  return (
+    isAlertHeldForShabbat(candidate.rule_type, now) ||
+    candidate.shabbat_critical !== true
+  );
+}
+
 export async function deliverInstantPulseAlerts(input: {
   supabase: any;
   tenantId: string;
@@ -544,10 +579,10 @@ export async function deliverInstantPulseAlerts(input: {
     input.rules,
     now.getTime(),
   );
-  // Shabbat: only critical kinds (connection_lost) go out. The rest are not
-  // logged, so the first run after Shabbat re-evaluates and sends them once.
+  // Shabbat: only a real connection loss goes out. The rest are not logged,
+  // so the first run after Shabbat re-evaluates and sends them once.
   const candidates = evaluated.filter(
-    (candidate) => !isAlertHeldForShabbat(candidate.rule_type, now),
+    (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
   const held = evaluated.length - candidates.length;
   if (!candidates.length)

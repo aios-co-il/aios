@@ -8,7 +8,10 @@
  *    markers stay NULL and the worker's next run after the window sends them;
  *  - peer notifications (collaborator added, update added) come straight from
  *    the app, so trigger-automation parks them in task_notification_holds and
- *    the worker releases each one once.
+ *    the worker releases each one once. The worker replays them with the
+ *    service role, so a hold is queued only for a caller who passes the same
+ *    tenant check as the generic automation path, and only with a tenant the
+ *    task itself belongs to.
  * Nothing is replayed late: a hold that is still unreleased 24h after its
  * release time expires unsent.
  */
@@ -87,21 +90,68 @@ export type ShabbatHoldResponse = {
   reason: "shabbat_quiet_hours";
   hold_until: string;
   queued?: boolean;
+  /** Why a peer notification was not queued. */
+  not_queued?: "task_not_found" | "queue_failed";
   task_id?: string;
   notification_type?: string;
 };
+
+/** The caller's right to act for a tenant (authorizeTenantCaller's result). */
+export type HoldTenantDecision =
+  | { allowed: true }
+  | { allowed: false; status: 400 | 401 | 403; error: string };
+
+export type ShabbatHoldResult =
+  | { status: 202; body: ShabbatHoldResponse }
+  | { status: 400 | 401 | 403; body: { error: string; queued: false } };
+
+/** clients.tenant_id first (the Carmen routing tenant), then tasks.tenant_id. */
+async function taskTenantIds(
+  supabase: any,
+  taskId: string,
+): Promise<string[] | null> {
+  const { data: task, error } = await supabase
+    .from("tasks")
+    .select("tenant_id, client_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!task) return null;
+  let clientTenantId: string | null = null;
+  if (task.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("tenant_id")
+      .eq("id", task.client_id)
+      .maybeSingle();
+    if (clientError) throw clientError;
+    clientTenantId = client?.tenant_id || null;
+  }
+  return [
+    ...new Set([clientTenantId, task.tenant_id].filter(Boolean)),
+  ] as string[];
+}
 
 /**
  * trigger-automation front door. Returns null outside the window. Inside it,
  * nothing is sent: worker-driven types answer sent:false so the worker
  * releases its marker and retries after the window; peer types are queued.
+ *
+ * The worker replays a queued peer notification with the service role, and a
+ * replay that Carmen cannot route falls through to the generic automations of
+ * its tenant_id. So before queuing, the caller must pass `authorizeTenant`
+ * for the body's tenant_id (the generic path's check), and that tenant must be
+ * one the task belongs to; the stored tenant_id always comes from the task.
  */
 export async function holdTaskNotificationForShabbat(
   supabase: any,
   requestBody: any,
-  now: Date = new Date(),
-): Promise<ShabbatHoldResponse | null> {
-  const holdUntil = taskNotificationsHeldUntil(now);
+  options: {
+    authorizeTenant: (tenantId: string | null) => Promise<HoldTenantDecision>;
+    now?: Date;
+  },
+): Promise<ShabbatHoldResult | null> {
+  const holdUntil = taskNotificationsHeldUntil(options.now ?? new Date());
   if (!holdUntil) return null;
   const response: ShabbatHoldResponse = {
     handled: true,
@@ -113,19 +163,46 @@ export async function holdTaskNotificationForShabbat(
     notification_type: text(requestBody?.trigger_type, 64) || undefined,
   };
   const peer = heldPeerNotification(requestBody);
-  if (!peer) return response;
+  if (!peer) return { status: 202, body: response };
+
+  const bodyTenantId = peer.request_body.tenant_id;
+  const decision = await options.authorizeTenant(bodyTenantId);
+  if (!decision.allowed) {
+    return {
+      status: decision.status,
+      body: { error: decision.error, queued: false },
+    };
+  }
+  const tenantIds = await taskTenantIds(supabase, peer.task_id);
+  if (!tenantIds?.length) {
+    return {
+      status: 202,
+      body: { ...response, queued: false, not_queued: "task_not_found" },
+    };
+  }
+  if (bodyTenantId && !tenantIds.includes(bodyTenantId)) {
+    return {
+      status: 403,
+      body: { error: "Task does not belong to this tenant", queued: false },
+    };
+  }
+  const tenantId = tenantIds.find((id) => id === bodyTenantId) ?? tenantIds[0];
 
   const { error } = await supabase.from("task_notification_holds").insert({
     ...peer,
+    request_body: { ...peer.request_body, tenant_id: tenantId },
     hold_reason: "shabbat",
     hold_until: holdUntil.toISOString(),
   });
   // 23505: the same notification is already waiting.
   if (error && error.code !== "23505") {
     console.error("[task-notification-hold] could not queue", error.message);
-    return { ...response, queued: false };
+    return {
+      status: 202,
+      body: { ...response, queued: false, not_queued: "queue_failed" },
+    };
   }
-  return { ...response, queued: true };
+  return { status: 202, body: { ...response, queued: true } };
 }
 
 export type HeldReleaseResult = {

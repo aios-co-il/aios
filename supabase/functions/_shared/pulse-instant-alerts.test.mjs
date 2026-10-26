@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -431,4 +432,134 @@ test("on Saturday only connection_lost goes out; the rest is sent once after Sha
   // Still inside connection_lost's 24h throttle and no_contact's 7 days.
   const sundayLater = await run(supabase, new Date("2026-11-01T07:00:00Z"));
   assert.equal(sundayLater.result.sent, 0);
+});
+
+const SATURDAY_11 = new Date("2026-10-31T09:00:00Z"); // 11:00 Israel
+const SUNDAY_06 = new Date("2026-11-01T04:00:00Z"); // 06:00 Israel
+const NO_CONTACT_OFF = {
+  ...DEFAULT_PULSE_ALERT_RULES,
+  no_contact_enabled: false,
+};
+const healthy = (flags = []) => ({
+  client_id: "c1",
+  client_name: "Acme",
+  status: "warning",
+  flags,
+  last_client_call_at: WEDNESDAY.toISOString(),
+});
+
+test("on Saturday a connection_lost made only of single-campaign issues is held, then sent once after Shabbat", async () => {
+  const cases = [
+    {
+      label: "ad_disapproved",
+      flags: [],
+      issues: [{ clientId: "c1", alertType: "ad_disapproved" }],
+    },
+    {
+      label: "campaign_stopped",
+      flags: [],
+      issues: [{ clientId: "c1", alertType: "campaign_stopped" }],
+    },
+    { label: "קמפיין נעצר flag", flags: ["קמפיין נעצר"], issues: [] },
+    { label: "N קמפיינים נעצרו flag", flags: ["2 קמפיינים נעצרו"], issues: [] },
+  ];
+  for (const { label, flags, issues } of cases) {
+    const supabase = fakeSupabase();
+    const extra = { criticalIssues: issues, rules: NO_CONTACT_OFF };
+    const sat = await run(supabase, SATURDAY_11, [healthy(flags)], extra);
+    assert.equal(sat.result.sent, 0, label);
+    assert.equal(sat.result.held, 1, label);
+    assert.equal(sat.sends.length, 0, label);
+    assert.equal(supabase.log.length, 0, label);
+
+    const sunday = await run(supabase, SUNDAY_06, [healthy(flags)], extra);
+    assert.equal(sunday.result.sent, 1, label);
+    const again = await run(
+      supabase,
+      new Date(SUNDAY_06.getTime() + 3600e3),
+      [healthy(flags)],
+      extra,
+    );
+    assert.equal(again.result.sent, 0, label);
+  }
+});
+
+test("on Saturday a real connection loss still goes out", async () => {
+  const cases = [
+    {
+      label: "stale sync",
+      snapshot: healthy(["סנכרון ישן או חסר: Meta"]),
+      issues: [],
+    },
+    {
+      label: "missing table",
+      snapshot: healthy(["אין טבלת קמפיין מחוברת"]),
+      issues: [],
+    },
+    {
+      label: "no_data without a table",
+      snapshot: { ...healthy(["אין טבלת קמפיין מחוברת"]), status: "no_data" },
+      issues: [],
+    },
+    {
+      label: "account disabled",
+      snapshot: healthy([]),
+      issues: [{ clientId: "c1", alertType: "account_disabled" }],
+    },
+    {
+      label: "stale sync together with a disapproved ad",
+      snapshot: healthy(["סנכרון ישן או חסר: Meta"]),
+      issues: [{ clientId: "c1", alertType: "ad_disapproved" }],
+    },
+  ];
+  for (const { label, snapshot, issues } of cases) {
+    const supabase = fakeSupabase();
+    const sat = await run(supabase, SATURDAY_11, [snapshot], {
+      criticalIssues: issues,
+      rules: NO_CONTACT_OFF,
+    });
+    assert.equal(sat.result.sent, 1, label);
+    assert.equal(sat.result.held, 0, label);
+    assert.match(sat.sends[0].message, /חיבור\/קמפיין/, label);
+  }
+});
+
+test("connection_lost marks only real connection loss as Shabbat-critical", () => {
+  const evaluate = (flags, issues = []) =>
+    evaluatePulseInstantAlerts([healthy(flags)], issues, NO_CONTACT_OFF)[0]
+      ?.shabbat_critical;
+  assert.equal(evaluate(["סנכרון ישן: Meta"]), true);
+  assert.equal(evaluate(["אין טבלת קמפיין מחוברת"]), true);
+  assert.equal(
+    evaluate([], [{ clientId: "c1", alertType: "account_disabled" }]),
+    true,
+  );
+  assert.equal(evaluate(["קמפיין נעצר"]), false);
+  assert.equal(
+    evaluate([], [{ clientId: "c1", alertType: "ad_disapproved" }]),
+    false,
+  );
+  assert.equal(
+    evaluate([], [{ clientId: "c1", alertType: "campaign_stopped" }]),
+    false,
+  );
+});
+
+test("campaign-pulse-snapshot sends instant alerts only through the gate", async () => {
+  const snapshot = await readFile(
+    new URL("../campaign-pulse-snapshot/index.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(snapshot, /deliverInstantPulseAlerts\(/);
+  assert.match(
+    snapshot,
+    /instantPulseAlertsGate\(\{\s*campaignPulseEnabled: setting\.campaign_pulse_enabled,\s*rules: setting\.pulse_alert_rules,\s*body,\s*\}\)/,
+  );
+  assert.match(snapshot, /runGatedInstantPulseAlerts\(instantGate,/);
+  const manual = await readFile(
+    new URL("../campaign-pulse-manual-trigger/index.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(manual, /skip_instant_alerts: true/);
+  assert.match(manual, /source: "approved_manual_trigger"/);
 });
