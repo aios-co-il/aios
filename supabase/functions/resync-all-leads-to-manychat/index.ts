@@ -1,4 +1,13 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
+import type { Database } from "../_shared/database.types.ts";
+import { asJsonObject, asObject } from "../_shared/lead-json.ts";
+import {
+  findManyChatPhoneField,
+  manyChatSuccessId,
+} from "../_shared/manychat-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -105,7 +114,7 @@ function getPhoneLookupCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<any> {
+async function safeJson(res: Response): Promise<unknown> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
   if (!contentType.includes("application/json")) {
@@ -121,7 +130,7 @@ async function safeJson(res: Response): Promise<any> {
 // Helper: Get phone_number custom field ID from ManyChat or cache
 async function getPhoneNumberFieldId(
   apiKey: string,
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<number | null> {
   // First check if we have it cached in settings
@@ -132,9 +141,12 @@ async function getPhoneNumberFieldId(
     .eq("integration_type", "manychat")
     .single();
 
-  const settings = (integration?.settings as Record<string, any>) || {};
-  if (settings.phone_number_field_id) {
-    return settings.phone_number_field_id;
+  const settings = asJsonObject(integration?.settings) ?? {};
+  const cachedFieldId = settings.phone_number_field_id;
+  if (cachedFieldId) {
+    return typeof cachedFieldId === "number"
+      ? cachedFieldId
+      : Number(cachedFieldId);
   }
 
   // Fetch from ManyChat API
@@ -147,22 +159,19 @@ async function getPhoneNumberFieldId(
 
   const data = await safeJson(res);
 
-  if (data?.status === "success" && Array.isArray(data?.data)) {
-    const phoneField = data.data.find(
-      (f: any) => f.name?.toLowerCase() === "phone_number",
-    );
-    if (phoneField?.id) {
-      // Cache it
-      await supabase
-        .from("tenant_integrations")
-        .update({
-          settings: { ...settings, phone_number_field_id: phoneField.id },
-        })
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "manychat");
+  const phoneFieldId = findManyChatPhoneField(data)?.id;
+  if (typeof phoneFieldId === "number" || typeof phoneFieldId === "string") {
+    if (!phoneFieldId) return null;
+    // Cache it
+    await supabase
+      .from("tenant_integrations")
+      .update({
+        settings: { ...settings, phone_number_field_id: phoneFieldId },
+      })
+      .eq("tenant_id", tenantId)
+      .eq("integration_type", "manychat");
 
-      return phoneField.id;
-    }
+    return Number(phoneFieldId);
   }
   return null;
 }
@@ -188,8 +197,9 @@ async function findSubscriberByPhone(
     }
 
     const data = await safeJson(res);
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const foundId = manyChatSuccessId(data);
+    if (foundId) {
+      return String(foundId);
     }
   }
   return null;
@@ -214,8 +224,9 @@ async function findSubscriberByEmail(
   }
 
   const data = await safeJson(res);
-  if (data?.status === "success" && data?.data?.id) {
-    return String(data.data.id);
+  const foundId = manyChatSuccessId(data);
+  if (foundId) {
+    return String(foundId);
   }
   return null;
 }
@@ -240,8 +251,9 @@ async function findSubscriberByCustomField(
     }
 
     const data = await safeJson(res);
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const foundId = manyChatSuccessId(data);
+    if (foundId) {
+      return String(foundId);
     }
   }
   return null;
@@ -270,7 +282,7 @@ async function setCustomField(
   );
 
   const data = await safeJson(res);
-  return data?.status === "success";
+  return asObject(data)?.status === "success";
 }
 
 Deno.serve(async (req) => {
@@ -287,7 +299,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -372,7 +384,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = integration.api_key;
+    const apiKey = String(integration.api_key);
 
     // Get phone_number field ID
     const phoneFieldId = await getPhoneNumberFieldId(
@@ -481,8 +493,9 @@ Deno.serve(async (req) => {
 
       const createData = await safeJson(createRes);
 
-      if (createData.status === "success" && createData.data?.id) {
-        subscriberId = createData.data.id;
+      const createdId = manyChatSuccessId(createData);
+      if (createdId) {
+        subscriberId = String(createdId);
       } else if (
         JSON.stringify(createData).toLowerCase().includes("already exists")
       ) {

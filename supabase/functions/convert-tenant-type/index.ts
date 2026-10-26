@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,7 +73,8 @@ Deno.serve(async (req) => {
     if (!currentTenant) throw new Error("Tenant not found");
 
     // Cannot convert to root (only created as root)
-    if (new_org_type === ("root" as any)) {
+    const requestedOrgType: string = new_org_type;
+    if (requestedOrgType === "root") {
       throw new Error(
         "Cannot convert to root organization. Root organizations must be created as such.",
       );
@@ -120,7 +122,7 @@ Deno.serve(async (req) => {
     }
 
     // If converting from sub_organization to organization, clear parent_id
-    const updates: any = {
+    const updates: TablesUpdate<"tenants"> = {
       org_type: new_org_type,
     };
 

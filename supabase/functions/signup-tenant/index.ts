@@ -1,5 +1,9 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import {
+  createClient,
+  type User,
+} from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,7 +59,7 @@ serve(async (req: Request) => {
     // Auth context for conditional validation
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const authHeader = req.headers.get("authorization") ?? "";
-    let authenticatedUser: any = null;
+    let authenticatedUser: User | null = null;
 
     if (authHeader && authHeader !== "" && authHeader !== "Bearer ") {
       // Use service role client to verify token (validates token is not revoked)
@@ -123,7 +127,7 @@ serve(async (req: Request) => {
         userId = signInData.user.id;
       } else {
         // Otherwise, create a new user for the provided email
-        const { data: userData, error: userError }: any =
+        const { data: userData, error: userError } =
           await supabase.auth.admin.createUser({
             email: payload.email,
             password: payload.password,
@@ -136,8 +140,10 @@ serve(async (req: Request) => {
 
         if (userError || !userData?.user) {
           const isEmailExists =
-            (userError as any)?.status === 422 ||
-            (userError as any)?.code === "email_exists";
+            userError?.status === 422 ||
+            (userError !== null &&
+              "code" in userError &&
+              userError.code === "email_exists");
           if (isEmailExists) {
             console.error(
               "❌ Email exists and provided credentials didn't match (and no session)",
@@ -158,7 +164,7 @@ serve(async (req: Request) => {
             return new Response(
               JSON.stringify({
                 success: false,
-                error: (userError as any)?.message || "Failed to create user",
+                error: userError?.message || "Failed to create user",
               }),
               {
                 status: 400,
@@ -363,12 +369,12 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in signup-tenant:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Internal server error",
+        error: thrownMessage(error) || "Internal server error",
       }),
       {
         status: 500,

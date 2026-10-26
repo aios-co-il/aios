@@ -1,4 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
+import type { Database } from "../_shared/database.types.ts";
+import { asJsonObject, asObject } from "../_shared/lead-json.ts";
+import { findManyChatPhoneField } from "../_shared/manychat-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +43,7 @@ function getPhoneCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<any> {
+async function safeJson(res: Response): Promise<unknown> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
   if (!contentType.includes("application/json")) {
@@ -53,7 +59,7 @@ async function safeJson(res: Response): Promise<any> {
 // Get phone_number custom field ID
 async function getPhoneFieldId(
   apiKey: string,
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<number | null> {
   const { data: integration } = await supabase
@@ -63,9 +69,12 @@ async function getPhoneFieldId(
     .eq("integration_type", "manychat")
     .single();
 
-  const settings = (integration?.settings as Record<string, any>) || {};
-  if (settings.phone_number_field_id) {
-    return settings.phone_number_field_id;
+  const settings = asJsonObject(integration?.settings) ?? {};
+  const cachedFieldId = settings.phone_number_field_id;
+  if (cachedFieldId) {
+    return typeof cachedFieldId === "number"
+      ? cachedFieldId
+      : Number(cachedFieldId);
   }
 
   const res = await fetch("https://api.manychat.com/fb/page/getCustomFields", {
@@ -76,23 +85,23 @@ async function getPhoneFieldId(
   });
 
   const data = await safeJson(res);
-  if (data?.status === "success" && Array.isArray(data?.data)) {
-    const phoneField = data.data.find(
-      (f: any) => f.name?.toLowerCase() === "phone_number",
-    );
-    if (phoneField?.id) {
-      await supabase
-        .from("tenant_integrations")
-        .update({
-          settings: { ...settings, phone_number_field_id: phoneField.id },
-        })
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "manychat");
-      return phoneField.id;
-    }
+  const phoneFieldId = findManyChatPhoneField(data)?.id;
+  if (typeof phoneFieldId === "number" || typeof phoneFieldId === "string") {
+    if (!phoneFieldId) return null;
+    await supabase
+      .from("tenant_integrations")
+      .update({
+        settings: { ...settings, phone_number_field_id: phoneFieldId },
+      })
+      .eq("tenant_id", tenantId)
+      .eq("integration_type", "manychat");
+    return Number(phoneFieldId);
   }
   return null;
 }
+
+const textOrNull = (value: unknown): string | null =>
+  value ? String(value) : null;
 
 // Find subscriber by custom field
 async function findByCustomField(
@@ -118,25 +127,25 @@ async function findByCustomField(
       continue;
     }
 
-    const data = await safeJson(res);
+    const data = asObject(await safeJson(res));
     if (data?.status === "success" && data?.data) {
-      const subscribers = Array.isArray(data.data) ? data.data : [data.data];
-      const active = subscribers.find(
-        (s: any) => s?.status !== "deleted" && s?.id,
-      );
+      const subscribers = (
+        Array.isArray(data.data) ? data.data : [data.data]
+      ).map(asObject);
+      const active = subscribers.find((s) => s?.status !== "deleted" && s?.id);
       if (active) {
         return {
           id: String(active.id),
-          status: active.status || "active",
-          whatsapp_phone: active.whatsapp_phone || null,
+          status: String(active.status || "active"),
+          whatsapp_phone: textOrNull(active.whatsapp_phone),
         };
       }
-      const first = subscribers.find((s: any) => s?.id);
+      const first = subscribers.find((s) => s?.id);
       if (first) {
         return {
           id: String(first.id),
-          status: first.status || "unknown",
-          whatsapp_phone: first.whatsapp_phone || null,
+          status: String(first.status || "unknown"),
+          whatsapp_phone: textOrNull(first.whatsapp_phone),
         };
       }
     }
@@ -148,7 +157,7 @@ async function findByCustomField(
 async function getSubscriberInfo(
   apiKey: string,
   subscriberId: string,
-): Promise<any | null> {
+): Promise<unknown> {
   const url = `https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=${encodeURIComponent(subscriberId)}`;
   const res = await fetch(url, {
     headers: {
@@ -162,7 +171,7 @@ async function getSubscriberInfo(
     return null;
   }
 
-  const data = await safeJson(res);
+  const data = asObject(await safeJson(res));
   if (data?.status === "success" && data?.data) {
     return data.data;
   }
@@ -189,7 +198,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -257,7 +266,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = integration.api_key;
+    const apiKey = String(integration.api_key);
 
     // Get phone_number field ID
     const phoneFieldId = await getPhoneFieldId(apiKey, supabase, tenantId);
