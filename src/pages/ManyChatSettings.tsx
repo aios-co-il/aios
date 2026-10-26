@@ -48,32 +48,57 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
-interface SyncResult {
-  leadId: string;
-  leadName?: string;
-  success: boolean;
-  error?: string;
-  subscriberId?: string;
-  skipped?: boolean;
-}
-
-interface SyncProgress {
-  processed: number;
-  failed: number;
-  remaining: number;
-  conflicts: number;
-  total: number;
-  results: SyncResult[];
-}
+import { asJsonObject, readText } from "@/types/integrations-b22";
+import {
+  isSyncJobStatus,
+  parseSyncProgress,
+  type SyncJobStatus,
+  type SyncProgress,
+} from "@/lib/manyChatSyncProgress";
 
 interface SyncJob {
   id: string;
-  status: "pending" | "running" | "completed" | "stopped" | "failed";
+  status: SyncJobStatus;
   progress: SyncProgress;
   error_message?: string;
   created_at: string;
   started_at?: string;
   completed_at?: string;
+}
+
+interface ManyChatTag {
+  id: string | number;
+  name: string;
+}
+
+function parseManyChatTags(value: unknown): ManyChatTag[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry: unknown) => {
+    const tag = asJsonObject(entry);
+    const name = readText(tag, "name");
+    if (typeof tag.id !== "string" && typeof tag.id !== "number") return [];
+    return name === undefined ? [] : [{ id: tag.id, name }];
+  });
+}
+
+function toRealtimeSyncJob(row: unknown): SyncJob | null {
+  const job = asJsonObject(row);
+  if (
+    typeof job.id !== "string" ||
+    !isSyncJobStatus(job.status) ||
+    typeof job.created_at !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: job.id,
+    status: job.status,
+    progress: parseSyncProgress(job.progress),
+    created_at: job.created_at,
+    error_message: readText(job, "error_message"),
+    started_at: readText(job, "started_at"),
+    completed_at: readText(job, "completed_at"),
+  };
 }
 
 export default function ManyChatSettings() {
@@ -114,15 +139,17 @@ export default function ManyChatSettings() {
 
       if (data) {
         setApiKey(data.api_key || "");
-        const settings = (data.settings as Record<string, any>) || {};
+        const settings = asJsonObject(data.settings);
         setMeetingTriggerName(
-          settings.meeting_trigger_name || "meeting_scheduled",
+          readText(settings, "meeting_trigger_name") || "meeting_scheduled",
         );
-        const customFields = settings.meeting_custom_fields || {};
-        setMeetingDateFieldId(customFields.meeting_date || "");
-        setMeetingTimeFieldId(customFields.meeting_time || "");
-        setMeetingLocationFieldId(customFields.meeting_location || "");
-        setContactNameFieldId(customFields.contact_name || "");
+        const customFields = asJsonObject(settings.meeting_custom_fields);
+        setMeetingDateFieldId(readText(customFields, "meeting_date") || "");
+        setMeetingTimeFieldId(readText(customFields, "meeting_time") || "");
+        setMeetingLocationFieldId(
+          readText(customFields, "meeting_location") || "",
+        );
+        setContactNameFieldId(readText(customFields, "contact_name") || "");
       }
 
       return data;
@@ -187,20 +214,8 @@ export default function ManyChatSettings() {
           filter: `tenant_id=eq.${tenantId}`,
         },
         (payload) => {
-          if (payload.new) {
-            const newJob = payload.new as any;
-            setCurrentJob({
-              ...newJob,
-              progress: (newJob.progress || {
-                processed: 0,
-                failed: 0,
-                remaining: 0,
-                conflicts: 0,
-                total: 0,
-                results: [],
-              }) as SyncProgress,
-            });
-          }
+          const newJob = toRealtimeSyncJob(payload.new);
+          if (newJob) setCurrentJob(newJob);
         },
       )
       .subscribe();
@@ -252,7 +267,7 @@ export default function ManyChatSettings() {
       });
 
       if (response.error) throw response.error;
-      return response.data?.tags || [];
+      return parseManyChatTags(asJsonObject(response.data).tags);
     },
     enabled: !!tenantId && !!integration?.is_active,
   });
@@ -299,7 +314,7 @@ export default function ManyChatSettings() {
       queryClient.invalidateQueries({ queryKey: ["manychat-tags", tenantId] });
       toast.success("הגדרות ManyChat נשמרו בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Save error:", error);
       toast.error("שגיאה בשמירת ההגדרות");
     },
@@ -337,7 +352,7 @@ export default function ManyChatSettings() {
         toast.info(data.message || "אין לידים לסנכרון");
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Start sync error:", error);
       toast.error(error.message || "שגיאה בהתחלת הסנכרון");
     },
@@ -371,7 +386,7 @@ export default function ManyChatSettings() {
       refetchJob();
       refetchLeadsCount();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Stop sync error:", error);
       toast.error(error.message || "שגיאה בעצירת הסנכרון");
     },
@@ -723,7 +738,7 @@ export default function ManyChatSettings() {
                     <SelectItem value="79380109">
                       ליד חדש (ברירת מחדל)
                     </SelectItem>
-                    {tags?.map((tag: any) => (
+                    {tags?.map((tag) => (
                       <SelectItem key={tag.id} value={String(tag.id)}>
                         {tag.name}
                       </SelectItem>

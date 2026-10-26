@@ -4,7 +4,9 @@ import {
   getLeadsFromData,
   getRevenueFromData,
   getSpendFromData,
+  type AdsMetricData,
   type FacebookCampaignRow,
+  type RawAdsMetricData,
 } from "@/lib/adsMetrics";
 
 export type AdsEntityLevel = "campaign" | "adset" | "ad";
@@ -54,7 +56,7 @@ export function shouldIncludeInAdsDashboardAggregate(
 }
 
 export function filterCampaignLevelAdsRecords<
-  T extends { data?: Record<string, any> },
+  T extends { data?: RawAdsMetricData | null },
 >(records: T[], integrationType?: string | null): T[] {
   if (!isAdsIntegrationType(integrationType)) return records;
   return records.filter((record) =>
@@ -63,7 +65,7 @@ export function filterCampaignLevelAdsRecords<
 }
 
 export function filterRecordsByEntityLevel<
-  T extends { data?: Record<string, any> },
+  T extends { data?: RawAdsMetricData | null },
 >(records: T[], level: AdsEntityLevel): T[] {
   return records.filter(
     (record) => resolveRecordEntityLevel(record.data) === level,
@@ -71,7 +73,7 @@ export function filterRecordsByEntityLevel<
 }
 
 export function getEntityDisplayName(
-  data: Record<string, any> | undefined | null,
+  data: RawAdsMetricData | undefined | null,
   level: AdsEntityLevel,
 ): string {
   const d = data || {};
@@ -101,7 +103,7 @@ export function getEntityDisplayName(
 }
 
 export function getEntityGroupKey(
-  data: Record<string, any> | undefined | null,
+  data: RawAdsMetricData | undefined | null,
   level: AdsEntityLevel,
 ): string {
   const d = data || {};
@@ -126,7 +128,7 @@ export function getEntityGroupKey(
 }
 
 export function recordMatchesEntitySearch(
-  data: Record<string, any> | undefined | null,
+  data: RawAdsMetricData | undefined | null,
   level: AdsEntityLevel,
   searchTerm: string,
 ): boolean {
@@ -168,9 +170,13 @@ export type AdsEntityRow = {
   all_conversions_value?: number;
 };
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 /** Aggregate Facebook insight records at campaign/adset/ad granularity. */
 export function aggregateFacebookRecordsAtLevel(
-  records: Array<{ data?: any }>,
+  records: Array<{ data?: AdsMetricData | null }>,
   level: AdsEntityLevel,
 ): FacebookCampaignRow[] {
   if (level === "campaign") {
@@ -218,7 +224,7 @@ export function aggregateFacebookRecordsAtLevel(
 
 /** Aggregate Google Ads records at campaign/adset/ad granularity. */
 export function aggregateGoogleRecordsAtLevel(
-  records: Array<{ data?: any }>,
+  records: Array<{ data?: AdsMetricData | null }>,
   level: AdsEntityLevel,
 ): AdsEntityRow[] {
   const map: Record<string, AdsEntityRow> = {};
@@ -231,8 +237,9 @@ export function aggregateGoogleRecordsAtLevel(
       map[key] = {
         key,
         name,
-        campaign_name: d.campaign_name,
-        adset_name: d.adset_name || d.ad_group_name,
+        campaign_name: optionalString(d.campaign_name),
+        adset_name:
+          optionalString(d.adset_name) || optionalString(d.ad_group_name),
         impressions: 0,
         clicks: 0,
         spend: 0,
@@ -279,7 +286,7 @@ export function aggregateGoogleRecordsAtLevel(
 }
 
 export function hasEntityLevelData(
-  records: Array<{ data?: any }>,
+  records: Array<{ data?: AdsMetricData | null }>,
   level: AdsEntityLevel,
 ): boolean {
   if (level === "campaign") return records.length > 0;

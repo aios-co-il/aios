@@ -28,6 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { ManageIntegrationPermissionsDialog } from "@/components/forms/ManageIntegrationPermissionsDialog";
+import { asJsonObject, readText } from "@/types/integrations-b22";
 
 export default function GoogleSearchConsoleSettings() {
   const { currentTenantId } = useTenant();
@@ -80,7 +81,7 @@ export default function GoogleSearchConsoleSettings() {
       if (response.data?.authUrl) {
         window.location.href = response.data.authUrl;
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error connecting to Google Search Console:", error);
       toast.error("שגיאה בהתחברות ל-Google Search Console");
     } finally {
@@ -158,10 +159,16 @@ export default function GoogleSearchConsoleSettings() {
             </div>
           ) : hasAnyConnection ? (
             <div className="space-y-3">
-              {integrations.map((integration: any) => {
-                const settings = integration?.settings as any;
+              {integrations.map((integration) => {
+                const settings = asJsonObject(integration.settings);
+                const connectedAt =
+                  typeof settings.connected_at === "string" ||
+                  typeof settings.connected_at === "number"
+                    ? settings.connected_at
+                    : null;
                 const isOwn = !!integration._isOwn;
-                const label = settings?.google_email || "חשבון Google";
+                const label =
+                  readText(settings, "google_email") || "חשבון Google";
                 return (
                   <Alert
                     key={integration.id}
@@ -186,11 +193,11 @@ export default function GoogleSearchConsoleSettings() {
                               </Badge>
                             )}
                           </div>
-                          {settings?.connected_at && (
+                          {connectedAt && (
                             <span className="text-xs text-green-700/80">
                               חובר בתאריך:{" "}
                               {new Date(
-                                settings.connected_at,
+                                connectedAt,
                               ).toLocaleDateString("he-IL")}
                             </span>
                           )}
@@ -204,9 +211,9 @@ export default function GoogleSearchConsoleSettings() {
                                 onClick={() => {
                                   setSharingIntegrationId(integration.id);
                                   setSharingIntegrationName(
-                                    settings?.google_email || "GSC",
+                                    readText(settings, "google_email") || "GSC",
                                   );
-                                  setSharingOwnerId(integration.user_id);
+                                  setSharingOwnerId(integration.user_id ?? null);
                                 }}
                               >
                                 <Share2 className="h-4 w-4 ml-2" />

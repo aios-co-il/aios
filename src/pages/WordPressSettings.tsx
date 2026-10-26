@@ -98,6 +98,20 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import {
+  parseElementorDiscovery,
+  type ElementorDiscovery,
+} from "@/lib/elementorDiscovery";
+import type {
+  TablesInsert,
+  TablesUpdate,
+} from "@/integrations/supabase/types";
+import {
+  asJsonObject,
+  asStringMap,
+  errorMessageOf,
+  readText,
+} from "@/types/integrations-b22";
 
 interface WordPressSite {
   id: string;
@@ -129,14 +143,14 @@ interface Tenant {
 interface Client {
   id: string;
   name: string;
-  tenant_id?: string;
+  tenant_id?: string | null;
   tenant_name?: string;
 }
 
 interface AgencyOpt {
   id: string;
   name: string;
-  tenant_id: string;
+  tenant_id: string | null;
   tenant_name?: string;
   /** Tenants that reach this agency via agency_tenant_access (may differ from owner). */
   shared_with_tenant_ids?: string[];
@@ -145,7 +159,7 @@ interface AgencyOpt {
 function mapAgencyRow(a: {
   id: string;
   name: string;
-  tenant_id: string;
+  tenant_id: string | null;
   tenants?: { name: string } | null;
 }): AgencyOpt {
   return {
@@ -198,8 +212,8 @@ async function fetchAgenciesForTenantScope(
   if (accessRes.error) throw accessRes.error;
 
   const merged = new Map<string, AgencyOpt>();
-  (ownRes.data || []).forEach((a: any) => merged.set(a.id, mapAgencyRow(a)));
-  (accessRes.data || []).forEach((row: any) => {
+  (ownRes.data || []).forEach((a) => merged.set(a.id, mapAgencyRow(a)));
+  (accessRes.data || []).forEach((row) => {
     const a = row.agencies;
     if (a) merged.set(a.id, mapAgencyRow(a));
   });
@@ -266,7 +280,7 @@ export default function WordPressSettings() {
       | ((prev: Record<string, string>) => Record<string, string>),
   ) => {
     const setter = mappingMode === "form" ? setFormDraft : setSlugDraft;
-    setter(updater as any);
+    setter(updater);
   };
 
   // Fetch all tenants (super admin only)
@@ -299,7 +313,7 @@ export default function WordPressSettings() {
           .order("name");
         if (error) throw error;
         return withSharedTenantAccess(
-          (data || []).map((a: any) => mapAgencyRow(a)),
+          (data || []).map((a) => mapAgencyRow(a)),
         );
       }
 
@@ -356,7 +370,7 @@ export default function WordPressSettings() {
 
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []).map((c: any) => ({
+      return (data || []).map((c) => ({
         id: c.id,
         name: c.name,
         tenant_id: c.tenant_id,
@@ -378,8 +392,9 @@ export default function WordPressSettings() {
       crossTenantAgencyIds.join(","),
     ],
     queryFn: async () => {
+      if (!tenantId) return [];
       let query = supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -407,7 +422,8 @@ export default function WordPressSettings() {
     mutationFn: async (values: typeof form) => {
       const tid =
         isSuperAdmin && values.tenant_id ? values.tenant_id : tenantId;
-      const payload: any = {
+      if (!tid) throw new Error("No tenant");
+      const payload: TablesInsert<"social_media_wordpress_sites"> = {
         site_url: values.site_url.replace(/\/$/, ""),
         username: values.username,
         app_password: values.app_password,
@@ -422,7 +438,7 @@ export default function WordPressSettings() {
         agency_id: values.agency_id || null,
       };
       const { data: created, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .insert(payload)
         .select("id")
         .single();
@@ -449,7 +465,7 @@ export default function WordPressSettings() {
   // Update site
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: typeof form }) => {
-      const payload: any = {
+      const payload: TablesUpdate<"social_media_wordpress_sites"> = {
         site_url: values.site_url.replace(/\/$/, ""),
         username: values.username,
         site_name: values.site_name || null,
@@ -467,7 +483,7 @@ export default function WordPressSettings() {
         payload.app_password = values.app_password;
       }
       const { error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .update(payload)
         .eq("id", id);
       if (error) throw error;
@@ -492,7 +508,7 @@ export default function WordPressSettings() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -519,7 +535,7 @@ export default function WordPressSettings() {
       is_active: boolean;
     }) => {
       const { error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .update({ is_active, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
@@ -544,14 +560,14 @@ export default function WordPressSettings() {
       client_id: string | null;
       tenant_id?: string | null;
     }) => {
-      const payload: any = {
+      const payload: TablesUpdate<"social_media_wordpress_sites"> = {
         agency_id,
         client_id,
         updated_at: new Date().toISOString(),
       };
       if (newTenantId) payload.tenant_id = newTenantId;
       const { error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .update(payload)
         .eq("id", id);
       if (error) throw error;
@@ -584,7 +600,7 @@ export default function WordPressSettings() {
           .order("name");
         if (error) throw error;
         return withSharedTenantAccess(
-          (data || []).map((a: any) => mapAgencyRow(a)),
+          (data || []).map((a) => mapAgencyRow(a)),
         );
       }
 
@@ -597,12 +613,16 @@ export default function WordPressSettings() {
   // Distinct tenants reachable in the link dialog (derived from linkAgencies)
   const linkTenants = Array.from(
     new Map(
-      linkAgencies
-        .filter((a) => a.tenant_id)
-        .map((a) => [
-          a.tenant_id,
-          { id: a.tenant_id, name: a.tenant_name || a.tenant_id },
-        ]),
+      linkAgencies.flatMap((a) =>
+        a.tenant_id
+          ? [
+              [
+                a.tenant_id,
+                { id: a.tenant_id, name: a.tenant_name || a.tenant_id },
+              ] as const,
+            ]
+          : [],
+      ),
     ).values(),
   ).sort((x, y) => x.name.localeCompare(y.name));
 
@@ -643,7 +663,7 @@ export default function WordPressSettings() {
 
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []).map((c: any) => ({
+      return (data || []).map((c) => ({
         id: c.id,
         name: c.name,
         tenant_id: c.tenant_id,
@@ -678,41 +698,23 @@ export default function WordPressSettings() {
   };
 
   // Discover forms + slugs for the mapping site (last 90 days of submissions)
-  const { data: discovery, isLoading: isLoadingDiscovery } = useQuery<{
-    per_form: Array<{
-      form_id: string;
-      form_name: string;
-      total: number;
-      last_30_days: number;
-      sources: Record<string, number>;
-      slugs?: string[];
-      sample_referer?: string | null;
-    }>;
-    per_slug: Array<{
-      slug: string;
-      submissions: number;
-      google_ads_submissions: number;
-      sample_gad_campaignids: string[];
-    }>;
-  }>({
-    queryKey: ["wp-discovery", mappingSite?.id],
-    queryFn: async () => {
-      if (!mappingSite) return { per_form: [], per_slug: [] };
-      const { data, error } = await supabase.functions.invoke(
-        "fetch-elementor-submissions",
-        {
-          body: { site_id: mappingSite.id, days: 90 },
-        },
-      );
-      if (error) throw error;
-      return {
-        per_form: (data?.per_form || []) as any[],
-        per_slug: (data?.per_slug || []) as any[],
-      };
-    },
-    enabled: !!mappingSite,
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: discovery, isLoading: isLoadingDiscovery } =
+    useQuery<ElementorDiscovery>({
+      queryKey: ["wp-discovery", mappingSite?.id],
+      queryFn: async () => {
+        if (!mappingSite) return { per_form: [], per_slug: [] };
+        const { data, error } = await supabase.functions.invoke(
+          "fetch-elementor-submissions",
+          {
+            body: { site_id: mappingSite.id, days: 90 },
+          },
+        );
+        if (error) throw error;
+        return parseElementorDiscovery(data);
+      },
+      enabled: !!mappingSite,
+      staleTime: 1000 * 60 * 5,
+    });
   const discoveredForms = discovery?.per_form || [];
   const discoveredSlugs = discovery?.per_slug || [];
 
@@ -730,7 +732,7 @@ export default function WordPressSettings() {
         .eq("integration_type", "google_ads");
       if (tErr) throw tErr;
       if (!tables || tables.length === 0) return [];
-      const tableIds = tables.map((t: any) => t.id);
+      const tableIds = tables.map((t) => t.id);
       const { data: records, error: rErr } = await supabase
         .from("crm_records")
         .select("data")
@@ -739,8 +741,9 @@ export default function WordPressSettings() {
       if (rErr) throw rErr;
       const map = new Map<string, string>();
       for (const r of records || []) {
-        const cid = (r as any).data?.campaign_id;
-        const cname = (r as any).data?.campaign_name;
+        const recordData = asJsonObject(r.data);
+        const cid = readText(recordData, "campaign_id");
+        const cname = readText(recordData, "campaign_name");
         if (cid && cname && !map.has(cid)) map.set(cid, cname);
       }
       return Array.from(map.entries())
@@ -787,11 +790,11 @@ export default function WordPressSettings() {
       const clean = Object.fromEntries(
         Object.entries(mapping).filter(([_, v]) => v && v.length > 0),
       );
-      const payload: any = { updated_at: new Date().toISOString() };
+      const payload: TablesUpdate<"social_media_wordpress_sites"> = { updated_at: new Date().toISOString() };
       if (mode === "form") payload.campaign_form_mapping = clean;
       else payload.campaign_url_mapping = clean;
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .update(payload)
         .eq("id", id)
         .select()
@@ -805,16 +808,18 @@ export default function WordPressSettings() {
         prev
           ? {
               ...prev,
-              ...(data as any),
+              ...data,
+              is_active: data.is_active ?? prev.is_active,
+              created_at: data.created_at ?? prev.created_at,
               campaign_form_mapping:
                 mode === "form"
                   ? clean
-                  : ((data as any)?.campaign_form_mapping ??
+                  : (asStringMap(data.campaign_form_mapping) ??
                     prev.campaign_form_mapping),
               campaign_url_mapping:
                 mode === "slug"
                   ? clean
-                  : ((data as any)?.campaign_url_mapping ??
+                  : (asStringMap(data.campaign_url_mapping) ??
                     prev.campaign_url_mapping),
             }
           : prev,
@@ -850,7 +855,7 @@ export default function WordPressSettings() {
         .select("id, name")
         .in("id", ids);
       if (error) throw error;
-      return Object.fromEntries((data || []).map((c: any) => [c.id, c.name]));
+      return Object.fromEntries((data || []).map((c) => [c.id, c.name]));
     },
     enabled: sites.length > 0,
   });
@@ -894,8 +899,8 @@ export default function WordPressSettings() {
       } else {
         toast.error("חיבור נכשל: " + (data?.error || "שגיאה לא ידועה"));
       }
-    } catch (e: any) {
-      toast.error("שגיאת חיבור: " + e.message);
+    } catch (e) {
+      toast.error("שגיאת חיבור: " + errorMessageOf(e));
     } finally {
       setTestingId(null);
     }
@@ -2136,15 +2141,15 @@ function WooCommerceSiteCard({
     queryFn: async () => {
       const [ordersRes, productsRes, customersRes] = await Promise.all([
         supabase
-          .from("woocommerce_orders" as any)
+          .from("woocommerce_orders")
           .select("id", { count: "exact", head: true })
           .eq("site_id", site.id),
         supabase
-          .from("woocommerce_products" as any)
+          .from("woocommerce_products")
           .select("id", { count: "exact", head: true })
           .eq("site_id", site.id),
         supabase
-          .from("woocommerce_customers" as any)
+          .from("woocommerce_customers")
           .select("id", { count: "exact", head: true })
           .eq("site_id", site.id),
       ]);
@@ -2160,12 +2165,12 @@ function WooCommerceSiteCard({
     queryKey: ["woo-revenue", site.id],
     queryFn: async () => {
       const { data } = await supabase
-        .from("woocommerce_orders" as any)
+        .from("woocommerce_orders")
         .select("total, status")
         .eq("site_id", site.id)
         .in("status", ["completed", "processing"]);
       const total = (data || []).reduce(
-        (sum: number, o: any) => sum + (parseFloat(o.total) || 0),
+        (sum: number, o) => sum + (parseFloat(String(o.total)) || 0),
         0,
       );
       return total;

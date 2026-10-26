@@ -70,7 +70,7 @@ export default function Campaigners() {
           .select("campaigner_id")
           .in("agency_id", crossTenantAgencyIds);
         crossTenantCampaignerIds = Array.from(
-          new Set((caRows || []).map((r: any) => r.campaigner_id)),
+          new Set((caRows || []).map((r) => r.campaigner_id)),
         );
       }
 
@@ -109,7 +109,7 @@ export default function Campaigners() {
         ...campaigner,
         client_team:
           campaigner.client_team?.filter(
-            (ct: any) =>
+            (ct) =>
               ct.clients?.status === "active" ||
               ct.clients?.status === "onboarding",
           ) || [],
@@ -121,9 +121,9 @@ export default function Campaigners() {
   const filteredCampaigners = useMemo(() => {
     if (!campaigners) return [];
     if (!selectedAgency || selectedAgency === "all") return campaigners;
-    return campaigners.filter((campaigner: any) =>
+    return campaigners.filter((campaigner) =>
       campaigner.campaigner_agencies?.some(
-        (ca: any) => ca.agency_id === selectedAgency,
+        (ca) => ca.agency_id === selectedAgency,
       ),
     );
   }, [campaigners, selectedAgency]);
@@ -166,7 +166,7 @@ export default function Campaigners() {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCampaigners?.map((campaigner: any) => (
+            {filteredCampaigners?.map((campaigner) => (
               <Card
                 key={campaigner.id}
                 className="shadow-card hover:shadow-lg transition-all hover:scale-[1.02]"
@@ -195,7 +195,7 @@ export default function Campaigners() {
                           campaigner.campaigner_agencies.length > 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
                               {(campaigner.campaigner_agencies || [])
-                                .map((ca: any) => ca?.agencies?.name)
+                                .map((ca) => ca?.agencies?.name)
                                 .filter(Boolean)
                                 .join(", ") || "—"}
                             </p>
@@ -284,7 +284,7 @@ export default function Campaigners() {
                               </TableHeader>
                               <TableBody>
                                 {campaigner.client_team.map(
-                                  (assignment: any) => (
+                                  (assignment) => (
                                     <TableRow key={assignment.id}>
                                       <TableCell className="font-medium">
                                         {assignment.clients?.name ?? "—"}
