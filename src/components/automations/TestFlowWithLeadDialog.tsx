@@ -42,6 +42,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startOfDay, subDays, format } from "date-fns";
+import type { Json } from "@/integrations/supabase/types";
+import {
+  cfgObject,
+  cfgObjectArray,
+  cfgText,
+  errorMessage,
+  type JsonObject,
+} from "@/lib/automationStepConfig";
+import {
+  parseFacebookPreviewLeads,
+  parseFlowStepResults,
+  type FacebookPreviewLead,
+} from "./automationRunResults";
 
 interface TestFlowWithLeadDialogProps {
   open: boolean;
@@ -51,6 +64,47 @@ interface TestFlowWithLeadDialogProps {
 }
 
 type DateRange = "today" | "yesterday" | "last_week" | "custom";
+
+interface TestLead {
+  id: string;
+  company_name: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  source: string | null;
+  notes: string | null;
+  created_at: string;
+  industry?: string | null;
+  manychat_subscriber_id?: string | null;
+  fromFacebook?: boolean;
+  facebook_form_id?: string;
+  facebook_leadgen_id?: string;
+}
+
+interface LastMessageData {
+  sender_name: string;
+  sender_phone: string;
+  message_text: string;
+  group_id: string | null;
+  group_name: string | null;
+  group_chat_id: string | null;
+  contact_type: "group" | "lead" | "client" | "unknown";
+  contact_id: string | null;
+  contact_name: string;
+  connection_user_id: string;
+  direction: string;
+  created_at: string | null;
+  lead_id: string | null;
+  client_id: string | null;
+}
+
+interface TestRunResult {
+  leadId: string;
+  leadName: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
 
 const FACEBOOK_NOTE_META_KEYS = new Set([
   "leadgen_id",
@@ -93,12 +147,7 @@ function parseFacebookParamsFromNotes(notes?: string | null) {
 
 // Shapes a lead read from Facebook like a CRM lead row, so the list and the
 // test run treat both the same; its answers go in notes as fb_ lines.
-function facebookLeadToTestLead(fb: {
-  leadgen_id: string;
-  form_id: string;
-  created_time: string;
-  field_data: Record<string, string>;
-}) {
+function facebookLeadToTestLead(fb: FacebookPreviewLead): TestLead {
   const f = fb.field_data || {};
   const name =
     f.full_name ||
@@ -167,16 +216,9 @@ export function TestFlowWithLeadDialog({
   const [dateRange, setDateRange] = useState<DateRange>("last_week");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
-  const [testResults, setTestResults] = useState<
-    Array<{
-      leadId: string;
-      leadName: string;
-      success: boolean;
-      data?: any;
-      error?: string;
-    }>
-  >([]);
-  const [lastMessageData, setLastMessageData] = useState<any>(null);
+  const [testResults, setTestResults] = useState<TestRunResult[]>([]);
+  const [lastMessageData, setLastMessageData] =
+    useState<LastMessageData | null>(null);
   const [isFetchingMessage, setIsFetchingMessage] = useState(false);
   const [inputMode, setInputMode] = useState<"select" | "manual">("select");
   const [manualData, setManualData] = useState({
@@ -210,14 +252,14 @@ export function TestFlowWithLeadDialog({
     queryFn: async () => {
       if (!automationId) return null;
       const { data, error } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .select("*")
         .eq("automation_id", automationId)
         .eq("step_type", "trigger")
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data as any;
+      return data;
     },
     enabled: open && !!automationId,
   });
@@ -226,18 +268,19 @@ export function TestFlowWithLeadDialog({
     automation?.trigger_type === "whatsapp_message_received" ||
     triggerStep?.action_type === "whatsapp_message_received";
 
-  const triggerConfig =
-    triggerStep?.configuration || (automation?.configuration as any) || {};
+  const triggerConfig: JsonObject =
+    cfgObject(triggerStep?.configuration || automation?.configuration) || {};
 
   const dateFilter = getDateFilter(dateRange, customFrom, customTo);
 
   // Extract facebook_form_id from trigger config for filtering
-  const facebookFormId = triggerConfig?.facebook_form_id || null;
-  const facebookFormName = triggerConfig?.facebook_form_name || null;
-  const facebookIntegrationId = triggerConfig?.facebook_integration_id || null;
+  const facebookFormId = cfgText(triggerConfig?.facebook_form_id) || null;
+  const facebookFormName = cfgText(triggerConfig?.facebook_form_name) || null;
+  const facebookIntegrationId =
+    cfgText(triggerConfig?.facebook_integration_id) || null;
   const [isSyncingFb, setIsSyncingFb] = useState(false);
   // Leads read straight from Facebook (not from the CRM); null until pulled.
-  const [fbLeads, setFbLeads] = useState<any[] | null>(null);
+  const [fbLeads, setFbLeads] = useState<TestLead[] | null>(null);
   // A pull covers one date range; changing the range drops it.
   useEffect(() => {
     setFbLeads(null);
@@ -268,11 +311,14 @@ export function TestFlowWithLeadDialog({
         },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const pulled = ((data as any)?.leads || []).map(facebookLeadToTestLead);
+      const body = cfgObject(data);
+      if (body?.error) throw new Error(String(body.error));
+      const pulled = parseFacebookPreviewLeads(body?.leads).map(
+        facebookLeadToTestLead,
+      );
       const to = dateFilter.to ? new Date(dateFilter.to).getTime() : Infinity;
       const inRange = pulled.filter(
-        (l: any) => new Date(l.created_at).getTime() < to,
+        (l) => new Date(l.created_at).getTime() < to,
       );
       setFbLeads(inRange);
       setSelectedLeadIds(new Set());
@@ -280,11 +326,11 @@ export function TestFlowWithLeadDialog({
         title: "לידים נמשכו מפייסבוק",
         description: `${inRange.length} לידים בטווח הנבחר`,
       });
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       toast({
         title: "שגיאת סנכרון",
-        description: e?.message || "כשל בסנכרון מפייסבוק",
+        description: errorMessage(e) || "כשל בסנכרון מפייסבוק",
         variant: "destructive",
       });
     } finally {
@@ -331,10 +377,10 @@ export function TestFlowWithLeadDialog({
     enabled: open && !!tenantId,
   });
 
-  const listLeads: any[] = fbLeads ?? leads;
+  const listLeads: TestLead[] = fbLeads ?? leads;
 
   // Filtered leads by search
-  const filteredLeads = listLeads.filter((l: any) => {
+  const filteredLeads = listLeads.filter((l) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -358,7 +404,7 @@ export function TestFlowWithLeadDialog({
     if (selectedLeadIds.size === filteredLeads.length) {
       setSelectedLeadIds(new Set());
     } else {
-      setSelectedLeadIds(new Set(filteredLeads.map((l: any) => l.id)));
+      setSelectedLeadIds(new Set(filteredLeads.map((l) => l.id)));
     }
   };
 
@@ -379,17 +425,17 @@ export function TestFlowWithLeadDialog({
         .limit(1);
 
       const sourceFilter = triggerConfig?.source_filter;
-      if (sourceFilter === "group" && triggerConfig?.group_id) {
-        query = query.eq("group_id", triggerConfig.group_id);
+      const groupId = cfgText(triggerConfig?.group_id);
+      if (sourceFilter === "group" && groupId) {
+        query = query.eq("group_id", groupId);
       }
-      if (triggerConfig?.connection_user_id) {
-        query = query.eq(
-          "connection_user_id",
-          triggerConfig.connection_user_id,
-        );
+      const connectionUserId = cfgText(triggerConfig?.connection_user_id);
+      if (connectionUserId) {
+        query = query.eq("connection_user_id", connectionUserId);
       }
-      if (triggerConfig?.keyword) {
-        query = query.ilike("message_text", `%${triggerConfig.keyword}%`);
+      const keyword = cfgText(triggerConfig?.keyword);
+      if (keyword) {
+        query = query.ilike("message_text", `%${keyword}%`);
       }
 
       const { data, error } = await query.maybeSingle();
@@ -404,8 +450,8 @@ export function TestFlowWithLeadDialog({
         return;
       }
 
-      const group = (data as any).whatsapp_groups;
-      const msgData = {
+      const group = data.whatsapp_groups;
+      const msgData: LastMessageData = {
         sender_name: data.sender_name || "לא ידוע",
         sender_phone: data.sender_phone || "",
         message_text: data.message_text || "",
@@ -433,10 +479,10 @@ export function TestFlowWithLeadDialog({
         title: "הודעה נטענה",
         description: `"${data.message_text?.substring(0, 50)}..." מ-${msgData.sender_name}`,
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה בשליפת הודעה",
-        description: err.message,
+        description: errorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -479,7 +525,7 @@ export function TestFlowWithLeadDialog({
           triggerStep?.action_type === "inbound_webhook_lead" ||
           triggerStep?.action_type === "lead_created";
 
-        const testData: any = {
+        const testData: JsonObject = {
           test: true,
           manual: true,
           contact_name: manualData.contact_name || manualData.company_name,
@@ -494,8 +540,9 @@ export function TestFlowWithLeadDialog({
         // If trigger is Facebook/webhook, add fb_ prefixed fields to mimic real FB lead data
         if (isFacebookTrigger) {
           // Read actual form field names from trigger configuration
-          const formFields = (triggerConfig as any)?.facebook_form_fields as
-            Array<{ type: string; label: string; key: string }> | undefined;
+          const formFields = cfgObjectArray(
+            triggerConfig?.facebook_form_fields,
+          );
 
           // Build a mapping from generic type to actual fb_ field key
           const fieldMap: Record<string, string> = {
@@ -507,8 +554,8 @@ export function TestFlowWithLeadDialog({
 
           if (formFields && formFields.length > 0) {
             for (const field of formFields) {
-              const fbKey = `fb_${field.label || field.key}`;
-              const fieldType = (field.type || "").toUpperCase();
+              const fbKey = `fb_${cfgText(field.label) || cfgText(field.key)}`;
+              const fieldType = (cfgText(field.type) || "").toUpperCase();
               if (fieldType === "PHONE" || fieldType.includes("PHONE")) {
                 fieldMap.fb_phone = fbKey;
               } else if (
@@ -544,9 +591,9 @@ export function TestFlowWithLeadDialog({
               `${fieldMap.fb_company_name}: ${manualData.company_name}`,
           ].filter(Boolean);
           if (fbEntries.length > 0) {
+            const notes = manualData.notes || "";
             testData.notes =
-              (testData.notes ? testData.notes + "\n" : "") +
-              fbEntries.join("\n");
+              (notes ? notes + "\n" : "") + fbEntries.join("\n");
           }
         }
 
@@ -568,20 +615,14 @@ export function TestFlowWithLeadDialog({
       // Lead-based batch test
       if (selectedLeadIds.size === 0) throw new Error("יש לבחור לפחות ליד אחד");
 
-      const results: Array<{
-        leadId: string;
-        leadName: string;
-        success: boolean;
-        data?: any;
-        error?: string;
-      }> = [];
+      const results: TestRunResult[] = [];
 
       for (const leadId of selectedLeadIds) {
-        const lead = listLeads.find((l: any) => l.id === leadId);
+        const lead = listLeads.find((l) => l.id === leadId);
         if (!lead) continue;
 
         try {
-          const testData: any = {
+          const testData: { [key: string]: Json | undefined } = {
             test: true,
             ...(lead.fromFacebook
               ? {
@@ -626,12 +667,12 @@ export function TestFlowWithLeadDialog({
               data: response.data,
             });
           }
-        } catch (err: any) {
+        } catch (err) {
           results.push({
             leadId,
             leadName: lead.company_name || lead.contact_name || "ליד",
             success: false,
-            error: err.message,
+            error: errorMessage(err),
           });
         }
       }
@@ -653,7 +694,7 @@ export function TestFlowWithLeadDialog({
         queryKey: ["automation-logs", automationId, tenantId],
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       setTestResults([
         { leadId: "", leadName: "", success: false, error: error.message },
       ]);
@@ -744,9 +785,9 @@ export function TestFlowWithLeadDialog({
                       איש קשר מתויג
                     </Badge>
                   )}
-                  {triggerConfig?.keyword && (
+                  {cfgText(triggerConfig?.keyword) && (
                     <Badge variant="outline" className="text-xs">
-                      מילת מפתח: {triggerConfig.keyword}
+                      מילת מפתח: {cfgText(triggerConfig.keyword)}
                     </Badge>
                   )}
                   {(!triggerConfig?.source_filter ||
@@ -971,7 +1012,7 @@ export function TestFlowWithLeadDialog({
                       </div>
                     ) : (
                       <div className="divide-y">
-                        {filteredLeads.map((lead: any) => {
+                        {filteredLeads.map((lead) => {
                           // Try to extract a real name from fb_ fields if company_name is generic
                           let displayName = lead.company_name || "ללא שם";
                           if (displayName === "ליד מפייסבוק" && lead.notes) {
@@ -1039,7 +1080,7 @@ export function TestFlowWithLeadDialog({
                   (() => {
                     const selectedId = Array.from(selectedLeadIds)[0];
                     const selectedLead = listLeads.find(
-                      (l: any) => l.id === selectedId,
+                      (l) => l.id === selectedId,
                     );
                     if (!selectedLead) return null;
 
@@ -1246,11 +1287,12 @@ export function TestFlowWithLeadDialog({
                               {result.error}
                             </p>
                           )}
-                          {result.data?.results &&
-                            Array.isArray(result.data.results) && (
+                          {Array.isArray(cfgObject(result.data)?.results) && (
                               <div className="space-y-1 mt-1">
-                                {result.data.results.map(
-                                  (step: any, si: number) => (
+                                {parseFlowStepResults(
+                                  cfgObject(result.data)?.results,
+                                ).map(
+                                  (step, si) => (
                                     <div
                                       key={si}
                                       className="text-xs flex items-center gap-1"

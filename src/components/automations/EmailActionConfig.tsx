@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,12 +20,12 @@ import {
 import { EmailWebhookMappingPanel } from "./EmailWebhookMappingPanel";
 
 interface Props {
-  configuration: Record<string, any>;
+  configuration: StepConfig;
   availableFields: { key: string; label: string }[];
   tenantId: string | undefined;
   triggerType?: string;
   automationId?: string;
-  onConfigChange: (key: string, value: any) => void;
+  onConfigChange: StepConfigChange;
 }
 
 export function EmailActionConfig({
@@ -39,7 +40,7 @@ export function EmailActionConfig({
   const domains = domainsQuery.data || [];
   const defaultDomain = domains.find((d) => d.is_default) || domains[0];
 
-  const fromMode = configuration?.from_mode || "default";
+  const fromMode = cfgText(configuration?.from_mode) || "default";
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [subjectCursor, setSubjectCursor] = useState<number | null>(null);
@@ -69,7 +70,7 @@ export function EmailActionConfig({
   const insertVariable = (fieldKey: string, target: "subject" | "body") => {
     const variable = `{{${fieldKey}}}`;
     if (target === "subject") {
-      const current = configuration?.subject_template || "";
+      const current = cfgText(configuration?.subject_template) || "";
       const pos = subjectCursor ?? current.length;
       onConfigChange(
         "subject_template",
@@ -77,7 +78,7 @@ export function EmailActionConfig({
       );
       return;
     }
-    const current = configuration?.body_template || "";
+    const current = cfgText(configuration?.body_template) || "";
     const pos = bodyCursor ?? current.length;
     onConfigChange(
       "body_template",
@@ -168,7 +169,7 @@ export function EmailActionConfig({
               </Label>
               <Select
                 value={
-                  configuration?.sender_domain_id || selectedDomain?.id || ""
+                  cfgText(configuration?.sender_domain_id) || selectedDomain?.id || ""
                 }
                 onValueChange={(v) => onConfigChange("sender_domain_id", v)}
               >
@@ -218,7 +219,7 @@ export function EmailActionConfig({
             {fromMode === "custom" && (
               <div className="space-y-2">
                 <Input
-                  value={configuration?.from_name || ""}
+                  value={cfgText(configuration?.from_name) || ""}
                   onChange={(e) => onConfigChange("from_name", e.target.value)}
                   placeholder="שם השולח (לדוגמה: AfterLead)"
                   className="text-right"
@@ -226,7 +227,7 @@ export function EmailActionConfig({
                 <div className="flex items-center gap-1">
                   <Input
                     value={
-                      configuration?.from_local ||
+                      cfgText(configuration?.from_local) ||
                       selectedDomain?.default_local ||
                       "noreply"
                     }
@@ -260,7 +261,7 @@ export function EmailActionConfig({
           </Label>
           <Input
             type="email"
-            value={configuration?.reply_to || ""}
+            value={cfgText(configuration?.reply_to) || ""}
             onChange={(e) => onConfigChange("reply_to", e.target.value)}
             placeholder="david@gmail.com"
             dir="ltr"
@@ -284,7 +285,7 @@ export function EmailActionConfig({
         </p>
         <Input
           ref={subjectRef}
-          value={configuration?.subject_template || ""}
+          value={cfgText(configuration?.subject_template) || ""}
           onChange={(e) => onConfigChange("subject_template", e.target.value)}
           onSelect={(e) =>
             setSubjectCursor((e.target as HTMLInputElement).selectionStart)
@@ -299,7 +300,7 @@ export function EmailActionConfig({
         <Label className="text-right block">גוף ההודעה</Label>
         <Textarea
           ref={bodyRef}
-          value={configuration?.body_template || ""}
+          value={cfgText(configuration?.body_template) || ""}
           onChange={(e) => onConfigChange("body_template", e.target.value)}
           onSelect={(e) =>
             setBodyCursor((e.target as HTMLTextAreaElement).selectionStart)
