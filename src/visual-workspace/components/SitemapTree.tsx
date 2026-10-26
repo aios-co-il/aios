@@ -44,7 +44,7 @@ export function SitemapTree() {
     if (!over) return;
     const moduleKey = active.data.current?.moduleKey as string | undefined;
     if (!moduleKey) return;
-    const overData = over.data.current as any;
+    const overData = over.data.current;
 
     // Find the module def to send full info
     const node = sitemap.columns

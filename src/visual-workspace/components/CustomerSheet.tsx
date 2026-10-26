@@ -11,6 +11,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  readRecentMessages,
+  type RecentMessage,
+} from "../utils/islandRows-b19";
+
+type OpenTask = Pick<Tables<"tasks">, "id" | "title" | "status" | "due_date">;
 
 interface Props {
   clientId: string | null;
@@ -19,32 +26,31 @@ interface Props {
 
 export function CustomerSheet({ clientId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
-  const [client, setClient] = useState<any>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [client, setClient] = useState<Tables<"clients"> | null>(null);
+  const [tasks, setTasks] = useState<OpenTask[]>([]);
+  const [messages, setMessages] = useState<RecentMessage[]>([]);
 
   useEffect(() => {
     if (!clientId) return;
     setLoading(true);
-    const sb = supabase as any;
     Promise.all([
-      sb.from("clients").select("*").eq("id", clientId).maybeSingle(),
-      sb
+      supabase.from("clients").select("*").eq("id", clientId).maybeSingle(),
+      supabase
         .from("tasks")
         .select("id,title,status,due_date")
         .eq("client_id", clientId)
         .in("status", ["open", "in_progress"])
         .limit(10),
-      sb
+      supabase
         .from("chat_messages")
         .select("id,direction,message,created_at,sender_name")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(5),
-    ]).then(([c, t, m]: any) => {
+    ]).then(([c, t, m]) => {
       setClient(c.data);
       setTasks(t.data ?? []);
-      setMessages(m.data ?? []);
+      setMessages(readRecentMessages(m.data ?? []));
       setLoading(false);
     });
   }, [clientId]);
@@ -95,7 +101,7 @@ export function CustomerSheet({ clientId, onClose }: Props) {
                   <p className="text-xs text-slate-400">אין משימות פתוחות</p>
                 ) : (
                   <div className="space-y-1">
-                    {tasks.map((t: any) => (
+                    {tasks.map((t) => (
                       <div
                         key={t.id}
                         className="rounded-lg bg-slate-50 px-3 py-2 text-xs flex justify-between"
@@ -116,7 +122,7 @@ export function CustomerSheet({ clientId, onClose }: Props) {
                   <p className="text-xs text-slate-400">אין הודעות</p>
                 ) : (
                   <div className="space-y-1">
-                    {messages.map((m: any) => (
+                    {messages.map((m) => (
                       <div
                         key={m.id}
                         className={`rounded-lg px-3 py-2 text-xs ${m.direction === "outbound" ? "bg-primary/10" : "bg-slate-50"}`}

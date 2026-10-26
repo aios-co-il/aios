@@ -52,7 +52,7 @@ export function useGraphifyOverview() {
   return useQuery({
     queryKey: ["graphify-overview", tenantId],
     queryFn: async (): Promise<GraphifyOverview> => {
-      const { data, error } = await supabase.rpc("graphify_overview" as any);
+      const { data, error } = await supabase.rpc("graphify_overview");
       if (error) throw error;
       return (data ?? { active: false }) as GraphifyOverview;
     },
@@ -70,18 +70,21 @@ export function useGraphifyCommunity(groupKey: string | null) {
       nodes: GraphifyNode[];
       edges: GraphifyEdge[];
     }> => {
-      const { data, error } = await supabase.rpc(
-        "graphify_group_subgraph" as any,
-        {
-          p_group: groupKey,
-          p_limit: 400,
-        },
-      );
+      if (!groupKey) return { nodes: [], edges: [] };
+      const { data, error } = await supabase.rpc("graphify_group_subgraph", {
+        p_group: groupKey,
+        p_limit: 400,
+      });
       if (error) throw error;
-      const parsed = (data ?? {}) as any;
+      const parsed =
+        data && typeof data === "object" && !Array.isArray(data) ? data : {};
       return {
-        nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
-        edges: Array.isArray(parsed.edges) ? parsed.edges : [],
+        nodes: Array.isArray(parsed.nodes)
+          ? (parsed.nodes as GraphifyNode[])
+          : [],
+        edges: Array.isArray(parsed.edges)
+          ? (parsed.edges as GraphifyEdge[])
+          : [],
       };
     },
     enabled: !!groupKey && !!tenantId,
@@ -96,7 +99,7 @@ export function useGraphifySearch(query: string) {
   return useQuery({
     queryKey: ["graphify-search", trimmed, tenantId],
     queryFn: async (): Promise<GraphifySearchHit[]> => {
-      const { data, error } = await supabase.rpc("graphify_search" as any, {
+      const { data, error } = await supabase.rpc("graphify_search", {
         p_query: trimmed,
         p_depth: 1,
         p_limit: 40,
