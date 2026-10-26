@@ -227,6 +227,10 @@ export function formatApprovalExecutionReply(execResult, pendingRow) {
       : Object.hasOwn(APPROVAL_ERROR_MESSAGES_HE, code)
         ? APPROVAL_ERROR_MESSAGES_HE[code]
         : code;
+  // The executor failed after claiming the row: the action may have run.
+  if (execResult?.outcome_unknown === true) {
+    return `לא הצלחתי לוודא אם "${title}" בוצע: ${err}. ייתכן שהפעולה כן בוצעה — כדאי לבדוק לפני שמנסים שוב.`;
+  }
   // A row someone else is running right now may still succeed.
   const nothingDone = code === "in_progress" ? "" : " לא בוצע כלום.";
   return `לא הצלחתי לבצע את "${title}": ${err}.${nothingDone}`;

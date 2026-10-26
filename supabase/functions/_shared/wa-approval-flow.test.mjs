@@ -652,3 +652,14 @@ test("'לא <קוד>' lets a requester withdraw their own approver-only row", ()
     "code_not_found",
   );
 });
+
+test("an execution with an unknown outcome never claims nothing was done", async () => {
+  const { formatApprovalExecutionReply } =
+    await import("./wa-approval-flow.mjs");
+  const reply = formatApprovalExecutionReply(
+    { error: "boom", outcome_unknown: true },
+    { title: "השהיית קמפיין" },
+  );
+  assert.match(reply, /ייתכן שהפעולה כן בוצעה/);
+  assert.doesNotMatch(reply, /לא בוצע כלום/);
+});

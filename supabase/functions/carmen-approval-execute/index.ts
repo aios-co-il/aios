@@ -1021,9 +1021,13 @@ Deno.serve(async (req) => {
         console.error("[carmen-approval-execute] mark failed", markErr);
       }
     }
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({
+        error: String(e?.message || e),
+        // The row was claimed, so the action may have run.
+        outcome_unknown: Boolean(claimedId),
+      }),
+      { status: 500, headers: corsHeaders },
+    );
   }
 });
