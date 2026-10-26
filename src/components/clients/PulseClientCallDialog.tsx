@@ -27,6 +27,7 @@ import {
   isClientCallUpdate,
   resolveClientUpdateType,
 } from "@/lib/clientUpdateType";
+import { errorMessageOf } from "@/lib/errorMessage-b13";
 
 export type PulseClientCallTarget = {
   clientId: string;
@@ -83,7 +84,7 @@ export function PulseClientCallDialog({
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
-      return (data ?? []).filter((row: any) =>
+      return (data ?? []).filter((row) =>
         isClientCallUpdate(row.update_type, row.content ?? ""),
       );
     },
@@ -115,7 +116,7 @@ export function PulseClientCallDialog({
           user_id: user.id,
           content: trimmed,
           update_type: updateType,
-        } as any)
+        })
         .select("id, created_at")
         .single();
       if (error) throw error;
@@ -139,8 +140,8 @@ export function PulseClientCallDialog({
       });
       toast.success("השיחה תועדה — צבע הדופק עודכן");
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "שגיאה בשמירה");
+    } catch (err) {
+      toast.error(errorMessageOf(err) || "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }
@@ -186,7 +187,7 @@ export function PulseClientCallDialog({
               </p>
             ) : (
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {callUpdates.map((update: any) => (
+                {callUpdates.map((update) => (
                   <Card key={update.id} className="bg-muted/50">
                     <CardContent className="p-3">
                       <p className="text-sm whitespace-pre-wrap">

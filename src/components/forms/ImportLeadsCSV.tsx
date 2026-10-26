@@ -13,6 +13,12 @@ import { Upload, FileSpreadsheet } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import Papa from "papaparse";
+import {
+  dropBlankFields,
+  toLeadInsert,
+  type LeadDraft,
+} from "@/lib/leadImport-b13";
+import { errorMessageOf } from "@/lib/errorMessage-b13";
 
 export function ImportLeadsCSV() {
   const [open, setOpen] = useState(false);
@@ -56,14 +62,14 @@ export function ImportLeadsCSV() {
       if (!tenantData) throw new Error("לא נמצא tenant למשתמש");
 
       // Parse CSV
-      const parsed = Papa.parse<any>(text, {
+      const parsed = Papa.parse<Record<string, string | undefined>>(text, {
         header: true,
         skipEmptyLines: true,
       });
       if (parsed.errors && parsed.errors.length) {
         console.warn("CSV parse warnings:", parsed.errors);
       }
-      const rows = (parsed.data || []) as any[];
+      const rows = parsed.data || [];
 
       if (rows.length === 0) {
         throw new Error("לא נמצאו נתונים בקובץ");
@@ -118,12 +124,15 @@ export function ImportLeadsCSV() {
       };
 
       // Helpers to avoid mis-mapping date values into text fields
-      const isDateLike = (val: any) => {
+      const isDateLike = (val: unknown) => {
         if (val === undefined || val === null) return false;
         return !!parseDate(String(val));
       };
 
-      const getFirst = (row: any, keys: string[]) => {
+      const getFirst = (
+        row: Record<string, string | undefined>,
+        keys: string[],
+      ) => {
         for (const key of keys) {
           const v = row[key] ?? row[String(key).trim()];
           if (v !== undefined && v !== null) {
@@ -178,18 +187,8 @@ export function ImportLeadsCSV() {
         return null;
       };
 
-      const sanitize = (obj: any) => {
-        const cleaned: any = {};
-        for (const [k, v] of Object.entries(obj)) {
-          if (v === undefined || v === null) continue;
-          if (typeof v === "string" && v.trim() === "") continue;
-          cleaned[k] = v;
-        }
-        return cleaned;
-      };
-
       const mapped = rows.map((row) => {
-        const lead: any = {
+        const lead: LeadDraft = {
           tenant_id: tenantData.tenant_id,
           agency_id: promoAgency.id,
           sales_person_id: zivPerson.id,
@@ -339,7 +338,7 @@ export function ImportLeadsCSV() {
 
         if (!lead.status) lead.status = "new";
 
-        return sanitize(lead);
+        return dropBlankFields(lead);
       });
 
       const validLeads = mapped.filter((l) => {
@@ -383,8 +382,8 @@ export function ImportLeadsCSV() {
       const normalizeStr = (s: string | null | undefined) =>
         (s || "").toString().trim().toLowerCase();
 
-      const updates: any[] = [];
-      const inserts: any[] = [];
+      const updates: LeadDraft[] = [];
+      const inserts: LeadDraft[] = [];
 
       for (const lead of validLeads) {
         // אם קיבלנו ID תקין - נעדכן/נוסיף לפי ID
@@ -422,7 +421,7 @@ export function ImportLeadsCSV() {
       if (updates.length > 0) {
         const { error: updateError } = await supabase
           .from("leads")
-          .upsert(updates);
+          .upsert(updates.map(toLeadInsert));
         if (updateError) throw updateError;
       }
 
@@ -430,7 +429,7 @@ export function ImportLeadsCSV() {
       if (inserts.length > 0) {
         const { error: insertError } = await supabase
           .from("leads")
-          .insert(inserts);
+          .insert(inserts.map(toLeadInsert));
         if (insertError) throw insertError;
       }
 
@@ -442,11 +441,11 @@ export function ImportLeadsCSV() {
 
       setOpen(false);
       return;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error importing CSV:", error);
       toast({
         title: "שגיאה בייבוא",
-        description: error.message,
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     } finally {

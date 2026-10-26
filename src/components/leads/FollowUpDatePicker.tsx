@@ -30,6 +30,9 @@ interface FollowUpDatePickerProps {
   onOptimisticUpdate?: (leadId: string, newDate: string | null) => void;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 function getOverdueInfo(dateStr: string | null) {
   if (!dateStr) return { isOverdue: false, isToday: false, daysLate: 0 };
   const today = startOfDay(new Date());
@@ -87,26 +90,29 @@ export function FollowUpDatePicker({
 
       if (onOptimisticUpdate) {
         onOptimisticUpdate(leadId, dateString);
-        const updateLeadInCache = (old: any) => {
+        const withFollowUpDate = (l: unknown) =>
+          isRecord(l) && l.id === leadId
+            ? { ...l, follow_up_date: dateString }
+            : l;
+        const updateLeadInCache = (old: unknown): unknown => {
           if (!old) return old;
           if (Array.isArray(old)) {
-            return old.map((l: any) =>
-              l.id === leadId ? { ...l, follow_up_date: dateString } : l,
-            );
+            return old.map(withFollowUpDate);
           }
-          if (typeof old === "object") {
-            const updated = { ...old };
+          if (isRecord(old)) {
+            const updated: Record<string, unknown> = { ...old };
             for (const key of Object.keys(updated)) {
-              if (Array.isArray(updated[key])) {
-                updated[key] = updated[key].map((l: any) =>
-                  l.id === leadId ? { ...l, follow_up_date: dateString } : l,
-                );
-              } else if (updated[key]?.leads) {
+              const value = updated[key];
+              if (Array.isArray(value)) {
+                updated[key] = value.map(withFollowUpDate);
+              } else if (
+                isRecord(value) &&
+                value.leads &&
+                Array.isArray(value.leads)
+              ) {
                 updated[key] = {
-                  ...updated[key],
-                  leads: updated[key].leads.map((l: any) =>
-                    l.id === leadId ? { ...l, follow_up_date: dateString } : l,
-                  ),
+                  ...value,
+                  leads: value.leads.map(withFollowUpDate),
                 };
               }
             }
@@ -134,7 +140,7 @@ export function FollowUpDatePicker({
       setDialogOpen(false);
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה בעדכון תאריך לחזרה",
         description: error.message,

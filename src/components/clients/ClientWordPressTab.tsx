@@ -21,6 +21,7 @@ import {
   ExternalLink,
   RefreshCw,
   AlertCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { SubmissionsSummaryCard } from "@/components/landing-page-submissions/SubmissionsSummaryCard";
 import { format } from "date-fns";
@@ -44,11 +45,11 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
     queryKey: ["client-wp-sites", clientId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("*")
         .eq("client_id", clientId);
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!clientId,
   });
@@ -61,13 +62,13 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
     queryFn: async () => {
       if (siteIds.length === 0) return [];
       const { data, error } = await supabase
-        .from("woocommerce_orders" as any)
+        .from("woocommerce_orders")
         .select("*")
         .in("site_id", siteIds)
         .order("date_created", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: siteIds.length > 0,
   });
@@ -77,13 +78,13 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
     queryFn: async () => {
       if (siteIds.length === 0) return [];
       const { data, error } = await supabase
-        .from("woocommerce_products" as any)
+        .from("woocommerce_products")
         .select("*")
         .in("site_id", siteIds)
         .order("total_sales", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: siteIds.length > 0,
   });
@@ -93,13 +94,13 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
     queryFn: async () => {
       if (siteIds.length === 0) return [];
       const { data, error } = await supabase
-        .from("woocommerce_customers" as any)
+        .from("woocommerce_customers")
         .select("*")
         .in("site_id", siteIds)
         .order("total_spent", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: siteIds.length > 0,
   });
@@ -245,7 +246,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         <SubmissionsSummaryCard
           key={`subs-${site.id}`}
           siteId={site.id}
-          siteName={site.site_name}
+          siteName={site.site_name ?? undefined}
         />
       ))}
 
@@ -478,7 +479,7 @@ function StatCard({
   value,
   color,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string;
   color: string;

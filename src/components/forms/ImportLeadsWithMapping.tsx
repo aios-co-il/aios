@@ -31,6 +31,8 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { errorMessageOf } from "@/lib/errorMessage-b13";
+import { toLeadInsert, type LeadDraft } from "@/lib/leadImport-b13";
 import {
   Table,
   TableBody,
@@ -52,6 +54,18 @@ import {
 } from "@/lib/leadFields";
 
 type Step = "upload" | "mapping" | "preview" | "importing";
+
+type ImportCell = string | number | boolean | null | undefined;
+type ImportRow = Record<string, ImportCell>;
+
+const toImportCell = (value: unknown): ImportCell =>
+  value === null ||
+  value === undefined ||
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
+    ? value
+    : String(value);
 
 interface FieldMapping {
   csvColumn: string;
@@ -116,7 +130,7 @@ export function ImportLeadsWithMapping() {
   const [step, setStep] = useState<Step>("upload");
   const [isLoading, setIsLoading] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [rawData, setRawData] = useState<any[]>([]);
+  const [rawData, setRawData] = useState<ImportRow[]>([]);
   const [csvColumns, setCsvColumns] = useState<string[]>([]);
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [defaultAgencyId, setDefaultAgencyId] = useState<string>("");
@@ -242,12 +256,12 @@ export function ImportLeadsWithMapping() {
     resetState();
   };
 
-  const parseFile = async (file: File): Promise<any[]> => {
+  const parseFile = async (file: File): Promise<ImportRow[]> => {
     const extension = file.name.split(".").pop()?.toLowerCase();
 
     if (extension === "csv") {
       const text = await file.text();
-      const parsed = Papa.parse<any>(text, {
+      const parsed = Papa.parse<Record<string, string | undefined>>(text, {
         header: true,
         skipEmptyLines: true,
       });
@@ -261,16 +275,19 @@ export function ImportLeadsWithMapping() {
         cellText: true,
       });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(firstSheet, {
-        defval: "",
-        raw: true,
-      });
+      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+        firstSheet,
+        {
+          defval: "",
+          raw: true,
+        },
+      );
 
       // Normalize column names by trimming whitespace
-      return data.map((row: any) => {
-        const normalized: Record<string, any> = {};
+      return data.map((row) => {
+        const normalized: ImportRow = {};
         Object.entries(row).forEach(([key, value]) => {
-          normalized[key.trim()] = value;
+          normalized[key.trim()] = toImportCell(value);
         });
         return normalized;
       });
@@ -313,12 +330,12 @@ export function ImportLeadsWithMapping() {
         }
         const samples = data
           .slice(0, 40)
-          .map((row: any) => row[col])
+          .map((row) => row[col])
           .filter(
-            (val: any) =>
+            (val) =>
               val !== undefined && val !== null && String(val).trim() !== "",
           )
-          .map((val: any) => String(val).trim());
+          .map((val) => String(val).trim());
         const detectedField = autoDetectLeadImportField(col, samples);
         return { csvColumn: col, systemField: detectedField };
       });
@@ -328,10 +345,10 @@ export function ImportLeadsWithMapping() {
       setCsvColumns(columns);
       setMappings(autoMappings);
       setStep("mapping");
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה בקריאת הקובץ",
-        description: error.message,
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     } finally {
@@ -519,7 +536,7 @@ export function ImportLeadsWithMapping() {
     if (rawData.length === 0) return [];
 
     return rawData.slice(0, 5).map((row) => {
-      const mapped: Record<string, any> = {};
+      const mapped: ImportRow = {};
       mappings.forEach((m) => {
         if (m.systemField && m.systemField !== "updates") {
           mapped[m.systemField] = row[m.csvColumn];
@@ -611,7 +628,7 @@ export function ImportLeadsWithMapping() {
   const mapSource = (val: string) => inferLeadSource(val);
 
   const applyImportedStatus = (
-    lead: any,
+    lead: LeadDraft,
     strValue: string,
     statusKeyMap: Record<string, string>,
   ) => {
@@ -780,7 +797,7 @@ export function ImportLeadsWithMapping() {
         });
 
       const mapped = rawData.map((row, rowIdx) => {
-        const lead: any = {
+        const lead: LeadDraft = {
           tenant_id: tenantId,
           agency_id:
             defaultAgencyId && defaultAgencyId !== "none"
@@ -993,13 +1010,16 @@ export function ImportLeadsWithMapping() {
       const normalizeStr = (s: string | null | undefined) =>
         (s || "").toString().trim().toLowerCase();
       const leadUpdates: {
-        lead: any;
+        lead: LeadDraft;
         tags: string[];
         updates: string[];
         existingId: string;
       }[] = [];
-      const leadInserts: { lead: any; tags: string[]; updates: string[] }[] =
-        [];
+      const leadInserts: {
+        lead: LeadDraft;
+        tags: string[];
+        updates: string[];
+      }[] = [];
       let skippedDuplicates = 0;
 
       // Track phones we're adding in this import to prevent in-file duplicates
@@ -1083,7 +1103,7 @@ export function ImportLeadsWithMapping() {
       if (uniqueLeadUpdates.length > 0) {
         const { error } = await supabase
           .from("leads")
-          .upsert(uniqueLeadUpdates.map((u) => u.lead));
+          .upsert(uniqueLeadUpdates.map((u) => toLeadInsert(u.lead)));
         if (error) throw error;
       }
 
@@ -1092,7 +1112,7 @@ export function ImportLeadsWithMapping() {
       if (uniqueLeadInserts.length > 0) {
         const { data: insertedData, error } = await supabase
           .from("leads")
-          .insert(uniqueLeadInserts.map((i) => i.lead))
+          .insert(uniqueLeadInserts.map((i) => toLeadInsert(i.lead)))
           .select("id");
         if (error) throw error;
         if (insertedData) {
@@ -1229,11 +1249,11 @@ export function ImportLeadsWithMapping() {
         title: "הצלחה!",
         description: `${uniqueLeadUpdates.length} לידים עודכנו, ${uniqueLeadInserts.length} לידים חדשים נוספו${leadUpdateRecords.length > 0 ? `, ${leadUpdateRecords.length} עדכונים נוספו` : ""}`,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error importing leads:", error);
       toast({
         title: "שגיאה בייבוא",
-        description: error.message,
+        description: errorMessageOf(error),
         variant: "destructive",
       });
       setStep("preview");

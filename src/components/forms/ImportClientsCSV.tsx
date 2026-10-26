@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
@@ -383,7 +384,7 @@ export function ImportClientsCSV({
         ]),
       );
 
-      const updates: Array<{ id: string; data: Record<string, any> }> = [];
+      const updates: Array<{ id: string; data: TablesUpdate<"clients"> }> = [];
       const inserts: Array<{
         name: string;
         agency_id: string;
@@ -425,7 +426,7 @@ export function ImportClientsCSV({
           row.is_seo_client?.toLowerCase() === "true";
 
         if (existing) {
-          const updateFields: Record<string, any> = {};
+          const updateFields: TablesUpdate<"clients"> = {};
           if (row.phone) updateFields.phone = row.phone;
           if (row.email) updateFields.email = row.email;
           if (row.contact_name) updateFields.contact_name = row.contact_name;
@@ -573,7 +574,7 @@ export function ImportClientsCSV({
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
       handleClose();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בייבוא לקוחות: " + error.message);
       setStep("preview");
     },

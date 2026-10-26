@@ -1,15 +1,29 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FolderLinksField } from "@/components/forms/FolderLinksField";
-import { AttachmentsField } from "@/components/forms/AttachmentsField";
+import {
+  FolderLinksField,
+  type FolderLink,
+} from "@/components/forms/FolderLinksField";
+import {
+  AttachmentsField,
+  type Attachment,
+} from "@/components/forms/AttachmentsField";
+import type { Tables } from "@/integrations/supabase/types";
 import { ClientLinkedFiles } from "@/components/clients/ClientLinkedFiles";
 import { useFolderLinksAndAttachments } from "@/hooks/useFolderLinksAndAttachments";
 import { FileText, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ClientDocsEditorProps {
-  client: any;
+  client: Pick<
+    Tables<"clients">,
+    | "id"
+    | "meta_ads_account_id"
+    | "google_ads_account_id"
+    | "folder_links"
+    | "attachments"
+  >;
   tenantId: string;
 }
 
@@ -18,11 +32,11 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
   const { folderLinks, setFolderLinks, attachments, setAttachments } =
     useFolderLinksAndAttachments(client);
 
-  const handleFolderLinksChange = async (newLinks: any[]) => {
+  const handleFolderLinksChange = async (newLinks: FolderLink[]) => {
     setFolderLinks(newLinks);
     const { error } = await supabase
       .from("clients")
-      .update({ folder_links: newLinks as any })
+      .update({ folder_links: newLinks })
       .eq("id", client.id);
     if (error) {
       toast.error("שגיאה בעדכון קישורים");
@@ -31,11 +45,11 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
     }
   };
 
-  const handleAttachmentsChange = async (newAttachments: any[]) => {
+  const handleAttachmentsChange = async (newAttachments: Attachment[]) => {
     setAttachments(newAttachments);
     const { error } = await supabase
       .from("clients")
-      .update({ attachments: newAttachments as any })
+      .update({ attachments: newAttachments })
       .eq("id", client.id);
     if (error) {
       toast.error("שגיאה בעדכון קבצים");
@@ -44,8 +58,8 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = (text: string | null, label: string) => {
+    navigator.clipboard.writeText(text ?? "");
     toast.success(`${label} הועתק`);
   };
 

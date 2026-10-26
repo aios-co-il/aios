@@ -29,10 +29,19 @@ import {
   FLAG_COLORS,
   OVERALL_STATUS_CONFIG,
   type FlagKey,
+  type HealthInput,
   type OverallStatus,
 } from "@/lib/healthScore";
+import { parseClientServices } from "@/lib/clientServices-b13";
 
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
+
+const toCommunicationStatus = (
+  status: string | undefined,
+): HealthInput["communicationStatus"] =>
+  status === "normal" || status === "sensitive" || status === "complaint"
+    ? status
+    : null;
 
 export function CRMAlerts() {
   const { tenantId } = useCurrentTenant();
@@ -62,13 +71,13 @@ export function CRMAlerts() {
     staleTime: 60_000,
   });
 
-  const clientIds = clients.map((c: any) => c.id);
+  const clientIds = clients.map((c) => c.id);
 
   const { data: commLogs = [] } = useQuery({
     queryKey: ["crm-alerts-comm", clientIds.join(","), tenantId],
     queryFn: async () => {
       if (!clientIds.length || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("communication_logs")
         .select("client_id, status, created_at")
         .in("client_id", clientIds)
@@ -85,7 +94,7 @@ export function CRMAlerts() {
     queryKey: ["crm-alerts-seo", clientIds.join(","), tenantId],
     queryFn: async () => {
       if (!clientIds.length || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("client_id, month, status")
         .in("client_id", clientIds)
@@ -101,26 +110,27 @@ export function CRMAlerts() {
   // Build alert rows — only yellow/red clients
   const alertRows = useMemo(() => {
     return clients
-      .map((c: any) => {
-        const latestComm =
-          commLogs.find((l: any) => l.client_id === c.id) ?? null;
+      .map((c) => {
+        const latestComm = commLogs.find((l) => l.client_id === c.id) ?? null;
         const daysSinceComm = latestComm
-          ? differenceInDays(new Date(), new Date(latestComm.created_at))
+          ? differenceInDays(new Date(), new Date(latestComm.created_at ?? 0))
           : null;
         const seoHistory = seoUpdates
-          .filter((s: any) => s.client_id === c.id)
+          .filter((s) => s.client_id === c.id)
           .slice(0, 3)
-          .map((s: any) => s.status as "up" | "stable" | "down");
+          .map((s) => s.status);
+        const services = parseClientServices(c.services);
         const result = calculateHealthScore({
-          communicationStatus: latestComm?.status ?? null,
+          communicationStatus: toCommunicationStatus(latestComm?.status),
           daysSinceLastCommunication: daysSinceComm,
-          services: c.services ?? [],
+          services,
           performanceChangePct: null,
           daysSinceLastCampaignTouch: null,
           seoHistory,
         });
         return {
           ...c,
+          services,
           score: result.score,
           overallStatus: result.status,
           flags: result.flags,
@@ -128,17 +138,15 @@ export function CRMAlerts() {
           communicationStatus: latestComm?.status ?? null,
         };
       })
-      .filter((c: any) => c.overallStatus !== "green")
-      .sort((a: any, b: any) => a.score - b.score);
+      .filter((c) => c.overallStatus !== "green")
+      .sort((a, b) => a.score - b.score);
   }, [clients, commLogs, seoUpdates]);
 
   if (alertRows.length === 0) return null;
 
-  const redCount = alertRows.filter(
-    (r: any) => r.overallStatus === "red",
-  ).length;
+  const redCount = alertRows.filter((r) => r.overallStatus === "red").length;
   const yellowCount = alertRows.filter(
-    (r: any) => r.overallStatus === "yellow",
+    (r) => r.overallStatus === "yellow",
   ).length;
 
   return (
@@ -185,7 +193,7 @@ export function CRMAlerts() {
       {expanded && (
         <CardContent className="px-4 pb-3 pt-0">
           <div className="space-y-2">
-            {alertRows.map((client: any) => (
+            {alertRows.map((client) => (
               <div
                 key={client.id}
                 className={`flex items-start justify-between gap-2 p-2 rounded-md border text-sm ${
@@ -254,7 +262,7 @@ export function CRMAlerts() {
                     <MessageSquare className="h-3 w-3 ml-1" />
                     תקשורת
                   </Button>
-                  {(client.services ?? []).includes("seo") && (
+                  {client.services.includes("seo") && (
                     <Button
                       variant="outline"
                       size="sm"

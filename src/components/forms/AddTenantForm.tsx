@@ -107,16 +107,11 @@ export function AddTenantForm({
     queryKey: ["terminology-presets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("terminology_presets" as any)
+        .from("terminology_presets")
         .select("id, name, description, is_public")
         .order("name");
       if (error) throw error;
-      return data as unknown as {
-        id: string;
-        name: string;
-        description: string | null;
-        is_public: boolean;
-      }[];
+      return data;
     },
   });
 

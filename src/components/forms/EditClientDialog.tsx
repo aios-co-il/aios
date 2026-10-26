@@ -65,6 +65,52 @@ import { useMeetingScheduler } from "@/hooks/useMeetingScheduler";
 import { useAgencies } from "@/hooks/useEntityLists";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+import type { Tables } from "@/integrations/supabase/types";
+import { parseClientServices } from "@/lib/clientServices-b13";
+
+type ClientRow = Tables<"clients">;
+type EditableClient = Pick<ClientRow, "id" | "name"> &
+  Partial<
+    Pick<
+      ClientRow,
+      | "tenant_id"
+      | "agency_id"
+      | "contact_name"
+      | "email"
+      | "phone"
+      | "website"
+      | "notes"
+      | "status"
+      | "mood_status"
+      | "is_seo_client"
+      | "tier"
+      | "services"
+      | "retainer"
+      | "monthly_budget"
+      | "folder_link"
+      | "folder_links"
+      | "attachments"
+      | "meta_ads_account_id"
+      | "google_ads_account_id"
+    >
+  >;
+
+type DisplayedFinanceExpense = {
+  id: string;
+  amount: number | null;
+  category: string | null;
+  notes: string | null;
+  date: string;
+  _auto?: boolean;
+};
+
+const FORM_STATUSES = ["active", "paused", "ended", "onboarding"] as const;
+const FORM_TIERS = ["A", "B", "C"] as const;
+
+const toFormStatus = (status: string) =>
+  FORM_STATUSES.find((value) => value === status);
+const toFormTier = (tier: string | null | undefined) =>
+  tier ? FORM_TIERS.find((value) => value === tier) : null;
 const formSchema = z.object({
   name: z.string().min(1, "שם הלקוח נדרש"),
   contact_name: z.string().optional(),
@@ -88,7 +134,7 @@ const formSchema = z.object({
 });
 
 interface EditClientDialogProps {
-  client: any;
+  client: EditableClient;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDuplicate?: () => void;
@@ -114,7 +160,10 @@ export function EditClientDialog({
     attachments,
     setAttachments,
     filesCount,
-  } = useFolderLinksAndAttachments(client);
+  } = useFolderLinksAndAttachments({
+    ...client,
+    folder_link: client.folder_link ?? undefined,
+  });
 
   const meetingScheduler = useMeetingScheduler(tenantId);
   const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
@@ -154,7 +203,7 @@ export function EditClientDialog({
       if (profilesError) throw profilesError;
 
       return (profilesData || []).filter(
-        (p: any) => p.email && p.email.trim() !== "",
+        (p) => p.email && p.email.trim() !== "",
       );
     },
     enabled: !!tenantId && open,
@@ -252,7 +301,7 @@ export function EditClientDialog({
       source: "ראשי",
     });
     // Add all non-primary contacts
-    clientContacts?.forEach((c: any) => {
+    clientContacts?.forEach((c) => {
       contacts.push({
         email: c.email || null,
         name: c.contact_name,
@@ -385,11 +434,11 @@ export function EditClientDialog({
       monthly_budget: "",
       website: client.website || "",
       notes: client.notes || "",
-      status: client.status || "active",
+      status: toFormStatus(client.status || "active"),
       mood_status: client.mood_status || "happy",
       is_seo_client: client.is_seo_client || false,
-      tier: client.tier || null,
-      services: client.services || [],
+      tier: toFormTier(client.tier),
+      services: parseClientServices(client.services),
       meta_ads_account_id: client.meta_ads_account_id || "",
       google_ads_account_id: client.google_ads_account_id || "",
     },
@@ -451,14 +500,14 @@ export function EditClientDialog({
   // Synthetic SEO ₪850 expense for SEO clients without a finance row in the
   // selected month. Mirrors the logic in AccountingIntegrations so the dialog
   // shows the recurring SEO expense even when no finance row exists yet.
-  const displayedFinanceExpenses = useMemo(() => {
+  const displayedFinanceExpenses = useMemo((): DisplayedFinanceExpense[] => {
     const monthForLabel =
       financeExpenseMonth || format(startOfMonth(new Date()), "yyyy-MM");
     const isSeo =
       !!client?.is_seo_client ||
       (Array.isArray(client?.services) && client.services.includes("seo"));
     const hasSeoRow = (clientFinanceExpenses || []).some(
-      (e: any) => (e.category || "").toUpperCase() === "SEO",
+      (e) => (e.category || "").toUpperCase() === "SEO",
     );
     if (!isSeo || hasSeoRow) return clientFinanceExpenses;
     return [
@@ -513,8 +562,8 @@ export function EditClientDialog({
           phone: values.phone || null,
           email: values.email || null,
           folder_link: folderLinks[0]?.url || values.folder_link || null,
-          folder_links: folderLinks as unknown as any,
-          attachments: attachments as unknown as any,
+          folder_links: folderLinks,
+          attachments: attachments,
           website: values.website || null,
           notes: values.notes || null,
           status: values.status,
@@ -570,7 +619,7 @@ export function EditClientDialog({
       });
       onOpenChange(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בעדכון הלקוח: " + error.message);
     },
   });
@@ -598,7 +647,7 @@ export function EditClientDialog({
   const handleScheduleMeeting = async () => {
     await meetingScheduler.scheduleMeeting({
       contactName: client.name,
-      contactEmail: client.email,
+      contactEmail: client.email ?? undefined,
       contactId: client.id,
       contactType: "client",
       additionalEmails: [...selectedMeetingEmails, ...selectedTeamMembers],
@@ -859,7 +908,7 @@ export function EditClientDialog({
 
                   {clientContacts && clientContacts.length > 0 && (
                     <div className="space-y-2">
-                      {clientContacts.map((contact: any) => (
+                      {clientContacts.map((contact) => (
                         <div
                           key={contact.id}
                           className="flex items-center gap-2 p-2 rounded-md bg-muted/50 text-sm"
@@ -949,7 +998,7 @@ export function EditClientDialog({
                     {displayedFinanceExpenses.length > 0 && (
                       <div className="rounded-md border bg-muted/30 p-3 space-y-2">
                         <FormLabel>הוצאות החודש</FormLabel>
-                        {displayedFinanceExpenses.map((expense: any) => (
+                        {displayedFinanceExpenses.map((expense) => (
                           <div
                             key={expense.id}
                             className="flex items-center justify-between text-sm"
@@ -1232,7 +1281,7 @@ export function EditClientDialog({
                     <FormLabel>{t("role_campaigner", true)} משויכים</FormLabel>
                     <div className="space-y-2 mt-2">
                       {assignedCampaigners && assignedCampaigners.length > 0 ? (
-                        assignedCampaigners.map((assignment: any) => (
+                        assignedCampaigners.map((assignment) => (
                           <div
                             key={assignment.id}
                             className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
@@ -1290,7 +1339,7 @@ export function EditClientDialog({
                     <FormLabel>הוסף {t("role_campaigner")}</FormLabel>
                     <CampaignerAssignmentPicker
                       assignedCampaignerIds={(assignedCampaigners || []).map(
-                        (assignment: any) => assignment.campaigner_id,
+                        (assignment) => assignment.campaigner_id,
                       )}
                       triggerClassName="mt-2 w-full"
                       onAssign={(campaignerId) =>
@@ -1529,7 +1578,7 @@ export function EditClientDialog({
                       </p>
                     ) : teamMembers.length > 0 ? (
                       <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
-                        {teamMembers.map((member: any) => (
+                        {teamMembers.map((member) => (
                           <label
                             key={member.id}
                             className="flex items-center gap-2 p-2 rounded-md bg-muted/50 cursor-pointer text-sm"
@@ -1635,7 +1684,7 @@ export function EditClientDialog({
             <ClientUpdatesTab
               clientId={client.id}
               clientName={client.name}
-              currentMoodStatus={(client as any).mood_status}
+              currentMoodStatus={client.mood_status}
             />
           </TabsContent>
         </Tabs>
