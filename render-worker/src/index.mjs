@@ -39,6 +39,20 @@ const HANDLERS = {
           )),
         savedProvider: ctx.run.provider ?? null,
         savedJobId: ctx.run.provider_job_id ?? null,
+        affordable: (next) => {
+          try {
+            const durationS = Number(ctx.run.input?.duration_s) || 5;
+            const approved = getVideoProvider(name, keys).estimate({
+              durationS,
+            });
+            const replacement = getVideoProvider(next, keys).estimate({
+              durationS,
+            });
+            return replacement.usd <= approved.usd + 0.005;
+          } catch {
+            return false;
+          }
+        },
         run: (providerName, fallbackFrom) =>
           generateClip({
             ...ctx,

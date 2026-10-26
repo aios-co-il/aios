@@ -51,6 +51,7 @@ async function openRouterReady(keys, resolveOpenRouterKey, log) {
  *   savedProvider?: string | null,
  *   savedJobId?: string | null,
  *   run: (provider: string, fallbackFrom: string | null) => Promise<any>,
+ *   affordable?: (provider: string) => boolean,
  *   log?: (line: string) => void,
  * }} options
  */
@@ -61,6 +62,9 @@ export async function runClipWithFallback({
   savedJobId = null,
   resolveOpenRouterKey = null,
   run,
+  // The user approved the price of the engine they chose; a replacement that costs more than
+  // that is skipped rather than charged on the original quote.
+  affordable = () => true,
   log = () => {},
 }) {
   if (savedJobId && savedProvider && savedProvider !== name) {
@@ -89,6 +93,10 @@ export async function runClipWithFallback({
     )
       chain.push("openrouter");
     for (const next of chain) {
+      if (!affordable(next)) {
+        log(`${next} costs more than the approved ${name} price, skipped`);
+        continue;
+      }
       try {
         log(`using ${next}`);
         return await run(next, name);

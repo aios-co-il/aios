@@ -308,3 +308,18 @@ test("an ElevenLabs key refused at submit moves to OpenRouter, not Higgsfield", 
   );
   assert.equal(other.calls.length, 1);
 });
+
+test("a replacement that costs more than the approved engine is skipped", async () => {
+  const { calls, run } = recorder({ elevenlabs: paidPlan() });
+  const result = await runClipWithFallback({
+    name: "elevenlabs",
+    keys,
+    run,
+    affordable: (provider) => provider !== "higgsfield",
+  });
+  assert.equal(result.provider, "mock");
+  assert.deepEqual(calls, [
+    ["elevenlabs", null],
+    ["mock", "elevenlabs"],
+  ]);
+});
