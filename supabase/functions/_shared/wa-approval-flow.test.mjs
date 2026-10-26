@@ -1,14 +1,31 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  APPROVAL_CONFIRM_WINDOW_MS,
+  CARMEN_EXECUTOR_TOOLS,
+  approvalBindingContext,
+  approvalConversationKey,
+  approvalPickToolResult,
+  approvalRiskClass,
+  approvalShortCode,
+  approverDecision,
   buildApprovalFlowAcceptanceCases,
+  buildApprovalPickPromptRule,
   buildNoPendingRecovery,
+  canApproveRow,
+  canRejectRow,
   formatApprovalExecutionReply,
+  formatApprovalPickReply,
+  isDeterministicApprovalPick,
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,
   isMetaApprovalTool,
+  mergeApprovalBinding,
+  parseApprovalReply,
   pickLatestPendingApproval,
+  resolveApprovalConfirm,
 } from "./wa-approval-flow.mjs";
 
 const cases = buildApprovalFlowAcceptanceCases();
@@ -112,4 +129,384 @@ test("formatApprovalExecutionReply never claims success on failure", () => {
 test("isMetaApprovalTool covers duplicate variants", () => {
   assert.equal(isMetaApprovalTool("fb_duplicate_ad_variants"), true);
   assert.equal(isMetaApprovalTool("list_clients"), false);
+});
+
+// ── Bound approvals (AIO-230) ──────────────────────────────────────────────
+
+const NOW = Date.parse("2026-10-26T12:00:00Z");
+const minutesAgo = (m) => new Date(NOW - m * 60_000).toISOString();
+const inHours = (h) => new Date(NOW + h * 3_600_000).toISOString();
+const DAVID = "11111111-1111-4111-8111-111111111111";
+const DANA = "22222222-2222-4222-8222-222222222222";
+const CONV = "conv:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function row(id, over = {}) {
+  return {
+    id,
+    status: "pending",
+    tool_name: "fb_pause",
+    action_type: "fb_pause",
+    title: `בקשה ${id.slice(0, 4)}`,
+    requested_by: DAVID,
+    created_at: minutesAgo(5),
+    expires_at: inHours(23),
+    run_id: null,
+    context: { conversation_key: CONV },
+    ...over,
+  };
+}
+const ID1 = "a1b2c3d4-0000-4000-8000-000000000001";
+const ID2 = "b2c3d4e5-0000-4000-8000-000000000002";
+const ID3 = "c3d4e5f6-0000-4000-8000-000000000003";
+const owner = {
+  userId: DAVID,
+  roles: ["owner"],
+  conversationKey: CONV,
+  nowMs: NOW,
+};
+
+test("כן runs the caller's own row from this conversation", () => {
+  const pick = resolveApprovalConfirm([row(ID1)], owner);
+  assert.equal(pick.kind, "match");
+  assert.equal(pick.via, "bound");
+  assert.equal(pick.row.id, ID1);
+});
+
+test("another user's row is not confirmed by a bare כן", () => {
+  const pick = resolveApprovalConfirm(
+    [row(ID1, { requested_by: DANA })],
+    owner,
+  );
+  assert.equal(pick.kind, "none");
+  // An approver still sees it as a candidate to pick by code.
+  assert.deepEqual(
+    pick.candidates.map((r) => r.id),
+    [ID1],
+  );
+});
+
+test("a row from another conversation is not confirmed by a bare כן", () => {
+  const pick = resolveApprovalConfirm(
+    [row(ID1, { context: { conversation_key: "wa:972500000000@c.us" } })],
+    owner,
+  );
+  assert.equal(pick.kind, "none");
+});
+
+test("expired rows are ignored everywhere", () => {
+  const expired = row(ID1, { expires_at: minutesAgo(1) });
+  const pick = resolveApprovalConfirm([expired], owner);
+  assert.equal(pick.kind, "none");
+  assert.equal(pick.candidates.length, 0);
+  const byCode = resolveApprovalConfirm([expired], {
+    ...owner,
+    code: approvalShortCode(ID1),
+  });
+  assert.equal(byCode.kind, "code_not_found");
+});
+
+test("rows older than 30 minutes need a code", () => {
+  const old = row(ID1, {
+    created_at: new Date(
+      NOW - APPROVAL_CONFIRM_WINDOW_MS - 60_000,
+    ).toISOString(),
+  });
+  assert.equal(resolveApprovalConfirm([old], owner).kind, "none");
+  const byCode = resolveApprovalConfirm([old], {
+    ...owner,
+    code: approvalShortCode(ID1),
+  });
+  assert.equal(byCode.kind, "match");
+  assert.equal(byCode.via, "code");
+});
+
+test("two bound rows → ambiguous list with codes, nothing runs", () => {
+  const pick = resolveApprovalConfirm([row(ID1), row(ID2)], owner);
+  assert.equal(pick.kind, "ambiguous");
+  assert.equal(pick.candidates.length, 2);
+  assert.equal(isDeterministicApprovalPick(pick, "כן"), true);
+  const reply = formatApprovalPickReply(pick, { nowMs: NOW });
+  assert.match(reply, /לא ביצעתי כלום/);
+  assert.ok(reply.includes(approvalShortCode(ID1)));
+  assert.ok(reply.includes(approvalShortCode(ID2)));
+  assert.match(reply, /כן \d{4}/);
+});
+
+test("role gate: a campaigner cannot run a money row, even their own", () => {
+  const campaigner = {
+    userId: DANA,
+    roles: ["campaigner"],
+    conversationKey: CONV,
+    nowMs: NOW,
+  };
+  const pick = resolveApprovalConfirm(
+    [row(ID1, { requested_by: DANA, tool_name: "fb_update_budget" })],
+    campaigner,
+  );
+  assert.equal(pick.kind, "forbidden");
+  assert.equal(pick.reason, "approver_role_required");
+  assert.match(formatApprovalPickReply(pick), /בעלים או מנהל\/ת סוכנות/);
+  for (const tool of [
+    "update_client_retainer",
+    "send_broadcast_now",
+    "create_automation",
+    "delete_lead",
+    "some_new_tool",
+  ]) {
+    assert.equal(
+      canApproveRow(
+        { tool_name: tool, requested_by: DANA },
+        { userId: DANA, roles: ["campaigner"] },
+      ).ok,
+      false,
+      tool,
+    );
+    assert.equal(
+      canApproveRow(
+        { tool_name: tool, requested_by: DANA },
+        { userId: DAVID, roles: ["agency_owner"] },
+      ).ok,
+      true,
+      tool,
+    );
+  }
+});
+
+test("role gate: non-approver may run their own low-risk row only", () => {
+  const cancel = { tool_name: "cancel_broadcast", requested_by: DANA };
+  assert.equal(
+    canApproveRow(cancel, { userId: DANA, roles: ["campaigner"] }).ok,
+    true,
+  );
+  assert.equal(
+    canApproveRow(cancel, {
+      userId: "33333333-3333-4333-8333-333333333333",
+      roles: ["campaigner"],
+    }).reason,
+    "not_requester",
+  );
+  assert.equal(
+    canApproveRow(cancel, { userId: null, roles: ["owner"] }).reason,
+    "no_identity",
+  );
+});
+
+test("a non-approver cannot pick someone else's row by code", () => {
+  const pick = resolveApprovalConfirm(
+    [row(ID1, { tool_name: "cancel_broadcast", requested_by: DAVID })],
+    {
+      userId: DANA,
+      roles: ["campaigner"],
+      conversationKey: CONV,
+      nowMs: NOW,
+      code: approvalShortCode(ID1),
+    },
+  );
+  assert.equal(pick.kind, "code_not_found");
+});
+
+test("an approver picks another user's row with כן <קוד>", () => {
+  const rows = [
+    row(ID1, { requested_by: DANA }),
+    row(ID2, { requested_by: DANA }),
+  ];
+  const pick = resolveApprovalConfirm(rows, {
+    ...owner,
+    code: approvalShortCode(ID2),
+  });
+  assert.equal(pick.kind, "match");
+  assert.equal(pick.row.id, ID2);
+});
+
+test("no identity → nothing runs and Carmen is told so", () => {
+  const pick = resolveApprovalConfirm([row(ID1)], { ...owner, userId: null });
+  assert.equal(pick.kind, "no_identity");
+  assert.equal(isDeterministicApprovalPick(pick, "כן"), false);
+  assert.match(
+    buildApprovalPickPromptRule(pick),
+    /אסור לקרוא ל-execute_pending_approval/,
+  );
+});
+
+test("rows the executor cannot run (v2 runs, unknown tools) are not candidates", () => {
+  const rows = [
+    row(ID1, { run_id: "dddddddd-0000-4000-8000-000000000000" }),
+    row(ID2, { tool_name: "code_fix", action_type: "code_fix" }),
+    row(ID3, { tool_name: "send_message", action_type: "agent_direct_tool" }),
+  ];
+  const pick = resolveApprovalConfirm(rows, {
+    ...owner,
+    conversationKey: null,
+  });
+  assert.deepEqual(
+    pick.candidates.map((r) => r.id),
+    [ID3],
+  );
+});
+
+test("parseApprovalReply reads codes and keeps plain phrases", () => {
+  assert.deepEqual(parseApprovalReply("כן 4821"), {
+    approve: true,
+    reject: false,
+    code: "4821",
+  });
+  assert.deepEqual(parseApprovalReply("מאשר, 4821!"), {
+    approve: true,
+    reject: false,
+    code: "4821",
+  });
+  assert.deepEqual(parseApprovalReply("כן קוד #4821"), {
+    approve: true,
+    reject: false,
+    code: "4821",
+  });
+  assert.deepEqual(parseApprovalReply("לא 4821"), {
+    approve: false,
+    reject: true,
+    code: "4821",
+  });
+  assert.deepEqual(parseApprovalReply("כן"), {
+    approve: true,
+    reject: false,
+    code: null,
+  });
+  assert.equal(parseApprovalReply("4821").approve, false);
+  assert.equal(parseApprovalReply("כן 4821 וגם תשלחי דוח").approve, false);
+});
+
+test("short codes are stable 4-digit codes that avoid years and round hundreds", () => {
+  assert.equal(approvalShortCode(ID1), approvalShortCode(ID1));
+  assert.match(approvalShortCode(ID1), /^\d{4}$/);
+  for (let i = 0; i < 2000; i++) {
+    const id = `${i.toString(16).padStart(8, "0")}-0000-4000-8000-000000000000`;
+    const n = Number(approvalShortCode(id));
+    assert.ok(!(n >= 1900 && n <= 2099), id);
+    assert.notEqual(n % 100, 0, id);
+  }
+});
+
+test("conversation keys: chat id, WhatsApp chat, phone fallback, none", () => {
+  assert.equal(approvalConversationKey({ conversationId: "c1" }), "conv:c1");
+  assert.equal(
+    approvalConversationKey({
+      surface: "whatsapp",
+      waChatId: "972501234567@c.us",
+    }),
+    "wa:972501234567@c.us",
+  );
+  assert.equal(
+    approvalConversationKey({ surface: "whatsapp", phone: "+972-50-123-4567" }),
+    "wa_phone:501234567",
+  );
+  assert.equal(approvalConversationKey({ surface: "task" }), null);
+  assert.equal(approvalBindingContext({ surface: "task" }), null);
+});
+
+test("binding is stamped only on the requester's own unbound row", () => {
+  const binding = approvalBindingContext({
+    surface: "aios",
+    conversationId: "c1",
+  });
+  const fresh = { requested_by: DAVID, context: { caller_role: "owner" } };
+  assert.deepEqual(mergeApprovalBinding(fresh, { userId: DAVID, binding }), {
+    caller_role: "owner",
+    conversation_key: "conv:c1",
+    conversation_surface: "aios",
+  });
+  assert.equal(mergeApprovalBinding(fresh, { userId: DANA, binding }), null);
+  assert.equal(
+    mergeApprovalBinding(
+      { requested_by: DAVID, context: { conversation_key: "conv:x" } },
+      { userId: DAVID, binding },
+    ),
+    null,
+  );
+  assert.equal(
+    mergeApprovalBinding(fresh, { userId: DAVID, binding: null }),
+    null,
+  );
+});
+
+test("approverDecision: tenant, role and reject rules for the executor", () => {
+  const money = { tool_name: "fb_update_budget", requested_by: DANA };
+  assert.deepEqual(approverDecision({ row: money, userId: null }), {
+    ok: false,
+    status: 403,
+    error: "approver_required",
+  });
+  assert.equal(
+    approverDecision({
+      row: money,
+      userId: DAVID,
+      roles: ["owner"],
+      member: false,
+    }).status,
+    404,
+  );
+  assert.equal(
+    approverDecision({
+      row: money,
+      userId: DAVID,
+      roles: ["super_admin"],
+      member: false,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    approverDecision({
+      row: money,
+      userId: DANA,
+      roles: ["campaigner"],
+      member: true,
+    }).error,
+    "approver_role_required",
+  );
+  // A requester may withdraw (reject) their own request without an approver role.
+  assert.equal(
+    approverDecision({
+      row: money,
+      userId: DANA,
+      roles: ["campaigner"],
+      member: true,
+      mode: "reject",
+    }).ok,
+    true,
+  );
+  assert.equal(
+    canRejectRow(money, { userId: DAVID, roles: ["team_manager"] }).ok,
+    false,
+  );
+});
+
+test("risk classes cover every tool the executor runs", () => {
+  for (const tool of CARMEN_EXECUTOR_TOOLS)
+    assert.notEqual(approvalRiskClass({ tool_name: tool }), "unknown", tool);
+});
+
+test("CARMEN_EXECUTOR_TOOLS matches carmen-approval-execute", () => {
+  const src = readFileSync(
+    new URL("../carmen-approval-execute/index.ts", import.meta.url),
+    "utf8",
+  );
+  for (const tool of CARMEN_EXECUTOR_TOOLS)
+    assert.ok(
+      src.includes(`"${tool}"`) || new RegExp(`\\b${tool}:`).test(src),
+      `${tool} not handled by carmen-approval-execute`,
+    );
+});
+
+test("execute_pending_approval never runs a row other than the bound one", () => {
+  const pick = resolveApprovalConfirm(
+    [row(ID1), row(ID2, { requested_by: DANA })],
+    owner,
+  );
+  assert.equal(pick.kind, "match");
+  const res = approvalPickToolResult(pick, { requestedId: ID2, nowMs: NOW });
+  assert.equal(res.success, false);
+  assert.equal(res.error, "approval_not_bound");
+  assert.equal(res.claim_execution, false);
+  const none = approvalPickToolResult(resolveApprovalConfirm([], owner), {
+    nowMs: NOW,
+  });
+  assert.equal(none.error, "no_bound_approval");
 });

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import {
+  approvalEndpoint,
+  approvalOutcome,
+  approvalRequestBody,
+  type ApprovalDecision,
+} from "@/lib/approvalDecision";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,46 +37,54 @@ function StatusBadge({ status }: { status: string }) {
       label: "בוצע",
     },
     expired: { cls: "bg-muted text-muted-foreground", label: "פג תוקף" },
+    executing: {
+      cls: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+      label: "בביצוע",
+    },
+    failed: {
+      cls: "bg-red-500/15 text-red-700 dark:text-red-300",
+      label: "נכשל",
+    },
   };
   const m = map[status] ?? map.pending;
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
+/** Body of a non-2xx edge-function response, so the real reason reaches the user. */
+async function functionErrorBody(error: Error): Promise<unknown> {
+  if (
+    error instanceof FunctionsHttpError &&
+    error.context instanceof Response
+  ) {
+    const body: unknown = await error.context.json().catch(() => null);
+    if (body) return body;
+  }
+  return { error: error.message };
+}
+
 function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
   const qc = useQueryClient();
-  const { tenantId } = useCurrentTenant();
 
+  // The server decides and runs the row (AIO-230): no status flip from the browser.
   const decide = useMutation({
-    mutationFn: async (decision: "approved" | "rejected") => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("agent_approval_queue")
-        .update({
-          status: decision,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("id", item.id);
-      if (error) throw error;
-
-      if (decision === "approved") {
-        try {
-          await supabase.functions.invoke("resume-agent-run", {
-            body: { approval_id: item.id, decision },
-          });
-        } catch (e) {
-          console.warn("resume-agent-run failed", e);
-        }
-      }
+    mutationFn: async (decision: ApprovalDecision) => {
+      const { data, error } = await supabase.functions.invoke(
+        approvalEndpoint(item),
+        { body: approvalRequestBody(item, decision) },
+      );
+      const outcome = approvalOutcome(
+        decision,
+        error ? await functionErrorBody(error) : data,
+      );
+      if (!outcome.ok) throw new Error(outcome.message);
+      return outcome.message;
     },
-    onSuccess: (_, d) => {
-      qc.invalidateQueries({ queryKey: ["agent-approvals", tenantId] });
-      qc.invalidateQueries({ queryKey: ["agent-approvals-global", tenantId] });
-      toast.success(d === "approved" ? "אושר" : "נדחה");
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["agent-approvals"] });
+      qc.invalidateQueries({ queryKey: ["agent-approvals-global"] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onSuccess: (message) => toast.success(message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const expired = item.expires_at && new Date(item.expires_at) < new Date();
@@ -115,6 +129,12 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
         </pre>
       )}
 
+      {item.status === "failed" && item.execution_result?.error && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {String(item.execution_result.error)}
+        </p>
+      )}
+
       {item.expires_at && item.status === "pending" && (
         <p className="text-xs text-muted-foreground">
           תוקף עד: {new Date(item.expires_at).toLocaleString("he-IL")}
@@ -125,7 +145,7 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => decide.mutate("approved")}
+            onClick={() => decide.mutate("approve")}
             disabled={decide.isPending}
             className="bg-emerald-600 hover:bg-emerald-700"
           >
@@ -134,7 +154,7 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => decide.mutate("rejected")}
+            onClick={() => decide.mutate("reject")}
             disabled={decide.isPending}
           >
             <XCircle className="h-4 w-4 ml-1" /> דחה
@@ -158,7 +178,15 @@ export function ApprovalsTab({ agent }: { agent: any }) {
         .order("created_at", { ascending: false })
         .limit(100);
       if (tab === "pending") q = q.eq("status", "pending");
-      else q = q.in("status", ["approved", "rejected", "executed", "expired"]);
+      else
+        q = q.in("status", [
+          "approved",
+          "executing",
+          "rejected",
+          "executed",
+          "failed",
+          "expired",
+        ]);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

@@ -1,6 +1,17 @@
 // resume-agent-run — apply approval decision, log the outcome on the action trace,
 // and re-invoke run-ai-agent-v2 to continue the ReAct loop from the next step.
+//
+// AIO-230: only run-ai-agent-v2 run approvals (run_id set) are decided here. Carmen's
+// own approvals run through carmen-approval-execute. The reviewer is the caller's JWT
+// user (service callers may name reviewer_id), checked for tenant and approver role,
+// and the row is claimed atomically so a double click cannot run the tool twice.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { requireAuth } from "../_shared/security.ts";
+import { asUuidOrNull } from "../_shared/uuid.ts";
+import {
+  authorizeApprovalActor,
+  claimApprovalRow,
+} from "../_shared/approval-approver.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +24,12 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
+    const auth = await requireAuth(req);
+    if (!auth)
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     const { approval_id, decision, reviewer_id } = await req.json();
     if (
       !approval_id ||
@@ -37,7 +54,42 @@ Deno.serve(async (req) => {
       .single();
     if (aErr || !approval) throw aErr ?? new Error("not found");
 
-    if (approval.status !== "pending") {
+    // Carmen approvals have no run; carmen-approval-execute runs them and checks the approver.
+    if (!approval.run_id) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "use_carmen_approval_execute" }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // A signed-in caller decides as themselves; only service callers name the reviewer.
+    const reviewerId =
+      auth.kind === "user" ? auth.userId : asUuidOrNull(reviewer_id);
+    const authz = await authorizeApprovalActor(
+      supabase,
+      approval,
+      reviewerId,
+      decision === "rejected" ? "reject" : "execute",
+    );
+    if (!authz.ok) {
+      return new Response(JSON.stringify({ ok: false, error: authz.error }), {
+        status: authz.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Claim once (pending → approved/rejected) so the decision applies a single time.
+    const claimed =
+      approval.status === "pending"
+        ? await claimApprovalRow(supabase, approval_id, reviewerId, {
+            from: ["pending"],
+            to: decision,
+          })
+        : null;
+    if (!claimed) {
       return new Response(
         JSON.stringify({
           ok: false,
@@ -53,29 +105,7 @@ Deno.serve(async (req) => {
 
     let executionResult: any = null;
 
-    if (
-      decision === "approved" &&
-      (approval.tool_name === "create_automation" ||
-        approval.action_type === "agent_direct_tool")
-    ) {
-      // Carmen authoring: route to carmen-approval-execute, which materializes the
-      // (disabled) flow automation from the approved spec. Direct agent tool calls
-      // (carmen-tools-mcp) also execute there. Kept as explicit special-cases so no
-      // other tool's behavior changes.
-      try {
-        const { data, error } = await supabase.functions.invoke(
-          "carmen-approval-execute",
-          {
-            body: { approval_id, approved_by: reviewer_id ?? null },
-          },
-        );
-        executionResult = error
-          ? { ok: false, error: String(error?.message ?? error) }
-          : (data ?? { ok: true });
-      } catch (e: any) {
-        executionResult = { ok: false, error: String(e?.message ?? e) };
-      }
-    } else if (decision === "approved" && approval.tool_name) {
+    if (decision === "approved" && approval.tool_name) {
       // Look up the tool handler
       const { data: tool } = await supabase
         .from("agent_tools")
@@ -92,6 +122,7 @@ Deno.serve(async (req) => {
               body: {
                 ...(approval.tool_input ?? {}),
                 _approval_id: approval_id,
+                _approved_by: reviewerId,
                 _run_id: approval.run_id,
                 _tenant_id: approval.tenant_id,
                 _agent_id: approval.agent_id,
@@ -121,15 +152,13 @@ Deno.serve(async (req) => {
     await supabase
       .from("agent_approval_queue")
       .update({
-        // A direct agent tool that failed keeps "failed" (carmen-approval-execute already wrote it).
         status:
           decision !== "approved"
             ? "rejected"
-            : approval.action_type === "agent_direct_tool" &&
-                executionResult?.ok === false
+            : executionResult?.ok === false
               ? "failed"
               : "executed",
-        approved_by: reviewer_id ?? null,
+        approved_by: reviewerId,
         approved_at: new Date().toISOString(),
         executed_at: decision === "approved" ? new Date().toISOString() : null,
         execution_result: executionResult,

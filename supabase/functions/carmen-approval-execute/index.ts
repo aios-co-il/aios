@@ -1,8 +1,24 @@
 // Carmen Approval Execute — runs a pending row from agent_approval_queue.
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
-// Used by run-ai-agent (when Carmen calls execute_pending_approval) and by campaign-scheduler-cron.
+// Used by run-ai-agent (when Carmen calls execute_pending_approval) and by the
+// approvals UI (ApprovalsTab), which also rejects through { decision: "reject" }.
+//
+// AIO-230: the approver is the caller's JWT user, or `approved_by` for service callers.
+// They must belong to the row's tenant; money / external_send / config / destructive
+// rows need owner, agency_owner or super_admin (_shared/wa-approval-flow.mjs). Expired
+// rows are refused, and a row is claimed atomically ('executing') so it runs once.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { requireAuth } from "../_shared/security.ts";
+import {
+  authorizeApprovalActor,
+  claimApprovalRow,
+  expireApprovalRow,
+} from "../_shared/approval-approver.ts";
+import {
+  CARMEN_EXECUTOR_TOOLS,
+  isApprovalExpired,
+} from "../_shared/wa-approval-flow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,29 +75,77 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
+    const auth = await requireAuth(req);
+    if (!auth)
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: corsHeaders,
+      });
     const supabase = createClient(SB_URL, SB_SERVICE);
     const body = await req.json().catch(() => ({}));
-    // Accept `_approval_id` too: resume-agent-run (the UI approval path) invokes
-    // this function with {...tool_input, _approval_id} when routing via agent_tools.
-    const approval_id = body.approval_id || body._approval_id;
+    // Accept `_approval_id` too: resume-agent-run invokes agent_tools handlers
+    // with {...tool_input, _approval_id, _approved_by}.
+    const approval_id = asUuidOrNull(body.approval_id || body._approval_id);
+    // A signed-in caller approves as themselves; only service callers name the approver.
     // Never write literal "system" into uuid columns (WhatsApp / automation callers).
-    const approved_by = asUuidOrNull(body.approved_by);
+    const approved_by =
+      auth.kind === "user"
+        ? auth.userId
+        : asUuidOrNull(body.approved_by ?? body._approved_by);
     if (!approval_id)
       return new Response(JSON.stringify({ error: "approval_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
 
-    const { data: row, error } = await supabase
+    const { data: loaded, error } = await supabase
       .from("agent_approval_queue")
       .select("*")
       .eq("id", approval_id)
       .maybeSingle();
-    if (error || !row)
+    if (error || !loaded)
       return new Response(JSON.stringify({ error: "approval_not_found" }), {
         status: 404,
         headers: corsHeaders,
       });
+    let row: any = loaded;
+
+    const mode = body.decision === "reject" ? "reject" : "execute";
+    const authz = await authorizeApprovalActor(
+      supabase,
+      row,
+      approved_by,
+      mode,
+    );
+    if (!authz.ok)
+      return new Response(JSON.stringify({ error: authz.error, approval_id }), {
+        status: authz.status,
+        headers: corsHeaders,
+      });
+
+    if (mode === "reject") {
+      const { data: rejected } = await supabase
+        .from("agent_approval_queue")
+        .update({
+          status: "rejected",
+          approved_by,
+          approved_at: new Date().toISOString(),
+          execution_result: { reason: body.reason || null },
+        })
+        .eq("id", approval_id)
+        .in("status", ["pending", "approved"])
+        .select("id");
+      if (!rejected?.length)
+        return new Response(
+          JSON.stringify({ error: "not_pending", status: row.status }),
+          { status: 409, headers: corsHeaders },
+        );
+      return new Response(
+        JSON.stringify({ success: true, rejected: true, approval_id }),
+        { headers: corsHeaders },
+      );
+    }
+
     if (row.status === "executed")
       return new Response(
         JSON.stringify({
@@ -96,6 +160,49 @@ Deno.serve(async (req) => {
         status: 400,
         headers: corsHeaders,
       });
+    if (
+      row.action_type !== "agent_direct_tool" &&
+      !CARMEN_EXECUTOR_TOOLS.includes(String(row.tool_name || ""))
+    )
+      return new Response(
+        JSON.stringify({ error: "unknown_tool", tool_name: row.tool_name }),
+        { status: 400, headers: corsHeaders },
+      );
+    if (isApprovalExpired(row)) {
+      await expireApprovalRow(supabase, approval_id);
+      return new Response(JSON.stringify({ error: "expired", approval_id }), {
+        status: 410,
+        headers: corsHeaders,
+      });
+    }
+    // One run per row: only the caller that moves it to 'executing' continues.
+    const claimed = await claimApprovalRow(supabase, approval_id, approved_by);
+    if (!claimed) {
+      const { data: current } = await supabase
+        .from("agent_approval_queue")
+        .select("status, execution_result")
+        .eq("id", approval_id)
+        .maybeSingle();
+      if (current?.status === "executed")
+        return new Response(
+          JSON.stringify({
+            success: true,
+            already_executed: true,
+            result: current.execution_result,
+          }),
+          { headers: corsHeaders },
+        );
+      return new Response(
+        JSON.stringify({
+          error:
+            current?.status === "executing" ? "in_progress" : "not_pending",
+          status: current?.status ?? null,
+          approval_id,
+        }),
+        { status: 409, headers: corsHeaders },
+      );
+    }
+    row = claimed;
 
     // Special handling: schedule_campaign_toggle inserts into campaign_schedules instead of running FB/Google
     if (row.tool_name === "schedule_campaign_toggle") {
@@ -820,6 +927,18 @@ Deno.serve(async (req) => {
       const r = await invokeEdgeFn("run-ai-agent", {
         direct_tool: { action: "execute_approved", approval_id, approved_by },
       });
+      // run-ai-agent records the outcome; if it never got that far, do not leave
+      // the claimed row in 'executing'.
+      if (!r.ok)
+        await supabase
+          .from("agent_approval_queue")
+          .update({
+            status: "failed",
+            executed_at: new Date().toISOString(),
+            execution_result: r.json,
+          })
+          .eq("id", approval_id)
+          .eq("status", "executing");
       return new Response(
         JSON.stringify({
           success: r.ok,
@@ -831,11 +950,20 @@ Deno.serve(async (req) => {
     }
 
     const route = TOOL_TO_FUNCTION[row.tool_name];
-    if (!route)
+    if (!route) {
+      await supabase
+        .from("agent_approval_queue")
+        .update({
+          status: "failed",
+          executed_at: new Date().toISOString(),
+          execution_result: { error: "unknown_tool" },
+        })
+        .eq("id", approval_id);
       return new Response(
         JSON.stringify({ error: "unknown_tool", tool_name: row.tool_name }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     // Normalize legacy update_facebook_budget → carmen-fb-tools entity_id
     const rawInput = (row.tool_input as any) || {};

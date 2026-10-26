@@ -228,3 +228,553 @@ export function buildApprovalFlowAcceptanceCases() {
     ],
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Bound approvals (AIO-230)
+//
+// A chat "כן" runs only a pending row the same user requested in the same
+// conversation within the last 30 minutes. Anything else is listed with a short
+// code ("כן 4821" picks one). Money, external sends, config and destructive rows
+// need an approver role. carmen-approval-execute applies the same role gate to
+// every caller, so the chat rules here are the first line, not the only one.
+// ───────────────────────────────────────────────────────────────────────────
+
+export const APPROVAL_CONFIRM_WINDOW_MS = 30 * 60 * 1000;
+
+/** Roles that may approve money, external_send, config and destructive rows. */
+export const APPROVER_ROLES = Object.freeze([
+  "owner",
+  "agency_owner",
+  "super_admin",
+]);
+
+/** Columns the chat picker needs from agent_approval_queue. */
+export const APPROVAL_PICK_COLUMNS =
+  "id, action_type, title, description, tool_name, tool_input, context, created_at, status, requested_by, expires_at, run_id";
+
+/** Risk class per approval tool_name (direct-tool rows use the called tool's name). */
+const APPROVAL_RISK_BY_TOOL = Object.freeze({
+  // Ad spend and delivery (Meta / Google)
+  fb_create_campaign: "money",
+  fb_create_adset: "money",
+  fb_create_ad: "money",
+  fb_update_budget: "money",
+  fb_pause: "money",
+  fb_resume: "money",
+  fb_duplicate_ad_variants: "money",
+  duplicate_facebook_ad_variants: "money",
+  toggle_facebook_campaign: "money",
+  update_facebook_budget: "money",
+  duplicate_facebook_campaign: "money",
+  gads_pause: "money",
+  gads_resume: "money",
+  gads_update_budget: "money",
+  schedule_campaign_toggle: "money",
+  // Accounting
+  create_one_time_income: "money",
+  delete_one_time_income: "money",
+  record_income_payment: "money",
+  delete_income_payment: "money",
+  record_expense_payment: "money",
+  delete_expense_payment: "money",
+  update_client_retainer: "money",
+  create_finance_entry: "money",
+  // Messages that leave the agency
+  send_broadcast_now: "external_send",
+  schedule_broadcast: "external_send",
+  send_message: "external_send",
+  send_whatsapp_via_gateway: "external_send",
+  publish_social_post: "external_send",
+  reply_to_social_comment: "external_send",
+  hide_social_comment: "external_send",
+  send_calendar_invite: "external_send",
+  update_calendar_invite: "external_send",
+  cancel_calendar_invite: "external_send",
+  join_meeting_for_client: "external_send",
+  // Messages to staff
+  send_whatsapp_to_staff: "notify_staff",
+  send_message_to_campaigner: "notify_staff",
+  // Configuration, access and agent behavior
+  fb_create_creative_from_media: "config",
+  fb_replace_lead_form: "config",
+  create_automation: "config",
+  edit_automation: "config",
+  toggle_automation: "config",
+  delete_automation: "config",
+  toggle_integration: "config",
+  create_agent: "config",
+  update_agent: "config",
+  create_skill: "config",
+  update_skill: "config",
+  create_campaigner: "config",
+  create_sales_person: "config",
+  create_agency: "config",
+  connect_google_ads_account: "config",
+  connect_client_meta_ad_account: "config",
+  create_meta_lead_form: "config",
+  set_automation_meta_lead_form: "config",
+  set_campaign_table_active: "config",
+  create_whatsapp_instance: "config",
+  // Deletions
+  delete_lead: "destructive",
+  delete_task: "destructive",
+  delete_memory: "destructive",
+  // Internal, reversible
+  cancel_broadcast: "internal_write",
+});
+
+/** Classes only an approver role may approve. Unknown tools are treated as approver-only. */
+export const APPROVER_ONLY_RISK_CLASSES = Object.freeze([
+  "money",
+  "external_send",
+  "config",
+  "destructive",
+  "unknown",
+]);
+
+/**
+ * tool_names carmen-approval-execute can run (besides action_type='agent_direct_tool').
+ * A test checks each one against the executor's source.
+ */
+export const CARMEN_EXECUTOR_TOOLS = Object.freeze([
+  "fb_create_campaign",
+  "fb_create_adset",
+  "fb_create_ad",
+  "fb_create_creative_from_media",
+  "fb_replace_lead_form",
+  "fb_update_budget",
+  "fb_pause",
+  "fb_resume",
+  "fb_duplicate_ad_variants",
+  "duplicate_facebook_ad_variants",
+  "update_facebook_budget",
+  "toggle_facebook_campaign",
+  "duplicate_facebook_campaign",
+  "gads_pause",
+  "gads_resume",
+  "gads_update_budget",
+  "schedule_campaign_toggle",
+  "create_automation",
+  "toggle_automation",
+  "delete_automation",
+  "edit_automation",
+  "send_broadcast_now",
+  "schedule_broadcast",
+  "cancel_broadcast",
+  "create_one_time_income",
+  "delete_one_time_income",
+  "record_income_payment",
+  "delete_income_payment",
+  "record_expense_payment",
+  "delete_expense_payment",
+  "update_client_retainer",
+]);
+
+const CARMEN_EXECUTOR_TOOL_SET = new Set(CARMEN_EXECUTOR_TOOLS);
+
+/** @returns {'money'|'external_send'|'notify_staff'|'config'|'destructive'|'internal_write'|'unknown'} */
+export function approvalRiskClass(row) {
+  const tool = String(row?.tool_name || "");
+  return APPROVAL_RISK_BY_TOOL[tool] || "unknown";
+}
+
+export function approvalNeedsApproverRole(row) {
+  return APPROVER_ONLY_RISK_CLASSES.includes(approvalRiskClass(row));
+}
+
+export function isApproverRole(roles) {
+  const list = Array.isArray(roles) ? roles : roles ? [roles] : [];
+  return list.some((r) => APPROVER_ROLES.includes(String(r)));
+}
+
+/** A row carmen-approval-execute knows how to run (not a run-ai-agent-v2 run step). */
+export function isCarmenExecutableApproval(row) {
+  if (!row || row.run_id) return false;
+  return (
+    row.action_type === "agent_direct_tool" ||
+    CARMEN_EXECUTOR_TOOL_SET.has(String(row.tool_name || ""))
+  );
+}
+
+/**
+ * May this user run this row? Approver-only classes need an approver role;
+ * the rest need the requester or an approver.
+ * @returns {{ ok: boolean, reason: string|null, risk_class: string }}
+ */
+export function canApproveRow(row, { userId, roles } = {}) {
+  const risk_class = approvalRiskClass(row);
+  if (!userId) return { ok: false, reason: "no_identity", risk_class };
+  const approver = isApproverRole(roles);
+  if (APPROVER_ONLY_RISK_CLASSES.includes(risk_class)) {
+    return approver
+      ? { ok: true, reason: null, risk_class }
+      : { ok: false, reason: "approver_role_required", risk_class };
+  }
+  if (approver || (row?.requested_by && row.requested_by === userId))
+    return { ok: true, reason: null, risk_class };
+  return { ok: false, reason: "not_requester", risk_class };
+}
+
+/** Rejecting is open to the requester (withdraw) and to approvers. */
+export function canRejectRow(row, { userId, roles } = {}) {
+  if (!userId) return { ok: false, reason: "no_identity" };
+  if (
+    isApproverRole(roles) ||
+    (row?.requested_by && row.requested_by === userId)
+  )
+    return { ok: true, reason: null };
+  return { ok: false, reason: "not_requester" };
+}
+
+/**
+ * Server-side decision for carmen-approval-execute / resume-agent-run.
+ * `member` = the approver belongs to the row's tenant (tenant_users or a tenant role).
+ * @returns {{ ok: true } | { ok: false, status: number, error: string }}
+ */
+export function approverDecision({ row, userId, roles, member, mode } = {}) {
+  if (!userId) return { ok: false, status: 403, error: "approver_required" };
+  const list = Array.isArray(roles) ? roles : [];
+  // Do not reveal another tenant's rows.
+  if (!member && !list.includes("super_admin"))
+    return { ok: false, status: 404, error: "approval_not_found" };
+  const gate =
+    mode === "reject"
+      ? canRejectRow(row, { userId, roles: list })
+      : canApproveRow(row, { userId, roles: list });
+  if (!gate.ok) return { ok: false, status: 403, error: gate.reason };
+  return { ok: true };
+}
+
+export function isApprovalExpired(row, nowMs = Date.now()) {
+  if (!row?.expires_at) return false;
+  const t = Date.parse(row.expires_at);
+  return Number.isFinite(t) && t <= nowMs;
+}
+
+/**
+ * Identity of the conversation a request was made in.
+ * Command Center / internal chat: the ai_conversations id. WhatsApp: the chat id
+ * (falls back to the sender's phone). Other surfaces have none, so their rows are
+ * never confirmed by a bare "כן".
+ */
+export function approvalConversationKey({
+  surface,
+  conversationId,
+  waChatId,
+  phone,
+} = {}) {
+  if (conversationId) return `conv:${conversationId}`;
+  if (waChatId) return `wa:${waChatId}`;
+  if (surface === "whatsapp") {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length >= 9) return `wa_phone:${digits.slice(-9)}`;
+  }
+  return null;
+}
+
+/** Context fields stamped on a new approval row. Null when there is no conversation. */
+export function approvalBindingContext(input = {}) {
+  const key = approvalConversationKey(input);
+  if (!key) return null;
+  return { conversation_key: key, conversation_surface: input.surface || null };
+}
+
+/**
+ * New context for a just-created row, or null when nothing should change: only the
+ * requester's own row is bound, and an existing binding is never moved.
+ */
+export function mergeApprovalBinding(row, { userId, binding } = {}) {
+  if (!row || !binding || !userId) return null;
+  if (row.requested_by !== userId) return null;
+  if (row.context?.conversation_key) return null;
+  const base =
+    row.context &&
+    typeof row.context === "object" &&
+    !Array.isArray(row.context)
+      ? row.context
+      : {};
+  return { ...base, ...binding };
+}
+
+/**
+ * Short numeric code for a row, stable for its id. Years (1900-2099) and round
+ * hundreds are skipped so a reply like "כן 2026" or "כן 5000" rarely hits a code.
+ */
+export function approvalShortCode(id) {
+  const hex = String(id || "")
+    .replace(/[^0-9a-f]/gi, "")
+    .slice(0, 8);
+  let n = hex ? parseInt(hex, 16) % 10000 : 0;
+  for (let i = 0; i < 10; i++) {
+    const looksNatural = (n >= 1900 && n <= 2099) || n % 100 === 0;
+    if (!looksNatural) break;
+    n = (n + 4321) % 10000;
+  }
+  return String(n).padStart(4, "0");
+}
+
+const APPROVE_WITH_CODE_RE =
+  /^(?:כן|מאשר|מאשרת|אשר|אשרי|תאשרי|yes|approve|ok)[\s,:\-–]*(?:קוד\s*)?#?(\d{4})[\s.!]*$/iu;
+const REJECT_WITH_CODE_RE =
+  /^(?:לא|דחה|דחי|בטל|בטלי|no|reject|cancel)[\s,:\-–]*(?:קוד\s*)?#?(\d{4})[\s.!]*$/iu;
+
+/**
+ * Classify a chat reply. "כן 4821" approves code 4821; "לא 4821" rejects it.
+ * @returns {{ approve: boolean, reject: boolean, code: string|null }}
+ */
+export function parseApprovalReply(text) {
+  const t = normalizeApprovalText(text);
+  const a = t.match(APPROVE_WITH_CODE_RE);
+  if (a) return { approve: true, reject: false, code: a[1] };
+  const r = t.match(REJECT_WITH_CODE_RE);
+  if (r) return { approve: false, reject: true, code: r[1] };
+  return {
+    approve: isExplicitApprovalPhrase(t),
+    reject: isExplicitRejectionPhrase(t),
+    code: null,
+  };
+}
+
+/**
+ * Decide which pending row a confirmation refers to.
+ * rows: newest-first agent_approval_queue rows (APPROVAL_PICK_COLUMNS) of the tenant.
+ * @returns {{
+ *   kind: 'match'|'forbidden'|'ambiguous'|'none'|'code_not_found'|'no_identity',
+ *   via?: 'bound'|'code', row?: any, reason?: string, code?: string,
+ *   candidates: any[], pickable: any[], blocked: number
+ * }}
+ */
+export function resolveApprovalConfirm(
+  rows,
+  {
+    userId,
+    roles,
+    conversationKey,
+    code,
+    nowMs = Date.now(),
+    windowMs = APPROVAL_CONFIRM_WINDOW_MS,
+  } = {},
+) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!userId)
+    return { kind: "no_identity", candidates: [], pickable: [], blocked: 0 };
+  const live = list.filter(
+    (r) =>
+      r.status === "pending" &&
+      !isApprovalExpired(r, nowMs) &&
+      isCarmenExecutableApproval(r),
+  );
+  const who = { userId, roles };
+  const pickable = live.filter((r) => canApproveRow(r, who).ok);
+
+  if (code) {
+    const byCode = pickable.filter((r) => approvalShortCode(r.id) === code);
+    if (byCode.length === 1)
+      return {
+        kind: "match",
+        via: "code",
+        row: byCode[0],
+        candidates: [],
+        pickable,
+        blocked: 0,
+      };
+    if (byCode.length > 1)
+      return {
+        kind: "ambiguous",
+        via: "code",
+        candidates: byCode,
+        pickable,
+        blocked: 0,
+      };
+    return {
+      kind: "code_not_found",
+      code,
+      candidates: pickable,
+      pickable,
+      blocked: 0,
+    };
+  }
+
+  const bound = conversationKey
+    ? live.filter((r) => {
+        if (r.requested_by !== userId) return false;
+        if (r.context?.conversation_key !== conversationKey) return false;
+        const created = Date.parse(r.created_at);
+        return Number.isFinite(created) && nowMs - created <= windowMs;
+      })
+    : [];
+  const allowed = bound.filter((r) => canApproveRow(r, who).ok);
+  const blocked = bound.length - allowed.length;
+
+  if (bound.length === 1) {
+    if (allowed.length === 1)
+      return {
+        kind: "match",
+        via: "bound",
+        row: bound[0],
+        candidates: [],
+        pickable,
+        blocked: 0,
+      };
+    return {
+      kind: "forbidden",
+      via: "bound",
+      row: bound[0],
+      reason: canApproveRow(bound[0], who).reason,
+      candidates: [],
+      pickable,
+      blocked,
+    };
+  }
+  if (bound.length > 1) {
+    if (allowed.length === 0)
+      return {
+        kind: "forbidden",
+        via: "bound",
+        row: bound[0],
+        reason: canApproveRow(bound[0], who).reason,
+        candidates: [],
+        pickable,
+        blocked,
+      };
+    return {
+      kind: "ambiguous",
+      via: "bound",
+      candidates: allowed,
+      pickable,
+      blocked,
+    };
+  }
+  return { kind: "none", candidates: pickable, pickable, blocked: 0 };
+}
+
+/** A short reply that Carmen answers without the LLM (execute, refuse, or list). */
+export function isDeterministicApprovalPick(pick, text) {
+  if (!pick) return false;
+  if (normalizeApprovalText(text).length > 40) return false;
+  return (
+    pick.kind === "match" ||
+    pick.kind === "forbidden" ||
+    pick.kind === "ambiguous"
+  );
+}
+
+function approvalAgeHe(createdAt, nowMs) {
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return "";
+  const min = Math.max(0, Math.round((nowMs - t) / 60000));
+  if (min < 1) return "עכשיו";
+  if (min < 60) return `לפני ${min} דק׳`;
+  const hours = Math.round(min / 60);
+  if (hours < 24) return hours === 1 ? "לפני שעה" : `לפני ${hours} שעות`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "לפני יום" : `לפני ${days} ימים`;
+}
+
+/** "• 4821 · שינוי תקציב FB … (לפני 5 דק׳)" lines, at most `limit`. */
+export function formatApprovalCandidateLines(
+  candidates,
+  { nowMs = Date.now(), limit = 5 } = {},
+) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  const lines = list.slice(0, limit).map((r) => {
+    const title = r.title || r.tool_name || "פעולה";
+    const age = approvalAgeHe(r.created_at, nowMs);
+    return `• ${approvalShortCode(r.id)} · ${title}${age ? ` (${age})` : ""}`;
+  });
+  if (list.length > limit)
+    lines.push(`ועוד ${list.length - limit} בקשות במסך האישורים`);
+  return lines;
+}
+
+function approverOnlyText(row) {
+  const title = row?.title || row?.tool_name || "הפעולה";
+  return `"${title}" דורשת אישור של בעלים או מנהל/ת סוכנות, ולכן לא ביצעתי אותה. הבקשה ממתינה בתור האישורים.`;
+}
+
+/** Text Carmen sends for a non-match pick on the deterministic path. */
+export function formatApprovalPickReply(pick, { nowMs = Date.now() } = {}) {
+  if (!pick) return "";
+  if (pick.kind === "forbidden") {
+    if (pick.reason === "approver_role_required")
+      return approverOnlyText(pick.row);
+    return "לא ביצעתי כלום: אין לך הרשאה לאשר את הבקשה הזו.";
+  }
+  const lines = formatApprovalCandidateLines(pick.candidates, { nowMs });
+  if (lines.length === 0)
+    return "לא ביצעתי כלום: אין כרגע בקשה פתוחה שאפשר לאשר מכאן.";
+  const example = approvalShortCode(pick.candidates[0].id);
+  const intro =
+    pick.kind === "code_not_found"
+      ? `לא מצאתי בקשה פתוחה עם הקוד ${pick.code}. הבקשות שאפשר לאשר:`
+      : "לא ביצעתי כלום, כי לא ברור לאיזו בקשה התכוונת. הבקשות הפתוחות:";
+  return `${intro}\n${lines.join("\n")}\n\nלאישור יש לשלוח "כן" ואחריו הקוד, למשל: כן ${example}`;
+}
+
+/** System-prompt rule for the LLM path after an approval reply. */
+export function buildApprovalPickPromptRule(pick, { nowMs = Date.now() } = {}) {
+  if (!pick) return "";
+  if (pick.kind === "match") return buildApprovalConfirmPromptRule(pick.row);
+  const never =
+    "אסור לקרוא ל-execute_pending_approval ואסור לכתוב שבוצעה פעולה.";
+  if (pick.kind === "no_identity")
+    return `\n\nℹ️ **אישור:** לא זיהיתי מי כותב, ולכן אי אפשר לאשר מכאן בקשות פתוחות. ${never} אם ה"כן" עונה על שאלה אחרת שלך — המשיכי כרגיל.`;
+  if (pick.kind === "forbidden")
+    return `\n\n⛔ **אישור:** ${approverOnlyText(pick.row)} ${never} הסבירי זאת בקצרה.`;
+  const lines = formatApprovalCandidateLines(pick.candidates, { nowMs });
+  const list = lines.length ? `\n${lines.join("\n")}` : "";
+  const ask = lines.length
+    ? 'אם המשתמש התכוון לאשר, הציגי את הרשימה ובקשי לענות "כן" ואחריו הקוד (למשל "כן 1234").'
+    : "אין כרגע בקשה פתוחה שהמשתמש יכול לאשר. אם צריך, הכיני את הבקשה מחדש פעם אחת ובקשי אישור.";
+  if (pick.kind === "ambiguous")
+    return `\n\n❓ **אישור:** יש כמה בקשות פתוחות ולא ברור איזו המשתמש מאשר. ${never} ${ask}${list}`;
+  if (pick.kind === "code_not_found")
+    return `\n\nℹ️ **אישור:** הקוד ${pick.code} לא תואם אף בקשה פתוחה. אם המספר עונה על שאלה אחרת שלך — המשיכי כרגיל. ${never} ${ask}${list}`;
+  return `\n\nℹ️ **אישור:** אין בקשת אישור פתוחה של המשתמש בשיחה הזו מ-30 הדקות האחרונות. אם ה"כן" עונה על שאלה אחרת שלך — המשיכי כרגיל. ${never} ${ask}${list}`;
+}
+
+/**
+ * execute_pending_approval result when the call does not resolve to the bound row
+ * (or names another row than the bound one: `requestedId`).
+ */
+export function approvalPickToolResult(
+  pick,
+  { nowMs = Date.now(), requestedId = null } = {},
+) {
+  const otherRow =
+    pick?.kind === "match" && requestedId && requestedId !== pick.row?.id;
+  const listed = otherRow ? pick.pickable : pick?.candidates;
+  const candidates = (listed || []).slice(0, 10).map((r) => ({
+    code: approvalShortCode(r.id),
+    approval_id: r.id,
+    title: r.title || r.tool_name || null,
+    tool_name: r.tool_name || null,
+    created_at: r.created_at || null,
+  }));
+  if (otherRow)
+    return {
+      success: false,
+      error: "approval_not_bound",
+      candidates,
+      claim_execution: false,
+      instruction_for_carmen:
+        'הבקשה שביקשת לבצע אינה הבקשה של המשתמש בשיחה הזו, ולכן לא בוצעה. בקשה אחרת מאושרת רק כשהמשתמש עונה "כן" ואחריו הקוד שלה. אסור לכתוב שבוצעה פעולה.',
+      guardrail: "לא בוצע כלום.",
+    };
+  return {
+    success: false,
+    error:
+      pick?.kind === "forbidden"
+        ? pick.reason || "forbidden"
+        : pick?.kind === "ambiguous"
+          ? "ambiguous_approval"
+          : pick?.kind === "no_identity"
+            ? "no_identity"
+            : "no_bound_approval",
+    candidates,
+    claim_execution: false,
+    instruction_for_carmen: buildApprovalPickPromptRule(pick, { nowMs }).trim(),
+    guardrail:
+      'לא בוצע כלום. בקשה של משתמש אחר או משיחה אחרת מאושרת רק כשהמשתמש עונה "כן" ואחריו הקוד, או במסך האישורים.',
+  };
+}

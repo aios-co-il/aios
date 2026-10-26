@@ -121,12 +121,20 @@ import {
   resolveDevTaskActorUserId,
 } from "../_shared/dev-escalation-auth.ts";
 import {
-  buildApprovalConfirmPromptRule,
-  buildNoPendingRecovery,
+  APPROVAL_PICK_COLUMNS,
+  approvalBindingContext,
+  approvalConversationKey,
+  approvalPickToolResult,
+  approvalShortCode,
+  buildApprovalPickPromptRule,
   formatApprovalExecutionReply,
+  formatApprovalPickReply,
+  isDeterministicApprovalPick,
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,
-  pickLatestPendingApproval,
+  mergeApprovalBinding,
+  parseApprovalReply,
+  resolveApprovalConfirm,
 } from "../_shared/wa-approval-flow.ts";
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
 import { extractMeetingUrl } from "../_shared/meeting-url.ts";
@@ -4314,13 +4322,13 @@ const ALL_TOOLS = [
   {
     name: "list_pending_approvals",
     description:
-      'רשימת בקשות אישור פתוחות (פעולות שכרמן ביקשה לבצע ומחכות לאישור משתמש). השתמש כשהמשתמש שולח "אשרי"/"כן" כדי למצוא איזו בקשה לבצע.',
+      'רשימת בקשות אישור פתוחות שהמשתמש רשאי לאשר, כל אחת עם קוד קצר. לאישור בקשה מהרשימה המשתמש עונה "כן" ואחריו הקוד.',
     parameters: { type: "object", properties: { limit: { type: "integer" } } },
   },
   {
     name: "execute_pending_approval",
     description:
-      'ביצוע בקשת אישור פתוחה — אחרי שהמשתמש אישר בוואטסאפ ("כן"/"מאשר"/"כן מאשר"/"אשרי"/"תעשי את זה"). אם אין approval_id — בוחר אוטומטית את ה-pending האחרון (מעדיף Meta). אם אין pending — מחזיר recovery לשחזור חד-פעמי של אותה בקשה + סיכום; אז הציגי סיכום ובקשי אישור סופי אחד בלבד. אסור לטעון שבוצע אלא אם success=true.',
+      'ביצוע בקשת אישור פתוחה — אחרי שהמשתמש אישר ("כן"/"מאשר"/"תעשי את זה"). מבצע רק בקשה שהמשתמש עצמו ביקש בשיחה הזו ב-30 הדקות האחרונות. אחרת לא מבוצע כלום ומוחזרת רשימת בקשות עם קודים — הציגי אותה ובקשי לענות "כן" ואחריו הקוד. כספים, שליחות החוצה והגדרות דורשים בעלים/מנהל סוכנות. אסור לטעון שבוצע אלא אם success=true.',
     parameters: {
       type: "object",
       properties: {
@@ -5619,6 +5627,69 @@ async function tryCreateCalendarEventForTask(
     }
   } catch (e: any) {
     console.warn("[create_task] calendar sync error:", e?.message);
+  }
+}
+
+// ─── Bound approvals (AIO-230); rules live in _shared/wa-approval-flow.mjs ───
+
+/** Run an approval row through carmen-approval-execute, which re-checks the approver. */
+async function runApprovalExecutor(
+  approvalId: string,
+  approvedBy: string | null,
+): Promise<any> {
+  const r = await fetch(
+    `${SUPABASE_URL}/functions/v1/carmen-approval-execute`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+      },
+      body: JSON.stringify({
+        approval_id: approvalId,
+        approved_by: approvedBy,
+      }),
+    },
+  );
+  const j = await r.json().catch(() => ({}));
+  const ok = !!(r.ok && (j?.success === true || j?.already_executed === true));
+  return {
+    ...j,
+    success: ok,
+    approval_id: approvalId,
+    claim_execution: ok,
+    guardrail: ok
+      ? null
+      : "הביצוע לא הצליח — אסור לכתוב למשתמש שבוצע/נוצר/עודכן ב-Meta.",
+  };
+}
+
+/** Stamp the requester's conversation on an approval row a tool just queued. */
+async function bindApprovalToConversation(
+  supabase: any,
+  tenantId: string,
+  approvalId: string,
+  userId: string | null,
+  binding: Record<string, unknown> | null,
+): Promise<void> {
+  if (!approvalId || !userId || !binding) return;
+  try {
+    const { data: row } = await supabase
+      .from("agent_approval_queue")
+      .select("id, requested_by, context")
+      .eq("id", approvalId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const context = mergeApprovalBinding(row, { userId, binding });
+    if (!context) return;
+    await supabase
+      .from("agent_approval_queue")
+      .update({ context })
+      .eq("id", approvalId)
+      .eq("tenant_id", tenantId);
+  } catch (e) {
+    console.warn("[AGENT] approval binding failed (non-fatal):", e);
   }
 }
 
@@ -11799,133 +11870,72 @@ async function executeTool(
 
     // ============ APPROVAL HELPERS ============
     case "list_pending_approvals": {
+      // Only requests this caller may approve, each with the short code for "כן <קוד>".
       const { data, error } = await supabase
         .from("agent_approval_queue")
-        .select(
-          "id, action_type, title, description, tool_name, tool_input, context, created_at, status, requested_by",
-        )
+        .select(APPROVAL_PICK_COLUMNS)
         .eq("tenant_id", tenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
+        .limit(25);
       if (error) throw error;
-      const preferred = pickLatestPendingApproval(data || [], {
-        preferMeta: true,
+      const pick = resolveApprovalConfirm(data || [], {
+        userId: actorUserId,
+        roles: callerRole ? [callerRole] : [],
+        conversationKey: approvalConversationKey({
+          surface,
+          conversationId,
+          waChatId: waNotify?.chat_id,
+          phone: callerPhone,
+        }),
       });
+      const approvals = pick.pickable
+        .slice(0, args.limit || 10)
+        .map((r: any) => ({
+          code: approvalShortCode(r.id),
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          tool_name: r.tool_name,
+          created_at: r.created_at,
+          requested_by: r.requested_by,
+          mine: r.requested_by === actorUserId,
+        }));
+      const bound = pick.kind === "match" ? pick.row : null;
       return {
-        count: data.length,
-        approvals: data,
-        latest_matching_id: preferred?.id || null,
-        latest_matching: preferred
-          ? {
-              id: preferred.id,
-              tool_name: preferred.tool_name,
-              title: preferred.title,
-              summary: preferred.title || preferred.description,
-            }
-          : null,
-        instruction_for_carmen: preferred
-          ? `כשהמשתמש מאשר ("כן"/"מאשר") — קראי ל-execute_pending_approval עם approval_id=${preferred.id}. אל תיצרי בקשה חדשה.`
-          : "אין pending. אם המשתמש אישר — execute_pending_approval יחזיר recovery לשחזור חד-פעמי.",
+        count: approvals.length,
+        approvals,
+        bound_approval_id: bound?.id || null,
+        instruction_for_carmen: bound
+          ? `כשהמשתמש מאשר ("כן"/"מאשר") — קראי ל-execute_pending_approval עם approval_id=${bound.id}. אל תיצרי בקשה חדשה.`
+          : 'ל"כן" לבד אין בקשה אחת של המשתמש בשיחה הזו. כדי לאשר בקשה מהרשימה, המשתמש עונה "כן" ואחריו הקוד (למשל "כן 1234").',
       };
     }
     case "execute_pending_approval": {
-      let approvalId = asUuidOrNull(args.approval_id);
-      let matchedRow: any = null;
-      if (approvalId) {
-        const { data } = await supabase
-          .from("agent_approval_queue")
-          .select(
-            "id, status, tool_name, title, description, tool_input, context",
-          )
-          .eq("tenant_id", tenantId)
-          .eq("id", approvalId)
-          .maybeSingle();
-        matchedRow = data;
-        if (
-          matchedRow &&
-          matchedRow.status !== "pending" &&
-          matchedRow.status !== "executed"
-        ) {
-          // Stale id — fall through to latest pending
-          approvalId = null;
-          matchedRow = null;
-        }
-      }
-      if (!approvalId) {
-        const { data: pendingRows } = await supabase
-          .from("agent_approval_queue")
-          .select(
-            "id, status, tool_name, title, description, tool_input, context, created_at",
-          )
-          .eq("tenant_id", tenantId)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(10);
-        matchedRow = pickLatestPendingApproval(pendingRows || [], {
-          preferMeta: true,
-          toolName: args.tool_name || undefined,
-        });
-        approvalId = matchedRow?.id || null;
-      }
-      if (!approvalId) {
-        const { data: recent } = await supabase
-          .from("agent_approval_queue")
-          .select(
-            "id, status, tool_name, title, description, tool_input, context, created_at",
-          )
-          .eq("tenant_id", tenantId)
-          .order("created_at", { ascending: false })
-          .limit(8);
-        const recoveryPayload = buildNoPendingRecovery(recent || []);
-        return {
-          success: false,
-          error: "no_pending_approval",
-          ...recoveryPayload,
-          claim_execution: false,
-          guardrail:
-            "אל תטעני שבוצע. שחזרי פעם אחת לכל היותר ובקשי אישור סופי אחד.",
-        };
-      }
-      if (matchedRow?.status === "executed") {
-        return {
-          success: true,
-          already_executed: true,
-          approval_id: approvalId,
-          result: matchedRow,
-          claim_execution: true,
-        };
-      }
-      const r = await fetch(
-        `${SUPABASE_URL}/functions/v1/carmen-approval-execute`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            "Content-Type": "application/json",
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-          },
-          body: JSON.stringify({
-            approval_id: approvalId,
-            approved_by: actorUserId,
-          }),
-        },
-      );
-      const j = await r.json().catch(() => ({}));
-      const ok = !!(
-        r.ok &&
-        (j?.success === true || j?.already_executed === true)
-      );
-      return {
-        ...j,
-        success: ok,
-        approval_id: approvalId,
-        title: matchedRow?.title || j?.title || null,
-        claim_execution: ok,
-        guardrail: ok
-          ? null
-          : "הביצוע לא הצליח — אסור לכתוב למשתמש שבוצע/נוצר/עודכן ב-Meta.",
-      };
+      // AIO-230: runs only the caller's own request from this conversation (last 30 min).
+      // Others' requests are approved by the user typing "כן <קוד>" or in the approvals screen.
+      const { data: pendingRows } = await supabase
+        .from("agent_approval_queue")
+        .select(APPROVAL_PICK_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(25);
+      const pick = resolveApprovalConfirm(pendingRows || [], {
+        userId: actorUserId,
+        roles: callerRole ? [callerRole] : [],
+        conversationKey: approvalConversationKey({
+          surface,
+          conversationId,
+          waChatId: waNotify?.chat_id,
+          phone: callerPhone,
+        }),
+      });
+      const wantedId = asUuidOrNull(args.approval_id);
+      if (pick.kind !== "match" || (wantedId && wantedId !== pick.row.id))
+        return approvalPickToolResult(pick, { requestedId: wantedId });
+      const exec = await runApprovalExecutor(pick.row.id, actorUserId);
+      return { ...exec, title: pick.row.title || exec.title || null };
     }
     case "reject_pending_approval": {
       const { error } = await supabase
@@ -15221,82 +15231,61 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
-    // ─── WhatsApp Meta approval flow (smooth confirm → execute) ───
-    // When the user explicitly confirms ("כן" / "מאשר" / …), resolve the latest
-    // pending approval and either (a) execute it deterministically for short
-    // confirms, or (b) inject a hard prompt so the model must call execute_pending_approval.
-    const userSaidApprove = isExplicitApprovalPhrase(
-      String(command_text || ""),
-    );
-    const userSaidReject = isExplicitRejectionPhrase(
-      String(command_text || ""),
-    );
-    let pendingForConfirm: any = null;
+    // ─── Chat approval flow (AIO-230) ───
+    // "כן" runs only a pending row the same user requested in this conversation in
+    // the last 30 minutes; "כן 4821" picks a row by its code. Otherwise Carmen lists
+    // the candidates. Approver-only rows need owner / agency_owner / super_admin.
+    // Rules: _shared/wa-approval-flow.mjs; carmen-approval-execute re-checks the role.
+    const approvalReply = parseApprovalReply(String(command_text || ""));
+    const userSaidApprove = approvalReply.approve;
+    const userSaidReject = approvalReply.reject;
+    let approvalPick: any = null;
     if (isCarmen && !pinSkillsOnly && (userSaidApprove || userSaidReject)) {
       const { data: pendingRows } = await supabase
         .from("agent_approval_queue")
-        .select(
-          "id, action_type, title, description, tool_name, tool_input, context, created_at, status",
-        )
+        .select(APPROVAL_PICK_COLUMNS)
         .eq("tenant_id", resolvedTenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-        .limit(10);
-      pendingForConfirm = pickLatestPendingApproval(pendingRows || [], {
-        preferMeta: true,
+        .limit(25);
+      approvalPick = resolveApprovalConfirm(pendingRows || [], {
+        userId: callerUserId,
+        roles: callerRole ? [callerRole] : [],
+        conversationKey: approvalConversationKey({
+          surface,
+          conversationId: serverConversationId,
+          waChatId: wa_notify?.chat_id,
+          phone: callerPhone,
+        }),
+        code: approvalReply.code,
       });
       if (userSaidApprove) {
-        systemPrompt += buildApprovalConfirmPromptRule(pendingForConfirm);
-        if (!pendingForConfirm) {
-          const { data: recent } = await supabase
-            .from("agent_approval_queue")
-            .select(
-              "id, status, tool_name, title, description, tool_input, context, created_at",
-            )
-            .eq("tenant_id", resolvedTenantId)
-            .order("created_at", { ascending: false })
-            .limit(8);
-          const recoveryPayload = buildNoPendingRecovery(recent || []);
-          systemPrompt += `\n\n${recoveryPayload.instruction_for_carmen}`;
-          if (recoveryPayload.recovery) {
-            systemPrompt += `\n[recovery_json]=${JSON.stringify(recoveryPayload.recovery)}`;
-          }
-        }
-      } else if (userSaidReject && pendingForConfirm) {
-        systemPrompt += `\n\n🚫 המשתמש דחה. קראי ל-reject_pending_approval עם approval_id=${pendingForConfirm.id}. אל תבצעי את הפעולה.`;
+        systemPrompt += buildApprovalPickPromptRule(approvalPick);
+      } else if (approvalPick.kind === "match") {
+        systemPrompt += `\n\n🚫 המשתמש דחה. קראי ל-reject_pending_approval עם approval_id=${approvalPick.row.id}. אל תבצעי את הפעולה.`;
       }
     }
+    const pendingForConfirm: any =
+      approvalPick?.kind === "match" ? approvalPick.row : null;
 
-    // Deterministic path: short WhatsApp confirm + open pending → execute now (no LLM loop).
+    // Deterministic path: a short approval reply is answered without the LLM —
+    // run the bound (or code-picked) row, refuse, or list the candidates.
     if (
       isCarmen &&
       !pinSkillsOnly &&
       userSaidApprove &&
-      pendingForConfirm &&
-      String(command_text || "").trim().length <= 40
+      isDeterministicApprovalPick(approvalPick, String(command_text || ""))
     ) {
       console.log(
-        `[AGENT] Auto-executing pending approval ${pendingForConfirm.id} after explicit confirm`,
+        `[AGENT] Approval reply: ${approvalPick.kind}${pendingForConfirm ? ` → executing ${pendingForConfirm.id}` : ""}`,
       );
       const autoStart = Date.now();
-      const execResult = await executeTool(
-        "execute_pending_approval",
-        { approval_id: pendingForConfirm.id },
-        supabase,
-        resolvedTenantId,
-        callerUserId || asUuidOrNull(resolvedUserId),
-        callerCampaignerId,
-        agent_id,
-        callerRole,
-        callerManagedAgencyIds,
-        callerPhone,
-        wa_notify,
-        surface,
-      );
-      const finalOutput = formatApprovalExecutionReply(
-        execResult,
-        pendingForConfirm,
-      );
+      const execResult = pendingForConfirm
+        ? await runApprovalExecutor(pendingForConfirm.id, callerUserId)
+        : null;
+      const finalOutput = pendingForConfirm
+        ? formatApprovalExecutionReply(execResult, pendingForConfirm)
+        : formatApprovalPickReply(approvalPick);
       const executionTime = Date.now() - autoStart;
       if (serverConversationId && callerUserId) {
         const persistedMessages = [
@@ -15324,17 +15313,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           action_details: {
             surface,
             command_preview: String(command_text || "").slice(0, 240),
-            tools_used: ["execute_pending_approval"],
-            tool_count: 1,
+            tools_used: execResult ? ["execute_pending_approval"] : [],
+            tool_count: execResult ? 1 : 0,
             output_preview: String(finalOutput || "").slice(0, 600),
             caller_role: callerRole,
             caller_campaigner_id: callerCampaignerId,
-            auto_approval_execute: true,
-            approval_id: pendingForConfirm.id,
+            auto_approval_execute: !!execResult,
+            approval_pick: approvalPick.kind,
+            approval_id: pendingForConfirm?.id ?? approvalPick.row?.id ?? null,
             exec_success: !!(execResult && (execResult as any).success),
           },
           user_id: callerUserId,
-          tool_calls: 1,
+          tool_calls: execResult ? 1 : 0,
           duration_ms: executionTime,
         });
       } catch {
@@ -15349,15 +15339,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
-          tools_used: ["execute_pending_approval"],
-          tool_log: [
-            {
-              tool: "execute_pending_approval",
-              args: { approval_id: pendingForConfirm.id },
-              result: execResult,
-            },
-          ],
-          auto_approval_execute: true,
+          tools_used: execResult ? ["execute_pending_approval"] : [],
+          tool_log: execResult
+            ? [
+                {
+                  tool: "execute_pending_approval",
+                  args: { approval_id: pendingForConfirm.id },
+                  result: execResult,
+                },
+              ]
+            : [],
+          auto_approval_execute: !!execResult,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -15828,6 +15820,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               surface,
               serverConversationId,
             );
+            // Bind a freshly queued approval to this user + conversation (AIO-230).
+            if (result?.pending_approval && result?.approval_id)
+              await bindApprovalToConversation(
+                supabase,
+                resolvedTenantId,
+                String(result.approval_id),
+                callerUserId || asUuidOrNull(resolvedUserId),
+                approvalBindingContext({
+                  surface,
+                  conversationId: serverConversationId,
+                  waChatId: wa_notify?.chat_id,
+                  phone: callerPhone,
+                }),
+              );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
         } catch (e: any) {

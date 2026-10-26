@@ -188,6 +188,9 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: Carmen approval regression tests
+        run: node --experimental-strip-types --test supabase/functions/_shared/wa-approval-flow.test.mjs src/lib/approvalDecision.test.ts
+
   mirror-changes:
     runs-on: ubuntu-latest
     permissions:
