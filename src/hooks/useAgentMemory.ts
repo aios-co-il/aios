@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface MemoryItem {
   id: string;
@@ -13,7 +14,7 @@ export interface MemoryItem {
   summary: string | null;
   importance: number;
   ref_date?: string | null;
-  metadata?: any;
+  metadata?: Json;
   created_at: string;
 }
 
@@ -40,7 +41,7 @@ export function useAgentMemory(
     enabled: !!agentId,
     queryFn: async (): Promise<MemoryItem[]> => {
       let q = supabase
-        .from("agent_memory" as any)
+        .from("agent_memory")
         .select(
           "id, category, subcategory, path, entity_type, entity_id, title, summary, importance, ref_date, metadata, created_at",
         )
@@ -52,7 +53,7 @@ export function useAgentMemory(
       else if (subcategory) q = q.eq("subcategory", subcategory);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as any;
+      return data ?? [];
     },
   });
 }
@@ -63,12 +64,12 @@ export function useAgentMemoryTree(agentId: string | null) {
     enabled: !!agentId,
     queryFn: async (): Promise<MemoryTreeNode[]> => {
       const { data, error } = await supabase
-        .from("agent_memory" as any)
+        .from("agent_memory")
         .select("category, subcategory")
         .eq("agent_id", agentId!)
         .limit(5000);
       if (error) throw error;
-      return buildTree((data ?? []) as any);
+      return buildTree(data ?? []);
     },
   });
 }
@@ -78,7 +79,7 @@ export function useDeleteAgentMemory(agentId: string | null) {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("agent_memory" as any)
+        .from("agent_memory")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -88,7 +89,7 @@ export function useDeleteAgentMemory(agentId: string | null) {
       qc.invalidateQueries({ queryKey: ["agent-memory-tree", agentId] });
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 
@@ -100,15 +101,15 @@ export function useCarmenMemoryTree() {
     queryFn: async () => {
       const [pointers, episodes] = await Promise.all([
         supabase
-          .from("carmen_memory_pointers" as any)
+          .from("carmen_memory_pointers")
           .select("category, subcategory")
           .limit(10000),
         supabase
-          .from("carmen_memory_episodes" as any)
+          .from("carmen_memory_episodes")
           .select("id", { count: "exact", head: true }),
       ]);
       if (pointers.error) throw pointers.error;
-      const tree = buildTree((pointers.data ?? []) as any);
+      const tree = buildTree(pointers.data ?? []);
       return { tree, episodesCount: episodes.count ?? 0 };
     },
   });
@@ -127,7 +128,7 @@ export function useCarmenMemoryPointers(
     enabled: category !== "episodes",
     queryFn: async (): Promise<MemoryItem[]> => {
       let q = supabase
-        .from("carmen_memory_pointers" as any)
+        .from("carmen_memory_pointers")
         .select(
           "id, category, subcategory, path, entity_type, entity_id, title, summary, importance, ref_date, metadata, created_at",
         )
@@ -139,7 +140,7 @@ export function useCarmenMemoryPointers(
       else if (subcategory) q = q.eq("subcategory", subcategory);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as any;
+      return data ?? [];
     },
   });
 }
@@ -150,7 +151,7 @@ export function useCarmenMemoryEpisodes(enabled = false) {
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("carmen_memory_episodes" as any)
+        .from("carmen_memory_episodes")
         .select(
           "id, topic, topic_tags, summary, source_table, participants, importance, ref_date, access_count, created_at",
         )
@@ -158,7 +159,7 @@ export function useCarmenMemoryEpisodes(enabled = false) {
         .order("created_at", { ascending: false })
         .limit(300);
       if (error) throw error;
-      return (data ?? []) as any[];
+      return data ?? [];
     },
   });
 }
