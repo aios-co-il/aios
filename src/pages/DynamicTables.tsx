@@ -108,6 +108,8 @@ import { toast } from "sonner";
 import { useAgency } from "@/contexts/AgencyContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useUserRole } from "@/hooks/useUserRole";
+import type { LucideIcon } from "lucide-react";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamic-tables-b19";
 
 interface CrmTable {
   id: string;
@@ -117,7 +119,7 @@ interface CrmTable {
   icon: string | null;
   category: string | null;
   integration_type: string | null;
-  integration_settings: any;
+  integration_settings: CrmTableIntegrationSettings | null;
   agency_id: string | null;
   client_id: string | null;
   campaign_active?: boolean;
@@ -221,11 +223,11 @@ export default function DynamicTables() {
       if (sharedErr) throw sharedErr;
 
       const shared = (sharedAccess || [])
-        .map((row: any) =>
+        .map((row) =>
           Array.isArray(row.agencies) ? row.agencies[0] : row.agencies,
         )
-        .filter(Boolean)
-        .map((a: any) => ({ id: a.id, name: a.name }));
+        .filter((a): a is NonNullable<typeof a> => Boolean(a))
+        .map((a) => ({ id: a.id, name: a.name }));
 
       const merged = [...(owned || []), ...shared].filter(
         (a, i, arr) => arr.findIndex((x) => x.id === a.id) === i,
@@ -423,7 +425,7 @@ export default function DynamicTables() {
       queryClient.invalidateQueries({ queryKey: ["crm-dashboards", tenantId] });
       toast.success("הדשבורד נמחק בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה במחיקת הדשבורד: " + error.message);
     },
   });
@@ -449,7 +451,7 @@ export default function DynamicTables() {
       setEditDashboardName("");
       toast.success("שם הדשבורד עודכן");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בעדכון שם הדשבורד: " + error.message);
     },
   });
@@ -486,7 +488,7 @@ export default function DynamicTables() {
       setDeletingTable(null);
       toast.success("הדוח נמחק בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה במחיקת הדוח: " + error.message);
     },
   });
@@ -504,7 +506,7 @@ export default function DynamicTables() {
       name: string;
       agency_id: string | null;
       client_id: string | null;
-      integration_settings?: any;
+      integration_settings?: CrmTableIntegrationSettings;
       syncDomain?: { clientId: string; domain: string };
     }) => {
       const {
@@ -512,7 +514,13 @@ export default function DynamicTables() {
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const body: any = { table_id: tableId, name, agency_id, client_id };
+      const body: {
+        table_id: string;
+        name: string;
+        agency_id: string | null;
+        client_id: string | null;
+        integration_settings?: CrmTableIntegrationSettings;
+      } = { table_id: tableId, name, agency_id, client_id };
       if (integration_settings !== undefined)
         body.integration_settings = integration_settings;
 
@@ -561,7 +569,7 @@ export default function DynamicTables() {
       setEditingTable(null);
       toast.success("הדוח עודכן בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בעדכון הדוח: " + error.message);
     },
   });
@@ -601,7 +609,7 @@ export default function DynamicTables() {
     const prevMaskyoo = editingTable.integration_settings?.maskyoo_number || "";
     const maskyooChanged = trimmedMaskyoo !== prevMaskyoo;
 
-    let updatedSettings: any = undefined;
+    let updatedSettings: CrmTableIntegrationSettings | undefined = undefined;
     if (isFacebook && editAdAccountId) {
       updatedSettings = {
         ...editingTable.integration_settings,
@@ -690,7 +698,7 @@ export default function DynamicTables() {
     iconBg: string;
     iconColor: string;
     border: string;
-    icon: any;
+    icon: LucideIcon;
   } => {
     const c = category.toLowerCase();
     if (c.includes("facebook") && c.includes("ecom")) {
@@ -1137,9 +1145,7 @@ export default function DynamicTables() {
                                             const next = !(
                                               table.campaign_active ?? true
                                             );
-                                            const { error } = await (
-                                              supabase as any
-                                            )
+                                            const { error } = await supabase
                                               .from("crm_tables")
                                               .update({ campaign_active: next })
                                               .eq("id", table.id);
@@ -1312,7 +1318,7 @@ export default function DynamicTables() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {dashboards
-                .filter((dashboard: any) => {
+                .filter((dashboard) => {
                   // Filter by selected agency. A dashboard's effective agency is
                   // its own agency_id, or (when unset) its client's agency. When a
                   // specific agency is selected, show ONLY dashboards of that agency
@@ -1356,7 +1362,7 @@ export default function DynamicTables() {
                   }
                   return true;
                 })
-                .map((dashboard: any) => (
+                .map((dashboard) => (
                   <Card
                     key={dashboard.id}
                     className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -1446,9 +1452,9 @@ export default function DynamicTables() {
                     <CardContent>
                       <p className="text-sm text-muted-foreground">
                         נוצר{" "}
-                        {new Date(dashboard.created_at).toLocaleDateString(
-                          "he-IL",
-                        )}
+                        {new Date(
+                          dashboard.created_at ?? "",
+                        ).toLocaleDateString("he-IL")}
                       </p>
                     </CardContent>
                   </Card>
