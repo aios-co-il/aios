@@ -1,4 +1,3 @@
-import { createWebhookHandler } from "./request-handler.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
@@ -36,12 +35,13 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-wa-gateway-instance, x-wa-gateway-secret, x-webhook-secret, x-manus-secret, x-webhook-signature",
-};
+import { normalizeManusPayload } from "./payload-normalizer.ts";
+import {
+  type ManusMessageContainer,
+  type ManusPayload,
+  pickJsonObject,
+} from "./payload-types.ts";
+import { createWebhookHandler, ok } from "./request-handler.ts";
 
 // Last 9 digits — matches existing lead/client matching policy
 function normalizePhone(p: string): string {
@@ -69,75 +69,13 @@ function isUnresolvedGroupAuthor(
   return !isIsraeliMobileTail(authorPhone);
 }
 
-/** Inspect a JSON object without assuming the provider's envelope shape. */
-function pickObj(...candidates: unknown[]): Record<string, Json> | null {
-  for (const candidate of candidates) {
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate)
-    ) {
-      return candidate as Record<string, Json>;
-    }
-  }
-  return null;
-}
-
-// Provider variants keep their original values until the consuming routing/media
-// code applies its existing coercion. Only the fields this webhook reads belong
-// to the contract; the original object is still retained for raw_provider_data.
-interface ManusPayload {
-  event?: Json;
-  from?: Json;
-  to?: Json;
-  body?: Json;
-  fromMe?: Json;
-  direction?: Json;
-  id?: Json;
-  messageId?: Json;
-  senderName?: Json;
-  author?: Json;
-  hasMedia?: Json;
-  chatId?: Json;
-  senderLid?: Json;
-  senderPn?: Json;
-  participantPn?: Json;
-  senderPhone?: Json;
-  senderNumber?: Json;
-  quotedMsgId?: Json;
-  quotedMessageId?: Json;
-  quotedMsg?: Json;
-  groupId?: Json;
-  fromName?: Json;
-  authorName?: Json;
-  participant?: Json;
-  groupName?: Json;
-  chatName?: Json;
-  subject?: Json;
-  ack?: Json;
-  type?: Json;
-  messageType?: Json;
-  mediaType?: Json;
-  mimeType?: Json;
-  mime_type?: Json;
-  media?: Json;
-  file?: Json;
-  attachment?: Json;
-  audio?: Json;
-}
-interface ManusMessageContainer {
-  audioMessage?: Json;
-  message?: Json;
-  type?: Json;
-  contextInfo?: Json;
-  participant?: Json;
-  author?: Json;
-  conversation?: Json;
-  text?: Json;
-  body?: Json;
-  imageMessage?: Json;
-  videoMessage?: Json;
-  documentMessage?: Json;
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "name" in err &&
+    err.name === "AbortError"
+  );
 }
 
 // ── Incoming voice notes → transcript (OpenAI Whisper) ────────────────
@@ -187,8 +125,8 @@ function looksAudio(
     mime:
       payload?.mimeType ||
       payload?.mime_type ||
-      pickObj(payload?.media)?.mimetype ||
-      pickObj(msgContainer?.audioMessage)?.mimetype,
+      pickJsonObject(payload?.media)?.mimetype ||
+      pickJsonObject(msgContainer?.audioMessage)?.mimetype,
     url,
   });
 }
@@ -495,20 +433,10 @@ function makeVoiceSender(
   };
 }
 
-function ok(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
   req,
   outer,
 ) => {
-  if (req.method === "OPTIONS")
-    return new Response(null, { headers: corsHeaders });
-
   try {
     const supabase = serviceClient();
 
@@ -527,114 +455,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       // Diagnostic logging must not prevent processing the webhook payload.
     }
 
-    // Normalize Manus WA Gateway payload — it may be flat, or wrapped in
-    // { data }, { message }, { payload }, { event, data: {...} }, etc.
-    const inner =
-      pickObj(outer.data, outer.message, outer.payload, outer.body) || {};
-    const key = pickObj(inner.key, outer.key) || {};
-    const msgContainer = pickObj(inner.message, outer.message) || {};
-
-    // Only treat as 'message' when there is actual message content (from/body/key).
-    // Otherwise keep the raw event (or 'ping' / 'unknown') so we don't falsely trigger Carmen.
-    const rawEventField =
-      outer.event ??
-      inner.event ??
-      outer.type ??
-      inner.type ??
-      outer.messageType ??
-      inner.messageType ??
-      null;
-    const looksLikeMessage = !!(
-      outer.from ||
-      inner.from ||
-      inner.chatId ||
-      outer.chatId ||
-      outer.body ||
-      inner.body ||
-      inner.text ||
-      outer.text ||
-      pickObj(inner.message, outer.message)
-    );
-    const normalizedEvent =
-      (rawEventField === "chat" ||
-        rawEventField === "text" ||
-        rawEventField === "message") &&
-      looksLikeMessage
-        ? "message"
-        : (rawEventField ?? (looksLikeMessage ? "message" : "ping"));
-    const fromField =
-      outer.from ??
-      inner.from ??
-      inner.chatId ??
-      outer.chatId ??
-      key.remoteJid ??
-      inner.remoteJid ??
-      "";
-    const toField =
-      outer.to ?? inner.to ?? inner.recipientId ?? outer.recipientId ?? "";
-    const bodyField =
-      outer.body ??
-      inner.body ??
-      inner.text ??
-      outer.text ??
-      inner.content ??
-      outer.content ??
-      msgContainer.conversation ??
-      msgContainer.text ??
-      msgContainer.body ??
-      "";
-    const fromMeField =
-      outer.fromMe ??
-      inner.fromMe ??
-      key.fromMe ??
-      (outer.direction === "outgoing" || inner.direction === "outgoing");
-    const directionField = outer.direction ?? inner.direction;
-    const idField =
-      outer.id ?? inner.id ?? outer.messageId ?? inner.messageId ?? key.id;
-    const senderNameField =
-      outer.senderName ??
-      inner.senderName ??
-      outer.fromName ??
-      inner.fromName ??
-      outer.pushName ??
-      inner.pushName ??
-      null;
-    const authorField =
-      outer.author ??
-      inner.author ??
-      outer.participant ??
-      inner.participant ??
-      key.participant ??
-      null;
-    const hasMediaField =
-      outer.hasMedia ??
-      inner.hasMedia ??
-      !!(
-        msgContainer.imageMessage ||
-        msgContainer.audioMessage ||
-        msgContainer.videoMessage ||
-        msgContainer.documentMessage
-      );
-
-    // Build a unified payload object that the rest of the code uses
-    const payload: ManusPayload = {
-      ...outer,
-      ...inner,
-      event: normalizedEvent,
-      from: fromField,
-      to: toField,
-      body:
-        typeof bodyField === "string"
-          ? bodyField
-          : (pickObj(bodyField)?.text ?? ""),
-      fromMe: fromMeField,
-      direction: directionField,
-      id: idField,
-      messageId: outer.messageId ?? inner.messageId ?? idField,
-      senderName: senderNameField,
-      author: authorField,
-      hasMedia: hasMediaField,
-    };
+    const { inner, key, msgContainer, payload } = normalizeManusPayload(outer);
 
     // Collect every possible secret source Manus may use
     const headerSecret =
@@ -681,7 +502,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       return ok({ error: "No active integration" }, 404);
     }
 
-    const settings = pickObj(integ.settings) || {};
+    const settings = pickJsonObject(integ.settings) || {};
     const expectedSecret = settings.webhook_secret || "";
 
     // Auto-heal: if DB has no secret yet, accept the first webhook secret we see and persist it.
@@ -706,8 +527,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     }
 
     const tenantId = integ.tenant_id;
-    // Existing routing requires the integration owner; preserve its runtime value.
-    const connectionUserId = integ.user_id!;
+    const connectionUserId = integ.user_id ?? null;
     const event = payload.event;
 
     // Credentials + diagnostics for resolving inbound voice-note media.
@@ -953,8 +773,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           const quotedId = String(
             payload.quotedMsgId ||
               payload.quotedMessageId ||
-              pickObj(payload.quotedMsg)?.id ||
-              pickObj(msgContainer.contextInfo)?.stanzaId ||
+              pickJsonObject(payload.quotedMsg)?.id ||
+              pickJsonObject(msgContainer.contextInfo)?.stanzaId ||
               "",
           );
           const hit = pendings.find(
@@ -1100,7 +920,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         (greenMatches || []).find(
           (m) =>
             !messageId ||
-            String(pickObj(m.raw_provider_data)?.idMessage || "") === messageId,
+            String(pickJsonObject(m.raw_provider_data)?.idMessage || "") ===
+              messageId,
         ) || greenMatches?.[0];
       if (pairedOutgoing?.sender_phone) {
         isOutgoingFromPhone = true;
@@ -1108,10 +929,12 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         counterpartRaw = `${counterpartPhone}@c.us`;
         normalized = normalizePhone(counterpartPhone);
         sourcePhoneNumber = String(
-          pickObj(pickObj(pairedOutgoing.raw_provider_data)?.senderData)
-            ?.sender ||
-            pickObj(pickObj(pairedOutgoing.raw_provider_data)?.instanceData)
-              ?.wid ||
+          pickJsonObject(
+            pickJsonObject(pairedOutgoing.raw_provider_data)?.senderData,
+          )?.sender ||
+            pickJsonObject(
+              pickJsonObject(pairedOutgoing.raw_provider_data)?.instanceData,
+            )?.wid ||
             "",
         )
           .split("@")[0]
@@ -1418,7 +1241,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             .eq("action_type", "carmen_whatsapp_session")
             .limit(10);
           const ownHasOpenMode = (ownSteps || []).some(
-            (s) => pickObj(s.configuration)?.carmen_open_member_groups === true,
+            (s) =>
+              pickJsonObject(s.configuration)?.carmen_open_member_groups ===
+              true,
           );
           if (!ownHasOpenMode) groupTenantId = rows[0].tenant_id as string;
         }
@@ -1573,7 +1398,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           }
           for (const row of paired || []) {
             const participant = String(
-              pickObj(pickObj(row?.raw_provider_data)?.senderData)?.sender ||
+              pickJsonObject(pickJsonObject(row?.raw_provider_data)?.senderData)
+                ?.sender ||
                 row?.sender_phone ||
                 "",
             )
@@ -1651,6 +1477,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           .select("id, created_at")
           .eq("tenant_id", tenantId)
           .eq("direction", "outbound")
+          // Pre-existing bug: sends group_id=eq.null (never matches); .is("group_id", null) was intended.
           .filter("group_id", "eq", null)
           .in("provider", ["manus_wa", "green_api"])
           .eq("message_text", messageText)
@@ -1966,7 +1793,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
               return res.ok;
             } catch (err) {
               clearTimeout(timer);
-              const isAbort = pickObj(err)?.name === "AbortError";
+              const isAbort = isAbortError(err);
               console.error(
                 "manus-wa Carmen group sendMessage error:",
                 isAbort
@@ -2063,7 +1890,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
 
     // Direct channels: "קלוד ..." / "קרסר ..." from the owner's own phone skip Carmen
     // and go straight to Claude Direct / Cursor Direct. Replies come back to this chat.
-    if (!pairedFromGreenApi) {
+    // routeWhatsAppDirect returns { handled: false } for a null owner.
+    if (!pairedFromGreenApi && connectionUserId) {
       try {
         const direct = await routeWhatsAppDirect({
           tenantId,
@@ -2105,14 +1933,17 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     // message is outbound, has no trigger keyword, and there is no existing Carmen
     // session for this specific chat, Carmen must not respond.
     if (isOutgoingFromPhone && !pairedFromGreenApi && !isGroup) {
-      const { data: existingCarmenSession } = await supabase
-        .from("carmen_whatsapp_sessions")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("status", "active")
-        .eq("connection_user_id", connectionUserId)
-        .eq("chat_id", chatIdForCarmen)
-        .maybeSingle();
+      // A null owner would send connection_user_id=eq.null (the text "null"), which matches no session.
+      const { data: existingCarmenSession } = connectionUserId
+        ? await supabase
+            .from("carmen_whatsapp_sessions")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .eq("connection_user_id", connectionUserId)
+            .eq("chat_id", chatIdForCarmen)
+            .maybeSingle()
+        : { data: null };
       const guard = outboundThirdPartyGuardDecision({
         isOutgoingFromPhone,
         pairedFromGreenApi,

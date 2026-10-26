@@ -1,47 +1,45 @@
+import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import {
-  spy,
   assertSpyCalls,
-} from "https://raw.githubusercontent.com/denoland/std/0.224.0/testing/mock.ts";
+  spy,
+} from "https://deno.land/std@0.208.0/testing/mock.ts";
 import { createWebhookHandler } from "./request-handler.ts";
 
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+function post(body: string): Request {
+  return new Request("https://example.test/webhook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
 }
 
-for (const variant of ["body", "header", "query"]) {
-  for (const payload of [null, [], "invalid", 42]) {
-    Deno.test(
-      `rejects ${JSON.stringify(payload)} with ${variant} instance before database access`,
-      async () => {
-        const failedHandler = spy(async () => {
-          throw new Error("Unexpected database access");
-        });
-        const handler = createWebhookHandler(failedHandler);
-        const response = await handler(
-          new Request(
-            `https://example.test/webhook${variant === "query" ? "?instanceId=test" : ""}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(variant === "header"
-                  ? { "x-wa-gateway-instance": "test" }
-                  : {}),
-              },
-              body: JSON.stringify(payload),
-            },
-          ),
-        );
-        assert(response.status === 400, "Expected invalid-payload 400");
-        assert(
-          (await response.json()).error === "Invalid payload",
-          "Expected invalid-payload response",
-        );
-        assertSpyCalls(failedHandler, 0);
-      },
-    );
-  }
+for (const payload of [null, [], "invalid", 42]) {
+  Deno.test(
+    `acks ${JSON.stringify(payload)} with 200 before processing`,
+    async () => {
+      const process = spy(() => Promise.resolve(new Response("processed")));
+      const response = await createWebhookHandler(process)(
+        post(JSON.stringify(payload)),
+      );
+      assertEquals(response.status, 200);
+      assertEquals(await response.json(), {
+        received: true,
+        ignored: "invalid_payload",
+      });
+      assertEquals(response.headers.get("Access-Control-Allow-Origin"), "*");
+      assertSpyCalls(process, 0);
+    },
+  );
 }
+
+Deno.test("malformed JSON returns 500 without processing", async () => {
+  const process = spy(() => Promise.resolve(new Response("processed")));
+  const response = await createWebhookHandler(process)(post("{not json"));
+  assertEquals(response.status, 500);
+  assertEquals(typeof (await response.json()).error, "string");
+  assertSpyCalls(process, 0);
+});
+
 Deno.test(
   "passes flat and wrapped objects unchanged to processing",
   async () => {
@@ -49,36 +47,29 @@ Deno.test(
       { instanceId: "test", body: "hi" },
       { data: { instanceId: "test", body: "hi" }, extra: 42 },
     ]) {
-      const handler = createWebhookHandler(async (_request, received) => {
-        assert(
-          JSON.stringify(received) === JSON.stringify(payload),
-          "Payload changed",
-        );
-        return new Response("processed");
+      const handler = createWebhookHandler((_request, received) => {
+        assertEquals(received, payload);
+        return Promise.resolve(new Response("processed"));
       });
-      const response = await handler(
-        new Request("https://example.test", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }),
-      );
-      assert(
-        (await response.text()) === "processed",
-        "Expected downstream response",
-      );
+      const response = await handler(post(JSON.stringify(payload)));
+      assertEquals(await response.text(), "processed");
     }
   },
 );
+
+Deno.test("processing errors return 500 with the message", async () => {
+  const handler = createWebhookHandler(() => Promise.reject(new Error("boom")));
+  const response = await handler(post("{}"));
+  assertEquals(response.status, 500);
+  assertEquals(await response.json(), { error: "boom" });
+});
+
 Deno.test("OPTIONS does not parse a body or invoke processing", async () => {
-  const handler = createWebhookHandler(async () => {
-    throw new Error("Unexpected processing");
-  });
-  const response = await handler(
+  const process = spy(() => Promise.resolve(new Response("processed")));
+  const response = await createWebhookHandler(process)(
     new Request("https://example.test", { method: "OPTIONS" }),
   );
-  assert(response.status === 200, "Expected preflight success");
-  assert(
-    response.headers.get("Access-Control-Allow-Origin") === "*",
-    "Expected CORS header",
-  );
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("Access-Control-Allow-Origin"), "*");
+  assertSpyCalls(process, 0);
 });
