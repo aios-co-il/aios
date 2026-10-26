@@ -15,12 +15,17 @@
  * - targetDomain: SharedTable monthly work header
  * - linkedGscLangFilter: SharedTable SEO keyword language filter
  * - manual_roi: SharedTable ManualROICard (closures, revenue)
- * - pulse_campaign_goals: per-campaign goal overrides that the Google Ads
- *   campaign goals read on shared dashboards (PR #936)
+ * - pulse_campaign_goals: per-campaign goal overrides (short goal labels).
+ *   Nothing on develop reads them yet; the shared dashboard's Google Ads goal
+ *   split will once PR #936 merges.
+ *
+ * Left out on purpose because no shared page reads them: last_sync_at,
+ * last_sync_outcome (its error text can quote credentials) and labels.
  *
  * A new read on a shared page needs its key here;
  * src/lib/publicTableSettings.test.ts checks that the shared-page helpers
- * decide the same with the filtered settings as with the stored ones.
+ * decide the same with the filtered settings as with the stored ones, and
+ * that no file the shared pages import reads a key missing from this list.
  */
 
 export type PublicSettingScalar = string | number | boolean | null;
@@ -130,6 +135,11 @@ export function toPublicTableSettings(settings: unknown): PublicTableSettings {
     const value = PUBLIC_SETTING_FILTERS[key](settings[key]);
     if (value !== undefined) out[key] = value;
   }
+  // parseSharedReportTabs reads `shared_tabs ?? sharedTabs`, so a stored
+  // shared_tabs, even one it ignores (an array or text shows every tab), means
+  // the legacy sharedTabs is never read. Without this, dropping a malformed
+  // shared_tabs would let sharedTabs hide tabs the stored settings show.
+  if (settings.shared_tabs != null) delete out.sharedTabs;
   return out as PublicTableSettings;
 }
 

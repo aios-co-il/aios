@@ -51,7 +51,6 @@ function storedSettings(): Record<string, unknown> {
     default_report_mode: "leads",
     use_woo_google_attribution: false,
     shared_tabs: { seo: true, gsc: false, ga: "false", maskyoo: 0 },
-    sharedTabs: { monthly_work: true },
     targetDomain: "example.co.il",
     linkedGscLangFilter: "he",
     manual_roi: { closures: 4, revenue: 12000, note: "SECRET-roi-19" },
@@ -94,19 +93,48 @@ Deno.test("public settings keep exactly the keys the shared pages read", () => {
   );
 
   const out = toPublicTableSettings(storedSettings());
-  assertEquals(Object.keys(out).sort(), [...SHARED_PAGE_KEYS].sort());
+  // Tables saved before shared_tabs existed keep their tab choices in sharedTabs.
+  const legacy = toPublicTableSettings({ sharedTabs: { monthly_work: true } });
+  assertEquals(
+    [...Object.keys(out), ...Object.keys(legacy)].sort(),
+    [...SHARED_PAGE_KEYS].sort(),
+  );
   assertEquals(out, {
     campaign_type: "ecommerce",
     currency: "USD",
     default_report_mode: "leads",
     use_woo_google_attribution: false,
     shared_tabs: { seo: true, gsc: false, ga: "false", maskyoo: 0 },
-    sharedTabs: { monthly_work: true },
     targetDomain: "example.co.il",
     linkedGscLangFilter: "he",
     manual_roi: { closures: 4, revenue: 12000 },
     pulse_campaign_goals: { "123": "ecommerce", "Brand search": "leads" },
   });
+  assertEquals(legacy, { sharedTabs: { monthly_work: true } });
+});
+
+Deno.test("sharedTabs goes out only when shared_tabs is not stored", () => {
+  const hideGa = { ga: false };
+  const cases: [Record<string, unknown>, Record<string, unknown>][] = [
+    [{ sharedTabs: hideGa }, { sharedTabs: hideGa }],
+    [{ shared_tabs: null, sharedTabs: hideGa }, { sharedTabs: hideGa }],
+    [
+      { shared_tabs: { gsc: false }, sharedTabs: hideGa },
+      { shared_tabs: { gsc: false } },
+    ],
+    // The shared page ignores these shapes and shows every tab; sharedTabs
+    // must not take over once shared_tabs is dropped.
+    [{ shared_tabs: ["seo"], sharedTabs: hideGa }, {}],
+    [{ shared_tabs: "seo", sharedTabs: hideGa }, {}],
+    [{ shared_tabs: false, sharedTabs: hideGa }, {}],
+    [{ shared_tabs: 0, sharedTabs: hideGa }, {}],
+  ];
+  for (const [stored, expected] of cases)
+    assertEquals(
+      toPublicTableSettings(stored),
+      expected,
+      JSON.stringify(stored),
+    );
 });
 
 Deno.test("credentials and sync errors never reach the public settings", () => {
@@ -207,3 +235,60 @@ Deno.test("an unreadable cached body is treated as a cache miss", () => {
   assertStrictEquals(toPublicCachedShareBody("[1,2]"), null);
   assertStrictEquals(toPublicCachedShareBody("null"), null);
 });
+
+/** Reads a share-link function's source next to this shared module. */
+function functionSource(name: string): Promise<string> {
+  return Deno.readTextFile(new URL(`../${name}/index.ts`, import.meta.url));
+}
+
+// The helper tests above pass even if a response stops calling the helper, so
+// these read the functions themselves.
+Deno.test(
+  "share-link responses send table settings only through the allowlist",
+  async () => {
+    const responseSites = { "public-table": 4, "public-dashboard": 2 };
+    for (const [name, expected] of Object.entries(responseSites)) {
+      const source = await functionSource(name);
+      const filteredNames = new Set(
+        [
+          ...source.matchAll(/const\s+(\w+)\s*=\s*toPublicTableSettings\(/g),
+        ].map((match) => match[1]),
+      );
+      let checked = 0;
+      for (const match of source.matchAll(
+        /(\.update\(\{\s*)?\b(integration_settings|_integrationSettings)\s*:\s*([\w$.]+)(\()?/g,
+      )) {
+        const [site, dbWrite, , value, call] = match;
+        if (dbWrite) continue;
+        const filtered = call
+          ? value === "toPublicTableSettings"
+          : filteredNames.has(value);
+        assert(filtered, `${name} returns unfiltered settings: ${site}`);
+        checked++;
+      }
+      assert(
+        checked >= expected,
+        `${name}: found ${checked} settings response sites`,
+      );
+    }
+  },
+);
+
+Deno.test(
+  "public-table filters a cached share body before sending it",
+  async () => {
+    const source = await functionSource("public-table");
+    const cached = source.match(
+      /const\s+(\w+)\s*=\s*await\s+readSeoShareCache\(/,
+    )?.[1];
+    assert(cached, "public-table no longer reads the share cache this way");
+    assert(
+      new RegExp(`toPublicCachedShareBody\\(\\s*${cached}\\b`).test(source),
+      "the cached body skips toPublicCachedShareBody",
+    );
+    assert(
+      !new RegExp(`new Response\\(\\s*${cached}\\b`).test(source),
+      "the cached body is sent as stored",
+    );
+  },
+);
