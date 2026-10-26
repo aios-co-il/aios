@@ -140,7 +140,9 @@ export function patchLeadInKanbanCache(
     if (!bucket?.leads || !Array.isArray(bucket.leads)) continue;
     updated[stageKey] = {
       ...bucket,
-      leads: bucket.leads.map((l) => (l.id === leadId ? { ...l, ...patch } : l)),
+      leads: bucket.leads.map((l) =>
+        l.id === leadId ? { ...l, ...patch } : l,
+      ),
     };
   }
   return updated;

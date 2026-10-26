@@ -199,7 +199,10 @@ export default function Tenants() {
 
       if (
         !ownerCheck &&
-        !("allow_super_admin_access" in tenant && tenant.allow_super_admin_access)
+        !(
+          "allow_super_admin_access" in tenant &&
+          tenant.allow_super_admin_access
+        )
       ) {
         toast({
           title: "אין הרשאה",

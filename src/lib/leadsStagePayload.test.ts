@@ -10,8 +10,11 @@ import {
 } from "./leadsStagePayload.ts";
 import type { LeadsKanbanCache, LeadsPageLead } from "../types/crm-b14.ts";
 
-const lead = (id: string, status: string) =>
-  ({ id, status, response_status: null });
+const lead = (id: string, status: string) => ({
+  id,
+  status,
+  response_status: null,
+});
 
 test("parseStageBuckets reads the object and the array RPC formats", () => {
   const fromObject = parseStageBuckets({
@@ -24,7 +27,11 @@ test("parseStageBuckets reads the object and the array RPC formats", () => {
   assert.deepEqual(fromObject.won, { leads: [], totalCount: 0 });
 
   const fromArray = parseStageBuckets([
-    { stage: "new", leads: [lead("b", "new"), { name: "no id" }], total_count: 1 },
+    {
+      stage: "new",
+      leads: [lead("b", "new"), { name: "no id" }],
+      total_count: 1,
+    },
   ]);
   assert.deepEqual(
     fromArray.new.leads.map((l) => l.id),
@@ -43,8 +50,10 @@ test("parseStageCounts and stageLeadsFromPayload read one stage", () => {
     "a",
   );
   assert.equal(
-    stageLeadsFromPayload([{ stage: "new", leads: [lead("c", "new")] }], "new")[0]
-      .id,
+    stageLeadsFromPayload(
+      [{ stage: "new", leads: [lead("c", "new")] }],
+      "new",
+    )[0].id,
     "c",
   );
   assert.deepEqual(stageLeadsFromPayload({}, "new"), []);
