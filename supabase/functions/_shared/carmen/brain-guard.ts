@@ -125,6 +125,25 @@ export async function internalBrainDenied(
   return allowed ? null : brainDenied("internal");
 }
 
+/**
+ * For a function that runs Carmen for a signed-in user with the service key
+ * (trigger-automation, for a run that user started): the refusal message when
+ * that user may not run Carmen's main brain, else null. A run that acts for no
+ * signed-in user passes.
+ */
+export async function internalBrainRefusal(
+  sb: SupabaseClient,
+  caller: { kind: string; userId?: string | null } | null | undefined,
+  target: { tenantId?: unknown; agentId?: unknown },
+): Promise<string | null> {
+  if (caller?.kind !== "user" || !caller.userId) return null;
+  const allowed = await internalBrainAllowed(sb, {
+    userId: caller.userId,
+    ...target,
+  });
+  return allowed ? null : DENIED_MESSAGE.internal;
+}
+
 const DENIED_MESSAGE: Record<DeniedTarget, string> = {
   brain: "אין לך הרשאה למוח הזה. בקש/י גישה ממנהל המערכת.",
   parliament: "אין לך הרשאה לשולחן. בקש/י גישה ממנהל המערכת.",

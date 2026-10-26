@@ -13605,7 +13605,8 @@ async function executeTool(
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
 import {
-  automationApprovalRefusal,
+  approvalDecisionRefusal,
+  approvalScopedTools,
   bindRunAgentCaller,
   isAutomationRun,
   runCallerPhone,
@@ -13654,11 +13655,12 @@ async function handleRunAgent(
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
       task_skills.length > 0;
-    // AIO-241: an automation run (trigger-automation) never approves or rejects
-    // pending requests and is not a chat conversation. Carmen's WhatsApp sessions
-    // come from the webhooks without a top-level automation_id.
+    // AIO-241: an automation run (trigger-automation) is not a chat conversation.
+    // Only a message a person typed approves or rejects pending requests: never
+    // an automation run or a task run. Carmen's WhatsApp sessions come from the
+    // webhooks without a top-level automation_id.
     const automationRun = isAutomationRun(bodyJson);
-    const mayDecideApprovals = runMayDecideApprovals(bodyJson);
+    const mayDecideApprovals = runMayDecideApprovals(bodyJson, surface);
     console.log(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
@@ -13770,7 +13772,9 @@ async function handleRunAgent(
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", callerUserId);
+        .eq("user_id", callerUserId)
+        // Roles in this tenant plus global (tenant_id null) ones, never another tenant's.
+        .or(`tenant_id.eq.${resolvedTenantId},tenant_id.is.null`);
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
       const order = [
@@ -13907,7 +13911,8 @@ async function handleRunAgent(
       const m = cmdRaw.match(TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
-      if (looksLikeInstruction && resolvedTenantId) {
+      // An automation's text is not someone teaching Carmen (AIO-241).
+      if (looksLikeInstruction && resolvedTenantId && !automationRun) {
         // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
         const triggerIdx = m!.index ?? 0;
         const before =
@@ -15007,7 +15012,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const rebuildToolsForApi = () => {
       toolsForAPI.length = 0;
       toolsForAPI.push(
-        ...buildToolApiEntries(filteredTools, promotedToolNames, tokenOptimize),
+        ...buildToolApiEntries(
+          approvalScopedTools(filteredTools, mayDecideApprovals),
+          promotedToolNames,
+          tokenOptimize,
+        ),
       );
       toolsForAPI.push(
         ...buildToolApiEntries(
@@ -15848,11 +15857,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
-          } else if (
-            !mayDecideApprovals &&
-            automationApprovalRefusal(toolName)
-          ) {
-            result = automationApprovalRefusal(toolName);
+          } else if (approvalDecisionRefusal(toolName, bodyJson, surface)) {
+            result = approvalDecisionRefusal(toolName, bodyJson, surface);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
