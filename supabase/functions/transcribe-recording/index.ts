@@ -18,7 +18,6 @@ import { freshZoomRecordingUrls } from "./zoom-recordings-list.ts";
 
 type ZoomRecordingRow = Tables<"zoom_recordings">;
 
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":

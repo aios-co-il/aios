@@ -89,11 +89,7 @@ import { he } from "date-fns/locale";
 import { useAgency } from "@/contexts/AgencyContext";
 import { LinkFileToEntityDialog } from "@/components/chat/LinkFileToEntityDialog";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
-import {
-  isJsonObject,
-  jsonField,
-  errorMessage,
-} from "@/lib/typeGuards";
+import { isJsonObject, jsonField, errorMessage } from "@/lib/typeGuards";
 
 const getPublicOrigin = () => {
   // Use the app's own origin in the browser; fall back to the canonical domain.

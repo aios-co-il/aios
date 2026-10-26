@@ -26,7 +26,10 @@ test("freshZoomRecordingUrls puts the wanted recording type first, without dupli
     "https://z/p",
     "https://z/v",
   ]);
-  assert.equal(freshZoomRecordingUrls(listData, "u-42", "")?.[0], "https://z/v");
+  assert.equal(
+    freshZoomRecordingUrls(listData, "u-42", "")?.[0],
+    "https://z/v",
+  );
 });
 
 test("freshZoomRecordingUrls returns null when the meeting is missing", () => {
