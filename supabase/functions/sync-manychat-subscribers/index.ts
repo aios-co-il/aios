@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { getPath, getString } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -254,20 +255,25 @@ Deno.serve(async (req) => {
 
     for (const message of messages || []) {
       try {
-        const providerData = message.raw_provider_data as any;
+        const providerData: unknown = message.raw_provider_data;
         // Extract subscriber ID from ManyChat structure
+        const rawSubscriberId =
+          getPath(providerData, "subscriber", "id") ||
+          getPath(providerData, "subscriber_id") ||
+          getPath(providerData, "subscriberId");
         const subscriberId =
-          providerData?.subscriber?.id ||
-          providerData?.subscriber_id ||
-          providerData?.subscriberId;
+          typeof rawSubscriberId === "string" ||
+          typeof rawSubscriberId === "number"
+            ? String(rawSubscriberId)
+            : undefined;
         let phone =
-          providerData?.phone ||
-          providerData?.contact?.phone ||
-          providerData?.subscriber?.phone;
+          getString(providerData, "phone") ||
+          getString(providerData, "contact", "phone") ||
+          getString(providerData, "subscriber", "phone");
 
         // If phone is a template placeholder, try to use subscriber.id as phone
         if (!phone || phone.startsWith("{{") || phone === "") {
-          const possiblePhone = providerData?.subscriber?.id;
+          const possiblePhone = getString(providerData, "subscriber", "id");
           // Check if ID looks like a phone number (starts with 972 or 05)
           if (
             possiblePhone &&
