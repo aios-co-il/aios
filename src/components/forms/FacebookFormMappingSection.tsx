@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { isJsonObject, jsonString } from "@/types/marketing-b21";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 import { parseFormMappings, rawFormMappings } from "./facebookFormMappings";
 import {
   Card,

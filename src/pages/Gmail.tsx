@@ -55,7 +55,7 @@ import { he } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { ProcessInvoicesDialog } from "@/components/gmail/ProcessInvoicesDialog";
-import { asJsonObject } from "@/types/integrations-b22";
+import { asJsonObject } from "@/lib/jsonFields";
 
 interface GmailSendBody {
   action: "send";

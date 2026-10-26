@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { withSeoTableSettings } from "@/types/marketing-b21";
+import { withSeoTableSettings } from "@/types/marketingPipeline";
 import {
   normalizeSeoDomain,
   selectSeoTableForClient,

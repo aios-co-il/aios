@@ -10,7 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { errorMessage } from "@/components/broadcast/templateUtils";
-import { isJsonObject, jsonString } from "@/types/marketing-b21";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";

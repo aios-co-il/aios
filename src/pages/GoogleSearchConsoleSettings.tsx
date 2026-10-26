@@ -28,7 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { ManageIntegrationPermissionsDialog } from "@/components/forms/ManageIntegrationPermissionsDialog";
-import { asJsonObject, readText } from "@/types/integrations-b22";
+import { asJsonObject, readText } from "@/lib/jsonFields";
 
 export default function GoogleSearchConsoleSettings() {
   const { currentTenantId } = useTenant();

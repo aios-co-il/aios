@@ -1,25 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   isApprovalMode,
-  jsonString,
-  jsonStringArray,
   parseStageConfiguration,
   withSeoTableSettings,
-} from "./marketing-b21";
+} from "./marketingPipeline";
 
-describe("marketing JSON helpers", () => {
-  it("reads string fields of JSON objects only", () => {
-    expect(jsonString({ a: "x" }, "a")).toBe("x");
-    expect(jsonString({ a: 1 }, "a")).toBeUndefined();
-    expect(jsonString(["x"], "0")).toBeUndefined();
-    expect(jsonString(null, "a")).toBeUndefined();
-  });
-
-  it("keeps only the strings of a JSON array", () => {
-    expect(jsonStringArray(["a", 1, null, "b"])).toEqual(["a", "b"]);
-    expect(jsonStringArray("a")).toEqual([]);
-  });
-
+describe("marketing pipeline helpers", () => {
   it("recognizes approval modes", () => {
     expect(isApprovalMode("hybrid")).toBe(true);
     expect(isApprovalMode("sometimes")).toBe(false);

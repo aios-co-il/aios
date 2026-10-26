@@ -51,7 +51,7 @@ import { ShareFacebookConnectionSection } from "@/components/forms/ShareFacebook
 import { SharedFacebookConnectionBanner } from "@/components/forms/SharedFacebookConnectionBanner";
 import { ManageIntegrationPermissionsDialog } from "@/components/forms/ManageIntegrationPermissionsDialog";
 import { IntegrationVisibilitySelector } from "@/components/forms/IntegrationVisibilitySelector";
-import { asJsonObject, isJsonObject, readText } from "@/types/integrations-b22";
+import { asJsonObject, isJsonObject, readText } from "@/lib/jsonFields";
 
 interface FacebookPage {
   id: string;

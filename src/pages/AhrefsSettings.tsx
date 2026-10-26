@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
 import { hasValidSeoReportData } from "@/components/dynamic-tables/seo/reportValidity";
-import { asJsonObject } from "@/types/integrations-b22";
+import { asJsonObject } from "@/lib/jsonFields";
 
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ahrefs-webhook`;
 

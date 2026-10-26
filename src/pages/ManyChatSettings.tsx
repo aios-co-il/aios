@@ -48,7 +48,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
-import { asJsonObject, readText } from "@/types/integrations-b22";
+import { asJsonObject, readText } from "@/lib/jsonFields";
+import { parseManyChatTags } from "@/lib/manychatTags";
 import {
   isSyncJobStatus,
   parseSyncProgress,
@@ -64,21 +65,6 @@ interface SyncJob {
   created_at: string;
   started_at?: string;
   completed_at?: string;
-}
-
-interface ManyChatTag {
-  id: string | number;
-  name: string;
-}
-
-function parseManyChatTags(value: unknown): ManyChatTag[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry: unknown) => {
-    const tag = asJsonObject(entry);
-    const name = readText(tag, "name");
-    if (typeof tag.id !== "string" && typeof tag.id !== "number") return [];
-    return name === undefined ? [] : [{ id: tag.id, name }];
-  });
 }
 
 function toRealtimeSyncJob(row: unknown): SyncJob | null {
@@ -267,7 +253,7 @@ export default function ManyChatSettings() {
       });
 
       if (response.error) throw response.error;
-      return parseManyChatTags(asJsonObject(response.data).tags);
+      return parseManyChatTags(response.data);
     },
     enabled: !!tenantId && !!integration?.is_active,
   });

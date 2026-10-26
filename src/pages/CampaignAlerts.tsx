@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import { asJsonObject, errorMessageOf } from "@/types/integrations-b22";
+import { asJsonObject, errorMessageOf } from "@/lib/jsonFields";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

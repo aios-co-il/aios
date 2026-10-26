@@ -1,4 +1,4 @@
-import { asJsonObject } from "@/types/integrations-b22";
+import { asJsonObject } from "@/lib/jsonFields";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import {

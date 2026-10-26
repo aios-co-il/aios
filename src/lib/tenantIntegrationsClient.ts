@@ -9,6 +9,8 @@
  * on the frontend until those flows are migrated to edge functions.
  */
 
+import { isJsonObject } from "./jsonFields.ts";
+
 export const GOOGLE_INTEGRATION_TYPES = new Set([
   "google_analytics",
   "google_search_console",
@@ -141,4 +143,22 @@ export function isGoogleIntegrationConnected(
     { is_active?: boolean | null; has_credential?: boolean } | null | undefined,
 ): boolean {
   return !!(integration?.is_active && integration?.has_credential);
+}
+
+const isNullableString = (value: unknown) =>
+  value === undefined || value === null || typeof value === "string";
+
+export function isTenantIntegrationRow(
+  value: unknown,
+): value is TenantIntegrationRow {
+  if (!isJsonObject(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.tenant_id === "string" &&
+    typeof value.integration_type === "string" &&
+    isNullableString(value.user_id) &&
+    (value.settings === undefined ||
+      value.settings === null ||
+      isJsonObject(value.settings))
+  );
 }

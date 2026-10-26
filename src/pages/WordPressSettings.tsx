@@ -108,7 +108,7 @@ import {
   asStringMap,
   errorMessageOf,
   readText,
-} from "@/types/integrations-b22";
+} from "@/lib/jsonFields";
 
 interface WordPressSite {
   id: string;

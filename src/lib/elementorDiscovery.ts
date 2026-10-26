@@ -1,3 +1,5 @@
+import { isJsonObject } from "./jsonFields.ts";
+
 export interface DiscoveredForm {
   form_id: string;
   form_name: string;
@@ -20,11 +22,6 @@ export interface ElementorDiscovery {
   per_slug: DiscoveredSlug[];
 }
 
-type UnknownRecord = { [key: string]: unknown };
-
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const text = (value: unknown): string =>
   typeof value === "string"
     ? value
@@ -44,7 +41,7 @@ const textList = (value: unknown): string[] =>
     : [];
 
 function parseSources(value: unknown): Record<string, number> {
-  if (!isRecord(value)) return {};
+  if (!isJsonObject(value)) return {};
   return Object.fromEntries(
     Object.entries(value).flatMap(([key, n]) =>
       typeof n === "number" ? [[key, n]] : [],
@@ -53,7 +50,7 @@ function parseSources(value: unknown): Record<string, number> {
 }
 
 function parseForm(value: unknown): DiscoveredForm[] {
-  if (!isRecord(value)) return [];
+  if (!isJsonObject(value)) return [];
   return [
     {
       form_id: text(value.form_id),
@@ -69,7 +66,7 @@ function parseForm(value: unknown): DiscoveredForm[] {
 }
 
 function parseSlug(value: unknown): DiscoveredSlug[] {
-  if (!isRecord(value)) return [];
+  if (!isJsonObject(value)) return [];
   return [
     {
       slug: text(value.slug),
@@ -82,7 +79,7 @@ function parseSlug(value: unknown): DiscoveredSlug[] {
 
 /** Narrows the `fetch-elementor-submissions` response; non-object entries are dropped. */
 export function parseElementorDiscovery(data: unknown): ElementorDiscovery {
-  const body = isRecord(data) ? data : {};
+  const body = isJsonObject(data) ? data : {};
   return {
     per_form: Array.isArray(body.per_form)
       ? body.per_form.flatMap(parseForm)

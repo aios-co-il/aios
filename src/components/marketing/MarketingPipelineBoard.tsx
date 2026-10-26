@@ -37,11 +37,8 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { errorMessage } from "@/components/broadcast/templateUtils";
-import {
-  jsonString,
-  type BoardStage,
-  type BoardWorkItem,
-} from "@/types/marketing-b21";
+import { jsonString } from "@/lib/jsonFields";
+import { type BoardStage, type BoardWorkItem } from "@/types/marketingPipeline";
 
 // ─── Stage identity config ────────────────────────────────────────────────────
 const STAGE_CONFIG: Record<

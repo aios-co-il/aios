@@ -14,12 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { errorMessage } from "@/components/broadcast/templateUtils";
+import { jsonString } from "@/lib/jsonFields";
 import {
-  jsonString,
   type BoardStage,
   type BoardWorkItem,
   type MarketingApprovalMode,
-} from "@/types/marketing-b21";
+} from "@/types/marketingPipeline";
 import {
   X,
   Send,

@@ -4,26 +4,12 @@ import {
   type Json,
   type Tables,
 } from "@/integrations/supabase/types";
-
-export type JsonObject = { [key: string]: Json | undefined };
-
-export function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** The string at `key` of a JSON object column, or undefined. */
-export function jsonString(value: unknown, key: string): string | undefined {
-  if (!isJsonObject(value)) return undefined;
-  const field = value[key];
-  return typeof field === "string" ? field : undefined;
-}
-
-/** The string entries of a JSON array, or [] when it is not an array. */
-export function jsonStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((v): v is string => typeof v === "string")
-    : [];
-}
+import {
+  isJsonObject,
+  jsonString,
+  jsonStringArray,
+  type JsonColumnObject,
+} from "@/lib/jsonFields";
 
 export type MarketingApprovalMode = Enums<"marketing_approval_mode">;
 export type MarketingStageType = Enums<"marketing_stage_type">;
@@ -35,12 +21,12 @@ export function isApprovalMode(value: unknown): value is MarketingApprovalMode {
 }
 
 /** Stage configuration JSON: instructions, tool ids and the raw target object. */
-export function parseStageConfiguration(value: unknown): {
+export function parseStageConfiguration(value: Json): {
   instructions: string;
   tools: string[];
-  target: JsonObject;
+  target: JsonColumnObject;
 } {
-  const cfg = isJsonObject(value) ? value : {};
+  const cfg: JsonColumnObject = isJsonObject(value) ? value : {};
   return {
     instructions: jsonString(cfg, "instructions") ?? "",
     tools: jsonStringArray(cfg.tools),
@@ -67,7 +53,7 @@ export type BoardWorkItem = Pick<
   "id" | "title" | "status" | "current_stage_id" | "scheduled_date" | "payload"
 >;
 
-export type SeoTableSettings = JsonObject & {
+export type SeoTableSettings = JsonColumnObject & {
   campaign_type?: string | null;
   default_report_mode?: string | null;
 };

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import { useResolvedGscIntegration } from "@/hooks/useResolvedGscIntegration";
 import { seoDomainsMatch } from "@/lib/seoDomain";
-import { isJsonObject, jsonString } from "@/types/marketing-b21";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 import type { GscKeywordData } from "@/components/dynamic-tables/seo/GscIntegration";
 
 export type SeoMonthlyGscPeriods = {

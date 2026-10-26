@@ -1,3 +1,5 @@
+import { isJsonObject, type JsonObject } from "./jsonFields.ts";
+
 type CalendarDate = { dateTime?: string; date?: string };
 
 export interface CalendarPayloadEvent {
@@ -21,10 +23,8 @@ export interface CalendarEventsPayload {
   calendars: CalendarPayloadCalendar[];
 }
 
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+function asObject(value: unknown): JsonObject | undefined {
+  return isJsonObject(value) ? value : undefined;
 }
 
 function str(value: unknown): string | undefined {

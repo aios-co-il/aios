@@ -1,5 +1,5 @@
 import type { Json } from "@/integrations/supabase/types";
-import { isJsonObject, type JsonObject } from "@/types/marketing-b21";
+import { isJsonObject, type JsonColumnObject } from "@/lib/jsonFields";
 
 export type FormMapping = {
   field_mappings: Record<string, string>;
@@ -52,14 +52,16 @@ function parseFormMapping(value: Json | undefined): StoredFormMapping | null {
 }
 
 /** The raw form_mappings object of a Facebook integration's settings. */
-export function rawFormMappings(settings: JsonObject | null): JsonObject {
+export function rawFormMappings(
+  settings: JsonColumnObject | null,
+): JsonColumnObject {
   const mappings = settings?.form_mappings;
   return isJsonObject(mappings) ? { ...mappings } : {};
 }
 
 /** Readable form mappings; entries that are not objects are skipped. */
 export function parseFormMappings(
-  settings: JsonObject | null,
+  settings: JsonColumnObject | null,
 ): Record<string, StoredFormMapping> {
   const result: Record<string, StoredFormMapping> = {};
   for (const [formId, value] of Object.entries(rawFormMappings(settings))) {

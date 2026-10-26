@@ -29,15 +29,17 @@ import {
 import type { Json } from "@/integrations/supabase/types";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 import {
-  isApprovalMode,
   isJsonObject,
   jsonString,
   jsonStringArray,
+  type JsonColumnObject,
+} from "@/lib/jsonFields";
+import {
+  isApprovalMode,
   parseStageConfiguration,
-  type JsonObject,
   type MarketingApprovalMode,
   type MarketingStageType,
-} from "@/types/marketing-b21";
+} from "@/types/marketingPipeline";
 import { Loader2, Plus, Save, Download, Globe } from "lucide-react";
 
 interface Stage {
@@ -134,7 +136,7 @@ export function StageConfigDialog({
   >("manual");
   const [instructions, setInstructions] = useState("");
   const [tools, setTools] = useState<string[]>([]);
-  const [target, setTarget] = useState<JsonObject>({});
+  const [target, setTarget] = useState<JsonColumnObject>({});
   const [saving, setSaving] = useState(false);
 
   const connections = useClientConnections(clientId);
@@ -479,8 +481,8 @@ function TargetSection({
   onConnectionsChanged,
 }: {
   stageType: string;
-  target: JsonObject;
-  setTarget: (t: JsonObject) => void;
+  target: JsonColumnObject;
+  setTarget: (t: JsonColumnObject) => void;
   connections: ClientConnections | undefined;
   clientId: string;
   tenantId: string;

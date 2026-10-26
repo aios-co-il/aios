@@ -8,7 +8,7 @@ import {
   type TenantIntegrationRow,
 } from "@/lib/tenantIntegrationsClient";
 import { isReportTenantScopedIntegration } from "@/lib/reportIntegrationTypes";
-import { isTenantIntegrationRow } from "@/types/integrations-b22";
+import { isTenantIntegrationRow } from "@/lib/tenantIntegrationsClient";
 
 /**
  * Fetches integrations the current user has access to:

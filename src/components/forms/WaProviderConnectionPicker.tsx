@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { Json } from "@/integrations/supabase/types";
-import { jsonString } from "@/types/marketing-b21";
+import { jsonString } from "@/lib/jsonFields";
 import { Label } from "@/components/ui/label";
 
 interface Integration {

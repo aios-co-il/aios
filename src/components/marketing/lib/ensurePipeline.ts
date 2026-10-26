@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { isApprovalMode } from "@/types/marketing-b21";
+import { isApprovalMode } from "@/types/marketingPipeline";
 
 type StageTemplate = Tables<"marketing_stage_templates">;
 

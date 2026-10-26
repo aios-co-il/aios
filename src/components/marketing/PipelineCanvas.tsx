@@ -26,7 +26,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { isJsonObject } from "@/types/marketing-b21";
+import { isJsonObject } from "@/lib/jsonFields";
 import { StageConfigDialog } from "./StageConfigDialog";
 
 const STAGE_ICONS: Record<string, LucideIcon> = {

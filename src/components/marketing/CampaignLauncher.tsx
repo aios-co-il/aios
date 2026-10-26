@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { jsonString } from "@/types/marketing-b21";
+import { jsonString } from "@/lib/jsonFields";
 import { errorMessage } from "@/components/broadcast/templateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

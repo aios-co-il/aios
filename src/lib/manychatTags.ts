@@ -3,6 +3,9 @@ export interface ManyChatTag {
   name: string;
 }
 
+const tagName = (value: unknown): string =>
+  typeof value === "string" || typeof value === "number" ? String(value) : "";
+
 /** Tags from the get-manychat-tags response; entries without an id are dropped. */
 export function parseManyChatTags(data: unknown): ManyChatTag[] {
   if (typeof data !== "object" || data === null || !("tags" in data)) {
@@ -14,7 +17,7 @@ export function parseManyChatTags(data: unknown): ManyChatTag[] {
     if (typeof tag !== "object" || tag === null || !("id" in tag)) return [];
     const { id } = tag;
     if (typeof id !== "number" && typeof id !== "string") return [];
-    const name = "name" in tag && typeof tag.name === "string" ? tag.name : "";
+    const name = "name" in tag ? tagName(tag.name) : "";
     return [{ id, name }];
   });
 }

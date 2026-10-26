@@ -13,7 +13,7 @@ import {
 } from "@/lib/seoMonthlyShareSnapshot";
 import { downloadSeoMonthlySlideshowPdf } from "@/lib/seoMonthlyPdf";
 import { toast } from "sonner";
-import { errorMessageOf } from "@/types/integrations-b22";
+import { errorMessageOf } from "@/lib/jsonFields";
 
 type LocationState = {
   fromApp?: boolean;

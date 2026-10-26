@@ -27,4 +27,10 @@ describe("parseManyChatTags", () => {
       parseManyChatTags({ tags: [null, { name: "x" }, { id: 3 }] }),
     ).toEqual([{ id: 3, name: "" }]);
   });
+
+  it("renders numeric names as text", () => {
+    expect(parseManyChatTags({ tags: [{ id: 4, name: 7 }] })).toEqual([
+      { id: 4, name: "7" },
+    ]);
+  });
 });

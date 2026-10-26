@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import { seoDomainsMatch } from "@/lib/seoDomain";
-import { isJsonObject, jsonString } from "@/types/marketing-b21";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 
 export interface ResolvedGscIntegration {
   /** GSC integration ID to use for fetch-gsc-data calls. Null when nothing is available. */

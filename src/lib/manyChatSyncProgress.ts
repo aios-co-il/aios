@@ -1,3 +1,5 @@
+import { isJsonObject } from "./jsonFields.ts";
+
 export interface SyncResult {
   leadId: string;
   leadName?: string;
@@ -26,11 +28,6 @@ export const SYNC_JOB_STATUSES = [
 
 export type SyncJobStatus = (typeof SYNC_JOB_STATUSES)[number];
 
-type UnknownRecord = { [key: string]: unknown };
-
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const optionalOf = <T>(
   value: unknown,
   check: (v: unknown) => v is T,
@@ -46,7 +43,7 @@ export function isSyncJobStatus(value: unknown): value is SyncJobStatus {
 }
 
 function parseSyncResult(value: unknown): SyncResult[] {
-  if (!isRecord(value)) return [];
+  if (!isJsonObject(value)) return [];
   if (typeof value.leadId !== "string" || typeof value.success !== "boolean") {
     return [];
   }
@@ -64,7 +61,7 @@ function parseSyncResult(value: unknown): SyncResult[] {
 
 /** Normalizes `sync_jobs.progress` JSON; missing or malformed fields become 0 / []. */
 export function parseSyncProgress(value: unknown): SyncProgress {
-  const progress = isRecord(value) ? value : {};
+  const progress = isJsonObject(value) ? value : {};
   return {
     processed: countOf(progress.processed),
     failed: countOf(progress.failed),

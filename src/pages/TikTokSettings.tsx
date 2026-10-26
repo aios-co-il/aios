@@ -25,7 +25,7 @@ import {
   Heart,
   Video,
 } from "lucide-react";
-import { asJsonObject } from "@/types/integrations-b22";
+import { asJsonObject } from "@/lib/jsonFields";
 
 export default function TikTokSettings() {
   const { currentTenantId } = useTenant();
