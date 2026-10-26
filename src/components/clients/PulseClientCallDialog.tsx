@@ -81,6 +81,9 @@ export function PulseClientCallDialog({
         `,
         )
         .eq("client_id", target.clientId)
+        // Only human or Carmen-confirmed rows can count as contact; filtering here
+        // keeps automatic report rows from crowding real calls out of the 30.
+        .in("source", ["human", "carmen_confirmed"])
         .or("update_type.in.(call,weekly_update),counts_as_contact.is.true")
         .order("created_at", { ascending: false })
         .limit(30);
