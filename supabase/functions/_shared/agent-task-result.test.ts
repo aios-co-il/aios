@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asJsonObject,
   readWhatsAppNotify,
@@ -16,44 +15,59 @@ const notify = {
   is_group: true,
 };
 
-test("asJsonObject keeps objects and reads anything else as empty", () => {
-  assert.deepEqual(asJsonObject({ a: 1 }), { a: 1 });
-  assert.deepEqual(asJsonObject(null), {});
-  assert.deepEqual(asJsonObject(["x"]), {});
-  assert.deepEqual(asJsonObject("x"), {});
+Deno.test("asJsonObject keeps objects and reads anything else as empty", () => {
+  assertEquals(asJsonObject({ a: 1 }), { a: 1 });
+  assertEquals(asJsonObject(null), {});
+  assertEquals(asJsonObject(["x"]), {});
+  assertEquals(asJsonObject("x"), {});
 });
 
-test("taskResultOutput prefers final_output, else the last non-blank assistant message", () => {
-  assert.equal(taskResultOutput({ final_output: "done" }), "done");
-  assert.equal(
-    taskResultOutput({
-      conversation_history: [
-        { role: "assistant", content: "first" },
-        null,
-        { role: "user", content: "q" },
-        { role: "assistant", content: "  " },
-      ],
-    }),
-    "first",
-  );
-  assert.equal(taskResultOutput({ conversation_history: "x" }), undefined);
-  assert.equal(taskResultOutput({}), undefined);
-});
+Deno.test(
+  "taskResultOutput prefers final_output, else the last non-blank assistant message",
+  () => {
+    assertStrictEquals(taskResultOutput({ final_output: "done" }), "done");
+    assertStrictEquals(
+      taskResultOutput({
+        conversation_history: [
+          { role: "assistant", content: "first" },
+          null,
+          { role: "user", content: "q" },
+          { role: "assistant", content: "  " },
+        ],
+      }),
+      "first",
+    );
+    assertStrictEquals(
+      taskResultOutput({ conversation_history: "x" }),
+      undefined,
+    );
+    assertStrictEquals(taskResultOutput({}), undefined);
+  },
+);
 
-test("readWhatsAppNotify accepts complete targets and drops malformed ones", () => {
-  assert.deepEqual(readWhatsAppNotify(notify), notify);
-  assert.deepEqual(
-    readWhatsAppNotify({
-      ...notify,
-      automation_id: undefined,
-      phone_number: undefined,
-    }),
-    notify,
-  );
-  assert.deepEqual(readWhatsAppNotify({ ...notify, extra: 1 }), notify);
-  assert.equal(readWhatsAppNotify({ ...notify, surface: "email" }), null);
-  assert.equal(readWhatsAppNotify({ ...notify, chat_id: 5 }), null);
-  assert.equal(readWhatsAppNotify({ ...notify, is_group: "true" }), null);
-  assert.equal(readWhatsAppNotify(null), null);
-  assert.equal(readWhatsAppNotify([notify]), null);
-});
+Deno.test(
+  "readWhatsAppNotify accepts complete targets and drops malformed ones",
+  () => {
+    assertEquals(readWhatsAppNotify(notify), notify);
+    assertEquals(
+      readWhatsAppNotify({
+        ...notify,
+        automation_id: undefined,
+        phone_number: undefined,
+      }),
+      notify,
+    );
+    assertEquals(readWhatsAppNotify({ ...notify, extra: 1 }), notify);
+    assertStrictEquals(
+      readWhatsAppNotify({ ...notify, surface: "email" }),
+      null,
+    );
+    assertStrictEquals(readWhatsAppNotify({ ...notify, chat_id: 5 }), null);
+    assertStrictEquals(
+      readWhatsAppNotify({ ...notify, is_group: "true" }),
+      null,
+    );
+    assertStrictEquals(readWhatsAppNotify(null), null);
+    assertStrictEquals(readWhatsAppNotify([notify]), null);
+  },
+);
