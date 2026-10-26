@@ -57,7 +57,11 @@ import {
   executeWorkshopTool,
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
-import { isBlockedInWorkshop } from "../_shared/workshop/blocked-tools.ts";
+import {
+  isBlockedInWorkshop,
+  stripServerOnlyPayloadKeys,
+  workshopBlockedResult,
+} from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import {
   ROLE_PERSONA,
@@ -8737,8 +8741,12 @@ async function executeTool(
       };
       if (args.title != null) patch.title = String(args.title);
       if (args.status != null) patch.status = args.status;
+      // The workshop's budget and project state are written only by its own server code.
+      let droppedKeys: string[] = [];
       if (args.payload_patch && typeof args.payload_patch === "object") {
-        patch.payload = { ...(item.payload || {}), ...args.payload_patch };
+        const safe = stripServerOnlyPayloadKeys(args.payload_patch);
+        droppedKeys = safe.dropped;
+        patch.payload = { ...(item.payload || {}), ...safe.patch };
       }
       const { data: updated, error } = await supabase
         .from("marketing_work_items")
@@ -8747,7 +8755,13 @@ async function executeTool(
         .select("id, title, status")
         .single();
       if (error) throw error;
-      return { success: true, item: updated };
+      if (droppedKeys.length === 0) return { success: true, item: updated };
+      return {
+        success: true,
+        item: updated,
+        ignored_payload_keys: droppedKeys,
+        message: `לא עודכנו: ${droppedKeys.join(", ")}. את התקציב ואת מצב הפרויקט של הסדנה כותבת רק הסדנה עצמה.`,
+      };
     }
 
     case "generate_ad_image": {
@@ -14926,7 +14940,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
     } else {
       // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
-      // reachable from here, so a tap can never run an unrelated pending approval.
+      // reachable from here, so a tap can never run an unrelated pending approval. Tools that
+      // publish, message people, change ads or act later are not offered here either.
       filteredTools = filteredTools.filter(
         (t) => !isBlockedInWorkshop(t.name, true),
       );
@@ -15482,8 +15497,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: meeting join URL in message → dispatch Recall bot immediately.
+    // Not from the workshop: a meeting link there is project material, not a request to join.
     const meetingUrl = extractMeetingUrl(String(command_text || ""));
-    if (isCarmen && !pinSkillsOnly && meetingUrl) {
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      meetingUrl &&
+      !isBlockedInWorkshop("join_meeting_for_client", inWorkshop)
+    ) {
       console.log(
         `[AGENT] Auto-dispatching meeting bot for URL: ${meetingUrl.slice(0, 80)}`,
       );
@@ -15914,12 +15935,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               message: "סשן מבודד — כלים כבויים.",
             };
           } else if (isBlockedInWorkshop(toolName, inWorkshop)) {
-            // A workshop tap is never an approval of a WhatsApp/Meta action, whatever is called.
-            result = {
-              error: "not_in_workshop",
-              message:
-                "אישורים של וואטסאפ ומטא לא מטופלים מהסדנה. המשיכי בעבודה על הפרויקט.",
-            };
+            // A workshop tap is never an approval, and nothing leaves the board from here,
+            // whatever is called (even a tool that was never offered).
+            result = workshopBlockedResult(toolName);
           } else if (toolName === "search_agent_tools") {
             const discovered = (
               await searchToolsFromIndex(
@@ -15928,7 +15946,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 toolPoolBeforeRouting,
                 typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
               )
-            ).filter((tool) => !isBlockedInWorkshop(tool.name, inWorkshop));
+            ).filter((tool) => workshopToolAllowed(tool.name));
             expandAgentTools(discovered);
             result = {
               success: true,
