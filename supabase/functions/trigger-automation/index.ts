@@ -75,7 +75,6 @@ import {
   statusFields,
   statusFilterSource,
   toJson,
-  type UnknownRecord,
 } from "../_shared/automation-json.ts";
 import {
   Constants,
@@ -88,6 +87,9 @@ import {
   type AutomationPayload,
   isAutomationPayload,
 } from "./automation-payload.ts";
+
+/** One run's variables: trigger data plus step outputs, keyed by user-configured field names. */
+type RunData = { [key: string]: unknown };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,9 +142,9 @@ async function getPhoneNumberFieldIdMC(
   const settings = jsonObject(integration?.settings);
   const cachedFieldId = settings.phone_number_field_id;
   if (cachedFieldId) {
-    return typeof cachedFieldId === "number"
-      ? cachedFieldId
-      : Number(cachedFieldId);
+    const fieldId =
+      typeof cachedFieldId === "number" ? cachedFieldId : Number(cachedFieldId);
+    return Number.isFinite(fieldId) ? fieldId : null;
   }
 
   // If not cached, fetch from ManyChat API
@@ -787,7 +789,7 @@ type AgentRequestBody = {
   temperature: number | undefined;
   automation_id: string;
   user_name: unknown;
-  lead_data: UnknownRecord;
+  lead_data: RunData;
   task_skills?: Json[];
   conversation_history?: unknown[];
   wa_notify?: NonNullable<ReturnType<typeof buildWaNotifyFromOrigin>>;
@@ -967,7 +969,7 @@ async function isPrimaryCarmenIntegration(
   );
 }
 
-type CarmenNotificationResult = UnknownRecord & {
+type CarmenNotificationResult = JsonObject & {
   handled: boolean;
   sent?: boolean;
 };
@@ -1709,7 +1711,7 @@ Deno.serve(async (req) => {
       const { data: recentExec } = await supabase
         .from("automation_executions")
         .select("id")
-        .eq("tenant_id", String(requestBody.tenant_id))
+        .eq("tenant_id", asText(requestBody.tenant_id))
         .eq("trigger_type", "whatsapp_message_received")
         .eq("entity_id", entityKey)
         .gte("started_at", thirtySecondsAgo)
@@ -1749,12 +1751,12 @@ Deno.serve(async (req) => {
     // ===== END SAFETY GUARDS =====
 
     let automations: Tables<"automations">[] = [];
-    let payloadData: UnknownRecord | null | undefined;
+    let payloadData: RunData | null | undefined;
     let tenantId: string;
 
     const validateFlowTriggerConfig = (
       config: JsonObject,
-      data: UnknownRecord,
+      data: RunData,
       hasActiveCarmenSession?: boolean,
     ): { matches: boolean; reason?: string } => {
       const safeConfig = config || {};
@@ -2599,7 +2601,7 @@ Deno.serve(async (req) => {
               const stepConfig = jsonObject(step.configuration);
 
               // Build stepData: merge payloadData + latest parent output
-              const stepData: UnknownRecord = {
+              const stepData: RunData = {
                 ...payloadData,
                 previous_step_output: previousStepOutput,
                 agent_output:
@@ -2693,7 +2695,7 @@ Deno.serve(async (req) => {
 
                 // ── MERGE ───────────────────────────────────────────────────
                 if (step.step_type === "merge") {
-                  const mergedData: UnknownRecord = { ...stepData };
+                  const mergedData: RunData = { ...stepData };
                   Object.values(nodeOutputs).forEach((o) => {
                     if (o && typeof o === "object")
                       Object.assign(mergedData, o);
@@ -3989,7 +3991,7 @@ Deno.serve(async (req) => {
 // Helper function to check conditions
 function checkConditions(
   conditions: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   triggerType?: string,
 ): boolean {
   try {
@@ -4074,7 +4076,7 @@ function checkConditions(
 }
 
 // Execute webhook action
-async function executeWebhook(config: JsonObject, data: UnknownRecord) {
+async function executeWebhook(config: JsonObject, data: RunData) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...Object.fromEntries(
@@ -4089,7 +4091,7 @@ async function executeWebhook(config: JsonObject, data: UnknownRecord) {
   // This makes it easy to map fields in Make.com
   const bodyData = JSON.stringify(data);
 
-  const response = await fetch(String(config.url), {
+  const response = await fetch(asText(config.url), {
     method: String(config.method || "POST"),
     headers: headers,
     body: bodyData,
@@ -4122,7 +4124,7 @@ function parseEmailList(raw: string): string[] {
 async function resolveEmailRecipients(
   supabase: DbClient,
   recipients: unknown[],
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ): Promise<string[]> {
   const out: string[] = [];
@@ -4181,9 +4183,16 @@ async function enqueueBroadcastAsService(
   return { total: Number(result?.total || 0) };
 }
 
+type EmailFromConfig = {
+  sender_domain_id?: unknown;
+  from_mode?: unknown;
+  from_local?: unknown;
+  from_name?: unknown;
+};
+
 async function resolveAutomationEmailFrom(
   supabase: DbClient,
-  config: UnknownRecord,
+  config: EmailFromConfig,
   tenantId: string,
 ): Promise<{ fromEmail: string; fromName: string | null }> {
   let domainRow: Pick<
@@ -4250,8 +4259,8 @@ async function resolveAutomationEmailFrom(
 // Fill lead fields from DB when trigger payload omitted them (e.g. webhook lead_created).
 async function enrichLeadPayloadData(
   supabase: DbClient,
-  data: UnknownRecord,
-): Promise<UnknownRecord> {
+  data: RunData,
+): Promise<RunData> {
   const leadId = data?.lead_id || data?.id;
   if (!leadId) return data;
 
@@ -4311,7 +4320,7 @@ async function enrichLeadPayloadData(
 async function executeEmail(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const recipients = Array.isArray(config?.email_recipients)
@@ -4379,7 +4388,7 @@ async function executeEmail(
 }
 
 // Execute notification action (placeholder)
-async function executeNotification(config: JsonObject, data: UnknownRecord) {
+async function executeNotification(config: JsonObject, data: RunData) {
   return { message: "Notification action not implemented" };
 }
 
@@ -4387,7 +4396,7 @@ async function executeNotification(config: JsonObject, data: UnknownRecord) {
 async function executeStatusUpdate(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
 ) {
   const { status, update_field, update_field_value } = config;
   const entity = optString(config.entity) ?? undefined;
@@ -4457,7 +4466,7 @@ async function executeStatusUpdate(
 async function executeSendWhatsapp(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const phoneFieldForLock =
@@ -4483,7 +4492,7 @@ async function executeSendWhatsapp(
 async function executeSendWhatsappCore(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { manychat_tag_id, manychat_flow_ns, field_mapping } = config;
@@ -5198,7 +5207,7 @@ async function executeSendWhatsappCore(
 async function executeCreateManychatSubscriber(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { manychat_tag_id } = config;
@@ -5570,7 +5579,7 @@ function templateString(template: unknown): string {
 
 function replaceTemplateVariables(
   template: unknown,
-  data: UnknownRecord,
+  data: RunData,
   tenantSlug?: string,
 ): string {
   // Current date/time info
@@ -5733,7 +5742,7 @@ function normalizeGroupId(raw: unknown): string {
 async function resolveRecipientsToChatIds(
   supabase: DbClient,
   recipients: unknown[],
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ): Promise<string[]> {
   const out: string[] = [];
@@ -5890,7 +5899,7 @@ async function sendWaMessage(opts: {
   chatId: string;
   message: string;
   config: JsonObject;
-  data: UnknownRecord;
+  data: RunData;
   tenantSlug?: string;
   supabase?: DbClient;
   tenantId?: string;
@@ -5987,7 +5996,7 @@ async function sendWaMessage(opts: {
 /** Resolves a destination phone for Meta Cloud API (1:1 only — no groups). */
 function resolveMetaDestinationPhone(
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
 ): string {
   const phoneMode = config.phone_mode || "field";
   let raw = "";
@@ -6024,7 +6033,7 @@ function resolveMetaDestinationPhone(
 async function executeMetaWhatsappMessage(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const sendMode = config.send_mode === "template" ? "template" : "text";
@@ -6194,7 +6203,7 @@ async function executeMetaWhatsappMessage(
 async function executeGreenApiMessage(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const {
@@ -6336,7 +6345,7 @@ async function executeGreenApiMessage(
   // Determine chatId based on phone_mode or legacy send_to_type
 
   let chatId: string;
-  let contactRecord: UnknownRecord | null = null;
+  let contactRecord: RunData | null = null;
 
   if (phone_mode === "group_manual" && manual_group_id) {
     // Send to a fixed group id (configured manually)
@@ -6711,7 +6720,7 @@ async function executeGreenApiMessage(
 async function executeGreenApiToCampaigner(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { message_template, send_target, integration_id } = config;
@@ -6948,7 +6957,7 @@ async function executeGreenApiToCampaigner(
 async function executeAddLeadUpdate(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { update_template } = config;
@@ -7034,7 +7043,7 @@ async function executeAddLeadUpdate(
 async function executeAddClientUpdate(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { update_template } = config;
@@ -7121,7 +7130,7 @@ async function executeAddClientUpdate(
 async function executeCreateTask(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const {
@@ -7282,7 +7291,7 @@ async function executeCreateTask(
 async function executeCreateLead(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   // Extract lead data from payload
@@ -7389,7 +7398,7 @@ async function executeCreateLead(
 async function executeRunManusTask(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { data: tenant } = await supabase
@@ -7439,7 +7448,7 @@ async function executeRunManusTask(
 async function executeSendManusMessage(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const { data: tenant } = await supabase
@@ -7483,7 +7492,7 @@ async function executeSendManusMessage(
 async function executeSendSignature(
   supabase: DbClient,
   config: JsonObject,
-  data: UnknownRecord,
+  data: RunData,
   tenantId: string,
 ) {
   const templateDocumentId = config?.template_document_id;

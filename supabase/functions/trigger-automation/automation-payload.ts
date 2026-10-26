@@ -1,14 +1,14 @@
-import { isObject, type UnknownRecord } from "../_shared/automation-json.ts";
+import { isObject, type JsonObject } from "../_shared/automation-json.ts";
 
 /** Request body accepted by trigger-automation. Unknown keys are kept. */
 export type AutomationPayload = {
   trigger_type?: string | null;
   triggerType?: string | null;
-  data?: UnknownRecord | null;
+  data?: JsonObject | null;
   tenant_id?: string | null;
   // Support direct automation execution by ID
   automationId?: string | null;
-  payload?: UnknownRecord | null;
+  payload?: JsonObject | null;
   // Source separation: 'crm' = only CRM automations, 'flow' = only the specific flow
   source?: string | null;
   _execution_id?: string | null;

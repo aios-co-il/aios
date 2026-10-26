@@ -1,9 +1,9 @@
 import type { Json } from "./database.types.ts";
 
 export type JsonObject = { [key: string]: Json | undefined };
-export type UnknownRecord = { [key: string]: unknown };
 
-export function isObject(value: unknown): value is UnknownRecord {
+/** Plain-object check for values decoded from JSON (request bodies, API responses, json columns). */
+export function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -20,7 +20,7 @@ export function asList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-export function objectList(value: unknown): UnknownRecord[] {
+export function objectList(value: unknown): JsonObject[] {
   return asList(value).filter(isObject);
 }
 
@@ -35,6 +35,13 @@ export function optString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/** Strings pass through, numbers are stringified, anything else is null. */
+export function optText(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return null;
+}
+
 /** `error.message` for Error and error-like objects (e.g. PostgREST errors). */
 export function messageOf(error: unknown): string | undefined {
   if (!isObject(error)) return undefined;
@@ -43,22 +50,33 @@ export function messageOf(error: unknown): string | undefined {
 }
 
 /** The status fields read by `statusFiltersMatch`, as strings. */
-export function statusFields(source: UnknownRecord) {
+export function statusFields(source: {
+  status?: unknown;
+  new_status?: unknown;
+  status_kind?: unknown;
+}) {
   return {
-    status: optString(source.status),
-    new_status: optString(source.new_status),
+    status: optText(source.status),
+    new_status: optText(source.new_status),
     status_kind: optString(source.status_kind),
   };
 }
 
 /** The fields read by `readStatusFilters`, as their expected types. */
-export function statusFilterSource(source: UnknownRecord) {
+export function statusFilterSource(source: {
+  filter_statuses?: unknown;
+  new_statuses?: unknown;
+  filter_status?: unknown;
+  filter_status_kind?: unknown;
+  new_status?: unknown;
+  status_kind?: unknown;
+}) {
   return {
     filter_statuses: source.filter_statuses,
     new_statuses: source.new_statuses,
-    filter_status: optString(source.filter_status),
+    filter_status: optText(source.filter_status),
     filter_status_kind: optString(source.filter_status_kind),
-    new_status: optString(source.new_status),
+    new_status: optText(source.new_status),
     status_kind: optString(source.status_kind),
   };
 }

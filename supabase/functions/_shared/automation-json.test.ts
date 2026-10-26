@@ -8,8 +8,10 @@ import {
   nullableText,
   objectList,
   optString,
+  optText,
   prop,
   statusFields,
+  statusFilterSource,
   toJson,
 } from "./automation-json.ts";
 
@@ -45,6 +47,14 @@ test("text helpers", () => {
     new_status: null,
     status_kind: null,
   });
+  assert.equal(optText(7), "7");
+  assert.equal(optText(true), null);
+  assert.deepEqual(statusFields({ status: 7, new_status: 8 }), {
+    status: "7",
+    new_status: "8",
+    status_kind: null,
+  });
+  assert.equal(statusFilterSource({ filter_status: 3 }).filter_status, "3");
 });
 
 test("messageOf reads message from errors and error-like objects", () => {
