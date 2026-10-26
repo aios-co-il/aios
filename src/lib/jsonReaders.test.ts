@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   asJsonArray,
   asJsonObject,
@@ -17,66 +16,65 @@ import {
 
 test("asJsonObject keeps plain objects and replaces everything else", () => {
   const settings = { clientId: "c1" };
-  assert.equal(asJsonObject(settings), settings);
-  assert.deepEqual(asJsonObject(null), {});
-  assert.deepEqual(asJsonObject([1, 2]), {});
-  assert.deepEqual(asJsonObject("x"), {});
+  expect(asJsonObject(settings)).toBe(settings);
+  expect(asJsonObject(null)).toStrictEqual({});
+  expect(asJsonObject([1, 2])).toStrictEqual({});
+  expect(asJsonObject("x")).toStrictEqual({});
 });
 
 test("asJsonArray and jsonObjects only accept arrays", () => {
   const list = [{ id: "a" }, "b", null];
-  assert.equal(asJsonArray(list), list);
-  assert.deepEqual(asJsonArray({ 0: "a" }), []);
-  assert.deepEqual(jsonObjects(list), [{ id: "a" }]);
-  assert.deepEqual(jsonObjects(undefined), []);
+  expect(asJsonArray(list)).toBe(list);
+  expect(asJsonArray({ 0: "a" })).toStrictEqual([]);
+  expect(jsonObjects(list)).toStrictEqual([{ id: "a" }]);
+  expect(jsonObjects(undefined)).toStrictEqual([]);
 });
 
 test("field readers narrow by runtime type", () => {
   const data = { name: "Acme", count: 7, flag: true, spend: "12.5" };
-  assert.equal(readString(data, "name"), "Acme");
-  assert.equal(readString(data, "count"), undefined);
-  assert.equal(readText(data, "count"), "7");
-  assert.equal(readText(data, "flag"), undefined);
-  assert.equal(readDateInput(data, "count"), 7);
-  assert.equal(readString(["Acme"], "0"), undefined);
+  expect(readString(data, "name")).toBe("Acme");
+  expect(readString(data, "count")).toBe(undefined);
+  expect(readText(data, "count")).toBe("7");
+  expect(readText(data, "flag")).toBe(undefined);
+  expect(readDateInput(data, "count")).toBe(7);
+  expect(readString(["Acme"], "0")).toBe(undefined);
 });
 
 test("readFloat matches parseFloat on the raw value", () => {
-  assert.equal(readFloat({ spend: "12.5" }, "spend"), 12.5);
-  assert.equal(readFloat({ spend: 3 }, "spend"), 3);
-  assert.ok(Number.isNaN(readFloat({}, "spend")));
-  assert.ok(Number.isNaN(readFloat(undefined, "spend")));
+  expect(readFloat({ spend: "12.5" }, "spend")).toBe(12.5);
+  expect(readFloat({ spend: 3 }, "spend")).toBe(3);
+  expect(Number.isNaN(readFloat({}, "spend"))).toBe(true);
+  expect(Number.isNaN(readFloat(undefined, "spend"))).toBe(true);
 });
 
 test("errorMessage reads message from Error and error-like objects", () => {
-  assert.equal(errorMessage(new Error("boom")), "boom");
-  assert.equal(
-    errorMessage({ message: "pg failed", code: "42501" }),
+  expect(errorMessage(new Error("boom"))).toBe("boom");
+  expect(errorMessage({ message: "pg failed", code: "42501" })).toBe(
     "pg failed",
   );
-  assert.equal(errorMessage("plain"), undefined);
-  assert.equal(errorMessage(null), undefined);
-  assert.equal(errorMessage({ message: 42 }), undefined);
+  expect(errorMessage("plain")).toBe(undefined);
+  expect(errorMessage(null)).toBe(undefined);
+  expect(errorMessage({ message: 42 })).toBe(undefined);
 });
 
 test("readField returns raw fields of objects only", () => {
-  assert.equal(readField({ error: "boom" }, "error"), "boom");
-  assert.equal(readField("not-an-object", "error"), undefined);
-  assert.equal(readField(null, "error"), undefined);
+  expect(readField({ error: "boom" }, "error")).toBe("boom");
+  expect(readField("not-an-object", "error")).toBe(undefined);
+  expect(readField(null, "error")).toBe(undefined);
 });
 
 test("parseJsonFloat matches parseFloat's string coercion", () => {
-  assert.equal(parseJsonFloat("12.5"), 12.5);
-  assert.equal(parseJsonFloat(3), 3);
-  assert.ok(Number.isNaN(parseJsonFloat(undefined)));
-  assert.ok(Number.isNaN(parseJsonFloat(null)));
+  expect(parseJsonFloat("12.5")).toBe(12.5);
+  expect(parseJsonFloat(3)).toBe(3);
+  expect(Number.isNaN(parseJsonFloat(undefined))).toBe(true);
+  expect(Number.isNaN(parseJsonFloat(null))).toBe(true);
 });
 
 test("thrown values read message and code like optional chaining did", () => {
   const pgError = { message: "duplicate", code: "23505" };
-  assert.equal(thrownMessage(pgError), "duplicate");
-  assert.equal(thrownCode(pgError), "23505");
-  assert.equal(thrownMessage(new Error("boom")), "boom");
-  assert.equal(thrownMessage("text"), undefined);
-  assert.equal(thrownCode(null), undefined);
+  expect(thrownMessage(pgError)).toBe("duplicate");
+  expect(thrownCode(pgError)).toBe("23505");
+  expect(thrownMessage(new Error("boom"))).toBe("boom");
+  expect(thrownMessage("text")).toBe(undefined);
+  expect(thrownCode(null)).toBe(undefined);
 });

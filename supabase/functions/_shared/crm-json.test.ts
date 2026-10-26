@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asJsonObject,
   firstTruthyText,
@@ -10,58 +9,64 @@ import {
   thrownMessage,
 } from "./crm-json.ts";
 
-test("isJsonObject accepts only plain objects", () => {
-  assert.equal(isJsonObject({ a: 1 }), true);
-  assert.equal(isJsonObject([1]), false);
-  assert.equal(isJsonObject(null), false);
-  assert.equal(isJsonObject("x"), false);
-  assert.equal(isJsonObject(undefined), false);
+Deno.test("isJsonObject accepts only plain objects", () => {
+  assertStrictEquals(isJsonObject({ a: 1 }), true);
+  assertStrictEquals(isJsonObject([1]), false);
+  assertStrictEquals(isJsonObject(null), false);
+  assertStrictEquals(isJsonObject("x"), false);
+  assertStrictEquals(isJsonObject(undefined), false);
 });
 
-test("asJsonObject falls back to an empty object", () => {
+Deno.test("asJsonObject falls back to an empty object", () => {
   const value = { clientId: "c1" };
-  assert.equal(asJsonObject(value), value);
-  assert.deepEqual(asJsonObject(["a"]), {});
-  assert.deepEqual(asJsonObject(null), {});
-  assert.deepEqual(asJsonObject("text"), {});
+  assertStrictEquals(asJsonObject(value), value);
+  assertEquals(asJsonObject(["a"]), {});
+  assertEquals(asJsonObject(null), {});
+  assertEquals(asJsonObject("text"), {});
 });
 
-test("jsonField reads object fields like optional chaining", () => {
-  assert.equal(jsonField({ date: "2026-01-02" }, "date"), "2026-01-02");
-  assert.equal(jsonField({ clicks: 0 }, "clicks"), 0);
-  assert.equal(jsonField(["2026-01-02"], "date"), undefined);
-  assert.equal(jsonField(null, "date"), undefined);
-  assert.equal(jsonField(undefined, "date"), undefined);
+Deno.test("jsonField reads object fields like optional chaining", () => {
+  assertStrictEquals(jsonField({ date: "2026-01-02" }, "date"), "2026-01-02");
+  assertStrictEquals(jsonField({ clicks: 0 }, "clicks"), 0);
+  assertStrictEquals(jsonField(["2026-01-02"], "date"), undefined);
+  assertStrictEquals(jsonField(null, "date"), undefined);
+  assertStrictEquals(jsonField(undefined, "date"), undefined);
 });
 
-test("jsonText returns only non-empty strings", () => {
-  assert.equal(jsonText({ id: "t1" }, "id"), "t1");
-  assert.equal(jsonText({ id: "" }, "id"), undefined);
-  assert.equal(jsonText({ id: 5 }, "id"), undefined);
+Deno.test("jsonText returns only non-empty strings", () => {
+  assertStrictEquals(jsonText({ id: "t1" }, "id"), "t1");
+  assertStrictEquals(jsonText({ id: "" }, "id"), undefined);
+  assertStrictEquals(jsonText({ id: 5 }, "id"), undefined);
 });
 
-test("firstTruthyText mirrors an `a || b || null` chain as text", () => {
-  assert.equal(firstTruthyText(undefined, "", "site"), "site");
-  assert.equal(firstTruthyText(null, 0, false), null);
-  assert.equal(firstTruthyText(42), "42");
-  assert.equal(firstTruthyText(), null);
+Deno.test("firstTruthyText mirrors an `a || b || null` chain as text", () => {
+  assertStrictEquals(firstTruthyText(undefined, "", "site"), "site");
+  assertStrictEquals(firstTruthyText(null, 0, false), null);
+  assertStrictEquals(firstTruthyText(42), "42");
+  assertStrictEquals(firstTruthyText(), null);
 });
 
-test("jsonToDate matches new Date(value) for JSON inputs", () => {
+Deno.test("jsonToDate matches new Date(value) for JSON inputs", () => {
   const iso = "2026-03-04T05:06:07.000Z";
-  assert.equal(jsonToDate(iso).getTime(), new Date(iso).getTime());
-  assert.equal(jsonToDate(1_700_000_000_000).getTime(), 1_700_000_000_000);
-  assert.equal(jsonToDate(null).getTime(), 0);
-  assert.equal(jsonToDate(true).getTime(), 1);
-  assert.equal(Number.isNaN(jsonToDate({}).getTime()), true);
+  assertStrictEquals(jsonToDate(iso).getTime(), new Date(iso).getTime());
+  assertStrictEquals(
+    jsonToDate(1_700_000_000_000).getTime(),
+    1_700_000_000_000,
+  );
+  assertStrictEquals(jsonToDate(null).getTime(), 0);
+  assertStrictEquals(jsonToDate(true).getTime(), 1);
+  assertStrictEquals(Number.isNaN(jsonToDate({}).getTime()), true);
 });
 
-test("thrownMessage reads message from Error and PostgREST-style objects", () => {
-  assert.equal(thrownMessage(new Error("boom")), "boom");
-  assert.equal(
-    thrownMessage({ message: "row missing", code: "PGRST116" }),
-    "row missing",
-  );
-  assert.equal(thrownMessage("plain"), undefined);
-  assert.equal(thrownMessage(null), undefined);
-});
+Deno.test(
+  "thrownMessage reads message from Error and PostgREST-style objects",
+  () => {
+    assertStrictEquals(thrownMessage(new Error("boom")), "boom");
+    assertStrictEquals(
+      thrownMessage({ message: "row missing", code: "PGRST116" }),
+      "row missing",
+    );
+    assertStrictEquals(thrownMessage("plain"), undefined);
+    assertStrictEquals(thrownMessage(null), undefined);
+  },
+);
