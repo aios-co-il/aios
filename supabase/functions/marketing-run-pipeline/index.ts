@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,7 @@ serve(async (req) => {
       .eq("pipeline_id", item.pipeline_id)
       .order("sort_order", { ascending: true });
 
-    const results: any[] = [];
+    const results: unknown[] = [];
     const auth = req.headers.get("Authorization");
 
     for (const s of stages ?? []) {
@@ -103,11 +104,14 @@ serve(async (req) => {
     return new Response(JSON.stringify({ results, completed: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[run-pipeline] error:", e);
-    return new Response(JSON.stringify({ error: String(e.message ?? e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: String(getPath(e, "message") ?? e) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

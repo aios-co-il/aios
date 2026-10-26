@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
+import type {
+  Enums,
+  TablesInsert,
+  TablesUpdate,
+} from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +25,7 @@ interface TaskPayload {
   due_date?: string;
   due_time?: string;
   priority?: number;
-  status?: string;
+  status?: Enums<"task_status">;
 
   // Associations
   campaigner_name?: string;
@@ -126,7 +131,7 @@ Deno.serve(async (req) => {
       }
 
       // Build update object with only provided fields
-      const updateData: Record<string, any> = {};
+      const updateData: TablesUpdate<"tasks"> = {};
       if (payload.status !== undefined) updateData.status = payload.status;
       if (payload.title !== undefined) updateData.title = payload.title;
       if (payload.notes !== undefined) updateData.notes = payload.notes;
@@ -365,7 +370,9 @@ Deno.serve(async (req) => {
     }
 
     // Build task record
-    const taskRecord: any = {
+    const taskRecord: Omit<TablesInsert<"tasks">, "agency_id"> & {
+      agency_id: string | null;
+    } = {
       title: payload.title,
       notes: payload.notes || null,
       due_date: payload.due_date || null,

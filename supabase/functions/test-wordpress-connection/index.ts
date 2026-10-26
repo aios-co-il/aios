@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json-b24.ts";
+
+interface ConnectionCheck {
+  success: boolean;
+  error?: unknown;
+  user?: unknown;
+  capabilities?: unknown;
+  version?: unknown;
+  currency?: unknown;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,7 +51,10 @@ serve(async (req) => {
       );
     }
 
-    const results: Record<string, any> = {};
+    const results: {
+      wordpress?: ConnectionCheck;
+      woocommerce?: ConnectionCheck;
+    } = {};
 
     // ---- Test WordPress REST API ----
     try {
@@ -65,8 +78,8 @@ serve(async (req) => {
           error: `HTTP ${wpResp.status}: ${errText}`,
         };
       }
-    } catch (e: any) {
-      results.wordpress = { success: false, error: e.message };
+    } catch (e) {
+      results.wordpress = { success: false, error: getPath(e, "message") };
     }
 
     // ---- Test WooCommerce API (if enabled) ----
@@ -95,8 +108,8 @@ serve(async (req) => {
             error: `HTTP ${wooResp.status}: ${errText}`,
           };
         }
-      } catch (e: any) {
-        results.woocommerce = { success: false, error: e.message };
+      } catch (e) {
+        results.woocommerce = { success: false, error: getPath(e, "message") };
       }
     }
 
@@ -110,10 +123,10 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("test-wordpress-connection error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: getPath(error, "message") }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

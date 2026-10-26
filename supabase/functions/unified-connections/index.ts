@@ -1,4 +1,59 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  getArray,
+  getPath,
+  isJsonObject,
+} from "../_shared/provider-json-b24.ts";
+
+function unifiedList(parsedBody: unknown): unknown[] {
+  return Array.isArray(parsedBody) ? parsedBody : getArray(parsedBody, "data");
+}
+
+function unifiedErrorDetails(parsed: unknown, rawText: string): unknown {
+  return isJsonObject(parsed)
+    ? parsed.message ||
+        parsed.error ||
+        getPath(parsed, "attributes", "error") ||
+        JSON.stringify(parsed)
+    : Array.isArray(parsed)
+      ? JSON.stringify(parsed)
+      : rawText;
+}
+
+function unifiedIntegrationSummary(i: unknown) {
+  const categories = getPath(i, "categories");
+  const category = getPath(i, "category");
+  return {
+    name:
+      getPath(i, "name") ||
+      getPath(i, "display_name") ||
+      getPath(i, "label") ||
+      getPath(i, "integration_type") ||
+      getPath(i, "type"),
+    type: getPath(i, "integration_type") || getPath(i, "type"),
+    icon_url:
+      getPath(i, "logo_url") ||
+      getPath(i, "image_uri") ||
+      getPath(i, "icon_url") ||
+      null,
+    categories: Array.isArray(categories)
+      ? categories
+      : category
+        ? [category]
+        : [],
+  };
+}
+
+function connectionTime(conn: unknown): number {
+  const value =
+    getPath(conn, "updated_at") ||
+    getPath(conn, "created_at") ||
+    getPath(conn, "created") ||
+    0;
+  return typeof value === "string" || typeof value === "number"
+    ? new Date(value).getTime()
+    : NaN;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -97,7 +152,7 @@ Deno.serve(async (req) => {
         );
 
         const rawBody = await resp.text();
-        let parsedBody: any = [];
+        let parsedBody: unknown = [];
         try {
           parsedBody = rawBody ? JSON.parse(rawBody) : [];
         } catch {
@@ -118,23 +173,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        const integrations = Array.isArray(parsedBody)
-          ? parsedBody
-          : Array.isArray(parsedBody?.data)
-            ? parsedBody.data
-            : [];
-
-        const mapped = integrations.map((i: any) => ({
-          name:
-            i.name || i.display_name || i.label || i.integration_type || i.type,
-          type: i.integration_type || i.type,
-          icon_url: i.logo_url || i.image_uri || i.icon_url || null,
-          categories: Array.isArray(i.categories)
-            ? i.categories
-            : i.category
-              ? [i.category]
-              : [],
-        }));
+        const mapped = unifiedList(parsedBody).map(unifiedIntegrationSummary);
 
         return new Response(JSON.stringify({ integrations: mapped }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -180,7 +219,7 @@ Deno.serve(async (req) => {
         );
 
         const rawBody = await resp.text();
-        let parsedBody: any = [];
+        let parsedBody: unknown = [];
         try {
           parsedBody = rawBody ? JSON.parse(rawBody) : [];
         } catch {
@@ -188,13 +227,7 @@ Deno.serve(async (req) => {
         }
 
         if (!resp.ok) {
-          const details =
-            typeof parsedBody === "object" && parsedBody !== null
-              ? parsedBody.message ||
-                parsedBody.error ||
-                parsedBody?.attributes?.error ||
-                JSON.stringify(parsedBody)
-              : rawBody;
+          const details = unifiedErrorDetails(parsedBody, rawBody);
 
           console.error("Unified.to list_integrations error:", details);
           return new Response(
@@ -212,23 +245,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        const integrations = Array.isArray(parsedBody)
-          ? parsedBody
-          : Array.isArray(parsedBody?.data)
-            ? parsedBody.data
-            : [];
-
-        const mapped = integrations.map((i: any) => ({
-          name:
-            i.name || i.display_name || i.label || i.integration_type || i.type,
-          type: i.integration_type || i.type,
-          icon_url: i.logo_url || i.image_uri || i.icon_url || null,
-          categories: Array.isArray(i.categories)
-            ? i.categories
-            : i.category
-              ? [i.category]
-              : [],
-          support: i.support || {},
+        const mapped = unifiedList(parsedBody).map((i) => ({
+          ...unifiedIntegrationSummary(i),
+          support: getPath(i, "support") || {},
         }));
 
         console.log(
@@ -313,7 +332,7 @@ Deno.serve(async (req) => {
         );
 
         const rawBody = await resp.text();
-        let parsedBody: any = [];
+        let parsedBody: unknown = [];
         try {
           parsedBody = rawBody ? JSON.parse(rawBody) : [];
         } catch {
@@ -336,32 +355,19 @@ Deno.serve(async (req) => {
           );
         }
 
-        const connections = Array.isArray(parsedBody)
-          ? parsedBody
-          : Array.isArray(parsedBody?.data)
-            ? parsedBody.data
-            : [];
-
-        const matchedConnections = connections
+        const matchedConnections = unifiedList(parsedBody)
           .filter(
-            (conn: any) =>
+            (conn) =>
               !integration_type ||
-              conn.integration_type === integration_type ||
-              conn.integration?.type === integration_type,
+              getPath(conn, "integration_type") === integration_type ||
+              getPath(conn, "integration", "type") === integration_type,
           )
-          .sort((a: any, b: any) => {
-            const aTime = new Date(
-              a.updated_at || a.created_at || a.created || 0,
-            ).getTime();
-            const bTime = new Date(
-              b.updated_at || b.created_at || b.created || 0,
-            ).getTime();
-            return bTime - aTime;
-          });
+          .sort((a, b) => connectionTime(b) - connectionTime(a));
 
         const matchedConnection = matchedConnections[0];
+        const matchedConnectionId = getPath(matchedConnection, "id");
 
-        if (!matchedConnection?.id) {
+        if (!matchedConnectionId) {
           return new Response(
             JSON.stringify({ error: "No matching connection found" }),
             {
@@ -373,7 +379,7 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({
-            connection_id: matchedConnection.id,
+            connection_id: matchedConnectionId,
             connection: matchedConnection,
           }),
           {
@@ -402,7 +408,7 @@ Deno.serve(async (req) => {
           },
         );
         const connText = await connResp.text();
-        let connData: any = null;
+        let connData: unknown = null;
         try {
           connData = connText ? JSON.parse(connText) : null;
         } catch {
@@ -410,13 +416,7 @@ Deno.serve(async (req) => {
         }
 
         if (!connResp.ok) {
-          const details =
-            typeof connData === "object" && connData !== null
-              ? connData.message ||
-                connData.error ||
-                connData?.attributes?.error ||
-                JSON.stringify(connData)
-              : connText;
+          const details = unifiedErrorDetails(connData, connText);
 
           return new Response(
             JSON.stringify({
@@ -446,7 +446,9 @@ Deno.serve(async (req) => {
               unified_connection_id: connection_id,
               unified_category: category,
               integration_name:
-                connData.integration_type || integration_type || category,
+                getPath(connData, "integration_type") ||
+                integration_type ||
+                category,
               connected_at: new Date().toISOString(),
             },
           })

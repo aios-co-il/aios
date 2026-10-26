@@ -8,7 +8,12 @@
 // Deploy WITHOUT JWT verification (Resend calls it directly):
 //   supabase functions deploy resend-webhook --no-verify-jwt
 // Set RESEND_WEBHOOK_SECRET (whsec_...) to enable signature verification.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Database, TablesUpdate } from "../_shared/database.types.ts";
+import { getPath, getString } from "../_shared/provider-json-b24.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -53,23 +58,27 @@ async function verifySvix(
   }
 }
 
-async function recomputeStats(db: any, broadcastId: string) {
-  const c = async (apply: (q: any) => any) => {
-    let q = db
+async function recomputeStats(
+  db: SupabaseClient<Database>,
+  broadcastId: string,
+) {
+  const countQuery = () =>
+    db
       .from("broadcast_recipients")
       .select("id", { count: "exact", head: true })
       .eq("broadcast_id", broadcastId);
-    q = apply(q);
-    const { count } = await q;
+  type CountQuery = ReturnType<typeof countQuery>;
+  const c = async (apply: (q: CountQuery) => CountQuery) => {
+    const { count } = await apply(countQuery());
     return count ?? 0;
   };
   const [total, sent, delivered, failed, opened, clicked] = await Promise.all([
-    c((q: any) => q),
-    c((q: any) => q.not("sent_at", "is", null)),
-    c((q: any) => q.not("delivered_at", "is", null)),
-    c((q: any) => q.eq("status", "failed")),
-    c((q: any) => q.not("opened_at", "is", null)),
-    c((q: any) => q.not("clicked_at", "is", null)),
+    c((q) => q),
+    c((q) => q.not("sent_at", "is", null)),
+    c((q) => q.not("delivered_at", "is", null)),
+    c((q) => q.eq("status", "failed")),
+    c((q) => q.not("opened_at", "is", null)),
+    c((q) => q.not("clicked_at", "is", null)),
   ]);
   await db
     .from("broadcasts")
@@ -98,14 +107,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    const event = JSON.parse(raw);
-    const type: string = event?.type || "";
+    const event: unknown = JSON.parse(raw);
+    const type: string = getString(event, "type") || "";
     const emailId: string | undefined =
-      event?.data?.email_id || event?.data?.id;
-    const at = event?.created_at || new Date().toISOString();
+      getString(event, "data", "email_id") || getString(event, "data", "id");
+    const at = getString(event, "created_at") || new Date().toISOString();
     if (!emailId) return json({ ok: true, skipped: "no_email_id" });
 
-    const db = createClient(SB_URL, SB_SERVICE, {
+    const db = createClient<Database>(SB_URL, SB_SERVICE, {
       auth: { persistSession: false },
     });
     const { data: r } = await db
@@ -115,7 +124,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!r) return json({ ok: true, skipped: "recipient_not_found" });
 
-    const patch: any = {};
+    const patch: TablesUpdate<"broadcast_recipients"> = {};
     switch (type) {
       case "email.sent":
         if (!r.status || r.status === "pending") patch.status = "sent";
@@ -157,8 +166,8 @@ Deno.serve(async (req) => {
     await db.from("broadcast_recipients").update(patch).eq("id", r.id);
     await recomputeStats(db, r.broadcast_id);
     return json({ ok: true, type });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[resend-webhook]", e);
-    return json({ error: String(e?.message || e) }, 500);
+    return json({ error: String(getPath(e, "message") || e) }, 500);
   }
 });
