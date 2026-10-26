@@ -7,6 +7,7 @@ import {
   shortText,
 } from "../_shared/carmen-memory.ts";
 import type { Json } from "../_shared/database.types.ts";
+import { readHistoryEntry } from "./history-entry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,18 +40,6 @@ type LearnSession = {
   ended_at: string | null;
   created_at: string | null;
 };
-
-type HistoryEntry = {
-  role?: unknown;
-  direction?: unknown;
-  content?: unknown;
-  message?: unknown;
-  text?: unknown;
-};
-
-function readHistoryEntry(raw: unknown): HistoryEntry {
-  return typeof raw === "object" && raw !== null ? raw : {};
-}
 
 function normalizeTaskType(raw?: string | null): string {
   const t = String(raw || "other")
