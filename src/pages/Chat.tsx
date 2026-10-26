@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
+
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useUserAgencies } from "@/hooks/useUserAgencies";
@@ -68,6 +69,12 @@ import {
   ChatConnectionSelector,
   type ChatFilter,
 } from "@/components/chat/ChatConnectionSelector";
+
+/** Rows of the get_chat_contacts overload that also returns sender_phone and the WhatsApp avatar. */
+type ChatContactsRpcRows = Extract<
+  Database["public"]["Functions"]["get_chat_contacts"],
+  { Returns: { sender_phone: string }[] }
+>["Returns"];
 
 interface Contact {
   id: string;
@@ -273,11 +280,13 @@ export default function Chat() {
     queryFn: async () => {
       if (!tenantId) return [];
 
-      const { data, error } = await supabase.rpc("get_chat_contacts", {
-        p_tenant_id: tenantId,
-        p_connection_user_ids: connectionUserIds ?? null,
-        p_provider: providerFilter ?? null,
-      });
+      const { data, error } = await supabase
+        .rpc("get_chat_contacts", {
+          p_tenant_id: tenantId,
+          p_connection_user_ids: connectionUserIds ?? null,
+          p_provider: providerFilter ?? null,
+        })
+        .overrideTypes<ChatContactsRpcRows, { merge: false }>();
 
       if (error) {
         console.error("Error fetching active chats:", error);
