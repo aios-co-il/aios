@@ -1,0 +1,1808 @@
+From 8a004256fd58db80d7d5cb7330e5f3c4a344b99d Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Thu, 15 Oct 2026 09:27:02 +0000
+Subject: [PATCH 1/6] fix(agents): type runtime helper contracts
+
+---
+ supabase/functions/_shared/openai-billing.mjs |   5 +
+ supabase/functions/run-ai-agent/index.ts      | 302 +++++++++++-------
+ .../run-ai-agent/runtime-contracts.test.ts    |  90 ++++++
+ .../run-ai-agent/runtime-contracts.ts         | 242 ++++++++++++++
+ 4 files changed, 524 insertions(+), 115 deletions(-)
+ create mode 100644 supabase/functions/run-ai-agent/runtime-contracts.test.ts
+ create mode 100644 supabase/functions/run-ai-agent/runtime-contracts.ts
+
+diff --git a/supabase/functions/_shared/openai-billing.mjs b/supabase/functions/_shared/openai-billing.mjs
+index 081135995..0da385201 100644
+--- a/supabase/functions/_shared/openai-billing.mjs
++++ b/supabase/functions/_shared/openai-billing.mjs
+@@ -154,6 +154,11 @@ export function extractDailyUsageBuckets(payload) {
+ 
+ /**
+  * Build a safe structured status object. Never fabricates remaining credit.
++ * @param {{
++ *   costs?: unknown, usage?: unknown, spendLimits?: unknown,
++ *   costsError?: string | null, usageError?: string | null, spendLimitsError?: string | null,
++ *   period?: ReturnType<typeof monthUtcBounds> | null, authSource?: string | null
++ * }} [options]
+  */
+ export function buildOpenAiBillingStatus({
+   costs = null,
+diff --git a/supabase/functions/run-ai-agent/index.ts b/supabase/functions/run-ai-agent/index.ts
+index 866e2527d..b04695789 100644
+--- a/supabase/functions/run-ai-agent/index.ts
++++ b/supabase/functions/run-ai-agent/index.ts
+@@ -187,6 +187,24 @@ import {
+   RETENTION_BATCH_LIMIT,
+ } from "../_shared/client-retention.ts";
+ 
++import {
++  jsonObject,
++  isObject,
++  isMetaNode,
++  readMetaResponse,
++} from "./runtime-contracts.ts";
++import type {
++  AgentDatabaseClient,
++  AgentRow,
++  MetaAction,
++  MetaNode,
++  SearchClient,
++  MetaAdMetrics,
++  AccountInsights,
++  ConnectedClient,
++  DisconnectedClient,
++} from "./runtime-contracts.ts";
++
+ function scoreNameMatchSafe(fullName: string, query: string): number {
+   return scoreNameMatch(fullName, query);
+ }
+@@ -202,7 +220,7 @@ function mapHumanTaskStatus(status: string): "open" | "in_progress" | "done" {
+ 
+ /** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
+ async function loadStaffWhatsappRoster(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   accessibleTenantIds: string[],
+   tenantId: string,
+   entityType: string = "auto",
+@@ -212,7 +230,7 @@ async function loadStaffWhatsappRoster(
+     full_name: string;
+     phone: string | null;
+     entity_type: string;
+-    role?: any;
++    role?: AgentRow<"campaigners">["role"];
+     email?: string | null;
+   }>
+ > {
+@@ -222,7 +240,7 @@ async function loadStaffWhatsappRoster(
+     full_name: string;
+     phone: string | null;
+     entity_type: string;
+-    role?: any;
++    role?: AgentRow<"campaigners">["role"];
+     email?: string | null;
+   }> = [];
+ 
+@@ -270,7 +288,7 @@ async function loadStaffWhatsappRoster(
+       .select("user_id")
+       .eq("tenant_id", tenantId)
+       .limit(200);
+-    const userIds = (tus || []).map((t: any) => t.user_id).filter(Boolean);
++    const userIds = (tus || []).map((t) => t.user_id).filter(Boolean);
+     if (userIds.length) {
+       const { data: profiles } = await supabase
+         .from("profiles")
+@@ -308,7 +326,7 @@ async function loadStaffWhatsappRoster(
+ 
+ /** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
+ async function resolveOpenAiAdminKey(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+ ): Promise<{ key: string | null; source: string | null }> {
+   const fromEnv =
+@@ -346,7 +364,7 @@ async function resolveOpenAiAdminKey(
+ async function openaiAdminGet(
+   pathWithQuery: string,
+   adminKey: string,
+-): Promise<{ ok: boolean; status: number; json: any; error?: string }> {
++): Promise<{ ok: boolean; status: number; json: unknown; error?: string }> {
+   try {
+     const res = await fetch(`https://api.openai.com/v1${pathWithQuery}`, {
+       method: "GET",
+@@ -356,7 +374,7 @@ async function openaiAdminGet(
+       },
+     });
+     const text = await res.text();
+-    let json: any = null;
++    let json: unknown = null;
+     try {
+       json = text ? JSON.parse(text) : null;
+     } catch {
+@@ -364,26 +382,34 @@ async function openaiAdminGet(
+     }
+     if (!res.ok) {
+       const msg = redactSecretsFromText(
+-        json?.error?.message || json?.message || text || `HTTP ${res.status}`,
++        (isObject(json) &&
++        "error" in json &&
++        isObject(json.error) &&
++        "message" in json.error
++          ? json.error.message
++          : undefined) ||
++          (isObject(json) && "message" in json ? json.message : undefined) ||
++          text ||
++          `HTTP ${res.status}`,
+       );
+       return { ok: false, status: res.status, json, error: msg };
+     }
+     return { ok: true, status: res.status, json };
+-  } catch (e: any) {
++  } catch (e) {
+     return {
+       ok: false,
+       status: 0,
+       json: null,
+-      error: redactSecretsFromText(e?.message || String(e)),
++      error: redactSecretsFromText(e instanceof Error ? e.message : String(e)),
+     };
+   }
+ }
+ 
+ async function fetchOpenAiBillingStatus(args: {
+-  supabase: any;
++  supabase: AgentDatabaseClient;
+   tenantId: string;
+   includeTokens?: boolean;
+-}): Promise<any> {
++}) {
+   const { supabase, tenantId } = args;
+   const includeTokens = args.includeTokens !== false;
+   const { key, source } = await resolveOpenAiAdminKey(supabase, tenantId);
+@@ -414,7 +440,7 @@ async function fetchOpenAiBillingStatus(args: {
+   let usageRes: {
+     ok: boolean;
+     status: number;
+-    json: any;
++    json: unknown;
+     error?: string;
+   } | null = null;
+   if (includeTokens) {
+@@ -452,7 +478,7 @@ async function fetchOpenAiBillingStatus(args: {
+ }
+ 
+ async function sendStaffWhatsappMessage(args: {
+-  supabase: any;
++  supabase: AgentDatabaseClient;
+   tenantId: string;
+   phone: string;
+   message: string;
+@@ -460,7 +486,8 @@ async function sendStaffWhatsappMessage(args: {
+   error?: string;
+   integration_id?: string;
+   provider?: string;
+-  [k: string]: any;
++  success?: boolean;
++  messageId?: string;
+ }> {
+   const { supabase, tenantId, phone, message } = args;
+   const normalized = normalizeStaffPhone(phone);
+@@ -483,7 +510,7 @@ async function sendStaffWhatsappMessage(args: {
+   }
+ 
+   // Prefer Manus WA (Carmen's direct line), then Green API.
+-  const ordered = [...integrations].sort((a: any, b: any) => {
++  const ordered = [...integrations].sort((a, b) => {
+     const rank = (t: string) => (/manus/i.test(t) ? 0 : 1);
+     return rank(a.integration_type) - rank(b.integration_type);
+   });
+@@ -562,8 +589,8 @@ async function sendStaffWhatsappMessage(args: {
+         }
+         errors.push(`${type}: ${data.error || res.status}`);
+       }
+-    } catch (e: any) {
+-      errors.push(`${type}: ${e?.message || e}`);
++    } catch (e) {
++      errors.push(`${type}: ${e instanceof Error ? e.message : e}`);
+     }
+   }
+   return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
+@@ -590,7 +617,7 @@ function resolveModel(engine: string): string {
+ // Reads the org's own API keys from the "llm" integration and routes each
+ // model to its provider's OpenAI-compatible endpoint.
+ async function resolveLLMTarget(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   model: string,
+ ): Promise<{ url: string; key: string; model: string }> {
+@@ -670,7 +697,7 @@ function providerOf(fullId: string): LLMProvider {
+ }
+ 
+ async function buildLLMChain(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   primaryFullId: string,
+ ): Promise<LLMTarget[]> {
+@@ -780,7 +807,10 @@ const PRIORITY_TOOLS = new Set([
+   ...NATIVE_DEV_TASK_TOOLS,
+ ]);
+ 
+-function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
++function capToolsForTarget<T extends { function?: { name?: string } }>(
++  target: LLMTarget,
++  tools: T[],
++): T[] {
+   if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS)
+     return tools;
+   // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
+@@ -812,7 +842,7 @@ function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
+ // Surface an automatic provider switch so David sees it (intel feed + WhatsApp).
+ // Deduped to once per 30 min so a sustained outage doesn't spam the channel.
+ async function recordProviderFailover(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   fromLabel: string,
+   toLabel: string,
+@@ -931,7 +961,7 @@ function estimateLLMCostUSD(
+ // explicit user → any campaigner with tokens → tenant owner/admin. Refreshes if
+ // expired. Returns { accessToken } or { error } (Hebrew, user-facing).
+ async function resolveCalendarAccessToken(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   callerCampaignerId: string | null,
+   userId: string | null,
+@@ -1037,7 +1067,7 @@ async function resolveCalendarAccessToken(
+ }
+ 
+ async function resolveCalendarConferenceExtras(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   args: Record<string, unknown>,
+ ) {
+@@ -1072,11 +1102,11 @@ async function resolveCalendarConferenceExtras(
+ }
+ 
+ async function makeZoomMeetingCreator(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   titleHint?: string,
+ ) {
+-  return async (existing: any) => {
++  return async (existing) => {
+     const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
+     if (!zoomAuth.accessToken) {
+       return {
+@@ -4542,7 +4572,7 @@ const ALL_TOOLS = [
+ const FB_GRAPH_VERSION = "v21.0";
+ 
+ async function fbResolveClientAdAccount(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   clientId: string,
+ ): Promise<string | null> {
+@@ -4555,7 +4585,7 @@ async function fbResolveClientAdAccount(
+     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
+     .order("last_sync_at", { ascending: false, nullsFirst: false });
+   for (const t of data || []) {
+-    const s = t?.integration_settings || {};
++    const s = jsonObject(t?.integration_settings);
+     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
+     if (acc) return String(acc).replace(/^act_/, "");
+   }
+@@ -4572,7 +4602,7 @@ async function fbResolveClientAdAccount(
+ 
+ /** Resolve which tenant owns a client (for FB token / shared integrations). */
+ async function resolveClientTenantId(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   clientId: string,
+   fallbackTenantId: string,
+ ): Promise<string> {
+@@ -4628,7 +4658,7 @@ function expandClientSearchTerms(raw: string): string[] {
+  * all statuses (including ended). Used by search_entities / list_clients name search.
+  */
+ async function searchClientsBroadly(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   accessibleTenantIds: string[],
+   searchTerm: string,
+   opts: {
+@@ -4636,7 +4666,7 @@ async function searchClientsBroadly(
+     agencyId?: string | null;
+     clientIdsFilter?: string[] | null;
+   } = {},
+-): Promise<any[]> {
++) {
+   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
+   const terms = expandClientSearchTerms(searchTerm);
+   if (!terms.length || !accessibleTenantIds.length) return [];
+@@ -4687,7 +4717,7 @@ async function searchClientsBroadly(
+     tablesQ = tablesQ.in("client_id", opts.clientIdsFilter);
+   const { data: byTable } = await tablesQ;
+ 
+-  const byId = new Map<string, any>();
++  const byId = new Map<string, SearchClient>();
+   for (const c of byName || []) {
+     byId.set(c.id, {
+       id: c.id,
+@@ -4700,14 +4730,14 @@ async function searchClientsBroadly(
+       tenant_id: c.tenant_id,
+       meta_ads_account_id: c.meta_ads_account_id,
+       matched_via: ["client_name"],
+-      ad_accounts: [] as any[],
++      ad_accounts: [],
+     });
+   }
+   for (const t of byTable || []) {
+-    const c: any = t.clients;
++    const c = t.clients;
+     if (!c?.id) continue;
+     if (opts.agencyId && c.agency_id !== opts.agencyId) continue;
+-    const settings = t.integration_settings || {};
++    const settings = jsonObject(t.integration_settings);
+     const adAccount = {
+       table_id: t.id,
+       table_name: t.name,
+@@ -4760,11 +4790,11 @@ async function searchClientsBroadly(
+ 
+ /** Deep single-campaign analysis + ad-level CPL (inline Graph; no edge-fn dependency). */
+ async function fbAnalyzeCampaignInline(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   clientId: string,
+   campaignId: string,
+-): Promise<any> {
++) {
+   const tokenTenant = await resolveClientTenantId(supabase, clientId, tenantId);
+   let token = await fbGetToken(supabase, tokenTenant);
+   if (!token && tokenTenant !== tenantId)
+@@ -4773,16 +4803,16 @@ async function fbAnalyzeCampaignInline(
+ 
+   const fields =
+     "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
+-  const cplFrom = (ins: any) => {
++  const cplFrom = (ins) => {
+     if (!ins) return null;
+     const leadAction = (ins.cost_per_action_type || []).find(
+-      (a: any) =>
++      (a) =>
+         [
+           "lead",
+           "onsite_conversion.lead_grouped",
+           "offsite_conversion.fb_pixel_lead",
+           "leadgen.other",
+-        ].includes(a.action_type) ||
++        ].includes(a.action_type || "") ||
+         String(a.action_type || "").endsWith(".lead"),
+     );
+     if (leadAction) return Number(leadAction.value);
+@@ -4794,21 +4824,21 @@ async function fbAnalyzeCampaignInline(
+     const r = await fetch(
+       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
+     );
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     return j?.data?.[0] || null;
+   };
+   const fetchAds = async () => {
+     const r = await fetch(
+       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/ads?fields=id,name,effective_status,status&limit=200&access_token=${token}`,
+     );
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     if (!r.ok || j?.error || !Array.isArray(j?.data)) return [];
+     const ads = j.data;
+     // Ad-level insights for last_7d
+     const insightsUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?level=ad&date_preset=last_7d&fields=ad_id,ad_name,spend,actions,impressions,clicks&limit=200&access_token=${token}`;
+     const ir = await fetch(insightsUrl);
+-    const ij = await ir.json();
+-    const byAd = new Map<string, any>();
++    const ij = await readMetaResponse(ir);
++    const byAd = new Map<string, MetaAdMetrics>();
+     for (const row of ij?.data || []) {
+       const leads = fbLeadsFromActions(row.actions || []);
+       const spend = Number(row.spend || 0);
+@@ -4821,7 +4851,7 @@ async function fbAnalyzeCampaignInline(
+       });
+     }
+     return ads
+-      .map((ad: any) => {
++      .map((ad) => {
+         const m = byAd.get(String(ad.id)) || {
+           spend: 0,
+           leads: 0,
+@@ -4841,13 +4871,13 @@ async function fbAnalyzeCampaignInline(
+           clicks_7d: m.clicks,
+         };
+       })
+-      .sort((a: any, b: any) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
++      .sort((a, b) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
+   };
+ 
+   const metaRes = await fetch(
+     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
+   );
+-  const meta = await metaRes.json();
++  const meta = await readMetaResponse(metaRes);
+   if (meta?.error) return { error: "fb_api_error", fb_error: meta.error };
+ 
+   const [today, last7, last30, ads] = await Promise.all([
+@@ -4871,11 +4901,21 @@ async function fbAnalyzeCampaignInline(
+       `CPL היום (${cplToday.toFixed(1)}) חורג ב-${((cplToday / cpl7 - 1) * 100).toFixed(0)}% מהממוצע השבועי`,
+     );
+   }
+-  const lowCplAds = ads.filter((a: any) => a.cpl_7d != null && a.leads_7d > 0);
+-  const recommendations: any[] = [];
++  const lowCplAds = ads.filter((a) => a.cpl_7d != null && a.leads_7d > 0);
++  const recommendations: Array<{
++    action: string;
++    reason: string;
++    severity: string;
++    candidate_ad_ids: Array<{
++      ad_id: string | null | undefined;
++      ad_name: string | null | undefined;
++      cpl_7d: number | null;
++      leads_7d: number;
++    }>;
++  }> = [];
+   if (
+     lowCplAds.length &&
+-    ads.some((a: any) => a.effective_status === "PAUSED" && a.cpl_7d != null)
++    ads.some((a) => a.effective_status === "PAUSED" && a.cpl_7d != null)
+   ) {
+     recommendations.push({
+       action: "enable_low_cpl_ads",
+@@ -4883,14 +4923,14 @@ async function fbAnalyzeCampaignInline(
+       severity: "medium",
+       candidate_ad_ids: ads
+         .filter(
+-          (a: any) =>
++          (a) =>
+             a.effective_status === "PAUSED" &&
+             a.cpl_7d != null &&
+             a.leads_7d > 0,
+         )
+-        .sort((a: any, b: any) => a.cpl_7d - b.cpl_7d)
++        .sort((a, b) => (a.cpl_7d ?? 0) - (b.cpl_7d ?? 0))
+         .slice(0, 10)
+-        .map((a: any) => ({
++        .map((a) => ({
+           ad_id: a.ad_id,
+           ad_name: a.ad_name,
+           cpl_7d: a.cpl_7d,
+@@ -4924,7 +4964,7 @@ async function fbAnalyzeCampaignInline(
+ }
+ 
+ async function fbGetToken(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+ ): Promise<string | null> {
+   let { data } = await supabase
+@@ -4987,9 +5027,9 @@ function assertHttpsUrl(value: unknown, field: string): string {
+ }
+ 
+ async function metaLeadIntegrations(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+-): Promise<any[]> {
++) {
+   const { data, error } = await supabase
+     .from("tenant_integrations")
+     .select("id, api_key, settings, shared_from_integration_id")
+@@ -4997,11 +5037,18 @@ async function metaLeadIntegrations(
+     .eq("integration_type", "facebook_lead_ads")
+     .eq("is_active", true);
+   if (error) throw error;
+-  const result: any[] = [];
++  const result: Array<
++    Pick<AgentRow<"tenant_integrations">, "id" | "settings"> & {
++      api_key: string;
++    }
++  > = [];
+   for (const row of data || []) {
+-    let source = row;
++    let source: Pick<
++      AgentRow<"tenant_integrations">,
++      "id" | "api_key" | "settings"
++    > = row;
+     if (
+-      (!row.api_key || !Array.isArray(row.settings?.pages)) &&
++      (!row.api_key || !Array.isArray(jsonObject(row.settings).pages)) &&
+       row.shared_from_integration_id
+     ) {
+       const { data: shared } = await supabase
+@@ -5011,27 +5058,31 @@ async function metaLeadIntegrations(
+         .maybeSingle();
+       if (shared) source = { ...shared, id: row.id };
+     }
+-    if (source.api_key) result.push({ ...source, id: row.id });
++    if (source.api_key)
++      result.push({ ...source, api_key: source.api_key, id: row.id });
+   }
+   return result;
+ }
+ 
+ async function metaLeadPages(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+ ): Promise<MetaLeadPage[]> {
+   const integrations = await metaLeadIntegrations(supabase, tenantId);
+   const pages: MetaLeadPage[] = [];
+   for (const integration of integrations) {
+-    let sourcePages = Array.isArray(integration.settings?.pages)
+-      ? integration.settings.pages
++    const configuredPages = jsonObject(integration.settings).pages;
++    let sourcePages: MetaNode[] = Array.isArray(configuredPages)
++      ? configuredPages.filter((page): page is typeof page & MetaNode =>
++          isMetaNode(page),
++        )
+       : [];
+     if (sourcePages.length === 0) {
+       let next: string | null =
+         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
+       while (next) {
+         const response = await fetch(next);
+-        const json = await response.json();
++        const json = await readMetaResponse(response);
+         if (!response.ok || json?.error)
+           throw new Error(json?.error?.message || "Meta pages request failed");
+         sourcePages = sourcePages.concat(json.data || []);
+@@ -5060,7 +5111,7 @@ async function metaLeadFormsForPage(
+     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
+   while (next) {
+     const response = await fetch(next);
+-    const json = await response.json();
++    const json = await readMetaResponse(response);
+     if (!response.ok || json?.error)
+       throw new Error(
+         json?.error?.message || `Meta forms request failed for ${page.name}`,
+@@ -5070,7 +5121,7 @@ async function metaLeadFormsForPage(
+         id: String(form.id),
+         name: String(form.name || form.id),
+         status: form.status ? String(form.status) : null,
+-        fields: (form.questions || []).map((q: any) => ({
++        fields: (form.questions || []).map((q) => ({
+           key: String(q.key || q.type || ""),
+           label: String(q.label || q.key || q.type || ""),
+           type: String(q.type || ""),
+@@ -5086,38 +5137,44 @@ async function metaLeadFormsForPage(
+ }
+ 
+ async function findAutomationForMetaForm(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantIds: string[],
+   automationId?: unknown,
+   automationName?: unknown,
+-): Promise<any> {
++) {
+   let query = supabase
+     .from("automations")
+     .select("id, name, active, tenant_id")
+     .in("tenant_id", tenantIds)
+     .eq("is_flow", true);
+   if (automationId) query = query.eq("id", String(automationId));
+-  const { data, error } = await query.order("name").limit(100);
++  const { data, error } = await query.order("name").limit(100).returns<
++    Array<
++      Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
++        tenant_id: string;
++      }
++    >
++  >();
+   if (error) throw error;
+   let matches = data || [];
+   if (automationName)
+-    matches = matches.filter((a: any) =>
+-      metaNameMatches(a.name, automationName),
+-    );
++    matches = matches.filter((a) => metaNameMatches(a.name, automationName));
+   if (matches.length === 0) throw new Error("לא נמצאה אוטומציה תואמת בארגון");
+   if (matches.length > 1) {
+     throw new Error(
+-      `נמצאו כמה אוטומציות תואמות: ${matches.map((a: any) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
++      `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
+     );
+   }
+   return matches[0];
+ }
+ 
+ async function connectMetaFormToAutomation(
+-  supabase: any,
+-  automation: any,
++  supabase: AgentDatabaseClient,
++  automation: Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
++    tenant_id: string;
++  },
+   form: MetaLeadForm,
+-): Promise<any> {
++) {
+   const { data: steps, error: stepsError } = await supabase
+     .from("automation_flow_steps")
+     .select("id, action_type, configuration")
+@@ -5126,10 +5183,12 @@ async function connectMetaFormToAutomation(
+     .eq("step_type", "trigger");
+   if (stepsError) throw stepsError;
+   const candidates = (steps || []).filter(
+-    (step: any) =>
++    (step) =>
+       step.action_type === "lead_created" &&
+-      (!step.configuration?.lead_source ||
+-        ["any", "facebook_form"].includes(step.configuration.lead_source)),
++      (!jsonObject(step.configuration).lead_source ||
++        ["any", "facebook_form"].includes(
++          String(jsonObject(step.configuration).lead_source),
++        )),
+   );
+   if (candidates.length !== 1) {
+     throw new Error(
+@@ -5140,7 +5199,7 @@ async function connectMetaFormToAutomation(
+   }
+   const step = candidates[0];
+   const configuration = {
+-    ...(step.configuration || {}),
++    ...jsonObject(step.configuration),
+     lead_source: "facebook_form",
+     facebook_integration_id: form.integration_id,
+     facebook_page_id: form.page_id,
+@@ -5165,16 +5224,16 @@ async function connectMetaFormToAutomation(
+   if (integrationError) throw integrationError;
+   if (!integration)
+     throw new Error("אינטגרציית Meta של הטופס אינה שייכת לארגון האוטומציה");
+-  const settings = integration.settings || {};
+-  const formMappings = { ...(settings.form_mappings || {}) };
++  const settings = jsonObject(integration.settings);
++  const formMappings = { ...jsonObject(settings.form_mappings) };
+   formMappings[form.id] = {
+-    ...(formMappings[form.id] || {}),
++    ...jsonObject(formMappings[form.id]),
+     form_name: form.name,
+     page_id: form.page_id,
+     page_name: form.page_name,
+-    agency_id: formMappings[form.id]?.agency_id || null,
+-    sales_person_ids: formMappings[form.id]?.sales_person_ids || [],
+-    fields: formMappings[form.id]?.fields || {},
++    agency_id: jsonObject(formMappings[form.id]).agency_id || null,
++    sales_person_ids: jsonObject(formMappings[form.id]).sales_person_ids || [],
++    fields: jsonObject(formMappings[form.id]).fields || {},
+   };
+   const { error: mappingError } = await supabase
+     .from("tenant_integrations")
+@@ -5191,7 +5250,7 @@ async function connectMetaFormToAutomation(
+ 
+ // Pull the lead count out of an insights row's `actions` array (Meta reports leads
+ // under a few action types depending on the form/CAPI setup).
+-function fbLeadsFromActions(actions: any[]): number {
++function fbLeadsFromActions(actions: MetaAction[] | null | undefined): number {
+   if (!Array.isArray(actions)) return 0;
+   let leads = 0;
+   for (const a of actions) {
+@@ -5210,19 +5269,19 @@ function fbLeadsFromActions(actions: any[]): number {
+ 
+ /** Live campaign list (id/name/status/objective). Returns null on any failure. */
+ async function fbLiveCampaignList(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   clientId: string,
+-): Promise<any[] | null> {
++) {
+   try {
+     const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
+     const token = await fbGetToken(supabase, tenantId);
+     if (!acct || !token) return null;
+     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/campaigns?fields=id,name,effective_status,objective&limit=300&access_token=${token}`;
+     const r = await fetch(url);
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
+-    return j.data.map((c: any) => ({
++    return j.data.map((c) => ({
+       campaign_id: c.id,
+       campaign_name: c.name,
+       status: c.effective_status,
+@@ -5236,11 +5295,11 @@ async function fbLiveCampaignList(
+ 
+ /** Live campaign-level insights (spend/leads/etc.) over a day window. Null on failure. */
+ async function fbLiveCampaignInsights(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   clientId: string,
+   days: number,
+-): Promise<any[] | null> {
++) {
+   try {
+     const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
+     const token = await fbGetToken(supabase, tenantId);
+@@ -5261,9 +5320,9 @@ async function fbLiveCampaignInsights(
+       "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach";
+     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign&date_preset=${preset}&fields=${fields}&limit=500&access_token=${token}`;
+     const r = await fetch(url);
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
+-    return j.data.map((d: any) => {
++    return j.data.map((d) => {
+       const leads = fbLeadsFromActions(d.actions);
+       const spend = Number(d.spend || 0);
+       return {
+@@ -5306,15 +5365,15 @@ async function fbListAccessibleAdAccounts(
+   try {
+     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/adaccounts?fields=account_id,name,account_status&limit=500&access_token=${token}`;
+     const r = await fetch(url);
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
+     return j.data
+-      .map((a: any) => ({
++      .map((a) => ({
+         id: String(a.account_id || a.id || "").replace(/^act_/, ""),
+         name: String(a.name || ""),
+         status: a.account_status != null ? Number(a.account_status) : null,
+       }))
+-      .filter((a: any) => a.id);
++      .filter((a) => a.id);
+   } catch {
+     return null;
+   }
+@@ -5354,12 +5413,12 @@ async function fbAccountInsights(
+   token: string,
+   acct: string,
+   days: number,
+-): Promise<any | null> {
++): Promise<AccountInsights | null> {
+   try {
+     const preset = fbDatePreset(days);
+     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=account&date_preset=${preset}&fields=spend,impressions,clicks,actions,reach&limit=1&access_token=${token}`;
+     const r = await fetch(url);
+-    const j = await r.json();
++    const j = await readMetaResponse(r);
+     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
+     const d = j.data[0];
+     if (!d)
+@@ -5392,7 +5451,7 @@ async function fbAccountInsights(
+ // (strong match only, flagged matched_by:'name' for human verification). Returns
+ // the clients we connected live vs the ones that still need manual linking.
+ async function fbTryConnectClients(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+   notConnected: Array<{
+     client_id: string;
+@@ -5400,9 +5459,11 @@ async function fbTryConnectClients(
+     reason: string;
+   }>,
+   days: number,
+-): Promise<{ connected: any[]; stillNotConnected: any[] }> {
+-  const connected: any[] = [];
+-  const stillNotConnected: any[] = [];
++) {
++  const connected: ConnectedClient[] = [];
++  const stillNotConnected: Array<
++    DisconnectedClient & { connect_attempt: string }
++  > = [];
+   const token = await fbGetToken(supabase, tenantId);
+   let accounts: Array<{
+     id: string;
+@@ -5457,7 +5518,7 @@ async function fbTryConnectClients(
+  * clients in a pulse snapshot, limited to clients with an active campaign table.
+  */
+ async function loadPulseCriticalIssues(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   accessibleTenantIds: string[],
+   rows: Array<{ client_id: string; client_name?: string | null }>,
+ ) {
+@@ -5484,7 +5545,10 @@ async function loadPulseCriticalIssues(
+     ]);
+     if (tables.error || alerts.error) return [];
+ 
+-    const activeTablesByClient = new Map<string, any[]>();
++    const activeTablesByClient = new Map<
++      string | null,
++      NonNullable<typeof tables.data>
++    >();
+     for (const table of tables.data || []) {
+       if (table.campaign_active === false) continue;
+       activeTablesByClient.set(table.client_id, [
+@@ -5499,7 +5563,12 @@ async function loadPulseCriticalIssues(
+         return {
+           clientId: row.client_id,
+           clientName: row.client_name || null,
+-          adAccountIds: clientAdAccountIds(activeTables),
++          adAccountIds: clientAdAccountIds(
++            activeTables.map((table) => ({
++              ...table,
++              integration_settings: jsonObject(table.integration_settings),
++            })),
++          ),
+           hasActiveCampaignTable: activeTables.length > 0,
+         };
+       }),
+@@ -5514,7 +5583,7 @@ async function loadPulseCriticalIssues(
+ }
+ 
+ async function getAccessibleTenantIds(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   tenantId: string,
+ ): Promise<string[]> {
+   try {
+@@ -5522,9 +5591,7 @@ async function getAccessibleTenantIds(
+       .from("agency_tenant_access")
+       .select("source_tenant_id")
+       .eq("accessing_tenant_id", tenantId);
+-    const extra = (data || [])
+-      .map((r: any) => r.source_tenant_id)
+-      .filter(Boolean);
++    const extra = (data || []).map((r) => r.source_tenant_id).filter(Boolean);
+     return Array.from(new Set([tenantId, ...extra]));
+   } catch (_) {
+     return [tenantId];
+@@ -5534,7 +5601,7 @@ async function getAccessibleTenantIds(
+ // Auto-create a Google Calendar event for a newly created task.
+ // Silently no-ops when the campaigner's user has no connected calendar.
+ async function tryCreateCalendarEventForTask(
+-  supabase: any,
++  supabase: AgentDatabaseClient,
+   taskId: string,
+   title: string,
+   dueDate: string,
+@@ -5617,8 +5684,11 @@ async function tryCreateCalendarEventForTask(
+         e?.error?.message,
+       );
+     }
+-  } catch (e: any) {
+-    console.warn("[create_task] calendar sync error:", e?.message);
++  } catch (e) {
++    console.warn(
++      "[create_task] calendar sync error:",
++      e instanceof Error ? e.message : undefined,
++    );
+   }
+ }
+ 
+@@ -9530,7 +9600,9 @@ async function executeTool(
+         page_name: page.name,
+         integration_id: page.integration_id,
+       };
+-      let connected = null;
++      let connected: Awaited<
++        ReturnType<typeof connectMetaFormToAutomation>
++      > | null = null;
+       if (args.automation_id || args.automation_name) {
+         const automation = await findAutomationForMetaForm(
+           supabase,
+diff --git a/supabase/functions/run-ai-agent/runtime-contracts.test.ts b/supabase/functions/run-ai-agent/runtime-contracts.test.ts
+new file mode 100644
+index 000000000..cb55e0b28
+--- /dev/null
++++ b/supabase/functions/run-ai-agent/runtime-contracts.test.ts
+@@ -0,0 +1,90 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import {
++  jsonObject,
++  isMetaNode,
++  readMetaResponse,
++} from "./runtime-contracts.ts";
++
++function response(value: unknown, status = 200) {
++  return new Response(JSON.stringify(value), { status });
++}
++
++test("Meta responses preserve numeric strings, actions, pagination and extra metrics", async () => {
++  const payload = {
++    data: [
++      {
++        campaign_id: "campaign-1",
++        spend: "21.5",
++        impressions: 100,
++        actions: [{ action_type: "lead", value: "3" }],
++        purchase_roas: [{ value: "2.5" }],
++      },
++    ],
++    paging: { next: "https://graph.facebook.com/next" },
++    summary: { total_count: 1 },
++  };
++  assert.deepEqual(await readMetaResponse(response(payload)), payload);
++});
++
++test("Meta API errors and nullable fields survive decoding for existing fallback handling", async () => {
++  const payload = {
++    data: null,
++    error: { message: "Token expired", code: 190, type: null },
++    paging: null,
++  };
++  assert.deepEqual(await readMetaResponse(response(payload, 400)), payload);
++  const nullable = {
++    id: null,
++    spend: null,
++    actions: null,
++    cost_per_action_type: null,
++    questions: null,
++  };
++  assert.deepEqual(await readMetaResponse(response(nullable)), nullable);
++  assert.deepEqual(await readMetaResponse(response({ data: [] })), {
++    data: [],
++  });
++});
++
++test("malformed Graph envelopes cannot masquerade as typed campaign data", async () => {
++  for (const payload of [
++    null,
++    [],
++    "bad",
++    { data: {} },
++    { data: [null] },
++    { data: [{ spend: {} }] },
++    { actions: [{ value: {} }] },
++    { questions: [{ label: 42 }] },
++    { paging: { next: 3 } },
++    { error: "expired" },
++  ]) {
++    await assert.rejects(
++      readMetaResponse(response(payload)),
++      /Invalid Meta response/,
++    );
++  }
++  await assert.rejects(readMetaResponse(new Response("not-json")), SyntaxError);
++});
++
++test("configured Meta pages accept nullable optional fields and reject malformed fields", () => {
++  assert.equal(
++    isMetaNode({ id: "page-1", name: null, access_token: "page-token" }),
++    true,
++  );
++  assert.equal(isMetaNode({ id: "page-1", access_token: {} }), false);
++});
++
++test("persisted configuration keeps nested mappings intact while primitives have no keys", () => {
++  const settings = {
++    form_mappings: {
++      form1: { agency_id: "agency-1", fields: { email: "EMAIL" } },
++    },
++    other: true,
++  };
++  assert.equal(jsonObject(settings), settings);
++  for (const value of [null, undefined, true, 42, "legacy", []]) {
++    assert.deepEqual(jsonObject(value), {});
++  }
++});
+diff --git a/supabase/functions/run-ai-agent/runtime-contracts.ts b/supabase/functions/run-ai-agent/runtime-contracts.ts
+new file mode 100644
+index 000000000..61f492b9c
+--- /dev/null
++++ b/supabase/functions/run-ai-agent/runtime-contracts.ts
+@@ -0,0 +1,242 @@
++import type {
++  Database,
++  Json,
++} from "../../../src/integrations/supabase/types.ts";
++import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
++
++// Use generated row/query inference for helpers without migrating sibling dispatch slices.
++// These two schema additions are present in migrations but not the generated snapshot.
++type AgentDatabase = Omit<Database, "public"> & {
++  public: Omit<Database["public"], "Tables" | "Functions"> & {
++    Tables: Omit<Database["public"]["Tables"], "crm_tables"> & {
++      crm_tables: Omit<Database["public"]["Tables"]["crm_tables"], "Row"> & {
++        Row: AgentRow<"crm_tables"> & { campaign_active: boolean };
++      };
++    };
++    Functions: Database["public"]["Functions"] & {
++      claude_notify_david: {
++        Args: { p_message: string; p_tenant?: string; p_chat_id?: string };
++        Returns: Json;
++      };
++    };
++  };
++};
++export type AgentDatabaseClient = ReturnType<
++  typeof createClient<AgentDatabase>
++>;
++export type AgentRow<Name extends keyof Database["public"]["Tables"]> =
++  Database["public"]["Tables"][Name]["Row"];
++
++/** Narrow persisted JSON before reading configuration keys; retain unknown keys on writes. */
++export function jsonObject(value: Json | undefined): {
++  [key: string]: Json | undefined;
++} {
++  return value !== null && typeof value === "object" && !Array.isArray(value)
++    ? value
++    : {};
++}
++
++export interface MetaAction {
++  action_type?: string | null;
++  value?: string | number | null;
++}
++interface MetaQuestion {
++  key?: string | null;
++  label?: string | null;
++  type?: string | null;
++}
++type MetaNodeFields = {
++  id?: string;
++  name?: string;
++  account_id?: string;
++  account_status?: number;
++  status?: string;
++  effective_status?: string;
++  objective?: string;
++  campaign_id?: string;
++  campaign_name?: string;
++  ad_id?: string;
++  ad_name?: string;
++  daily_budget?: string;
++  lifetime_budget?: string;
++  access_token?: string;
++  spend?: string | number;
++  impressions?: string | number;
++  clicks?: string | number;
++  ctr?: string | number;
++  cpc?: string | number;
++  cpm?: string | number;
++  frequency?: string | number;
++  reach?: string | number;
++  actions?: MetaAction[];
++  cost_per_action_type?: MetaAction[];
++  questions?: MetaQuestion[];
++};
++export type MetaNode = {
++  [Key in keyof MetaNodeFields]: MetaNodeFields[Key] | null;
++};
++interface MetaResponse extends MetaNode {
++  data?: MetaNode[] | null;
++  error?: {
++    message?: string | null;
++    code?: number | null;
++    type?: string | null;
++  } | null;
++  paging?: { next?: string | null } | null;
++}
++export function isObject(value: unknown): value is object {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++function hasOptionalFields(
++  value: object,
++  keys: readonly string[],
++  allowed: readonly string[],
++): boolean {
++  return keys.every(
++    (key) =>
++      !(key in value) ||
++      Reflect.get(value, key) == null ||
++      allowed.includes(typeof Reflect.get(value, key)),
++  );
++}
++export function isMetaNode(value: unknown): value is MetaNode {
++  if (!isObject(value)) return false;
++  if (
++    !hasOptionalFields(
++      value,
++      [
++        "id",
++        "name",
++        "account_id",
++        "status",
++        "effective_status",
++        "objective",
++        "campaign_id",
++        "campaign_name",
++        "ad_id",
++        "ad_name",
++        "daily_budget",
++        "lifetime_budget",
++        "access_token",
++      ],
++      ["string"],
++    )
++  )
++    return false;
++  if (!hasOptionalFields(value, ["account_status"], ["number"])) return false;
++  if (
++    !hasOptionalFields(
++      value,
++      [
++        "spend",
++        "impressions",
++        "clicks",
++        "ctr",
++        "cpc",
++        "cpm",
++        "frequency",
++        "reach",
++      ],
++      ["string", "number"],
++    )
++  )
++    return false;
++  for (const key of ["actions", "cost_per_action_type", "questions"] as const) {
++    if (!(key in value) || Reflect.get(value, key) == null) continue;
++    const entries: unknown = Reflect.get(value, key);
++    if (
++      !Array.isArray(entries) ||
++      !entries.every(
++        (entry: unknown) =>
++          isObject(entry) &&
++          (key === "questions"
++            ? hasOptionalFields(entry, ["key", "label", "type"], ["string"])
++            : hasOptionalFields(entry, ["action_type"], ["string"]) &&
++              hasOptionalFields(entry, ["value"], ["string", "number"])),
++      )
++    )
++      return false;
++  }
++  return true;
++}
++/** Validate the Graph envelope once; keep extra provider fields for metric spreads. */
++export async function readMetaResponse(
++  response: Response,
++): Promise<MetaResponse> {
++  const value: unknown = await response.json();
++  if (!isMetaNode(value)) throw new Error("Invalid Meta response");
++  if (
++    "data" in value &&
++    value.data != null &&
++    (!Array.isArray(value.data) || !value.data.every(isMetaNode))
++  )
++    throw new Error("Invalid Meta response data");
++  if (
++    "error" in value &&
++    value.error != null &&
++    (!isObject(value.error) ||
++      !hasOptionalFields(value.error, ["message", "type"], ["string"]) ||
++      !hasOptionalFields(value.error, ["code"], ["number"]))
++  )
++    throw new Error("Invalid Meta response error");
++  if (
++    "paging" in value &&
++    value.paging != null &&
++    (!isObject(value.paging) ||
++      !hasOptionalFields(value.paging, ["next"], ["string"]))
++  )
++    throw new Error("Invalid Meta response paging");
++  return value;
++}
++
++export type SearchClient = Pick<
++  AgentRow<"clients">,
++  | "id"
++  | "name"
++  | "contact_name"
++  | "phone"
++  | "status"
++  | "agency_id"
++  | "tenant_id"
++  | "meta_ads_account_id"
++> & {
++  agency_name: string | null;
++  matched_via: string[];
++  ad_accounts: Array<{
++    table_id: string;
++    table_name: string;
++    integration_type: string | null;
++    ad_account_id: Json;
++    ad_account_name: Json;
++    account_status: Json;
++  }>;
++};
++export type MetaAdMetrics = {
++  spend: number;
++  leads: number;
++  impressions: number;
++  clicks: number;
++  cpl: number | null;
++};
++export type AccountInsights = {
++  spend: number;
++  leads_count: number;
++  impressions: number;
++  clicks: number;
++  cost_per_lead: number | null;
++  reach?: number | null;
++  no_delivery?: boolean;
++};
++export type DisconnectedClient = {
++  client_id: string;
++  client_name: string;
++  reason: string;
++};
++export type ConnectedClient = AccountInsights & {
++  client_id: string;
++  client_name: string;
++  ad_account: string;
++  matched_by: "config" | "name" | null;
++  matched_account_name: string | null;
++  source: string;
++};
+-- 
+2.43.0
+
+
+From f876cb5acac05930e84b417278ba0a303b8b31c6 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Thu, 15 Oct 2026 10:26:41 +0000
+Subject: [PATCH 2/6] refactor(agents): split runtime contracts [AIO-94]
+
+---
+ .../run-ai-agent/database-contracts.ts        |  31 ++++++
+ .../functions/run-ai-agent/helper-results.ts  |  58 ++++++++++
+ supabase/functions/run-ai-agent/index.ts      |  16 +--
+ .../functions/run-ai-agent/json-config.ts     |  14 +++
+ ...{runtime-contracts.ts => meta-response.ts} | 100 ++----------------
+ .../run-ai-agent/runtime-contracts.test.ts    |   7 +-
+ 6 files changed, 118 insertions(+), 108 deletions(-)
+ create mode 100644 supabase/functions/run-ai-agent/database-contracts.ts
+ create mode 100644 supabase/functions/run-ai-agent/helper-results.ts
+ create mode 100644 supabase/functions/run-ai-agent/json-config.ts
+ rename supabase/functions/run-ai-agent/{runtime-contracts.ts => meta-response.ts} (59%)
+
+diff --git a/supabase/functions/run-ai-agent/database-contracts.ts b/supabase/functions/run-ai-agent/database-contracts.ts
+new file mode 100644
+index 000000000..bce524ba9
+--- /dev/null
++++ b/supabase/functions/run-ai-agent/database-contracts.ts
+@@ -0,0 +1,31 @@
++import type {
++  Database,
++  Json,
++} from "../../../src/integrations/supabase/types.ts";
++import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
++
++// Use generated row/query inference for helpers without migrating sibling dispatch slices.
++// These two schema additions are present in migrations but not the generated snapshot.
++// Remove the overlay after baseline-backed regeneration: https://linear.app/aios-co/issue/AIO-116
++type AgentDatabase = Omit<Database, "public"> & {
++  public: Omit<Database["public"], "Tables" | "Functions"> & {
++    Tables: Omit<Database["public"]["Tables"], "crm_tables"> & {
++      crm_tables: Omit<Database["public"]["Tables"]["crm_tables"], "Row"> & {
++        Row: AgentRow<"crm_tables"> & { campaign_active: boolean };
++      };
++    };
++    Functions: Database["public"]["Functions"] & {
++      claude_notify_david: {
++        Args: { p_message: string; p_tenant?: string; p_chat_id?: string };
++        Returns: Json;
++      };
++    };
++  };
++};
++
++export type AgentDatabaseClient = ReturnType<
++  typeof createClient<AgentDatabase>
++>;
++
++export type AgentRow<Name extends keyof Database["public"]["Tables"]> =
++  Database["public"]["Tables"][Name]["Row"];
+diff --git a/supabase/functions/run-ai-agent/helper-results.ts b/supabase/functions/run-ai-agent/helper-results.ts
+new file mode 100644
+index 000000000..7fb5690f9
+--- /dev/null
++++ b/supabase/functions/run-ai-agent/helper-results.ts
+@@ -0,0 +1,58 @@
++import type { Json } from "../../../src/integrations/supabase/types.ts";
++import type { AgentRow } from "./database-contracts.ts";
++
++export type SearchClient = Pick<
++  AgentRow<"clients">,
++  | "id"
++  | "name"
++  | "contact_name"
++  | "phone"
++  | "status"
++  | "agency_id"
++  | "tenant_id"
++  | "meta_ads_account_id"
++> & {
++  agency_name: string | null;
++  matched_via: string[];
++  ad_accounts: Array<{
++    table_id: string;
++    table_name: string;
++    integration_type: string | null;
++    ad_account_id: Json;
++    ad_account_name: Json;
++    account_status: Json;
++  }>;
++};
++
++export type MetaAdMetrics = {
++  spend: number;
++  leads: number;
++  impressions: number;
++  clicks: number;
++  cpl: number | null;
++};
++
++export type AccountInsights = {
++  spend: number;
++  leads_count: number;
++  impressions: number;
++  clicks: number;
++  cost_per_lead: number | null;
++  reach?: number | null;
++  no_delivery?: boolean;
++};
++
++export type DisconnectedClient = {
++  client_id: string;
++  client_name: string;
++  reason: string;
++};
++
++export type ConnectedClient = AccountInsights & {
++  client_id: string;
++  client_name: string;
++  ad_account: string;
++  matched_by: "config" | "name" | null;
++  matched_account_name: string | null;
++  source: string;
++};
+diff --git a/supabase/functions/run-ai-agent/index.ts b/supabase/functions/run-ai-agent/index.ts
+index b04695789..5c248fe81 100644
+--- a/supabase/functions/run-ai-agent/index.ts
++++ b/supabase/functions/run-ai-agent/index.ts
+@@ -187,23 +187,17 @@ import {
+   RETENTION_BATCH_LIMIT,
+ } from "../_shared/client-retention.ts";
+ 
+-import {
+-  jsonObject,
+-  isObject,
+-  isMetaNode,
+-  readMetaResponse,
+-} from "./runtime-contracts.ts";
++import { jsonObject, isObject } from "./json-config.ts";
++import { isMetaNode, readMetaResponse } from "./meta-response.ts";
++import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
++import type { MetaAction, MetaNode } from "./meta-response.ts";
+ import type {
+-  AgentDatabaseClient,
+-  AgentRow,
+-  MetaAction,
+-  MetaNode,
+   SearchClient,
+   MetaAdMetrics,
+   AccountInsights,
+   ConnectedClient,
+   DisconnectedClient,
+-} from "./runtime-contracts.ts";
++} from "./helper-results.ts";
+ 
+ function scoreNameMatchSafe(fullName: string, query: string): number {
+   return scoreNameMatch(fullName, query);
+diff --git a/supabase/functions/run-ai-agent/json-config.ts b/supabase/functions/run-ai-agent/json-config.ts
+new file mode 100644
+index 000000000..cbe0fd2f1
+--- /dev/null
++++ b/supabase/functions/run-ai-agent/json-config.ts
+@@ -0,0 +1,14 @@
++import type { Json } from "../../../src/integrations/supabase/types.ts";
++
++/** Narrow persisted JSON before reading configuration keys; retain unknown keys on writes. */
++export function jsonObject(value: Json | undefined): {
++  [key: string]: Json | undefined;
++} {
++  return value !== null && typeof value === "object" && !Array.isArray(value)
++    ? value
++    : {};
++}
++
++export function isObject(value: unknown): value is object {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
+diff --git a/supabase/functions/run-ai-agent/runtime-contracts.ts b/supabase/functions/run-ai-agent/meta-response.ts
+similarity index 59%
+rename from supabase/functions/run-ai-agent/runtime-contracts.ts
+rename to supabase/functions/run-ai-agent/meta-response.ts
+index 61f492b9c..5ac4afb90 100644
+--- a/supabase/functions/run-ai-agent/runtime-contracts.ts
++++ b/supabase/functions/run-ai-agent/meta-response.ts
+@@ -1,50 +1,16 @@
+-import type {
+-  Database,
+-  Json,
+-} from "../../../src/integrations/supabase/types.ts";
+-import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+-
+-// Use generated row/query inference for helpers without migrating sibling dispatch slices.
+-// These two schema additions are present in migrations but not the generated snapshot.
+-type AgentDatabase = Omit<Database, "public"> & {
+-  public: Omit<Database["public"], "Tables" | "Functions"> & {
+-    Tables: Omit<Database["public"]["Tables"], "crm_tables"> & {
+-      crm_tables: Omit<Database["public"]["Tables"]["crm_tables"], "Row"> & {
+-        Row: AgentRow<"crm_tables"> & { campaign_active: boolean };
+-      };
+-    };
+-    Functions: Database["public"]["Functions"] & {
+-      claude_notify_david: {
+-        Args: { p_message: string; p_tenant?: string; p_chat_id?: string };
+-        Returns: Json;
+-      };
+-    };
+-  };
+-};
+-export type AgentDatabaseClient = ReturnType<
+-  typeof createClient<AgentDatabase>
+->;
+-export type AgentRow<Name extends keyof Database["public"]["Tables"]> =
+-  Database["public"]["Tables"][Name]["Row"];
+-
+-/** Narrow persisted JSON before reading configuration keys; retain unknown keys on writes. */
+-export function jsonObject(value: Json | undefined): {
+-  [key: string]: Json | undefined;
+-} {
+-  return value !== null && typeof value === "object" && !Array.isArray(value)
+-    ? value
+-    : {};
+-}
++import { isObject } from "./json-config.ts";
+ 
+ export interface MetaAction {
+   action_type?: string | null;
+   value?: string | number | null;
+ }
++
+ interface MetaQuestion {
+   key?: string | null;
+   label?: string | null;
+   type?: string | null;
+ }
++
+ type MetaNodeFields = {
+   id?: string;
+   name?: string;
+@@ -72,9 +38,11 @@ type MetaNodeFields = {
+   cost_per_action_type?: MetaAction[];
+   questions?: MetaQuestion[];
+ };
++
+ export type MetaNode = {
+   [Key in keyof MetaNodeFields]: MetaNodeFields[Key] | null;
+ };
++
+ interface MetaResponse extends MetaNode {
+   data?: MetaNode[] | null;
+   error?: {
+@@ -84,9 +52,7 @@ interface MetaResponse extends MetaNode {
+   } | null;
+   paging?: { next?: string | null } | null;
+ }
+-export function isObject(value: unknown): value is object {
+-  return value !== null && typeof value === "object" && !Array.isArray(value);
+-}
++
+ function hasOptionalFields(
+   value: object,
+   keys: readonly string[],
+@@ -99,6 +65,7 @@ function hasOptionalFields(
+       allowed.includes(typeof Reflect.get(value, key)),
+   );
+ }
++
+ export function isMetaNode(value: unknown): value is MetaNode {
+   if (!isObject(value)) return false;
+   if (
+@@ -159,6 +126,7 @@ export function isMetaNode(value: unknown): value is MetaNode {
+   }
+   return true;
+ }
++
+ /** Validate the Graph envelope once; keep extra provider fields for metric spreads. */
+ export async function readMetaResponse(
+   response: Response,
+@@ -188,55 +156,3 @@ export async function readMetaResponse(
+     throw new Error("Invalid Meta response paging");
+   return value;
+ }
+-
+-export type SearchClient = Pick<
+-  AgentRow<"clients">,
+-  | "id"
+-  | "name"
+-  | "contact_name"
+-  | "phone"
+-  | "status"
+-  | "agency_id"
+-  | "tenant_id"
+-  | "meta_ads_account_id"
+-> & {
+-  agency_name: string | null;
+-  matched_via: string[];
+-  ad_accounts: Array<{
+-    table_id: string;
+-    table_name: string;
+-    integration_type: string | null;
+-    ad_account_id: Json;
+-    ad_account_name: Json;
+-    account_status: Json;
+-  }>;
+-};
+-export type MetaAdMetrics = {
+-  spend: number;
+-  leads: number;
+-  impressions: number;
+-  clicks: number;
+-  cpl: number | null;
+-};
+-export type AccountInsights = {
+-  spend: number;
+-  leads_count: number;
+-  impressions: number;
+-  clicks: number;
+-  cost_per_lead: number | null;
+-  reach?: number | null;
+-  no_delivery?: boolean;
+-};
+-export type DisconnectedClient = {
+-  client_id: string;
+-  client_name: string;
+-  reason: string;
+-};
+-export type ConnectedClient = AccountInsights & {
+-  client_id: string;
+-  client_name: string;
+-  ad_account: string;
+-  matched_by: "config" | "name" | null;
+-  matched_account_name: string | null;
+-  source: string;
+-};
+diff --git a/supabase/functions/run-ai-agent/runtime-contracts.test.ts b/supabase/functions/run-ai-agent/runtime-contracts.test.ts
+index cb55e0b28..da1dfc968 100644
+--- a/supabase/functions/run-ai-agent/runtime-contracts.test.ts
++++ b/supabase/functions/run-ai-agent/runtime-contracts.test.ts
+@@ -1,10 +1,7 @@
+ import assert from "node:assert/strict";
+ import test from "node:test";
+-import {
+-  jsonObject,
+-  isMetaNode,
+-  readMetaResponse,
+-} from "./runtime-contracts.ts";
++import { jsonObject } from "./json-config.ts";
++import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+ 
+ function response(value: unknown, status = 200) {
+   return new Response(JSON.stringify(value), { status });
+-- 
+2.43.0
+
+
+From 9ff63b2fff2571dc5960c14f4732928e5ffbf6a8 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Fri, 16 Oct 2026 12:42:10 +0000
+Subject: [PATCH 3/6] refactor(agents): use shared database types [AIO-94]
+
+---
+ supabase/functions/run-ai-agent/database-contracts.ts | 5 +----
+ supabase/functions/run-ai-agent/helper-results.ts     | 2 +-
+ supabase/functions/run-ai-agent/json-config.ts        | 2 +-
+ 3 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/supabase/functions/run-ai-agent/database-contracts.ts b/supabase/functions/run-ai-agent/database-contracts.ts
+index bce524ba9..b5f87c720 100644
+--- a/supabase/functions/run-ai-agent/database-contracts.ts
++++ b/supabase/functions/run-ai-agent/database-contracts.ts
+@@ -1,7 +1,4 @@
+-import type {
+-  Database,
+-  Json,
+-} from "../../../src/integrations/supabase/types.ts";
++import type { Database, Json } from "../_shared/database.types.ts";
+ import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+ 
+ // Use generated row/query inference for helpers without migrating sibling dispatch slices.
+diff --git a/supabase/functions/run-ai-agent/helper-results.ts b/supabase/functions/run-ai-agent/helper-results.ts
+index 7fb5690f9..978680b2a 100644
+--- a/supabase/functions/run-ai-agent/helper-results.ts
++++ b/supabase/functions/run-ai-agent/helper-results.ts
+@@ -1,4 +1,4 @@
+-import type { Json } from "../../../src/integrations/supabase/types.ts";
++import type { Json } from "../_shared/database.types.ts";
+ import type { AgentRow } from "./database-contracts.ts";
+ 
+ export type SearchClient = Pick<
+diff --git a/supabase/functions/run-ai-agent/json-config.ts b/supabase/functions/run-ai-agent/json-config.ts
+index cbe0fd2f1..a9d88b0dd 100644
+--- a/supabase/functions/run-ai-agent/json-config.ts
++++ b/supabase/functions/run-ai-agent/json-config.ts
+@@ -1,4 +1,4 @@
+-import type { Json } from "../../../src/integrations/supabase/types.ts";
++import type { Json } from "../_shared/database.types.ts";
+ 
+ /** Narrow persisted JSON before reading configuration keys; retain unknown keys on writes. */
+ export function jsonObject(value: Json | undefined): {
+-- 
+2.43.0
+
+
+From c9ed8b9ec373583db8cad18be6cd4e9d09d170af Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Fri, 16 Oct 2026 12:45:09 +0000
+Subject: [PATCH 4/6] docs(agents): clarify generated type follow-up [AIO-94]
+
+---
+ supabase/functions/run-ai-agent/database-contracts.ts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/supabase/functions/run-ai-agent/database-contracts.ts b/supabase/functions/run-ai-agent/database-contracts.ts
+index b5f87c720..54d126f8f 100644
+--- a/supabase/functions/run-ai-agent/database-contracts.ts
++++ b/supabase/functions/run-ai-agent/database-contracts.ts
+@@ -2,8 +2,8 @@ import type { Database, Json } from "../_shared/database.types.ts";
+ import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+ 
+ // Use generated row/query inference for helpers without migrating sibling dispatch slices.
+-// These two schema additions are present in migrations but not the generated snapshot.
+-// Remove the overlay after baseline-backed regeneration: https://linear.app/aios-co/issue/AIO-116
++// The merged database baseline includes these entries, but the generated snapshot is still stale.
++// Remove the overlay after refreshing generated types: https://linear.app/aios-co/issue/AIO-116
+ type AgentDatabase = Omit<Database, "public"> & {
+   public: Omit<Database["public"], "Tables" | "Functions"> & {
+     Tables: Omit<Database["public"]["Tables"], "crm_tables"> & {
+-- 
+2.43.0
+
+
+From 0c6d7b8134a8fd96120198c1b46c729821d04e02 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:09:07 +0000
+Subject: [PATCH 5/6] fix(agents): complete helper types and run contracts in
+ CI
+
+---
+ .github/workflows/ci-frontend.yml             |  2 +-
+ .../run-ai-agent/database-contracts.ts        | 25 ++-----------------
+ supabase/functions/run-ai-agent/index.ts      |  7 +++---
+ 3 files changed, 7 insertions(+), 27 deletions(-)
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index 480feaf1e..ba840052b 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -183,7 +183,7 @@ jobs:
+         run: node --test supabase/functions/_shared/staging-outbound.test.mjs supabase/functions/_shared/staging-whatsapp-test.test.ts supabase/functions/_shared/staging-email-test.test.ts supabase/functions/_shared/automation-run-auth.test.ts supabase/functions/_shared/meeting-summary-prompts.test.ts supabase/functions/_shared/signature-field-text.test.ts supabase/functions/_shared/signature-email-template.test.ts supabase/functions/_shared/report-sync-window.test.ts src/lib/carmenLoaderSignal.test.ts src/lib/clipboardFiles.test.ts src/lib/reportRecords.test.ts src/lib/reportCoverage.test.ts src/lib/reportSyncCadence.test.ts src/lib/dashboardDateFilters.test.ts src/lib/weeklyAdsComparison.test.ts src/lib/adAccountUrl.test.ts src/lib/gaPropertyMatch.test.ts supabase/functions/_shared/gaDomain.test.ts src/lib/leadTableLayout.test.ts src/lib/leadTableColumns.test.ts src/lib/leadViewMode.test.ts src/lib/leadStageFilter.test.ts src/lib/recordingPlayback.test.ts src/lib/recordingSummaryTarget.test.ts src/lib/sharedReportTabs.test.ts src/lib/signatureFieldGuide.test.ts src/lib/signatureDate.test.ts src/lib/teamMemberMatch.test.ts supabase/functions/_shared/automation-status.test.ts supabase/functions/webhook-lead-intake/lead-duplicate-match.test.ts supabase/functions/webhook-lead-intake/returning-lead.test.ts supabase/functions/_shared/lead-repeat-reopen.test.ts supabase/functions/_shared/broadcast/template/template.test.ts supabase/functions/_shared/broadcast/template/template-content.test.ts supabase/functions/_shared/broadcast/mailing-actions/target.test.ts supabase/functions/_shared/broadcast/mailing-actions/send-to-list.test.ts supabase/functions/_shared/broadcast/audience/resolve.test.ts supabase/functions/_shared/timing-safe-equal.test.ts src/lib/leadRecordings.test.ts supabase/functions/_shared/telephony/phone.test.ts supabase/functions/make-pbx-call/outbound.test.ts supabase/functions/pbx-webhook/event.test.ts src/components/marketing/departments/creative/videoScenes.test.ts src/components/marketing/departments/creative/videoStill.test.ts src/components/marketing/departments/creative/videoReference.test.ts src/components/marketing/departments/creative/videoClip.test.ts src/components/marketing/departments/creative/videoProduction.test.ts src/components/marketing/departments/creative/videoEngines.test.ts supabase/functions/_shared/video-director-tools.test.ts supabase/functions/_shared/creative-studio-tools.test.ts src/components/marketing/departments/creative/studioChat.test.ts render-worker/test/shots.test.mjs render-worker/test/ffmpeg.test.mjs render-worker/test/clip.test.mjs render-worker/test/engines.test.mjs render-worker/test/openrouter.test.mjs render-worker/test/timeline.test.mjs supabase/functions/_shared/carmen/brain-access.test.ts src/components/carmen-command/useDraggableCard.test.ts src/components/carmen-command/chatDedupe.test.ts src/lib/chatTopics.test.ts supabase/functions/_shared/carmen/topic-text.test.ts supabase/functions/_shared/carmen/voice-access.test.ts supabase/functions/_shared/carmen/brain-connections/helpers.test.ts supabase/functions/_shared/carmen/brain-connections/overrides.test.ts supabase/functions/_shared/carmen/free-first/router.test.ts supabase/functions/_shared/carmen/free-first/classifier.test.ts supabase/functions/_shared/carmen/free-first/failover.test.ts supabase/functions/_shared/carmen/free-first/cost.test.ts supabase/functions/_shared/carmen/free-first/budget-reservation.test.ts supabase/functions/_shared/carmen/free-first/candidates.test.ts supabase/functions/_shared/carmen/brain-engine/plan.test.ts supabase/functions/_shared/creative/openrouterImage.test.ts
+ 
+       - name: Carmen pulse regression tests
+-        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs
++        run: node --experimental-strip-types --test supabase/functions/run-ai-agent/runtime-contracts.test.ts supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs
+ 
+       - name: Build frontend
+         run: pnpm build
+diff --git a/supabase/functions/run-ai-agent/database-contracts.ts b/supabase/functions/run-ai-agent/database-contracts.ts
+index 54d126f8f..19f93700e 100644
+--- a/supabase/functions/run-ai-agent/database-contracts.ts
++++ b/supabase/functions/run-ai-agent/database-contracts.ts
+@@ -1,28 +1,7 @@
+-import type { Database, Json } from "../_shared/database.types.ts";
++import type { Database } from "../_shared/database.types.ts";
+ import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+ 
+-// Use generated row/query inference for helpers without migrating sibling dispatch slices.
+-// The merged database baseline includes these entries, but the generated snapshot is still stale.
+-// Remove the overlay after refreshing generated types: https://linear.app/aios-co/issue/AIO-116
+-type AgentDatabase = Omit<Database, "public"> & {
+-  public: Omit<Database["public"], "Tables" | "Functions"> & {
+-    Tables: Omit<Database["public"]["Tables"], "crm_tables"> & {
+-      crm_tables: Omit<Database["public"]["Tables"]["crm_tables"], "Row"> & {
+-        Row: AgentRow<"crm_tables"> & { campaign_active: boolean };
+-      };
+-    };
+-    Functions: Database["public"]["Functions"] & {
+-      claude_notify_david: {
+-        Args: { p_message: string; p_tenant?: string; p_chat_id?: string };
+-        Returns: Json;
+-      };
+-    };
+-  };
+-};
+-
+-export type AgentDatabaseClient = ReturnType<
+-  typeof createClient<AgentDatabase>
+->;
++export type AgentDatabaseClient = ReturnType<typeof createClient<Database>>;
+ 
+ export type AgentRow<Name extends keyof Database["public"]["Tables"]> =
+   Database["public"]["Tables"][Name]["Row"];
+diff --git a/supabase/functions/run-ai-agent/index.ts b/supabase/functions/run-ai-agent/index.ts
+index 5c248fe81..963c9bc48 100644
+--- a/supabase/functions/run-ai-agent/index.ts
++++ b/supabase/functions/run-ai-agent/index.ts
+@@ -190,6 +190,7 @@ import {
+ import { jsonObject, isObject } from "./json-config.ts";
+ import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+ import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
++import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
+ import type { MetaAction, MetaNode } from "./meta-response.ts";
+ import type {
+   SearchClient,
+@@ -1100,7 +1101,7 @@ async function makeZoomMeetingCreator(
+   tenantId: string,
+   titleHint?: string,
+ ) {
+-  return async (existing) => {
++  return async (existing: CalendarEventLike) => {
+     const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
+     if (!zoomAuth.accessToken) {
+       return {
+@@ -4797,7 +4798,7 @@ async function fbAnalyzeCampaignInline(
+ 
+   const fields =
+     "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
+-  const cplFrom = (ins) => {
++  const cplFrom = (ins: MetaNode | null | undefined) => {
+     if (!ins) return null;
+     const leadAction = (ins.cost_per_action_type || []).find(
+       (a) =>
+@@ -5145,7 +5146,7 @@ async function findAutomationForMetaForm(
+   const { data, error } = await query.order("name").limit(100).returns<
+     Array<
+       Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
+-        tenant_id: string;
++        tenant_id: string | null;
+       }
+     >
+   >();
+-- 
+2.43.0
+
+
+From 2c501e327867a53396561b874f3ee3b86798efbf Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:16:06 +0000
+Subject: [PATCH 6/6] fix(agents): narrow tenant and calendar callback
+ contracts
+
+---
+ supabase/functions/_shared/calendar-conference.mjs | 4 +++-
+ supabase/functions/run-ai-agent/index.ts           | 4 +++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/supabase/functions/_shared/calendar-conference.mjs b/supabase/functions/_shared/calendar-conference.mjs
+index 9d2b6ad8f..94026b189 100644
+--- a/supabase/functions/_shared/calendar-conference.mjs
++++ b/supabase/functions/_shared/calendar-conference.mjs
+@@ -357,7 +357,9 @@ export async function updateExistingCalendarEvent({
+   conferenceType = "none",
+   extraEmails = [],
+   extraNamed = [],
+-  createZoomMeetingFn = null,
++  createZoomMeetingFn = /** @type {null | ((existing: import("./calendar-recording-match.ts").CalendarEventLike) => Promise<{join_url?: string, configured?: boolean, error?: string}>)} */ (
++    null
++  ),
+   fetchImpl = fetch,
+ }) {
+   const got = await googleCalendarGetEvent(accessToken, eventId, fetchImpl);
+diff --git a/supabase/functions/run-ai-agent/index.ts b/supabase/functions/run-ai-agent/index.ts
+index 963c9bc48..440ad529a 100644
+--- a/supabase/functions/run-ai-agent/index.ts
++++ b/supabase/functions/run-ai-agent/index.ts
+@@ -5160,7 +5160,9 @@ async function findAutomationForMetaForm(
+       `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
+     );
+   }
+-  return matches[0];
++  const match = matches[0];
++  if (!match.tenant_id) throw new Error("Automation has no tenant");
++  return { ...match, tenant_id: match.tenant_id };
+ }
+ 
+ async function connectMetaFormToAutomation(
+-- 
+2.43.0
+

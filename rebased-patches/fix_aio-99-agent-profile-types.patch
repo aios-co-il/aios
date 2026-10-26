@@ -1,0 +1,2973 @@
+From b9e631c5e35d005e6e8ceab89114c798827491d7 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Thu, 15 Oct 2026 09:25:46 +0000
+Subject: [PATCH 1/8] refactor(agents): type profile access (AIO-99)
+
+---
+ src/components/agents/AgentEditor.tsx         |   9 +-
+ src/components/agents/tabs/AgentAccessTab.tsx |  31 +++--
+ .../tabs/CarmenConversationAccessTab.tsx      | 117 ++++++++++++------
+ src/components/agents/tabs/ProfileTab.tsx     |  49 +++++---
+ .../agents/tabs/UserProfilesTab.tsx           |  21 +++-
+ .../carmen/CarmenWhatsAppAccess.tsx           |  10 +-
+ .../supabase/agentAccessClient.ts             | 114 +++++++++++++++++
+ src/pages/AgentHub.tsx                        |   4 +-
+ src/pages/CarmenAccess.tsx                    |  34 ++---
+ src/pages/CarmenStudio.tsx                    |  30 +++--
+ .../components/AgentSheet.tsx                 |  65 +++++++---
+ 11 files changed, 362 insertions(+), 122 deletions(-)
+ create mode 100644 src/integrations/supabase/agentAccessClient.ts
+
+diff --git a/src/components/agents/AgentEditor.tsx b/src/components/agents/AgentEditor.tsx
+index 08a357fa4..fbcee6e68 100644
+--- a/src/components/agents/AgentEditor.tsx
++++ b/src/components/agents/AgentEditor.tsx
+@@ -4,8 +4,9 @@ import {
+   readAgentIdentity,
+ } from "@/hooks/useCarmenIdentity";
+ import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import { useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Tabs, TabsContent } from "@/components/ui/tabs";
+ import { Badge } from "@/components/ui/badge";
+@@ -49,7 +50,7 @@ function isCarmen(name: string) {
+ }
+ 
+ export interface AgentEditorProps {
+-  agent: any;
++  agent: AgentProfile;
+   /**
+    * Render inside a host panel (Carmen's screen). Tabs use local/controlled
+    * state instead of the URL ?tab= param, buttons that navigate to other routes
+@@ -89,7 +90,7 @@ export function AgentEditor({
+       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
+       toast.success("המוח עודכן");
+     },
+-    onError: (e: any) => toast.error(e.message),
++    onError: (e) => toast.error(e.message),
+   });
+ 
+   return (
+@@ -161,7 +162,7 @@ function AgentTabsWithUrl({
+   tab,
+   onTabChange,
+   onManageKeys,
+-}: Omit<AgentEditorProps, "agent"> & { agent: any }) {
++}: Omit<AgentEditorProps, "agent"> & { agent: AgentProfile }) {
+   const [params, setParams] = useSearchParams();
+   const navigate = useNavigate();
+   const { buildPath } = useTenantPath();
+diff --git a/src/components/agents/tabs/AgentAccessTab.tsx b/src/components/agents/tabs/AgentAccessTab.tsx
+index 4f7c31538..51dfe28d3 100644
+--- a/src/components/agents/tabs/AgentAccessTab.tsx
++++ b/src/components/agents/tabs/AgentAccessTab.tsx
+@@ -1,6 +1,7 @@
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import { useState, useEffect, useMemo } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Button } from "@/components/ui/button";
+ import { Switch } from "@/components/ui/switch";
+@@ -22,7 +23,7 @@ import { AGENT_TOOLS_CATALOG } from "@/lib/agentToolsCatalog";
+ // denylist on ai_agents (disabled_tools / disabled_skins / disabled_integrations),
+ // which run-ai-agent subtracts at runtime.
+ 
+-export function AgentAccessTab({ agent }: { agent: any }) {
++export function AgentAccessTab({ agent }: { agent: AgentProfile }) {
+   const { tenantId } = useCurrentTenant();
+   const queryClient = useQueryClient();
+   const [offTools, setOffTools] = useState<Set<string>>(new Set());
+@@ -41,7 +42,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+     queryKey: ["agent-access-skins", tenantId],
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("ai_skills" as any)
++        .from("ai_skills")
+         .select("slug,name,scope,is_active")
+         .eq("is_active", true)
+         .or(
+@@ -49,11 +50,15 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+             ? `scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`
+             : "scope.eq.global",
+         );
+-      const bySlug = new Map<string, any>();
+-      for (const r of (data as any[]) || []) {
++      const bySlug = new Map<
++        string,
++        NonNullable<typeof data>[number] & { slug: string }
++      >();
++      for (const r of data || []) {
+         if (!r.slug) continue;
+         const ex = bySlug.get(r.slug);
+-        if (!ex || r.scope === "tenant") bySlug.set(r.slug, r);
++        if (!ex || r.scope === "tenant")
++          bySlug.set(r.slug, { ...r, slug: r.slug });
+       }
+       return Array.from(bySlug.values()).sort((a, b) =>
+         a.name.localeCompare(b.name, "he"),
+@@ -67,11 +72,11 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+     queryFn: async () => {
+       // Load both: connections scoped to this agent AND tenant-wide connections (agent_id = null)
+       const { data } = await supabase
+-        .from("agent_mcp_connections" as any)
++        .from("agent_mcp_connections")
+         .select("id,name,state,agent_id")
+-        .eq("tenant_id", tenantId)
++        .eq("tenant_id", tenantId!)
+         .or(`agent_id.eq.${agent.id},agent_id.is.null`);
+-      return (data as any[]) || [];
++      return data || [];
+     },
+     enabled: !!agent.id && !!tenantId,
+   });
+@@ -85,7 +90,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+   const save = useMutation({
+     mutationFn: async () => {
+       const { error } = await supabase
+-        .from("ai_agents" as any)
++        .from("ai_agents")
+         .update({
+           disabled_tools: Array.from(offTools),
+           disabled_skins: Array.from(offSkins),
+@@ -98,7 +103,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+       toast.success("הגישות נשמרו");
+       queryClient.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
+     },
+-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
++    onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+   });
+ 
+   const toggle = (
+@@ -203,7 +208,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+               <Sparkles className="h-4 w-4 text-orange-500" />
+               סקינז
+             </h2>
+-            {(skins || []).map((s: any) => (
++            {(skins || []).map((s) => (
+               <Row
+                 key={s.slug}
+                 on={!offSkins.has(s.slug)}
+@@ -225,7 +230,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
+               <Plug className="h-4 w-4 text-blue-500" />
+               אינטגרציות (MCP)
+             </h2>
+-            {(integrations || []).map((c: any) => (
++            {(integrations || []).map((c) => (
+               <Row
+                 key={c.id}
+                 on={!offIntegrations.has(c.name)}
+diff --git a/src/components/agents/tabs/CarmenConversationAccessTab.tsx b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+index 0da67b07c..1208f7967 100644
+--- a/src/components/agents/tabs/CarmenConversationAccessTab.tsx
++++ b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+@@ -10,7 +10,7 @@ import {
+   Save,
+ } from "lucide-react";
+ import { toast } from "sonner";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import {
+   fetchCarmenManusGroups,
+@@ -22,6 +22,7 @@ import {
+   fetchCarmenAutomationConfig,
+   mergePrivatePhoneAllowlist,
+   type PrivatePhoneRow,
++  type ManusGroupRow,
+ } from "@/lib/carmenAccessAutomation";
+ import { Button } from "@/components/ui/button";
+ import { Card } from "@/components/ui/card";
+@@ -51,7 +52,7 @@ import {
+ type ClientGroupRow = {
+   id?: string;
+   client_id: string;
+-  agency_id?: string;
++  agency_id?: string | null;
+   whatsapp_group_id: string;
+   allow_client_contacts: boolean;
+   allow_assigned_campaigners: boolean;
+@@ -87,17 +88,19 @@ export function CarmenConversationAccessTab({
+     enabled: !!tenantId && !!agent.id,
+     queryFn: async () => {
+       const { data, error } = await supabase
+-        .from("carmen_access_policies" as any)
++        .from("carmen_access_policies")
+         .select("*")
+         .eq("tenant_id", tenantId!)
+         .eq("agent_id", agent.id)
+         .maybeSingle();
+       if (error) throw error;
+-      return data as any;
++      return data;
+     },
+   });
+ 
+-  const { data: manusGroups, isLoading: groupsLoading } = useQuery({
++  const { data: manusGroups, isLoading: groupsLoading } = useQuery<
++    ManusGroupRow[]
++  >({
+     queryKey: ["carmen-manus-groups", tenantId],
+     enabled: !!tenantId,
+     queryFn: () => fetchCarmenManusGroups(tenantId!),
+@@ -145,10 +148,10 @@ export function CarmenConversationAccessTab({
+     enabled: !!tenantId,
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("carmen_client_group_access" as any)
++        .from("carmen_client_group_access")
+         .select("*")
+         .eq("tenant_id", tenantId!);
+-      return (data as ClientGroupRow[]) || [];
++      return data || [];
+     },
+   });
+ 
+@@ -159,21 +162,23 @@ export function CarmenConversationAccessTab({
+       const columns =
+         "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
+       // relationship_note is newer than the generated types; fall back if absent.
+-      const primary = await (supabase as any)
++      const primary = await supabase
+         .from("carmen_whatsapp_identities")
+         .select(columns)
+         .eq("tenant_id", tenantId!)
+         .order("display_name");
+       let data = primary.data;
+       if (primary.error) {
+-        const fallback = await (supabase as any)
++        const fallback = await supabase
+           .from("carmen_whatsapp_identities")
+           .select(
+             "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
+           )
+           .eq("tenant_id", tenantId!)
+           .order("display_name");
+-        data = fallback.data;
++        data =
++          fallback.data?.map((row) => ({ ...row, relationship_note: null })) ??
++          null;
+       }
+       return data || [];
+     },
+@@ -189,16 +194,9 @@ export function CarmenConversationAccessTab({
+     () =>
+       mergePrivatePhoneAllowlist({
+         policyPhones: Array.isArray(policy?.private_phones)
+-          ? policy.private_phones
++          ? policy.private_phones.filter(isPrivatePhoneRow)
+           : [],
+-        identities: identities as Array<{
+-          phone: string;
+-          display_name?: string | null;
+-          status?: string;
+-          surfaces?: string[] | null;
+-          dev_escalation_tier?: string | null;
+-          relationship_note?: string | null;
+-        }>,
++        identities,
+         automationPhones: automationCfg?.carmen_allowed_phones,
+       }),
+     [policy?.private_phones, identities, automationCfg?.carmen_allowed_phones],
+@@ -216,9 +214,9 @@ export function CarmenConversationAccessTab({
+       manusGroupIdSet.has(id),
+     );
+     const payload = {
+-      tenant_id: tenantId,
++      tenant_id: tenantId!,
+       agent_id: agent.id,
+-      private_phones: draft.phones,
++      private_phones: draft.phones.map((entry) => ({ ...entry })),
+       allowed_group_ids: allowedManusGroups,
+       require_direct_address: draft.requireDirect,
+       open_member_groups: draft.openMemberGroups,
+@@ -226,7 +224,7 @@ export function CarmenConversationAccessTab({
+       updated_at: new Date().toISOString(),
+     };
+     const { error: pErr } = await supabase
+-      .from("carmen_access_policies" as any)
++      .from("carmen_access_policies")
+       .upsert(payload, { onConflict: "tenant_id,agent_id" });
+     if (pErr) throw pErr;
+ 
+@@ -234,7 +232,7 @@ export function CarmenConversationAccessTab({
+       const phone = normalizePhone(entry.phone);
+       if (phone.length < 9) continue;
+       const { data: existing } = await supabase
+-        .from("carmen_whatsapp_identities" as any)
++        .from("carmen_whatsapp_identities")
+         .select("id")
+         .eq("tenant_id", tenantId)
+         .eq("phone", phone)
+@@ -248,13 +246,13 @@ export function CarmenConversationAccessTab({
+           relationship_note: entry.relationship_note?.trim() || null,
+         };
+         const { error: noteError } = await supabase
+-          .from("carmen_whatsapp_identities" as any)
++          .from("carmen_whatsapp_identities")
+           .update(patch)
+           .eq("id", existing.id);
+         if (noteError && /relationship_note/.test(noteError.message || "")) {
+           const { relationship_note: _note, ...withoutNote } = patch;
+           await supabase
+-            .from("carmen_whatsapp_identities" as any)
++            .from("carmen_whatsapp_identities")
+             .update(withoutNote)
+             .eq("id", (existing as unknown as { id: string }).id);
+         }
+@@ -299,13 +297,7 @@ export function CarmenConversationAccessTab({
+       // with an empty automation-only list from a group-only trigger step.
+       const phones = mergePrivatePhoneAllowlist({
+         automationPhones: automationCfg.carmen_allowed_phones,
+-        identities: identities as Array<{
+-          phone: string;
+-          display_name?: string | null;
+-          status?: string;
+-          surfaces?: string[] | null;
+-          dev_escalation_tier?: string | null;
+-        }>,
++        identities,
+         policyPhones: built.phones,
+       });
+       const draft = {
+@@ -340,7 +332,7 @@ export function CarmenConversationAccessTab({
+     )
+       return;
+     if (!tenantId || !automationCfg) return;
+-    const identityPrivateCount = (identities || []).filter((id: any) => {
++    const identityPrivateCount = (identities || []).filter((id) => {
+       const surfaces = Array.isArray(id.surfaces)
+         ? id.surfaces
+         : ["whatsapp_private", "whatsapp_group"];
+@@ -591,8 +583,7 @@ export function CarmenConversationAccessTab({
+ 
+   const addClientGroupRow = () => {
+     const c = (clients || []).find(
+-      (cl: any) =>
+-        cl.whatsapp_group_id && manusGroupIdSet.has(cl.whatsapp_group_id),
++      (cl) => cl.whatsapp_group_id && manusGroupIdSet.has(cl.whatsapp_group_id),
+     );
+     setClientRows([
+       ...clientRows,
+@@ -607,7 +598,7 @@ export function CarmenConversationAccessTab({
+   };
+ 
+   const groupName = (id: string) =>
+-    (manusGroups || []).find((g: any) => g.id === id)?.group_name || id;
++    (manusGroups || []).find((g) => g.id === id)?.group_name || id;
+ 
+   const assignGroupLink = (
+     groupId: string,
+@@ -635,7 +626,7 @@ export function CarmenConversationAccessTab({
+   };
+ 
+   const approvedCount = useMemo(
+-    () => (identities || []).filter((i: any) => i.status === "approved").length,
++    () => (identities || []).filter((i) => i.status === "approved").length,
+     [identities],
+   );
+ 
+@@ -993,7 +984,7 @@ export function CarmenConversationAccessTab({
+               </p>
+             </div>
+           ) : (
+-            (manusGroups || []).map((g: any) => {
++            (manusGroups || []).map((g) => {
+               const allowed = openMemberGroups || groupIds.includes(g.id);
+               const link = clientRows.find(
+                 (row) => row.whatsapp_group_id === g.id,
+@@ -1125,7 +1116,7 @@ export function CarmenConversationAccessTab({
+               value={row.client_id}
+               onValueChange={(v) => {
+                 const next = [...clientRows];
+-                const cl = (clients || []).find((c: any) => c.id === v);
++                const cl = (clients || []).find((c) => c.id === v);
+                 const wg =
+                   cl?.whatsapp_group_id &&
+                   manusGroupIdSet.has(cl.whatsapp_group_id)
+@@ -1144,7 +1135,7 @@ export function CarmenConversationAccessTab({
+                 <SelectValue placeholder="לקוח" />
+               </SelectTrigger>
+               <SelectContent dir="rtl">
+-                {(clients || []).map((c: any) => (
++                {(clients || []).map((c) => (
+                   <SelectItem key={c.id} value={c.id}>
+                     {c.name}
+                   </SelectItem>
+@@ -1163,7 +1154,7 @@ export function CarmenConversationAccessTab({
+                 <SelectValue placeholder="קבוצה Manus" />
+               </SelectTrigger>
+               <SelectContent dir="rtl">
+-                {(manusGroups || []).map((g: any) => (
++                {(manusGroups || []).map((g) => (
+                   <SelectItem key={g.id} value={g.id}>
+                     {g.group_name}
+                   </SelectItem>
+@@ -1213,3 +1204,47 @@ export function CarmenConversationAccessTab({
+     </div>
+   );
+ }
++
++function isPrivatePhoneRow(value: unknown): value is PrivatePhoneRow {
++  if (
++    !value ||
++    typeof value !== "object" ||
++    !("phone" in value) ||
++    typeof value.phone !== "string"
++  )
++    return false;
++  if (
++    "label" in value &&
++    value.label !== undefined &&
++    typeof value.label !== "string"
++  )
++    return false;
++  if (
++    "status" in value &&
++    value.status !== undefined &&
++    typeof value.status !== "string"
++  )
++    return false;
++  if (
++    "source" in value &&
++    value.source !== undefined &&
++    value.source !== "policy" &&
++    value.source !== "identity" &&
++    value.source !== "automation"
++  )
++    return false;
++  if (
++    "dev_escalation_tier" in value &&
++    value.dev_escalation_tier !== undefined &&
++    value.dev_escalation_tier !== null &&
++    value.dev_escalation_tier !== "full" &&
++    value.dev_escalation_tier !== "bugfix"
++  )
++    return false;
++  return (
++    !("surfaces" in value) ||
++    value.surfaces === undefined ||
++    (Array.isArray(value.surfaces) &&
++      value.surfaces.every((surface) => typeof surface === "string"))
++  );
++}
+diff --git a/src/components/agents/tabs/ProfileTab.tsx b/src/components/agents/tabs/ProfileTab.tsx
+index 6dc994c9a..50e772886 100644
+--- a/src/components/agents/tabs/ProfileTab.tsx
++++ b/src/components/agents/tabs/ProfileTab.tsx
+@@ -1,7 +1,9 @@
+ import { AgentVisualIdentity } from "../AgentVisualIdentity";
++import type { LucideIcon } from "lucide-react";
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import { useState, useEffect, useMemo } from "react";
+ import { useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Input } from "@/components/ui/input";
+ import { Textarea } from "@/components/ui/textarea";
+@@ -51,7 +53,7 @@ export function ProfileTab({
+   agent,
+   onManageKeys,
+ }: {
+-  agent: any;
++  agent: AgentProfile;
+   /** Forwarded to BrainSelector — replaces navigation to /llm-settings when provided. */
+   onManageKeys?: () => void;
+ }) {
+@@ -85,7 +87,7 @@ export function ProfileTab({
+       setDirty(false);
+       toast.success("הפרופיל נשמר");
+     },
+-    onError: (e: any) => toast.error(e.message),
++    onError: (e) => toast.error(e.message),
+   });
+ 
+   return (
+@@ -313,7 +315,11 @@ export function ProfileTab({
+             hint="V2 מוסיף חשיבה מובנית, תכנון, ואימות פעולות. V1 = התנהגות נוכחית"
+           >
+             <Select
+-              value={form.metadata?.prompt_version || "v1"}
++              value={
++                typeof form.metadata.prompt_version === "string"
++                  ? form.metadata.prompt_version || "v1"
++                  : "v1"
++              }
+               onValueChange={(v) =>
+                 update({ metadata: { ...form.metadata, prompt_version: v } })
+               }
+@@ -337,7 +343,11 @@ export function ProfileTab({
+               hint="כשכרמן לא יודעת מה לעשות — למי לפנות? בחר סוכן אחד כדי למנוע כפילויות."
+             >
+               <Select
+-                value={form.metadata?.escalation_agent || "all"}
++                value={
++                  typeof form.metadata.escalation_agent === "string"
++                    ? form.metadata.escalation_agent || "all"
++                    : "all"
++                }
+                 onValueChange={(v) =>
+                   update({
+                     metadata: { ...form.metadata, escalation_agent: v },
+@@ -446,7 +456,7 @@ const MOOD_OPTIONS: {
+   },
+ ];
+ 
+-function MoodCard({ agent }: { agent: any }) {
++function MoodCard({ agent }: { agent: AgentProfile }) {
+   const qc = useQueryClient();
+   const [saving, setSaving] = useState(false);
+   const current = agent.mood || "none";
+@@ -455,7 +465,7 @@ function MoodCard({ agent }: { agent: any }) {
+     setSaving(true);
+     const { error } = await supabase
+       .from("ai_agents")
+-      .update({ mood: v === "none" ? null : v } as any)
++      .update({ mood: v === "none" ? null : v })
+       .eq("id", agent.id);
+     setSaving(false);
+     if (error) {
+@@ -527,7 +537,7 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
+   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
+ ];
+ 
+-function VoiceCard({ agent }: { agent: any }) {
++function VoiceCard({ agent }: { agent: AgentProfile }) {
+   const qc = useQueryClient();
+   const [saving, setSaving] = useState(false);
+   const current = agent.voice || "none";
+@@ -536,7 +546,7 @@ function VoiceCard({ agent }: { agent: any }) {
+     setSaving(true);
+     const { error } = await supabase
+       .from("ai_agents")
+-      .update({ voice: v === "none" ? null : v } as any)
++      .update({ voice: v === "none" ? null : v })
+       .eq("id", agent.id);
+     setSaving(false);
+     if (error) {
+@@ -585,7 +595,13 @@ function VoiceCard({ agent }: { agent: any }) {
+ // =========================================================================
+ // Capabilities card (read-only summary)
+ // =========================================================================
+-function CapabilitiesCard({ agent, carmen }: { agent: any; carmen: boolean }) {
++function CapabilitiesCard({
++  agent,
++  carmen,
++}: {
++  agent: AgentProfile;
++  carmen: boolean;
++}) {
+   const goals = useAgentGoals(agent.id);
+   const knowledge = useAgentKnowledge(agent.id);
+   const carmenTree = useCarmenMemoryTree();
+@@ -643,7 +659,7 @@ function StatTile({
+   value,
+   hint,
+ }: {
+-  icon: any;
++  icon: LucideIcon;
+   label: string;
+   value: number;
+   hint?: string;
+@@ -740,7 +756,7 @@ function SectionHeader({
+   title,
+   subtitle,
+ }: {
+-  icon: any;
++  icon: LucideIcon;
+   title: string;
+   subtitle?: string;
+ }) {
+@@ -777,7 +793,7 @@ function Field({
+   );
+ }
+ 
+-function initialForm(agent: any) {
++function initialForm(agent: AgentProfile) {
+   return {
+     name: agent.name || "",
+     talent: agent.talent || "",
+@@ -789,6 +805,11 @@ function initialForm(agent: any) {
+     language: agent.language || "he",
+     max_tool_rounds: agent.max_tool_rounds ?? 25,
+     active: agent.active ?? true,
+-    metadata: agent.metadata || {},
++    metadata:
++      agent.metadata &&
++      typeof agent.metadata === "object" &&
++      !Array.isArray(agent.metadata)
++        ? agent.metadata
++        : {},
+   };
+ }
+diff --git a/src/components/agents/tabs/UserProfilesTab.tsx b/src/components/agents/tabs/UserProfilesTab.tsx
+index e12e5a77d..efb3090be 100644
+--- a/src/components/agents/tabs/UserProfilesTab.tsx
++++ b/src/components/agents/tabs/UserProfilesTab.tsx
+@@ -1,6 +1,7 @@
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import { useState } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { Card } from "@/components/ui/card";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+@@ -22,10 +23,17 @@ import { useTenant } from "@/contexts/TenantContext";
+ import { formatDistanceToNow } from "date-fns";
+ import { he } from "date-fns/locale";
+ 
+-export function UserProfilesTab({ agent }: { agent: any }) {
++type ProfileDraft = {
++  id?: string;
++  contact_phone: string;
++  display_name: string | null;
++  profile: string;
++};
++
++export function UserProfilesTab({ agent }: { agent: AgentProfile }) {
+   const { currentTenantId } = useTenant();
+   const qc = useQueryClient();
+-  const [editing, setEditing] = useState<any | null>(null);
++  const [editing, setEditing] = useState<ProfileDraft | null>(null);
+   const [creating, setCreating] = useState(false);
+ 
+   const { data: profiles = [], isLoading } = useQuery({
+@@ -43,9 +51,9 @@ export function UserProfilesTab({ agent }: { agent: any }) {
+   });
+ 
+   const save = useMutation({
+-    mutationFn: async (p: any) => {
++    mutationFn: async (p: ProfileDraft) => {
+       const payload = {
+-        tenant_id: currentTenantId,
++        tenant_id: currentTenantId!,
+         agent_id: agent.id,
+         contact_phone: p.contact_phone,
+         display_name: p.display_name || null,
+@@ -73,7 +81,7 @@ export function UserProfilesTab({ agent }: { agent: any }) {
+       setCreating(false);
+       toast.success("נשמר");
+     },
+-    onError: (e: any) => toast.error(e.message),
++    onError: (e) => toast.error(e.message),
+   });
+ 
+   const del = useMutation({
+@@ -232,6 +240,7 @@ export function UserProfilesTab({ agent }: { agent: any }) {
+             </Button>
+             <Button
+               onClick={() => {
++                if (!editing) return;
+                 try {
+                   JSON.parse(editing.profile || "{}");
+                 } catch {
+diff --git a/src/components/carmen/CarmenWhatsAppAccess.tsx b/src/components/carmen/CarmenWhatsAppAccess.tsx
+index 0938db099..ebf385017 100644
+--- a/src/components/carmen/CarmenWhatsAppAccess.tsx
++++ b/src/components/carmen/CarmenWhatsAppAccess.tsx
+@@ -1,7 +1,7 @@
+ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+ import { ShieldCheck, ShieldOff } from "lucide-react";
+ import { toast } from "sonner";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { Button } from "@/components/ui/button";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ 
+@@ -28,14 +28,14 @@ export function CarmenWhatsAppAccess(props: Props) {
+     enabled: !!tenantId && !!props.entityId,
+     queryFn: async () => {
+       const { data, error } = await supabase
+-        .from("carmen_whatsapp_identities" as any)
++        .from("carmen_whatsapp_identities")
+         .select("id, status, verified_at")
+         .eq("tenant_id", tenantId!)
+         .eq("entity_type", props.entityType)
+         .eq("entity_id", props.entityId)
+         .maybeSingle();
+       if (error) throw error;
+-      return data as any;
++      return data;
+     },
+   });
+   const approved = identity?.status === "approved";
+@@ -48,14 +48,14 @@ export function CarmenWhatsAppAccess(props: Props) {
+       }
+       if (approved) {
+         const { error } = await supabase
+-          .from("carmen_whatsapp_identities" as any)
++          .from("carmen_whatsapp_identities")
+           .update({ status: "revoked", verified_at: null })
+           .eq("id", identity.id);
+         if (error) throw error;
+         return;
+       }
+       const { error } = await supabase
+-        .from("carmen_whatsapp_identities" as any)
++        .from("carmen_whatsapp_identities")
+         .upsert(
+           {
+             tenant_id: tenantId,
+diff --git a/src/integrations/supabase/agentAccessClient.ts b/src/integrations/supabase/agentAccessClient.ts
+new file mode 100644
+index 000000000..423f17fd8
+--- /dev/null
++++ b/src/integrations/supabase/agentAccessClient.ts
+@@ -0,0 +1,114 @@
++import type { SupabaseClient } from "@supabase/supabase-js";
++import { supabase as generatedClient } from "./client";
++import type { Database, Json, Tables } from "./types";
++
++// Supplemental schema from committed migrations; the generated snapshot predates
++// these columns/tables. Reuse the authenticated client and its RLS context.
++// 20260624000000, 20260624000100, 20260624000200, 20260624000005.
++export type AgentProfile = Tables<"ai_agents"> & {
++  mood?: string | null;
++  voice?: string | null;
++  metadata?: Json;
++  disabled_tools?: string[] | null;
++  disabled_skins?: string[] | null;
++  disabled_integrations?: string[] | null;
++};
++type AgentColumns = Pick<
++  AgentProfile,
++  | "mood"
++  | "voice"
++  | "metadata"
++  | "disabled_tools"
++  | "disabled_skins"
++  | "disabled_integrations"
++>;
++type Table<Row, Required extends keyof Row> = {
++  Row: Row;
++  Insert: Pick<Row, Required> & Partial<Row>;
++  Update: Partial<Row>;
++  Relationships: [];
++};
++type Policy = {
++  id: string;
++  tenant_id: string;
++  agent_id: string;
++  private_phones: Json;
++  allowed_group_ids: string[];
++  require_direct_address: boolean;
++  open_member_groups: boolean;
++  deny_message_he: string | null;
++  created_at: string;
++  updated_at: string;
++};
++type ClientGroup = {
++  id: string;
++  tenant_id: string;
++  client_id: string;
++  whatsapp_group_id: string;
++  allow_client_contacts: boolean;
++  allow_assigned_campaigners: boolean;
++  info_boundary: "external_only" | "full";
++  created_at: string;
++  updated_at: string;
++};
++type Identity = {
++  id: string;
++  tenant_id: string;
++  phone: string;
++  entity_type: "campaigner" | "client_contact";
++  entity_id: string;
++  client_id: string | null;
++  display_name: string | null;
++  role_title: string | null;
++  status: "pending" | "approved" | "rejected" | "revoked";
++  approved_by: string | null;
++  approved_at: string | null;
++  verified_at: string | null;
++  created_at: string;
++  updated_at: string;
++  surfaces: string[];
++  allowed_group_ids: string[] | null;
++  scope_mode: "org" | "assigned_clients" | "single_client";
++  dev_escalation_tier: "full" | "bugfix" | null;
++  escalation_agents: string[];
++  relationship_note: string | null;
++};
++type AccessDatabase = Omit<Database, "public"> & {
++  public: Omit<Database["public"], "Tables"> & {
++    Tables: Omit<Database["public"]["Tables"], "ai_agents"> & {
++      ai_agents: Omit<
++        Database["public"]["Tables"]["ai_agents"],
++        "Row" | "Insert" | "Update"
++      > & {
++        Row: AgentProfile;
++        Insert: Database["public"]["Tables"]["ai_agents"]["Insert"] &
++          Partial<AgentColumns>;
++        Update: Database["public"]["Tables"]["ai_agents"]["Update"] &
++          Partial<AgentColumns>;
++      };
++      // 20260910120000_carmen_conversation_access.sql
++      carmen_access_policies: Table<Policy, "tenant_id" | "agent_id">;
++      carmen_client_group_access: Table<
++        ClientGroup,
++        "tenant_id" | "client_id" | "whatsapp_group_id"
++      >;
++      // 20260729210000_carmen_whatsapp_identity_access.sql, extended above.
++      carmen_whatsapp_identities: Table<
++        Identity,
++        "tenant_id" | "phone" | "entity_type" | "entity_id"
++      >;
++      // 20260723060000_user_api_keys.sql
++      user_api_keys: Table<
++        {
++          user_id: string;
++          provider: string;
++          api_key: string;
++          created_at: string;
++          updated_at: string;
++        },
++        "user_id" | "api_key"
++      >;
++    };
++  };
++};
++export const supabase = generatedClient as SupabaseClient<AccessDatabase>;
+diff --git a/src/pages/AgentHub.tsx b/src/pages/AgentHub.tsx
+index 6ea4d70ce..7487643a7 100644
+--- a/src/pages/AgentHub.tsx
++++ b/src/pages/AgentHub.tsx
+@@ -1,6 +1,6 @@
+ import { useState, useEffect } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { useIsMobile } from "@/hooks/use-mobile";
+ import {
+@@ -83,7 +83,7 @@ export default function AgentHub() {
+       setCreateOpen(false);
+       toast.success("סוכן נוצר");
+     },
+-    onError: (e: any) => toast.error(e.message),
++    onError: (e) => toast.error(e.message),
+   });
+ 
+   const list: AgentListItem[] = agents.map((a) => ({
+diff --git a/src/pages/CarmenAccess.tsx b/src/pages/CarmenAccess.tsx
+index e0e75e3ec..4dd10d8ea 100644
+--- a/src/pages/CarmenAccess.tsx
++++ b/src/pages/CarmenAccess.tsx
+@@ -1,6 +1,6 @@
+ import { useState, useEffect, useMemo } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Button } from "@/components/ui/button";
+ import { Switch } from "@/components/ui/switch";
+@@ -35,13 +35,13 @@ export default function CarmenAccess() {
+     queryKey: ["carmen-access-agent", tenantId],
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("ai_agents" as any)
++        .from("ai_agents")
+         .select(
+           "id,name,active,disabled_tools,disabled_skins,disabled_integrations",
+         )
+-        .eq("tenant_id", tenantId)
++        .eq("tenant_id", tenantId!)
+         .eq("active", true);
+-      const list = (data as any[]) || [];
++      const list = data || [];
+       return (
+         list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
+       );
+@@ -60,7 +60,7 @@ export default function CarmenAccess() {
+     queryKey: ["carmen-access-skins", tenantId],
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("ai_skills" as any)
++        .from("ai_skills")
+         .select("slug,name,scope,is_active")
+         .eq("is_active", true)
+         .or(
+@@ -68,11 +68,15 @@ export default function CarmenAccess() {
+             ? `scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`
+             : "scope.eq.global",
+         );
+-      const bySlug = new Map<string, any>();
+-      for (const r of (data as any[]) || []) {
++      const bySlug = new Map<
++        string,
++        NonNullable<typeof data>[number] & { slug: string }
++      >();
++      for (const r of data || []) {
+         if (!r.slug) continue;
+         const ex = bySlug.get(r.slug);
+-        if (!ex || r.scope === "tenant") bySlug.set(r.slug, r);
++        if (!ex || r.scope === "tenant")
++          bySlug.set(r.slug, { ...r, slug: r.slug });
+       }
+       return Array.from(bySlug.values()).sort((a, b) =>
+         a.name.localeCompare(b.name, "he"),
+@@ -85,10 +89,10 @@ export default function CarmenAccess() {
+     queryKey: ["carmen-access-integrations", tenantId],
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("agent_mcp_connections" as any)
++        .from("agent_mcp_connections")
+         .select("id,name,state")
+-        .eq("tenant_id", tenantId);
+-      return (data as any[]) || [];
++        .eq("tenant_id", tenantId!);
++      return data || [];
+     },
+     enabled: !!tenantId,
+   });
+@@ -103,7 +107,7 @@ export default function CarmenAccess() {
+     mutationFn: async () => {
+       if (!agent?.id) throw new Error("לא נמצא סוכן (כרמן).");
+       const { error } = await supabase
+-        .from("ai_agents" as any)
++        .from("ai_agents")
+         .update({
+           disabled_tools: Array.from(offTools),
+           disabled_skins: Array.from(offSkins),
+@@ -118,7 +122,7 @@ export default function CarmenAccess() {
+         queryKey: ["carmen-access-agent", tenantId],
+       });
+     },
+-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
++    onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+   });
+ 
+   const toggle = (
+@@ -240,7 +244,7 @@ export default function CarmenAccess() {
+               <Sparkles className="h-4 w-4 text-orange-500" />
+               סקינז
+             </h2>
+-            {(skins || []).map((s: any) => (
++            {(skins || []).map((s) => (
+               <Row
+                 key={s.slug}
+                 on={!offSkins.has(s.slug)}
+@@ -262,7 +266,7 @@ export default function CarmenAccess() {
+               <Plug className="h-4 w-4 text-blue-500" />
+               אינטגרציות (MCP)
+             </h2>
+-            {(integrations || []).map((c: any) => (
++            {(integrations || []).map((c) => (
+               <Row
+                 key={c.id}
+                 on={!offIntegrations.has(c.name)}
+diff --git a/src/pages/CarmenStudio.tsx b/src/pages/CarmenStudio.tsx
+index b0b2b0068..504f4328c 100644
+--- a/src/pages/CarmenStudio.tsx
++++ b/src/pages/CarmenStudio.tsx
+@@ -1,6 +1,7 @@
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import { useState, useEffect } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ import { Button } from "@/components/ui/button";
+@@ -29,6 +30,21 @@ import SkinsManager from "./SkinsManager";
+ import CarmenAccess from "./CarmenAccess";
+ import { CloneToOrgDialog } from "@/components/sharing/CloneToOrgDialog";
+ 
++type CoreForm = Pick<
++  AgentProfile,
++  | "id"
++  | "name"
++  | "engine"
++  | "personality"
++  | "soul"
++  | "talent"
++  | "writing_style"
++  | "response_length"
++  | "language"
++  | "mood"
++  | "active"
++>;
++
+ // Unified Carmen Studio — the separate "agent-building" module. One screen for
+ // who Carmen is (Core + mood), what she can use (Access), and the roles she
+ // wears (Skins). Deep-link routes /skins and /carmen-access still work.
+@@ -45,20 +61,20 @@ const MOODS: { value: string; label: string }[] = [
+ function CoreTab() {
+   const { tenantId } = useCurrentTenant();
+   const queryClient = useQueryClient();
+-  const [form, setForm] = useState<any>(null);
++  const [form, setForm] = useState<CoreForm | null>(null);
+   const [cloneOpen, setCloneOpen] = useState(false);
+ 
+   const { data: agent, isLoading } = useQuery({
+     queryKey: ["carmen-studio-core", tenantId],
+     queryFn: async () => {
+       const { data } = await supabase
+-        .from("ai_agents" as any)
++        .from("ai_agents")
+         .select(
+           "id,name,engine,personality,soul,talent,writing_style,response_length,language,mood,active",
+         )
+-        .eq("tenant_id", tenantId)
++        .eq("tenant_id", tenantId!)
+         .eq("active", true);
+-      const list = (data as any[]) || [];
++      const list = data || [];
+       return (
+         list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
+       );
+@@ -74,7 +90,7 @@ function CoreTab() {
+     mutationFn: async () => {
+       if (!form?.id) throw new Error("לא נמצא סוכן");
+       const { error } = await supabase
+-        .from("ai_agents" as any)
++        .from("ai_agents")
+         .update({
+           name: form.name,
+           engine: form.engine,
+@@ -94,7 +110,7 @@ function CoreTab() {
+         queryKey: ["carmen-studio-core", tenantId],
+       });
+     },
+-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
++    onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+   });
+ 
+   if (isLoading)
+diff --git a/src/visual-workspace/components/AgentSheet.tsx b/src/visual-workspace/components/AgentSheet.tsx
+index eea462926..27cf0ea11 100644
+--- a/src/visual-workspace/components/AgentSheet.tsx
++++ b/src/visual-workspace/components/AgentSheet.tsx
+@@ -1,3 +1,6 @@
++import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
++import type { AgentRole } from "../types/visualWorkspaceTypes";
+ import { useEffect, useState } from "react";
+ import {
+   Sheet,
+@@ -7,7 +10,7 @@ import {
+ } from "@/components/ui/sheet";
+ import { Badge } from "@/components/ui/badge";
+ import { ScrollArea } from "@/components/ui/scroll-area";
+-import { supabase } from "@/integrations/supabase/client";
++import { supabase } from "@/integrations/supabase/agentAccessClient";
+ import { AgentAvatar } from "./AgentAvatar";
+ import { Loader2 } from "lucide-react";
+ import { format } from "date-fns";
+@@ -20,14 +23,24 @@ interface Props {
+ 
+ export function AgentSheet({ agentId, onClose }: Props) {
+   const [loading, setLoading] = useState(false);
+-  const [agent, setAgent] = useState<any>(null);
+-  const [runs, setRuns] = useState<any[]>([]);
+-  const [actions, setActions] = useState<any[]>([]);
++  const [agent, setAgent] = useState<AgentProfile | null>(null);
++  const [runs, setRuns] = useState<
++    Pick<
++      Tables<"agent_runs">,
++      "id" | "status" | "started_at" | "completed_at"
++    >[]
++  >([]);
++  const [actions, setActions] = useState<
++    Pick<
++      Tables<"agent_action_log">,
++      "id" | "action_type" | "status" | "created_at"
++    >[]
++  >([]);
+ 
+   useEffect(() => {
+     if (!agentId) return;
+     setLoading(true);
+-    const sb = supabase as any;
++    const sb = supabase;
+     Promise.all([
+       sb.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),
+       sb
+@@ -42,7 +55,7 @@ export function AgentSheet({ agentId, onClose }: Props) {
+         .eq("agent_id", agentId)
+         .order("created_at", { ascending: false })
+         .limit(5),
+-    ]).then(([a, r, ac]: any) => {
++    ]).then(([a, r, ac]) => {
+       setAgent(a.data);
+       setRuns(r.data ?? []);
+       setActions(ac.data ?? []);
+@@ -50,6 +63,15 @@ export function AgentSheet({ agentId, onClose }: Props) {
+     });
+   }, [agentId]);
+ 
++  const agentRole = agent && "role" in agent ? agent.role : undefined;
++  const agentModel =
++    agent && "model" in agent && typeof agent.model === "string"
++      ? agent.model
++      : undefined;
++  const agentDescription =
++    agent && "description" in agent && typeof agent.description === "string"
++      ? agent.description
++      : undefined;
+   return (
+     <Sheet open={!!agentId} onOpenChange={(o) => !o && onClose()}>
+       <SheetContent
+@@ -61,7 +83,7 @@ export function AgentSheet({ agentId, onClose }: Props) {
+           <SheetTitle className="flex items-center gap-3">
+             {agent && (
+               <AgentAvatar
+-                role={(agent.role as any) || "ceo"}
++                role={isAgentRole(agentRole) ? agentRole : "ceo"}
+                 state={agent.active ? "idle" : "waiting"}
+                 size={40}
+               />
+@@ -77,14 +99,14 @@ export function AgentSheet({ agentId, onClose }: Props) {
+           <ScrollArea className="h-[calc(100vh-100px)] pl-3 mt-3">
+             <div className="space-y-4 text-sm">
+               <div className="flex flex-wrap gap-2">
+-                <Badge variant="outline">{agent.role}</Badge>
+-                {agent.model && (
+-                  <Badge variant="secondary">{agent.model}</Badge>
+-                )}
++                <Badge variant="outline">
++                  {typeof agentRole === "string" ? agentRole : null}
++                </Badge>
++                {agentModel && <Badge variant="secondary">{agentModel}</Badge>}
+                 <Badge>{agent.active ? "פעיל" : "כבוי"}</Badge>
+               </div>
+-              {agent.description && (
+-                <p className="text-xs text-slate-600">{agent.description}</p>
++              {agentDescription && (
++                <p className="text-xs text-slate-600">{agentDescription}</p>
+               )}
+ 
+               <div>
+@@ -95,7 +117,7 @@ export function AgentSheet({ agentId, onClose }: Props) {
+                   <p className="text-xs text-slate-400">אין ריצות</p>
+                 ) : (
+                   <div className="space-y-1">
+-                    {runs.map((r: any) => (
++                    {runs.map((r) => (
+                       <div
+                         key={r.id}
+                         className="rounded-lg bg-slate-50 px-3 py-2 text-xs flex justify-between"
+@@ -123,7 +145,7 @@ export function AgentSheet({ agentId, onClose }: Props) {
+                   <p className="text-xs text-slate-400">אין פעולות</p>
+                 ) : (
+                   <div className="space-y-1">
+-                    {actions.map((a: any) => (
++                    {actions.map((a) => (
+                       <div
+                         key={a.id}
+                         className="rounded-lg bg-slate-50 px-3 py-2 text-xs flex justify-between"
+@@ -144,3 +166,16 @@ export function AgentSheet({ agentId, onClose }: Props) {
+     </Sheet>
+   );
+ }
++
++function isAgentRole(role: unknown): role is AgentRole {
++  return (
++    role === "ceo" ||
++    role === "marketing" ||
++    role === "sales" ||
++    role === "creative" ||
++    role === "finance" ||
++    role === "dev" ||
++    role === "customer_success" ||
++    role === "system"
++  );
++}
+-- 
+2.43.0
+
+
+From a5a82afe22e87ccd3a045951028283031046840c Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:08:40 +0000
+Subject: [PATCH 2/8] fix(agents): use generated schema and preserve policy
+ phones
+
+---
+ src/components/agents/AgentEditor.tsx         |   8 +-
+ src/components/agents/tabs/AgentAccessTab.tsx |   6 +-
+ .../tabs/CarmenConversationAccessTab.tsx      |  48 +-------
+ src/components/agents/tabs/ProfileTab.tsx     |  14 +--
+ .../agents/tabs/UserProfilesTab.tsx           |   6 +-
+ .../carmen/CarmenWhatsAppAccess.tsx           |   2 +-
+ .../supabase/agentAccessClient.ts             | 114 ------------------
+ src/pages/AgentHub.tsx                        |   2 +-
+ src/pages/CarmenAccess.tsx                    |   2 +-
+ src/pages/CarmenStudio.tsx                    |   6 +-
+ .../components/AgentSheet.tsx                 |   5 +-
+ 11 files changed, 27 insertions(+), 186 deletions(-)
+ delete mode 100644 src/integrations/supabase/agentAccessClient.ts
+
+diff --git a/src/components/agents/AgentEditor.tsx b/src/components/agents/AgentEditor.tsx
+index fbcee6e68..eb561fb0d 100644
+--- a/src/components/agents/AgentEditor.tsx
++++ b/src/components/agents/AgentEditor.tsx
+@@ -4,9 +4,9 @@ import {
+   readAgentIdentity,
+ } from "@/hooks/useCarmenIdentity";
+ import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
+ import { useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Tabs, TabsContent } from "@/components/ui/tabs";
+ import { Badge } from "@/components/ui/badge";
+@@ -50,7 +50,7 @@ function isCarmen(name: string) {
+ }
+ 
+ export interface AgentEditorProps {
+-  agent: AgentProfile;
++  agent: Tables<"ai_agents">;
+   /**
+    * Render inside a host panel (Carmen's screen). Tabs use local/controlled
+    * state instead of the URL ?tab= param, buttons that navigate to other routes
+@@ -162,7 +162,7 @@ function AgentTabsWithUrl({
+   tab,
+   onTabChange,
+   onManageKeys,
+-}: Omit<AgentEditorProps, "agent"> & { agent: AgentProfile }) {
++}: Omit<AgentEditorProps, "agent"> & { agent: Tables<"ai_agents"> }) {
+   const [params, setParams] = useSearchParams();
+   const navigate = useNavigate();
+   const { buildPath } = useTenantPath();
+diff --git a/src/components/agents/tabs/AgentAccessTab.tsx b/src/components/agents/tabs/AgentAccessTab.tsx
+index 51dfe28d3..f31aa3fed 100644
+--- a/src/components/agents/tabs/AgentAccessTab.tsx
++++ b/src/components/agents/tabs/AgentAccessTab.tsx
+@@ -1,7 +1,7 @@
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
+ import { useState, useEffect, useMemo } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Button } from "@/components/ui/button";
+ import { Switch } from "@/components/ui/switch";
+@@ -23,7 +23,7 @@ import { AGENT_TOOLS_CATALOG } from "@/lib/agentToolsCatalog";
+ // denylist on ai_agents (disabled_tools / disabled_skins / disabled_integrations),
+ // which run-ai-agent subtracts at runtime.
+ 
+-export function AgentAccessTab({ agent }: { agent: AgentProfile }) {
++export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
+   const { tenantId } = useCurrentTenant();
+   const queryClient = useQueryClient();
+   const [offTools, setOffTools] = useState<Set<string>>(new Set());
+diff --git a/src/components/agents/tabs/CarmenConversationAccessTab.tsx b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+index 1208f7967..3afbdc0b6 100644
+--- a/src/components/agents/tabs/CarmenConversationAccessTab.tsx
++++ b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+@@ -10,7 +10,7 @@ import {
+   Save,
+ } from "lucide-react";
+ import { toast } from "sonner";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import {
+   fetchCarmenManusGroups,
+@@ -194,7 +194,7 @@ export function CarmenConversationAccessTab({
+     () =>
+       mergePrivatePhoneAllowlist({
+         policyPhones: Array.isArray(policy?.private_phones)
+-          ? policy.private_phones.filter(isPrivatePhoneRow)
++          ? (policy.private_phones as unknown as PrivatePhoneRow[])
+           : [],
+         identities,
+         automationPhones: automationCfg?.carmen_allowed_phones,
+@@ -1204,47 +1204,3 @@ export function CarmenConversationAccessTab({
+     </div>
+   );
+ }
+-
+-function isPrivatePhoneRow(value: unknown): value is PrivatePhoneRow {
+-  if (
+-    !value ||
+-    typeof value !== "object" ||
+-    !("phone" in value) ||
+-    typeof value.phone !== "string"
+-  )
+-    return false;
+-  if (
+-    "label" in value &&
+-    value.label !== undefined &&
+-    typeof value.label !== "string"
+-  )
+-    return false;
+-  if (
+-    "status" in value &&
+-    value.status !== undefined &&
+-    typeof value.status !== "string"
+-  )
+-    return false;
+-  if (
+-    "source" in value &&
+-    value.source !== undefined &&
+-    value.source !== "policy" &&
+-    value.source !== "identity" &&
+-    value.source !== "automation"
+-  )
+-    return false;
+-  if (
+-    "dev_escalation_tier" in value &&
+-    value.dev_escalation_tier !== undefined &&
+-    value.dev_escalation_tier !== null &&
+-    value.dev_escalation_tier !== "full" &&
+-    value.dev_escalation_tier !== "bugfix"
+-  )
+-    return false;
+-  return (
+-    !("surfaces" in value) ||
+-    value.surfaces === undefined ||
+-    (Array.isArray(value.surfaces) &&
+-      value.surfaces.every((surface) => typeof surface === "string"))
+-  );
+-}
+diff --git a/src/components/agents/tabs/ProfileTab.tsx b/src/components/agents/tabs/ProfileTab.tsx
+index 50e772886..bd8387b9b 100644
+--- a/src/components/agents/tabs/ProfileTab.tsx
++++ b/src/components/agents/tabs/ProfileTab.tsx
+@@ -1,9 +1,9 @@
+ import { AgentVisualIdentity } from "../AgentVisualIdentity";
+ import type { LucideIcon } from "lucide-react";
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
+ import { useState, useEffect, useMemo } from "react";
+ import { useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Input } from "@/components/ui/input";
+ import { Textarea } from "@/components/ui/textarea";
+@@ -53,7 +53,7 @@ export function ProfileTab({
+   agent,
+   onManageKeys,
+ }: {
+-  agent: AgentProfile;
++  agent: Tables<"ai_agents">;
+   /** Forwarded to BrainSelector — replaces navigation to /llm-settings when provided. */
+   onManageKeys?: () => void;
+ }) {
+@@ -456,7 +456,7 @@ const MOOD_OPTIONS: {
+   },
+ ];
+ 
+-function MoodCard({ agent }: { agent: AgentProfile }) {
++function MoodCard({ agent }: { agent: Tables<"ai_agents"> }) {
+   const qc = useQueryClient();
+   const [saving, setSaving] = useState(false);
+   const current = agent.mood || "none";
+@@ -537,7 +537,7 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
+   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
+ ];
+ 
+-function VoiceCard({ agent }: { agent: AgentProfile }) {
++function VoiceCard({ agent }: { agent: Tables<"ai_agents"> }) {
+   const qc = useQueryClient();
+   const [saving, setSaving] = useState(false);
+   const current = agent.voice || "none";
+@@ -599,7 +599,7 @@ function CapabilitiesCard({
+   agent,
+   carmen,
+ }: {
+-  agent: AgentProfile;
++  agent: Tables<"ai_agents">;
+   carmen: boolean;
+ }) {
+   const goals = useAgentGoals(agent.id);
+@@ -793,7 +793,7 @@ function Field({
+   );
+ }
+ 
+-function initialForm(agent: AgentProfile) {
++function initialForm(agent: Tables<"ai_agents">) {
+   return {
+     name: agent.name || "",
+     talent: agent.talent || "",
+diff --git a/src/components/agents/tabs/UserProfilesTab.tsx b/src/components/agents/tabs/UserProfilesTab.tsx
+index efb3090be..df037636d 100644
+--- a/src/components/agents/tabs/UserProfilesTab.tsx
++++ b/src/components/agents/tabs/UserProfilesTab.tsx
+@@ -1,7 +1,7 @@
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
+ import { useState } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { Card } from "@/components/ui/card";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+@@ -30,7 +30,7 @@ type ProfileDraft = {
+   profile: string;
+ };
+ 
+-export function UserProfilesTab({ agent }: { agent: AgentProfile }) {
++export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
+   const { currentTenantId } = useTenant();
+   const qc = useQueryClient();
+   const [editing, setEditing] = useState<ProfileDraft | null>(null);
+diff --git a/src/components/carmen/CarmenWhatsAppAccess.tsx b/src/components/carmen/CarmenWhatsAppAccess.tsx
+index ebf385017..57777eabf 100644
+--- a/src/components/carmen/CarmenWhatsAppAccess.tsx
++++ b/src/components/carmen/CarmenWhatsAppAccess.tsx
+@@ -1,7 +1,7 @@
+ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+ import { ShieldCheck, ShieldOff } from "lucide-react";
+ import { toast } from "sonner";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { Button } from "@/components/ui/button";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ 
+diff --git a/src/integrations/supabase/agentAccessClient.ts b/src/integrations/supabase/agentAccessClient.ts
+deleted file mode 100644
+index 423f17fd8..000000000
+--- a/src/integrations/supabase/agentAccessClient.ts
++++ /dev/null
+@@ -1,114 +0,0 @@
+-import type { SupabaseClient } from "@supabase/supabase-js";
+-import { supabase as generatedClient } from "./client";
+-import type { Database, Json, Tables } from "./types";
+-
+-// Supplemental schema from committed migrations; the generated snapshot predates
+-// these columns/tables. Reuse the authenticated client and its RLS context.
+-// 20260624000000, 20260624000100, 20260624000200, 20260624000005.
+-export type AgentProfile = Tables<"ai_agents"> & {
+-  mood?: string | null;
+-  voice?: string | null;
+-  metadata?: Json;
+-  disabled_tools?: string[] | null;
+-  disabled_skins?: string[] | null;
+-  disabled_integrations?: string[] | null;
+-};
+-type AgentColumns = Pick<
+-  AgentProfile,
+-  | "mood"
+-  | "voice"
+-  | "metadata"
+-  | "disabled_tools"
+-  | "disabled_skins"
+-  | "disabled_integrations"
+->;
+-type Table<Row, Required extends keyof Row> = {
+-  Row: Row;
+-  Insert: Pick<Row, Required> & Partial<Row>;
+-  Update: Partial<Row>;
+-  Relationships: [];
+-};
+-type Policy = {
+-  id: string;
+-  tenant_id: string;
+-  agent_id: string;
+-  private_phones: Json;
+-  allowed_group_ids: string[];
+-  require_direct_address: boolean;
+-  open_member_groups: boolean;
+-  deny_message_he: string | null;
+-  created_at: string;
+-  updated_at: string;
+-};
+-type ClientGroup = {
+-  id: string;
+-  tenant_id: string;
+-  client_id: string;
+-  whatsapp_group_id: string;
+-  allow_client_contacts: boolean;
+-  allow_assigned_campaigners: boolean;
+-  info_boundary: "external_only" | "full";
+-  created_at: string;
+-  updated_at: string;
+-};
+-type Identity = {
+-  id: string;
+-  tenant_id: string;
+-  phone: string;
+-  entity_type: "campaigner" | "client_contact";
+-  entity_id: string;
+-  client_id: string | null;
+-  display_name: string | null;
+-  role_title: string | null;
+-  status: "pending" | "approved" | "rejected" | "revoked";
+-  approved_by: string | null;
+-  approved_at: string | null;
+-  verified_at: string | null;
+-  created_at: string;
+-  updated_at: string;
+-  surfaces: string[];
+-  allowed_group_ids: string[] | null;
+-  scope_mode: "org" | "assigned_clients" | "single_client";
+-  dev_escalation_tier: "full" | "bugfix" | null;
+-  escalation_agents: string[];
+-  relationship_note: string | null;
+-};
+-type AccessDatabase = Omit<Database, "public"> & {
+-  public: Omit<Database["public"], "Tables"> & {
+-    Tables: Omit<Database["public"]["Tables"], "ai_agents"> & {
+-      ai_agents: Omit<
+-        Database["public"]["Tables"]["ai_agents"],
+-        "Row" | "Insert" | "Update"
+-      > & {
+-        Row: AgentProfile;
+-        Insert: Database["public"]["Tables"]["ai_agents"]["Insert"] &
+-          Partial<AgentColumns>;
+-        Update: Database["public"]["Tables"]["ai_agents"]["Update"] &
+-          Partial<AgentColumns>;
+-      };
+-      // 20260910120000_carmen_conversation_access.sql
+-      carmen_access_policies: Table<Policy, "tenant_id" | "agent_id">;
+-      carmen_client_group_access: Table<
+-        ClientGroup,
+-        "tenant_id" | "client_id" | "whatsapp_group_id"
+-      >;
+-      // 20260729210000_carmen_whatsapp_identity_access.sql, extended above.
+-      carmen_whatsapp_identities: Table<
+-        Identity,
+-        "tenant_id" | "phone" | "entity_type" | "entity_id"
+-      >;
+-      // 20260723060000_user_api_keys.sql
+-      user_api_keys: Table<
+-        {
+-          user_id: string;
+-          provider: string;
+-          api_key: string;
+-          created_at: string;
+-          updated_at: string;
+-        },
+-        "user_id" | "api_key"
+-      >;
+-    };
+-  };
+-};
+-export const supabase = generatedClient as SupabaseClient<AccessDatabase>;
+diff --git a/src/pages/AgentHub.tsx b/src/pages/AgentHub.tsx
+index 7487643a7..839714e59 100644
+--- a/src/pages/AgentHub.tsx
++++ b/src/pages/AgentHub.tsx
+@@ -1,6 +1,6 @@
+ import { useState, useEffect } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { useIsMobile } from "@/hooks/use-mobile";
+ import {
+diff --git a/src/pages/CarmenAccess.tsx b/src/pages/CarmenAccess.tsx
+index 4dd10d8ea..5cd2ad83e 100644
+--- a/src/pages/CarmenAccess.tsx
++++ b/src/pages/CarmenAccess.tsx
+@@ -1,6 +1,6 @@
+ import { useState, useEffect, useMemo } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Button } from "@/components/ui/button";
+ import { Switch } from "@/components/ui/switch";
+diff --git a/src/pages/CarmenStudio.tsx b/src/pages/CarmenStudio.tsx
+index 504f4328c..c2d496631 100644
+--- a/src/pages/CarmenStudio.tsx
++++ b/src/pages/CarmenStudio.tsx
+@@ -1,7 +1,7 @@
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
++import type { Tables } from "@/integrations/supabase/types";
+ import { useState, useEffect } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ import { Button } from "@/components/ui/button";
+@@ -31,7 +31,7 @@ import CarmenAccess from "./CarmenAccess";
+ import { CloneToOrgDialog } from "@/components/sharing/CloneToOrgDialog";
+ 
+ type CoreForm = Pick<
+-  AgentProfile,
++  Tables<"ai_agents">,
+   | "id"
+   | "name"
+   | "engine"
+diff --git a/src/visual-workspace/components/AgentSheet.tsx b/src/visual-workspace/components/AgentSheet.tsx
+index 27cf0ea11..ec8ed4b6e 100644
+--- a/src/visual-workspace/components/AgentSheet.tsx
++++ b/src/visual-workspace/components/AgentSheet.tsx
+@@ -1,4 +1,3 @@
+-import type { AgentProfile } from "@/integrations/supabase/agentAccessClient";
+ import type { Tables } from "@/integrations/supabase/types";
+ import type { AgentRole } from "../types/visualWorkspaceTypes";
+ import { useEffect, useState } from "react";
+@@ -10,7 +9,7 @@ import {
+ } from "@/components/ui/sheet";
+ import { Badge } from "@/components/ui/badge";
+ import { ScrollArea } from "@/components/ui/scroll-area";
+-import { supabase } from "@/integrations/supabase/agentAccessClient";
++import { supabase } from "@/integrations/supabase/client";
+ import { AgentAvatar } from "./AgentAvatar";
+ import { Loader2 } from "lucide-react";
+ import { format } from "date-fns";
+@@ -23,7 +22,7 @@ interface Props {
+ 
+ export function AgentSheet({ agentId, onClose }: Props) {
+   const [loading, setLoading] = useState(false);
+-  const [agent, setAgent] = useState<AgentProfile | null>(null);
++  const [agent, setAgent] = useState<Tables<"ai_agents"> | null>(null);
+   const [runs, setRuns] = useState<
+     Pick<
+       Tables<"agent_runs">,
+-- 
+2.43.0
+
+
+From b02adffb86034caf5c36d599a1f6fb5b0014b844 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:13:45 +0000
+Subject: [PATCH 3/8] fix(agents): align group boundary types and reduce
+ baseline
+
+---
+ scripts/typecheck-baseline.json               | 35 -------------------
+ .../tabs/CarmenConversationAccessTab.tsx      |  3 +-
+ 2 files changed, 2 insertions(+), 36 deletions(-)
+
+diff --git a/scripts/typecheck-baseline.json b/scripts/typecheck-baseline.json
+index 2298fd00d..a1642d1da 100644
+--- a/scripts/typecheck-baseline.json
++++ b/scripts/typecheck-baseline.json
+@@ -45,27 +45,6 @@
+       "source": "subcategory",
+       "count": 4
+     },
+-    {
+-      "file": "src/components/agents/tabs/CarmenConversationAccessTab.tsx",
+-      "code": 2339,
+-      "message": "Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">'.\n  Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\">'.",
+-      "source": "id",
+-      "count": 2
+-    },
+-    {
+-      "file": "src/components/agents/tabs/CarmenConversationAccessTab.tsx",
+-      "code": 2352,
+-      "message": "Conversion of type '(SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">)[] | null' to type 'ClientGroupRow[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '(SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">)[]' is not comparable to type 'ClientGroupRow[]'.\n    Type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">' is not comparable to type 'ClientGroupRow'.\n      Type '{ error: true; } & String' is missing the following properties from type 'ClientGroupRow': client_id, whatsapp_group_id, allow_client_contacts, allow_assigned_campaigners, info_boundary",
+-      "source": "data as ClientGroupRow[]",
+-      "count": 1
+-    },
+-    {
+-      "file": "src/components/agents/tabs/CarmenConversationAccessTab.tsx",
+-      "code": 7006,
+-      "message": "Parameter 'g' implicitly has an 'any' type.",
+-      "source": "g",
+-      "count": 1
+-    },
+     {
+       "file": "src/components/agents/tabs/EvalsTab.tsx",
+       "code": 2769,
+@@ -129,20 +108,6 @@
+       "source": "payload",
+       "count": 1
+     },
+-    {
+-      "file": "src/components/agents/tabs/UserProfilesTab.tsx",
+-      "code": 2345,
+-      "message": "Argument of type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone?: string | undefined; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id?: string | undefined;...'.\n  Type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is not assignable to type '{ agent_id?: string | null | undefined; contact_phone?: string | undefined; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id?: string | undefined; updated_at?: string | ...'.\n    Types of property 'tenant_id' are incompatible.\n      Type 'string | null' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
+-      "source": "payload",
+-      "count": 1
+-    },
+-    {
+-      "file": "src/components/agents/tabs/UserProfilesTab.tsx",
+-      "code": 2769,
+-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | und...'.\n      Type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is not assignable to type '{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | undefined; }'.\n        Types of property 'tenant_id' are incompatible.\n          Type 'string | null' is not assignable to type 'string'.\n            Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | und...'.\n      Type '{ tenant_id: string | null; agent_id: any; contact_phone: any; display_name: any; profile: any; }' is missing the following properties from type 'RejectExcessProperties<{ agent_id?: string | null | undefined; contact_phone: string; created_at?: string | undefined; display_name?: string | null | undefined; id?: string | undefined; last_interaction_at?: string | ... 1 more ... | undefined; profile?: Json | undefined; tenant_id: string; updated_at?: string | und...': length, pop, push, concat, and 29 more.",
+-      "source": "payload",
+-      "count": 1
+-    },
+     {
+       "file": "src/components/analytics/AnalyticsDashboard.tsx",
+       "code": 2345,
+diff --git a/src/components/agents/tabs/CarmenConversationAccessTab.tsx b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+index 3afbdc0b6..362208d0e 100644
+--- a/src/components/agents/tabs/CarmenConversationAccessTab.tsx
++++ b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+@@ -1,3 +1,4 @@
++import type { Tables } from "@/integrations/supabase/types";
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+ import {
+@@ -56,7 +57,7 @@ type ClientGroupRow = {
+   whatsapp_group_id: string;
+   allow_client_contacts: boolean;
+   allow_assigned_campaigners: boolean;
+-  info_boundary: "external_only" | "full";
++  info_boundary: Tables<"carmen_client_group_access">["info_boundary"];
+ };
+ 
+ function normalizePhone(p: string) {
+-- 
+2.43.0
+
+
+From 3fe7151b3bd7b9378e6049f9e95150f36b257a41 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 13:43:32 +0000
+Subject: [PATCH 4/8] fix(agents): decode policy JSON and guard
+ tenant-dependent queries
+
+---
+ .../tabs/CarmenConversationAccessTab.tsx      | 168 ++++++++++--------
+ src/lib/carmenAccessAutomation.test.mjs       |  26 ++-
+ src/lib/carmenAccessAutomation.ts             |  13 +-
+ src/lib/carmenPrivatePhoneAllowlist.mjs       |  30 ++++
+ src/pages/CarmenStudio.tsx                    |  38 ++--
+ .../components/AgentSheet.tsx                 |   7 +-
+ 6 files changed, 182 insertions(+), 100 deletions(-)
+
+diff --git a/src/components/agents/tabs/CarmenConversationAccessTab.tsx b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+index 362208d0e..7201dd6b6 100644
+--- a/src/components/agents/tabs/CarmenConversationAccessTab.tsx
++++ b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+@@ -1,6 +1,11 @@
+ import type { Tables } from "@/integrations/supabase/types";
+ import { useEffect, useMemo, useRef, useState } from "react";
+-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
++import {
++  skipToken,
++  useMutation,
++  useQuery,
++  useQueryClient,
++} from "@tanstack/react-query";
+ import {
+   Loader2,
+   Phone,
+@@ -22,6 +27,7 @@ import {
+   buildPolicyFromAutomation,
+   fetchCarmenAutomationConfig,
+   mergePrivatePhoneAllowlist,
++  decodePrivatePhoneRows,
+   type PrivatePhoneRow,
+   type ManusGroupRow,
+ } from "@/lib/carmenAccessAutomation";
+@@ -86,31 +92,30 @@ export function CarmenConversationAccessTab({
+ 
+   const { data: policy, isLoading: policyLoading } = useQuery({
+     queryKey: policyKey,
+-    enabled: !!tenantId && !!agent.id,
+-    queryFn: async () => {
+-      const { data, error } = await supabase
+-        .from("carmen_access_policies")
+-        .select("*")
+-        .eq("tenant_id", tenantId!)
+-        .eq("agent_id", agent.id)
+-        .maybeSingle();
+-      if (error) throw error;
+-      return data;
+-    },
++    queryFn: tenantId
++      ? async () => {
++          const { data, error } = await supabase
++            .from("carmen_access_policies")
++            .select("*")
++            .eq("tenant_id", tenantId)
++            .eq("agent_id", agent.id)
++            .maybeSingle();
++          if (error) throw error;
++          return data;
++        }
++      : skipToken,
+   });
+ 
+   const { data: manusGroups, isLoading: groupsLoading } = useQuery<
+     ManusGroupRow[]
+   >({
+     queryKey: ["carmen-manus-groups", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: () => fetchCarmenManusGroups(tenantId!),
++    queryFn: tenantId ? () => fetchCarmenManusGroups(tenantId) : skipToken,
+   });
+ 
+   const { data: manusSyncInfo } = useQuery({
+     queryKey: ["carmen-manus-sync-info", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: () => fetchManusGroupsSyncInfo(tenantId!),
++    queryFn: tenantId ? () => fetchManusGroupsSyncInfo(tenantId) : skipToken,
+   });
+ 
+   const manusGroupIdSet = useMemo(
+@@ -120,87 +125,98 @@ export function CarmenConversationAccessTab({
+ 
+   const { data: clients } = useQuery({
+     queryKey: ["carmen-access-clients", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: async () => {
+-      const { data } = await supabase
+-        .from("clients")
+-        .select("id, name, whatsapp_group_id, agency_id")
+-        .eq("tenant_id", tenantId!)
+-        .order("name");
+-      return data || [];
+-    },
++    queryFn: tenantId
++      ? async () => {
++          const { data } = await supabase
++            .from("clients")
++            .select("id, name, whatsapp_group_id, agency_id")
++            .eq("tenant_id", tenantId)
++            .order("name");
++          return data || [];
++        }
++      : skipToken,
+   });
+ 
+   const { data: agencies } = useQuery({
+     queryKey: ["carmen-access-agencies", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: async () => {
+-      const { data } = await supabase
+-        .from("agencies")
+-        .select("id, name")
+-        .eq("tenant_id", tenantId!)
+-        .order("name");
+-      return data || [];
+-    },
++    queryFn: tenantId
++      ? async () => {
++          const { data } = await supabase
++            .from("agencies")
++            .select("id, name")
++            .eq("tenant_id", tenantId)
++            .order("name");
++          return data || [];
++        }
++      : skipToken,
+   });
+ 
+   const { data: clientGroupAccess } = useQuery({
+     queryKey: ["carmen-client-group-access", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: async () => {
+-      const { data } = await supabase
+-        .from("carmen_client_group_access")
+-        .select("*")
+-        .eq("tenant_id", tenantId!);
+-      return data || [];
+-    },
++    queryFn: tenantId
++      ? async () => {
++          const { data } = await supabase
++            .from("carmen_client_group_access")
++            .select("*")
++            .eq("tenant_id", tenantId);
++          return data || [];
++        }
++      : skipToken,
+   });
+ 
+   const { data: identities } = useQuery({
+     queryKey: ["carmen-identities", tenantId],
+-    enabled: !!tenantId,
+-    queryFn: async () => {
+-      const columns =
+-        "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
+-      // relationship_note is newer than the generated types; fall back if absent.
+-      const primary = await supabase
+-        .from("carmen_whatsapp_identities")
+-        .select(columns)
+-        .eq("tenant_id", tenantId!)
+-        .order("display_name");
+-      let data = primary.data;
+-      if (primary.error) {
+-        const fallback = await supabase
+-          .from("carmen_whatsapp_identities")
+-          .select(
+-            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
+-          )
+-          .eq("tenant_id", tenantId!)
+-          .order("display_name");
+-        data =
+-          fallback.data?.map((row) => ({ ...row, relationship_note: null })) ??
+-          null;
+-      }
+-      return data || [];
+-    },
++    queryFn: tenantId
++      ? async () => {
++          const columns =
++            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
++          // relationship_note is newer than the generated types; fall back if absent.
++          const primary = await supabase
++            .from("carmen_whatsapp_identities")
++            .select(columns)
++            .eq("tenant_id", tenantId)
++            .order("display_name");
++          let data = primary.data;
++          if (primary.error) {
++            const fallback = await supabase
++              .from("carmen_whatsapp_identities")
++              .select(
++                "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
++              )
++              .eq("tenant_id", tenantId)
++              .order("display_name");
++            data =
++              fallback.data?.map((row) => ({
++                ...row,
++                relationship_note: null,
++              })) ?? null;
++          }
++          return data || [];
++        }
++      : skipToken,
+   });
+ 
+   const { data: automationCfg, isLoading: automationLoading } = useQuery({
+     queryKey: ["carmen-automation-cfg", tenantId, agent.id],
+-    enabled: !!tenantId && !!agent.id,
+-    queryFn: () => fetchCarmenAutomationConfig(tenantId!, agent.id),
++    queryFn:
++      tenantId && agent.id
++        ? () => fetchCarmenAutomationConfig(tenantId, agent.id)
++        : skipToken,
+   });
+ 
++  const policyPhones = useMemo(
++    () => decodePrivatePhoneRows(policy?.private_phones),
++    [policy?.private_phones],
++  );
++
+   const mergedPhones = useMemo(
+     () =>
+       mergePrivatePhoneAllowlist({
+-        policyPhones: Array.isArray(policy?.private_phones)
+-          ? (policy.private_phones as unknown as PrivatePhoneRow[])
+-          : [],
++        policyPhones,
+         identities,
+         automationPhones: automationCfg?.carmen_allowed_phones,
+       }),
+-    [policy?.private_phones, identities, automationCfg?.carmen_allowed_phones],
++    [policyPhones, identities, automationCfg?.carmen_allowed_phones],
+   );
+ 
+   const persistPolicy = async (draft: {
+@@ -215,7 +231,7 @@ export function CarmenConversationAccessTab({
+       manusGroupIdSet.has(id),
+     );
+     const payload = {
+-      tenant_id: tenantId!,
++      tenant_id: tenantId,
+       agent_id: agent.id,
+       private_phones: draft.phones.map((entry) => ({ ...entry })),
+       allowed_group_ids: allowedManusGroups,
+@@ -341,9 +357,7 @@ export function CarmenConversationAccessTab({
+     }).length;
+     const automationPhoneCount =
+       automationCfg.carmen_allowed_phones?.length ?? 0;
+-    const policyPhoneCount = Array.isArray(policy?.private_phones)
+-      ? policy.private_phones.length
+-      : 0;
++    const policyPhoneCount = policyPhones.length;
+     const needsSeed =
+       !policy ||
+       (automationCfg.carmen_open_member_groups === true &&
+diff --git a/src/lib/carmenAccessAutomation.test.mjs b/src/lib/carmenAccessAutomation.test.mjs
+index 716c13cae..c65b9f78b 100644
+--- a/src/lib/carmenAccessAutomation.test.mjs
++++ b/src/lib/carmenAccessAutomation.test.mjs
+@@ -1,6 +1,9 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import { mergePrivatePhoneAllowlist } from "./carmenPrivatePhoneAllowlist.mjs";
++import {
++  decodePrivatePhoneRows,
++  mergePrivatePhoneAllowlist,
++} from "./carmenPrivatePhoneAllowlist.mjs";
+ 
+ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
+   const out = mergePrivatePhoneAllowlist({
+@@ -92,3 +95,24 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
+   assert.equal(preferred.carmen_scope_mode, "specific_phone");
+   assert.deepEqual(mergedPhones, ["972507677613", "972545612156"]);
+ });
++
++test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
++  const rows = decodePrivatePhoneRows([
++    null,
++    4,
++    { phone: 42 },
++    {
++      phone: "972501111111",
++      source: "custom-source",
++      dev_escalation_tier: "custom-tier",
++      surfaces: ["whatsapp_private", 42],
++      label: "Owner",
++    },
++  ]);
++  assert.equal(rows.length, 1);
++  assert.equal(rows[0].source, "custom-source");
++  assert.equal(rows[0].dev_escalation_tier, "custom-tier");
++  assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
++  assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
++  assert.deepEqual(decodePrivatePhoneRows(null), []);
++});
+diff --git a/src/lib/carmenAccessAutomation.ts b/src/lib/carmenAccessAutomation.ts
+index e59278dfc..0e2e2702d 100644
+--- a/src/lib/carmenAccessAutomation.ts
++++ b/src/lib/carmenAccessAutomation.ts
+@@ -1,5 +1,8 @@
+ import { supabase } from "@/integrations/supabase/client";
+-import { mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore } from "./carmenPrivatePhoneAllowlist.mjs";
++import {
++  mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore,
++  decodePrivatePhoneRows as decodePrivatePhoneRowsCore,
++} from "./carmenPrivatePhoneAllowlist.mjs";
+ 
+ export type CarmenAutomationConfig = Record<string, unknown> & {
+   agent_id?: string;
+@@ -101,8 +104,8 @@ export type PrivatePhoneRow = {
+   phone: string;
+   label?: string;
+   status?: string;
+-  source?: "policy" | "identity" | "automation";
+-  dev_escalation_tier?: "full" | "bugfix" | null;
++  source?: string;
++  dev_escalation_tier?: string | null;
+   surfaces?: string[];
+   relationship_note?: string;
+ };
+@@ -124,3 +127,7 @@ export function mergePrivatePhoneAllowlist(params: {
+ }): PrivatePhoneRow[] {
+   return mergePrivatePhoneAllowlistCore(params) as PrivatePhoneRow[];
+ }
++
++export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[] {
++  return decodePrivatePhoneRowsCore(value);
++}
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.mjs b/src/lib/carmenPrivatePhoneAllowlist.mjs
+index 08ca9b468..e5832f76c 100644
+--- a/src/lib/carmenPrivatePhoneAllowlist.mjs
++++ b/src/lib/carmenPrivatePhoneAllowlist.mjs
+@@ -63,3 +63,33 @@ export function mergePrivatePhoneAllowlist(params) {
+     (a.label || a.phone).localeCompare(b.label || b.phone, "he"),
+   );
+ }
++
++/** Decode stored JSON without discarding supported custom string metadata.
++ * @param {unknown} value
++ */
++export function decodePrivatePhoneRows(value) {
++  if (!Array.isArray(value)) return [];
++  return value.flatMap((row) => {
++    if (!row || typeof row !== "object" || typeof row.phone !== "string")
++      return [];
++    return [
++      {
++        phone: row.phone,
++        label: typeof row.label === "string" ? row.label : undefined,
++        status: typeof row.status === "string" ? row.status : undefined,
++        source: typeof row.source === "string" ? row.source : undefined,
++        dev_escalation_tier:
++          typeof row.dev_escalation_tier === "string"
++            ? row.dev_escalation_tier
++            : null,
++        surfaces: Array.isArray(row.surfaces)
++          ? row.surfaces.filter((surface) => typeof surface === "string")
++          : undefined,
++        relationship_note:
++          typeof row.relationship_note === "string"
++            ? row.relationship_note
++            : undefined,
++      },
++    ];
++  });
++}
+diff --git a/src/pages/CarmenStudio.tsx b/src/pages/CarmenStudio.tsx
+index c2d496631..7b68f76cf 100644
+--- a/src/pages/CarmenStudio.tsx
++++ b/src/pages/CarmenStudio.tsx
+@@ -1,6 +1,11 @@
+ import type { Tables } from "@/integrations/supabase/types";
+ import { useState, useEffect } from "react";
+-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
++import {
++  skipToken,
++  useQuery,
++  useMutation,
++  useQueryClient,
++} from "@tanstack/react-query";
+ import { supabase } from "@/integrations/supabase/client";
+ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+@@ -66,20 +71,23 @@ function CoreTab() {
+ 
+   const { data: agent, isLoading } = useQuery({
+     queryKey: ["carmen-studio-core", tenantId],
+-    queryFn: async () => {
+-      const { data } = await supabase
+-        .from("ai_agents")
+-        .select(
+-          "id,name,engine,personality,soul,talent,writing_style,response_length,language,mood,active",
+-        )
+-        .eq("tenant_id", tenantId!)
+-        .eq("active", true);
+-      const list = data || [];
+-      return (
+-        list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
+-      );
+-    },
+-    enabled: !!tenantId,
++    queryFn: tenantId
++      ? async () => {
++          const { data } = await supabase
++            .from("ai_agents")
++            .select(
++              "id,name,engine,personality,soul,talent,writing_style,response_length,language,mood,active",
++            )
++            .eq("tenant_id", tenantId)
++            .eq("active", true);
++          const list = data || [];
++          return (
++            list.find((a) => /כרמן|carmen/i.test(a.name || "")) ||
++            list[0] ||
++            null
++          );
++        }
++      : skipToken,
+   });
+ 
+   useEffect(() => {
+diff --git a/src/visual-workspace/components/AgentSheet.tsx b/src/visual-workspace/components/AgentSheet.tsx
+index ec8ed4b6e..ae99e324b 100644
+--- a/src/visual-workspace/components/AgentSheet.tsx
++++ b/src/visual-workspace/components/AgentSheet.tsx
+@@ -39,16 +39,15 @@ export function AgentSheet({ agentId, onClose }: Props) {
+   useEffect(() => {
+     if (!agentId) return;
+     setLoading(true);
+-    const sb = supabase;
+     Promise.all([
+-      sb.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),
+-      sb
++      supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),
++      supabase
+         .from("agent_runs")
+         .select("id,status,started_at,completed_at")
+         .eq("agent_id", agentId)
+         .order("started_at", { ascending: false })
+         .limit(5),
+-      sb
++      supabase
+         .from("agent_action_log")
+         .select("id,action_type,status,created_at")
+         .eq("agent_id", agentId)
+-- 
+2.43.0
+
+
+From 9096543ab2605e3eafede9cf5182f9db64613dd9 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 14:34:05 +0000
+Subject: [PATCH 5/8] refactor(agents): export typed phone helpers directly
+
+---
+ scripts/typecheck-baseline.json           |  7 -------
+ src/lib/carmenAccessAutomation.ts         | 21 ++++-----------------
+ src/lib/carmenPrivatePhoneAllowlist.d.mts |  9 +++++++++
+ 3 files changed, 13 insertions(+), 24 deletions(-)
+ create mode 100644 src/lib/carmenPrivatePhoneAllowlist.d.mts
+
+diff --git a/scripts/typecheck-baseline.json b/scripts/typecheck-baseline.json
+index a1642d1da..fc72aacd4 100644
+--- a/scripts/typecheck-baseline.json
++++ b/scripts/typecheck-baseline.json
+@@ -1207,13 +1207,6 @@
+       "source": "(s: { configuration?: CarmenAutomationConfig }) => s.configuration",
+       "count": 1
+     },
+-    {
+-      "file": "src/lib/carmenAccessAutomation.ts",
+-      "code": 7016,
+-      "message": "Could not find a declaration file for module './carmenPrivatePhoneAllowlist.mjs'. './src/lib/carmenPrivatePhoneAllowlist.mjs' implicitly has an 'any' type.",
+-      "source": "\"./carmenPrivatePhoneAllowlist.mjs\"",
+-      "count": 1
+-    },
+     {
+       "file": "src/lib/carmenManusGroups.ts",
+       "code": 7006,
+diff --git a/src/lib/carmenAccessAutomation.ts b/src/lib/carmenAccessAutomation.ts
+index 0e2e2702d..0fbc09e94 100644
+--- a/src/lib/carmenAccessAutomation.ts
++++ b/src/lib/carmenAccessAutomation.ts
+@@ -1,7 +1,7 @@
+ import { supabase } from "@/integrations/supabase/client";
+-import {
+-  mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore,
+-  decodePrivatePhoneRows as decodePrivatePhoneRowsCore,
++export {
++  mergePrivatePhoneAllowlist,
++  decodePrivatePhoneRows,
+ } from "./carmenPrivatePhoneAllowlist.mjs";
+ 
+ export type CarmenAutomationConfig = Record<string, unknown> & {
+@@ -110,7 +110,7 @@ export type PrivatePhoneRow = {
+   relationship_note?: string;
+ };
+ 
+-type IdentityRow = {
++export type IdentityRow = {
+   phone: string;
+   display_name?: string | null;
+   status?: string;
+@@ -118,16 +118,3 @@ type IdentityRow = {
+   dev_escalation_tier?: string | null;
+   relationship_note?: string | null;
+ };
+-
+-/** Merge all sources that grant private WhatsApp access for display in Agent Hub. */
+-export function mergePrivatePhoneAllowlist(params: {
+-  policyPhones?: PrivatePhoneRow[];
+-  identities?: IdentityRow[];
+-  automationPhones?: string[];
+-}): PrivatePhoneRow[] {
+-  return mergePrivatePhoneAllowlistCore(params) as PrivatePhoneRow[];
+-}
+-
+-export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[] {
+-  return decodePrivatePhoneRowsCore(value);
+-}
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.d.mts b/src/lib/carmenPrivatePhoneAllowlist.d.mts
+new file mode 100644
+index 000000000..309f97556
+--- /dev/null
++++ b/src/lib/carmenPrivatePhoneAllowlist.d.mts
+@@ -0,0 +1,9 @@
++import type { IdentityRow, PrivatePhoneRow } from "./carmenAccessAutomation";
++
++export function normalizePrivatePhone(phone: string): string;
++export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[];
++export function mergePrivatePhoneAllowlist(params: {
++  policyPhones?: PrivatePhoneRow[];
++  identities?: IdentityRow[];
++  automationPhones?: string[];
++}): PrivatePhoneRow[];
+-- 
+2.43.0
+
+
+From df04e75cde70db9167fc1d1b01eb35e2ab16dea4 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 14:54:49 +0000
+Subject: [PATCH 6/8] refactor(agents): implement phone helpers in TypeScript
+ and enforce unified signatures
+
+---
+ .github/workflows/ci-frontend.yml         |   2 +-
+ eslint.config.js                          |   1 +
+ src/lib/carmenAccessAutomation.test.mjs   |  16 ++-
+ src/lib/carmenAccessAutomation.ts         |  24 +---
+ src/lib/carmenPrivatePhoneAllowlist.d.mts |   9 --
+ src/lib/carmenPrivatePhoneAllowlist.mjs   |  95 -------------
+ src/lib/carmenPrivatePhoneAllowlist.ts    | 164 ++++++++++++++++++++++
+ 7 files changed, 186 insertions(+), 125 deletions(-)
+ delete mode 100644 src/lib/carmenPrivatePhoneAllowlist.d.mts
+ delete mode 100644 src/lib/carmenPrivatePhoneAllowlist.mjs
+ create mode 100644 src/lib/carmenPrivatePhoneAllowlist.ts
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index 480feaf1e..85ed7012e 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -183,7 +183,7 @@ jobs:
+         run: node --test supabase/functions/_shared/staging-outbound.test.mjs supabase/functions/_shared/staging-whatsapp-test.test.ts supabase/functions/_shared/staging-email-test.test.ts supabase/functions/_shared/automation-run-auth.test.ts supabase/functions/_shared/meeting-summary-prompts.test.ts supabase/functions/_shared/signature-field-text.test.ts supabase/functions/_shared/signature-email-template.test.ts supabase/functions/_shared/report-sync-window.test.ts src/lib/carmenLoaderSignal.test.ts src/lib/clipboardFiles.test.ts src/lib/reportRecords.test.ts src/lib/reportCoverage.test.ts src/lib/reportSyncCadence.test.ts src/lib/dashboardDateFilters.test.ts src/lib/weeklyAdsComparison.test.ts src/lib/adAccountUrl.test.ts src/lib/gaPropertyMatch.test.ts supabase/functions/_shared/gaDomain.test.ts src/lib/leadTableLayout.test.ts src/lib/leadTableColumns.test.ts src/lib/leadViewMode.test.ts src/lib/leadStageFilter.test.ts src/lib/recordingPlayback.test.ts src/lib/recordingSummaryTarget.test.ts src/lib/sharedReportTabs.test.ts src/lib/signatureFieldGuide.test.ts src/lib/signatureDate.test.ts src/lib/teamMemberMatch.test.ts supabase/functions/_shared/automation-status.test.ts supabase/functions/webhook-lead-intake/lead-duplicate-match.test.ts supabase/functions/webhook-lead-intake/returning-lead.test.ts supabase/functions/_shared/lead-repeat-reopen.test.ts supabase/functions/_shared/broadcast/template/template.test.ts supabase/functions/_shared/broadcast/template/template-content.test.ts supabase/functions/_shared/broadcast/mailing-actions/target.test.ts supabase/functions/_shared/broadcast/mailing-actions/send-to-list.test.ts supabase/functions/_shared/broadcast/audience/resolve.test.ts supabase/functions/_shared/timing-safe-equal.test.ts src/lib/leadRecordings.test.ts supabase/functions/_shared/telephony/phone.test.ts supabase/functions/make-pbx-call/outbound.test.ts supabase/functions/pbx-webhook/event.test.ts src/components/marketing/departments/creative/videoScenes.test.ts src/components/marketing/departments/creative/videoStill.test.ts src/components/marketing/departments/creative/videoReference.test.ts src/components/marketing/departments/creative/videoClip.test.ts src/components/marketing/departments/creative/videoProduction.test.ts src/components/marketing/departments/creative/videoEngines.test.ts supabase/functions/_shared/video-director-tools.test.ts supabase/functions/_shared/creative-studio-tools.test.ts src/components/marketing/departments/creative/studioChat.test.ts render-worker/test/shots.test.mjs render-worker/test/ffmpeg.test.mjs render-worker/test/clip.test.mjs render-worker/test/engines.test.mjs render-worker/test/openrouter.test.mjs render-worker/test/timeline.test.mjs supabase/functions/_shared/carmen/brain-access.test.ts src/components/carmen-command/useDraggableCard.test.ts src/components/carmen-command/chatDedupe.test.ts src/lib/chatTopics.test.ts supabase/functions/_shared/carmen/topic-text.test.ts supabase/functions/_shared/carmen/voice-access.test.ts supabase/functions/_shared/carmen/brain-connections/helpers.test.ts supabase/functions/_shared/carmen/brain-connections/overrides.test.ts supabase/functions/_shared/carmen/free-first/router.test.ts supabase/functions/_shared/carmen/free-first/classifier.test.ts supabase/functions/_shared/carmen/free-first/failover.test.ts supabase/functions/_shared/carmen/free-first/cost.test.ts supabase/functions/_shared/carmen/free-first/budget-reservation.test.ts supabase/functions/_shared/carmen/free-first/candidates.test.ts supabase/functions/_shared/carmen/brain-engine/plan.test.ts supabase/functions/_shared/creative/openrouterImage.test.ts
+ 
+       - name: Carmen pulse regression tests
+-        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs
++        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs src/lib/carmenAccessAutomation.test.mjs
+ 
+       - name: Build frontend
+         run: pnpm build
+diff --git a/eslint.config.js b/eslint.config.js
+index 5b355ddf1..0c80dfa35 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -32,6 +32,7 @@ export default tseslint.config(
+         { allowConstantExport: true },
+       ],
+       "@typescript-eslint/no-unused-vars": "off",
++      "@typescript-eslint/unified-signatures": "error",
+       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
+       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
+       "react-hooks/rules-of-hooks": "warn", // AIO-61
+diff --git a/src/lib/carmenAccessAutomation.test.mjs b/src/lib/carmenAccessAutomation.test.mjs
+index c65b9f78b..0e7863160 100644
+--- a/src/lib/carmenAccessAutomation.test.mjs
++++ b/src/lib/carmenAccessAutomation.test.mjs
+@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
+ import {
+   decodePrivatePhoneRows,
+   mergePrivatePhoneAllowlist,
+-} from "./carmenPrivatePhoneAllowlist.mjs";
++} from "./carmenPrivatePhoneAllowlist.ts";
+ 
+ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
+   const out = mergePrivatePhoneAllowlist({
+@@ -116,3 +116,17 @@ test("stored phone decoder preserves custom backend metadata and rejects malform
+   assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
+   assert.deepEqual(decodePrivatePhoneRows(null), []);
+ });
++
++test("stored custom sources normalize to policy while preserving escalation metadata", () => {
++  const stored = decodePrivatePhoneRows([
++    {
++      phone: "972501111111",
++      source: "legacy",
++      dev_escalation_tier: "custom-tier",
++    },
++  ]);
++  const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
++  assert.equal(stored[0].source, "legacy");
++  assert.equal(merged[0].source, "policy");
++  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
++});
+diff --git a/src/lib/carmenAccessAutomation.ts b/src/lib/carmenAccessAutomation.ts
+index 0fbc09e94..84fb0732a 100644
+--- a/src/lib/carmenAccessAutomation.ts
++++ b/src/lib/carmenAccessAutomation.ts
+@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
+ export {
+   mergePrivatePhoneAllowlist,
+   decodePrivatePhoneRows,
+-} from "./carmenPrivatePhoneAllowlist.mjs";
++} from "./carmenPrivatePhoneAllowlist";
+ 
+ export type CarmenAutomationConfig = Record<string, unknown> & {
+   agent_id?: string;
+@@ -100,21 +100,7 @@ export function buildPolicyFromAutomation(
+   };
+ }
+ 
+-export type PrivatePhoneRow = {
+-  phone: string;
+-  label?: string;
+-  status?: string;
+-  source?: string;
+-  dev_escalation_tier?: string | null;
+-  surfaces?: string[];
+-  relationship_note?: string;
+-};
+-
+-export type IdentityRow = {
+-  phone: string;
+-  display_name?: string | null;
+-  status?: string;
+-  surfaces?: string[] | null;
+-  dev_escalation_tier?: string | null;
+-  relationship_note?: string | null;
+-};
++export type {
++  PrivatePhoneRow,
++  IdentityRow,
++} from "./carmenPrivatePhoneAllowlist";
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.d.mts b/src/lib/carmenPrivatePhoneAllowlist.d.mts
+deleted file mode 100644
+index 309f97556..000000000
+--- a/src/lib/carmenPrivatePhoneAllowlist.d.mts
++++ /dev/null
+@@ -1,9 +0,0 @@
+-import type { IdentityRow, PrivatePhoneRow } from "./carmenAccessAutomation";
+-
+-export function normalizePrivatePhone(phone: string): string;
+-export function decodePrivatePhoneRows(value: unknown): PrivatePhoneRow[];
+-export function mergePrivatePhoneAllowlist(params: {
+-  policyPhones?: PrivatePhoneRow[];
+-  identities?: IdentityRow[];
+-  automationPhones?: string[];
+-}): PrivatePhoneRow[];
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.mjs b/src/lib/carmenPrivatePhoneAllowlist.mjs
+deleted file mode 100644
+index e5832f76c..000000000
+--- a/src/lib/carmenPrivatePhoneAllowlist.mjs
++++ /dev/null
+@@ -1,95 +0,0 @@
+-export function normalizePrivatePhone(p) {
+-  return (p || "").replace(/\D/g, "");
+-}
+-
+-function sourcePriority(source) {
+-  if (source === "policy") return 3;
+-  if (source === "identity") return 2;
+-  if (source === "automation") return 1;
+-  return 0;
+-}
+-
+-/** Merge policy, identities, and automation into one private-allowlist view. */
+-export function mergePrivatePhoneAllowlist(params) {
+-  const byPhone = new Map();
+-
+-  const upsert = (row, priority) => {
+-    const phone = normalizePrivatePhone(row.phone);
+-    if (phone.length < 9) return;
+-    const prev = byPhone.get(phone);
+-    if (!prev || priority >= sourcePriority(prev.source)) {
+-      byPhone.set(phone, {
+-        ...prev,
+-        ...row,
+-        phone,
+-        surfaces: row.surfaces?.length
+-          ? row.surfaces
+-          : prev?.surfaces || ["whatsapp_private"],
+-      });
+-    }
+-  };
+-
+-  for (const p of params.automationPhones || []) {
+-    upsert(
+-      { phone: p, surfaces: ["whatsapp_private"], source: "automation" },
+-      1,
+-    );
+-  }
+-
+-  for (const id of params.identities || []) {
+-    const surfaces = Array.isArray(id.surfaces)
+-      ? id.surfaces
+-      : ["whatsapp_private", "whatsapp_group"];
+-    if (!surfaces.includes("whatsapp_private")) continue;
+-    upsert(
+-      {
+-        phone: id.phone,
+-        label: id.display_name || undefined,
+-        status: id.status,
+-        surfaces,
+-        dev_escalation_tier: id.dev_escalation_tier || null,
+-        relationship_note: id.relationship_note || undefined,
+-        source: "identity",
+-      },
+-      2,
+-    );
+-  }
+-
+-  for (const p of params.policyPhones || []) {
+-    upsert({ ...p, source: "policy" }, 3);
+-  }
+-
+-  return Array.from(byPhone.values()).sort((a, b) =>
+-    (a.label || a.phone).localeCompare(b.label || b.phone, "he"),
+-  );
+-}
+-
+-/** Decode stored JSON without discarding supported custom string metadata.
+- * @param {unknown} value
+- */
+-export function decodePrivatePhoneRows(value) {
+-  if (!Array.isArray(value)) return [];
+-  return value.flatMap((row) => {
+-    if (!row || typeof row !== "object" || typeof row.phone !== "string")
+-      return [];
+-    return [
+-      {
+-        phone: row.phone,
+-        label: typeof row.label === "string" ? row.label : undefined,
+-        status: typeof row.status === "string" ? row.status : undefined,
+-        source: typeof row.source === "string" ? row.source : undefined,
+-        dev_escalation_tier:
+-          typeof row.dev_escalation_tier === "string"
+-            ? row.dev_escalation_tier
+-            : null,
+-        surfaces: Array.isArray(row.surfaces)
+-          ? row.surfaces.filter((surface) => typeof surface === "string")
+-          : undefined,
+-        relationship_note:
+-          typeof row.relationship_note === "string"
+-            ? row.relationship_note
+-            : undefined,
+-      },
+-    ];
+-  });
+-}
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.ts b/src/lib/carmenPrivatePhoneAllowlist.ts
+new file mode 100644
+index 000000000..377de8dc0
+--- /dev/null
++++ b/src/lib/carmenPrivatePhoneAllowlist.ts
+@@ -0,0 +1,164 @@
++export type StoredPrivatePhoneRow = {
++  phone: string;
++  label?: string;
++  status?: string;
++  source?: string;
++  dev_escalation_tier?: string | null;
++  surfaces?: string[];
++  relationship_note?: string;
++};
++
++// Merging assigns one of these sources; stored metadata may contain other strings.
++export type PrivatePhoneRow = Omit<StoredPrivatePhoneRow, "source"> & {
++  source?: "policy" | "identity" | "automation";
++};
++
++export type IdentityRow = {
++  phone: string;
++  display_name?: string | null;
++  status?: string;
++  surfaces?: string[] | null;
++  dev_escalation_tier?: string | null;
++  relationship_note?: string | null;
++};
++
++export function normalizePrivatePhone(p: string) {
++  return (p || "").replace(/\D/g, "");
++}
++
++function sourcePriority(source: PrivatePhoneRow["source"]) {
++  if (source === "policy") {
++    return 3;
++  }
++
++  if (source === "identity") {
++    return 2;
++  }
++
++  if (source === "automation") {
++    return 1;
++  }
++
++  return 0;
++}
++
++/** Merge policy, identities, and automation into one private-allowlist view. */
++export function mergePrivatePhoneAllowlist(params: {
++  policyPhones?: StoredPrivatePhoneRow[];
++  identities?: IdentityRow[];
++  automationPhones?: string[];
++}): PrivatePhoneRow[] {
++  const byPhone = new Map<string, PrivatePhoneRow>();
++
++  const upsert = (row: PrivatePhoneRow, priority: number) => {
++    const phone = normalizePrivatePhone(row.phone);
++    if (phone.length < 9) {
++      return;
++    }
++
++    const prev = byPhone.get(phone);
++    if (!prev || priority >= sourcePriority(prev.source)) {
++      byPhone.set(phone, {
++        ...prev,
++        ...row,
++        phone,
++        surfaces: row.surfaces?.length
++          ? row.surfaces
++          : prev?.surfaces || ["whatsapp_private"],
++      });
++    }
++  };
++
++  for (const p of params.automationPhones || []) {
++    upsert(
++      { phone: p, surfaces: ["whatsapp_private"], source: "automation" },
++      1,
++    );
++  }
++
++  for (const id of params.identities || []) {
++    const surfaces = Array.isArray(id.surfaces)
++      ? id.surfaces
++      : ["whatsapp_private", "whatsapp_group"];
++    if (!surfaces.includes("whatsapp_private")) {
++      continue;
++    }
++
++    upsert(
++      {
++        phone: id.phone,
++        label: id.display_name || undefined,
++        status: id.status,
++        surfaces,
++        dev_escalation_tier: id.dev_escalation_tier || null,
++        relationship_note: id.relationship_note || undefined,
++        source: "identity",
++      },
++      2,
++    );
++  }
++
++  for (const p of params.policyPhones || []) {
++    upsert({ ...p, source: "policy" }, 3);
++  }
++
++  return Array.from(byPhone.values()).sort((a, b) =>
++    (a.label || a.phone).localeCompare(b.label || b.phone, "he"),
++  );
++}
++
++/** Decode stored JSON without discarding supported custom string metadata.
++ */
++export function decodePrivatePhoneRows(
++  value: unknown,
++): StoredPrivatePhoneRow[] {
++  if (!Array.isArray(value)) {
++    return [];
++  }
++
++  return value.flatMap((row: unknown) => {
++    if (
++      !row ||
++      typeof row !== "object" ||
++      !("phone" in row) ||
++      typeof row.phone !== "string"
++    ) {
++      return [];
++    }
++
++    return [
++      {
++        phone: row.phone,
++        label:
++          "label" in row && typeof row.label === "string"
++            ? row.label
++            : undefined,
++        status:
++          "status" in row && typeof row.status === "string"
++            ? row.status
++            : undefined,
++        source:
++          "source" in row && typeof row.source === "string"
++            ? row.source
++            : undefined,
++        dev_escalation_tier:
++          "dev_escalation_tier" in row &&
++          typeof row.dev_escalation_tier === "string"
++            ? row.dev_escalation_tier
++            : null,
++        surfaces:
++          "surfaces" in row && Array.isArray(row.surfaces)
++            ? row.surfaces.filter(
++                (surface: unknown): surface is string =>
++                  typeof surface === "string",
++              )
++            : undefined,
++        relationship_note:
++          "relationship_note" in row &&
++          typeof row.relationship_note === "string"
++            ? row.relationship_note
++            : undefined,
++      },
++    ];
++  });
++}
+-- 
+2.43.0
+
+
+From 616c052b9659d37b599f63040ec817c642ff8549 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 15:23:44 +0000
+Subject: [PATCH 7/8] refactor(agents): import phone helpers from their
+ implementation
+
+---
+ .../agents/tabs/CarmenConversationAccessTab.tsx        |  8 +++++---
+ src/lib/carmenAccessAutomation.ts                      | 10 ----------
+ 2 files changed, 5 insertions(+), 13 deletions(-)
+
+diff --git a/src/components/agents/tabs/CarmenConversationAccessTab.tsx b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+index 7201dd6b6..b3d69d33c 100644
+--- a/src/components/agents/tabs/CarmenConversationAccessTab.tsx
++++ b/src/components/agents/tabs/CarmenConversationAccessTab.tsx
+@@ -1,3 +1,8 @@
++import {
++  mergePrivatePhoneAllowlist,
++  decodePrivatePhoneRows,
++  type PrivatePhoneRow,
++} from "@/lib/carmenPrivatePhoneAllowlist";
+ import type { Tables } from "@/integrations/supabase/types";
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import {
+@@ -26,9 +31,6 @@ import {
+ import {
+   buildPolicyFromAutomation,
+   fetchCarmenAutomationConfig,
+-  mergePrivatePhoneAllowlist,
+-  decodePrivatePhoneRows,
+-  type PrivatePhoneRow,
+   type ManusGroupRow,
+ } from "@/lib/carmenAccessAutomation";
+ import { Button } from "@/components/ui/button";
+diff --git a/src/lib/carmenAccessAutomation.ts b/src/lib/carmenAccessAutomation.ts
+index 84fb0732a..5dadf8eef 100644
+--- a/src/lib/carmenAccessAutomation.ts
++++ b/src/lib/carmenAccessAutomation.ts
+@@ -1,9 +1,4 @@
+ import { supabase } from "@/integrations/supabase/client";
+-export {
+-  mergePrivatePhoneAllowlist,
+-  decodePrivatePhoneRows,
+-} from "./carmenPrivatePhoneAllowlist";
+-
+ export type CarmenAutomationConfig = Record<string, unknown> & {
+   agent_id?: string;
+   carmen_allowed_phones?: string[];
+@@ -99,8 +94,3 @@ export function buildPolicyFromAutomation(
+     requireDirectAddress: true,
+   };
+ }
+-
+-export type {
+-  PrivatePhoneRow,
+-  IdentityRow,
+-} from "./carmenPrivatePhoneAllowlist";
+-- 
+2.43.0
+
+
+From f5cd0648471ee127ce1149da0b64836ef9675c77 Mon Sep 17 00:00:00 2001
+From: Chaim Lev-Ari <chaim.lev-ari@portainer.io>
+Date: Tue, 20 Oct 2026 15:32:18 +0000
+Subject: [PATCH 8/8] test: colocate Carmen private phone allowlist tests
+
+---
+ .github/workflows/ci-frontend.yml           |   2 +-
+ src/lib/carmenAccessAutomation.test.mjs     |  99 -------------------
+ src/lib/carmenPrivatePhoneAllowlist.test.ts | 101 ++++++++++++++++++++
+ 3 files changed, 102 insertions(+), 100 deletions(-)
+ create mode 100644 src/lib/carmenPrivatePhoneAllowlist.test.ts
+
+diff --git a/.github/workflows/ci-frontend.yml b/.github/workflows/ci-frontend.yml
+index 85ed7012e..bb46a432f 100644
+--- a/.github/workflows/ci-frontend.yml
++++ b/.github/workflows/ci-frontend.yml
+@@ -183,7 +183,7 @@ jobs:
+         run: node --test supabase/functions/_shared/staging-outbound.test.mjs supabase/functions/_shared/staging-whatsapp-test.test.ts supabase/functions/_shared/staging-email-test.test.ts supabase/functions/_shared/automation-run-auth.test.ts supabase/functions/_shared/meeting-summary-prompts.test.ts supabase/functions/_shared/signature-field-text.test.ts supabase/functions/_shared/signature-email-template.test.ts supabase/functions/_shared/report-sync-window.test.ts src/lib/carmenLoaderSignal.test.ts src/lib/clipboardFiles.test.ts src/lib/reportRecords.test.ts src/lib/reportCoverage.test.ts src/lib/reportSyncCadence.test.ts src/lib/dashboardDateFilters.test.ts src/lib/weeklyAdsComparison.test.ts src/lib/adAccountUrl.test.ts src/lib/gaPropertyMatch.test.ts supabase/functions/_shared/gaDomain.test.ts src/lib/leadTableLayout.test.ts src/lib/leadTableColumns.test.ts src/lib/leadViewMode.test.ts src/lib/leadStageFilter.test.ts src/lib/recordingPlayback.test.ts src/lib/recordingSummaryTarget.test.ts src/lib/sharedReportTabs.test.ts src/lib/signatureFieldGuide.test.ts src/lib/signatureDate.test.ts src/lib/teamMemberMatch.test.ts supabase/functions/_shared/automation-status.test.ts supabase/functions/webhook-lead-intake/lead-duplicate-match.test.ts supabase/functions/webhook-lead-intake/returning-lead.test.ts supabase/functions/_shared/lead-repeat-reopen.test.ts supabase/functions/_shared/broadcast/template/template.test.ts supabase/functions/_shared/broadcast/template/template-content.test.ts supabase/functions/_shared/broadcast/mailing-actions/target.test.ts supabase/functions/_shared/broadcast/mailing-actions/send-to-list.test.ts supabase/functions/_shared/broadcast/audience/resolve.test.ts supabase/functions/_shared/timing-safe-equal.test.ts src/lib/leadRecordings.test.ts supabase/functions/_shared/telephony/phone.test.ts supabase/functions/make-pbx-call/outbound.test.ts supabase/functions/pbx-webhook/event.test.ts src/components/marketing/departments/creative/videoScenes.test.ts src/components/marketing/departments/creative/videoStill.test.ts src/components/marketing/departments/creative/videoReference.test.ts src/components/marketing/departments/creative/videoClip.test.ts src/components/marketing/departments/creative/videoProduction.test.ts src/components/marketing/departments/creative/videoEngines.test.ts supabase/functions/_shared/video-director-tools.test.ts supabase/functions/_shared/creative-studio-tools.test.ts src/components/marketing/departments/creative/studioChat.test.ts render-worker/test/shots.test.mjs render-worker/test/ffmpeg.test.mjs render-worker/test/clip.test.mjs render-worker/test/engines.test.mjs render-worker/test/openrouter.test.mjs render-worker/test/timeline.test.mjs supabase/functions/_shared/carmen/brain-access.test.ts src/components/carmen-command/useDraggableCard.test.ts src/components/carmen-command/chatDedupe.test.ts src/lib/chatTopics.test.ts supabase/functions/_shared/carmen/topic-text.test.ts supabase/functions/_shared/carmen/voice-access.test.ts supabase/functions/_shared/carmen/brain-connections/helpers.test.ts supabase/functions/_shared/carmen/brain-connections/overrides.test.ts supabase/functions/_shared/carmen/free-first/router.test.ts supabase/functions/_shared/carmen/free-first/classifier.test.ts supabase/functions/_shared/carmen/free-first/failover.test.ts supabase/functions/_shared/carmen/free-first/cost.test.ts supabase/functions/_shared/carmen/free-first/budget-reservation.test.ts supabase/functions/_shared/carmen/free-first/candidates.test.ts supabase/functions/_shared/carmen/brain-engine/plan.test.ts supabase/functions/_shared/creative/openrouterImage.test.ts
+ 
+       - name: Carmen pulse regression tests
+-        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs src/lib/carmenAccessAutomation.test.mjs
++        run: node --experimental-strip-types --test supabase/functions/_shared/pulse-foundation.test.mjs supabase/functions/_shared/client-retention.test.ts supabase/functions/_shared/agent-channel/whatsapp-direct.test.ts supabase/functions/_shared/carmen-direct-tools.test.mjs supabase/functions/_shared/report-meta-verify.test.mjs supabase/functions/_shared/cron-next.test.ts src/lib/carmenTaskRows.test.ts supabase/functions/_shared/carmen-connection-role.test.ts supabase/functions/_shared/carmen-group-verification.test.mjs supabase/functions/_shared/carmen-group-invocation.test.mjs supabase/functions/_shared/carmen-access-policy.test.mjs src/lib/carmenAccessAutomation.test.mjs src/lib/carmenPrivatePhoneAllowlist.test.ts
+ 
+       - name: Build frontend
+         run: pnpm build
+diff --git a/src/lib/carmenAccessAutomation.test.mjs b/src/lib/carmenAccessAutomation.test.mjs
+index 0e7863160..1691a3f0e 100644
+--- a/src/lib/carmenAccessAutomation.test.mjs
++++ b/src/lib/carmenAccessAutomation.test.mjs
+@@ -1,69 +1,5 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import {
+-  decodePrivatePhoneRows,
+-  mergePrivatePhoneAllowlist,
+-} from "./carmenPrivatePhoneAllowlist.ts";
+-
+-test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
+-  const out = mergePrivatePhoneAllowlist({
+-    automationPhones: ["972501111111"],
+-    identities: [
+-      {
+-        phone: "972502222222",
+-        display_name: "אנה",
+-        status: "approved",
+-        surfaces: ["whatsapp_private"],
+-        relationship_note: "דבר קצר",
+-      },
+-    ],
+-    policyPhones: [
+-      { phone: "972503333333", label: "דוד", surfaces: ["whatsapp_private"] },
+-    ],
+-  });
+-  assert.equal(out.length, 3);
+-  assert.ok(
+-    out.some((r) => r.phone === "972501111111" && r.source === "automation"),
+-  );
+-  assert.ok(
+-    out.some(
+-      (r) =>
+-        r.phone === "972502222222" &&
+-        r.label === "אנה" &&
+-        r.relationship_note === "דבר קצר",
+-    ),
+-  );
+-  assert.ok(out.some((r) => r.phone === "972503333333" && r.label === "דוד"));
+-});
+-
+-test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", () => {
+-  const out = mergePrivatePhoneAllowlist({
+-    automationPhones: ["972501111111"],
+-    policyPhones: [
+-      {
+-        phone: "972501111111",
+-        label: "דוד מדיניות",
+-        surfaces: ["whatsapp_private"],
+-      },
+-    ],
+-  });
+-  assert.equal(out.length, 1);
+-  assert.equal(out[0].label, "דוד מדיניות");
+-  assert.equal(out[0].source, "policy");
+-});
+-
+-test("mergePrivatePhoneAllowlist: skips identities without private surface", () => {
+-  const out = mergePrivatePhoneAllowlist({
+-    identities: [
+-      {
+-        phone: "972502222222",
+-        display_name: "קבוצה בלבד",
+-        surfaces: ["whatsapp_group"],
+-      },
+-    ],
+-  });
+-  assert.equal(out.length, 0);
+-});
+ 
+ test("pickCarmenAutomationConfig merges phones across private+group triggers", async () => {
+   // Pure helper mirror of fetchCarmenAutomationConfig merge rules
+@@ -95,38 +31,3 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
+   assert.equal(preferred.carmen_scope_mode, "specific_phone");
+   assert.deepEqual(mergedPhones, ["972507677613", "972545612156"]);
+ });
+-
+-test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
+-  const rows = decodePrivatePhoneRows([
+-    null,
+-    4,
+-    { phone: 42 },
+-    {
+-      phone: "972501111111",
+-      source: "custom-source",
+-      dev_escalation_tier: "custom-tier",
+-      surfaces: ["whatsapp_private", 42],
+-      label: "Owner",
+-    },
+-  ]);
+-  assert.equal(rows.length, 1);
+-  assert.equal(rows[0].source, "custom-source");
+-  assert.equal(rows[0].dev_escalation_tier, "custom-tier");
+-  assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
+-  assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
+-  assert.deepEqual(decodePrivatePhoneRows(null), []);
+-});
+-
+-test("stored custom sources normalize to policy while preserving escalation metadata", () => {
+-  const stored = decodePrivatePhoneRows([
+-    {
+-      phone: "972501111111",
+-      source: "legacy",
+-      dev_escalation_tier: "custom-tier",
+-    },
+-  ]);
+-  const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
+-  assert.equal(stored[0].source, "legacy");
+-  assert.equal(merged[0].source, "policy");
+-  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
+-});
+diff --git a/src/lib/carmenPrivatePhoneAllowlist.test.ts b/src/lib/carmenPrivatePhoneAllowlist.test.ts
+new file mode 100644
+index 000000000..43be31459
+--- /dev/null
++++ b/src/lib/carmenPrivatePhoneAllowlist.test.ts
+@@ -0,0 +1,101 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import {
++  decodePrivatePhoneRows,
++  mergePrivatePhoneAllowlist,
++} from "./carmenPrivatePhoneAllowlist.ts";
++
++test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", () => {
++  const out = mergePrivatePhoneAllowlist({
++    automationPhones: ["972501111111"],
++    identities: [
++      {
++        phone: "972502222222",
++        display_name: "אנה",
++        status: "approved",
++        surfaces: ["whatsapp_private"],
++        relationship_note: "דבר קצר",
++      },
++    ],
++    policyPhones: [
++      { phone: "972503333333", label: "דוד", surfaces: ["whatsapp_private"] },
++    ],
++  });
++  assert.equal(out.length, 3);
++  assert.ok(
++    out.some((r) => r.phone === "972501111111" && r.source === "automation"),
++  );
++  assert.ok(
++    out.some(
++      (r) =>
++        r.phone === "972502222222" &&
++        r.label === "אנה" &&
++        r.relationship_note === "דבר קצר",
++    ),
++  );
++  assert.ok(out.some((r) => r.phone === "972503333333" && r.label === "דוד"));
++});
++
++test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", () => {
++  const out = mergePrivatePhoneAllowlist({
++    automationPhones: ["972501111111"],
++    policyPhones: [
++      {
++        phone: "972501111111",
++        label: "דוד מדיניות",
++        surfaces: ["whatsapp_private"],
++      },
++    ],
++  });
++  assert.equal(out.length, 1);
++  assert.equal(out[0].label, "דוד מדיניות");
++  assert.equal(out[0].source, "policy");
++});
++
++test("mergePrivatePhoneAllowlist: skips identities without private surface", () => {
++  const out = mergePrivatePhoneAllowlist({
++    identities: [
++      {
++        phone: "972502222222",
++        display_name: "קבוצה בלבד",
++        surfaces: ["whatsapp_group"],
++      },
++    ],
++  });
++  assert.equal(out.length, 0);
++});
++
++test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
++  const rows = decodePrivatePhoneRows([
++    null,
++    4,
++    { phone: 42 },
++    {
++      phone: "972501111111",
++      source: "custom-source",
++      dev_escalation_tier: "custom-tier",
++      surfaces: ["whatsapp_private", 42],
++      label: "Owner",
++    },
++  ]);
++  assert.equal(rows.length, 1);
++  assert.equal(rows[0].source, "custom-source");
++  assert.equal(rows[0].dev_escalation_tier, "custom-tier");
++  assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
++  assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
++  assert.deepEqual(decodePrivatePhoneRows(null), []);
++});
++
++test("stored custom sources normalize to policy while preserving escalation metadata", () => {
++  const stored = decodePrivatePhoneRows([
++    {
++      phone: "972501111111",
++      source: "legacy",
++      dev_escalation_tier: "custom-tier",
++    },
++  ]);
++  const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
++  assert.equal(stored[0].source, "legacy");
++  assert.equal(merged[0].source, "policy");
++  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
++});
+-- 
+2.43.0
+
