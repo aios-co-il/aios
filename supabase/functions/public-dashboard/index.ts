@@ -6,7 +6,54 @@ import {
 import {
   dedupeWooOrdersById,
   filterWooOrdersForRevenue,
+  type WooOrderRevenueRow,
 } from "../_shared/wooRevenue.ts";
+import type { Database, Json, Tables } from "../_shared/database.types.ts";
+import {
+  asJsonObject,
+  firstTruthyText,
+  jsonField,
+  jsonToDate,
+} from "../_shared/crm-json.ts";
+
+type RecordSlice = Pick<Tables<"crm_records">, "id" | "data">;
+type AhrefsReportSlice = Pick<
+  Tables<"ahrefs_reports">,
+  | "id"
+  | "domain"
+  | "report_date"
+  | "report_type"
+  | "report_data"
+  | "comparison_data"
+  | "received_at"
+>;
+type WooSiteSlice = Pick<
+  Tables<"social_media_wordpress_sites">,
+  "id" | "site_name" | "site_url" | "woo_last_sync_at"
+>;
+type MaskyooSnapshotSlice = Pick<
+  Tables<"seo_call_snapshots">,
+  "category" | "incoming_count" | "is_manual"
+>;
+type MonthlyShareSlice = Pick<
+  Tables<"seo_monthly_shares">,
+  "share_token" | "month" | "is_active" | "snapshot"
+>;
+
+function mapGscPeriodRow(row: Json) {
+  const keys = jsonField(row, "keys");
+  const ctr = jsonField(row, "ctr");
+  const position = jsonField(row, "position");
+  return {
+    keyword: (Array.isArray(keys) ? keys[0] : undefined) || "",
+    clicks: jsonField(row, "clicks") || 0,
+    impressions: jsonField(row, "impressions") || 0,
+    ctr: ctr ? Math.round(Number(ctr) * 10000) / 100 : 0,
+    position: position ? Math.round(Number(position) * 10) / 10 : 0,
+  };
+}
+
+type GscPeriodRow = ReturnType<typeof mapGscPeriodRow>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -136,7 +183,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabase = createClient<Database>(supabaseUrl, serviceKey);
 
     // Look up the share
     const { data: share, error: shareError } = await supabase
@@ -172,7 +219,7 @@ Deno.serve(async (req) => {
     const { data: tables } = await supabase
       .from("crm_tables")
       .select("*")
-      .eq("client_id", dashboard.client_id);
+      .eq("client_id", String(dashboard.client_id));
 
     const allTables = tables || [];
 
@@ -185,27 +232,30 @@ Deno.serve(async (req) => {
     // Deduplicate Facebook: if both facebook_insights AND facebook_ecommerce exist,
     // skip facebook_insights to avoid double-counting spend/impressions/clicks
     const hasFbEcommerce = allTables.some(
-      (t: any) => t.integration_type === "facebook_ecommerce",
+      (t) => t.integration_type === "facebook_ecommerce",
     );
     const hasFbInsights = allTables.some(
-      (t: any) => t.integration_type === "facebook_insights",
+      (t) => t.integration_type === "facebook_insights",
     );
     const skipFbInsights = hasFbEcommerce && hasFbInsights;
 
     const tablesToProcess = skipFbInsights
-      ? allTables.filter((t: any) => t.integration_type !== "facebook_insights")
+      ? allTables.filter((t) => t.integration_type !== "facebook_insights")
       : allTables;
 
     // Fetch each table's records in parallel. Select only the columns we need and
     // cap page counts so a large history can't stall the shared link for ~15s.
-    const fetchTableRecords = async (table: any) => {
+    const fetchTableRecords = async (table: Tables<"crm_tables">) => {
       const pageSize = 1000;
       const isAnalytics = table.integration_type === "google_analytics";
       const isSeoHeavy =
         table.integration_type === "google_search_console" ||
         table.integration_type === "ahrefs";
       const maxPages = isAnalytics ? 4 : isSeoHeavy ? 3 : 3; // 3–4k rows max per table
-      const tableRecords: any[] = [];
+      const tableRecords: Pick<
+        Tables<"crm_records">,
+        "id" | "data" | "created_at"
+      >[] = [];
       const { startDate, endDate } = getDateRange(
         dateFilter,
         table.integration_type,
@@ -229,17 +279,19 @@ Deno.serve(async (req) => {
         if (rows.length < pageSize) break;
       }
 
-      const filteredRecords = tableRecords.filter((r: any) => {
-        const recordDate = r.data?.date || r.data?.date_start;
+      const filteredRecords = tableRecords.filter((r) => {
+        const rawDate =
+          jsonField(r.data, "date") || jsonField(r.data, "date_start");
         // Keep aggregated / summary rows (no date) — needed for GA channel rolls etc.
-        if (!recordDate) return true;
+        if (!rawDate) return true;
+        const recordDate = String(rawDate);
         if (startDate && endDate)
           return recordDate >= startDate && recordDate <= endDate;
         if (startDate) return recordDate >= startDate;
         return true;
       });
 
-      return filteredRecords.map((r: any) => ({
+      return filteredRecords.map((r) => ({
         ...r,
         _source: table.integration_type,
         _tableName: table.name,
@@ -252,9 +304,9 @@ Deno.serve(async (req) => {
     ).flat();
 
     // Resolve SEO / Woo / Maskyoo extras in parallel with each other.
-    let ahrefsReports: any[] = [];
-    let seoGaRecords: any[] = [];
-    const seoGscRecords: any[] = [];
+    let ahrefsReports: AhrefsReportSlice[] = [];
+    let seoGaRecords: RecordSlice[] = [];
+    const seoGscRecords: RecordSlice[] = [];
     let seoLinkedGscSiteUrl: string | null = null;
     let seoTargetClientId: string | null = dashboard.client_id || null;
     let seoForceRelevant: string[] = [];
@@ -263,13 +315,13 @@ Deno.serve(async (req) => {
       ? [dashboard.tenant_id]
       : [];
     let gscMultiPeriod: {
-      prevMonth: any[];
-      threeMonth: any[];
-      yearly: any[];
+      prevMonth: GscPeriodRow[];
+      threeMonth: GscPeriodRow[];
+      yearly: GscPeriodRow[];
     } | null = null;
-    let wooSites: any[] = [];
-    let wooOrders: any[] = [];
-    let maskyooSnapshots: any[] = [];
+    let wooSites: WooSiteSlice[] = [];
+    let wooOrders: WooOrderRevenueRow[] = [];
+    let maskyooSnapshots: MaskyooSnapshotSlice[] = [];
     let maskyooPeriod: { start: string; end: string } | null = null;
     // Monthly work log — same payload shape as public-table so the shared
     // dashboard SEO tab can show "עבודה שבוצעה" like the SEO report share link.
@@ -317,7 +369,7 @@ Deno.serve(async (req) => {
         .eq("woocommerce_enabled", true)
         .eq("is_active", true);
       wooSites = sites || [];
-      const siteIds = wooSites.map((s: any) => s.id);
+      const siteIds = wooSites.map((s) => s.id);
       if (siteIds.length === 0) return;
 
       const selectCols =
@@ -328,7 +380,7 @@ Deno.serve(async (req) => {
       const fetchByColumn = async (
         column: "date_created" | "date_paid" | "date_completed",
       ) => {
-        const collected: any[] = [];
+        const collected: WooOrderRevenueRow[] = [];
         if (!wooRange.start || !wooRange.end) return collected;
         for (let page = 0; page < maxPages; page++) {
           const from = page * pageSize;
@@ -410,22 +462,24 @@ Deno.serve(async (req) => {
           .eq("client_id", dashboard.client_id)
           .limit(5);
         const seoTable = (seoTables || [])[0] || null;
-        const seoSettings = (seoTable?.integration_settings as any) || {};
-        const linkedGaTableId = seoSettings.linkedGaTableId || null;
-        const linkedGscTableId = seoSettings.linkedGscTableId || null;
-        seoLinkedGscSiteUrl =
-          seoSettings.linkedGscSiteUrl || seoSettings.gsc_site_url || null;
-        seoTargetClientId =
-          seoSettings.clientId ||
-          seoSettings.client_id ||
-          dashboard.client_id ||
-          null;
-        seoTargetDomain =
-          seoSettings.targetDomain ||
-          seoSettings.domain ||
-          seoSettings.linkedGscSiteUrl ||
-          seoSettings.gsc_site_url ||
-          null;
+        const seoSettings = asJsonObject(seoTable?.integration_settings);
+        const linkedGaTableId = firstTruthyText(seoSettings.linkedGaTableId);
+        const linkedGscTableId = firstTruthyText(seoSettings.linkedGscTableId);
+        seoLinkedGscSiteUrl = firstTruthyText(
+          seoSettings.linkedGscSiteUrl,
+          seoSettings.gsc_site_url,
+        );
+        seoTargetClientId = firstTruthyText(
+          seoSettings.clientId,
+          seoSettings.client_id,
+          dashboard.client_id,
+        );
+        seoTargetDomain = firstTruthyText(
+          seoSettings.targetDomain,
+          seoSettings.domain,
+          seoSettings.linkedGscSiteUrl,
+          seoSettings.gsc_site_url,
+        );
 
         const accessibleTenantIds = new Set<string>();
         accessibleTenantIds.add(dashboard.tenant_id);
@@ -449,7 +503,7 @@ Deno.serve(async (req) => {
                 accessibleTenantIds.add(r.source_tenant_id);
             }
           }
-          const relevance = (clientRow as any)?.seo_keyword_relevance || {};
+          const relevance = asJsonObject(clientRow?.seo_keyword_relevance);
           const asList = (v: unknown): string[] =>
             Array.isArray(v)
               ? v.map((x) => String(x || "").trim()).filter(Boolean)
@@ -468,15 +522,15 @@ Deno.serve(async (req) => {
 
         // Prefer records already loaded for this client to avoid a second full GA scan.
         const existingGa = allRecords.filter(
-          (r: any) => r._source === "google_analytics",
+          (r) => r._source === "google_analytics",
         );
         if (existingGa.length > 0) {
-          seoGaRecords = existingGa.map((r: any) => ({
+          seoGaRecords = existingGa.map((r) => ({
             id: r.id,
             data: r.data,
           }));
         } else {
-          let gaTable: any = null;
+          let gaTable: { id: string } | null = null;
           if (linkedGaTableId) {
             const { data } = await supabase
               .from("crm_tables")
@@ -508,7 +562,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        let gscTable: any = null;
+        let gscTable: { id: string } | null = null;
         if (linkedGscTableId) {
           const { data } = await supabase
             .from("crm_tables")
@@ -565,11 +619,11 @@ Deno.serve(async (req) => {
               .order("month", { ascending: false })
               .limit(12),
           ]);
-        const shareByMonth = new Map<string, any>();
+        const shareByMonth = new Map<string, MonthlyShareSlice>();
         for (const share of monthlyShare || []) {
           shareByMonth.set(String(share.month || "").slice(0, 10), share);
         }
-        seoMonthly.months = (monthlyRows || []).map((row: any) => {
+        seoMonthly.months = (monthlyRows || []).map((row) => {
           const month = String(row.month || "").slice(0, 10);
           const share = shareByMonth.get(month);
           return {
@@ -641,10 +695,10 @@ Deno.serve(async (req) => {
         for (const integration of integrations || []) {
           try {
             let tok = integration.api_key as string;
-            const intSettings: any = integration.settings || {};
+            const intSettings = asJsonObject(integration.settings);
             if (
               intSettings.expires_at &&
-              new Date(intSettings.expires_at) < new Date() &&
+              jsonToDate(intSettings.expires_at) < new Date() &&
               intSettings.refresh_token
             ) {
               const refreshResponse = await fetch(
@@ -657,7 +711,7 @@ Deno.serve(async (req) => {
                   body: new URLSearchParams({
                     client_id: googleClientId,
                     client_secret: googleClientSecret,
-                    refresh_token: intSettings.refresh_token,
+                    refresh_token: String(intSettings.refresh_token),
                     grant_type: "refresh_token",
                   }),
                 },
@@ -727,17 +781,11 @@ Deno.serve(async (req) => {
                 resp.status,
                 await resp.text(),
               );
-              return [] as any[];
+              return [] as GscPeriodRow[];
             }
-            const json = await resp.json();
-            const rows = Array.isArray(json.rows) ? json.rows : [];
-            return rows.map((row: any) => ({
-              keyword: row.keys?.[0] || "",
-              clicks: row.clicks || 0,
-              impressions: row.impressions || 0,
-              ctr: row.ctr ? Math.round(row.ctr * 10000) / 100 : 0,
-              position: row.position ? Math.round(row.position * 10) / 10 : 0,
-            }));
+            const json: Json = await resp.json();
+            const rows = jsonField(json, "rows");
+            return Array.isArray(rows) ? rows.map(mapGscPeriodRow) : [];
           };
 
           const [pm, tm, yr] = await Promise.all([
@@ -770,7 +818,7 @@ Deno.serve(async (req) => {
           // Required so shared Analytics keeps the leads/ecommerce choice.
           settings: dashboard.settings || {},
         },
-        tables: allTables.map((t: any) => ({
+        tables: allTables.map((t) => ({
           id: t.id,
           name: t.name,
           integration_type: t.integration_type,
