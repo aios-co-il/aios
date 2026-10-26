@@ -19,6 +19,7 @@ import { RETURNING_LEAD_TAG } from "./lead-duplicate-match.ts";
 import {
   applyTagToLead,
   getExistingLead,
+  leadLookup,
   returningLeadStatusUpdate,
 } from "./returning-lead.ts";
 
@@ -450,7 +451,7 @@ Deno.serve(async (req) => {
       : "other";
 
     // ========== DEDUPLICATION LOGIC ==========
-    const existingLead = await getExistingLead(supabase, tenantId, {
+    const existingLead = await getExistingLead(leadLookup(supabase), tenantId, {
       phone: payload.phone,
       email: payload.email,
     });
