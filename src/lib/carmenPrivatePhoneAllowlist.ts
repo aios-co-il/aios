@@ -6,6 +6,8 @@ export type StoredPrivatePhoneRow = {
   dev_escalation_tier?: string | null;
   surfaces?: string[];
   relationship_note?: string;
+  campaigner_id?: string;
+  client_id?: string;
 };
 
 // Merging assigns one of these sources; stored metadata may contain other strings.
@@ -107,8 +109,42 @@ export function mergePrivatePhoneAllowlist(params: {
   );
 }
 
-/** Decode stored JSON without discarding supported custom string metadata.
- */
+const STORED_STRING_KEYS = [
+  "label",
+  "status",
+  "source",
+  "relationship_note",
+  "campaigner_id",
+  "client_id",
+] as const;
+
+function readStoredPhoneRow(row: object, phone: string): StoredPrivatePhoneRow {
+  const decoded: StoredPrivatePhoneRow = { phone };
+  for (const key of STORED_STRING_KEYS) {
+    const value: unknown = Reflect.get(row, key);
+    if (typeof value === "string") {
+      decoded[key] = value;
+    }
+  }
+
+  if ("dev_escalation_tier" in row) {
+    const tier = row.dev_escalation_tier;
+    if (typeof tier === "string" || tier === null) {
+      decoded.dev_escalation_tier = tier;
+    }
+  }
+
+  if ("surfaces" in row && Array.isArray(row.surfaces)) {
+    decoded.surfaces = row.surfaces.filter(
+      (surface: unknown): surface is string => typeof surface === "string",
+    );
+  }
+
+  return decoded;
+}
+
+/** Decode stored JSON, emitting only keys present in the stored entry so that
+ * merging never overwrites identity metadata with absent values. */
 export function decodePrivatePhoneRows(
   value: unknown,
 ): StoredPrivatePhoneRow[] {
@@ -126,39 +162,6 @@ export function decodePrivatePhoneRows(
       return [];
     }
 
-    return [
-      {
-        phone: row.phone,
-        label:
-          "label" in row && typeof row.label === "string"
-            ? row.label
-            : undefined,
-        status:
-          "status" in row && typeof row.status === "string"
-            ? row.status
-            : undefined,
-        source:
-          "source" in row && typeof row.source === "string"
-            ? row.source
-            : undefined,
-        dev_escalation_tier:
-          "dev_escalation_tier" in row &&
-          typeof row.dev_escalation_tier === "string"
-            ? row.dev_escalation_tier
-            : null,
-        surfaces:
-          "surfaces" in row && Array.isArray(row.surfaces)
-            ? row.surfaces.filter(
-                (surface: unknown): surface is string =>
-                  typeof surface === "string",
-              )
-            : undefined,
-        relationship_note:
-          "relationship_note" in row &&
-          typeof row.relationship_note === "string"
-            ? row.relationship_note
-            : undefined,
-      },
-    ];
+    return [readStoredPhoneRow(row, row.phone)];
   });
 }

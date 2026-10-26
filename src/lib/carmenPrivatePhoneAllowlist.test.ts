@@ -99,3 +99,50 @@ test("stored custom sources normalize to policy while preserving escalation meta
   assert.equal(merged[0].source, "policy");
   assert.equal(merged[0].dev_escalation_tier, "custom-tier");
 });
+
+test("bare policy row keeps the identity's escalation tier and note", () => {
+  const merged = mergePrivatePhoneAllowlist({
+    identities: [
+      {
+        phone: "972502222222",
+        display_name: "אנה",
+        surfaces: ["whatsapp_private"],
+        dev_escalation_tier: "tier-1",
+        relationship_note: "דבר קצר",
+      },
+    ],
+    policyPhones: decodePrivatePhoneRows([{ phone: "972502222222" }]),
+  });
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].source, "policy");
+  assert.equal(merged[0].dev_escalation_tier, "tier-1");
+  assert.equal(merged[0].relationship_note, "דבר קצר");
+  assert.equal(merged[0].label, "אנה");
+});
+
+test("stored phone decoder emits only present keys", () => {
+  const [row] = decodePrivatePhoneRows([{ phone: "972501111111" }]);
+  assert.deepEqual(row, { phone: "972501111111" });
+  const [cleared] = decodePrivatePhoneRows([
+    { phone: "972501111111", dev_escalation_tier: null },
+  ]);
+  assert.deepEqual(cleared, {
+    phone: "972501111111",
+    dev_escalation_tier: null,
+  });
+});
+
+test("stored phone decoder carries campaigner_id and client_id", () => {
+  const [row] = decodePrivatePhoneRows([
+    {
+      phone: "972501111111",
+      campaigner_id: "camp-1",
+      client_id: "client-1",
+    },
+  ]);
+  assert.equal(row.campaigner_id, "camp-1");
+  assert.equal(row.client_id, "client-1");
+  const [merged] = mergePrivatePhoneAllowlist({ policyPhones: [row] });
+  assert.equal(merged.campaigner_id, "camp-1");
+  assert.equal(merged.client_id, "client-1");
+});
