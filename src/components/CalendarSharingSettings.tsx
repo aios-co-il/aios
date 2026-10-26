@@ -147,7 +147,7 @@ export function CalendarSharingSettings() {
         }));
       }
 
-      return data;
+      return data.map((share) => ({ ...share, owner_profile: null }));
     },
     enabled: !!userId,
   });
@@ -522,7 +522,7 @@ export function CalendarSharingSettings() {
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-semibold text-sm">יומנים ששותפו איתי</h3>
             <div className="space-y-2">
-              {sharedWithMe.map((share: any) => (
+              {sharedWithMe.map((share) => (
                 <div
                   key={share.id}
                   className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"

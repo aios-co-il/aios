@@ -60,18 +60,18 @@ export function AssignPhoneFromWhatsAppDialog({
         p_tenant_id: tenantId,
         p_connection_user_ids: [userData.user.id],
         p_provider: "green_api",
-      } as any);
+      });
       if (error) {
         console.error("Error fetching known contacts:", error);
         return [];
       }
       // Only return ones with phone
-      return (data || []).filter((c: any) => c.phone);
+      return (data || []).filter((c) => c.phone);
     },
     enabled: !!tenantId && open,
   });
 
-  const filteredContacts = contacts.filter((c: any) => {
+  const filteredContacts = contacts.filter((c) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -132,7 +132,7 @@ export function AssignPhoneFromWhatsAppDialog({
             </div>
           ) : (
             <div className="space-y-1">
-              {filteredContacts.map((contact: any) => (
+              {filteredContacts.map((contact) => (
                 <button
                   key={contact.id || contact.sender_phone}
                   className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-right"

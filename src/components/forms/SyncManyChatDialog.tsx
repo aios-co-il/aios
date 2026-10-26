@@ -66,7 +66,7 @@ export function SyncManyChatDialog() {
       setSyncResult(data);
       toast.success("הסנכרון הושלם בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Sync error:", error);
       toast.error("שגיאה בסנכרון עם ManyChat");
     },

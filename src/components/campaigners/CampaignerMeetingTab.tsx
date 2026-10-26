@@ -260,7 +260,7 @@ export function CampaignerMeetingTab({
               </p>
             ) : teamMembers.length > 0 ? (
               <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
-                {teamMembers.map((member: any) => (
+                {teamMembers.map((member) => (
                   <label
                     key={member.id}
                     className="flex items-center gap-2 p-2 rounded-md bg-muted/50 cursor-pointer text-sm"
