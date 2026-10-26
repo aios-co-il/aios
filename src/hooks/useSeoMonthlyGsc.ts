@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import { useResolvedGscIntegration } from "@/hooks/useResolvedGscIntegration";
 import { seoDomainsMatch } from "@/lib/seoDomain";
+import { isJsonObject, jsonString } from "@/types/marketing-b21";
 import type { GscKeywordData } from "@/components/dynamic-tables/seo/GscIntegration";
 
 export type SeoMonthlyGscPeriods = {
@@ -90,12 +91,16 @@ export function useSeoMonthlyGsc(params: {
 
   const personal = useMemo(() => {
     if (!clientId) return null;
-    for (const integration of personalIntegrations as any[]) {
-      const mapped: string | undefined =
-        integration?.settings?.client_sites?.[clientId];
+    for (const integration of personalIntegrations) {
+      const mapped = jsonString(
+        isJsonObject(integration?.settings)
+          ? integration.settings.client_sites
+          : undefined,
+        clientId,
+      );
       if (!mapped) continue;
       if (expectedDomain && !seoDomainsMatch(mapped, expectedDomain)) continue;
-      return { integrationId: integration.id as string, siteUrl: mapped };
+      return { integrationId: integration.id, siteUrl: mapped };
     }
     return null;
   }, [personalIntegrations, clientId, expectedDomain]);

@@ -24,10 +24,12 @@ import {
   Bot,
   CheckCircle2,
   Settings,
+  type LucideIcon,
 } from "lucide-react";
+import { isJsonObject } from "@/types/marketing-b21";
 import { StageConfigDialog } from "./StageConfigDialog";
 
-const STAGE_ICONS: Record<string, any> = {
+const STAGE_ICONS: Record<string, LucideIcon> = {
   strategy: Lightbulb,
   copy: PenLine,
   creative: ImageIcon,
@@ -47,7 +49,17 @@ const STAGE_COLORS: Record<string, string> = {
   measurement: "from-blue-500/20 to-blue-500/5 border-blue-500/40",
 };
 
-function StageNode({ data }: { data: any }) {
+type StageNodeData = {
+  name: string;
+  stage_type: string;
+  agentName?: string;
+  hasInstructions: boolean;
+  approvalLabel: string;
+  itemCount: number;
+  onClick: () => void;
+};
+
+function StageNode({ data }: { data: StageNodeData }) {
   const Icon = STAGE_ICONS[data.stage_type] ?? Lightbulb;
   const color =
     STAGE_COLORS[data.stage_type] ?? "from-muted to-muted/40 border-border";
@@ -143,7 +155,7 @@ export function PipelineCanvas({
 
   const itemCounts: Record<string, number> = useMemo(() => {
     const counts: Record<string, number> = {};
-    (items ?? []).forEach((row: any) => {
+    (items ?? []).forEach((row) => {
       if (row.current_stage_id)
         counts[row.current_stage_id] = (counts[row.current_stage_id] ?? 0) + 1;
     });
@@ -151,7 +163,7 @@ export function PipelineCanvas({
   }, [items]);
 
   const nodes: Node[] = useMemo(() => {
-    return (stages ?? []).map((s: any) => ({
+    return (stages ?? []).map((s): Node<StageNodeData> => ({
       id: s.id,
       type: "stage",
       position: { x: s.position_x, y: s.position_y },
@@ -159,7 +171,8 @@ export function PipelineCanvas({
         name: s.name,
         stage_type: s.stage_type,
         agentName: s.ai_agents?.name,
-        hasInstructions: !!s.configuration?.instructions,
+        hasInstructions:
+          isJsonObject(s.configuration) && !!s.configuration.instructions,
         approvalLabel: APPROVAL_LABELS[s.approval_mode] ?? s.approval_mode,
         itemCount: itemCounts[s.id] ?? 0,
         onClick: () => setOpenStageId(s.id),
@@ -170,9 +183,7 @@ export function PipelineCanvas({
 
   const edges: Edge[] = useMemo(() => {
     if (!stages) return [];
-    const sorted = [...stages].sort(
-      (a: any, b: any) => a.sort_order - b.sort_order,
-    );
+    const sorted = [...stages].sort((a, b) => a.sort_order - b.sort_order);
     const out: Edge[] = [];
     for (let i = 0; i < sorted.length - 1; i++) {
       out.push({
@@ -185,8 +196,7 @@ export function PipelineCanvas({
     return out;
   }, [stages]);
 
-  const openStage =
-    (stages ?? []).find((s: any) => s.id === openStageId) ?? null;
+  const openStage = (stages ?? []).find((s) => s.id === openStageId) ?? null;
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -209,7 +219,7 @@ export function PipelineCanvas({
             פריטי תוכן ({items?.length})
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {(items ?? []).map((it: any) => (
+            {(items ?? []).map((it) => (
               <button
                 key={it.id}
                 onClick={() => onSelectItem(it.id)}
@@ -226,7 +236,7 @@ export function PipelineCanvas({
       )}
 
       <StageConfigDialog
-        stage={openStage as any}
+        stage={openStage}
         tenantId={tenantId}
         clientId={clientId}
         track={track}

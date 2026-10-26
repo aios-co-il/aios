@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { jsonString } from "@/types/marketing-b21";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +73,7 @@ const GOOGLE_OBJECTIVES = [
 interface Props {
   workItemId: string;
   tenantId: string;
-  clientId: string;
+  clientId: string | null;
   /** Copy text extracted from the work item payload */
   copyText?: string;
   /** Image URL from the work item payload */
@@ -109,15 +111,14 @@ export function CampaignLauncher({
         .in("integration_type", ["facebook_ads", "google_ads", "meta_ads"]);
 
       const accounts: AdAccount[] = [];
-      (data ?? []).forEach((row: any) => {
+      (data ?? []).forEach((row) => {
         const isMeta =
           row.integration_type === "facebook_ads" ||
           row.integration_type === "meta_ads";
         const isGoogle = row.integration_type === "google_ads";
         const accountId =
-          row.settings?.ad_account_id ??
-          row.settings?.account_id ??
-          row.company_id ??
+          jsonString(row.settings, "ad_account_id") ??
+          jsonString(row.settings, "account_id") ??
           row.id;
         accounts.push({
           id: row.id,
@@ -244,8 +245,8 @@ export function CampaignLauncher({
         });
         toast.success("קמפיין Google Ads הושק בהצלחה! (במצב מושהה)");
       }
-    } catch (err: any) {
-      const msg = err.message ?? "שגיאה לא ידועה";
+    } catch (err) {
+      const msg = errorMessage(err) || "שגיאה לא ידועה";
       setResult({ platform, success: false, error: msg });
       toast.error(msg);
     } finally {

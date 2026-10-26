@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { withSeoTableSettings } from "@/types/marketing-b21";
 import {
   normalizeSeoDomain,
   selectSeoTableForClient,
@@ -20,6 +22,20 @@ import {
  *   enforces what the user can read, so we just need to STOP narrowing the
  *   query to the active tenant.
  */
+type SeoCrmTableRow = Pick<
+  Tables<"crm_tables">,
+  | "id"
+  | "tenant_id"
+  | "name"
+  | "slug"
+  | "integration_type"
+  | "integration_settings"
+  | "client_id"
+  | "agency_id"
+>;
+
+type SeoCrmTable = ReturnType<typeof withSeoTableSettings<SeoCrmTableRow>>;
+
 export interface SeoScope {
   clientId: string;
   /** The client's "home" tenant (clients.tenant_id) */
@@ -43,11 +59,12 @@ export interface SeoScope {
    */
   accessibleTenantIds: string[];
   /** The SEO/Ahrefs crm_table for this client, looked up across all accessible tenants. */
-  seoTable: any | null;
+  seoTable:
+    (SeoCrmTableRow & { created_at: string; updated_at: string }) | null;
   /** GA crm_tables for this client, across all accessible tenants. */
-  gaTables: any[];
+  gaTables: SeoCrmTable[];
   /** GSC crm_tables for this client, across all accessible tenants. */
-  gscTables: any[];
+  gscTables: SeoCrmTable[];
 }
 
 export function useSeoScope(clientId: string | undefined) {
@@ -110,9 +127,9 @@ export function useSeoScope(clientId: string | undefined) {
       //    When several tables claim the client, the one tracking the client's
       //    own domain wins — a stray table for another site must never become
       //    the source of truth for this client's SEO report.
-      let seoTable: any = null;
-      let gaTables: any[] = [];
-      let gscTables: any[] = [];
+      let seoTable: SeoScope["seoTable"] = null;
+      let gaTables: SeoCrmTable[] = [];
+      let gscTables: SeoCrmTable[] = [];
 
       if (accessibleTenantIds.length > 0) {
         const { data: seoCandidates } = await supabase
@@ -178,16 +195,20 @@ export function useSeoScope(clientId: string | undefined) {
           table.client_id === clientId ||
           settingsClientId(table) === clientId ||
           (!!savedId && table.id === savedId);
-        gaTables = all.filter(
-          (t) =>
-            t.integration_type === "google_analytics" &&
-            forThisClient(t, savedGaId),
-        );
-        gscTables = all.filter(
-          (t) =>
-            t.integration_type === "google_search_console" &&
-            forThisClient(t, savedGscId),
-        );
+        gaTables = all
+          .filter(
+            (t) =>
+              t.integration_type === "google_analytics" &&
+              forThisClient(t, savedGaId),
+          )
+          .map(withSeoTableSettings);
+        gscTables = all
+          .filter(
+            (t) =>
+              t.integration_type === "google_search_console" &&
+              forThisClient(t, savedGscId),
+          )
+          .map(withSeoTableSettings);
       }
 
       return {

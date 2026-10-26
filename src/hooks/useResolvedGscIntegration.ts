@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import { seoDomainsMatch } from "@/lib/seoDomain";
+import { isJsonObject, jsonString } from "@/types/marketing-b21";
 
 export interface ResolvedGscIntegration {
   /** GSC integration ID to use for fetch-gsc-data calls. Null when nothing is available. */
@@ -59,18 +60,19 @@ export function useResolvedGscIntegration(params: {
   // Determine whether the user's personal/shared integration is "usable" for THIS client/site.
   const personalIsUsable = (() => {
     if (!personalIntegrations.length || !clientId) return false;
-    return personalIntegrations.some((i: any) => {
-      const settings = i?.settings || {};
-      const mapped: string | null = settings?.client_sites?.[clientId] || null;
-      const availableSites: any[] = Array.isArray(settings?.available_sites)
+    return personalIntegrations.some((i) => {
+      const settings = isJsonObject(i?.settings) ? i.settings : {};
+      const mapped = jsonString(settings.client_sites, clientId) || null;
+      const availableSites = Array.isArray(settings.available_sites)
         ? settings.available_sites
         : [];
 
       const meta = mapped
-        ? availableSites.find((s: any) => s?.siteUrl === mapped)
+        ? availableSites.find((s) => jsonString(s, "siteUrl") === mapped)
         : null;
       const mappedIsUsable =
-        !!mapped && (!meta || meta.permissionLevel !== "siteUnverifiedUser");
+        !!mapped &&
+        (!meta || jsonString(meta, "permissionLevel") !== "siteUnverifiedUser");
 
       if (!mappedIsUsable) return false;
       // If we have an expected site, require the mapped site to match it.
