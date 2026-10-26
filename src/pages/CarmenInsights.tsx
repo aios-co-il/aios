@@ -1,6 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { readErrorMessage } from "@/lib/errorMessage";
+import { asJsonObject, type JsonObject } from "@/lib/jsonObject";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,13 +29,14 @@ import {
   RefreshCw,
   Loader2,
   Search,
+  type LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
 const CATEGORY_META: Record<
   string,
-  { label: string; icon: any; color: string }
+  { label: string; icon: LucideIcon; color: string }
 > = {
   what_worked: {
     label: "מה עבד",
@@ -57,6 +61,14 @@ const CATEGORY_META: Record<
   },
 };
 
+type SessionRow = Tables<"carmen_whatsapp_sessions">;
+type PointerRow = Tables<"carmen_memory_pointers">;
+
+/** Primitive transcript values render as before; nested objects are not renderable. */
+function renderable(value: Json | undefined) {
+  return value !== null && typeof value === "object" ? undefined : value;
+}
+
 export interface CarmenInsightsProps {
   /**
    * Render inside a host panel/tab (e.g. Carmen's screen / AgentLearningTab):
@@ -71,7 +83,7 @@ export default CarmenInsights;
 function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   const { tenantId } = useCurrentTenant();
   const [tab, setTab] = useState("sessions");
-  const [openSession, setOpenSession] = useState<any | null>(null);
+  const [openSession, setOpenSession] = useState<SessionRow | null>(null);
   const [search, setSearch] = useState("");
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
@@ -134,15 +146,15 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   });
 
   const episodesBySession = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const e of episodes) m.set(e.session_ref, e);
+    const m = new Map<string, Tables<"carmen_memory_episodes">>();
+    for (const e of episodes) if (e.session_ref) m.set(e.session_ref, e);
     return m;
   }, [episodes]);
 
   const filteredSessions = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return sessions;
-    return sessions.filter((x: any) =>
+    return sessions.filter((x) =>
       [x.sender_name, x.phone, x.chat_id]
         .filter(Boolean)
         .join(" ")
@@ -164,8 +176,8 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
       if (data?.skipped) toast.info(`דילוג: ${data.reason}`);
       else toast.success(`נותח! איכות ${data?.quality_score ?? "?"}/5`);
       await Promise.all([refetchEpisodes(), refetchPointers()]);
-    } catch (e: any) {
-      toast.error(`שגיאה: ${e.message}`);
+    } catch (e) {
+      toast.error(`שגיאה: ${readErrorMessage(e)}`);
     } finally {
       setAnalyzing(null);
     }
@@ -180,7 +192,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
     for (let i = 0; i < sessions.length; i += batch) {
       const slice = sessions.slice(i, i + batch);
       await Promise.all(
-        slice.map((s: any) =>
+        slice.map((s) =>
           supabase.functions
             .invoke("carmen-learn-from-session", { body: { session_id: s.id } })
             .catch(() => null),
@@ -212,7 +224,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   };
 
   const pointersByCategory = useMemo(() => {
-    const map: Record<string, any[]> = {};
+    const map: Record<string, PointerRow[]> = {};
     for (const p of pointers) (map[p.category] ??= []).push(p);
     return map;
   }, [pointers]);
@@ -220,15 +232,14 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   const stats = useMemo(() => {
     const analyzedCount = episodes.length;
     const avgQuality = episodes.length
-      ? episodes.reduce((s: number, e: any) => s + (e.importance ?? 0), 0) /
-        episodes.length
+      ? episodes.reduce((s, e) => s + (e.importance ?? 0), 0) / episodes.length
       : 0;
     return {
       sessions: sessions.length,
       analyzed: analyzedCount,
       pending: sessions.length - analyzedCount,
       avgQuality: avgQuality.toFixed(1),
-      memories: pointers.filter((p: any) => !p.valid_until).length,
+      memories: pointers.filter((p) => !p.valid_until).length,
     };
   }, [sessions, episodes, pointers]);
 
@@ -322,7 +333,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
           <Card>
             <CardContent className="p-0">
               <div className="divide-y">
-                {filteredSessions.map((s: any) => {
+                {filteredSessions.map((s) => {
                   const ep = episodesBySession.get(s.id);
                   return (
                     <div
@@ -439,7 +450,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
                   {items.length === 0 && (
                     <p className="text-sm text-muted-foreground">אין רשומות</p>
                   )}
-                  {items.map((p: any) => (
+                  {items.map((p) => (
                     <div
                       key={p.id}
                       className={`flex items-start justify-between gap-2 p-3 rounded-md border ${p.valid_until ? "opacity-50" : ""}`}
@@ -497,19 +508,22 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
           <ScrollArea className="h-[calc(100vh-100px)] mt-4 pl-3">
             <div className="space-y-3">
               {Array.isArray(openSession?.conversation_history) &&
-                openSession.conversation_history.map((m: any, i: number) => (
-                  <div
-                    key={i}
-                    className={`p-3 rounded-lg ${m.role === "assistant" || m.direction === "outbound" ? "bg-primary/10 mr-8" : "bg-muted ml-8"}`}
-                  >
-                    <div className="text-xs text-muted-foreground mb-1">
-                      {m.role || m.direction}
+                openSession.conversation_history.map((entry, i) => {
+                  const m: JsonObject = asJsonObject(entry) ?? {};
+                  return (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg ${m.role === "assistant" || m.direction === "outbound" ? "bg-primary/10 mr-8" : "bg-muted ml-8"}`}
+                    >
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {renderable(m.role || m.direction)}
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">
+                        {renderable(m.content || m.message || m.text)}
+                      </div>
                     </div>
-                    <div className="text-sm whitespace-pre-wrap">
-                      {m.content || m.message || m.text}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </ScrollArea>
         </SheetContent>
@@ -524,7 +538,7 @@ function StatCard({
   accent,
 }: {
   label: string;
-  value: any;
+  value: ReactNode;
   accent?: string;
 }) {
   const colors: Record<string, string> = {
@@ -554,7 +568,7 @@ function InsightColumn({
   onDelete,
 }: {
   title: string;
-  items: any[];
+  items: PointerRow[];
   color: string;
   onDelete: (id: string) => void;
 }) {
@@ -574,7 +588,7 @@ function InsightColumn({
         {items.length === 0 && (
           <p className="text-sm text-muted-foreground">אין רשומות</p>
         )}
-        {items.map((p: any) => (
+        {items.map((p) => (
           <div
             key={p.id}
             className="flex items-start justify-between gap-2 p-3 rounded-md bg-background border"

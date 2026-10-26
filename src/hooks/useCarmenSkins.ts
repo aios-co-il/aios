@@ -4,6 +4,8 @@ import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { asJsonObject, type JsonObject } from "@/lib/jsonObject";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { setSessionSkin, useSessionSkin } from "@/lib/carmenSessionSkin";
 import {
@@ -19,7 +21,7 @@ export type CarmenSkinOption = {
   avatarUrl?: string;
 };
 
-type AgentRow = { id: string; metadata: Record<string, any> | null };
+type AgentRow = Pick<Tables<"ai_agents">, "id" | "metadata">;
 
 /** Carmen's skins with per-skin avatars and the active skin, all tenant-scoped via Carmen's own agent row. */
 export function useCarmenSkins() {
@@ -39,7 +41,7 @@ export function useCarmenSkins() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data as AgentRow | null;
+      return data;
     },
   });
 
@@ -81,9 +83,7 @@ export function useCarmenSkins() {
   });
 
   const patchMetadata = useMutation({
-    mutationFn: async (
-      patch: (m: Record<string, any>) => Record<string, any>,
-    ) => {
+    mutationFn: async (patch: (m: JsonObject) => JsonObject) => {
       const agent = agentQuery.data;
       if (!agent || !tenantId) throw new Error("לא נמצא סוכן כרמן");
       // Re-read so concurrent edits to other metadata keys are not clobbered.
@@ -94,7 +94,7 @@ export function useCarmenSkins() {
         .eq("tenant_id", tenantId)
         .single();
       if (readError) throw readError;
-      const next = patch({ ...((fresh?.metadata as object) ?? {}) });
+      const next = patch({ ...asJsonObject(fresh?.metadata) });
       const { error } = await supabase
         .from("ai_agents")
         .update({ metadata: next })
@@ -126,8 +126,8 @@ export function useCarmenSkins() {
         ? await uploadProfileImage(tenantId, `skins/${slug}`, file)
         : null;
       await patchMetadata.mutateAsync((m) => {
-        const vi = { ...(m.visual_identity ?? {}) };
-        const map = { ...(vi.skins ?? {}) };
+        const vi = { ...asJsonObject(m.visual_identity) };
+        const map = { ...asJsonObject(vi.skins) };
         if (path) map[slug] = { avatarPath: path };
         else delete map[slug];
         return { ...m, visual_identity: { ...vi, skins: map } };

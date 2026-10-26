@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, TablesUpdate } from "@/integrations/supabase/types";
+import { toSessionMessages, type SessionMessage } from "@/lib/sessionMessages";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,7 @@ interface CarmenSession {
   phone: string | null;
   sender_name: string | null;
   agent_id: string;
-  conversation_history: any[];
+  conversation_history: Json | null;
   status: string;
   last_message_at: string | null;
   created_at: string;
@@ -35,8 +37,8 @@ interface UnifiedSession {
   status: string;
   lastActivity: string;
   agentName: string;
-  messages: { role: string; content: string; timestamp?: string }[];
-  raw: any;
+  messages: SessionMessage[];
+  raw: { id: string };
 }
 
 const STATUS_LABELS: Record<
@@ -145,12 +147,10 @@ export default function AgentSessionsPanel() {
       status: s.status,
       lastActivity: s.last_message_at || s.created_at,
       agentName: s.agent?.name || "כרמן",
-      messages: Array.isArray(s.conversation_history)
-        ? s.conversation_history
-        : [],
+      messages: toSessionMessages(s.conversation_history),
       raw: s,
     }));
-    const internal: UnifiedSession[] = aiConversations.map((c: any) => ({
+    const internal: UnifiedSession[] = aiConversations.map((c) => ({
       id: `internal-${c.id}`,
       source: "internal",
       title: c.title || "שיחה פנימית",
@@ -158,7 +158,7 @@ export default function AgentSessionsPanel() {
       status: "active",
       lastActivity: c.updated_at || c.created_at,
       agentName: "סוכן AI",
-      messages: Array.isArray(c.messages) ? c.messages : [],
+      messages: toSessionMessages(c.messages),
       raw: c,
     }));
     return [...carmen, ...internal].sort(
@@ -174,7 +174,9 @@ export default function AgentSessionsPanel() {
     sessionId: string,
     newStatus: "active" | "paused" | "ended",
   ) => {
-    const updates: any = { status: newStatus };
+    const updates: TablesUpdate<"carmen_whatsapp_sessions"> = {
+      status: newStatus,
+    };
     if (newStatus === "ended") updates.ended_at = new Date().toISOString();
     const { error } = await supabase
       .from("carmen_whatsapp_sessions")

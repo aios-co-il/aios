@@ -89,7 +89,7 @@ export function DevTaskEditor({
       toast.success("משימת הפיתוח נוצרה כטיוטה — אשרו כדי לשלוח");
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   const act = useMutation({
@@ -103,7 +103,7 @@ export function DevTaskEditor({
       invalidate();
       toast.success("עודכן");
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   if (!isNew) {

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +18,6 @@ import {
 } from "@/components/ui/select";
 import { createExecutionGoal, runGoalIteration } from "@/lib/goalExecution";
 import { carmenTasksKey } from "../useCarmenTasks";
-
-const db = supabase as any;
 
 const STATUSES: { value: string; label: string }[] = [
   { value: "active", label: "פעיל" },
@@ -69,13 +68,13 @@ export function GoalEditor({
     queryKey: ["carmen-goal", goalId],
     enabled: !!goalId,
     queryFn: async () => {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from("goals")
         .select("*")
-        .eq("id", goalId)
+        .eq("id", goalId!)
         .maybeSingle();
       if (error) throw error;
-      return data as Record<string, any> | null;
+      return data;
     },
   });
 
@@ -105,7 +104,7 @@ export function GoalEditor({
     mutationFn: async () => {
       if (!tenantId) throw new Error("אין ארגון פעיל");
       if (!title.trim()) throw new Error("חסרה כותרת");
-      if (isNew) {
+      if (!goalId) {
         const res = await createExecutionGoal(await token(), tenantId, {
           title,
           autonomous,
@@ -115,7 +114,7 @@ export function GoalEditor({
         });
         return res.notice ?? null;
       }
-      const patch: Record<string, unknown> = {
+      const patch: TablesUpdate<"goals"> = {
         title: title.trim(),
         description: brief || null,
         completion_criteria: criteria || null,
@@ -129,7 +128,10 @@ export function GoalEditor({
         if (autonomous && !goal.autonomous_mode)
           patch.next_run_at = new Date().toISOString();
       }
-      const { error } = await db.from("goals").update(patch).eq("id", goalId);
+      const { error } = await supabase
+        .from("goals")
+        .update(patch)
+        .eq("id", goalId);
       if (error) throw error;
       return null;
     },
@@ -141,7 +143,7 @@ export function GoalEditor({
       );
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   const iterate = useMutation({
@@ -150,7 +152,7 @@ export function GoalEditor({
       invalidate();
       toast.success("הופעלה איטרציה של מנוע היעד");
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   if (goalId && isLoading)
