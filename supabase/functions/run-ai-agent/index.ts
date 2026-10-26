@@ -13657,6 +13657,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import { bindRunAgentCaller } from "../_shared/run-agent-trust.mjs";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -16366,19 +16367,11 @@ Deno.serve(async (req) => {
   } catch {
     /* ignore */
   }
-  // Never trust a browser-supplied user id. Bind interactive requests to the
-  // verified JWT identity; service-to-service calls keep their explicit user.
-  if (auth.kind === "user") bodyJson.user_id = auth.userId;
-  if (auth.kind !== "service") {
-    delete bodyJson.model_override;
-    // Per-automation Carmen instructions are admin config: service-to-service only.
-    delete bodyJson.carmen_automation;
-    // The WhatsApp chat and sender phone decide the caller's identity and chat
-    // scope (AIO-231); only Carmen's webhook and automations may set them.
-    delete bodyJson.wa_notify;
-    if (bodyJson.lead_data && typeof bodyJson.lead_data === "object")
-      delete bodyJson.lead_data.phone;
-  }
+  // Never trust a browser-supplied identity. A user JWT runs as that user, without
+  // the caller phone (lead_data), WhatsApp target (wa_notify), whatsapp surface or
+  // admin config — approvals are bound to the identity those fields would set.
+  // Service-to-service calls keep their explicit user (_shared/run-agent-trust.mjs).
+  bindRunAgentCaller(bodyJson, auth);
 
   if (bodyJson.direct_tool) {
     if (auth.kind !== "service") {

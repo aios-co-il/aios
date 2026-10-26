@@ -93,13 +93,11 @@ test("send_message looks up the client or lead inside the caller's tenants", () 
 });
 
 test("only service callers may set the WhatsApp chat and sender phone", () => {
+  // bindRunAgentCaller strips lead_data and wa_notify from non-service requests
+  // (run-agent-trust.test.mjs covers the helper itself).
   const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
-  const guard = serve.slice(
-    serve.indexOf('if (auth.kind !== "service") {'),
-    serve.indexOf("if (bodyJson.direct_tool)"),
-  );
-  assert.match(guard, /delete bodyJson\.wa_notify;/);
-  assert.match(guard, /delete bodyJson\.lead_data\.phone;/);
+  const guard = serve.slice(0, serve.indexOf("if (bodyJson.direct_tool)"));
+  assert.match(guard, /bindRunAgentCaller\(bodyJson, auth\);/);
 });
 
 // A tenant with David (owner) on his private Green API line, an org-wide Green
