@@ -34,7 +34,7 @@ interface AgentConfig {
   writing_style?: string | null;
   response_length?: string | null;
   max_tool_rounds?: number | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface TenantContext {

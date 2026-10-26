@@ -6,6 +6,7 @@ import {
   upsertPointer,
   shortText,
 } from "../_shared/carmen-memory.ts";
+import type { Json } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,30 @@ type Insight = {
   quality_score: number; // 1-5
   task_type?: string;
 };
+
+type LearnSession = {
+  id: string;
+  tenant_id: string;
+  conversation_history: Json | null;
+  sender_name: string | null;
+  phone: string | null;
+  chat_id: string | null;
+  last_message_at: string | null;
+  ended_at: string | null;
+  created_at: string | null;
+};
+
+type HistoryEntry = {
+  role?: unknown;
+  direction?: unknown;
+  content?: unknown;
+  message?: unknown;
+  text?: unknown;
+};
+
+function readHistoryEntry(raw: unknown): HistoryEntry {
+  return typeof raw === "object" && raw !== null ? raw : {};
+}
 
 function normalizeTaskType(raw?: string | null): string {
   const t = String(raw || "other")
@@ -134,13 +159,15 @@ function buildSchema() {
   };
 }
 
-async function analyze(history: any[]): Promise<Insight | null> {
+async function analyze(history: unknown[]): Promise<Insight | null> {
   if (!OPENAI_API_KEY) return null;
   const trimmed = history.slice(-40);
   const transcript = trimmed
     .map(
-      (m: any) =>
-        `[${m.role || m.direction || "?"}] ${shortText(m.content || m.message || m.text, 500)}`,
+      (raw) => {
+        const m = readHistoryEntry(raw);
+        return `[${m.role || m.direction || "?"}] ${shortText(m.content || m.message || m.text, 500)}`;
+      },
     )
     .join("\n");
 
@@ -205,7 +232,7 @@ Deno.serve(async (req) => {
     // Load the conversation: a WhatsApp session, or (additive) a Command
     // Center / in-app conversation from ai_conversations — normalized to the
     // same shape so the extraction below is untouched.
-    let session: any = null;
+    let session: LearnSession | null = null;
     let sourceTable = "carmen_whatsapp_sessions";
     let topicPrefix = "WhatsApp";
     if (session_id) {
@@ -324,7 +351,7 @@ Deno.serve(async (req) => {
       topic: `${topicPrefix} · ${session.sender_name || session.phone || "שיחה"}`,
       topic_tags: tags,
       summary: summaryFull,
-      summary_embedding: emb as any,
+      summary_embedding: emb ? JSON.stringify(emb) : null,
       source_table: sourceTable,
       source_ids: [session.id],
       participants: {
@@ -334,7 +361,7 @@ Deno.serve(async (req) => {
       },
       importance: Math.min(5, Math.max(1, Math.round(insight.quality_score))),
       retention_score: 1.0,
-      ref_date,
+      ref_date: ref_date ?? undefined,
     });
 
     // 2. Pointers — facts
