@@ -263,34 +263,6 @@
       "count": 1
     },
     {
-      "file": "src/components/campaigners/CampaignersChatView.tsx",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; id?: string | undefined; ... 5 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
-      "count": 1
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2322,
-      "message": "Type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }' is not assignable to type 'EntityTask'.\n  Type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }' is missing the following properties from type '{ id: string; title: string; priority: number; due_date?: string | null | undefined; notes?: string | null | undefined; }': id, title, priority",
-      "source": "task",
-      "count": 2
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }'.",
-      "source": "id",
-      "count": 4
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2339,
-      "message": "Property 'status' does not exist on type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }'.",
-      "source": "status",
-      "count": 3
-    },
-    {
       "file": "src/components/carmen-command/CarmenChatBar.tsx",
       "code": 2322,
       "message": "Type '{ children: (false | Element)[]; align: \"start\"; side: \"top\"; dir: string; className: string; }' is not assignable to type 'IntrinsicAttributes & Omit<DropdownMenuContentProps & RefAttributes<HTMLDivElement>, \"ref\"> & RefAttributes<...>'.\n  Property 'dir' does not exist on type 'IntrinsicAttributes & Omit<DropdownMenuContentProps & RefAttributes<HTMLDivElement>, \"ref\"> & RefAttributes<...>'.",
@@ -439,34 +411,6 @@
     },
     {
       "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type '{ id: unknown; label: string; own: boolean; }[]' is not assignable to type 'GaConnection[]'.\n  Type '{ id: unknown; label: string; own: boolean; }' is not assignable to type 'GaConnection'.\n    Types of property 'id' are incompatible.\n      Type 'unknown' is not assignable to type 'string'.",
-      "source": "connections",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type '{}' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
       "source": "activeTenantId",
@@ -487,39 +431,11 @@
       "count": 1
     },
     {
-      "file": "src/components/dynamic-tables/seo/GscIntegration.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/seo/GscIntegration.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
       "file": "src/components/dynamic-tables/SeoDashboardView.tsx",
       "code": 7006,
       "message": "Parameter 'kw' implicitly has an 'any' type.",
       "source": "kw",
       "count": 2
-    },
-    {
-      "file": "src/components/dynamic-tables/SeoReportTabs.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/SeoReportTabs.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
     },
     {
       "file": "src/components/forms/AddAutomationForm.tsx",
@@ -957,23 +873,9 @@
     },
     {
       "file": "src/components/marketing/StageWorkspace.tsx",
-      "code": 2322,
-      "message": "Type 'string' is not assignable to type '\"manual\" | \"auto\" | \"hybrid\" | undefined'.",
-      "source": "approval_mode",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/StageWorkspace.tsx",
       "code": 2345,
       "message": "Argument of type '{ current_stage_id: string; status: string; } | { status: string; current_stage_id?: undefined; }' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type '{ current_stage_id: string; status: string; }' is not assignable to type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n    Type '{ current_stage_id: string; status: string; }' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n      Types of property 'status' are incompatible.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
       "source": "update",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/WorkItemSidePanel.tsx",
-      "code": 2345,
-      "message": "Argument of type 'Partial<any>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, Partial<...>>'.\n  Type 'Partial<any>' is not assignable to type '{ [x: string]: never; [x: number]: never; [x: symbol]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
       "count": 1
     },
     {
@@ -1150,13 +1052,6 @@
       "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "source": "listId",
       "count": 2
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
     },
     {
       "file": "src/hooks/useBroadcasts.ts",
@@ -1460,13 +1355,6 @@
       "count": 1
     },
     {
-      "file": "src/lib/tenantIntegrationsClient.ts",
-      "code": 2352,
-      "message": "Conversion of type 'ClientIntegration' to type 'TenantIntegrationRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type 'ClientIntegration' is missing the following properties from type 'TenantIntegrationRow': id, tenant_id, integration_type",
-      "source": "result as TenantIntegrationRow",
-      "count": 1
-    },
-    {
       "file": "src/lib/updateSignatureDocumentFields.ts",
       "code": 18047,
       "message": "'recipient.sign_order' is possibly 'null'.",
@@ -1621,13 +1509,6 @@
       "count": 1
     },
     {
-      "file": "src/pages/FacebookSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string>'.",
-      "source": "ownFirst.id",
-      "count": 1
-    },
-    {
       "file": "src/pages/FieldsManagement.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -1658,13 +1539,6 @@
     {
       "file": "src/pages/GoogleAnalyticsSettings.tsx",
       "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2322,
       "message": "Type 'unknown' is not assignable to type 'ReactNode'.",
       "source": "{s?.connected_at && ( <p className=\"text-xs text-muted-foreground\"> חובר:{\" \"} {new Date( s.connected_at as string, ).toLocaleDateString(\"he-IL\")} </p> )}",
       "count": 1
@@ -1674,27 +1548,6 @@
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
       "source": "currentTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string | null>'.",
-      "source": "integ.id",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string | null>'.",
-      "source": "integ.user_id",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'string'.",
-      "source": "integ.id",
       "count": 1
     },
     {
@@ -1962,13 +1815,6 @@
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
       "source": "roleLabels[user.role]",
       "count": 1
-    },
-    {
-      "file": "src/pages/WordPressSettings.tsx",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">'.\n  Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\">'.",
-      "source": "id",
-      "count": 2
     }
   ]
 }
