@@ -199,6 +199,10 @@ async function finishClip({
     throw provider.name === "mock" ? new Error(message) : finalError(message);
   }
 
+  // The provider's own charge when it reports one (OpenRouter), else the estimate.
+  const costUsd = Number.isFinite(result.costUsd)
+    ? result.costUsd
+    : estimate.usd;
   let bytes = result.bytes;
   if (!bytes) {
     const response = await fetch(result.url);
@@ -224,7 +228,7 @@ async function finishClip({
       duration_s: durationS,
       aspect,
       source_still_asset_id: still.id,
-      generation_cost: { usd: estimate.usd, credits: estimate.credits },
+      generation_cost: { usd: costUsd, credits: estimate.credits },
       ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
       // The clip speaks the scene's line itself; no lip-sync pass is needed.
       ...(talking
@@ -248,7 +252,7 @@ async function finishClip({
       ...(talking ? { lipsync: true } : {}),
       ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}),
     },
-    costUsd: estimate.usd,
+    costUsd,
     credits: estimate.credits,
     provider: provider.name,
   };

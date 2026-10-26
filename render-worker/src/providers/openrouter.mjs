@@ -108,8 +108,11 @@ export function openRouterProvider({ apiKey, model, fetchImpl = fetch } = {}) {
           usd: +(seconds * TALKING_USD_PER_SECOND()).toFixed(2),
         };
       }
+      // A Kling clip is billed for 5 s at least (a 3 s clip cost $0.42 on OpenRouter).
       const seconds = openRouterClipSeconds(durationS, chosen);
-      return { credits: 0, usd: +(seconds * USD_PER_SECOND()).toFixed(2) };
+      const billed =
+        family(chosen) === "kling" ? Math.max(5, seconds) : seconds;
+      return { credits: 0, usd: +(billed * USD_PER_SECOND()).toFixed(2) };
     },
     async submit(input) {
       const talking = input.talking === true;
@@ -158,9 +161,12 @@ export function openRouterProvider({ apiKey, model, fetchImpl = fetch } = {}) {
           throw new Error(
             `openrouter download ${video.status} (job ${jobId} kept for retry)`,
           );
+        const cost = Number(data.usage?.cost);
         return {
           status: "succeeded",
           bytes: new Uint8Array(await video.arrayBuffer()),
+          // What OpenRouter actually charged; the run records it instead of the estimate.
+          ...(Number.isFinite(cost) && cost >= 0 ? { costUsd: cost } : {}),
         };
       }
       if (["failed", "cancelled", "canceled", "expired"].includes(data.status))

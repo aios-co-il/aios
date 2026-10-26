@@ -139,12 +139,25 @@ export function sceneEstimate(
       label: SCENE_ENGINE_LABEL.kling,
     };
   }
+  if (engine === "openrouter") {
+    // OpenRouter bills a Kling clip for at least 5 s, even a shorter one.
+    const billed = frames.reduce(
+      (sum, frame) =>
+        sum + Math.max(5, sceneClipSeconds(engine, frame.duration)),
+      0,
+    );
+    return {
+      count: frames.length,
+      seconds,
+      usd: roundUsd(billed * OPENROUTER_USD_PER_SECOND),
+      credits: 0,
+      label: SCENE_ENGINE_LABEL.openrouter,
+    };
+  }
   const rate =
     engine === "elevenlabs"
       ? ELEVENLABS_VIDEO_USD_PER_SECOND
-      : engine === "openrouter"
-        ? OPENROUTER_USD_PER_SECOND
-        : HIGGSFIELD_USD_PER_SECOND;
+      : HIGGSFIELD_USD_PER_SECOND;
   return {
     count: frames.length,
     seconds,

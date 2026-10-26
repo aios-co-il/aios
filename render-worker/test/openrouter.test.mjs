@@ -145,3 +145,19 @@ test("OpenRouter without a key fails before any request", async () => {
     /OpenRouter brain/,
   );
 });
+
+test("a short Kling clip is estimated at OpenRouter's 5 s minimum, and the real charge is returned", async () => {
+  const { openRouterProvider } =
+    await import("../src/providers/openrouter.mjs");
+  const p = openRouterProvider({
+    apiKey: "k",
+    fetchImpl: async (url) =>
+      String(url).endsWith("/content?index=0")
+        ? new Response(new Uint8Array([1, 2]))
+        : Response.json({ status: "completed", usage: { cost: 0.42 } }),
+  });
+  assert.equal(p.estimate({ durationS: 3 }).usd, 0.42);
+  const done = await p.poll("job-1");
+  assert.equal(done.status, "succeeded");
+  assert.equal(done.costUsd, 0.42);
+});

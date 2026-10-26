@@ -49,6 +49,9 @@ export function sceneClipSeconds(engine: SceneEngine, duration: number) {
   return Number(duration) > 5 ? 10 : 5;
 }
 
+/** OpenRouter charges a Kling clip for 5 s at least (a 3 s clip cost $0.42, not $0.25). */
+const openRouterBilledSeconds = (seconds: number) => Math.max(5, seconds);
+
 /** Veo 3.1 renders 4, 6 or 8 s; OpenRouter makes a talking scene on it. */
 const veoSeconds = (duration: number) => {
   const seconds = Number(duration) || 5;
@@ -92,7 +95,8 @@ export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
       (sum, scene) =>
         sum +
         veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
-        sceneClipSeconds(engine, scene.duration_s) * OPENROUTER_USD_PER_SECOND,
+        openRouterBilledSeconds(sceneClipSeconds(engine, scene.duration_s)) *
+          OPENROUTER_USD_PER_SECOND,
       0,
     );
     return {
@@ -143,12 +147,24 @@ export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
       seconds,
     };
   }
+  if (engine === "openrouter") {
+    // OpenRouter bills a Kling clip for at least 5 s, even a shorter one (seen on real jobs).
+    const billed = scenes.reduce(
+      (sum, scene) =>
+        sum +
+        openRouterBilledSeconds(sceneClipSeconds(engine, scene.duration_s)),
+      0,
+    );
+    return {
+      usd: roundUsd(billed * OPENROUTER_USD_PER_SECOND),
+      credits: 0,
+      seconds,
+    };
+  }
   const rate =
     engine === "elevenlabs"
       ? ELEVENLABS_VIDEO_USD_PER_SECOND
-      : engine === "openrouter"
-        ? OPENROUTER_USD_PER_SECOND
-        : HIGGSFIELD_USD_PER_SECOND;
+      : HIGGSFIELD_USD_PER_SECOND;
   return { usd: roundUsd(seconds * rate), credits: 0, seconds };
 }
 

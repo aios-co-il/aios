@@ -190,7 +190,8 @@ test("a connected OpenRouter brain is the video engine before ElevenLabs and Hig
 test("OpenRouter quotes Kling 3 lengths and adds the Veo price for talking scenes", () => {
   const clips = clipEstimate("openrouter", scenes);
   assert.equal(clips.seconds, 3 + 7 + 12);
-  assert.equal(clips.usd, 1.85);
+  // The 3 s clip is billed as 5 s: (5 + 7 + 12) × $0.084.
+  assert.equal(clips.usd, 2.02);
   assert.ok(speaksNatively("openrouter"));
   const talking = lipsyncEstimate("openrouter", [
     { duration_s: 5, voiceover_text: "", lipsync: true, dialogue: "שלום" },
@@ -252,4 +253,12 @@ test("a talking scene on an engine that cannot speak is quoted at the OpenRouter
     withMusic: false,
   });
   assert.ok(without.lipsync.usd < free.lipsync.usd);
+});
+
+test("an OpenRouter clip shorter than 5 s is quoted at the 5 s it is billed for", () => {
+  const short = clipEstimate("openrouter", [
+    { duration_s: 3, voiceover_text: "" },
+  ]);
+  assert.equal(short.usd, 0.42);
+  assert.equal(short.seconds, 3);
 });
