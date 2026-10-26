@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   chooseCalendarRecordingMatch,
   isZoomCalendarEvent,
@@ -22,55 +21,64 @@ const zoomEvent = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-test("normalizes Hebrew punctuation and casing", () => {
-  assert.equal(
+Deno.test("normalizes Hebrew punctuation and casing", () => {
+  assertStrictEquals(
     normalizeCalendarMatchText("  פגישת–אקסיטו!!! "),
     "פגישת אקסיטו",
   );
-  assert.equal(normalizeCalendarMatchText("ACME, Ltd."), "acme ltd");
+  assertStrictEquals(normalizeCalendarMatchText("ACME, Ltd."), "acme ltd");
 });
 
-test("detects Zoom links in description, location, or conference data", () => {
-  assert.equal(isZoomCalendarEvent(zoomEvent()), true);
-  assert.equal(
-    isZoomCalendarEvent({
-      summary: "Client call",
-      conferenceData: {
-        entryPoints: [{ uri: "https://us02web.zoom.us/j/42" }],
-      },
-    }),
-    true,
-  );
-  assert.equal(isZoomCalendarEvent({ summary: "פגישה רגילה" }), false);
-});
+Deno.test(
+  "detects Zoom links in description, location, or conference data",
+  () => {
+    assertStrictEquals(isZoomCalendarEvent(zoomEvent()), true);
+    assertStrictEquals(
+      isZoomCalendarEvent({
+        summary: "Client call",
+        conferenceData: {
+          entryPoints: [{ uri: "https://us02web.zoom.us/j/42" }],
+        },
+      }),
+      true,
+    );
+    assertStrictEquals(isZoomCalendarEvent({ summary: "פגישה רגילה" }), false);
+  },
+);
 
-test("matches an explicit client name in the calendar title", () => {
-  assert.deepEqual(
+Deno.test("matches an explicit client name in the calendar title", () => {
+  assertEquals(
     matchClientFromCalendarTitle("Zoom | פגישת סטטוס אקסיטו", clients),
     clients[1],
   );
-  assert.deepEqual(
+  assertEquals(
     matchClientFromCalendarTitle("Weekly call - Acme", clients),
     clients[0],
   );
 });
 
-test("does not match partial words or ambiguous equal-length names", () => {
-  assert.equal(
-    matchClientFromCalendarTitle("Acmeology kickoff", clients),
-    null,
-  );
-  assert.equal(matchClientFromCalendarTitle("פגישה כללית", clients), null);
-  assert.equal(
-    matchClientFromCalendarTitle("Alpha + Bravo", [
-      { id: "alpha", name: "Alpha" },
-      { id: "bravo", name: "Bravo" },
-    ]),
-    null,
-  );
-});
+Deno.test(
+  "does not match partial words or ambiguous equal-length names",
+  () => {
+    assertStrictEquals(
+      matchClientFromCalendarTitle("Acmeology kickoff", clients),
+      null,
+    );
+    assertStrictEquals(
+      matchClientFromCalendarTitle("פגישה כללית", clients),
+      null,
+    );
+    assertStrictEquals(
+      matchClientFromCalendarTitle("Alpha + Bravo", [
+        { id: "alpha", name: "Alpha" },
+        { id: "bravo", name: "Bravo" },
+      ]),
+      null,
+    );
+  },
+);
 
-test("chooses the closest timed Zoom event and assigns its client", () => {
+Deno.test("chooses the closest timed Zoom event and assigns its client", () => {
   const match = chooseCalendarRecordingMatch(
     {
       start_time: "2026-08-24T07:04:00.000Z",
@@ -88,60 +96,66 @@ test("chooses the closest timed Zoom event and assigns its client", () => {
     clients,
   );
 
-  assert.equal(match?.eventId, "event-1");
-  assert.equal(match?.eventTitle, "פגישת סטטוס אקסיטו");
-  assert.equal(match?.clientId, "client-exito");
-  assert.equal(match?.startDeltaMinutes, 4);
+  assertStrictEquals(match?.eventId, "event-1");
+  assertStrictEquals(match?.eventTitle, "פגישת סטטוס אקסיטו");
+  assertStrictEquals(match?.clientId, "client-exito");
+  assertStrictEquals(match?.startDeltaMinutes, 4);
 });
 
-test("ignores non-Zoom, cancelled, all-day, distant, and generic events", () => {
-  const recording = { start_time: "2026-08-24T07:00:00.000Z", duration: 60 };
-  assert.equal(
-    chooseCalendarRecordingMatch(
-      recording,
-      [
-        { ...zoomEvent(), description: "", summary: "פגישה רגילה" },
-        { ...zoomEvent(), status: "cancelled" },
-        { ...zoomEvent(), start: { date: "2026-08-24" } },
+Deno.test(
+  "ignores non-Zoom, cancelled, all-day, distant, and generic events",
+  () => {
+    const recording = { start_time: "2026-08-24T07:00:00.000Z", duration: 60 };
+    assertStrictEquals(
+      chooseCalendarRecordingMatch(
+        recording,
+        [
+          { ...zoomEvent(), description: "", summary: "פגישה רגילה" },
+          { ...zoomEvent(), status: "cancelled" },
+          { ...zoomEvent(), start: { date: "2026-08-24" } },
+          {
+            ...zoomEvent(),
+            start: { dateTime: "2026-08-24T10:00:00.000Z" },
+            end: { dateTime: "2026-08-24T11:00:00.000Z" },
+          },
+          { ...zoomEvent(), summary: "Zoom Meeting" },
+        ],
+        clients,
+      ),
+      null,
+    );
+  },
+);
+
+Deno.test(
+  "never matches a known Google Meet or Teams recording to a Zoom event",
+  () => {
+    assertStrictEquals(
+      chooseCalendarRecordingMatch(
         {
-          ...zoomEvent(),
-          start: { dateTime: "2026-08-24T10:00:00.000Z" },
-          end: { dateTime: "2026-08-24T11:00:00.000Z" },
+          start_time: "2026-08-24T07:00:00.000Z",
+          duration: 60,
+          meeting_topic: "Google Meet — כרמן",
+          source: "meeting_bot",
         },
-        { ...zoomEvent(), summary: "Zoom Meeting" },
-      ],
-      clients,
-    ),
-    null,
-  );
-});
+        [zoomEvent()],
+        clients,
+      ),
+      null,
+    );
 
-test("never matches a known Google Meet or Teams recording to a Zoom event", () => {
-  assert.equal(
-    chooseCalendarRecordingMatch(
-      {
-        start_time: "2026-08-24T07:00:00.000Z",
-        duration: 60,
-        meeting_topic: "Google Meet — כרמן",
-        source: "meeting_bot",
-      },
-      [zoomEvent()],
-      clients,
-    ),
-    null,
-  );
-
-  assert.equal(
-    chooseCalendarRecordingMatch(
-      {
-        start_time: "2026-08-24T07:00:00.000Z",
-        duration: 60,
-        meeting_topic: "פגישת צוות",
-        source: "teams",
-      },
-      [zoomEvent()],
-      clients,
-    ),
-    null,
-  );
-});
+    assertStrictEquals(
+      chooseCalendarRecordingMatch(
+        {
+          start_time: "2026-08-24T07:00:00.000Z",
+          duration: 60,
+          meeting_topic: "פגישת צוות",
+          source: "teams",
+        },
+        [zoomEvent()],
+        clients,
+      ),
+      null,
+    );
+  },
+);
