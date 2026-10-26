@@ -9,6 +9,11 @@ import {
   probeMcp,
   resyncInternalMcpBearer,
 } from "../_shared/mcp-bearer.ts";
+import {
+  jsonField,
+  thrownMessage,
+  unknownField,
+} from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +24,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-function jsonResponse(body: any, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -72,7 +77,9 @@ Deno.serve(async (req) => {
         connection_id: row.id,
         name: row.name,
         state: resynced.state,
-        tools: (resynced.tools || []).map((t: any) => t?.name).filter(Boolean),
+        tools: (resynced.tools || [])
+          .map((t) => jsonField(t, "name"))
+          .filter(Boolean),
         error: resynced.lastError,
       });
     }
@@ -117,8 +124,8 @@ Deno.serve(async (req) => {
       tools,
       error: lastError,
     });
-  } catch (e: any) {
-    console.error("[mcp-connect]", e?.message);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+  } catch (e) {
+    console.error("[mcp-connect]", unknownField(e, "message"));
+    return jsonResponse({ error: String(thrownMessage(e)) }, 500);
   }
 });

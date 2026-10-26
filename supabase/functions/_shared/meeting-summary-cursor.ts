@@ -21,6 +21,7 @@ import {
   type MeetingSummaryJob,
   type MeetingSummaryTargetType,
 } from "./meeting-summary-prompts.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export type SummaryDispatch =
   | {
@@ -36,8 +37,7 @@ export type SummaryDispatch =
     };
 
 export async function dispatchMeetingSummaryToCursor(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   args: {
     tenantId: string;
     userId?: string | null;
@@ -165,8 +165,7 @@ export async function dispatchMeetingSummaryToCursor(
 const MANUAL_RESEND_WINDOW_MS = 90_000;
 
 async function claimSummarySend(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   args: {
     tenantId: string;
     conversationId: string;
@@ -207,8 +206,7 @@ async function claimSummarySend(
 }
 
 export async function persistMeetingSummaryReply(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   metadata: unknown,
   summary: string,
 ): Promise<boolean> {
@@ -255,8 +253,7 @@ export async function persistMeetingSummaryReply(
 }
 
 async function resolveSummaryUserId(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   tenantId: string,
   preferred?: string | null,
 ): Promise<string | null> {
@@ -265,7 +262,8 @@ async function resolveSummaryUserId(
     .from("user_roles")
     .select("user_id")
     .eq("tenant_id", tenantId)
-    .in("role", ["owner", "admin"])
+    // "admin" is not an app_role value; kept as the original query sent it.
+    .filter("role", "in", "(owner,admin)")
     .limit(1)
     .maybeSingle();
   return data?.user_id ?? null;

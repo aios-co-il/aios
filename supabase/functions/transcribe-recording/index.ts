@@ -1,12 +1,34 @@
 // redeploy trigger: rebundle _shared/ai.ts OpenAI key fallback (env secret → llm integration)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   aiDiarizeTranscribe,
   aiTranscribe,
   aiTranscribeVerbose,
   aiVisionJSON,
 } from "../_shared/ai.ts";
+import type {
+  Database,
+  Tables,
+  TablesUpdate,
+} from "../_shared/database.types.ts";
+import { jsonField, unknownField } from "../_shared/json-fields.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+
+type ZoomRecordingRow = Tables<"zoom_recordings">;
+
+/** Zoom recordings API items (described, not validated). */
+interface ZoomRecordingFile {
+  recording_type?: string;
+  download_url?: string;
+  play_url?: string;
+}
+
+interface ZoomMeeting {
+  id?: string | number;
+  uuid?: string;
+  recording_files?: ZoomRecordingFile[];
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,13 +62,15 @@ function looksLikeTextContent(header: Uint8Array): boolean {
 // ── DB status helpers ─────────────────────────────────────────
 
 async function setTranscriptionStatus(
-  supabase: any,
+  supabase: DbClient,
   recordingId: string,
   status: string,
   transcription?: string,
   error?: string,
 ) {
-  const update: any = { transcription_status: status };
+  const update: TablesUpdate<"zoom_recordings"> = {
+    transcription_status: status,
+  };
   if (transcription !== undefined) update.transcription = transcription;
   if (error !== undefined) update.transcription_error = error;
 
@@ -80,7 +104,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
     const { data: recording, error: recError } = await supabase
       .from("zoom_recordings")
@@ -137,7 +161,8 @@ serve(async (req) => {
     // Case 1: Manual upload in Storage — prefer the low-bitrate audio sibling
     // (chrome_extension recordings) so long meetings stay under the Whisper cap.
     if (recording.file_path || recording.audio_file_path) {
-      const storagePath = recording.audio_file_path || recording.file_path;
+      const storagePath =
+        recording.audio_file_path || recording.file_path || "";
       const { data: fileData, error: dlError } = await supabase.storage
         .from("recordings")
         .download(storagePath);
@@ -166,7 +191,10 @@ serve(async (req) => {
       contentType = fileData.type || "audio/mp4";
     }
     // Case 2: Zoom recording — prefer the smallest audio variant if available
-    else if (recording.recording_url || recording.download_url) {
+    else if (
+      recording.recording_url ||
+      unknownField(recording, "download_url")
+    ) {
       // Prefer audio_only / audio_transcript siblings (smaller and faster)
       const { data: alternatives } = await supabase
         .from("zoom_recordings")
@@ -176,8 +204,9 @@ serve(async (req) => {
         .in("recording_type", ["audio_only", "audio_transcript"]);
 
       const audioAlt = (alternatives || []).find(
-        (alt: any) =>
-          alt.id !== recording.id && (alt.recording_url || alt.download_url),
+        (alt) =>
+          alt.id !== recording.id &&
+          (alt.recording_url || unknownField(alt, "download_url")),
       );
 
       const sourceRecording = audioAlt || recording;
@@ -286,7 +315,7 @@ serve(async (req) => {
       if (body?.recording_id) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
         await setTranscriptionStatus(
           supabase,
           body.recording_id,
@@ -374,7 +403,7 @@ function formatClock(totalSeconds: number): string {
 }
 
 async function transcribeChannelParts(
-  supabase: any,
+  supabase: DbClient,
   recordingId: string,
   paths: string[],
 ): Promise<string> {
@@ -542,7 +571,7 @@ async function transcribeChannelParts(
 // highlight). Works when participant tiles are visible; during screen-share
 // stretches there may be no usable frame — the guest keeps its numeric label.
 async function resolveSpeakerNames(
-  supabase: any,
+  supabase: DbClient,
   sysFullPath: string,
   segs: { start: number; end: number; speaker: string; text: string }[],
   speakerOrder: Map<string, number>,
@@ -556,7 +585,7 @@ async function resolveSpeakerNames(
     .from("recordings")
     .list(folder, { limit: 300, search: `${ts}_frame_` });
   const frames = (files || [])
-    .map((f: any) => {
+    .map((f) => {
       const fm = String(f.name).match(/_frame_(\d+)\.jpg$/);
       return fm
         ? { path: `${folder}/${f.name}`, sec: parseInt(fm[1], 10) }
@@ -605,7 +634,8 @@ async function resolveSpeakerNames(
       `בצילומי המסך האלה מפגישת וידאו (Zoom/Google Meet/Teams), אותו משתתף מדבר בכל התמונות — הוא מסומן כדובר הפעיל (מסגרת צבעונית סביב האריח שלו, או אינדיקציית קול לצד שמו). קרא את תווית השם המוצגת על האריח של הדובר הפעיל. אם לא רואים רשת משתתפים, או שאי אפשר לקבוע בוודאות מי הדובר, החזר null. החזר JSON בלבד: {"name": string | null}`,
       blobs,
     );
-    const name = typeof result?.name === "string" ? result.name.trim() : "";
+    const label = jsonField(result, "name");
+    const name = typeof label === "string" ? label.trim() : "";
     if (name && name.length <= 60) {
       overrides.set(`guest${n}`, name);
       console.log(
@@ -617,7 +647,7 @@ async function resolveSpeakerNames(
 
 // Bump updated_at while a multi-chunk transcription runs so the UI's
 // stale-processing detector (3 min without change → mark failed) stays quiet.
-async function touchProcessing(supabase: any, recordingId: string) {
+async function touchProcessing(supabase: DbClient, recordingId: string) {
   await supabase
     .from("zoom_recordings")
     .update({
@@ -628,7 +658,7 @@ async function touchProcessing(supabase: any, recordingId: string) {
 }
 
 async function transcribeBlob(
-  supabase: any,
+  supabase: DbClient,
   recordingId: string,
   audioBlob: Blob,
   contentType: string,
@@ -744,17 +774,18 @@ async function splitWav(blob: Blob): Promise<Blob[] | null> {
 
 // ── Helper: download media from Zoom ──────────────────────────────────
 async function downloadZoomMedia(
-  supabase: any,
-  recording: any,
+  supabase: DbClient,
+  recording: ZoomRecordingRow,
 ): Promise<{
   error?: string;
   status?: number;
   blob?: Blob;
   contentType?: string;
 }> {
-  const rawUrls = [recording.download_url, recording.recording_url].filter(
-    Boolean,
-  ) as string[];
+  const rawUrls = [
+    unknownField(recording, "download_url"),
+    recording.recording_url,
+  ].filter(Boolean) as string[];
   const expandedUrls = rawUrls.flatMap((url) => {
     const variants = [url];
     if (url.includes("/play/"))
@@ -786,26 +817,26 @@ async function downloadZoomMedia(
     };
   }
 
-  const settings = (integration.settings || {}) as any;
-  let zoomAccessToken: string | null = settings.access_token || null;
+  const settings = integration.settings || {};
+  const clientId = jsonField(settings, "client_id");
+  const clientSecret = jsonField(settings, "client_secret");
+  const accountId = jsonField(settings, "account_id");
+  const storedToken = jsonField(settings, "access_token");
+  let zoomAccessToken: string | null =
+    typeof storedToken === "string" ? storedToken || null : null;
 
-  if (
-    !zoomAccessToken &&
-    settings.client_id &&
-    settings.client_secret &&
-    settings.account_id
-  ) {
+  if (!zoomAccessToken && clientId && clientSecret && accountId) {
     try {
       const tokenResp = await fetch("https://zoom.us/oauth/token", {
         method: "POST",
         headers: {
           Authorization:
-            "Basic " + btoa(`${settings.client_id}:${settings.client_secret}`),
+            "Basic " + btoa(`${clientId}:${clientSecret}`),
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
           grant_type: "account_credentials",
-          account_id: settings.account_id,
+          account_id: String(accountId),
         }),
       });
       if (tokenResp.ok) {
@@ -912,24 +943,26 @@ async function downloadZoomMedia(
 
       if (listResp.ok) {
         const listData = await listResp.json();
-        const meetings = Array.isArray(listData?.meetings)
+        const meetings: ZoomMeeting[] = Array.isArray(listData?.meetings)
           ? listData.meetings
           : [];
         const meetingIdStr = String(recording.meeting_id);
         const matchedMeeting = meetings.find(
-          (m: any) =>
+          (m) =>
             String(m.id) === meetingIdStr || String(m.uuid) === meetingIdStr,
         );
 
         if (matchedMeeting) {
-          const files = Array.isArray(matchedMeeting.recording_files)
+          const files: ZoomRecordingFile[] = Array.isArray(
+            matchedMeeting.recording_files,
+          )
             ? matchedMeeting.recording_files
             : [];
           const targetType = String(
             recording.recording_type || "",
           ).toLowerCase();
           const exactType = files.filter(
-            (f: any) =>
+            (f) =>
               String(f?.recording_type || "").toLowerCase() === targetType,
           );
           const prioritized = [...exactType, ...files].filter(Boolean);
@@ -937,7 +970,7 @@ async function downloadZoomMedia(
           const uniqueFreshUrls = [
             ...new Set(
               prioritized
-                .flatMap((f: any) => [f?.download_url, f?.play_url])
+                .flatMap((f) => [f?.download_url, f?.play_url])
                 .filter(Boolean),
             ),
           ] as string[];

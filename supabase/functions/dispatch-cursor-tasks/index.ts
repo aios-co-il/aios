@@ -1,6 +1,7 @@
 // Cron / manual worker: claim open human tasks assigned to Cursor and dispatch to cursor-mcp.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { claimAndDispatchCursorTask } from "../_shared/cursor-task-queue.ts";
+import { thrownMessage } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,10 +39,10 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (e: any) {
-    console.error("[dispatch-cursor-tasks]", e?.message ?? e);
+  } catch (e) {
+    console.error("[dispatch-cursor-tasks]", thrownMessage(e));
     return new Response(
-      JSON.stringify({ ok: false, error: String(e?.message ?? e) }),
+      JSON.stringify({ ok: false, error: String(thrownMessage(e)) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

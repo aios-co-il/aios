@@ -11,6 +11,8 @@ import {
 } from "./recall.ts";
 import { runRecordingPipeline } from "./recording-pipeline.ts";
 import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
+import type { TablesInsert } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 // A long meeting's mp4 does not fit in an edge function's memory. Above this we
 // keep Recall's download URL on the row instead of copying the file to Storage.
@@ -68,9 +70,8 @@ async function fetchMediaIfSmallEnough(
   return { blob, tooLarge: false };
 }
 
-// deno-lint-ignore no-explicit-any
 export async function finalizeMeetingBotSession(
-  admin: any,
+  admin: DbClient,
   session: MeetingBotSession,
 ): Promise<{ outcome: FinalizeOutcome; detail: string }> {
   const botId = session.external_bot_id;
@@ -184,7 +185,7 @@ export async function finalizeMeetingBotSession(
     session.meeting_topic ||
     `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
 
-  const row: Record<string, unknown> = {
+  const row: TablesInsert<"zoom_recordings"> = {
     tenant_id: session.tenant_id,
     client_id: session.client_id,
     lead_id: session.lead_id,

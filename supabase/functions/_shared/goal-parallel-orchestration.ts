@@ -2,6 +2,9 @@
  * Parallel sub-project orchestration — multiple Cursor agents per goal (one per department/track).
  */
 
+import type { Json } from "./database.types.ts";
+import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
+
 export type ParallelPlanStep = {
   id: string;
   title: string;
@@ -14,7 +17,7 @@ export type ParallelPlanStep = {
   sub_project_label?: string | null;
   cursor_agent_id?: string | null;
   cursor_session_url?: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Json;
 };
 
 export const MAX_PARALLEL_CURSOR_DISPATCH = 6;
@@ -61,12 +64,7 @@ export function selectNextSequentialStep(
 }
 
 export async function notifyDavidStagingReady(
-  supabase: {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ error?: unknown }>;
-  },
+  supabase: UntypedSchemaClient,
   args: {
     tenantId: string;
     goalId: string;

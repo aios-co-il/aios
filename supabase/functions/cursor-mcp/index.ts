@@ -20,7 +20,30 @@
 //   CURSOR_DEFAULT_TENANT_ID fallback tenant when bearer can't resolve one
 //   CURSOR_STICKY_AGENT_ID  force one global sticky agent id (bc-…)
 //   CURSOR_STICKY           "false" to disable sticky reuse (default true)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { ChannelProvider } from "../_shared/agent-channel/types.ts";
+import type { Database, Json } from "../_shared/database.types.ts";
+import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
+
+const REPLY_ORIGINS: readonly ChannelProvider[] = [
+  "cursor",
+  "grok",
+  "codex",
+  "claude",
+  "chatgpt",
+  "internal",
+  "parliament",
+  "model",
+];
+
+function replyOrigin(raw: unknown): ChannelProvider {
+  const stated = raw || "cursor";
+  return REPLY_ORIGINS.find((p) => p === stated) ?? "cursor";
+}
+
+function isArgsObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 import {
   compactToolsForGrok,
   grokCompatibleInitializeResult,
@@ -355,7 +378,7 @@ function bearerFrom(req: Request): string | undefined {
 
 function sbClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 }
@@ -372,7 +395,7 @@ async function resolveContext(
   };
   if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return fallback;
   try {
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    const sb = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
     });
     const { data } = await sb
@@ -444,17 +467,17 @@ async function cursorFetch(
 }
 
 function parseAgentResponse(raw: string): { url: string; id: string } {
-  let data: any = {};
+  let data: Json = {};
   try {
     data = JSON.parse(raw);
   } catch {
     /* ignore */
   }
-  const agent = data?.agent || data;
-  const id = String(agent?.id || data?.id || "");
+  const agent = jsonField(data, "agent") || data;
+  const id = String(jsonField(agent, "id") || jsonField(data, "id") || "");
   const url = String(
-    agent?.url ||
-      data?.url ||
+    jsonField(agent, "url") ||
+      jsonField(data, "url") ||
       (id ? `https://cursor.com/agents/${id}` : "") ||
       "(agent created)",
   );
@@ -475,7 +498,7 @@ async function getStickyAgentId(
       .select("cursor_agent_id")
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    const id = String((data as any)?.cursor_agent_id || "");
+    const id = String(data?.cursor_agent_id || "");
     if (id.startsWith("bc-")) return id;
     // Fallback: last successful dispatch for this tenant.
     const { data: last } = await sb
@@ -486,12 +509,12 @@ async function getStickyAgentId(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const lastId = String((last as any)?.cursor_agent_id || "");
+    const lastId = String(last?.cursor_agent_id || "");
     return lastId.startsWith("bc-") ? lastId : null;
   } catch (e) {
     console.error(
       "[cursor-mcp] getStickyAgentId failed:",
-      (e as any)?.message ?? e,
+      thrownMessage(e),
     );
     return null;
   }
@@ -518,7 +541,7 @@ async function saveStickyAgent(
   } catch (e) {
     console.error(
       "[cursor-mcp] saveStickyAgent failed:",
-      (e as any)?.message ?? e,
+      thrownMessage(e),
     );
   }
 }
@@ -729,7 +752,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(5);
-    const rows = (data || []) as Array<any>;
+    const rows = data || [];
     if (!rows.length) return "";
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
@@ -752,7 +775,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
   } catch (e) {
     console.error(
       "[cursor-mcp] recentDispatchContext failed:",
-      (e as any)?.message ?? e,
+      thrownMessage(e),
     );
     return "";
   }
@@ -818,7 +841,7 @@ async function logDispatch(args: {
       `[cursor-mcp] new_background_agent tracked session_id=${args.cursorAgentId} name="${displayName}"`,
     );
   } catch (e) {
-    console.error("[cursor-mcp] logDispatch failed:", (e as any)?.message ?? e);
+    console.error("[cursor-mcp] logDispatch failed:", thrownMessage(e));
   }
 }
 
@@ -991,7 +1014,7 @@ async function executeDirectSessionReply(args: {
 
 async function handleToolCall(
   name: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   ctx: { tenantId: string | null; agentId: string | null },
 ): Promise<string> {
   if (name === "request_dev_task") {
@@ -1103,7 +1126,7 @@ async function handleToolCall(
       .toLowerCase();
     const limit = Number(args?.limit || 20);
     const rows = await listCursorTaskSessions(sb, tenantId, {
-      status: (statusRaw === "active" ? "active" : statusRaw) as any,
+      status: statusRaw === "active" ? "active" : statusRaw,
       limit: Number.isFinite(limit) ? limit : 20,
     });
     return formatCursorSessionsForAgent(rows);
@@ -1256,7 +1279,7 @@ async function handleToolCall(
     const result = await ingestChannelReply({
       conversation_id: conversationId,
       session_id: args?.session_id ? String(args.session_id) : undefined,
-      origin: (args?.origin || "cursor") as any,
+      origin: replyOrigin(args?.origin),
       content,
       idempotency_key: args?.idempotency_key
         ? String(args.idempotency_key)
@@ -1306,16 +1329,20 @@ async function handleToolCall(
       },
     );
     const raw = await resp.text();
-    let data: any = {};
+    let data: Json = {};
     try {
       data = JSON.parse(raw);
     } catch {
       /* ignore */
     }
-    if (!resp.ok || data?.error) {
+    const creativeError = jsonField(data, "error");
+    const agentUrl = jsonField(data, "agent_url");
+    if (!resp.ok || creativeError) {
       throw new Error(
-        data?.error ||
-          `cursor-generate-creative ${resp.status}: ${raw.slice(0, 200)}`,
+        String(
+          creativeError ||
+            `cursor-generate-creative ${resp.status}: ${raw.slice(0, 200)}`,
+        ),
       );
     }
     await logDispatch({
@@ -1325,12 +1352,12 @@ async function handleToolCall(
       requestText: `${"[CREATIVE AGENT]"} Carmen asked for item ${itemId}`,
       context: directorNote,
       branch: "",
-      sessionUrl: String(data.agent_url || ""),
-      cursorAgentId: String(data.cursor_agent_id || ""),
+      sessionUrl: String(agentUrl || ""),
+      cursorAgentId: String(jsonField(data, "cursor_agent_id") || ""),
     });
     return (
       `✅ נשלח לקריאייטיב דיירקט (אותו צ׳אט דביק)` +
-      (data.agent_url ? `\nSession: ${data.agent_url}` : "") +
+      (agentUrl ? `\nSession: ${agentUrl}` : "") +
       `\nהתמונה תופיע על פרויקט הקריאייטיב אחרי שהצ׳אט מעלה אותה.`
     );
   }
@@ -1350,10 +1377,9 @@ async function handleRpcMessage(
   bearer: string | undefined,
 ): Promise<Response> {
   const { id, method, params } = msg ?? {};
+  const protocolVersion = params?.protocolVersion;
   const clientProtocol =
-    typeof (params as any)?.protocolVersion === "string"
-      ? (params as any).protocolVersion
-      : undefined;
+    typeof protocolVersion === "string" ? protocolVersion : undefined;
 
   try {
     switch (method) {
@@ -1379,7 +1405,8 @@ async function handleRpcMessage(
         });
       case "tools/call": {
         const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const rawArgs = params?.arguments ?? {};
+        const args = isArgsObject(rawArgs) ? rawArgs : {};
         try {
           const callCtx =
             ctx.tenantId || ctx.agentId
@@ -1387,9 +1414,9 @@ async function handleRpcMessage(
               : await resolveContext(bearer);
           const text = await handleToolCall(name, args, callCtx);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [{ type: "text", text: `❌ ${String(thrownMessage(e))}` }],
             isError: true,
           });
         }
@@ -1397,9 +1424,9 @@ async function handleRpcMessage(
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[cursor-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[cursor-mcp]", thrownMessage(e));
+    return rpcError(id, -32603, `Internal error: ${String(thrownMessage(e))}`);
   }
 }
 
