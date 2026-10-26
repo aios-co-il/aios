@@ -16,8 +16,6 @@ import type {
   Quote,
 } from "./budget-types.ts";
 
-export type * from "./budget-types.ts";
-
 const KEY = "workshop_budget";
 
 /** How long a budget request can be approved; after that the user sees it again. */

@@ -9,8 +9,8 @@ import {
   settleProduction,
   spendBudget,
   suggestCap,
-  type Quote,
 } from "./budget.ts";
+import type { Quote } from "./budget-types.ts";
 
 const film: Quote = {
   tool: "workshop_produce_video",

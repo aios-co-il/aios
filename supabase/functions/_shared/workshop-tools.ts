@@ -21,9 +21,8 @@ import {
   requestFresh,
   spendBudget,
   suggestCap,
-  type BudgetRefusal,
-  type Quote,
 } from "./workshop/budget.ts";
+import type { BudgetRefusal, Quote } from "./workshop/budget-types.ts";
 import { artifactRow, type ArtifactInput } from "./workshop/artifacts.ts";
 import { PROVIDER_LABEL, capabilityReport } from "./workshop/capabilities.ts";
 import { briefingGate } from "./workshop/briefing.ts";
