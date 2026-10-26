@@ -1,5 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import {
   PULSE_COST_RULE_DEFAULTS,
@@ -13,67 +18,80 @@ const solid = {
   baselineDays: 28,
 };
 
-test("cost rules default to 40% CPL/CPA, 25% ROAS, 300 spend, alerts off", () => {
-  const rules = resolvePulseCostRules(null);
-  assert.deepEqual(rules, { ...PULSE_COST_RULE_DEFAULTS });
-  assert.equal(rules.trend_pct, 40);
-  assert.equal(rules.roas_drop_pct, 25);
-  assert.equal(rules.min_spend_7d, 300);
-  assert.equal(rules.target_less_alerts, false);
-});
+Deno.test(
+  "cost rules default to 40% CPL/CPA, 25% ROAS, 300 spend, alerts off",
+  () => {
+    const rules = resolvePulseCostRules(null);
+    assertEquals(rules, { ...PULSE_COST_RULE_DEFAULTS });
+    assertStrictEquals(rules.trend_pct, 40);
+    assertStrictEquals(rules.roas_drop_pct, 25);
+    assertStrictEquals(rules.min_spend_7d, 300);
+    assertStrictEquals(rules.target_less_alerts, false);
+  },
+);
 
-test("tenant overrides come from pulse_alert_rules.manager.cost; junk falls back", () => {
-  const rules = resolvePulseCostRules({
-    instant_wa_enabled: true,
-    manager: {
-      cost: {
-        trend_pct: 60,
-        roas_drop_pct: "abc",
-        min_spend_7d: 0,
-        target_less_alerts: true,
+Deno.test(
+  "tenant overrides come from pulse_alert_rules.manager.cost; junk falls back",
+  () => {
+    const rules = resolvePulseCostRules({
+      instant_wa_enabled: true,
+      manager: {
+        cost: {
+          trend_pct: 60,
+          roas_drop_pct: "abc",
+          min_spend_7d: 0,
+          target_less_alerts: true,
+        },
       },
-    },
-  });
-  assert.equal(rules.trend_pct, 60);
-  assert.equal(rules.roas_drop_pct, 25);
-  assert.equal(rules.min_spend_7d, 0);
-  assert.equal(rules.target_less_alerts, true);
-  assert.equal(
-    resolvePulseCostRules({ manager: { cost: { target_less_alerts: "yes" } } })
-      .target_less_alerts,
-    false,
-  );
-});
+    });
+    assertStrictEquals(rules.trend_pct, 60);
+    assertStrictEquals(rules.roas_drop_pct, 25);
+    assertStrictEquals(rules.min_spend_7d, 0);
+    assertStrictEquals(rules.target_less_alerts, true);
+    assertStrictEquals(
+      resolvePulseCostRules({
+        manager: { cost: { target_less_alerts: "yes" } },
+      }).target_less_alerts,
+      false,
+    );
+  },
+);
 
-test("CPL up 40% on both windows with solid baseline and spend is an exception", () => {
-  const verdict = evaluateTargetlessCostTrend({
-    metric: "cpl",
-    trend3: 45,
-    trend7: 40,
-    ...solid,
-    rules: resolvePulseCostRules({
-      manager: { cost: { target_less_alerts: true } },
-    }),
-  });
-  assert.equal(verdict.level, "exception");
-  assert.equal(verdict.alertEligible, true);
-  assert.match(verdict.reason, /CPL/);
-  // The reason is part of the alert fingerprint: thresholds only, no live numbers.
-  assert.doesNotMatch(verdict.reason, /45/);
-});
+Deno.test(
+  "CPL up 40% on both windows with solid baseline and spend is an exception",
+  () => {
+    const verdict = evaluateTargetlessCostTrend({
+      metric: "cpl",
+      trend3: 45,
+      trend7: 40,
+      ...solid,
+      rules: resolvePulseCostRules({
+        manager: { cost: { target_less_alerts: true } },
+      }),
+    });
+    assertStrictEquals(verdict.level, "exception");
+    assertStrictEquals(verdict.alertEligible, true);
+    assertMatch(verdict.reason, /CPL/);
+    // The reason is part of the alert fingerprint: thresholds only, no live numbers.
+    assertNotMatch(verdict.reason, /45/);
+  },
+);
 
-test("an exception does not alert while target-less alerts are off", () => {
-  const verdict = evaluateTargetlessCostTrend({
-    metric: "cpl",
-    trend3: 80,
-    trend7: 80,
-    ...solid,
-  });
-  assert.equal(verdict.level, "exception");
-  assert.equal(verdict.alertEligible, false);
-});
+Deno.test(
+  "an exception does not alert while target-less alerts are off",
+  () => {
+    const verdict = evaluateTargetlessCostTrend({
+      metric: "cpl",
+      trend3: 80,
+      trend7: 80,
+      ...solid,
+    });
+    assertStrictEquals(verdict.level, "exception");
+    assertStrictEquals(verdict.alertEligible, false);
+  },
+);
 
-test("one window under the threshold is only watch", () => {
+Deno.test("one window under the threshold is only watch", () => {
   const verdict = evaluateTargetlessCostTrend({
     metric: "cpa",
     trend3: 70,
@@ -83,16 +101,16 @@ test("one window under the threshold is only watch", () => {
       manager: { cost: { target_less_alerts: true } },
     }),
   });
-  assert.equal(verdict.level, "watch");
-  assert.equal(verdict.alertEligible, false);
-  assert.ok(verdict.blockedBy.includes("trend"));
+  assertStrictEquals(verdict.level, "watch");
+  assertStrictEquals(verdict.alertEligible, false);
+  assert(verdict.blockedBy.includes("trend"));
 });
 
-test("ROAS uses the 25% drop threshold", () => {
+Deno.test("ROAS uses the 25% drop threshold", () => {
   const rules = resolvePulseCostRules({
     manager: { cost: { target_less_alerts: true } },
   });
-  assert.equal(
+  assertStrictEquals(
     evaluateTargetlessCostTrend({
       metric: "roas",
       trend3: 26,
@@ -102,7 +120,7 @@ test("ROAS uses the 25% drop threshold", () => {
     }).level,
     "exception",
   );
-  assert.equal(
+  assertStrictEquals(
     evaluateTargetlessCostTrend({
       metric: "roas",
       trend3: 24,
@@ -114,7 +132,7 @@ test("ROAS uses the 25% drop threshold", () => {
   );
 });
 
-test("spend under min_spend_7d blocks the alert and says why", () => {
+Deno.test("spend under min_spend_7d blocks the alert and says why", () => {
   const verdict = evaluateTargetlessCostTrend({
     metric: "cpl",
     trend3: 90,
@@ -126,12 +144,12 @@ test("spend under min_spend_7d blocks the alert and says why", () => {
       manager: { cost: { target_less_alerts: true } },
     }),
   });
-  assert.equal(verdict.level, "watch");
-  assert.deepEqual(verdict.blockedBy, ["min_spend"]);
-  assert.match(verdict.reason, /הוצאה מתחת ל־300/);
+  assertStrictEquals(verdict.level, "watch");
+  assertEquals(verdict.blockedBy, ["min_spend"]);
+  assertMatch(verdict.reason, /הוצאה מתחת ל־300/);
 });
 
-test("a thin baseline (outcomes or days) blocks the alert", () => {
+Deno.test("a thin baseline (outcomes or days) blocks the alert", () => {
   const rules = resolvePulseCostRules({
     manager: { cost: { target_less_alerts: true } },
   });
@@ -144,8 +162,8 @@ test("a thin baseline (outcomes or days) blocks the alert", () => {
     baselineDays: 28,
     rules,
   });
-  assert.equal(fewOutcomes.level, "watch");
-  assert.deepEqual(fewOutcomes.blockedBy, ["baseline_outcomes"]);
+  assertStrictEquals(fewOutcomes.level, "watch");
+  assertEquals(fewOutcomes.blockedBy, ["baseline_outcomes"]);
   const fewDays = evaluateTargetlessCostTrend({
     metric: "cpl",
     trend3: 90,
@@ -155,26 +173,29 @@ test("a thin baseline (outcomes or days) blocks the alert", () => {
     baselineDays: 6,
     rules,
   });
-  assert.deepEqual(fewDays.blockedBy, ["baseline_days"]);
-  assert.match(fewDays.reason, /בסיס השוואה קצר/);
+  assertEquals(fewDays.blockedBy, ["baseline_days"]);
+  assertMatch(fewDays.reason, /בסיס השוואה קצר/);
 });
 
-test("engagement cost per result never becomes a target-less exception", () => {
-  const verdict = evaluateTargetlessCostTrend({
-    metric: "cost_per_result",
-    trend3: 90,
-    trend7: 90,
-    ...solid,
-    rules: resolvePulseCostRules({
-      manager: { cost: { target_less_alerts: true } },
-    }),
-  });
-  assert.equal(verdict.level, "watch");
-  assert.equal(verdict.alertEligible, false);
-});
+Deno.test(
+  "engagement cost per result never becomes a target-less exception",
+  () => {
+    const verdict = evaluateTargetlessCostTrend({
+      metric: "cost_per_result",
+      trend3: 90,
+      trend7: 90,
+      ...solid,
+      rules: resolvePulseCostRules({
+        manager: { cost: { target_less_alerts: true } },
+      }),
+    });
+    assertStrictEquals(verdict.level, "watch");
+    assertStrictEquals(verdict.alertEligible, false);
+  },
+);
 
-test("missing trends give no verdict", () => {
-  assert.equal(
+Deno.test("missing trends give no verdict", () => {
+  assertStrictEquals(
     evaluateTargetlessCostTrend({
       metric: "cpl",
       trend3: null,

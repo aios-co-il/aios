@@ -1,5 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import {
   PULSE_TARGET_TOOLS,
@@ -147,20 +152,20 @@ function seed(settings: Row = {}) {
   };
 }
 
-test("the three tools are registered with their names", () => {
-  assert.deepEqual(
+Deno.test("the three tools are registered with their names", () => {
+  assertEquals(
     PULSE_TARGET_TOOLS.map((t) => t.name),
     ["get_pulse_targets", "set_market_target", "set_pulse_target"],
   );
-  assert.ok(isPulseTargetTool("set_market_target"));
-  assert.ok(!isPulseTargetTool("set_campaign_table_active"));
+  assert(isPulseTargetTool("set_market_target"));
+  assert(!isPulseTargetTool("set_campaign_table_active"));
   const market = PULSE_TARGET_TOOLS[1];
-  assert.match(market.description, /בנצ׳מרקים של הענף/);
-  assert.match(market.description, /ההיסטוריה של הלקוח/);
-  assert.match(market.description, /לא דורס יעד מאושר/);
+  assertMatch(market.description, /בנצ׳מרקים של הענף/);
+  assertMatch(market.description, /ההיסטוריה של הלקוח/);
+  assertMatch(market.description, /לא דורס יעד מאושר/);
 });
 
-test("set_market_target never overwrites an approved target", async () => {
+Deno.test("set_market_target never overwrites an approved target", async () => {
   const db = fakeDb(seed({ pulse_platform_targets: { leads: { cpl: 70 } } }));
   db.tables.crm_tables = db.tables.crm_tables.filter((t) => t.id === "t-meta");
   const result: any = await executePulseTargetTool(
@@ -175,10 +180,10 @@ test("set_market_target never overwrites an approved target", async () => {
       rationale: RATIONALE,
     },
   );
-  assert.equal(result.success, false);
-  assert.equal(result.error, "approved_target_exists");
-  assert.equal(result.existing.value, 70);
-  assert.equal(db.writes.length, 0);
+  assertStrictEquals(result.success, false);
+  assertStrictEquals(result.error, "approved_target_exists");
+  assertStrictEquals(result.existing.value, 70);
+  assertStrictEquals(db.writes.length, 0);
 
   // A campaign inherits the approved platform target, so it is refused too.
   const campaign: any = await executePulseTargetTool(
@@ -194,65 +199,17 @@ test("set_market_target never overwrites an approved target", async () => {
       campaign_id: "c1",
     },
   );
-  assert.equal(campaign.error, "approved_target_exists");
-  assert.equal(db.writes.length, 0);
+  assertStrictEquals(campaign.error, "approved_target_exists");
+  assertStrictEquals(db.writes.length, 0);
 });
 
-test("set_market_target writes a labelled carmen_market target with rationale and time", async () => {
-  const db = fakeDb(seed());
-  const result: any = await executePulseTargetTool(
-    db,
-    ctx({ actorUserId: null }), // Carmen on her own may set a market target
-    "set_market_target",
-    {
-      client_id: "client-1",
-      platform: "meta",
-      goal: "leads",
-      value: 60,
-      rationale: RATIONALE,
-      campaign_id: "c1",
-    },
-  );
-  assert.equal(result.success, true);
-  assert.equal(result.label, "יעד שוק (כרמן)");
-  assert.equal(result.scope, "campaign");
-  const meta = db.tables.crm_tables.find((t) => t.id === "t-meta")!;
-  assert.deepEqual(meta.integration_settings.pulse_targets.c1, {
-    cpl: 60,
-    source: "carmen_market",
-    rationale: RATIONALE,
-    set_at: NOW.toISOString(),
-    set_by: "carmen",
-    goal: "leads",
-  });
-  assert.equal(meta.integration_settings.last_sync_at, "2026-10-26");
-  const google = db.tables.crm_tables.find((t) => t.id === "t-google")!;
-  assert.deepEqual(google.integration_settings, {}, "other platform untouched");
-});
-
-test("set_market_target needs a real rationale and client access", async () => {
-  const db = fakeDb(seed());
-  const short: any = await executePulseTargetTool(
-    db,
-    ctx(),
-    "set_market_target",
-    {
-      client_id: "client-1",
-      platform: "meta",
-      goal: "leads",
-      value: 60,
-      rationale: "שוק",
-    },
-  );
-  assert.equal(short.error, "rationale_required");
-  await assert.rejects(
-    executePulseTargetTool(
+Deno.test(
+  "set_market_target writes a labelled carmen_market target with rationale and time",
+  async () => {
+    const db = fakeDb(seed());
+    const result: any = await executePulseTargetTool(
       db,
-      ctx({
-        assertClientAccess: async () => {
-          throw new Error("אין הרשאה ללקוח");
-        },
-      }),
+      ctx({ actorUserId: null }), // Carmen on her own may set a market target
       "set_market_target",
       {
         client_id: "client-1",
@@ -260,123 +217,189 @@ test("set_market_target needs a real rationale and client access", async () => {
         goal: "leads",
         value: 60,
         rationale: RATIONALE,
+        campaign_id: "c1",
       },
-    ),
-    /אין הרשאה/,
-  );
-  assert.equal(db.writes.length, 0);
-});
-
-test("set_pulse_target queues an approval for a human and writes nothing", async () => {
-  const db = fakeDb(seed());
-  const noHuman: any = await executePulseTargetTool(
-    db,
-    ctx({ actorUserId: null }),
-    "set_pulse_target",
-    { client_id: "client-1", platform: "meta", goal: "leads", value: 45 },
-  );
-  assert.equal(noHuman.error, "human_requester_required");
-
-  const queued: any = await executePulseTargetTool(
-    db,
-    ctx(),
-    "set_pulse_target",
-    {
-      client_id: "client-1",
-      platform: "meta",
+    );
+    assertStrictEquals(result.success, true);
+    assertStrictEquals(result.label, "יעד שוק (כרמן)");
+    assertStrictEquals(result.scope, "campaign");
+    const meta = db.tables.crm_tables.find((t) => t.id === "t-meta")!;
+    assertEquals(meta.integration_settings.pulse_targets.c1, {
+      cpl: 60,
+      source: "carmen_market",
+      rationale: RATIONALE,
+      set_at: NOW.toISOString(),
+      set_by: "carmen",
       goal: "leads",
-      value: 45,
-      campaign_id: "c1",
-    },
-  );
-  assert.equal(queued.pending_approval, true);
-  const [row] = db.tables.agent_approval_queue;
-  assert.equal(row.status, "pending");
-  assert.equal(row.tool_name, "set_pulse_target");
-  assert.equal(row.requested_by, "user-1");
-  assert.deepEqual(row.tool_input.table_ids, ["t-meta"]);
-  assert.equal(row.tool_input.campaign_name, "לידים שיפוץ");
-  assert.match(row.title, /CPL 45/);
-  assert.ok(!db.writes.some((w) => w.table === "crm_tables"));
+    });
+    assertStrictEquals(meta.integration_settings.last_sync_at, "2026-10-26");
+    const google = db.tables.crm_tables.find((t) => t.id === "t-google")!;
+    assertEquals(google.integration_settings, {}, "other platform untouched");
+  },
+);
 
-  const again: any = await executePulseTargetTool(
-    db,
-    ctx(),
-    "set_pulse_target",
-    {
-      client_id: "client-1",
-      platform: "meta",
-      goal: "leads",
-      value: 45,
-      campaign_id: "c1",
-    },
-  );
-  assert.equal(again.reused_existing, true);
-  assert.equal(db.tables.agent_approval_queue.length, 1);
-});
-
-test("an approved set_pulse_target replaces Carmen's market target", async () => {
-  const db = fakeDb(
-    seed({
-      pulse_targets: {
-        c1: { cpl: 60, source: "carmen_market", rationale: RATIONALE },
-      },
-    }),
-  );
-  const outcome = await applyApprovedPulseTarget(
-    db,
-    {
-      tenant_id: "tenant-1",
-      requested_by: "user-1",
-      tool_input: {
+Deno.test(
+  "set_market_target needs a real rationale and client access",
+  async () => {
+    const db = fakeDb(seed());
+    const short: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
         client_id: "client-1",
         platform: "meta",
         goal: "leads",
-        kind: "cpl",
+        value: 60,
+        rationale: "שוק",
+      },
+    );
+    assertStrictEquals(short.error, "rationale_required");
+    const denied = await assertRejects(() =>
+      executePulseTargetTool(
+        db,
+        ctx({
+          assertClientAccess: async () => {
+            throw new Error("אין הרשאה ללקוח");
+          },
+        }),
+        "set_market_target",
+        {
+          client_id: "client-1",
+          platform: "meta",
+          goal: "leads",
+          value: 60,
+          rationale: RATIONALE,
+        },
+      ),
+    );
+    assertMatch(String(denied), /אין הרשאה/);
+    assertStrictEquals(db.writes.length, 0);
+  },
+);
+
+Deno.test(
+  "set_pulse_target queues an approval for a human and writes nothing",
+  async () => {
+    const db = fakeDb(seed());
+    const noHuman: any = await executePulseTargetTool(
+      db,
+      ctx({ actorUserId: null }),
+      "set_pulse_target",
+      { client_id: "client-1", platform: "meta", goal: "leads", value: 45 },
+    );
+    assertStrictEquals(noHuman.error, "human_requester_required");
+
+    const queued: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_pulse_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
         value: 45,
         campaign_id: "c1",
-        campaign_name: "לידים שיפוץ",
-        table_ids: ["t-meta", "t-other-client"],
       },
-    },
-    "owner-1",
-    () => NOW,
-  );
-  assert.equal(outcome.ok, true);
-  const meta = db.tables.crm_tables.find((t) => t.id === "t-meta")!;
-  assert.deepEqual(meta.integration_settings.pulse_targets.c1, {
-    cpl: 45,
-    source: "approved",
-    set_at: NOW.toISOString(),
-    set_by: "user-1",
-    approved_by: "owner-1",
-    goal: "leads",
-  });
-});
+    );
+    assertStrictEquals(queued.pending_approval, true);
+    const [row] = db.tables.agent_approval_queue;
+    assertStrictEquals(row.status, "pending");
+    assertStrictEquals(row.tool_name, "set_pulse_target");
+    assertStrictEquals(row.requested_by, "user-1");
+    assertEquals(row.tool_input.table_ids, ["t-meta"]);
+    assertStrictEquals(row.tool_input.campaign_name, "לידים שיפוץ");
+    assertMatch(row.title, /CPL 45/);
+    assert(!db.writes.some((w) => w.table === "crm_tables"));
 
-test("get_pulse_targets shows sources and the spending campaigns without one", async () => {
-  const db = fakeDb(
-    seed({
-      pulse_platform_targets: {
-        ecommerce: {
-          roas: 3,
-          source: "carmen_market",
-          rationale: RATIONALE,
-          set_at: "2026-10-20T08:00:00Z",
+    const again: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_pulse_target",
+      {
+        client_id: "client-1",
+        platform: "meta",
+        goal: "leads",
+        value: 45,
+        campaign_id: "c1",
+      },
+    );
+    assertStrictEquals(again.reused_existing, true);
+    assertStrictEquals(db.tables.agent_approval_queue.length, 1);
+  },
+);
+
+Deno.test(
+  "an approved set_pulse_target replaces Carmen's market target",
+  async () => {
+    const db = fakeDb(
+      seed({
+        pulse_targets: {
+          c1: { cpl: 60, source: "carmen_market", rationale: RATIONALE },
+        },
+      }),
+    );
+    const outcome = await applyApprovedPulseTarget(
+      db,
+      {
+        tenant_id: "tenant-1",
+        requested_by: "user-1",
+        tool_input: {
+          client_id: "client-1",
+          platform: "meta",
+          goal: "leads",
+          kind: "cpl",
+          value: 45,
+          campaign_id: "c1",
+          campaign_name: "לידים שיפוץ",
+          table_ids: ["t-meta", "t-other-client"],
         },
       },
-    }),
-  );
-  const result: any = await executePulseTargetTool(
-    db,
-    ctx(),
-    "get_pulse_targets",
-    { client_id: "client-1" },
-  );
-  const [client] = result.clients;
-  assert.equal(client.client_name, "שיפוצי אבי");
-  assert.equal(client.platform_targets[0].source, "carmen_market");
-  assert.equal(client.platform_targets[0].set_at, "2026-10-20T08:00:00Z");
-  assert.equal(result.missing_count, 1);
-  assert.equal(client.missing[0].campaigns[0].campaign_id, "c1");
-});
+      "owner-1",
+      () => NOW,
+    );
+    assertStrictEquals(outcome.ok, true);
+    const meta = db.tables.crm_tables.find((t) => t.id === "t-meta")!;
+    assertEquals(meta.integration_settings.pulse_targets.c1, {
+      cpl: 45,
+      source: "approved",
+      set_at: NOW.toISOString(),
+      set_by: "user-1",
+      approved_by: "owner-1",
+      goal: "leads",
+    });
+  },
+);
+
+Deno.test(
+  "get_pulse_targets shows sources and the spending campaigns without one",
+  async () => {
+    const db = fakeDb(
+      seed({
+        pulse_platform_targets: {
+          ecommerce: {
+            roas: 3,
+            source: "carmen_market",
+            rationale: RATIONALE,
+            set_at: "2026-10-20T08:00:00Z",
+          },
+        },
+      }),
+    );
+    const result: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "get_pulse_targets",
+      { client_id: "client-1" },
+    );
+    const [client] = result.clients;
+    assertStrictEquals(client.client_name, "שיפוצי אבי");
+    assertStrictEquals(client.platform_targets[0].source, "carmen_market");
+    assertStrictEquals(
+      client.platform_targets[0].set_at,
+      "2026-10-20T08:00:00Z",
+    );
+    assertStrictEquals(result.missing_count, 1);
+    assertStrictEquals(client.missing[0].campaigns[0].campaign_id, "c1");
+  },
+);
