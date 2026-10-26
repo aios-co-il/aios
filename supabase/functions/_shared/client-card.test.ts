@@ -1,5 +1,12 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertNotStrictEquals,
+  assertRejects,
+  assertStrictEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 
 import {
   ClientCardEntryError,
@@ -21,24 +28,39 @@ const CAMPAIGNER_USER = "33333333-3333-4333-8333-333333333333";
 const OWNER_USER = "44444444-4444-4444-8444-444444444444";
 const NOW = new Date("2026-10-26T09:15:00Z");
 
-test("source vocabulary: legacy rows are human, only human and confirmed rows can count", () => {
-  assert.equal(isHumanClientCardSource(null), true);
-  assert.equal(isHumanClientCardSource(undefined), true);
-  assert.equal(isHumanClientCardSource("human"), true);
-  assert.equal(isHumanClientCardSource("carmen"), false);
-  assert.equal(isHumanClientCardSource("future_source"), false);
-  assert.equal(clientCardSourceCanCountAsContact("human"), true);
-  assert.equal(clientCardSourceCanCountAsContact("carmen_confirmed"), true);
-  for (const source of ["carmen", "system_send", "group_digest", "automation"])
-    assert.equal(clientCardSourceCanCountAsContact(source), false, source);
-  assert.equal(clientCardSourceLabel("human"), null);
-  assert.equal(clientCardSourceLabel("carmen_confirmed"), "כרמן");
-  assert.equal(clientCardSourceLabel("system_send"), "נשלח מהמערכת");
-  assert.equal(clientCardSourceLabel("group_digest"), "סיכום קבוצה");
-  assert.equal(clientCardSourceLabel("automation"), "אוטומציה");
-});
+Deno.test(
+  "source vocabulary: legacy rows are human, only human and confirmed rows can count",
+  () => {
+    assertStrictEquals(isHumanClientCardSource(null), true);
+    assertStrictEquals(isHumanClientCardSource(undefined), true);
+    assertStrictEquals(isHumanClientCardSource("human"), true);
+    assertStrictEquals(isHumanClientCardSource("carmen"), false);
+    assertStrictEquals(isHumanClientCardSource("future_source"), false);
+    assertStrictEquals(clientCardSourceCanCountAsContact("human"), true);
+    assertStrictEquals(
+      clientCardSourceCanCountAsContact("carmen_confirmed"),
+      true,
+    );
+    for (const source of [
+      "carmen",
+      "system_send",
+      "group_digest",
+      "automation",
+    ])
+      assertStrictEquals(
+        clientCardSourceCanCountAsContact(source),
+        false,
+        source,
+      );
+    assertStrictEquals(clientCardSourceLabel("human"), null);
+    assertStrictEquals(clientCardSourceLabel("carmen_confirmed"), "כרמן");
+    assertStrictEquals(clientCardSourceLabel("system_send"), "נשלח מהמערכת");
+    assertStrictEquals(clientCardSourceLabel("group_digest"), "סיכום קבוצה");
+    assertStrictEquals(clientCardSourceLabel("automation"), "אוטומציה");
+  },
+);
 
-test("buildRecordClientCardEntryArgs maps and trims every field", () => {
+Deno.test("buildRecordClientCardEntryArgs maps and trims every field", () => {
   const args = buildRecordClientCardEntryArgs({
     tenantId: TENANT,
     clientId: CLIENT,
@@ -50,7 +72,7 @@ test("buildRecordClientCardEntryArgs maps and trims every field", () => {
     countsAsContact: true,
     metadata: { tool: "x" },
   });
-  assert.deepEqual(args, {
+  assertEquals(args, {
     p_tenant: TENANT,
     p_client: CLIENT,
     p_content: "שיחה עם הלקוח",
@@ -63,163 +85,181 @@ test("buildRecordClientCardEntryArgs maps and trims every field", () => {
   });
 });
 
-test("buildRecordClientCardEntryArgs leaves attribution to SQL and never passes 'system'", () => {
-  const args = buildRecordClientCardEntryArgs({
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "הערה",
-    source: "automation",
-    attributedUserId: "system",
-  });
-  assert.equal(args.p_attributed_user, null);
-  assert.equal(args.p_source_ref, null);
-  assert.equal(args.p_counts_as_contact, null);
-  assert.equal(args.p_update_type, null);
-});
+Deno.test(
+  "buildRecordClientCardEntryArgs leaves attribution to SQL and never passes 'system'",
+  () => {
+    const args = buildRecordClientCardEntryArgs({
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "הערה",
+      source: "automation",
+      attributedUserId: "system",
+    });
+    assertStrictEquals(args.p_attributed_user, null);
+    assertStrictEquals(args.p_source_ref, null);
+    assertStrictEquals(args.p_counts_as_contact, null);
+    assertStrictEquals(args.p_update_type, null);
+  },
+);
 
-test("buildRecordClientCardEntryArgs refuses unattributed contact and bad input", () => {
-  const base = {
-    tenantId: TENANT,
-    clientId: CLIENT,
-    content: "x",
-  } as const;
-  const codeOf = (fn: () => unknown) => {
-    try {
-      fn();
-    } catch (err) {
-      assert.ok(err instanceof ClientCardEntryError);
-      return err.code;
-    }
-    return "no_error";
-  };
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({ ...base, source: "carmen_confirmed" }),
-    ),
-    "attribution_required",
-  );
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({
-        ...base,
-        source: "human",
-        countsAsContact: true,
-      }),
-    ),
-    "attribution_required",
-  );
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({
-        ...base,
-        source: "system_send",
-        attributedUserId: OWNER_USER,
-        countsAsContact: true,
-      }),
-    ),
-    "invalid_input",
-  );
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({ ...base, source: "bot" as any }),
-    ),
-    "invalid_input",
-  );
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({
-        ...base,
-        content: "  ",
-        source: "carmen",
-      }),
-    ),
-    "invalid_input",
-  );
-  assert.equal(
-    codeOf(() =>
-      buildRecordClientCardEntryArgs({
-        ...base,
-        clientId: "not-a-uuid",
-        source: "carmen",
-      }),
-    ),
-    "invalid_input",
-  );
-});
-
-test("parseRecordClientCardEntryResult accepts a row or a one-row array", () => {
-  const row = {
-    entry_id: "e1",
-    inserted: true,
-    attributed_user_id: OWNER_USER,
-    attribution: "owner",
-  };
-  const expected = {
-    entryId: "e1",
-    inserted: true,
-    userId: OWNER_USER,
-    attribution: "owner",
-  };
-  assert.deepEqual(parseRecordClientCardEntryResult([row]), expected);
-  assert.deepEqual(parseRecordClientCardEntryResult(row), expected);
-  assert.throws(
-    () => parseRecordClientCardEntryResult([]),
-    ClientCardEntryError,
-  );
-});
-
-test("recordClientCardEntry maps the RPC's SQLSTATE to a readable code", async () => {
-  for (const [sqlstate, code] of [
-    ["42501", "access_denied"],
-    ["P0002", "not_found"],
-    ["22023", "invalid_input"],
-    ["XX000", "write_failed"],
-  ]) {
-    const supabase = {
-      rpc: async () => ({
-        data: null,
-        error: { code: sqlstate, message: "x" },
-      }),
+Deno.test(
+  "buildRecordClientCardEntryArgs refuses unattributed contact and bad input",
+  () => {
+    const base = {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "x",
+    } as const;
+    const codeOf = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (err) {
+        assert(err instanceof ClientCardEntryError);
+        return err.code;
+      }
+      return "no_error";
     };
-    await assert.rejects(
-      recordClientCardEntry(supabase, {
-        tenantId: TENANT,
-        clientId: CLIENT,
-        content: "x",
-        source: "carmen",
-      }),
-      (err: any) => err.code === code,
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({ ...base, source: "carmen_confirmed" }),
+      ),
+      "attribution_required",
     );
-  }
-});
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({
+          ...base,
+          source: "human",
+          countsAsContact: true,
+        }),
+      ),
+      "attribution_required",
+    );
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({
+          ...base,
+          source: "system_send",
+          attributedUserId: OWNER_USER,
+          countsAsContact: true,
+        }),
+      ),
+      "invalid_input",
+    );
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({ ...base, source: "bot" as any }),
+      ),
+      "invalid_input",
+    );
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({
+          ...base,
+          content: "  ",
+          source: "carmen",
+        }),
+      ),
+      "invalid_input",
+    );
+    assertStrictEquals(
+      codeOf(() =>
+        buildRecordClientCardEntryArgs({
+          ...base,
+          clientId: "not-a-uuid",
+          source: "carmen",
+        }),
+      ),
+      "invalid_input",
+    );
+  },
+);
 
-test("hourlyDedupeRef is stable within the hour and differs by text, person and hour", () => {
-  const a = hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello", NOW);
-  assert.equal(
-    a,
-    hourlyDedupeRef(
-      "t",
-      CAMPAIGNER_USER,
-      "note\nhello",
-      new Date("2026-10-26T09:59:59Z"),
-    ),
-  );
-  assert.match(a, /^t:33333333-3333-4333-8333-333333333333:2026-10-26T09:/);
-  assert.notEqual(
-    a,
-    hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello!", NOW),
-  );
-  assert.notEqual(a, hourlyDedupeRef("t", OWNER_USER, "note\nhello", NOW));
-  assert.notEqual(
-    a,
-    hourlyDedupeRef(
-      "t",
-      CAMPAIGNER_USER,
-      "note\nhello",
-      new Date("2026-10-26T10:00:00Z"),
-    ),
-  );
-  assert.match(hourlyDedupeRef("t", "system", "x", NOW), /^t:system:/);
-  assert.equal(stableHash("שלום"), stableHash("שלום"));
-  assert.notEqual(stableHash("שלום"), stableHash("שלום."));
-});
+Deno.test(
+  "parseRecordClientCardEntryResult accepts a row or a one-row array",
+  () => {
+    const row = {
+      entry_id: "e1",
+      inserted: true,
+      attributed_user_id: OWNER_USER,
+      attribution: "owner",
+    };
+    const expected = {
+      entryId: "e1",
+      inserted: true,
+      userId: OWNER_USER,
+      attribution: "owner",
+    };
+    assertEquals(parseRecordClientCardEntryResult([row]), expected);
+    assertEquals(parseRecordClientCardEntryResult(row), expected);
+    assertThrows(
+      () => parseRecordClientCardEntryResult([]),
+      ClientCardEntryError,
+    );
+  },
+);
+
+Deno.test(
+  "recordClientCardEntry maps the RPC's SQLSTATE to a readable code",
+  async () => {
+    for (const [sqlstate, code] of [
+      ["42501", "access_denied"],
+      ["P0002", "not_found"],
+      ["22023", "invalid_input"],
+      ["XX000", "write_failed"],
+    ]) {
+      const supabase = {
+        rpc: async () => ({
+          data: null,
+          error: { code: sqlstate, message: "x" },
+        }),
+      };
+      const err = await assertRejects(() =>
+        recordClientCardEntry(supabase, {
+          tenantId: TENANT,
+          clientId: CLIENT,
+          content: "x",
+          source: "carmen",
+        }),
+      );
+      assertStrictEquals((err as any).code, code);
+    }
+  },
+);
+
+Deno.test(
+  "hourlyDedupeRef is stable within the hour and differs by text, person and hour",
+  () => {
+    const a = hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello", NOW);
+    assertStrictEquals(
+      a,
+      hourlyDedupeRef(
+        "t",
+        CAMPAIGNER_USER,
+        "note\nhello",
+        new Date("2026-10-26T09:59:59Z"),
+      ),
+    );
+    assertMatch(a, /^t:33333333-3333-4333-8333-333333333333:2026-10-26T09:/);
+    assertNotStrictEquals(
+      a,
+      hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello!", NOW),
+    );
+    assertNotStrictEquals(
+      a,
+      hourlyDedupeRef("t", OWNER_USER, "note\nhello", NOW),
+    );
+    assertNotStrictEquals(
+      a,
+      hourlyDedupeRef(
+        "t",
+        CAMPAIGNER_USER,
+        "note\nhello",
+        new Date("2026-10-26T10:00:00Z"),
+      ),
+    );
+    assertMatch(hourlyDedupeRef("t", "system", "x", NOW), /^t:system:/);
+    assertStrictEquals(stableHash("שלום"), stableHash("שלום"));
+    assertNotStrictEquals(stableHash("שלום"), stableHash("שלום."));
+  },
+);
