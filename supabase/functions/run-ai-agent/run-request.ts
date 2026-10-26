@@ -1,6 +1,11 @@
 import type { Json } from "../_shared/database.types.ts";
 import { isObject, jsonObject } from "./json-config.ts";
-import { readWaNotifyTarget, type WaNotifyTarget } from "./wa-notify.ts";
+import {
+  readWaChatScope,
+  readWaNotifyTarget,
+  type WaChatScope,
+  type WaNotifyTarget,
+} from "./wa-notify.ts";
 
 export type JsonRecord = { [key: string]: Json | undefined };
 
@@ -32,6 +37,7 @@ export interface RunAgentRequest {
   conversation_history?: Json[];
   conversation_id?: string;
   wa_notify?: WaNotifyTarget | null;
+  wa_chat_scope?: WaChatScope;
   model_override?: string;
   pin_skills_only?: boolean;
   active_skin?: Json;
@@ -89,6 +95,7 @@ export function parseRunAgentRequest(value: Json): RunAgentRequest {
       : undefined,
     conversation_id: stringField(body.conversation_id),
     wa_notify: readWaNotifyTarget(body.wa_notify),
+    wa_chat_scope: readWaChatScope(body.wa_notify) ?? undefined,
     model_override: stringField(body.model_override),
     pin_skills_only:
       typeof body.pin_skills_only === "boolean"

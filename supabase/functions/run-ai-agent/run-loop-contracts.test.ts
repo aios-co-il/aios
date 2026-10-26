@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readWaNotifyTarget } from "./wa-notify.ts";
+import { readWaChatScope, readWaNotifyTarget } from "./wa-notify.ts";
 import {
   firstChoiceMessage,
   isChatCompletionMessage,
@@ -185,4 +185,32 @@ test("readWaNotifyTarget keeps complete WhatsApp targets and drops malformed one
   assert.equal(readWaNotifyTarget({ ...target, surface: "email" }), null);
   assert.equal(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
   assert.equal(readWaNotifyTarget(["x"]), null);
+});
+
+test("a partial WhatsApp target keeps its chat scope while delivery is dropped", () => {
+  const body = parseRunAgentRequest({
+    wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us" },
+  });
+  assert.equal(body.wa_notify, null);
+  assert.deepEqual(body.wa_chat_scope, {
+    chat_id: "972501234567@c.us",
+    is_group: null,
+  });
+});
+
+test("readWaChatScope marks WhatsApp requests without a usable chat id as unknown", () => {
+  assert.equal(readWaChatScope(undefined), null);
+  assert.equal(readWaChatScope(null), null);
+  assert.deepEqual(readWaChatScope({ surface: "whatsapp" }), {
+    chat_id: null,
+    is_group: null,
+  });
+  assert.deepEqual(
+    readWaChatScope({ chat_id: 972501234567, is_group: false }),
+    {
+      chat_id: "972501234567",
+      is_group: false,
+    },
+  );
+  assert.equal(parseRunAgentRequest({}).wa_chat_scope, undefined);
 });

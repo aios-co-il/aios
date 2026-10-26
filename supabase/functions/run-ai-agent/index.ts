@@ -190,6 +190,7 @@ import {
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 import { errorMessage } from "./error-message.ts";
+import { readWaChatScope, type WaChatScope } from "./wa-notify.ts";
 import { readImageGenerationPayload } from "./image-generation-payload.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 import type {
@@ -5741,10 +5742,7 @@ async function tryCreateCalendarEventForTask(
       );
     }
   } catch (e) {
-    console.warn(
-      "[create_task] calendar sync error:",
-      errorMessage(e),
-    );
+    console.warn("[create_task] calendar sync error:", errorMessage(e));
   }
 }
 
@@ -5762,6 +5760,7 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
+  waChatScope?: WaChatScope | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -10027,10 +10026,19 @@ async function executeTool(
       // Default: stay inside the active WhatsApp chat_id (private or group).
       let scopeGroupId: string | null = null;
       let scopeNote = "current_chat";
-      if (!browseAll && waNotify?.chat_id) {
-        const chatId = String(waNotify.chat_id);
+      const chatScope = waChatScope ?? readWaChatScope(waNotify);
+      if (!browseAll && chatScope && !chatScope.chat_id) {
+        return {
+          count: 0,
+          mode: browseMode ? "browse" : "keyword_search",
+          error: "current_chat_unknown",
+          note: "לא זוהה הצ'אט הנוכחי — נסי browse_all_chats=true אם צריך חיפוש ארגוני.",
+        };
+      }
+      if (!browseAll && chatScope?.chat_id) {
+        const chatId = chatScope.chat_id;
         const isGroupChat =
-          /@g\.us/i.test(chatId) || waNotify.is_group === true;
+          /@g\.us/i.test(chatId) || chatScope.is_group === true;
         if (isGroupChat) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
@@ -10087,7 +10095,7 @@ async function executeTool(
         count: data.length,
         mode: browseMode ? "browse" : "keyword_search",
         scope: scopeNote,
-        chat_id: waNotify?.chat_id || null,
+        chat_id: chatScope?.chat_id || null,
         note:
           data.length === 0
             ? browseMode
@@ -13820,6 +13828,7 @@ async function handleRunAgent(
       conversation_history,
       conversation_id,
       wa_notify,
+      wa_chat_scope,
     } = bodyJson;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
@@ -15544,6 +15553,8 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         callerPhone,
         wa_notify,
         surface,
+        undefined,
+        wa_chat_scope,
       );
       const finalOutput = formatApprovalExecutionReply(
         execResult,
@@ -15635,6 +15646,8 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         callerPhone,
         wa_notify,
         surface,
+        undefined,
+        wa_chat_scope,
       );
       const execView = readToolResult(execResult);
       const finalOutput = execView.success
@@ -15707,6 +15720,8 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         callerPhone,
         wa_notify,
         surface,
+        undefined,
+        wa_chat_scope,
       );
       const pulseDigest = readToolResult(pulseResult).whatsapp_digest;
       const digest = typeof pulseDigest === "string" ? pulseDigest.trim() : "";
@@ -16079,6 +16094,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
               wa_notify,
               surface,
               serverConversationId,
+              wa_chat_scope,
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

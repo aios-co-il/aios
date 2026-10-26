@@ -46,3 +46,24 @@ export function readWaNotifyTarget(
     is_group: target.is_group,
   };
 }
+
+/** Chat the request came from; null only when the request carried no wa_notify object. */
+export interface WaChatScope {
+  chat_id: string | null;
+  is_group: boolean | null;
+}
+
+/** Keeps the chat scope even when the delivery target is incomplete, so history search never widens. */
+export function readWaChatScope(value: unknown): WaChatScope | null {
+  if (!isObject(value)) return null;
+  const chatId = "chat_id" in value ? value.chat_id : undefined;
+  const isGroup = "is_group" in value ? value.is_group : undefined;
+  return {
+    chat_id:
+      (typeof chatId === "string" && chatId !== "") ||
+      (typeof chatId === "number" && Number.isFinite(chatId) && chatId !== 0)
+        ? String(chatId)
+        : null,
+    is_group: typeof isGroup === "boolean" ? isGroup : null,
+  };
+}
