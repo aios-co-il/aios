@@ -194,8 +194,7 @@ export function FacebookDeliveryModeSection({
               </Button>
               {subscribedAt && (
                 <p className="text-[10px] text-muted-foreground text-right">
-                  נרשם:{" "}
-                  {new Date(subscribedAt).toLocaleString("he-IL")}
+                  נרשם: {new Date(subscribedAt).toLocaleString("he-IL")}
                 </p>
               )}
             </div>

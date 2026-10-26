@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import {

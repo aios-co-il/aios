@@ -1,5 +1,10 @@
 import { Label } from "@/components/ui/label";
-import { cfgString, type StepConfig, type StepConfigBulkChange, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgString,
+  type StepConfig,
+  type StepConfigBulkChange,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import {
   decodeStatusSelection,
   encodeStoredTriggerFilters,

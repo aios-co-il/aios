@@ -1,5 +1,9 @@
 import { Label } from "@/components/ui/label";
-import { cfgText, type StepConfig, type StepConfigChange } from "@/lib/automationStepConfig";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "@/lib/automationStepConfig";
 import { Input } from "@/components/ui/input";
 import { useMailingActionOptions } from "@/components/automations/useMailingActionOptions";
 import {

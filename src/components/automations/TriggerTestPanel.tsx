@@ -104,7 +104,9 @@ function isPickerEntity(row: unknown): row is PickerEntity {
   });
 }
 
-function toPickerEntities(rows: readonly unknown[] | undefined): PickerEntity[] {
+function toPickerEntities(
+  rows: readonly unknown[] | undefined,
+): PickerEntity[] {
   return (rows ?? []).filter(isPickerEntity);
 }
 
