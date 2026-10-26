@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   notifyRecallCreditEmpty,
   recallCreditEmptyWhatsApp,
@@ -27,32 +26,41 @@ function mockSupabase(opts: { existing?: unknown[] }) {
   return { from, rpc, calls };
 }
 
-test("empty-credit WhatsApp includes the EU billing dashboard by default region fallback", () => {
-  assert.match(
-    recallCreditEmptyWhatsApp(),
-    /recall\.ai\/dashboard\/billing\/usage/,
-  );
-});
+Deno.test(
+  "empty-credit WhatsApp includes the EU billing dashboard by default region fallback",
+  () => {
+    assertMatch(
+      recallCreditEmptyWhatsApp(),
+      /recall\.ai\/dashboard\/billing\/usage/,
+    );
+  },
+);
 
-test("notifyRecallCreditEmpty skips WhatsApp when a quota_out already fired recently", async () => {
-  const sb = mockSupabase({ existing: [{ id: "already" }] });
-  const sent = await notifyRecallCreditEmpty(sb as never);
-  assert.equal(sent, false);
-  assert.equal(sb.calls.length, 0);
-});
+Deno.test(
+  "notifyRecallCreditEmpty skips WhatsApp when a quota_out already fired recently",
+  async () => {
+    const sb = mockSupabase({ existing: [{ id: "already" }] });
+    const sent = await notifyRecallCreditEmpty(sb as never);
+    assertStrictEquals(sent, false);
+    assertStrictEquals(sb.calls.length, 0);
+  },
+);
 
-test("notifyRecallCreditEmpty writes intel feed + claude_notify_david on first down", async () => {
-  const sb = mockSupabase({ existing: [] });
-  const sent = await notifyRecallCreditEmpty(sb as never);
-  assert.equal(sent, true);
-  assert.equal(
-    sb.calls.some((c) => c.table === "integration_alerts_log"),
-    true,
-  );
-  const rpc = sb.calls.find((c) => c.rpc === "claude_notify_david");
-  assert.ok(rpc);
-  assert.match(
-    String((rpc.payload as { p_message: string }).p_message),
-    /נגמר הקרדיט/,
-  );
-});
+Deno.test(
+  "notifyRecallCreditEmpty writes intel feed + claude_notify_david on first down",
+  async () => {
+    const sb = mockSupabase({ existing: [] });
+    const sent = await notifyRecallCreditEmpty(sb as never);
+    assertStrictEquals(sent, true);
+    assertStrictEquals(
+      sb.calls.some((c) => c.table === "integration_alerts_log"),
+      true,
+    );
+    const rpc = sb.calls.find((c) => c.rpc === "claude_notify_david");
+    assert(rpc);
+    assertMatch(
+      String((rpc.payload as { p_message: string }).p_message),
+      /נגמר הקרדיט/,
+    );
+  },
+);
