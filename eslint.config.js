@@ -33,7 +33,6 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": "off",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
-      "@typescript-eslint/no-explicit-any": "warn", // AIO-52
       "react-hooks/rules-of-hooks": "warn", // AIO-61
     },
   },
