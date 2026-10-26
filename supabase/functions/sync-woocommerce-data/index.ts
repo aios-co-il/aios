@@ -1,6 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { extractWooOrderAttribution } from "../_shared/wooAttribution.ts";
+import { getPath, getString } from "../_shared/provider-json-b24.ts";
+
+interface UpsertClient {
+  from(table: string): {
+    upsert(
+      rows: object[],
+      options: { onConflict: string },
+    ): PromiseLike<{ error: unknown }>;
+  };
+}
+
+interface SiteSummary {
+  site_id: unknown;
+  site_url?: unknown;
+  error?: unknown;
+  orders_synced?: number;
+  products_synced?: number;
+  customers_synced?: number;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,7 +72,7 @@ async function fetchAllPages(
   extraParams: Record<string, string | number> = {},
   maxPages = 200,
 ) {
-  const results: any[] = [];
+  const results: unknown[] = [];
   let page = 1;
   while (page <= maxPages) {
     const data = await wooFetch(siteUrl, key, secret, endpoint, {
@@ -70,9 +89,9 @@ async function fetchAllPages(
 }
 
 async function upsertChunks(
-  supabase: any,
+  supabase: UpsertClient,
   table: string,
-  rows: Record<string, unknown>[],
+  rows: object[],
   onConflict: string,
 ) {
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
@@ -82,43 +101,58 @@ async function upsertChunks(
   }
 }
 
-function mapOrderRow(tenant_id: string, siteId: string, order: any) {
+const toFloat = (value: unknown) => parseFloat(String(value));
+
+function readOrderMetaData(
+  order: unknown,
+): Array<{ key?: string; value?: unknown }> | undefined {
+  const raw = getPath(order, "meta_data");
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((m) => ({
+    key: getString(m, "key"),
+    value: getPath(m, "value"),
+  }));
+}
+
+function mapOrderRow(tenant_id: string, siteId: string, order: unknown) {
+  const field = (key: string) => getPath(order, key);
+  const billing = field("billing");
   return {
     tenant_id,
     site_id: siteId,
-    woo_order_id: order.id,
-    order_number: String(order.number || order.id),
-    status: order.status,
-    currency: order.currency,
-    total: parseFloat(order.total) || 0,
-    subtotal: parseFloat(order.subtotal) || 0,
-    total_tax: parseFloat(order.total_tax) || 0,
-    shipping_total: parseFloat(order.shipping_total) || 0,
-    discount_total: parseFloat(order.discount_total) || 0,
-    customer_id: order.customer_id || null,
-    customer_email: order.billing?.email || null,
-    customer_first_name: order.billing?.first_name || null,
-    customer_last_name: order.billing?.last_name || null,
-    customer_phone: order.billing?.phone || null,
-    billing: order.billing || {},
-    shipping: order.shipping || {},
-    line_items: order.line_items || [],
-    payment_method: order.payment_method || null,
-    payment_method_title: order.payment_method_title || null,
-    date_created: order.date_created || null,
-    date_modified: order.date_modified || null,
-    date_completed: order.date_completed || null,
-    date_paid: order.date_paid || null,
-    attribution: extractWooOrderAttribution(order.meta_data),
+    woo_order_id: field("id"),
+    order_number: String(field("number") || field("id")),
+    status: field("status"),
+    currency: field("currency"),
+    total: toFloat(field("total")) || 0,
+    subtotal: toFloat(field("subtotal")) || 0,
+    total_tax: toFloat(field("total_tax")) || 0,
+    shipping_total: toFloat(field("shipping_total")) || 0,
+    discount_total: toFloat(field("discount_total")) || 0,
+    customer_id: field("customer_id") || null,
+    customer_email: getPath(billing, "email") || null,
+    customer_first_name: getPath(billing, "first_name") || null,
+    customer_last_name: getPath(billing, "last_name") || null,
+    customer_phone: getPath(billing, "phone") || null,
+    billing: billing || {},
+    shipping: field("shipping") || {},
+    line_items: field("line_items") || [],
+    payment_method: field("payment_method") || null,
+    payment_method_title: field("payment_method_title") || null,
+    date_created: field("date_created") || null,
+    date_modified: field("date_modified") || null,
+    date_completed: field("date_completed") || null,
+    date_paid: field("date_paid") || null,
+    attribution: extractWooOrderAttribution(readOrderMetaData(order)),
     synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 }
 
 /** Merge orders by woo_order_id — later rows win (backfill can refresh attribution on older orders). */
-function mergeOrdersById(orders: any[]) {
-  const map = new Map<number, any>();
-  orders.forEach((order) => map.set(order.id, order));
+function mergeOrdersById(orders: unknown[]) {
+  const map = new Map<unknown, unknown>();
+  orders.forEach((order) => map.set(getPath(order, "id"), order));
   return Array.from(map.values());
 }
 
@@ -175,7 +209,7 @@ serve(async (req) => {
       );
     }
 
-    const summaries: any[] = [];
+    const summaries: SiteSummary[] = [];
 
     for (const site of sites) {
       const { id: siteId, tenant_id, site_url } = site;
@@ -270,10 +304,10 @@ serve(async (req) => {
             console.log(
               `[woo-sync] attribution backfill ${attributionBackfillDays}d — ${backfillOrders.length} orders fetched, ${allOrders.length} unique`,
             );
-          } catch (backfillErr: any) {
+          } catch (backfillErr) {
             console.warn(
               `[woo-sync] attribution backfill skipped for ${siteId}:`,
-              backfillErr?.message || backfillErr,
+              getPath(backfillErr, "message") || backfillErr,
             );
           }
         }
@@ -300,14 +334,14 @@ serve(async (req) => {
           console.log(
             `[woo-sync] recent-order backfill ${RECENT_ORDER_BACKFILL_DAYS}d — ${recentOrders.length} fetched, ${allOrders.length} unique`,
           );
-        } catch (recentErr: any) {
+        } catch (recentErr) {
           console.warn(
             `[woo-sync] recent-order backfill skipped for ${siteId}:`,
-            recentErr?.message || recentErr,
+            getPath(recentErr, "message") || recentErr,
           );
         }
 
-        const orderRows = allOrders.map((order: any) =>
+        const orderRows = allOrders.map((order) =>
           mapOrderRow(tenant_id, siteId, order),
         );
         await upsertChunks(
@@ -328,23 +362,23 @@ serve(async (req) => {
             modified_after: modifiedAfter,
           },
         );
-        const productRows = products.map((product: any) => ({
+        const productRows = products.map((product) => ({
           tenant_id,
           site_id: siteId,
-          woo_product_id: product.id,
-          name: product.name,
-          slug: product.slug,
-          status: product.status,
-          type: product.type,
-          sku: product.sku || null,
-          price: parseFloat(product.price) || null,
-          regular_price: parseFloat(product.regular_price) || null,
-          sale_price: parseFloat(product.sale_price) || null,
-          stock_quantity: product.stock_quantity ?? null,
-          stock_status: product.stock_status,
-          total_sales: product.total_sales || 0,
-          categories: product.categories || [],
-          images: product.images || [],
+          woo_product_id: getPath(product, "id"),
+          name: getPath(product, "name"),
+          slug: getPath(product, "slug"),
+          status: getPath(product, "status"),
+          type: getPath(product, "type"),
+          sku: getPath(product, "sku") || null,
+          price: toFloat(getPath(product, "price")) || null,
+          regular_price: toFloat(getPath(product, "regular_price")) || null,
+          sale_price: toFloat(getPath(product, "sale_price")) || null,
+          stock_quantity: getPath(product, "stock_quantity") ?? null,
+          stock_status: getPath(product, "stock_status"),
+          total_sales: getPath(product, "total_sales") || 0,
+          categories: getPath(product, "categories") || [],
+          images: getPath(product, "images") || [],
           synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }));
@@ -367,20 +401,20 @@ serve(async (req) => {
           { orderby: "registered_date", order: "desc" },
           customerMaxPages,
         );
-        const customerRows = customers.map((customer: any) => ({
+        const customerRows = customers.map((customer) => ({
           tenant_id,
           site_id: siteId,
-          woo_customer_id: customer.id,
-          email: customer.email,
-          first_name: customer.first_name,
-          last_name: customer.last_name,
-          username: customer.username,
-          role: customer.role,
-          orders_count: customer.orders_count || 0,
-          total_spent: parseFloat(customer.total_spent) || 0,
-          avatar_url: customer.avatar_url || null,
-          billing: customer.billing || {},
-          shipping: customer.shipping || {},
+          woo_customer_id: getPath(customer, "id"),
+          email: getPath(customer, "email"),
+          first_name: getPath(customer, "first_name"),
+          last_name: getPath(customer, "last_name"),
+          username: getPath(customer, "username"),
+          role: getPath(customer, "role"),
+          orders_count: getPath(customer, "orders_count") || 0,
+          total_spent: toFloat(getPath(customer, "total_spent")) || 0,
+          avatar_url: getPath(customer, "avatar_url") || null,
+          billing: getPath(customer, "billing") || {},
+          shipping: getPath(customer, "shipping") || {},
           synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }));
@@ -422,14 +456,15 @@ serve(async (req) => {
           products_synced: productsCount,
           customers_synced: customersCount,
         });
-      } catch (siteError: any) {
+      } catch (siteError) {
         console.error(`Error syncing site ${siteId}:`, siteError);
+        const siteErrorMessage = getPath(siteError, "message");
         if (logId) {
           await supabase
             .from("woocommerce_sync_log")
             .update({
               status: "error",
-              error_message: siteError.message,
+              error_message: siteErrorMessage,
               orders_synced: ordersCount,
               products_synced: productsCount,
               customers_synced: customersCount,
@@ -437,11 +472,11 @@ serve(async (req) => {
             })
             .eq("id", logId);
         }
-        summaries.push({ site_id: siteId, error: siteError.message });
+        summaries.push({ site_id: siteId, error: siteErrorMessage });
       }
     }
 
-    const first = summaries[0] || {};
+    const first: Partial<SiteSummary> = summaries[0] || {};
     return new Response(
       JSON.stringify({
         success: !summaries.some((s) => s.error),
@@ -454,10 +489,13 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("sync-woocommerce-data error:", error);
     return new Response(
-      JSON.stringify({ error: error.message, version: FUNCTION_VERSION }),
+      JSON.stringify({
+        error: getPath(error, "message"),
+        version: FUNCTION_VERSION,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

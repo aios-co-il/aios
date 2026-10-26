@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { getArray, getPath, getString } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,10 +70,7 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
+    const supabase = serviceClient();
 
     // Fetch all active GSC integrations across the accessible tenants.
     const { data: integrations, error: intErr } = await supabase
@@ -109,18 +108,20 @@ serve(async (req) => {
     const candidates: Candidate[] = [];
 
     for (const i of integrations) {
-      const s: any = i.settings || {};
-      const clientSites = s.client_sites || {};
-      const availableSites: any[] = Array.isArray(s.available_sites)
-        ? s.available_sites
-        : [];
-      const ownerEmail: string | null = s.google_email || null;
+      const s = i.settings;
+      const availableSites = getArray(s, "available_sites");
+      const ownerEmail: string | null = getString(s, "google_email") || null;
 
-      const mappedForClient: string | null = clientSites[clientId] || null;
+      const mappedForClient: string | null =
+        getString(s, "client_sites", String(clientId)) || null;
       const isMappingUsable = (siteUrl: string | null) => {
         if (!siteUrl) return false;
-        const meta = availableSites.find((x: any) => x?.siteUrl === siteUrl);
-        return !meta || meta.permissionLevel !== "siteUnverifiedUser";
+        const meta = availableSites.find(
+          (x) => getPath(x, "siteUrl") === siteUrl,
+        );
+        return (
+          !meta || getPath(meta, "permissionLevel") !== "siteUnverifiedUser"
+        );
       };
 
       // Tier 1: explicit client mapping AND matches expectedSiteUrl (if provided).
@@ -139,14 +140,15 @@ serve(async (req) => {
       // Tier 2: available_sites contains a usable property matching expectedSiteUrl.
       if (expectedSiteUrl) {
         const siteMatch = availableSites.find(
-          (x: any) =>
-            x?.permissionLevel !== "siteUnverifiedUser" &&
-            siteMatches(x?.siteUrl, expectedSiteUrl),
+          (x) =>
+            getPath(x, "permissionLevel") !== "siteUnverifiedUser" &&
+            siteMatches(getString(x, "siteUrl"), expectedSiteUrl),
         );
-        if (siteMatch?.siteUrl) {
+        const siteMatchUrl = getString(siteMatch, "siteUrl");
+        if (siteMatchUrl) {
           candidates.push({
             id: i.id,
-            siteUrl: siteMatch.siteUrl,
+            siteUrl: siteMatchUrl,
             ownerEmail,
             rank: 2,
           });

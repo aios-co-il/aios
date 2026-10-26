@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { TablesInsert } from "../_shared/database.types.ts";
+import { getPath } from "../_shared/provider-json-b24.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
       .eq("table_id", table_id);
 
     const existingFieldKeys = new Set(
-      (existingFields || []).map((f: any) => f.key),
+      (existingFields || []).map((f: { key: string }) => f.key),
     );
     const missingFields = expectedFields
       .filter((f) => !existingFieldKeys.has(f.key))
@@ -182,17 +184,18 @@ Deno.serve(async (req) => {
     // Build lookup map: "campaign_id|date" -> record id
     const existingMap = new Map<string, string>();
     for (const r of allExisting || []) {
-      const d = r.data as any;
-      const existingCampaignId = String(d?.campaign_id || "").trim();
-      const existingDate = normalizeDate(d?.date);
+      const d: unknown = r.data;
+      const existingCampaignId = String(getPath(d, "campaign_id") || "").trim();
+      const existingDate = normalizeDate(getPath(d, "date"));
       if (existingCampaignId && existingDate) {
         existingMap.set(`${existingCampaignId}|${existingDate}`, r.id);
       }
     }
 
     // Process all records and split into inserts vs updates
-    const toInsert: any[] = [];
-    const toUpdate: { id: string; data: Record<string, any> }[] = [];
+    const toInsert: TablesInsert<"crm_records">[] = [];
+    const toUpdate: { id: string; data: Record<string, string | number> }[] =
+      [];
     let skippedInvalidCount = 0;
     let skippedOutOfRangeCount = 0;
 
@@ -236,7 +239,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      let recordData: Record<string, any>;
+      let recordData: Record<string, string | number>;
 
       if (campaignType === "ecommerce") {
         const cost =
