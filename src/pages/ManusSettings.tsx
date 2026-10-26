@@ -24,6 +24,11 @@ import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { integrationSettingsObject } from "@/lib/manusIntegrationSettings";
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export default function ManusSettings() {
   const navigate = useNavigate();
@@ -49,7 +54,8 @@ export default function ManusSettings() {
   });
 
   const isConnected = integration?.is_active;
-  const settings = (integration?.settings as any) || {};
+  const settings = integrationSettingsObject(integration?.settings);
+  const webhookId = settings.webhook_id;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -96,8 +102,8 @@ export default function ManusSettings() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("החיבור ל-Manus תקין!");
-    } catch (err: any) {
-      toast.error(`שגיאת חיבור: ${err.message}`);
+    } catch (err) {
+      toast.error(`שגיאת חיבור: ${errorText(err)}`);
     } finally {
       setTesting(false);
     }
@@ -115,8 +121,8 @@ export default function ManusSettings() {
         queryKey: ["manus-integration", currentTenantId],
       });
       toast.success("Webhook נרשם בהצלחה!");
-    } catch (err: any) {
-      toast.error(`שגיאה ברישום webhook: ${err.message}`);
+    } catch (err) {
+      toast.error(`שגיאה ברישום webhook: ${errorText(err)}`);
     }
   };
 
@@ -185,10 +191,10 @@ export default function ManusSettings() {
               <CheckCircle className="h-4 w-4 text-green-500" />
               מפתח API מוגדר
             </div>
-            {settings.webhook_id ? (
+            {webhookId ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle className="h-4 w-4 text-green-500" />
-                Webhook רשום (ID: {settings.webhook_id})
+                Webhook רשום (ID: {String(webhookId)})
               </div>
             ) : (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -206,7 +212,7 @@ export default function ManusSettings() {
                 {testing && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
                 בדוק חיבור
               </Button>
-              {!settings.webhook_id && (
+              {!webhookId && (
                 <Button variant="outline" size="sm" onClick={registerWebhook}>
                   <Webhook className="h-4 w-4 ml-2" />
                   רשום Webhook
