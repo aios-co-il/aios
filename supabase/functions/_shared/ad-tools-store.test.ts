@@ -60,6 +60,35 @@ Deno.test("identity: user id, active tenant and super admin", async () => {
   assertStrictEquals(await id.isSuperAdmin("u1"), true);
 });
 
+Deno.test("identity: super-admin access follows the tenant flag", async () => {
+  const on = fakeDb({ tenants: rows([{ allow_super_admin_access: true }]) });
+  assertStrictEquals(
+    await createAdToolIdentity(on).allowsSuperAdmin("t1"),
+    true,
+  );
+  assertEquals(on.calls[0], {
+    table: "tenants",
+    ops: [
+      ["select", "allow_super_admin_access"],
+      ["eq", "id", "t1"],
+    ],
+  });
+  const off = fakeDb({ tenants: rows([{ allow_super_admin_access: false }]) });
+  assertStrictEquals(
+    await createAdToolIdentity(off).allowsSuperAdmin("t1"),
+    false,
+  );
+  const missing = fakeDb({ tenants: rows([]) });
+  assertStrictEquals(
+    await createAdToolIdentity(missing).allowsSuperAdmin("t1"),
+    false,
+  );
+  const broken = fakeDb({ tenants: { data: null, error: new Error("boom") } });
+  await assertRejects(() =>
+    createAdToolIdentity(broken).allowsSuperAdmin("t1"),
+  );
+});
+
 Deno.test("identity: roles need a tenant_users row", async () => {
   const member = createAdToolIdentity(
     fakeDb({

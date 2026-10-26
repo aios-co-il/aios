@@ -4,7 +4,10 @@
 // Callers (AIO-239, ../_shared/ad-tools-auth.ts): the service role (approval execute, scheduler,
 // shutdown runner) with the tenant in the body, or a user JWT scoped to the user's own tenant.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { authorizeFbToolRequest } from "../_shared/ad-tools-auth.ts";
+import {
+  authorizeFbToolRequest,
+  fbTokenSource,
+} from "../_shared/ad-tools-auth.ts";
 import {
   createAdScopeStore,
   createAdToolIdentity,
@@ -155,8 +158,8 @@ Deno.serve(async (req) => {
       body,
       identity: createAdToolIdentity(supabase),
       store: createAdScopeStore(supabase),
-      fetchAccountId: async (tenantId, entityId) => {
-        const t = await resolveFbToken(supabase, tenantId, body.client_id);
+      fetchAccountId: async (src, entityId) => {
+        const t = await resolveFbToken(supabase, src.tenantId, src.clientId);
         const obj = t ? await fbGet(entityId, "account_id", t) : null;
         return obj?.account_id ? String(obj.account_id) : null;
       },
@@ -172,7 +175,9 @@ Deno.serve(async (req) => {
         message: "דורש אישור מפורש (confirmed=true)",
       });
 
-    const token = await resolveFbToken(supabase, tenant_id, body.client_id);
+    // A user acts only with their own tenant's Meta token.
+    const src = fbTokenSource(caller, body.client_id);
+    const token = await resolveFbToken(supabase, src.tenantId, src.clientId);
     if (!token) return err("fb_not_connected", 400);
 
     let result: any = {};

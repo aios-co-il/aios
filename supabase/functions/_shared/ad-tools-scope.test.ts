@@ -6,7 +6,7 @@ import {
   isNumericId,
   metaAccountVariants,
 } from "./ad-tools-scope.ts";
-import { A, store } from "./ad-tools-test-fixtures.ts";
+import { A, CA, CRO, store } from "./ad-tools-test-fixtures.ts";
 
 Deno.test("metaAccountVariants: both spellings, digits only", () => {
   assertEquals(metaAccountVariants("123"), ["123", "act_123"]);
@@ -49,13 +49,13 @@ Deno.test("clientInScope: own tenant or a shared agency", () => {
 Deno.test("checkClientTarget: read_only share allows reads only", async () => {
   const s = store();
   assertEquals(
-    await checkClientTarget(s, { tenantId: A, access: "read" }, "cRO"),
+    await checkClientTarget(s, { tenantId: A, access: "read" }, CRO),
     { ok: true },
   );
   const write = await checkClientTarget(
     s,
     { tenantId: A, access: "write" },
-    "cRO",
+    CRO,
   );
   assertStrictEquals(!write.ok && write.status, 403);
   // Absent client_id: nothing to check here.
@@ -66,7 +66,19 @@ Deno.test("checkClientTarget: read_only share allows reads only", async () => {
   const bad = await checkClientTarget(
     s,
     { tenantId: A, access: "write" },
-    { id: "cA" },
+    { id: CA },
   );
   assertStrictEquals(!bad.ok && bad.status, 400);
+  // Not a uuid: refused before the clients lookup would fail with a 500.
+  let looked = false;
+  const notUuid = await checkClientTarget(
+    {
+      ...s,
+      clientsByIds: (ids) => ((looked = true), s.clientsByIds(ids)),
+    },
+    { tenantId: A, access: "write" },
+    "cA",
+  );
+  assertEquals(notUuid, { ok: false, status: 400, error: "invalid_client_id" });
+  assertStrictEquals(looked, false);
 });

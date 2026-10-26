@@ -74,6 +74,14 @@ export function createAdToolIdentity(db: Db): AdToolIdentity {
       if (error) throw error;
       return data === true;
     },
+    async allowsSuperAdmin(tenantId) {
+      const res = await db
+        .from("tenants")
+        .select("allow_super_admin_access")
+        .eq("id", tenantId);
+      const rows = rowsOrThrow<{ allow_super_admin_access: unknown }>(res);
+      return rows[0]?.allow_super_admin_access === true;
+    },
   };
 }
 

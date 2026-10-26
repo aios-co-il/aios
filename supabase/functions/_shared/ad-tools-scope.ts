@@ -8,7 +8,8 @@
  * clients.meta_ads_account_id / clients.google_ads_account_id or a report
  * table (crm_tables.client_id + integration_settings), the same links
  * carmen-fb-tools uses to find a client's ad account. Anything that cannot be
- * linked to an in-scope client is refused.
+ * linked to an in-scope client is refused. When the call names a client_id,
+ * the Meta object must sit under that client.
  */
 
 export type AdToolAccess = "read" | "write";
@@ -53,6 +54,9 @@ const invalid = (error: string): AdToolDenied => ({
   status: 400,
   error,
 });
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isNumericId(id: unknown): boolean {
   return /^\d+$/.test(String(id ?? "").trim());
@@ -100,14 +104,16 @@ async function anyClientInScope(
   return clients.some((c) => clientInScope(c, scope.tenantId, agencies));
 }
 
-/** A body client_id (optional) must be in scope: it also picks the FB token. */
+/** A body client_id (optional) must be in scope. */
 export async function checkClientTarget(
   store: AdScopeStore,
   scope: AdScope,
   clientId: unknown,
 ): Promise<TargetResult> {
   if (clientId == null || clientId === "") return OK;
-  if (typeof clientId !== "string") return invalid("invalid_client_id");
+  // clients.id is a uuid: anything else would fail the lookup with a 500.
+  if (typeof clientId !== "string" || !UUID_RE.test(clientId))
+    return invalid("invalid_client_id");
   return (await anyClientInScope(store, scope, [clientId]))
     ? OK
     : outOfScope(scope);
@@ -124,7 +130,8 @@ export const FB_ENTITY_FIELD: Readonly<Record<string, string>> = {
   duplicate_ad_variants: "source_ad_id",
 };
 
-/** The Meta object's ad account (read from the Graph API) must be in scope. */
+/** The Meta object's ad account (read from the Graph API) must be in scope,
+ * and linked to the body client_id when one is named. */
 export async function checkFbEntityTarget(input: {
   action: string;
   body: Record<string, unknown>;
@@ -142,7 +149,12 @@ export async function checkFbEntityTarget(input: {
   const variants = metaAccountVariants(account);
   if (!variants) return outOfScope(input.scope);
   const clientIds = await input.store.clientIdsForMetaAccount(variants);
-  return (await anyClientInScope(input.store, input.scope, clientIds))
+  const named = input.body.client_id;
+  const owners =
+    typeof named === "string" && named
+      ? clientIds.filter((id) => id === named)
+      : clientIds;
+  return (await anyClientInScope(input.store, input.scope, owners))
     ? OK
     : outOfScope(input.scope);
 }

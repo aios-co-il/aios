@@ -3,11 +3,15 @@ import {
   adToolAccess,
   authorizeAdToolCaller,
   authorizeFbToolRequest,
+  fbTokenSource,
 } from "./ad-tools-auth.ts";
 import {
   A,
   ANON_KEY,
   B,
+  CA,
+  CB,
+  CRW,
   FOREIGN_SERVICE_KEY,
   META_OBJECTS,
   SERVICE,
@@ -27,8 +31,10 @@ function fbGate(
     body: { confirmed: true, ...body },
     identity: identity(calls),
     store: store(),
-    fetchAccountId: async (tenantId, entityId) => {
-      calls.push(`fetchAccountId:${tenantId}:${entityId}`);
+    fetchAccountId: async (src, entityId) => {
+      calls.push(
+        `fetchAccountId:${src.tenantId}:${src.clientId ?? "own"}:${entityId}`,
+      );
       return META_OBJECTS[entityId] ?? null;
     },
   });
@@ -74,6 +80,15 @@ Deno.test("fb-tools: service role keeps the body tenant", async () => {
   });
   assertEquals(calls, []); // trusted caller: no user or target lookups
   denied(await fbGate(SERVICE, { action: "pause" }), 400);
+  // The env key is trimmed, as in edge-caller-auth.
+  const padded = await authorizeAdToolCaller({
+    authorization: `Bearer ${SERVICE}`,
+    serviceRoleKey: `${SERVICE}\n`,
+    bodyTenantId: B,
+    access: "write",
+    identity: identity(),
+  });
+  assertStrictEquals(padded.ok, true);
 });
 
 Deno.test("fb-tools: a user of another tenant is refused", async () => {
@@ -86,7 +101,7 @@ Deno.test("fb-tools: a user of another tenant is refused", async () => {
   denied(
     await fbGate(tokenOf("ownerB"), {
       action: "create_campaign",
-      client_id: "cA",
+      client_id: CA,
       name: "x",
       tenant_id: A,
     }),
@@ -130,10 +145,64 @@ Deno.test("fb-tools: owner and agency owner may write in scope", async () => {
   assertStrictEquals((await fbGate(tokenOf("ownerA"), pause("9003"))).ok, true);
   const create = await fbGate(tokenOf("ownerA"), {
     action: "create_campaign",
-    client_id: "cRW",
+    client_id: CRW,
     name: "x",
   });
   assertStrictEquals(create.ok, true);
+});
+
+Deno.test(
+  "fb-tools: a user acts only with their own tenant's token",
+  async () => {
+    // The Meta object is read with A's own token, never cRW's tenant's.
+    const calls: string[] = [];
+    const res = await fbGate(
+      tokenOf("ownerA"),
+      { ...pause("9003"), client_id: CRW },
+      calls,
+    );
+    assertStrictEquals(res.ok, true);
+    assertEquals(calls, ["getUserId", `fetchAccountId:${A}:own:9003`]);
+    if (!res.ok) return;
+    assertEquals(fbTokenSource(res.caller, CRW), {
+      tenantId: A,
+      clientId: null,
+    });
+    // The service role keeps the client-owning tenant's token.
+    assertEquals(fbTokenSource({ kind: "service_role", tenantId: B }, CRW), {
+      tenantId: B,
+      clientId: CRW,
+    });
+    assertEquals(fbTokenSource({ kind: "service_role", tenantId: B }, ""), {
+      tenantId: B,
+      clientId: null,
+    });
+  },
+);
+
+Deno.test(
+  "fb-tools: the Meta object must sit under the named client",
+  async () => {
+    // 9001 is cA's (tenant A), but the call names the shared client cRW.
+    denied(
+      await fbGate(tokenOf("ownerA"), { ...pause("9001"), client_id: CRW }),
+      403,
+      "target_out_of_scope",
+    );
+    assertStrictEquals(
+      (await fbGate(tokenOf("ownerA"), { ...pause("9001"), client_id: CA })).ok,
+      true,
+    );
+  },
+);
+
+Deno.test("fb-tools: a client_id that is not a uuid gets 400", async () => {
+  for (const client_id of ["abc", "cA", " " + CA, 42])
+    denied(
+      await fbGate(tokenOf("ownerA"), { ...pause("9001"), client_id }),
+      400,
+      "invalid_client_id",
+    );
 });
 
 Deno.test("fb-tools: owner is refused outside scope", async () => {
@@ -146,7 +215,7 @@ Deno.test("fb-tools: owner is refused outside scope", async () => {
   denied(await fbGate(owner, pause("9999")), 403, "target_out_of_scope");
   // A foreign client_id would also pick that client's FB token.
   denied(
-    await fbGate(owner, { ...pause("9001"), client_id: "cB" }),
+    await fbGate(owner, { ...pause("9001"), client_id: CB }),
     403,
     "target_out_of_scope",
   );
@@ -161,7 +230,7 @@ Deno.test("fb-tools: a forged body tenant_id is ignored", async () => {
   const calls: string[] = [];
   const res = await fbGate(tokenOf("ownerA"), pause("9001", B), calls);
   assertStrictEquals(res.ok && res.caller.tenantId, A);
-  assertEquals(calls, ["getUserId", `fetchAccountId:${A}:9001`]);
+  assertEquals(calls, ["getUserId", `fetchAccountId:${A}:own:9001`]);
   denied(
     await fbGate(tokenOf("ownerA"), pause("9002", B)),
     403,
@@ -186,3 +255,15 @@ Deno.test("fb-tools: super admin acts in the active tenant only", async () => {
     "target_out_of_scope",
   );
 });
+
+Deno.test(
+  "fb-tools: super admin is refused where the tenant opted out",
+  async () => {
+    // Tenant B has allow_super_admin_access off, as the RLS policies honour.
+    denied(
+      await fbGate(tokenOf("superAdminInB"), pause("9002", B)),
+      403,
+      "not_tenant_member",
+    );
+  },
+);

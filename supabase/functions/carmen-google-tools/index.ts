@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
         "",
       );
 
-    const cleanCustomer = String(customer_id).replace(/-/g, "");
+    const cleanCustomer = String(customer_id).trim().replace(/-/g, "");
 
     let result: any = {};
     switch (action) {
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
               {
                 campaignOperation: {
                   update: {
-                    resourceName: `customers/${cleanCustomer}/campaigns/${campaign_id}`,
+                    resourceName: `customers/${cleanCustomer}/campaigns/${String(campaign_id).trim()}`,
                     status,
                   },
                   updateMask: "status",
