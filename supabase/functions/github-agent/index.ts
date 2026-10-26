@@ -56,7 +56,10 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
-    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
     const token = authHeader.replace("Bearer ", "");
 
     // Internal calls from run-ai-agent come in with the service-role key as
@@ -630,7 +633,11 @@ async function handleApproval(
 // ==========================================
 // Helpers
 // ==========================================
-async function getUserContext(supabase: GithubAgentClient, userId: string, tenantId: string) {
+async function getUserContext(
+  supabase: GithubAgentClient,
+  userId: string,
+  tenantId: string,
+) {
   const [rolesResult, permissionsResult, profileResult] = await Promise.all([
     supabase
       .from("user_roles")

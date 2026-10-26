@@ -23,7 +23,9 @@ test("asRecord falls back to an empty record", () => {
 });
 
 test("parseJsonRecord reads objects and tolerates bad or non-object JSON", () => {
-  assert.deepEqual(parseJsonRecord('{"url":"https://x"}'), { url: "https://x" });
+  assert.deepEqual(parseJsonRecord('{"url":"https://x"}'), {
+    url: "https://x",
+  });
   assert.deepEqual(parseJsonRecord("not json"), {});
   assert.deepEqual(parseJsonRecord("null"), {});
   assert.deepEqual(parseJsonRecord("42"), {});
@@ -31,7 +33,10 @@ test("parseJsonRecord reads objects and tolerates bad or non-object JSON", () =>
 
 test("errorMessageOr mirrors e?.message ?? e", () => {
   assert.equal(errorMessageOr(new Error("boom")), "boom");
-  assert.equal(errorMessageOr({ message: "pg failed", code: "23505" }), "pg failed");
+  assert.equal(
+    errorMessageOr({ message: "pg failed", code: "23505" }),
+    "pg failed",
+  );
   const noMessage = { code: "x" };
   assert.equal(errorMessageOr(noMessage), noMessage);
   assert.equal(errorMessageOr("plain"), "plain");

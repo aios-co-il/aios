@@ -66,7 +66,9 @@ export function whatsAppReplyText(provider: string, content: string): string {
 }
 
 /** The WhatsApp chat a direct-channel session should answer, from its metadata. */
-export function replyTargetFrom(sessionMetadata: unknown): WhatsAppReplyTarget | null {
+export function replyTargetFrom(
+  sessionMetadata: unknown,
+): WhatsAppReplyTarget | null {
   const raw = asRecord(asRecord(sessionMetadata).reply_whatsapp);
   const { integration_id, phone_number, connection_user_id } = raw;
   if (

@@ -111,10 +111,12 @@ export async function routeWhatsAppDirect(args: {
     .eq("event_type", "message")
     .order("created_at", { ascending: false })
     .limit(10);
-  const history = (recent || []).reverse().map((row: { role: unknown; content: unknown }) => ({
-    role: String(row.role),
-    content: String(row.content),
-  }));
+  const history = (recent || [])
+    .reverse()
+    .map((row: { role: unknown; content: unknown }) => ({
+      role: String(row.role),
+      content: String(row.content),
+    }));
 
   const idempotencyKey = crypto.randomUUID();
   const replyTarget: WhatsAppReplyTarget = {

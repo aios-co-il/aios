@@ -510,10 +510,6 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("[claude-mcp]", errorMessageOr(e));
-    return rpcError(
-      id,
-      -32603,
-      `Internal error: ${String(errorMessageOr(e))}`,
-    );
+    return rpcError(id, -32603, `Internal error: ${String(errorMessageOr(e))}`);
   }
 });
