@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 
 test("pickCarmenAutomationConfig merges phones across private+group triggers", async () => {
   // Pure helper mirror of fetchCarmenAutomationConfig merge rules
@@ -28,6 +27,6 @@ test("pickCarmenAutomationConfig merges phones across private+group triggers", a
       ),
     ),
   ];
-  assert.equal(preferred.carmen_scope_mode, "specific_phone");
-  assert.deepEqual(mergedPhones, ["972507677613", "972545612156"]);
+  expect(preferred.carmen_scope_mode).toBe("specific_phone");
+  expect(mergedPhones).toStrictEqual(["972507677613", "972545612156"]);
 });

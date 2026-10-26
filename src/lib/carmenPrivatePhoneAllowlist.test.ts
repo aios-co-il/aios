@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import {
   decodePrivatePhoneRows,
   mergePrivatePhoneAllowlist,
@@ -21,19 +20,21 @@ test("mergePrivatePhoneAllowlist: combines automation, identity, and policy", ()
       { phone: "972503333333", label: "דוד", surfaces: ["whatsapp_private"] },
     ],
   });
-  assert.equal(out.length, 3);
-  assert.ok(
+  expect(out.length).toBe(3);
+  expect(
     out.some((r) => r.phone === "972501111111" && r.source === "automation"),
-  );
-  assert.ok(
+  ).toBe(true);
+  expect(
     out.some(
       (r) =>
         r.phone === "972502222222" &&
         r.label === "אנה" &&
         r.relationship_note === "דבר קצר",
     ),
+  ).toBe(true);
+  expect(out.some((r) => r.phone === "972503333333" && r.label === "דוד")).toBe(
+    true,
   );
-  assert.ok(out.some((r) => r.phone === "972503333333" && r.label === "דוד"));
 });
 
 test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", () => {
@@ -47,9 +48,9 @@ test("mergePrivatePhoneAllowlist: policy wins over automation for same phone", (
       },
     ],
   });
-  assert.equal(out.length, 1);
-  assert.equal(out[0].label, "דוד מדיניות");
-  assert.equal(out[0].source, "policy");
+  expect(out.length).toBe(1);
+  expect(out[0].label).toBe("דוד מדיניות");
+  expect(out[0].source).toBe("policy");
 });
 
 test("mergePrivatePhoneAllowlist: skips identities without private surface", () => {
@@ -62,7 +63,7 @@ test("mergePrivatePhoneAllowlist: skips identities without private surface", () 
       },
     ],
   });
-  assert.equal(out.length, 0);
+  expect(out.length).toBe(0);
 });
 
 test("stored phone decoder preserves custom backend metadata and rejects malformed entries", () => {
@@ -78,12 +79,12 @@ test("stored phone decoder preserves custom backend metadata and rejects malform
       label: "Owner",
     },
   ]);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].source, "custom-source");
-  assert.equal(rows[0].dev_escalation_tier, "custom-tier");
-  assert.deepEqual(rows[0].surfaces, ["whatsapp_private"]);
-  assert.equal(mergePrivatePhoneAllowlist({ policyPhones: rows }).length, 1);
-  assert.deepEqual(decodePrivatePhoneRows(null), []);
+  expect(rows.length).toBe(1);
+  expect(rows[0].source).toBe("custom-source");
+  expect(rows[0].dev_escalation_tier).toBe("custom-tier");
+  expect(rows[0].surfaces).toStrictEqual(["whatsapp_private"]);
+  expect(mergePrivatePhoneAllowlist({ policyPhones: rows }).length).toBe(1);
+  expect(decodePrivatePhoneRows(null)).toStrictEqual([]);
 });
 
 test("stored custom sources normalize to policy while preserving escalation metadata", () => {
@@ -95,7 +96,7 @@ test("stored custom sources normalize to policy while preserving escalation meta
     },
   ]);
   const merged = mergePrivatePhoneAllowlist({ policyPhones: stored });
-  assert.equal(stored[0].source, "legacy");
-  assert.equal(merged[0].source, "policy");
-  assert.equal(merged[0].dev_escalation_tier, "custom-tier");
+  expect(stored[0].source).toBe("legacy");
+  expect(merged[0].source).toBe("policy");
+  expect(merged[0].dev_escalation_tier).toBe("custom-tier");
 });
