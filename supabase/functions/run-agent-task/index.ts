@@ -5,18 +5,38 @@ import {
   replyDestinationIsConsistent,
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
+import type { Database, Json, Tables } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import {
+  asJsonObject,
+  isJsonObject,
+  type JsonObject,
+  readWhatsAppNotify,
+  type WhatsAppNotify,
+} from "../_shared/agent-task-result.ts";
+import { errorMessage } from "../_shared/error-message.ts";
 
-function originatingNotifyIsValid(notify: any): boolean {
-  if (!notify || notify.surface !== "whatsapp") return false;
-  const origin = requireOriginChatId(notify.chat_id);
-  if (!origin.ok) return false;
-  return replyDestinationIsConsistent({
-    chatId: origin.chatId,
-    isGroup: !!notify.is_group,
-  });
+type AgentTaskRow = Tables<"agent_tasks">;
+
+function surfaceIsWhatsApp(notify: Json | undefined): boolean {
+  return isJsonObject(notify) && notify.surface === "whatsapp";
 }
 
-const UI_TASK_MODES = new Set([
+/** The stored notify target, only when it is pinned to a valid originating WhatsApp chat. */
+function originatingNotify(notify: Json | undefined): WhatsAppNotify | null {
+  const target = readWhatsAppNotify(notify);
+  if (!target) return null;
+  const origin = requireOriginChatId(target.chat_id);
+  if (!origin.ok) return null;
+  return replyDestinationIsConsistent({
+    chatId: origin.chatId,
+    isGroup: target.is_group,
+  })
+    ? target
+    : null;
+}
+
+const UI_TASK_MODES = new Set<string | null>([
   "sales",
   "support",
   "copywriting",
@@ -32,13 +52,19 @@ const corsHeaders = {
 
 // When a dangerous batch subtask reaches a terminal state, advance its tenant's
 // serial lane so the next queued dangerous subtask runs. Best-effort.
-async function maybeAdvanceLane(supabase: any, task: any) {
+async function maybeAdvanceLane(
+  supabase: DbClient,
+  task: Pick<AgentTaskRow, "batch_id" | "is_dangerous" | "tenant_id">,
+) {
   try {
-    if (task?.batch_id && task?.is_dangerous) {
+    if (task.batch_id && task.is_dangerous) {
       await advanceDangerLane(supabase, task.tenant_id);
     }
-  } catch (e: any) {
-    console.error("[run-agent-task] advanceDangerLane failed:", e?.message);
+  } catch (e) {
+    console.error(
+      "[run-agent-task] advanceDangerLane failed:",
+      errorMessage(e),
+    );
   }
 }
 
@@ -83,22 +109,19 @@ function buildBatchReport(batch: {
 // done, and only once. The insert into agent_batch_reports is the atomic claim
 // (PK batch_id), so concurrent finishers can't double-send. Best-effort.
 async function maybeSendBatchReport(
-  supabase: any,
-  task: any,
-  preservedNotify: any,
+  supabase: DbClient,
+  task: Pick<AgentTaskRow, "batch_id">,
+  storedNotify: Json | undefined,
 ): Promise<void> {
-  if (
-    !preservedNotify ||
-    preservedNotify.surface !== "whatsapp" ||
-    !task?.batch_id
-  )
-    return;
-  if (!originatingNotifyIsValid(preservedNotify)) {
+  if (!surfaceIsWhatsApp(storedNotify) || !task.batch_id) return;
+  const preservedNotify = originatingNotify(storedNotify);
+  if (!preservedNotify) {
+    const raw = asJsonObject(storedNotify);
     console.error(
       "[run-agent-task] refusing batch WA report — notify is not pinned to a valid originating chat",
       {
-        chat_id: preservedNotify?.chat_id,
-        is_group: preservedNotify?.is_group,
+        chat_id: raw.chat_id,
+        is_group: raw.is_group,
       },
     );
     return;
@@ -152,10 +175,10 @@ async function maybeSendBatchReport(
     console.log(
       `[run-agent-task] WA batch report dispatched=${ok} for batch ${task.batch_id} (${batch.total} tasks)`,
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error(
-      `[run-agent-task] WA batch report failed for batch ${task?.batch_id}:`,
-      e?.message,
+      `[run-agent-task] WA batch report failed for batch ${task.batch_id}:`,
+      errorMessage(e),
     );
   }
 }
@@ -194,7 +217,10 @@ Deno.serve(async (req) => {
     const { task_id } = await req.json();
     if (!task_id) throw new Error("task_id is required");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
 
     // Load the task
     const { data: task, error: taskError } = await supabase
@@ -234,10 +260,15 @@ Deno.serve(async (req) => {
       .eq("id", task_id);
 
     // Load checkpoint from result if resuming
-    const checkpoint = (task.result as any) || {};
-    const previousHistory = checkpoint.conversation_history || [];
+    const checkpoint = asJsonObject(task.result);
+    const previousHistory = Array.isArray(checkpoint.conversation_history)
+      ? checkpoint.conversation_history
+      : [];
     const runCount = (task.run_count || 0) + 1;
-    const totalToolCalls = checkpoint.total_tool_calls || 0;
+    const totalToolCalls =
+      typeof checkpoint.total_tool_calls === "number"
+        ? checkpoint.total_tool_calls
+        : 0;
 
     // Update run count
     await supabase
@@ -252,10 +283,10 @@ Deno.serve(async (req) => {
     // originating chat (including a group chat id) is persisted when Carmen
     // creates the task. Deliver directly and only mark the task completed
     // after the provider action step confirms success.
-    const reminderDelivery = checkpoint?.reminder_delivery;
-    const reminderNotify = checkpoint?.notify;
-    if (reminderDelivery?.message && reminderNotify?.surface === "whatsapp") {
-      if (!originatingNotifyIsValid(reminderNotify)) {
+    const reminderMessage = asJsonObject(checkpoint.reminder_delivery).message;
+    if (reminderMessage && surfaceIsWhatsApp(checkpoint.notify)) {
+      const reminderNotify = originatingNotify(checkpoint.notify);
+      if (!reminderNotify) {
         const error =
           "WhatsApp reminder missing originating chat_id — refusing to send to a live session";
         await supabase
@@ -303,7 +334,7 @@ Deno.serve(async (req) => {
           chatId: reminderNotify.chat_id,
           phoneNumber: reminderNotify.phone_number || "",
           isGroup: !!reminderNotify.is_group,
-          message: String(reminderDelivery.message).slice(0, 1500),
+          message: String(reminderMessage).slice(0, 1500),
         });
       }
 
@@ -344,7 +375,7 @@ Deno.serve(async (req) => {
             delivered_at: deliveredAt,
             run_count: runCount,
             completed: true,
-            final_output: reminderDelivery.message,
+            final_output: reminderMessage,
           },
         })
         .eq("id", task_id);
@@ -379,10 +410,10 @@ Deno.serve(async (req) => {
             })
             .then(
               () => {},
-              (e: any) =>
+              (e: unknown) =>
                 console.error(
                   "[run-agent-task] shutdown notify failed:",
-                  e?.message,
+                  errorMessage(e),
                 ),
             );
         }
@@ -414,8 +445,8 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
-      } catch (e: any) {
-        const errMsg = e?.message || String(e);
+      } catch (e) {
+        const errMsg = errorMessage(e) || String(e);
         console.error("[run-agent-task] campaign_shutdown failed:", errMsg);
         if (runCount < 3) {
           await supabase
@@ -588,11 +619,7 @@ Deno.serve(async (req) => {
       await maybeAdvanceLane(supabase, task);
       // If this failed subtask was the LAST of a delegate_parallel batch, still
       // send the aggregated report (notify target survives on task.result/checkpoint).
-      await maybeSendBatchReport(
-        supabase,
-        task,
-        (checkpoint as any)?.notify || (task.result as any)?.notify || null,
-      );
+      await maybeSendBatchReport(supabase, task, checkpoint.notify || null);
       return new Response(
         JSON.stringify({ success: false, error: "Max retries exceeded" }),
         {
@@ -624,16 +651,18 @@ Deno.serve(async (req) => {
     // Preserve `notify` (set by spawnSubagent on the initial result row) so we
     // can dispatch the final output back to the originating WhatsApp chat once
     // the subagent finishes — without this, every per-run update overwrites it.
-    const preservedNotify =
-      (checkpoint as any)?.notify || (task.result as any)?.notify || null;
-    const updatedCheckpoint: any = {
+    const preservedNotify = checkpoint.notify || null;
+    const previousToolLog = Array.isArray(checkpoint.tool_log)
+      ? checkpoint.tool_log
+      : [];
+    const updatedCheckpoint: JsonObject = {
       conversation_history: [
         ...previousHistory,
         { role: "user", content: commandText },
         { role: "assistant", content: output },
       ],
       total_tool_calls: newTotalToolCalls,
-      tool_log: [...(checkpoint.tool_log || []), ...(result.tool_log || [])],
+      tool_log: [...previousToolLog, ...(result.tool_log || [])],
       run_count: runCount,
       last_output: output,
       execution_time_ms: elapsed,
@@ -692,14 +721,16 @@ Deno.serve(async (req) => {
     // Push the final output back to the user's WhatsApp chat if this subagent
     // was spawned from a WA conversation. Best-effort — failures are logged
     // but never fail the task.
-    if (preservedNotify && preservedNotify.surface === "whatsapp") {
-      if (!originatingNotifyIsValid(preservedNotify)) {
+    if (surfaceIsWhatsApp(preservedNotify)) {
+      const notifyTarget = originatingNotify(preservedNotify);
+      if (!notifyTarget) {
+        const raw = asJsonObject(preservedNotify);
         console.error(
           "[run-agent-task] refusing WA notify — not pinned to originating chat",
           {
             task_id,
-            chat_id: preservedNotify.chat_id,
-            is_group: preservedNotify.is_group,
+            chat_id: raw.chat_id,
+            is_group: raw.is_group,
           },
         );
       } else if (task.batch_id) {
@@ -709,17 +740,16 @@ Deno.serve(async (req) => {
       } else if (output) {
         // Single (non-batch) task → send its own output, as before. Best-effort.
         try {
-          let automationId: string | null =
-            preservedNotify.automation_id || null;
+          let automationId: string | null = notifyTarget.automation_id || null;
           if (!automationId) {
             const auto = await findCarmenSessionAutomation(
               supabase,
-              preservedNotify.tenant_id,
+              notifyTarget.tenant_id,
               null,
               {
-                isGroup: !!preservedNotify.is_group,
-                chatId: preservedNotify.chat_id,
-                phoneNumber: preservedNotify.phone_number,
+                isGroup: notifyTarget.is_group,
+                chatId: notifyTarget.chat_id,
+                phoneNumber: notifyTarget.phone_number,
               },
             );
             automationId = auto?.id || null;
@@ -730,11 +760,11 @@ Deno.serve(async (req) => {
             const ok = await sendCarmenReplyViaActionStep({
               supabase,
               automationId,
-              tenantId: preservedNotify.tenant_id,
-              connectionUserId: preservedNotify.connection_user_id,
-              chatId: preservedNotify.chat_id,
-              phoneNumber: preservedNotify.phone_number || "",
-              isGroup: !!preservedNotify.is_group,
+              tenantId: notifyTarget.tenant_id,
+              connectionUserId: notifyTarget.connection_user_id,
+              chatId: notifyTarget.chat_id,
+              phoneNumber: notifyTarget.phone_number || "",
+              isGroup: notifyTarget.is_group,
               message: trimmed,
             });
             console.log(
@@ -745,10 +775,10 @@ Deno.serve(async (req) => {
               `[run-agent-task] No automation found for WA notify on task ${task_id}`,
             );
           }
-        } catch (e: any) {
+        } catch (e) {
           console.error(
             `[run-agent-task] WA notify failed for task ${task_id}:`,
-            e?.message,
+            errorMessage(e),
           );
         }
       }
@@ -765,10 +795,10 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("[run-agent-task] Error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: errorMessage(error) }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,

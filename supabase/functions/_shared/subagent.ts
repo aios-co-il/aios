@@ -12,6 +12,11 @@
  *    instead of inventing a new queue.
  */
 
+import type { TablesInsert } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import { asJsonObject, taskResultOutput } from "./agent-task-result.ts";
+import { errorMessage } from "./error-message.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -70,7 +75,7 @@ export interface SpawnSubagentResult {
  * Returns the sub_task_id immediately so the parent agent can continue.
  */
 export async function spawnSubagent(
-  supabase: any,
+  supabase: DbClient,
   params: SpawnSubagentParams,
 ): Promise<SpawnSubagentResult> {
   const promptWithMarker = params.parentTaskId
@@ -113,7 +118,14 @@ export async function spawnSubagent(
   const isDangerous = params.isDangerous ?? true;
   const initialStatus = params.deferFire ? "queued" : "pending";
 
-  const taskRow: any = {
+  // agent_tasks.agent_id is NOT NULL: report the same failure the insert gave.
+  if (params.parentAgentId === null) {
+    throw new Error(
+      'spawnSubagent insert failed: null value in column "agent_id" of relation "agent_tasks" violates not-null constraint',
+    );
+  }
+
+  const taskRow: TablesInsert<"agent_tasks"> = {
     agent_id: params.parentAgentId,
     tenant_id: params.tenantId,
     title: params.title.slice(0, 200),
@@ -205,8 +217,8 @@ function fireRunAgentTask(taskId: string) {
     }).catch((e) =>
       console.error("[subagent] run-agent-task fire failed:", e?.message),
     );
-  } catch (e: any) {
-    console.error("[subagent] run-agent-task invoke threw:", e?.message);
+  } catch (e) {
+    console.error("[subagent] run-agent-task invoke threw:", errorMessage(e));
   }
 }
 
@@ -218,7 +230,7 @@ function fireRunAgentTask(taskId: string) {
  * untouched — they run in parallel.
  */
 export async function advanceDangerLane(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<{ fired: boolean; task_id?: string; reason?: string }> {
   // Is a dangerous task already running for this tenant? Then the lane is busy.
@@ -291,7 +303,7 @@ function itemIsDangerous(it: {
  * They share a batch_id so results aggregate with getBatchResults.
  */
 export async function spawnSubagentBatch(
-  supabase: any,
+  supabase: DbClient,
   common: Omit<SpawnSubagentParams, "title" | "prompt" | "idempotencyKey">,
   items: Array<{
     title: string;
@@ -331,7 +343,7 @@ export async function spawnSubagentBatch(
  * others. `all_done` is true only when every member reached a terminal state.
  */
 export async function getBatchResults(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   batchId: string,
 ): Promise<{
@@ -350,23 +362,11 @@ export async function getBatchResults(
     .eq("batch_id", batchId);
   if (error) throw new Error(`getBatchResults: ${error.message}`);
 
-  const rows = (data || []) as any[];
+  const rows = data || [];
   const tasks: SubagentResultPayload[] = rows.map((row) => {
-    const result = (row.result || {}) as any;
-    const status = row.status as string;
-    let output: string | undefined;
-    if (typeof result.final_output === "string") output = result.final_output;
-    else if (Array.isArray(result.conversation_history)) {
-      const last = [...result.conversation_history]
-        .reverse()
-        .find(
-          (m: any) =>
-            m?.role === "assistant" &&
-            typeof m.content === "string" &&
-            m.content.trim().length > 0,
-        );
-      if (last) output = last.content;
-    }
+    const result = asJsonObject(row.result);
+    const status = row.status;
+    const output = taskResultOutput(result);
     return {
       sub_task_id: row.id,
       title: row.title ?? null,
@@ -412,7 +412,7 @@ export interface SubagentResultPayload {
  * conversation history & final output into agent_tasks.result on each loop.
  */
 export async function getSubagentResult(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   subTaskId: string,
 ): Promise<SubagentResultPayload> {
@@ -428,26 +428,13 @@ export async function getSubagentResult(
   if (error) throw new Error(`getSubagentResult: ${error.message}`);
   if (!data) throw new Error(`subagent task not found: ${subTaskId}`);
 
-  const result = (data.result || {}) as any;
-  const status = data.status as string;
+  const result = asJsonObject(data.result);
+  const status = data.status;
   const done = status === "completed" || status === "failed";
 
   // run-agent-task stores conversation_history + tools_used inside `result`.
   // Pull the last assistant text as the user-facing output.
-  let output: string | undefined;
-  if (typeof result.final_output === "string") {
-    output = result.final_output;
-  } else if (Array.isArray(result.conversation_history)) {
-    const lastAssistant = [...result.conversation_history]
-      .reverse()
-      .find(
-        (m: any) =>
-          m?.role === "assistant" &&
-          typeof m.content === "string" &&
-          m.content.trim().length > 0,
-      );
-    if (lastAssistant) output = lastAssistant.content;
-  }
+  const output = taskResultOutput(result);
 
   return {
     sub_task_id: data.id,
