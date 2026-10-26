@@ -679,7 +679,7 @@ export async function findCarmenAgent(
 // Fetch client + team (campaigner) names for the tenant. Used to help the voice
 // transcript rewriter correct garbled names ("וילה סול" → "וילאסון"). Best-effort.
 export async function fetchKnownEntityNames(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<string[]> {
   try {
@@ -795,7 +795,7 @@ export function buildDualCarmenNote(
 }
 
 export async function findCarmenSessionAutomation(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   integrationId?: string | null,
   ctx?: {
@@ -979,7 +979,7 @@ export async function findCarmenSessionAutomation(
 // Returns true when delivery succeeded via the action step; false if no action step is configured
 // or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
 export async function sendCarmenReplyViaActionStep(args: {
-  supabase: any;
+  supabase: DbClient;
   automationId: string;
   tenantId: string;
   connectionUserId: string;
@@ -1323,7 +1323,7 @@ export async function findActiveCarmenSession(
 }
 
 export interface CarmenContext {
-  supabase: any;
+  supabase: DbClient;
   tenantId: string;
   /** Row id of the tenant_integrations record that received this message. */
   integrationId: string;
