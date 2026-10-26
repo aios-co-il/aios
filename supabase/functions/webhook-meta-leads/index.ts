@@ -1,3 +1,8 @@
+import {
+  asObject,
+  thrownMessage,
+  type UnknownObject,
+} from "../_shared/lead-json.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 
@@ -165,8 +170,8 @@ Deno.serve(async (req) => {
         } else {
           created++;
         }
-      } catch (err: any) {
-        errors.push(`Lead processing error: ${err.message}`);
+      } catch (err) {
+        errors.push(`Lead processing error: ${thrownMessage(err)}`);
       }
     }
 
@@ -186,9 +191,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("webhook-meta-leads error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -211,19 +216,36 @@ interface ParsedLead {
   campaign_name?: string;
   ad_name?: string;
   leadgen_id?: string;
-  raw?: any;
+  raw?: unknown;
 }
 
-function extractLeads(body: any): ParsedLead[] {
+/** Payload text: strings as-is, numbers stringified, anything else absent. */
+function optionalText(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  return typeof value === "number" ? String(value) : undefined;
+}
+
+/** `a || b || ""` over payload values, as text. */
+function firstText(...values: unknown[]): string {
+  return optionalText(values.find(Boolean)) ?? "";
+}
+
+const asList = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
+
+function extractLeads(rawBody: unknown): ParsedLead[] {
   const leads: ParsedLead[] = [];
 
   // Format 1: Unified.to webhook format (array of leads)
-  if (Array.isArray(body)) {
-    for (const item of body) {
+  if (Array.isArray(rawBody)) {
+    for (const item of rawBody) {
       leads.push(parseLeadItem(item));
     }
     return leads;
   }
+
+  const body = asObject(rawBody);
+  if (!body) return leads;
 
   // Format 2: Unified.to single lead
   if (body.id && (body.emails || body.telephones || body.name)) {
@@ -233,13 +255,15 @@ function extractLeads(body: any): ParsedLead[] {
 
   // Format 3: Meta direct webhook format
   if (body.entry) {
-    for (const entry of body.entry) {
-      for (const change of entry.changes || []) {
-        if (change.field === "leadgen" && change.value) {
+    for (const entry of asList(body.entry)) {
+      for (const rawChange of asList(asObject(entry)?.changes)) {
+        const change = asObject(rawChange);
+        if (change?.field === "leadgen" && change.value) {
+          const value = asObject(change.value);
           leads.push({
-            leadgen_id: change.value.leadgen_id,
-            form_name: change.value.form_id,
-            campaign_name: change.value.ad_id,
+            leadgen_id: optionalText(value?.leadgen_id),
+            form_name: optionalText(value?.form_id),
+            campaign_name: optionalText(value?.ad_id),
             raw: change.value,
           });
         }
@@ -271,32 +295,39 @@ function extractLeads(body: any): ParsedLead[] {
   return leads;
 }
 
-function parseUnifiedLead(item: any): ParsedLead {
+function parseUnifiedLead(item: UnknownObject): ParsedLead {
   return {
-    name: item.name || item.company_name || "",
-    contact_name: item.name || "",
-    email: Array.isArray(item.emails) ? item.emails[0]?.email : item.email,
+    name: firstText(item.name, item.company_name),
+    contact_name: firstText(item.name),
+    email: Array.isArray(item.emails)
+      ? optionalText(asObject(item.emails[0])?.email)
+      : optionalText(item.email),
     phone: Array.isArray(item.telephones)
-      ? item.telephones[0]?.telephone
-      : item.phone,
-    company_name: item.company_name || item.company || "",
+      ? optionalText(asObject(item.telephones[0])?.telephone)
+      : optionalText(item.phone),
+    company_name: firstText(item.company_name, item.company),
     raw: item,
   };
 }
 
-function parseLeadItem(item: any): ParsedLead {
+function parseLeadItem(rawItem: unknown): ParsedLead {
+  const item: UnknownObject = asObject(rawItem) ?? {};
   return {
-    name: item.name || item.company_name || item.full_name || "",
-    contact_name: item.contact_name || item.full_name || item.name || "",
-    full_name: item.full_name || item.name || "",
-    email: item.email || item.Email || item.EMAIL || "",
-    phone: item.phone || item.Phone || item.PHONE || item.phone_number || "",
-    company_name: item.company_name || item.company || item.business_name || "",
-    form_name: item.form_name || item.form_id || "",
-    campaign_name: item.campaign_name || item.campaign_id || "",
-    ad_name: item.ad_name || item.ad_id || "",
-    leadgen_id: item.leadgen_id || item.id || "",
-    raw: item,
+    name: firstText(item.name, item.company_name, item.full_name),
+    contact_name: firstText(item.contact_name, item.full_name, item.name),
+    full_name: firstText(item.full_name, item.name),
+    email: firstText(item.email, item.Email, item.EMAIL),
+    phone: firstText(item.phone, item.Phone, item.PHONE, item.phone_number),
+    company_name: firstText(
+      item.company_name,
+      item.company,
+      item.business_name,
+    ),
+    form_name: firstText(item.form_name, item.form_id),
+    campaign_name: firstText(item.campaign_name, item.campaign_id),
+    ad_name: firstText(item.ad_name, item.ad_id),
+    leadgen_id: firstText(item.leadgen_id, item.id),
+    raw: rawItem,
   };
 }
 
