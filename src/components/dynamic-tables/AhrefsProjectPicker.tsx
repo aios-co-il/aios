@@ -15,23 +15,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Globe, Search, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/jsonReaders";
-
-interface AhrefsProject {
-  project_id: string;
-  project_name: string;
-  url: string;
-  domain: string;
-  keyword_count: number;
-  mode?: string;
-  protocol?: string;
-}
-
-interface AhrefsFunctionResponse {
-  error?: string;
-  projects?: AhrefsProject[];
-  keywords_count?: number;
-  tracked_count?: number;
-}
+import {
+  readAhrefsProjectList,
+  readAhrefsSnapshotResponse,
+  type AhrefsProject,
+} from "@/lib/ahrefsResponses";
 
 interface AhrefsProjectPickerProps {
   open: boolean;
@@ -47,16 +35,16 @@ export function AhrefsProjectPicker({
   onSyncComplete,
 }: AhrefsProjectPickerProps) {
   const [search, setSearch] = useState("");
-  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | number | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["ahrefs-projects"],
     queryFn: async () => {
-      const { data, error } =
-        await supabase.functions.invoke<AhrefsFunctionResponse>(
-          "list-ahrefs-projects",
-        );
+      const { data: body, error } = await supabase.functions.invoke(
+        "list-ahrefs-projects",
+      );
       if (error) throw error;
+      const data = readAhrefsProjectList(body);
       if (data?.error) throw new Error(data.error);
       return data?.projects;
     },
@@ -78,21 +66,21 @@ export function AhrefsProjectPicker({
   const handleSync = async (project: AhrefsProject) => {
     setSyncingId(project.project_id);
     try {
-      const { data, error } =
-        await supabase.functions.invoke<AhrefsFunctionResponse>(
-          "fetch-ahrefs-snapshot",
-          {
-            body: {
-              clientId,
-              domain: project.domain,
-              mode: project.mode,
-              protocol: project.protocol,
-              projectId: project.project_id,
-            },
+      const { data: body, error } = await supabase.functions.invoke(
+        "fetch-ahrefs-snapshot",
+        {
+          body: {
+            clientId,
+            domain: project.domain,
+            mode: project.mode,
+            protocol: project.protocol,
+            projectId: project.project_id,
           },
-        );
+        },
+      );
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = readAhrefsSnapshotResponse(body);
+      if (data.error) throw new Error(data.error);
       const organic = data?.keywords_count ?? 0;
       const tracked = data?.tracked_count ?? 0;
       toast.success(

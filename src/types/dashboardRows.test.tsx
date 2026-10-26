@@ -28,6 +28,7 @@ describe("toDashboardTables", () => {
       {
         id: "t1",
         name: "FB",
+        client_id: "c1",
         integration_type: "facebook_insights",
         integration_settings: { campaign_type: "leads" },
         last_sync_at: null,
@@ -38,6 +39,7 @@ describe("toDashboardTables", () => {
     expect(table).toEqual({
       id: "t1",
       name: "FB",
+      client_id: "c1",
       integration_type: "facebook_insights",
       integration_settings: { campaign_type: "leads" },
       last_sync_at: null,
@@ -55,6 +57,7 @@ describe("toDashboardTables", () => {
       {
         id: "t2",
         name: "",
+        client_id: null,
         integration_type: null,
         integration_settings: null,
         last_sync_at: null,

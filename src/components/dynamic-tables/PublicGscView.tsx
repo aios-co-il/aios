@@ -24,7 +24,7 @@ import { aggregateGscQueryRows, visibleGscPosition } from "@/lib/gscPosition";
 import { cn } from "@/lib/utils";
 
 interface PublicGscViewProps {
-  records: Array<{ id: string; data: JsonObject | null }>;
+  records: Array<{ id?: string; data: JsonObject | null }>;
 }
 
 type GscDateFilter =

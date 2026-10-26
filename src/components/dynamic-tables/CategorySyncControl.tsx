@@ -23,6 +23,7 @@ import {
   readField,
   readString,
 } from "@/lib/jsonReaders";
+import { readAhrefsSnapshotResponse } from "@/lib/ahrefsResponses";
 
 interface CategoryTable {
   id: string;
@@ -325,22 +326,22 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     latestReportDomain: readString(latestReportRow, "domain"),
   });
 
-  const { data, error } = await supabase.functions.invoke<{
-    error?: string;
-    projectId?: Json;
-    tracked_count?: number;
-  }>("fetch-ahrefs-snapshot", {
-    body: {
-      clientId,
-      ...(domain ? { domain } : {}),
-      tracked_only: true,
-      ...(settings.ahrefs_project_id
-        ? { projectId: settings.ahrefs_project_id }
-        : {}),
+  const { data: body, error } = await supabase.functions.invoke(
+    "fetch-ahrefs-snapshot",
+    {
+      body: {
+        clientId,
+        ...(domain ? { domain } : {}),
+        tracked_only: true,
+        ...(settings.ahrefs_project_id
+          ? { projectId: settings.ahrefs_project_id }
+          : {}),
+      },
     },
-  });
+  );
   if (error) throw error;
-  if (data?.error) throw new Error(data.error);
+  const data = readAhrefsSnapshotResponse(body);
+  if (data.error) throw new Error(data.error);
 
   // Persist project id on the table so future syncs (full + tracked) reuse it.
   const persistedProjectId = data?.projectId;

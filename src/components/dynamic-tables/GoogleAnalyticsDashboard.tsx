@@ -72,7 +72,7 @@ import {
 import { getRevenueFromData } from "@/lib/adsMetrics";
 
 interface CrmRecord {
-  id: string;
+  id?: string;
   data: JsonObject;
 }
 

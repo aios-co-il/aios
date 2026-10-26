@@ -148,6 +148,10 @@ import {
   readField,
 } from "@/lib/jsonReaders";
 import {
+  readFacebookAdAccounts,
+  readGoogleAdsAccounts,
+} from "@/lib/adAccountLists";
+import {
   type CrmTableIntegrationSettings,
   readMakeApiSettings,
 } from "@/lib/dynamicTableTypes";
@@ -184,17 +188,6 @@ interface CrmField {
 interface CrmRecord {
   id: string;
   data: JsonObject;
-}
-
-interface FacebookAdAccount {
-  id: string;
-  name?: string;
-  currency?: string;
-}
-
-interface GoogleAdsAccount {
-  id: string | number;
-  name?: string;
 }
 
 interface DynamicTableViewProps {
@@ -513,12 +506,7 @@ export default function DynamicTableView({
         },
       );
       if (response.error) throw response.error;
-      // Ensure we always return an array
-      const accounts = response.data?.ad_accounts;
-      const adAccountList: FacebookAdAccount[] = Array.isArray(accounts)
-        ? accounts
-        : [];
-      return adAccountList;
+      return readFacebookAdAccounts(response.data);
     },
     enabled:
       showSettingsDialog &&
@@ -1580,12 +1568,7 @@ export default function DynamicTableView({
           body: { action: "get_accounts" },
         });
         if (response.error) throw response.error;
-        const accounts: GoogleAdsAccount[] = Array.isArray(
-          response.data?.accounts,
-        )
-          ? response.data.accounts
-          : [];
-        return accounts;
+        return readGoogleAdsAccounts(response.data);
       },
       enabled:
         showGoogleSettingsDialog &&

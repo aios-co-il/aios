@@ -10,6 +10,7 @@ import {
   readString,
   readText,
 } from "@/lib/jsonReaders";
+import { readAhrefsSnapshotResponse } from "@/lib/ahrefsResponses";
 import type { DynamicRecord } from "@/lib/dynamicTableTypes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
@@ -67,12 +68,6 @@ type ComparisonRow = AhrefsKeyword | JsonObject;
 interface ComparisonMaps {
   threeMonth: Map<string, ComparisonRow>;
   yearly: Map<string, ComparisonRow>;
-}
-
-interface AhrefsSnapshotResponse {
-  error?: string;
-  tracked_count?: number;
-  keywords_count?: number;
 }
 
 interface SeoDashboardViewProps {
@@ -136,21 +131,21 @@ export function SeoDashboardView({
   const handleFetchSnapshot = useCallback(async () => {
     setIsFetchingSnapshot(true);
     try {
-      const { data, error } =
-        await supabase.functions.invoke<AhrefsSnapshotResponse>(
-          "fetch-ahrefs-snapshot",
-          {
-            body: {
-              clientId,
-              ...(expectedDomain ? { domain: expectedDomain } : {}),
-              ...(ahrefsProjectId ? { projectId: ahrefsProjectId } : {}),
-              ...(ahrefsMode ? { mode: ahrefsMode } : {}),
-              ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
-            },
+      const { data: body, error } = await supabase.functions.invoke(
+        "fetch-ahrefs-snapshot",
+        {
+          body: {
+            clientId,
+            ...(expectedDomain ? { domain: expectedDomain } : {}),
+            ...(ahrefsProjectId ? { projectId: ahrefsProjectId } : {}),
+            ...(ahrefsMode ? { mode: ahrefsMode } : {}),
+            ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
           },
-        );
+        },
+      );
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = readAhrefsSnapshotResponse(body);
+      if (data.error) throw new Error(data.error);
       const tracked = data?.tracked_count ?? 0;
       const organic = data?.keywords_count ?? 0;
       toast.success(
@@ -778,22 +773,22 @@ export function SeoDashboardView({
             .filter((k) => k.length > 0),
         ),
       );
-      const { data, error } =
-        await supabase.functions.invoke<AhrefsSnapshotResponse>(
-          "fetch-ahrefs-snapshot",
-          {
-            body: {
-              clientId,
-              domain,
-              projectId,
-              ...(ahrefsMode ? { mode: ahrefsMode } : {}),
-              ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
-              gsc_keywords: gscKws,
-            },
+      const { data: body, error } = await supabase.functions.invoke(
+        "fetch-ahrefs-snapshot",
+        {
+          body: {
+            clientId,
+            domain,
+            projectId,
+            ...(ahrefsMode ? { mode: ahrefsMode } : {}),
+            ...(ahrefsProtocol ? { protocol: ahrefsProtocol } : {}),
+            gsc_keywords: gscKws,
           },
-        );
+        },
+      );
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = readAhrefsSnapshotResponse(body);
+      if (data.error) throw new Error(data.error);
       toast.success(
         `הדוח סונכרן (${data?.keywords_count ?? 0} אורגניים, ${data?.tracked_count ?? 0} במעקב)`,
       );

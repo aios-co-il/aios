@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { type JsonObject, readString } from "@/lib/jsonReaders";
 import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
-import type { SharedDashboardPayload } from "@/lib/sharedDashboardPayload";
+import { toSharedDashboardPayload } from "@/lib/sharedDashboardPayload";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -271,8 +271,7 @@ export default function SharedDashboard({
         const body = await res.text();
         throw new Error(body || `public-dashboard failed (${res.status})`);
       }
-      const payload: SharedDashboardPayload = await res.json();
-      return payload;
+      return toSharedDashboardPayload(await res.json());
     },
     enabled: !!shareToken,
     retry: false,
@@ -300,8 +299,7 @@ export default function SharedDashboard({
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      const payload: SharedDashboardPayload = await res.json();
-      return payload;
+      return toSharedDashboardPayload(await res.json());
     },
     enabled: !!shareToken && platformFilter === "weekly",
     staleTime: 5 * 60_000,

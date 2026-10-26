@@ -23,6 +23,7 @@ export function toCrmRecordRows(value: unknown): CrmRecordRow[] {
 export type DashboardTable = {
   id: string;
   name: string;
+  client_id: string | null;
   integration_type: string | null;
   integration_settings: JsonObject | null;
   last_sync_at: string | null;
@@ -41,6 +42,7 @@ export function toDashboardTables(value: unknown): DashboardTable[] {
             ...row,
             id: row.id,
             name: stringOr(row.name, ""),
+            client_id: stringOr(row.client_id, null),
             integration_type: stringOr(row.integration_type, null),
             integration_settings: isJsonObject(row.integration_settings)
               ? row.integration_settings

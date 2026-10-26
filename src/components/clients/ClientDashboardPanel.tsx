@@ -31,12 +31,9 @@ import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
 } from "./ReportEmailSenderSelect";
-import {
-  syncReportTables,
-  waitForSnapshotReady,
-  type SyncableReportTable,
-} from "@/lib/reportSync";
+import { syncReportTables, waitForSnapshotReady } from "@/lib/reportSync";
 import { errorMessage } from "@/lib/jsonReaders";
+import { toDashboardTables } from "@/types/dashboardRows";
 import { downloadReportPdf } from "@/lib/reportPdf";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 
@@ -156,10 +153,9 @@ export function ClientDashboardPanel({
           { method: "GET" },
         );
         if (response.error) throw response.error;
-        const allTables: SyncableReportTable[] = Array.isArray(response.data)
-          ? response.data
-          : [];
-        return allTables.filter((table) => table.client_id === clientId);
+        return toDashboardTables(response.data).filter(
+          (table) => table.client_id === clientId,
+        );
       },
       enabled: !!clientId && !!tenantId,
     });

@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, type ComponentProps } from "react";
 import type { Json } from "@/integrations/supabase/types";
 import type { JsonObject } from "@/lib/jsonReaders";
-import type {
-  SharedTablePayload,
-  SharedTableRecord,
+import {
+  toSharedTablePayload,
+  type SharedTablePayload,
+  type SharedTableRecord,
 } from "@/lib/sharedTablePayload";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -225,8 +226,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      const payload: SharedTablePayload = await res.json();
-      return payload;
+      return toSharedTablePayload(await res.json());
     },
     enabled:
       !!shareToken &&
@@ -252,8 +252,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      const payload: SharedTablePayload = await res.json();
-      return payload;
+      return toSharedTablePayload(await res.json());
     },
     enabled: !!shareToken && isSeoShare,
     staleTime: 5 * 60 * 1000,
@@ -320,8 +319,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      const payload: SharedTablePayload = await res.json();
-      return payload;
+      return toSharedTablePayload(await res.json());
     },
     enabled:
       !!shareToken &&
@@ -486,13 +484,13 @@ export default function SharedTable() {
     if (!data?.records?.length)
       return (
         data?.fields?.map((f) => ({
-          key: f.field_key,
+          key: f.field_key ?? "",
           label: f.field_label,
         })) || []
       );
     if (data?.fields?.length) {
       return data.fields.map((f) => ({
-        key: f.field_key,
+        key: f.field_key ?? "",
         label: f.field_label,
       }));
     }
