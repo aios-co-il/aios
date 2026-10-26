@@ -57,6 +57,7 @@ import {
   executeWorkshopTool,
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
+import { isBlockedInWorkshop } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import {
   ROLE_PERSONA,
@@ -221,13 +222,6 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
-
-/** The approval queue's tools: never offered in the workshop chat (a tap there is not an approval). */
-const WORKSHOP_BLOCKED_TOOLS = new Set([
-  "execute_pending_approval",
-  "reject_pending_approval",
-  "list_pending_approvals",
-]);
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -14934,7 +14928,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
       // reachable from here, so a tap can never run an unrelated pending approval.
       filteredTools = filteredTools.filter(
-        (t) => !WORKSHOP_BLOCKED_TOOLS.has(t.name),
+        (t) => !isBlockedInWorkshop(t.name, true),
       );
     }
     if (inWorkshop && workshopRoleForRun) {
@@ -14946,7 +14940,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A skin's tools may be added below; workshop tools only for this run's role.
     const workshopToolAllowed = (name: string) =>
-      !(inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(name)) &&
+      !isBlockedInWorkshop(name, inWorkshop) &&
       (!isWorkshopTool(name) ||
         (inWorkshop &&
           (!workshopRoleForRun ||
@@ -15919,7 +15913,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               error: "isolated_session",
               message: "סשן מבודד — כלים כבויים.",
             };
-          } else if (inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(toolName)) {
+          } else if (isBlockedInWorkshop(toolName, inWorkshop)) {
             // A workshop tap is never an approval of a WhatsApp/Meta action, whatever is called.
             result = {
               error: "not_in_workshop",
@@ -15935,7 +15929,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
               )
             ).filter(
-              (tool) => !(inWorkshop && WORKSHOP_BLOCKED_TOOLS.has(tool.name)),
+              (tool) => !isBlockedInWorkshop(tool.name, inWorkshop),
             );
             expandAgentTools(discovered);
             result = {

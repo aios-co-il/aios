@@ -55,7 +55,7 @@
 run-ai-agent  ── נתב כוונות ── בוחר סקין (copywriter / creative_studio / video_director)
    │                         └─ שולח אירוע SSE: skin  (האווטר מתחלף)
    ▼
-workshop-tools  (_shared/workshop-tools.ts, כלים מבוססי כוונה, בלי תלות בדפדפן)
+workshop-tools  (_shared/workshop-tools.ts ומטפל לכל כלי ב־_shared/workshop/tools/, כלים מבוססי כוונה, בלי תלות בדפדפן)
    ├─ workshop-defaults  (פונקציות טהורות: ערוץ→פורמט, סוג, סגנון, מספר סצנות, מדיניות עלות)
    ├─ ai-generate-social-image / marketing-copy-plan / marketing-creative-plan (קיימים)
    ├─ RPC: save_video_storyboard, produce_video, queue_video_* (קיימים)
