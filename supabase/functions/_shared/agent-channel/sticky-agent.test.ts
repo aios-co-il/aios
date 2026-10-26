@@ -20,7 +20,7 @@ type MockRows = { data: unknown };
 
 interface MockChain extends PromiseLike<MockRows> {
   select(): MockChain;
-  eq(): MockChain;
+  match(): MockChain;
   not(): MockChain;
   order(): MockChain;
   limit(): MockChain;
@@ -31,7 +31,7 @@ function mockChain(single: unknown, rows: unknown): MockChain {
   const result: MockRows = { data: rows };
   const chain: MockChain = {
     select: () => chain,
-    eq: () => chain,
+    match: () => chain,
     not: () => chain,
     order: () => chain,
     limit: () => chain,

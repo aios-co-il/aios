@@ -9,10 +9,21 @@ import { asRecord } from "../unknown-record.ts";
 
 export type OpenChatProvider = "cursor";
 
-/** Same client shape the fixed Cursor Direct session lookup takes. */
-type OpenChatClient = NonNullable<
-  Parameters<typeof resolveCursorDirectSession>[0]
->;
+type OpenChatSessionsResult = { data: unknown };
+
+interface OpenChatSessionsQuery extends PromiseLike<OpenChatSessionsResult> {
+  match(query: { tenant_id: string; provider: string }): OpenChatSessionsQuery;
+  not(column: string, operator: string, value: null): OpenChatSessionsQuery;
+  order(column: string, options: { ascending: boolean }): OpenChatSessionsQuery;
+  limit(count: number): OpenChatSessionsQuery;
+}
+
+/** The session lookup below, plus the Cursor sticky-agent read. */
+interface OpenChatClient {
+  from(table: string): {
+    select(columns: string): OpenChatSessionsQuery;
+  };
+}
 
 export function asCloudAgentId(value?: string | null): string | null {
   return asCursorSessionId(value);
@@ -134,8 +145,7 @@ export async function collectOpenChatIds(
     const { data: sessions } = await sb
       .from("agent_channel_sessions")
       .select("external_session_id")
-      .eq("tenant_id", args.tenantId)
-      .eq("provider", args.provider)
+      .match({ tenant_id: args.tenantId, provider: args.provider })
       .not("external_session_id", "is", null)
       .order("last_activity_at", { ascending: false })
       .limit(5);

@@ -1,12 +1,14 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { ingestChannelReply } from "../_shared/agent-channel/ingest.ts";
-import { resolveCallbackOrigin } from "../_shared/agent-channel/logic.ts";
+import {
+  parseCallbackEventType,
+  resolveCallbackOrigin,
+} from "../_shared/agent-channel/logic.ts";
 import { verifyCallbackToken } from "../_shared/agent-channel/hmac.ts";
 import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
-  MessageEventType,
 } from "../_shared/agent-channel/types.ts";
 import {
   asRecord,
@@ -14,17 +16,6 @@ import {
   isRecord,
   type UnknownRecord,
 } from "../_shared/unknown-record.ts";
-
-const EVENT_TYPES: ReadonlySet<string> = new Set<MessageEventType>([
-  "message",
-  "progress",
-  "approval_request",
-  "system",
-]);
-
-function isMessageEventType(value: unknown): value is MessageEventType {
-  return typeof value === "string" && EVENT_TYPES.has(value);
-}
 
 function optionalText(value: unknown): string | undefined {
   return value ? String(value) : undefined;
@@ -83,15 +74,16 @@ Deno.serve(async (req) => {
   });
   if (!ok) return json(401, { error: "Invalid callback token" });
 
+  const eventType = parseCallbackEventType(body.event_type);
+  if (!eventType) return json(400, { error: "Unknown event_type" });
+
   const payload: CallbackPayload = {
     tenant_id: tenantId,
     conversation_id: conversationId,
     session_id: sessionId,
     origin: origin || (session?.provider as ChannelProvider) || "cursor",
     content,
-    event_type: isMessageEventType(body.event_type)
-      ? body.event_type
-      : "message",
+    event_type: eventType,
     speaker: optionalText(body.speaker),
     idempotency_key:
       req.headers.get("Idempotency-Key") || optionalText(body.idempotency_key),

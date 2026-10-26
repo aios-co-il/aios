@@ -3,6 +3,7 @@ import type {
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
+  MessageEventType,
   SendResult,
   WorkspaceProvider,
 } from "./types.ts";
@@ -358,4 +359,21 @@ export function resolveCallbackOrigin(
     return session;
   }
   return raw || session || "internal";
+}
+
+const EVENT_TYPES: ReadonlySet<string> = new Set<MessageEventType>([
+  "message",
+  "progress",
+  "approval_request",
+  "system",
+]);
+
+function isMessageEventType(value: unknown): value is MessageEventType {
+  return typeof value === "string" && EVENT_TYPES.has(value);
+}
+
+/** Absent event_type defaults to "message"; an unknown one is rejected (null). */
+export function parseCallbackEventType(raw: unknown): MessageEventType | null {
+  if (raw === undefined || raw === null || raw === "") return "message";
+  return isMessageEventType(raw) ? raw : null;
 }

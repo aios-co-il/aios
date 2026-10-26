@@ -19,9 +19,12 @@ import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
 import {
   type ChannelAttachment,
-  type InputMode,
   type SendResult,
 } from "../_shared/agent-channel/types.ts";
+import {
+  parseConversationHistory,
+  parseInputMode,
+} from "../_shared/agent-channel/send-input.ts";
 import {
   asRecord,
   errorMessageOr,
@@ -47,17 +50,6 @@ import {
   setConversationStatus,
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
-
-const INPUT_MODES: ReadonlySet<string> = new Set<InputMode>([
-  "typed",
-  "realtime_voice",
-  "transcribe_only",
-  "external_channel_callback",
-]);
-
-function isInputMode(value: unknown): value is InputMode {
-  return typeof value === "string" && INPUT_MODES.has(value);
-}
 
 function parseAttachment(item: unknown): ChannelAttachment | null {
   if (!isRecord(item)) return null;
@@ -113,6 +105,7 @@ Deno.serve(async (req) => {
   if (!allowed) return json(403, { error: "Not a member of this tenant" });
 
   const action = String(body.action || "send");
+  const inputMode = parseInputMode(body.input_mode);
   const carmen = await resolveCarmenAgent(sb, tenantId);
   const agentId = carmen?.id ?? "";
   if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
@@ -252,7 +245,7 @@ Deno.serve(async (req) => {
         : null,
       metadata: {
         origin: "internal",
-        input_mode: body.input_mode || "typed",
+        input_mode: inputMode,
         delivery_mode: "text",
       },
     });
@@ -334,8 +327,8 @@ Deno.serve(async (req) => {
     content,
     idempotency_key: idempotencyKey,
     metadata: {
-      input_mode: body.input_mode || "typed",
-      delivery_mode: body.input_mode === "realtime_voice" ? "realtime" : "text",
+      input_mode: inputMode,
+      delivery_mode: inputMode === "realtime_voice" ? "realtime" : "text",
       ...(attachments.length ? { attachments } : {}),
       ...(body.context_metadata && typeof body.context_metadata === "object"
         ? { context: body.context_metadata }
@@ -395,18 +388,16 @@ Deno.serve(async (req) => {
         skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
       ),
       attachments,
-      inputMode: isInputMode(body.input_mode) ? body.input_mode : "typed",
+      inputMode,
       idempotencyKey,
       brainAllowed: (slug) => brainLevel(accessRow, slug) !== null,
-      history: Array.isArray(body.conversation_history)
-        ? body.conversation_history
-        : [],
+      history: parseConversationHistory(body.conversation_history),
     });
     await setConversationStatus(sb, conv.id, result.status);
     await sb
       .from("ai_conversation_messages")
       .update({
-        metadata: { dispatch: result, input_mode: body.input_mode || "typed" },
+        metadata: { dispatch: result, input_mode: inputMode },
       })
       .eq("tenant_id", tenantId)
       .eq("idempotency_key", idempotencyKey);
