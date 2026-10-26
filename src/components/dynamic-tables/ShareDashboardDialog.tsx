@@ -45,7 +45,7 @@ export function ShareDashboardDialog({
         .select("client_id, tenant_id")
         .eq("id", dashboardId)
         .maybeSingle();
-      const clientId = (dash as any)?.client_id;
+      const clientId = dash?.client_id;
       let website: string | null = null;
       if (clientId) {
         const { data: client } = await supabase
@@ -56,7 +56,7 @@ export function ShareDashboardDialog({
         website = client?.website ?? null;
       }
       return {
-        tenantId: ((dash as any)?.tenant_id as string | undefined) || tenantId,
+        tenantId: dash?.tenant_id || tenantId,
         website,
       };
     },
@@ -100,7 +100,7 @@ export function ShareDashboardDialog({
           created_by: user.id,
           allowed_emails: [],
           share_token: readableToken,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
@@ -128,7 +128,7 @@ export function ShareDashboardDialog({
         .update({
           is_active: isActive,
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("id", shareId);
       if (error) throw error;
     },
@@ -153,7 +153,7 @@ export function ShareDashboardDialog({
         .update({
           share_token: slug,
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("id", shareId);
       if (error) throw error;
     },
@@ -165,8 +165,8 @@ export function ShareDashboardDialog({
       setEditingId(null);
       setEditingValue("");
     },
-    onError: (err: any) => {
-      if (err?.code === "23505") {
+    onError: (err) => {
+      if ("code" in err && err.code === "23505") {
         toast.error("הסלאג הזה כבר תפוס, בחר אחר");
       } else {
         toast.error("שגיאה בעדכון הסלאג");
@@ -252,7 +252,7 @@ export function ShareDashboardDialog({
             </p>
           )}
 
-          {shares.map((share: any) => (
+          {shares.map((share) => (
             <div key={share.id} className="border rounded-lg p-4 space-y-3">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import { errorMessage, readString, readText } from "@/lib/dynamic-tables-b17";
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,13 +123,13 @@ export function FacebookEcommerceTableDialog({
     if (
       !selectedIntegrationId ||
       !fbIntegrations.some(
-        (integration: any) => integration.id === selectedIntegrationId,
+        (integration) => integration.id === selectedIntegrationId,
       )
     ) {
       const preferred =
-        (fbIntegrations as any[]).find((integration) => integration._isOwn) ||
+        fbIntegrations.find((integration) => integration._isOwn) ||
         fbIntegrations[0];
-      setSelectedIntegrationId((preferred as any).id);
+      setSelectedIntegrationId(String(preferred.id));
     }
   }, [fbIntegrations, open, selectedIntegrationId]);
 
@@ -178,8 +179,10 @@ export function FacebookEcommerceTableDialog({
       setValidatedAccount(account);
       setAdAccountInput(account.id || `act_${normalizedId}`);
       toast.success("חשבון המודעות אומת בהצלחה");
-    } catch (error: any) {
-      setValidationError(error?.message || "לא ניתן לאמת את חשבון המודעות");
+    } catch (error) {
+      setValidationError(
+        errorMessage(error) || "לא ניתן לאמת את חשבון המודעות",
+      );
     } finally {
       setIsValidating(false);
     }
@@ -232,8 +235,7 @@ export function FacebookEcommerceTableDialog({
       handleClose();
       navigate(buildPath(`/table/${data.slug}`));
     },
-    onError: (error: any) =>
-      toast.error(`שגיאה ביצירת הטבלה: ${error.message}`),
+    onError: (error) => toast.error(`שגיאה ביצירת הטבלה: ${error.message}`),
   });
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -309,16 +311,22 @@ export function FacebookEcommerceTableDialog({
                     <SelectValue placeholder="בחר חיבור" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(fbIntegrations as any[]).map((integration) => {
-                      const settings = integration.settings as any;
+                    {fbIntegrations.map((integration) => {
+                      const pageName = readText(
+                        integration.settings,
+                        "page_name",
+                      );
                       const visibility =
-                        integration.connection_visibility ||
+                        readString(integration, "connection_visibility") ||
                         (integration._isOwn ? "private" : null);
                       return (
-                        <SelectItem key={integration.id} value={integration.id}>
+                        <SelectItem
+                          key={String(integration.id)}
+                          value={String(integration.id)}
+                        >
                           <div className="flex items-center gap-2">
                             {visibilityIcon(visibility)}
-                            <span>{settings?.page_name || "Facebook"}</span>
+                            <span>{pageName || "Facebook"}</span>
                             {integration._isOwn && (
                               <Badge
                                 variant="secondary"

@@ -1,3 +1,14 @@
+import type { Json } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  readDateInput,
+  readField,
+  readString,
+  readText,
+  type JsonObject,
+  type SeoReportRow,
+} from "@/lib/dynamic-tables-b17";
 import { useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,7 +38,7 @@ interface PublicGscKeyword {
 
 interface PublicSeoViewProps {
   tableName: string;
-  reports: any[];
+  reports: SeoReportRow[];
   /** Optional GSC data aggregated per keyword — enables enrichment + GSC-only rows. */
   gscData?: PublicGscKeyword[];
   /** Optional GSC keyword aggregates per historical period — enables monthly/3M/yearly change columns. */
@@ -47,7 +58,14 @@ interface PublicSeoViewProps {
   forceIrrelevant?: string[];
 }
 
-function normalizeKeyword(kw: any) {
+function keywordKey(kw: Json): string {
+  return String(readField(kw, "keyword") || "")
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeKeyword(keyword: Json) {
+  const kw = asJsonObject(keyword);
   return {
     keyword: kw.keyword || "",
     position: kw.position ?? kw.best_position ?? null,
@@ -85,29 +103,30 @@ export function PublicSeoView({
     return validReports[0];
   }, [validReports, selectedReportId]);
 
-  const reportData = (selectedReport?.report_data as any) || {};
-  const snapshot = reportData?.snapshot || {};
-  const snapshotPrevMonth =
-    reportData?.snapshot_prev_month || reportData?.snapshot_prev || {};
-  const snapshotCampaignStart = reportData?.snapshot_campaign_start || {};
+  const reportData = asJsonObject(selectedReport?.report_data);
+  const snapshot = asJsonObject(reportData.snapshot);
+  const snapshotPrevMonth = asJsonObject(
+    reportData.snapshot_prev_month || reportData.snapshot_prev,
+  );
+  const snapshotCampaignStart = asJsonObject(
+    reportData.snapshot_campaign_start,
+  );
   const campaignStartDate =
-    reportData?.campaign_start_date || snapshotCampaignStart?.date;
-  const trafficHistory = Array.isArray(reportData?.traffic_history)
-    ? reportData.traffic_history
-    : [];
+    readDateInput(reportData, "campaign_start_date") ||
+    readDateInput(snapshotCampaignStart, "date");
 
   // Comparison cache (3-month / yearly)
   const comparison = useMemo(() => {
-    const cached = (selectedReport as any)?.comparison_data;
-    const threeMonth = new Map<string, any>();
-    const yearly = new Map<string, any>();
-    if (cached?.threeMonth) {
-      for (const [k, v] of Object.entries(cached.threeMonth))
-        threeMonth.set(k, v as any);
+    const cached = asJsonObject(selectedReport?.comparison_data);
+    const threeMonth = new Map<string, JsonObject>();
+    const yearly = new Map<string, JsonObject>();
+    if (cached.threeMonth) {
+      for (const [k, v] of Object.entries(asJsonObject(cached.threeMonth)))
+        threeMonth.set(k, asJsonObject(v));
     }
-    if (cached?.yearly) {
-      for (const [k, v] of Object.entries(cached.yearly))
-        yearly.set(k, v as any);
+    if (cached.yearly) {
+      for (const [k, v] of Object.entries(asJsonObject(cached.yearly)))
+        yearly.set(k, asJsonObject(v));
     }
     return { threeMonth, yearly };
   }, [selectedReport?.id]);
@@ -117,14 +136,15 @@ export function PublicSeoView({
     const idx = validReports.findIndex((r) => r.id === selectedReport?.id);
     const prev =
       idx >= 0 && idx < validReports.length - 1 ? validReports[idx + 1] : null;
-    const map = new Map<string, number | null>();
+    const map = new Map<string, Json>();
     if (!prev) return map;
-    const rd = (prev.report_data as any) || {};
+    const rd = asJsonObject(prev.report_data);
     const all = [
-      ...(Array.isArray(rd.tracked_keywords) ? rd.tracked_keywords : []),
-      ...(Array.isArray(rd.organic_keywords) ? rd.organic_keywords : []),
+      ...asJsonArray(rd.tracked_keywords),
+      ...asJsonArray(rd.organic_keywords),
     ];
-    for (const kw of all) {
+    for (const keyword of all) {
+      const kw = asJsonObject(keyword);
       const name = String(kw.keyword || "").toLowerCase();
       if (!map.has(name))
         map.set(name, kw.position ?? kw.best_position ?? null);
@@ -169,7 +189,7 @@ export function PublicSeoView({
     [gscMultiPeriod],
   );
 
-  function enrich(kw: any) {
+  function enrich(kw: Json) {
     const n = normalizeKeyword(kw);
     const lower = String(n.keyword).toLowerCase().trim();
     const api3 = comparison.threeMonth.get(lower);
@@ -184,24 +204,23 @@ export function PublicSeoView({
       if (gscPrev != null) prevPos = gscPrev;
     }
 
-    let pos3m: number | null = api3?.best_position_prev ?? null;
+    let pos3m: Json = api3?.best_position_prev ?? null;
     if (pos3m == null) {
       const gsc3 = gscThreeMonthMap.get(lower)?.position;
       if (gsc3 != null) pos3m = gsc3;
     }
 
-    let posYear: number | null = apiY?.best_position_prev ?? null;
+    let posYear: Json = apiY?.best_position_prev ?? null;
     if (posYear == null) {
       const gscY = gscYearlyMap.get(lower)?.position;
       if (gscY != null) posYear = gscY;
     }
 
-    if (n.volume == null && (api3 || apiY)?.volume != null)
-      n.volume = (api3 || apiY).volume;
-    if (n.kd == null && (api3 || apiY)?.keyword_difficulty != null)
-      n.kd = (api3 || apiY).keyword_difficulty;
-    if (n.cpc == null && (api3 || apiY)?.cpc != null)
-      n.cpc = (api3 || apiY).cpc;
+    const api = api3 || apiY;
+    if (n.volume == null && api?.volume != null) n.volume = api.volume;
+    if (n.kd == null && api?.keyword_difficulty != null)
+      n.kd = api.keyword_difficulty;
+    if (n.cpc == null && api?.cpc != null) n.cpc = api.cpc;
 
     return {
       ...n,
@@ -216,30 +235,18 @@ export function PublicSeoView({
     };
   }
 
-  const rawOrganic = Array.isArray(reportData?.organic_keywords)
-    ? reportData.organic_keywords
-    : [];
-  const rawTracked = Array.isArray(reportData?.tracked_keywords)
-    ? reportData.tracked_keywords
-    : [];
+  const projectName = readText(reportData, "project_name");
+  const reportHtml = readString(reportData, "html");
+  const rawOrganic = asJsonArray(reportData.organic_keywords);
+  const rawTracked = asJsonArray(reportData.tracked_keywords);
 
   const organicKeywords = useMemo(() => {
     const enriched = rawOrganic.map(enrich);
     const existing = new Set<string>();
-    for (const kw of rawOrganic)
-      existing.add(
-        String(kw.keyword || "")
-          .toLowerCase()
-          .trim(),
-      );
-    for (const kw of rawTracked)
-      existing.add(
-        String(kw.keyword || "")
-          .toLowerCase()
-          .trim(),
-      );
+    for (const kw of rawOrganic) existing.add(keywordKey(kw));
+    for (const kw of rawTracked) existing.add(keywordKey(kw));
 
-    const extra = new Map<string, any>();
+    const extra = new Map<string, JsonObject>();
     for (const [name, kw] of comparison.threeMonth) {
       if (!existing.has(name)) extra.set(name, kw);
     }
@@ -273,18 +280,8 @@ export function PublicSeoView({
   const gscOnlyKeywords = useMemo(() => {
     if (gscData.length === 0) return [];
     const ahrefsNames = new Set<string>();
-    for (const kw of rawOrganic)
-      ahrefsNames.add(
-        String(kw.keyword || "")
-          .toLowerCase()
-          .trim(),
-      );
-    for (const kw of rawTracked)
-      ahrefsNames.add(
-        String(kw.keyword || "")
-          .toLowerCase()
-          .trim(),
-      );
+    for (const kw of rawOrganic) ahrefsNames.add(keywordKey(kw));
+    for (const kw of rawTracked) ahrefsNames.add(keywordKey(kw));
     return gscData
       .filter((g) => {
         const name = String(g.keyword || "")
@@ -344,11 +341,11 @@ export function PublicSeoView({
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Globe className="h-5 w-5 text-primary shrink-0" />
           <span className="font-semibold text-base sm:text-lg break-words">
-            {reportData?.domain || selectedReport?.domain || tableName}
+            {readText(reportData, "domain") ||
+              selectedReport?.domain ||
+              tableName}
           </span>
-          {reportData?.project_name && (
-            <Badge variant="outline">{reportData.project_name}</Badge>
-          )}
+          {projectName && <Badge variant="outline">{projectName}</Badge>}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground w-full sm:w-auto min-w-0">
           {validReports.length > 1 && (
@@ -409,13 +406,13 @@ export function PublicSeoView({
         initialLangFilter={initialLangFilter}
       />
 
-      {reportData?.html && (
+      {reportHtml && (
         <Card>
           <CardContent className="p-4">
             <div
               className="prose prose-sm dark:prose-invert max-w-none text-right"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(reportData.html || "", {
+                __html: DOMPurify.sanitize(reportHtml || "", {
                   FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],
                   FORBID_ATTR: [
                     "onerror",

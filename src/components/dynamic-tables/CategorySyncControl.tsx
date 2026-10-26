@@ -15,12 +15,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { buildSeoReportTenantIds, pickSeoSyncDomain } from "@/lib/seoDomain";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  readField,
+  readString,
+  type JsonObject,
+} from "@/lib/dynamic-tables-b17";
 
 interface CategoryTable {
   id: string;
   name: string;
   integration_type: string | null;
-  integration_settings?: any;
+  integration_settings?: unknown;
   client_id?: string | null;
   tenant_id?: string | null;
 }
@@ -86,14 +94,14 @@ async function resolveReportTenantIds(
   );
 }
 
-function ahrefsReportsForClient(
+function ahrefsReportsForClient<Columns extends string = "*">(
   clientId: string,
   tenantIds: string[],
-  columns = "*",
+  columns?: Columns,
 ) {
   let q = supabase
-    .from("ahrefs_reports" as any)
-    .select(columns)
+    .from("ahrefs_reports")
+    .select<Columns>(columns)
     .eq("client_id", clientId)
     .order("report_date", { ascending: false });
   if (tenantIds.length === 1) q = q.eq("tenant_id", tenantIds[0]);
@@ -101,9 +109,48 @@ function ahrefsReportsForClient(
   return q;
 }
 
+function settingsClientId(t: CategoryTable, settings: JsonObject) {
+  return (
+    readString(settings, "clientId") ||
+    readString(settings, "client_id") ||
+    t.client_id
+  );
+}
+
+function projectIdOf(value: Json | undefined): string | number | null {
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
+
+function keywordRecordData(
+  keyword: Json,
+  report: { domain: string },
+  snapshot: JsonObject,
+  reportDate: string | null,
+): JsonObject {
+  const kw = asJsonObject(keyword);
+  return {
+    keyword: String(kw.keyword || ""),
+    position: kw.position ?? null,
+    position_prev_month: kw.position_prev_month ?? null,
+    position_change:
+      kw.position_prev_month != null && kw.position != null
+        ? Number(kw.position_prev_month) - Number(kw.position)
+        : null,
+    traffic: kw.traffic ?? 0,
+    traffic_prev_month: kw.traffic_prev_month ?? 0,
+    volume: kw.volume ?? 0,
+    kd: kw.kd ?? null,
+    cpc: kw.cpc ?? null,
+    url: kw.url ?? "",
+    domain: report.domain,
+    dr: snapshot.dr,
+    report_date: reportDate,
+  };
+}
+
 async function syncStoredAhrefsReportTable(t: CategoryTable) {
-  const settings = t.integration_settings || {};
-  const clientId = settings.clientId || settings.client_id || t.client_id;
+  const settings = asJsonObject(t.integration_settings);
+  const clientId = settingsClientId(t, settings);
   if (!clientId || !t.tenant_id) throw new Error("Missing SEO report scope");
 
   const reportTenantIds = await resolveReportTenantIds(clientId, t.tenant_id);
@@ -126,7 +173,7 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     settings,
     client: clientRow,
     tableName: t.name,
-    latestReportDomain: (latestReportRow as any)?.domain,
+    latestReportDomain: readString(latestReportRow, "domain"),
   });
 
   const normalizeDomain = (value?: string) =>
@@ -139,9 +186,10 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
   // Look up the most recent ahrefs_project_id for this client+domain so the
   // fetch can pull tracked_keywords from Rank Tracker. Without this, the
   // snapshot is rebuilt without "ביטויים במעקב".
-  let projectId: string | number | null = settings.ahrefs_project_id ?? null;
-  let usedMode: string | null = settings.ahrefs_mode ?? null;
-  let usedProtocol: string | null = settings.ahrefs_protocol ?? null;
+  let projectId = projectIdOf(settings.ahrefs_project_id);
+  let usedMode: string | null = readString(settings, "ahrefs_mode") ?? null;
+  let usedProtocol: string | null =
+    readString(settings, "ahrefs_protocol") ?? null;
   if (!projectId) {
     const { data: lastWithProject } = await ahrefsReportsForClient(
       clientId,
@@ -150,17 +198,17 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     )
       .not("metadata->ahrefs_project_id", "is", null)
       .limit(20);
-    const rows = (lastWithProject as any[]) || [];
+    const rows = lastWithProject || [];
     const match =
       rows.find(
-        (r: any) =>
+        (r) =>
           !normalizedDomain || normalizeDomain(r.domain) === normalizedDomain,
       ) || rows[0];
-    const meta = match?.metadata as any;
+    const meta = match?.metadata;
     if (meta) {
-      projectId = meta.ahrefs_project_id ?? null;
-      usedMode = usedMode ?? meta.used_mode ?? null;
-      usedProtocol = usedProtocol ?? meta.used_protocol ?? null;
+      projectId = projectIdOf(readField(meta, "ahrefs_project_id"));
+      usedMode = usedMode ?? readString(meta, "used_mode") ?? null;
+      usedProtocol = usedProtocol ?? readString(meta, "used_protocol") ?? null;
     }
   }
 
@@ -193,50 +241,32 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
   const target = normalizedDomain;
 
   const reportsToUse = target
-    ? reports.filter((report: any) => normalizeDomain(report.domain) === target)
+    ? reports.filter((report) => normalizeDomain(report.domain) === target)
     : reports;
 
-  const recordsToInsert: any[] = [];
-  for (const report of (reportsToUse.length > 0
-    ? reportsToUse
-    : reports) as any[]) {
-    const rd = report.report_data || {};
-    const snapshot = rd.snapshot || {};
+  const tenantId = t.tenant_id;
+  const recordsToInsert: TablesInsert<"crm_records">[] = [];
+  for (const report of reportsToUse.length > 0 ? reportsToUse : reports) {
+    const rd = asJsonObject(report.report_data);
+    const snapshot = asJsonObject(rd.snapshot);
     const reportDate = report.report_date || report.received_at;
     const allKeywords = [
-      ...(Array.isArray(rd.organic_keywords) ? rd.organic_keywords : []),
-      ...(Array.isArray(rd.tracked_keywords) ? rd.tracked_keywords : []),
+      ...asJsonArray(rd.organic_keywords),
+      ...asJsonArray(rd.tracked_keywords),
     ];
 
     if (allKeywords.length > 0) {
       for (const kw of allKeywords) {
         recordsToInsert.push({
           table_id: t.id,
-          tenant_id: t.tenant_id,
-          data: {
-            keyword: String(kw.keyword || ""),
-            position: kw.position ?? null,
-            position_prev_month: kw.position_prev_month ?? null,
-            position_change:
-              kw.position_prev_month != null && kw.position != null
-                ? kw.position_prev_month - kw.position
-                : null,
-            traffic: kw.traffic ?? 0,
-            traffic_prev_month: kw.traffic_prev_month ?? 0,
-            volume: kw.volume ?? 0,
-            kd: kw.kd ?? null,
-            cpc: kw.cpc ?? null,
-            url: kw.url ?? "",
-            domain: report.domain,
-            dr: snapshot.dr,
-            report_date: reportDate,
-          },
+          tenant_id: tenantId,
+          data: keywordRecordData(kw, report, snapshot, reportDate),
         });
       }
     } else {
       recordsToInsert.push({
         table_id: t.id,
-        tenant_id: t.tenant_id,
+        tenant_id: tenantId,
         data: {
           domain: report.domain,
           dr: snapshot.dr,
@@ -253,13 +283,10 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     }
   }
 
-  await supabase
-    .from("crm_records" as any)
-    .delete()
-    .eq("table_id", t.id);
+  await supabase.from("crm_records").delete().eq("table_id", t.id);
   for (let i = 0; i < recordsToInsert.length; i += 500) {
     const { error: insertError } = await supabase
-      .from("crm_records" as any)
+      .from("crm_records")
       .insert(recordsToInsert.slice(i, i + 500));
     if (insertError) throw insertError;
   }
@@ -275,8 +302,8 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
 }
 
 async function syncTrackedOnlyForTable(t: CategoryTable) {
-  const settings = t.integration_settings || {};
-  const clientId = settings.clientId || settings.client_id || t.client_id;
+  const settings = asJsonObject(t.integration_settings);
+  const clientId = settingsClientId(t, settings);
   if (!clientId || !t.tenant_id) throw new Error("Missing SEO report scope");
   const reportTenantIds = await resolveReportTenantIds(clientId, t.tenant_id);
   if (reportTenantIds.length === 0)
@@ -295,27 +322,28 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     settings,
     client: clientRow,
     tableName: t.name,
-    latestReportDomain: (latestReportRow as any)?.domain,
+    latestReportDomain: readString(latestReportRow, "domain"),
   });
 
-  const { data, error } = await supabase.functions.invoke(
-    "fetch-ahrefs-snapshot",
-    {
-      body: {
-        clientId,
-        ...(domain ? { domain } : {}),
-        tracked_only: true,
-        ...(settings.ahrefs_project_id
-          ? { projectId: settings.ahrefs_project_id }
-          : {}),
-      },
+  const { data, error } = await supabase.functions.invoke<{
+    error?: string;
+    projectId?: Json;
+    tracked_count?: number;
+  }>("fetch-ahrefs-snapshot", {
+    body: {
+      clientId,
+      ...(domain ? { domain } : {}),
+      tracked_only: true,
+      ...(settings.ahrefs_project_id
+        ? { projectId: settings.ahrefs_project_id }
+        : {}),
     },
-  );
+  });
   if (error) throw error;
-  if ((data as any)?.error) throw new Error((data as any).error);
+  if (data?.error) throw new Error(data.error);
 
   // Persist project id on the table so future syncs (full + tracked) reuse it.
-  const persistedProjectId = (data as any)?.projectId;
+  const persistedProjectId = data?.projectId;
   if (persistedProjectId && !settings.ahrefs_project_id) {
     await supabase.functions.invoke("crm-tables", {
       method: "PATCH",
@@ -341,61 +369,38 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     reportTenantIds,
   );
   const reportsToUse = target
-    ? ((reports as any[]) || []).filter(
-        (r: any) => normalizeDomain(r.domain) === target,
-      )
-    : (reports as any[]) || [];
-  const recordsToInsert: any[] = [];
-  for (const report of reportsToUse.length > 0
-    ? reportsToUse
-    : (reports as any[]) || []) {
-    const rd = report.report_data || {};
-    const snapshot = rd.snapshot || {};
+    ? (reports || []).filter((r) => normalizeDomain(r.domain) === target)
+    : reports || [];
+  const tenantId = t.tenant_id;
+  const recordsToInsert: TablesInsert<"crm_records">[] = [];
+  for (const report of reportsToUse.length > 0 ? reportsToUse : reports || []) {
+    const rd = asJsonObject(report.report_data);
+    const snapshot = asJsonObject(rd.snapshot);
     const reportDate = report.report_date || report.received_at;
     const allKeywords = [
-      ...(Array.isArray(rd.organic_keywords) ? rd.organic_keywords : []),
-      ...(Array.isArray(rd.tracked_keywords) ? rd.tracked_keywords : []),
+      ...asJsonArray(rd.organic_keywords),
+      ...asJsonArray(rd.tracked_keywords),
     ];
     if (allKeywords.length > 0) {
       for (const kw of allKeywords) {
         recordsToInsert.push({
           table_id: t.id,
-          tenant_id: t.tenant_id,
-          data: {
-            keyword: String(kw.keyword || ""),
-            position: kw.position ?? null,
-            position_prev_month: kw.position_prev_month ?? null,
-            position_change:
-              kw.position_prev_month != null && kw.position != null
-                ? kw.position_prev_month - kw.position
-                : null,
-            traffic: kw.traffic ?? 0,
-            traffic_prev_month: kw.traffic_prev_month ?? 0,
-            volume: kw.volume ?? 0,
-            kd: kw.kd ?? null,
-            cpc: kw.cpc ?? null,
-            url: kw.url ?? "",
-            domain: report.domain,
-            dr: snapshot.dr,
-            report_date: reportDate,
-          },
+          tenant_id: tenantId,
+          data: keywordRecordData(kw, report, snapshot, reportDate),
         });
       }
     }
   }
   if (recordsToInsert.length > 0) {
-    await supabase
-      .from("crm_records" as any)
-      .delete()
-      .eq("table_id", t.id);
+    await supabase.from("crm_records").delete().eq("table_id", t.id);
     for (let i = 0; i < recordsToInsert.length; i += 500) {
       const { error: insertError } = await supabase
-        .from("crm_records" as any)
+        .from("crm_records")
         .insert(recordsToInsert.slice(i, i + 500));
       if (insertError) throw insertError;
     }
   }
-  return (data as any)?.tracked_count ?? 0;
+  return data?.tracked_count ?? 0;
 }
 
 export function CategorySyncControl({ category, tables }: Props) {
@@ -418,7 +423,7 @@ export function CategorySyncControl({ category, tables }: Props) {
       tables.filter(
         (t) =>
           t.integration_type === "ahrefs" &&
-          isSeoReportSource(t.integration_settings?.data_source),
+          isSeoReportSource(readField(t.integration_settings, "data_source")),
       ),
     [tables],
   );
@@ -429,12 +434,12 @@ export function CategorySyncControl({ category, tables }: Props) {
     let oldest: Date | null = null;
     let never = 0;
     for (const t of syncableTables) {
-      const ts = t.integration_settings?.last_sync_at;
+      const ts = readField(t.integration_settings, "last_sync_at");
       if (!ts) {
         never++;
         continue;
       }
-      const d = new Date(ts);
+      const d = new Date(typeof ts === "number" ? ts : String(ts));
       if (!oldest || d < oldest) oldest = d;
     }
     return { oldestSyncAt: oldest, neverSyncedCount: never };
@@ -455,7 +460,7 @@ export function CategorySyncControl({ category, tables }: Props) {
       try {
         if (
           t.integration_type === "ahrefs" &&
-          isSeoReportSource(t.integration_settings?.data_source)
+          isSeoReportSource(readField(t.integration_settings, "data_source"))
         ) {
           await syncStoredAhrefsReportTable(t);
           success++;
@@ -463,9 +468,12 @@ export function CategorySyncControl({ category, tables }: Props) {
         }
 
         // Build per-integration body. Ahrefs requires a config object with target+dataType.
-        const body: Record<string, any> = { tableId: t.id, table_id: t.id };
+        const body: { tableId: string; table_id: string; config?: Json } = {
+          tableId: t.id,
+          table_id: t.id,
+        };
         if (t.integration_type === "ahrefs") {
-          const settings = t.integration_settings || {};
+          const settings = asJsonObject(t.integration_settings);
           body.config = {
             target: settings.targetDomain || settings.target || settings.domain,
             dataType:
@@ -477,7 +485,7 @@ export function CategorySyncControl({ category, tables }: Props) {
         const { error } = await supabase.functions.invoke(fnName, { body });
         if (error) throw error;
         success++;
-      } catch (e: any) {
+      } catch (e) {
         console.error(`[CategorySyncControl] sync failed for ${t.name}:`, e);
         failed++;
       } finally {
@@ -516,7 +524,7 @@ export function CategorySyncControl({ category, tables }: Props) {
         const count = await syncTrackedOnlyForTable(t);
         totalTracked += count;
         success++;
-      } catch (e: any) {
+      } catch (e) {
         console.error(
           `[CategorySyncControl] tracked-only sync failed for ${t.name}:`,
           e,
