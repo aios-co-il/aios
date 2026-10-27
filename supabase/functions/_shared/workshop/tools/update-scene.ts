@@ -1,14 +1,16 @@
 /**
  * workshop_update_scene: changes one scene of the open film, the one the user selected on the
- * board or named ("סצנה 3"). Free: it only writes the scene. A new motion or talking line marks
- * that scene's clip alone for the next workshop_produce_video (priced in its quote); a new frame
- * description of a generated picture queues that picture alone for workshop_make_stills.
+ * board or named ("סצנה 3"). Free: it only writes the scene. A new motion marks that scene's clip
+ * alone for the next workshop_produce_video, and a new talking line is recorded and lip-synced
+ * again there (both priced in its quote; scene-update.ts); a new frame description of a generated
+ * picture queues that picture alone for workshop_make_stills.
  */
 
 import type { Db } from "../db.ts";
 import { productionRunning } from "../production.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
+import { isSceneEngine } from "../video-cost.ts";
 import {
   REDO_KEY,
   SCENE_COLUMNS,
@@ -143,7 +145,11 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     };
   const target = found.scene as SceneRow;
   const ownPicture = await isOwnPicture(supabase, tenantId, target);
-  const plan = planSceneUpdate(target, args, { ownPicture });
+  const engine = asRecord(project.payload.video).scene_engine;
+  const plan = planSceneUpdate(target, args, {
+    ownPicture,
+    engine: isSceneEngine(engine) ? engine : null,
+  });
   if ("error" in plan) return plan;
 
   let scene: SceneRow = target;
@@ -183,7 +189,9 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     `סצנה ${found.number} עודכנה בלוח (${plan.changed.join(", ") || "redo_clip"}), בלי עלות.`,
     plan.clipRedo
       ? "רק הסרטון של הסצנה הזו ייעשה מחדש בהפקה הבאה (workshop_produce_video, לפי הצעת המחיר והתקציב). שאר הסצנות נשארות כמו שהן."
-      : "שום סצנה לא מונפשת מחדש: workshop_produce_video מרכיב את הסרט מחדש עם השינוי.",
+      : plan.lineRedo
+        ? "הסרטון של הסצנה נשאר: בהפקה הבאה (workshop_produce_video) המשפט החדש יוקלט בקול של הפרויקט ויסונכרן לשפתיים מחדש, לפי הצעת המחיר והתקציב."
+        : "שום סצנה לא מונפשת מחדש: workshop_produce_video מרכיב את הסרט מחדש עם השינוי.",
     plan.stillRedo
       ? "התמונה של הסצנה לא תואמת עוד לתיאור החדש: workshop_make_stills יוצר מחדש רק אותה (עולה כסף, דרך התקציב)."
       : "",
@@ -197,6 +205,7 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     scene: sceneSummary(scene, found.number),
     changed: plan.changed,
     ...(plan.clipRedo ? { clip_redo: true } : {}),
+    ...(plan.lineRedo ? { lipsync_redo: true } : {}),
     ...(plan.stillRedo ? { still_redo: true } : {}),
     message: next.join(" "),
     workshop: {

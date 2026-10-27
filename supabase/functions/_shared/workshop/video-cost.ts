@@ -15,6 +15,7 @@ import {
   musicQuoteSeconds,
 } from "./clip-prices.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
+import { talkingLine as sceneLine, talkingMeta } from "./talking.ts";
 
 export type SceneEngine =
   "mock" | "kling" | "elevenlabs" | "higgsfield" | "openrouter";
@@ -74,6 +75,22 @@ export interface CostScene {
   chosen_voice?: boolean;
 }
 
+/** A marketing_video_scenes row as the quote prices it. */
+export function costSceneOf(scene: {
+  duration_s?: unknown;
+  voiceover_text?: unknown;
+  meta?: unknown;
+}): CostScene {
+  const talk = talkingMeta(scene.meta);
+  return {
+    duration_s: Number(scene.duration_s) || 3,
+    voiceover_text: String(scene.voiceover_text ?? ""),
+    lipsync: talk.lipsync,
+    dialogue: talk.dialogue,
+    chosen_voice: talk.chosenVoice,
+  };
+}
+
 /**
  * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
  * Creatify Aurora, Kling lip-sync and Higgsfield Seedance 2.5 all bill by length; the worker
@@ -94,9 +111,10 @@ export const speaksNatively = (engine: SceneEngine) =>
   engine === "elevenlabs" || engine === "higgsfield" || engine === "openrouter";
 
 const talkingLine = (scene: CostScene) =>
-  scene.lipsync
-    ? String(scene.dialogue ?? "").trim() || scene.voiceover_text.trim()
-    : "";
+  sceneLine(
+    { lipsync: scene.lipsync === true, dialogue: scene.dialogue },
+    scene.voiceover_text,
+  );
 
 /**
  * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
@@ -299,11 +317,46 @@ function withLipsyncFallback(
   };
 }
 
+/**
+ * Talking scenes whose clip is kept but does not say the current line (say, a line changed on the
+ * board): the production records the line and lip-syncs the scene again (queue_video_lipsync),
+ * with no new clip. Priced as a lip-sync pass, or as Veo where the worker's chain can end there.
+ */
+export function relipEstimate(
+  scenes: CostScene[],
+  connections: VideoConnections = {},
+): Estimate {
+  const talking = scenes.filter((scene) => talkingLine(scene));
+  const chosen = talking.filter((scene) => scene.chosen_voice === true);
+  const others = talking.filter((scene) => scene.chosen_voice !== true);
+  const veo = connections.openrouter
+    ? roundUsd(
+        others.reduce(
+          (sum, scene) =>
+            sum +
+            veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
+          0,
+        ),
+      )
+    : 0;
+  return {
+    usd: roundUsd(
+      lipsyncPassUsd(chosen) + Math.max(lipsyncPassUsd(others), veo),
+    ),
+    credits: 0,
+  };
+}
+
+/**
+ * The quote for the scenes produce_video animates, plus `relip`: talking scenes kept as they are
+ * that only need a new voice line and lip sync (relipEstimate).
+ */
 export function quotedProductionEstimate(
   engine: SceneEngine,
   scenes: CostScene[],
   options: ProductionOptions,
   connections: VideoConnections = {},
+  relip: CostScene[] = [],
 ) {
   const own = withLipsyncFallback(
     productionEstimate(engine, scenes, options),
@@ -311,12 +364,26 @@ export function quotedProductionEstimate(
     scenes,
     connections,
   );
-  if (engine === "mock" || engine === "openrouter" || !connections.openrouter)
-    return { ...own, pricedOn: engine };
-  const fallback = productionEstimate("openrouter", scenes, options);
-  return fallback.totalUsd > own.totalUsd
-    ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
-    : { ...own, pricedOn: engine };
+  const fallback =
+    engine === "mock" || engine === "openrouter" || !connections.openrouter
+      ? null
+      : productionEstimate("openrouter", scenes, options);
+  const quote =
+    fallback && fallback.totalUsd > own.totalUsd
+      ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
+      : { ...own, pricedOn: engine };
+  const again = relipEstimate(relip, connections);
+  if (again.usd === 0) return quote;
+  return {
+    ...quote,
+    lipsync: {
+      usd: roundUsd(quote.lipsync.usd + again.usd),
+      credits: quote.lipsync.credits,
+    },
+    talkingScenes:
+      quote.talkingScenes + relip.filter((scene) => talkingLine(scene)).length,
+    totalUsd: roundUsd(quote.totalUsd + again.usd),
+  };
 }
 
 /** Connections outside the LLM integration settings that can make video. */

@@ -4,15 +4,20 @@
  *
  * Free in itself. What a change makes the next workshop_produce_video do:
  *   - text on screen, narration, length, title, skin switch: assembled again, nothing re-animated;
- *   - motion, or the talking line of a scene with a clip: that scene's clip only is made again
- *     (the scene trigger marks a motion change stale; a new line is marked here), priced in the
- *     production quote like any stale clip;
+ *   - motion: that scene's clip only is made again (the scene trigger marks it stale), priced in
+ *     the production quote like any stale clip;
+ *   - the talking line: recorded again and lip-synced on the scene's picture (queue_video_lipsync),
+ *     with no new clip, when the line is in the chosen voice or the engine cannot speak. Only a
+ *     clip that says the line itself (an engine that speaks, in its own voice), or one that
+ *     talked and must not any more, is made again;
  *   - the frame description of a generated picture: only that picture waits for
  *     workshop_make_stills (paid, through its own quote).
  * The user's own pictures and videos are never replaced by invented ones.
  */
 
 import { asRecord } from "./record.ts";
+import { talkingLine } from "./talking.ts";
+import { type SceneEngine, speaksNatively } from "./video-cost.ts";
 
 export interface SceneRow {
   id: string;
@@ -34,6 +39,8 @@ export interface SceneUpdate {
   changed: string[];
   /** Only this scene's clip is made again in the next production. */
   clipRedo: boolean;
+  /** The clip stays; the next production records the new line and lip-syncs it again. */
+  lineRedo: boolean;
   /** This scene's generated picture no longer matches its description. */
   stillRedo: boolean;
 }
@@ -57,27 +64,22 @@ const clean = (value: unknown, max: number) =>
     .trim()
     .slice(0, max);
 
-/** What a talking scene's character says (public.video_talking_line). */
-export function talkingLineOf(
-  meta: Record<string, unknown>,
-  voiceover: string,
-) {
-  if (meta.lipsync !== true) return "";
-  return String(meta.dialogue ?? "").trim() || voiceover.trim();
-}
-
 /** The user's own video: a clip with no picture behind it. */
 export const isOwnFootage = (scene: SceneRow) =>
   Boolean(scene.clip_asset_id) && !scene.still_asset_id;
 
 /**
  * The write for one scene. `ownPicture`: the scene's still is a picture the user uploaded.
+ * `engine`: the film's scene engine (payload.video.scene_engine), when one was chosen.
  * Returns an error in Carmen's words when the request cannot apply to this scene.
  */
 export function planSceneUpdate(
   scene: SceneRow,
   args: Record<string, unknown>,
-  { ownPicture = false }: { ownPicture?: boolean } = {},
+  {
+    ownPicture = false,
+    engine = null,
+  }: { ownPicture?: boolean; engine?: SceneEngine | null } = {},
 ): SceneUpdate | { error: string } {
   const meta = asRecord(scene.meta);
   const footage = isOwnFootage(scene);
@@ -171,10 +173,9 @@ export function planSceneUpdate(
   if (metaChanged) patch.meta = nextMeta;
 
   const voiceover = String(patch.voiceover_text ?? scene.voiceover_text ?? "");
-  const lineChanged =
-    talkingLineOf(meta, String(scene.voiceover_text ?? "")) !==
-    talkingLineOf(nextMeta, voiceover);
-  if (nextMeta.lipsync === true && !talkingLineOf(nextMeta, voiceover))
+  const lineBefore = talkingLine(meta, scene.voiceover_text);
+  const lineAfter = talkingLine(nextMeta, voiceover);
+  if (nextMeta.lipsync === true && !lineAfter)
     return {
       error:
         "לסצנה מדברת צריך משפט: dialogue (מה שהדמות אומרת למצלמה) או voiceover_text.",
@@ -182,10 +183,23 @@ export function planSceneUpdate(
 
   const hasClip = Boolean(scene.clip_asset_id) && !footage;
   const redoAsked = args.redo_clip === true;
-  // The scene trigger already marks the clip stale on a motion change; a new talking line is
-  // marked here, so the production quote prices the scene's new clip and lip sync.
+  const lineChanged = lineBefore !== lineAfter;
+  // A clip that carries the speech itself: an engine that speaks, in its own voice. A line in the
+  // chosen voice, or on an engine that cannot speak, is lip-synced again without a new clip.
+  const clipSpeaks =
+    lineAfter !== "" &&
+    nextMeta.chosen_voice !== true &&
+    engine !== null &&
+    speaksNatively(engine);
+  const stoppedTalking = lineBefore !== "" && lineAfter === "";
+  // The scene trigger already marks the clip stale on a motion change; the rest is marked here,
+  // so the production quote prices the scene's new clip.
   const clipRedo =
-    hasClip && (redoAsked || lineChanged || changed.includes("motion_prompt"));
+    hasClip &&
+    (redoAsked ||
+      changed.includes("motion_prompt") ||
+      (lineChanged && (clipSpeaks || stoppedTalking)));
+  const lineRedo = hasClip && lineChanged && lineAfter !== "" && !clipRedo;
   if (clipRedo && scene.clip_stale !== true) patch.clip_stale = true;
   const stillRedo =
     changed.includes("visual_prompt") &&
@@ -198,7 +212,7 @@ export function planSceneUpdate(
         ? "לסצנה הזו עוד אין סרטון, וההפקה הבאה תנפיש אותה בכל מקרה."
         : "לא נשלח שום שינוי לסצנה: הערכים זהים למה שכבר יש בה.",
     };
-  return { patch, changed, clipRedo, stillRedo };
+  return { patch, changed, clipRedo, lineRedo, stillRedo };
 }
 
 /** The scene as Carmen and the board see it after the change. */

@@ -26,7 +26,7 @@ import {
   stringList,
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
-import { quotedProductionEstimate } from "../video-cost.ts";
+import { costSceneOf, quotedProductionEstimate } from "../video-cost.ts";
 import { wantsSoundDesign } from "../sound-design.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */
@@ -100,13 +100,7 @@ export async function workshopMakeStills(ctx: ToolContext) {
     (deps.defaultEngine ? await deps.defaultEngine() : null) ?? "mock";
   const film = quotedProductionEstimate(
     filmEngine,
-    scenes.map((scene) => ({
-      duration_s: Number(scene.duration_s) || 3,
-      voiceover_text: String(scene.voiceover_text ?? ""),
-      lipsync: asRecord(scene.meta).lipsync === true,
-      dialogue: String(asRecord(scene.meta).dialogue ?? ""),
-      chosen_voice: asRecord(scene.meta).chosen_voice === true,
-    })),
+    scenes.map(costSceneOf),
     {
       withVoice: scenes.some((scene) =>
         String(scene.voiceover_text ?? "").trim(),

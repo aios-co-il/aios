@@ -431,7 +431,7 @@ Deno.test(
 );
 
 Deno.test(
-  "a new line for a talking picture of the user's re-makes that scene in the chosen voice",
+  "a new line for a talking picture of the user's is lip-synced again in the chosen voice, the clip kept",
   async () => {
     const db = film();
     const result = await update(db, {
@@ -440,7 +440,10 @@ Deno.test(
       dialogue: "אני הקמפיינרית שלך",
       speaker: "Carmen in a red blazer",
     });
-    assertStrictEquals(result.clip_redo, true);
+    // The silent clip with the skin's movement stays: no paid re-animation that lip sync replaces.
+    assertStrictEquals(result.clip_redo, undefined);
+    assertStrictEquals(result.lipsync_redo, true);
+    assertMatch(result.message, /יוקלט בקול של הפרויקט/);
     assertEquals(result.changed, ["dialogue", "speaker", "lipsync"]);
     const scene = db.tables.marketing_video_scenes[0];
     assertEquals(scene.meta, {
@@ -449,7 +452,7 @@ Deno.test(
       speaker: "Carmen in a red blazer",
       chosen_voice: true,
     });
-    assertStrictEquals(scene.clip_stale, true);
+    assertStrictEquals(scene.clip_stale, false);
     // A generated picture that starts talking keeps the engine's own speech.
     const generated = await update(db, {
       scene_id: "s-2",
@@ -765,5 +768,103 @@ Deno.test(
       db.rpcs.some((call) => call.name === "produce_video"),
       false,
     );
+  },
+);
+
+Deno.test(
+  "a new talking line re-makes the clip only where the clip itself says it",
+  async () => {
+    const talking = (engine: string) =>
+      film({
+        marketing_work_items: [
+          project({
+            payload: payload({
+              video: { voice_id: "yael-voice", scene_engine: engine },
+            }),
+          }),
+        ],
+        marketing_video_scenes: [
+          sceneRow("s-1", 1),
+          sceneRow("s-2", 2, {
+            meta: { lipsync: true, dialogue: "שלום", speaker: "Carmen" },
+          }),
+          sceneRow("s-3", 3),
+        ],
+      });
+    // Veo on OpenRouter speaks the line in the clip: a new line needs a new clip.
+    const native = talking("openrouter");
+    const remade = await update(native, { scene_id: "s-2", dialogue: "היי" });
+    assertStrictEquals(remade.clip_redo, true);
+    assertStrictEquals(
+      native.tables.marketing_video_scenes[1].clip_stale,
+      true,
+    );
+    // Kling cannot speak: its clip is silent and the lip-sync pass says the new line.
+    const silent = talking("kling");
+    const relipped = await update(silent, { scene_id: "s-2", dialogue: "היי" });
+    assertStrictEquals(relipped.clip_redo, undefined);
+    assertStrictEquals(relipped.lipsync_redo, true);
+    assertStrictEquals(
+      silent.tables.marketing_video_scenes[1].clip_stale,
+      false,
+    );
+    // A scene that stops talking gets a clip without a moving mouth.
+    const quiet = await update(talking("kling"), {
+      scene_id: "s-2",
+      lipsync: false,
+    });
+    assertStrictEquals(quiet.clip_redo, true);
+  },
+);
+
+Deno.test(
+  "a line changed on the board is in the quote of the next production",
+  async () => {
+    const db = film({
+      marketing_video_scenes: [
+        // Lip-synced earlier with "שלום"; the board changed the line since.
+        sceneRow("s-1", 1, {
+          meta: {
+            lipsync: true,
+            dialogue: "אני הקמפיינרית שלך",
+            chosen_voice: true,
+          },
+        }),
+        sceneRow("s-2", 2),
+        // Still says its line: nothing to redo.
+        sceneRow("s-3", 3, {
+          meta: { lipsync: true, dialogue: "ביי", chosen_voice: true },
+        }),
+      ],
+    });
+    db.tables.marketing_assets.push(
+      {
+        id: "clip-s-1",
+        tenant_id: "tenant-1",
+        item_id: "item-1",
+        meta: { lipsync: true, dialogue: "שלום", provider: "elevenlabs" },
+      },
+      { id: "clip-s-2", tenant_id: "tenant-1", item_id: "item-1", meta: {} },
+      {
+        id: "clip-s-3",
+        tenant_id: "tenant-1",
+        item_id: "item-1",
+        meta: { lipsync: true, dialogue: "ביי", provider: "elevenlabs" },
+      },
+    );
+    const offer = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", music: false, sound_design: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "elevenlabs" as const },
+    )) as Row;
+    assertStrictEquals(offer.needs_budget, true, JSON.stringify(offer));
+    // Only scene 1: its new line is recorded again and lip-synced (3 s at $0.10 plus the voice).
+    assertStrictEquals(offer.talking_scenes, 1);
+    assert(offer.lipsync_usd >= 0.3, String(offer.lipsync_usd));
+    assertStrictEquals(offer.estimated_usd, offer.lipsync_usd);
   },
 );
