@@ -511,6 +511,41 @@ Deno.test(
 );
 
 Deno.test(
+  "a production that starts while a scene changes keeps its state",
+  async () => {
+    const db = film();
+    const row = db.tables.marketing_work_items[0];
+    const from = db.from.bind(db);
+    let reads = 0;
+    // The tool's first read is a snapshot; a production starts right after it.
+    db.from = (table: string) => {
+      const builder = from(table);
+      if (table !== "marketing_work_items") return builder;
+      const maybeSingle = builder.maybeSingle;
+      builder.maybeSingle = async () => {
+        const result = await maybeSingle();
+        if (reads++ > 0 || !result.data) return result;
+        const snapshot = structuredClone(result.data);
+        row.payload = {
+          ...row.payload,
+          video: { ...row.payload.video, production: { status: "running" } },
+        };
+        return { ...result, data: snapshot };
+      };
+      return builder;
+    };
+    const result = await update(db, {
+      scene_id: "s-2",
+      visual_prompt: "Carmen on a rooftop at dusk",
+    });
+    assertStrictEquals(result.still_redo, true);
+    const saved = db.tables.marketing_work_items[0].payload;
+    assertEquals(saved[REDO_KEY], ["s-2"]);
+    assertEquals(saved.video.production, { status: "running" });
+  },
+);
+
+Deno.test(
   "a change that changes nothing is reported, not written",
   async () => {
     const db = film();

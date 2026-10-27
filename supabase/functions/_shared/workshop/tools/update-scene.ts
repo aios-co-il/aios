@@ -167,11 +167,20 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     scene = written.data as SceneRow;
   }
   // A new description for a generated picture: only this picture waits for workshop_make_stills.
+  // The payload is read again just before the write: a production that started meanwhile keeps
+  // its video.production.
   if (plan.stillRedo) {
-    const waiting = stringList(project.payload[REDO_KEY]);
+    const fresh = await supabase
+      .from("marketing_work_items")
+      .select("payload")
+      .eq("id", itemId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const payload = asRecord(fresh?.data?.payload ?? project.payload);
+    const waiting = stringList(payload[REDO_KEY]);
     if (!waiting.includes(target.id))
       await savePayload(supabase, tenantId, itemId, {
-        ...project.payload,
+        ...payload,
         [REDO_KEY]: [...waiting, target.id],
       });
   }
