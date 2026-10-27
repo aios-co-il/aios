@@ -13,6 +13,10 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
+  FB_ADSET_FIELDS,
+  buildDestinationTypeMaps,
+} from "../_shared/fb-insights/adsets.ts";
+import {
   replacedRecordsFilter,
   resolveAdsSyncWindow,
   resolvePruneStart,
@@ -338,7 +342,7 @@ Deno.serve(async (req) => {
     const adsets: any[] = [];
     {
       let next: string | null =
-        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
+        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=${FB_ADSET_FIELDS}&limit=500&access_token=${accessToken}`;
       while (next) {
         const r = await fetch(next);
         const d: any = await r.json();
@@ -353,6 +357,7 @@ Deno.serve(async (req) => {
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
+    const destinationTypes = buildDestinationTypeMaps(adsets);
 
     // Also fetch ad account status
     const accountUrl = `https://graph.facebook.com/v21.0/${adAccountId}?fields=account_status,disable_reason,name&access_token=${accessToken}`;
@@ -391,6 +396,7 @@ Deno.serve(async (req) => {
         resultLeadTypes,
         optimizationGoals,
         resultMetrics,
+        destinationTypes,
       );
 
     console.log(
