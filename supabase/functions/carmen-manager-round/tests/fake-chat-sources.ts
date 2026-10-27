@@ -37,6 +37,8 @@ export type FakeChatFields = {
   reviews?: Map<string, CachedReview>;
   /** The model's JSON answer (no answer: the model is down). */
   answer?: string;
+  /** The activity read stopped at its page cap. */
+  capped?: boolean;
 };
 
 /** Sources over `rows`; `asked` holds the prompts, `reads` the sources read. */
@@ -52,7 +54,7 @@ export function fakeChatSources(
   };
   const fake: ChatSources = {
     lines: () => read("lines", { ids: fields.lines ?? ["owner"], skipped: 0 }),
-    activity: () => read("activity", { rows, complete: true }),
+    activity: () => read("activity", { rows, complete: !fields.capped }),
     unlinked: () =>
       read("unlinked", [
         {
@@ -66,7 +68,7 @@ export function fakeChatSources(
         },
       ]),
     staffKeys: () => read("staffKeys", new Set([STAFF_KEY])),
-    calls: () => read("calls", []),
+    calls: () => read("calls", { calls: [], complete: true }),
     live: () => read("live", fields.live ?? []),
     closed: () => read("closed", new Set(fields.closed ?? [])),
     chatLinkBase: () => Promise.resolve("https://app.test/t/acme/chat/"),

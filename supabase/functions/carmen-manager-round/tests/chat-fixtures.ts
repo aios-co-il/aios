@@ -4,6 +4,7 @@ import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts"
 import type { ActivityRow } from "../collectors/chat/activity.ts";
 import type { LiveChatFinding, ThreadReview } from "../collectors/chat/gate.ts";
 import { buildThreads, type Thread } from "../collectors/chat/threads.ts";
+import type { ChatVerdict } from "../collectors/chat/verdict.ts";
 import { TENANT } from "./fake-world.ts";
 
 /** Tuesday 27.10.2026, 14:00 in Israel. */
@@ -102,4 +103,31 @@ export function liveFinding(
       owner_user_id: null,
     },
   };
+}
+
+/** The model's read of the request in receiptRows (message c1). */
+export const REPORT_VERDICT: ChatVerdict = {
+  needs_reply: true,
+  is_request: true,
+  complaint_ids: [],
+  urgency: "normal",
+  summary_he: "הדוח החודשי לא הגיע",
+  confidence: 0.9,
+};
+
+/** A wait with a request but no request marker (c1), then the client's receipt (c2). */
+export function receiptRows(): ActivityRow[] {
+  return [
+    staffRow({ message_id: "hi", created_at: il("08:00") }),
+    row({
+      message_id: "c1",
+      created_at: il("09:00"),
+      message_text: "הדוח של החודש עוד לא הגיע",
+    }),
+    row({
+      message_id: "c2",
+      created_at: il("09:10"),
+      message_text: "קיבלתי, תודה",
+    }),
+  ];
 }

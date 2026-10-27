@@ -2,6 +2,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   dmRow,
   il,
+  receiptRows,
   review,
   row,
   staffRow,
@@ -159,6 +160,19 @@ Deno.test("withVerdicts", async (t) => {
     );
     assertEquals(verdictAt(more, "ask"), null, "a new line needs a new read");
   });
+
+  await t.step(
+    "a receipt drops the read unless the wait's finding is open",
+    () => {
+      const receipt = thread(receiptRows());
+      assertEquals(verdictAt(review(receipt), "c1"), null);
+      assertEquals(
+        verdictAt(review(receipt, { open: true }), "c1"),
+        confident,
+        "the read that raised the open finding still speaks for it",
+      );
+    },
+  );
 
   await t.step("a read of an earlier wait never counts", () => {
     const later = review(

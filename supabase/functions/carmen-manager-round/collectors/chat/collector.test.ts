@@ -109,6 +109,25 @@ Deno.test("chat collector", async (t) => {
     },
   );
 
+  await t.step(
+    "says why a run found less than it could: model down, answers dropped, read capped",
+    async () => {
+      const down = await collect(fakeChatSources(late).fake);
+      assertEquals(down.note, "model_unavailable");
+      const broken = await collect(
+        fakeChatSources(late, { answer: "{oops" }).fake,
+      );
+      assertEquals(broken.note, "verdict_rejected:1");
+      const capped = await collect(
+        fakeChatSources(late, { capped: true, answer: "{oops" }).fake,
+      );
+      assertEquals(
+        [capped.note, capped.coverage.complete],
+        ["read_capped,verdict_rejected:1", false],
+      );
+    },
+  );
+
   await t.step("a preview never asks the model", async () => {
     const { fake, asked } = fakeChatSources(late);
     await collect(fake, { dryRun: true });

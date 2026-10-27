@@ -12,7 +12,7 @@ import {
   loadUnlinkedGroups,
   type UnlinkedGroupRow,
 } from "./activity.ts";
-import { type CompletedCall, loadCompletedCalls } from "./calls.ts";
+import { type CallsRead, loadCompletedCalls } from "./calls.ts";
 import type { AskModel, ClassifyPorts } from "./classify.ts";
 import {
   type MonitoredLines,
@@ -34,7 +34,7 @@ export type ChatSources = {
     tenantIds: string[],
     clientIds: string[],
     since: Date,
-  ): Promise<CompletedCall[]>;
+  ): Promise<CallsRead>;
   live(): Promise<LiveChatFinding[]>;
   /** `kind|fingerprint` of closed findings about messages since `since`. */
   closed(since: Date): Promise<Set<string>>;

@@ -9,10 +9,11 @@
  * first. Without a verdict the markers decide.
  */
 import type { RoundBudget } from "../../budget.ts";
+import { clip } from "./clip.ts";
 import type { LlmMeter } from "./llm-meter.ts";
 import { verdictPrompt } from "./prompt.ts";
 import type { CachedReview, ReviewCache } from "./review-cache.ts";
-import type { Thread } from "./threads.ts";
+import type { Thread, Turn } from "./threads.ts";
 import { needsModel, unreviewedTurns } from "./unreviewed.ts";
 import { parseModelVerdict } from "./verdict.ts";
 
@@ -39,11 +40,27 @@ export type Verdicts = Map<string, CachedReview>;
 const MAX_CALLS = 20;
 /** A model call needs about this much of the round's time. */
 const CALL_MS = 8_000;
+/** A rejected answer is logged up to this many characters. */
+const LOGGED_ANSWER_CHARS = 300;
 
-/** What the run reads: the waits past the SLA, and complaints or not. */
+/**
+ * What the run reads: the waits past the SLA, the waits whose
+ * unanswered_request is already open, and complaints or not.
+ */
 export type ClassifyScope = {
   dueKeys: ReadonlySet<string>;
+  openKeys: ReadonlySet<string>;
   complaints: boolean;
+};
+
+/** The run's verdicts, its LLM use, and why the model added less than it could. */
+export type Classified = {
+  verdicts: Verdicts;
+  llm: { calls: number; costUsd: number };
+  /** The model gave no answer (no key or a provider error). */
+  modelDown: boolean;
+  /** Answers metered and dropped as malformed; the thread is asked again next run. */
+  rejected: number;
 };
 
 /** The threads' verdicts after reading their unread client lines, and the LLM use of the run. */
@@ -51,22 +68,27 @@ export async function classifyThreads(
   threads: Thread[],
   scope: ClassifyScope,
   ports: ClassifyPorts,
-  run: { budget: RoundBudget; dryRun: boolean },
-): Promise<{ verdicts: Verdicts; llm: { calls: number; costUsd: number } }> {
-  const { dueKeys, complaints } = scope;
+  run: { tenantId: string; budget: RoundBudget; dryRun: boolean },
+): Promise<Classified> {
+  const { dueKeys, openKeys, complaints } = scope;
+  const readScope = (thread: Thread) => ({
+    complaints,
+    waitOpen: openKeys.has(thread.key),
+  });
   const askable = threads
     .filter((thread) =>
-      needsModel(thread, unreviewedTurns(thread, undefined), complaints),
+      needsModel(thread, unreviewedTurns(thread, undefined), readScope(thread)),
     )
     .sort((a, b) => Number(dueKeys.has(b.key)) - Number(dueKeys.has(a.key)));
   const verdicts: Verdicts = await ports.cache.load(askable.map((t) => t.key));
   let meter: LlmMeter | null = null;
   // No key or a provider error: the rest of the run uses the markers.
   let modelDown = false;
+  let rejected = 0;
   for (const thread of askable) {
     const unread = unreviewedTurns(thread, verdicts.get(thread.key)?.messageId);
     const last = unread.at(-1);
-    const worth = needsModel(thread, unread, complaints);
+    const worth = needsModel(thread, unread, readScope(thread));
     if (!last || !worth || run.dryRun || modelDown) {
       continue;
     }
@@ -74,25 +96,18 @@ export async function classifyThreads(
     if (!mayAsk(meter, run.budget)) {
       continue;
     }
-    const prompt = verdictPrompt(
-      thread.turns,
-      new Set(unread.map((turn) => turn.id)),
-    );
-    const { text, costUsd } = await ports.ask(prompt.text);
-    modelDown = text === null;
-    const review =
-      text === null
-        ? null
-        : await keep(ports, meter, thread.key, last.id, {
-            text,
-            costUsd,
-            lineIds: prompt.lineIds,
-          });
-    if (review) {
-      verdicts.set(thread.key, review);
+    const read = { thread, unread, lastId: last.id, tenantId: run.tenantId };
+    const outcome = await askThread(ports, meter, read);
+    if (outcome === "down") {
+      modelDown = true;
+    } else if (outcome === "rejected") {
+      rejected += 1;
+    } else {
+      verdicts.set(thread.key, outcome);
     }
   }
-  return { verdicts, llm: meter?.usage() ?? { calls: 0, costUsd: 0 } };
+  const llm = meter?.usage() ?? { calls: 0, costUsd: 0 };
+  return { verdicts, llm, modelDown, rejected };
 }
 
 /** Room for one more call in the allowance, the run cap and the round budget. */
@@ -103,6 +118,42 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
     budget.hasTime(CALL_MS) &&
     budget.takeApiCall()
   );
+}
+
+/**
+ * One model read of a thread's unread lines, up to the client message
+ * `lastId`: the cached review, "rejected" (a malformed answer, metered) or
+ * "down" (no answer). Both failures are logged.
+ */
+async function askThread(
+  ports: ClassifyPorts,
+  meter: LlmMeter,
+  read: { thread: Thread; unread: Turn[]; lastId: string; tenantId: string },
+): Promise<CachedReview | "rejected" | "down"> {
+  const { thread, unread } = read;
+  const prompt = verdictPrompt(
+    thread.turns,
+    new Set(unread.map((turn) => turn.id)),
+  );
+  const { text, costUsd } = await ports.ask(prompt.text);
+  const where = { tenant_id: read.tenantId, thread_key: thread.key };
+  if (text === null) {
+    logModelProblem("no answer; the rest of the run uses the markers", where);
+    return "down";
+  }
+  const review = await keep(ports, meter, thread.key, read.lastId, {
+    text,
+    costUsd,
+    lineIds: prompt.lineIds,
+  });
+  if (!review) {
+    logModelProblem("malformed answer dropped", {
+      ...where,
+      answer: clip(text, LOGGED_ANSWER_CHARS),
+    });
+    return "rejected";
+  }
+  return review;
 }
 
 /** Meters an answer and caches its verdict; null when the answer is malformed. */
@@ -124,4 +175,11 @@ async function keep(
     costUsd: answer.costUsd,
   });
   return { messageId, verdict };
+}
+
+/** Logs a model call that added nothing, so a model down or misreading shows in the logs. */
+function logModelProblem(what: string, details: Record<string, string>): void {
+  console.error(
+    `[carmen-manager-round] chat_sla model: ${what}: ${JSON.stringify(details)}`,
+  );
 }

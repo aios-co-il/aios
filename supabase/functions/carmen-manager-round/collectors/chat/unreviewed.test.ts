@@ -1,5 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { dmRow, il, row, staffRow, thread } from "../../tests/chat-fixtures.ts";
+import {
+  dmRow,
+  il,
+  receiptRows,
+  row,
+  staffRow,
+  thread,
+} from "../../tests/chat-fixtures.ts";
 import { needsModel, readCoversWait, unreviewedTurns } from "./unreviewed.ts";
 
 /** Complaint without a listed word, a quick staff reply, then thanks. */
@@ -15,6 +22,10 @@ const thanked = thread([
 ]);
 
 const ids = (turns: { id: string }[]) => turns.map((turn) => turn.id);
+
+/** Requests and complaints are read; requests only. No finding is open. */
+const ALL = { complaints: true, waitOpen: false };
+const REQUESTS = { complaints: false, waitOpen: false };
 
 Deno.test("unreviewedTurns", async (t) => {
   await t.step("the client lines after the last one read", () => {
@@ -33,11 +44,11 @@ Deno.test("needsModel", async (t) => {
     "an unread earlier streak counts even when the latest is thanks",
     () => {
       assertEquals(
-        needsModel(thanked, unreviewedTurns(thanked, undefined), true),
+        needsModel(thanked, unreviewedTurns(thanked, undefined), ALL),
         true,
       );
       assertEquals(
-        needsModel(thanked, unreviewedTurns(thanked, "c1"), true),
+        needsModel(thanked, unreviewedTurns(thanked, "c1"), ALL),
         false,
       );
     },
@@ -50,12 +61,12 @@ Deno.test("needsModel", async (t) => {
         staffRow({ created_at: il("08:00") }),
         row({ created_at: il("09:00"), message_text: "אני לא מרוצה" }),
       ]);
-      assertEquals(needsModel(flagged, flagged.pending, true), true);
+      assertEquals(needsModel(flagged, flagged.pending, ALL), true);
       const asked = thread([
         staffRow({ created_at: il("08:00") }),
         row({ created_at: il("09:00"), message_text: "אני לא מרוצה, מתי?" }),
       ]);
-      assertEquals(needsModel(asked, asked.pending, true), false);
+      assertEquals(needsModel(asked, asked.pending, ALL), false);
       const answered = thread([
         staffRow({ created_at: il("08:00") }),
         row({
@@ -66,7 +77,7 @@ Deno.test("needsModel", async (t) => {
         staffRow({ created_at: il("09:30") }),
       ]);
       assertEquals(
-        needsModel(answered, unreviewedTurns(answered, undefined), true),
+        needsModel(answered, unreviewedTurns(answered, undefined), ALL),
         false,
       );
     },
@@ -74,21 +85,21 @@ Deno.test("needsModel", async (t) => {
 
   await t.step("without complaints only the open wait counts", () => {
     assertEquals(
-      needsModel(thanked, unreviewedTurns(thanked, undefined), false),
+      needsModel(thanked, unreviewedTurns(thanked, undefined), REQUESTS),
       false,
     );
     const waiting = thread([
       staffRow({ created_at: il("08:00") }),
       row({ created_at: il("09:00"), message_text: "יש עדכון" }),
     ]);
-    assertEquals(needsModel(waiting, waiting.pending, false), true);
+    assertEquals(needsModel(waiting, waiting.pending, REQUESTS), true);
   });
 
   await t.step("direct chats and private groups never need it", () => {
     const dm = thread([dmRow({ message_text: "הלידים זבל" })]);
     const privateGroup = thread([row({ message_text: "הלידים זבל" })]);
-    assertEquals(needsModel(dm, dm.pending, true), false);
-    assertEquals(needsModel(privateGroup, privateGroup.pending, true), false);
+    assertEquals(needsModel(dm, dm.pending, ALL), false);
+    assertEquals(needsModel(privateGroup, privateGroup.pending, ALL), false);
   });
 });
 
@@ -105,10 +116,10 @@ Deno.test("readCoversWait", async (t) => {
   const wait = thread(asked);
 
   await t.step("a read of the wait followed only by thanks covers it", () => {
-    assertEquals(readCoversWait(wait, "c1"), true);
-    assertEquals(readCoversWait(wait, "c2"), true);
+    assertEquals(readCoversWait(wait, "c1", false), true);
+    assertEquals(readCoversWait(wait, "c2", false), true);
     assertEquals(
-      needsModel(wait, unreviewedTurns(wait, "c1"), true),
+      needsModel(wait, unreviewedTurns(wait, "c1"), ALL),
       false,
       "and the thanks are not asked about",
     );
@@ -125,28 +136,37 @@ Deno.test("readCoversWait", async (t) => {
           message_text: "ועוד",
         }),
       ]);
-      assertEquals(readCoversWait(more, "c1"), false);
-      assertEquals(readCoversWait(thanked, "c1"), false);
-      assertEquals(readCoversWait(wait, "gone"), false);
+      assertEquals(readCoversWait(more, "c1", false), false);
+      assertEquals(readCoversWait(thanked, "c1", false), false);
+      assertEquals(readCoversWait(wait, "gone", false), false);
     },
   );
+
+  const receipt = thread(receiptRows());
 
   await t.step(
     "a receipt ('קיבלתי') after the read does not, so the wait is read again",
     () => {
-      const receipt = thread([
-        ...asked.slice(0, 2),
-        row({
-          message_id: "c2",
-          created_at: il("09:10"),
-          message_text: "קיבלתי, תודה",
-        }),
-      ]);
-      assertEquals(readCoversWait(receipt, "c1"), false);
+      assertEquals(readCoversWait(receipt, "c1", false), false);
       for (const complaints of [true, false]) {
+        const scope = { complaints, waitOpen: false };
         assertEquals(
-          needsModel(receipt, unreviewedTurns(receipt, "c1"), complaints),
+          needsModel(receipt, unreviewedTurns(receipt, "c1"), scope),
           true,
+        );
+      }
+    },
+  );
+
+  await t.step(
+    "while the wait's finding is open a receipt is not read, and the read still covers it",
+    () => {
+      assertEquals(readCoversWait(receipt, "c1", true), true);
+      for (const complaints of [true, false]) {
+        const scope = { complaints, waitOpen: true };
+        assertEquals(
+          needsModel(receipt, unreviewedTurns(receipt, "c1"), scope),
+          false,
         );
       }
     },
@@ -161,6 +181,6 @@ Deno.test("readCoversWait", async (t) => {
         message_text: "קיבלתי, תודה",
       }),
     ]);
-    assertEquals(needsModel(only, only.pending, true), false);
+    assertEquals(needsModel(only, only.pending, ALL), false);
   });
 });

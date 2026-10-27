@@ -25,19 +25,28 @@ export function unreviewedTurns(
   return thread.turns.slice(at + 1).filter((turn) => turn.by === "client");
 }
 
+/** What a read looks for in one thread. */
+export type ReadScope = {
+  /** Complaints are read (client_complaint is on). */
+  complaints: boolean;
+  /** The thread's current wait already has an open unanswered_request. */
+  waitOpen: boolean;
+};
+
 /**
  * True for a group open to the team with unread client lines that say more
  * than thanks, in a streak the complaint words did not already flag (when
  * complaints are read), or in the open wait when no request marker shows.
  * Otherwise the markers already say everything a verdict could add. An
  * unread receipt ('קיבלתי') is read too when the open wait it ends has a
- * line beyond acknowledgements and no request marker: the request a verdict
- * found there may have been met outside the thread.
+ * line beyond acknowledgements, no request marker and no open finding: the
+ * request a verdict found there may have been met outside the thread. Once
+ * the finding is open no verdict can drop it, so the receipt is not read.
  */
 export function needsModel(
   thread: Thread,
   unread: Turn[],
-  complaints: boolean,
+  scope: ReadScope,
 ): boolean {
   if (thread.kind !== "group" || !thread.openToTeam) {
     return false;
@@ -57,12 +66,15 @@ export function needsModel(
     if (onlyAcknowledgements(texts)) {
       return (
         waiting &&
+        !scope.waitOpen &&
         !markers.request &&
         !onlyThanks(texts) &&
         !onlyAcknowledgements(all)
       );
     }
-    return (complaints && !markers.complaint) || (waiting && !markers.request);
+    return (
+      (scope.complaints && !markers.complaint) || (waiting && !markers.request)
+    );
   });
 }
 
@@ -71,13 +83,19 @@ export function needsModel(
  * speaks for the open wait: it read one of the wait's lines, and the client
  * wrote only thanks after it. needsModel never asks about thanks, so a
  * thank-you must not make the read stale either; a receipt ('קיבלתי') does,
- * and needsModel reads the wait again.
+ * and needsModel reads the wait again, unless the wait's finding is open
+ * (`waitOpen`): the receipt is not read then, so the read that raised the
+ * finding keeps speaking for it.
  */
-export function readCoversWait(thread: Thread, reviewedId: string): boolean {
+export function readCoversWait(
+  thread: Thread,
+  reviewedId: string,
+  waitOpen: boolean,
+): boolean {
   const at = thread.pending.findIndex((turn) => turn.id === reviewedId);
   if (at < 0) {
     return false;
   }
   const later = thread.pending.slice(at + 1).map((turn) => turn.text);
-  return onlyThanks(later);
+  return waitOpen ? onlyAcknowledgements(later) : onlyThanks(later);
 }

@@ -9,12 +9,12 @@
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
+import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
 
 export type CompletedCall = { client_id: string; created_at: string };
 
-/** PostgREST returns at most this many rows per request. */
-const PAGE_ROWS = 1_000;
-const MAX_PAGES = 20;
+/** The calls read, and whether every call was (false past the page cap). */
+export type CallsRead = { calls: CompletedCall[]; complete: boolean };
 
 /** Completed calls of these tenants to these clients since `since`. */
 export async function loadCompletedCalls(
@@ -22,10 +22,10 @@ export async function loadCompletedCalls(
   tenantIds: string[],
   clientIds: string[],
   since: Date,
-): Promise<CompletedCall[]> {
+): Promise<CallsRead> {
   const wanted = new Set(clientIds);
   if (!wanted.size) {
-    return [];
+    return { calls: [], complete: true };
   }
   const calls: CompletedCall[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
@@ -48,8 +48,8 @@ export async function loadCompletedCalls(
       }
     }
     if ((data ?? []).length < PAGE_ROWS) {
-      break;
+      return { calls, complete: true };
     }
   }
-  return calls;
+  return { calls, complete: false };
 }

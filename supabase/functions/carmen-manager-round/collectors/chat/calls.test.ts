@@ -15,9 +15,10 @@ Deno.test("loadCompletedCalls", async (t) => {
         { client_id: "c9", created_at: AT },
         { client_id: null, created_at: AT },
       ]);
-      assertEquals(await loadCompletedCalls(db, [TENANT], ["c1", "c2"], NOW), [
-        { client_id: "c1", created_at: AT },
-      ]);
+      assertEquals(await loadCompletedCalls(db, [TENANT], ["c1", "c2"], NOW), {
+        calls: [{ client_id: "c1", created_at: AT }],
+        complete: true,
+      });
       const query = calls[0].query;
       assertEquals(
         [
@@ -49,12 +50,28 @@ Deno.test("loadCompletedCalls", async (t) => {
       query.get("offset") === "1000" ? page.slice(0, 3) : page,
     );
     const found = await loadCompletedCalls(db, [TENANT], ["c1"], NOW);
-    assertEquals([found.length, calls.length], [1_003, 2]);
+    assertEquals(
+      [found.calls.length, found.complete, calls.length],
+      [1_003, true, 2],
+    );
+  });
+
+  await t.step("a read stopped at the page cap is incomplete", async () => {
+    const page = Array.from({ length: 1_000 }, () => ({
+      client_id: "c1",
+      created_at: AT,
+    }));
+    const { db, calls } = recordingClient(() => page);
+    const found = await loadCompletedCalls(db, [TENANT], ["c1"], NOW);
+    assertEquals([found.complete, calls.length], [false, 20]);
   });
 
   await t.step("no clients, no query", async () => {
     const { db, calls } = recordingClient();
-    assertEquals(await loadCompletedCalls(db, [TENANT], [], NOW), []);
+    assertEquals(await loadCompletedCalls(db, [TENANT], [], NOW), {
+      calls: [],
+      complete: true,
+    });
     assertEquals(calls.length, 0);
   });
 });

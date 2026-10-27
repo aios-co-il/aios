@@ -48,11 +48,9 @@ async function collectChat(
     return idle(ctx, kinds, "kinds_off");
   }
   const lines = await src.lines();
-  const note = lines.skipped
-    ? `lines_not_monitored:${lines.skipped}`
-    : undefined;
+  const skipped = lines.skipped ? [`lines_not_monitored:${lines.skipped}`] : [];
   if (!lines.ids.length) {
-    return idle(ctx, kinds, note ?? "no_monitored_line");
+    return idle(ctx, kinds, skipped[0] ?? "no_monitored_line");
   }
   // Each read starts where its own kinds need it (scope.ts).
   const query = (forKinds: FindingKind[]) => ({
@@ -65,18 +63,25 @@ async function collectChat(
   const readsThreads = threadKinds.length > 0;
   const chat = readsThreads
     ? await threadFindings(ctx, src, query(threadKinds), kinds)
-    : { candidates: [], resolved: [], llm: undefined, complete: true };
+    : {
+        candidates: [],
+        resolved: [],
+        llm: undefined,
+        complete: true,
+        notes: [],
+      };
   const unlinked =
     kinds.includes("unlinked_group") && !ctx.clientIds
       ? unlinkedGroupCandidates(await src.unlinked(query(["unlinked_group"])))
       : [];
+  const notes = [...skipped, ...chat.notes];
   return {
     candidates: [...chat.candidates, ...unlinked],
     watermark: { read_lines: readsThreads ? lines.ids : [] },
     coverage: { complete: chat.complete, clientIds: ctx.clientIds, kinds },
     resolved: chat.resolved,
     llm: chat.llm,
-    note,
+    note: notes.length ? notes.join(",") : undefined,
   };
 }
 
