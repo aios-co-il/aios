@@ -87,7 +87,7 @@ const HANDLERS = {
   lipsync: {
     run: async (ctx) => {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
-      // OpenRouter is the last lip-sync option; its key is read from Vault for it.
+      // HeyGen Avatar IV and the Veo fallback run on the tenant's OpenRouter key, read from Vault.
       keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id).catch(
         () => null,
       );
