@@ -30,18 +30,7 @@ import {
   Trash2,
   X,
   Check,
-  Phone,
-  Mail,
-  Video,
-  AlertTriangle,
   Activity,
-  StickyNote,
-  FileText,
-  LayoutDashboard,
-  Megaphone,
-  Bot,
-  Zap,
-  type LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -54,14 +43,17 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveClientUpdateType } from "@/lib/clientUpdateType";
 import {
-  CLIENT_UPDATE_SOURCE_FILTERS,
-  SYSTEM_SEND_UPDATE_TYPE_OPTIONS,
   canModifyClientUpdate,
   matchesClientUpdateSourceFilter,
   type ClientUpdateSourceFilter,
-} from "@/lib/clientUpdateSource";
+} from "@/components/clients/clientUpdateSource";
 import { useUserRole } from "@/hooks/useUserRole";
-import { ClientUpdateSourceChip } from "@/components/clients/ClientUpdateSourceChip";
+import { ClientUpdateBadges } from "@/components/clients/ClientUpdateBadges";
+import { ClientUpdateSourceFilterSelect } from "@/components/clients/ClientUpdateSourceFilterSelect";
+import {
+  DISPLAY_UPDATE_TYPES,
+  INTERACTION_TYPES,
+} from "@/components/clients/clientUpdateTypeOptions";
 import {
   getClientMoodChanges,
   type ClientMoodStatus,
@@ -105,38 +97,6 @@ const MOOD_STATUS_OPTIONS = [
     bg: "bg-orange-50 border-orange-200",
   },
 ];
-const INTERACTION_TYPES = [
-  { value: "call", label: "שיחה", icon: Phone },
-  { value: "email", label: "מייל", icon: Mail },
-  { value: "meeting", label: "פגישה", icon: Video },
-  { value: "whatsapp", label: "וואטסאפ", icon: MessageSquare },
-  { value: "weekly_update", label: "עדכון שבועי", icon: AlertTriangle },
-  { value: "seo_update", label: "עדכון SEO", icon: AlertTriangle },
-  { value: "meeting_summary", label: "סיכום פגישה", icon: Video },
-  { value: "other", label: "אחר", icon: AlertTriangle },
-  { value: "pulse_override", label: "תיקון דופק", icon: Activity },
-];
-// Icons for the entries AIOS writes when it sends something to the client.
-const SYSTEM_SEND_TYPE_ICONS: Record<string, LucideIcon> = {
-  report_sent: FileText,
-  dashboard_shared: LayoutDashboard,
-  meeting_summary_sent: Video,
-  broadcast_sent: Megaphone,
-  whatsapp_sent: MessageSquare,
-  carmen_message: Bot,
-  automation_message: Zap,
-};
-// Types other writers use (Carmen's add_client_update, system sends): shown
-// and filterable, not offered in the composer.
-const DISPLAY_UPDATE_TYPES = [
-  ...INTERACTION_TYPES,
-  { value: "note", label: "הערה", icon: StickyNote },
-  { value: "complaint", label: "תלונה", icon: AlertTriangle },
-  ...SYSTEM_SEND_UPDATE_TYPE_OPTIONS.map((option) => ({
-    ...option,
-    icon: SYSTEM_SEND_TYPE_ICONS[option.value] ?? Send,
-  })),
-];
 
 export function ClientUpdatesTab({
   clientId,
@@ -156,8 +116,10 @@ export function ClientUpdatesTab({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
-  const { isOwner, isAgencyOwner, isSuperAdmin } = useUserRole();
-  const canManageAutomaticEntries = isOwner || isAgencyOwner || isSuperAdmin;
+  // Mirrors user_can_manage_client_card_entries to hide buttons RLS would
+  // refuse; the role hook keeps "view as" showing the viewed user's rights.
+  const { isOwner, isAgencyOwner } = useUserRole();
+  const canManageAutomaticEntries = isOwner || isAgencyOwner;
 
   // ── CRM: communication log state ──────────────────────────────────────────
   const [commStatus, setCommStatus] = useState<string>(
@@ -637,31 +599,10 @@ export function ClientUpdatesTab({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="w-full sm:w-44">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      סינון לפי מקור
-                    </Label>
-                    <Select
-                      value={sourceFilter}
-                      onValueChange={(value) =>
-                        setSourceFilter(value as ClientUpdateSourceFilter)
-                      }
-                    >
-                      <SelectTrigger
-                        className="h-8 text-sm bg-card"
-                        aria-label="סינון לפי מקור"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CLIENT_UPDATE_SOURCE_FILTERS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <ClientUpdateSourceFilterSelect
+                    value={sourceFilter}
+                    onChange={setSourceFilter}
+                  />
                   <div className="w-full sm:w-52">
                     <Label className="text-xs text-muted-foreground mb-1 block">
                       סינון לפי מצב לקוח
@@ -782,12 +723,6 @@ export function ClientUpdatesTab({
                       currentUserId: user?.id,
                       canManageAutomaticEntries,
                     });
-                    const typeOption = update.update_type
-                      ? DISPLAY_UPDATE_TYPES.find(
-                          (o) => o.value === update.update_type,
-                        )
-                      : undefined;
-                    const TypeIcon = typeOption?.icon;
 
                     return (
                       <Card
@@ -838,24 +773,10 @@ export function ClientUpdatesTab({
                             </div>
                           ) : (
                             <>
-                              {(typeOption ||
-                                (update.source &&
-                                  update.source !== "human")) && (
-                                <div className="mb-2 flex flex-wrap items-center gap-1">
-                                  {typeOption && TypeIcon && (
-                                    <Badge
-                                      variant="outline"
-                                      className="gap-1 text-xs bg-card"
-                                    >
-                                      <TypeIcon className="h-3 w-3" />
-                                      {typeOption.label}
-                                    </Badge>
-                                  )}
-                                  <ClientUpdateSourceChip
-                                    source={update.source}
-                                  />
-                                </div>
-                              )}
+                              <ClientUpdateBadges
+                                updateType={update.update_type}
+                                source={update.source}
+                              />
                               <p className="text-sm whitespace-pre-wrap">
                                 {update.content}
                               </p>

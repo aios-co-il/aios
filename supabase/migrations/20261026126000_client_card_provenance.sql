@@ -1,8 +1,9 @@
 -- Client card writer: provenance, idempotent server writes and real contact
--- counting (AIO-232, plan component C3).
+-- counting (AIO-232).
 --
--- Behaviour. The TypeScript callers (supabase/functions/_shared/client-card*.ts,
--- carmen-client-card-tools.ts) are unit tested; the SQL rules are these:
+-- Behaviour. The TypeScript callers (supabase/functions/_shared/client-card/,
+-- run-ai-agent/carmen-client-card-tools.ts) have Deno tests, and
+-- supabase/tests/client_card_provenance.sql checks these SQL rules on Staging:
 --
 -- 1. client_updates gains provenance. `source` says who wrote the row:
 --      human            a person typed it in AIOS (every existing row)
@@ -10,7 +11,7 @@
 --      carmen_confirmed Carmen wrote it because a named person asked her to;
 --                       the row is attributed to that person
 --      system_send      AIOS logged something it sent (report, meeting summary)
---      group_digest     a WhatsApp group summary (follow-up, C20)
+--      group_digest     a WhatsApp group summary (its writer is a follow-up)
 --      automation       an automation step
 --    `source_ref` is the writer's dedupe key, `counts_as_contact` an explicit
 --    contact flag, `metadata` free-form context. Existing rows become
@@ -32,13 +33,14 @@
 --    whose text documents a phone call, or it carries counts_as_contact=true.
 --    Rows from carmen, system_send, group_digest and automation never count.
 --    Meetings keep today's baseline rule (a plain meeting row does not count)
---    until David decides otherwise (C19). Existing rows are all 'human', so the
---    pulse's last-call dates do not move and no alert is re-sent on deploy.
+--    until David decides otherwise. Existing rows are all 'human', so against
+--    the baseline rule (calls only) the pulse's last-call dates do not move.
+--    No alert or message is replayed on deploy.
 --
 -- 4. RLS: non-human rows are readable like any other row. In the browser they
---    can be edited or deleted only by tenant owners and agency owners (and
---    super admins); campaigners keep editing and deleting their own human
---    rows. The browser may insert only human or system_send rows.
+--    can be edited or deleted only by tenant owners and agency owners;
+--    campaigners keep editing and deleting their own human rows. The browser
+--    may insert only human or system_send rows.
 
 ALTER TABLE public.client_updates
   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'human',
@@ -78,6 +80,8 @@ COMMENT ON COLUMN public.client_updates.counts_as_contact IS
 COMMENT ON COLUMN public.client_updates.metadata IS
   'Free-form writer context (tool, requester, surface).';
 
+-- No tenant_id: a client belongs to one tenant, so client_id pins the card and
+-- a hit returns the entry already on it, even when an agency tenant wrote it.
 CREATE UNIQUE INDEX IF NOT EXISTS client_updates_client_source_ref_key
   ON public.client_updates (client_id, source, source_ref)
   WHERE source_ref IS NOT NULL;
@@ -316,8 +320,7 @@ RETURNS boolean
   SET search_path TO 'public'
 AS $$
   SELECT
-    public.is_super_admin(auth.uid())
-    OR EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.user_roles AS ur
       WHERE ur.user_id = auth.uid()
@@ -338,6 +341,8 @@ REVOKE ALL ON FUNCTION public.user_can_manage_client_card_entries(uuid)
 GRANT EXECUTE ON FUNCTION public.user_can_manage_client_card_entries(uuid)
   TO authenticated, service_role;
 
+-- Browser inserts: own tenant, only human or system_send rows (super admins
+-- keep the baseline bypass).
 DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
 CREATE POLICY "Users can create client updates in their tenant"
   ON public.client_updates
@@ -350,6 +355,8 @@ CREATE POLICY "Users can create client updates in their tenant"
     )
   );
 
+-- Updates: authors edit their own human rows; tenant and agency owners edit
+-- rows no person wrote.
 DROP POLICY IF EXISTS "Users can update own client updates" ON public.client_updates;
 CREATE POLICY "Users can update own client updates"
   ON public.client_updates
@@ -366,6 +373,8 @@ CREATE POLICY "Users can update own client updates"
     OR public.user_can_manage_client_card_entries(tenant_id)
   );
 
+-- Deletes: authors delete their own human rows; tenant and agency owners
+-- delete rows no person wrote.
 DROP POLICY IF EXISTS "Users can delete own client updates" ON public.client_updates;
 CREATE POLICY "Users can delete own client updates"
   ON public.client_updates
