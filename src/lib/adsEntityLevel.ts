@@ -1,9 +1,11 @@
 import {
   aggregateFacebookCampaignsFromRecords,
+  effectiveFacebookCampaignType,
   getAdsPurchasesFromData,
   getLeadsFromData,
   getRevenueFromData,
   getSpendFromData,
+  preferFacebookCampaignType,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
 
@@ -193,16 +195,20 @@ export function aggregateFacebookRecordsAtLevel(
         purchases: 0,
         purchase_value: 0,
         add_to_cart: 0,
-        campaign_type: d.campaign_type,
       };
     }
-    const rowType = String(d.campaign_type || "").toLowerCase();
+    // Same type rules as the internal report's split: the Meta objective decides
+    // when known, and sales wins when a row is labelled differently on some days.
+    const rowType = effectiveFacebookCampaignType(d);
     if (
       rowType === "ecommerce" ||
       rowType === "lead" ||
       rowType === "traffic"
     ) {
-      map[key].campaign_type = rowType;
+      map[key].campaign_type = preferFacebookCampaignType(
+        map[key].campaign_type,
+        rowType,
+      );
     }
     map[key].impressions += Number(d.impressions) || 0;
     map[key].clicks += Number(d.clicks) || 0;

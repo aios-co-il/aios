@@ -172,6 +172,43 @@ describe("weekly comparison by campaign goal", () => {
     ]);
   });
 
+  it("a legacy CONVERSIONS lead campaign keeps its leads and gets no sales columns", () => {
+    for (const sourceModes of [
+      undefined,
+      { facebook_insights: "ecommerce" as const },
+    ]) {
+      const { unmount } = render(
+        <WeeklyCampaignComparison
+          records={[
+            fb("LegacyLead", {
+              campaign_type: "lead",
+              campaign_objective: "CONVERSIONS",
+              spend: 100,
+              leads: 5,
+            }),
+          ]}
+          sourceModes={sourceModes}
+        />,
+      );
+      const region = screen.getByRole("region", { name: "קמפייני לידים" });
+      expect(within(region).getByText("LegacyLead")).toBeTruthy();
+      expect(footer(region)).toStrictEqual([
+        "סה״כ שבועי",
+        "1,000",
+        "50",
+        "5",
+        "₪100",
+        "₪20",
+      ]);
+      expect(
+        screen.queryByRole("region", { name: "קמפייני מכירות" }),
+      ).toBeNull();
+      expect(screen.queryByText("הכנסה")).toBeNull();
+      expect(screen.queryByText("ROAS")).toBeNull();
+      unmount();
+    }
+  });
+
   it("keeps the platform column when the report has more than one platform", () => {
     render(
       <WeeklyCampaignComparison

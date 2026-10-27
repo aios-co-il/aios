@@ -1,6 +1,7 @@
 import {
   effectiveFacebookCampaignType,
   isFacebookEcommerceCampaign,
+  isFacebookLeadsOnlyTable,
   preferFacebookCampaignType,
 } from "@/lib/adsMetrics";
 
@@ -54,6 +55,30 @@ export type WeeklyCampaignSection = {
   /** Delivery and spend across goals. Results are only totalled per goal. */
   totals: { impressions: number; clicks: number; spend: number };
 };
+
+export type WeeklySourceModes = Partial<
+  Record<WeeklyAdsSource, "leads" | "ecommerce">
+>;
+
+/**
+ * The report table's goal settings for the weekly tab, same as its main tables:
+ * Facebook Insights is leads-only only when set to leads (otherwise each campaign
+ * by its own goal), and Google falls back to the table's type for unknown goals.
+ */
+export function weeklySourceModesForTable(
+  integrationSettings?: Record<string, unknown> | null,
+): WeeklySourceModes {
+  const campaignType = String(
+    integrationSettings?.campaign_type || "",
+  ).toLowerCase();
+  return {
+    facebook_insights: isFacebookLeadsOnlyTable(integrationSettings)
+      ? "leads"
+      : undefined,
+    facebook_ecommerce: "ecommerce",
+    google_ads: campaignType === "ecommerce" ? "ecommerce" : "leads",
+  };
+}
 
 /** Fixed order of the goal groups in a week. */
 export const WEEKLY_GOAL_ORDER: readonly WeeklyCampaignKind[] = [
@@ -295,7 +320,17 @@ export function buildWeeklyCampaignSections(
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
     if (source !== "google_ads") {
       // The Meta objective decides when known; WhatsApp "traffic" counts as leads.
-      const type = effectiveFacebookCampaignType(data);
+      // The legacy CONVERSIONS objective is not a sales objective in the sync (it
+      // stores many such campaigns as leads), so the stored type and results decide.
+      const legacyConversions =
+        String(
+          data.campaign_objective || data.objective || "",
+        ).toUpperCase() === "CONVERSIONS";
+      const type = effectiveFacebookCampaignType(
+        legacyConversions
+          ? { ...data, campaign_objective: null, objective: null }
+          : data,
+      );
       if (type !== "other")
         row.campaignType = preferFacebookCampaignType(row.campaignType, type);
       row.objective ||= String(data.campaign_objective || "") || undefined;

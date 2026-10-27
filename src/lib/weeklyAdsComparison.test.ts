@@ -3,6 +3,7 @@ import {
   buildWeeklyCampaignSections,
   formatWeeklyRange,
   getSundayStart,
+  weeklySourceModesForTable,
 } from "./weeklyAdsComparison.ts";
 
 const record = (
@@ -342,4 +343,87 @@ test("facebook goals follow the Meta objective like the report tables", () => {
     "ecommerce",
     "leads",
   ]);
+});
+
+test("a legacy CONVERSIONS campaign stored as leads stays in leads", () => {
+  const legacy = fb("LegacyLead", {
+    campaign_type: "lead",
+    campaign_objective: "CONVERSIONS",
+    leads: 5,
+    spend: 100,
+  });
+  for (const sourceModes of [{}, { facebook_insights: "ecommerce" as const }]) {
+    const [week] = buildWeeklyCampaignSections([legacy], {
+      now: NOW,
+      sourceModes,
+    });
+    expect(week.groups.map((group) => group.kind)).toStrictEqual(["leads"]);
+    expect(week.groups[0].totals).toMatchObject({
+      results: 5,
+      costPerResult: 20,
+      revenue: 0,
+      roas: 0,
+    });
+  }
+});
+
+test("a legacy CONVERSIONS campaign stored as sales stays in sales", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [
+      fb("LegacyShop", {
+        campaign_type: "ecommerce",
+        campaign_objective: "CONVERSIONS",
+        spend: 100,
+        purchases: 2,
+        purchase_value: 300,
+      }),
+    ],
+    { now: NOW },
+  );
+  expect(week.groups.map((group) => group.kind)).toStrictEqual(["ecommerce"]);
+  expect(week.groups[0].totals.roas).toBe(3);
+});
+
+test("a mixed facebook_insights table splits its weekly tab by goal", () => {
+  const records = [
+    fb("Shop", {
+      campaign_objective: "OUTCOME_SALES",
+      spend: 200,
+      purchases: 4,
+    }),
+    fb("Leads", { campaign_type: "lead", spend: 300, leads: 10 }),
+  ];
+  for (const settings of [{}, { campaign_type: "ecommerce" }, null]) {
+    const [week] = buildWeeklyCampaignSections(records, {
+      now: NOW,
+      defaultSource: "facebook_insights",
+      sourceModes: weeklySourceModesForTable(settings),
+    });
+    expect(week.groups.map((group) => group.kind)).toStrictEqual([
+      "ecommerce",
+      "leads",
+    ]);
+    // The sales campaign's spend stays out of the cost per lead.
+    expect(week.groups[1].totals.costPerResult).toBe(30);
+  }
+});
+
+test("a leads-only facebook_insights table keeps its weekly tab in leads", () => {
+  const records = [
+    fb("Shop", {
+      campaign_objective: "OUTCOME_SALES",
+      spend: 200,
+      purchases: 4,
+    }),
+    fb("Leads", { campaign_type: "lead", spend: 300, leads: 10 }),
+  ];
+  for (const campaign_type of ["leads", "lead", "Leads"]) {
+    const modes = weeklySourceModesForTable({ campaign_type });
+    expect(modes.facebook_insights).toBe("leads");
+    const [week] = buildWeeklyCampaignSections(records, {
+      now: NOW,
+      sourceModes: modes,
+    });
+    expect(week.groups.map((group) => group.kind)).toStrictEqual(["leads"]);
+  }
 });

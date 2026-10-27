@@ -6,10 +6,19 @@ import {
   getRevenueFromData,
   getSessionsFromData,
   getSpendFromData,
+  groupFacebookCampaigns,
+  type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
-import type { GoogleReportCampaignGoal } from "@/lib/pulseCampaignGoals";
+import {
+  aggregateFacebookRecordsAtLevel,
+  getEntityGroupKey,
+  type AdsEntityLevel,
+} from "@/lib/adsEntityLevel";
 
 type RecordData = Record<string, unknown>;
+
+/** Goal of one campaign (or ad set / ad) in a shared report. */
+export type SharedCampaignGoal = "ecommerce" | "leads" | "traffic";
 
 export type SharedTableSummary = {
   spend: number;
@@ -27,28 +36,24 @@ export type SharedTableSummary = {
 };
 
 /**
- * KPI totals of a shared integration table. Google Ads campaigns count toward
- * their own goal only: ROAS over sales campaigns' spend, cost per conversion
- * over lead campaigns' spend.
+ * KPI totals of a shared integration table. When each campaign has its own goal
+ * (Google Ads, mixed Facebook), it counts toward that goal only: ROAS over sales
+ * campaigns' spend, cost per lead over lead campaigns' spend. Traffic campaigns
+ * add to delivery and spend only.
  */
 export function summarizeSharedTableRecords(
   records: Array<{ data?: RecordData | null }>,
   options: {
     integrationType: string;
-    /** Goal of a Google Ads record; null for other platforms. */
-    googleGoalOf: ((data: RecordData) => GoogleReportCampaignGoal) | null;
-    googleGoals: { ecommerce: boolean; leads: boolean } | null;
+    /** Goal of a record's campaign; null when the table has a single goal. */
+    goalOf: ((data: RecordData) => SharedCampaignGoal) | null;
+    goals: { ecommerce: boolean; leads: boolean } | null;
     forceLeadsOnly: boolean;
     forceEcommerceOnly: boolean;
   },
 ): SharedTableSummary {
-  const {
-    integrationType,
-    googleGoalOf,
-    googleGoals,
-    forceLeadsOnly,
-    forceEcommerceOnly,
-  } = options;
+  const { integrationType, goalOf, goals, forceLeadsOnly, forceEcommerceOnly } =
+    options;
   const isAnalytics = integrationType === "google_analytics";
   let spend = 0,
     impressions = 0,
@@ -73,13 +78,14 @@ export function summarizeSharedTableRecords(
     spend += getSpendFromData(d);
     impressions += Number(d.impressions) || 0;
     clicks += Number(d.clicks) || 0;
-    if (googleGoalOf) {
-      if (googleGoalOf(d) === "ecommerce") {
+    if (goalOf) {
+      const goal = goalOf(d);
+      if (goal === "ecommerce") {
         ecommerceSpend += getSpendFromData(d);
         purchases += getAdsPurchasesFromData(d);
         revenue += getRevenueFromData(d);
         addToCart += getAddToCartFromData(d);
-      } else {
+      } else if (goal === "leads") {
         leadSpend += getSpendFromData(d);
         leads += getLeadsFromData(d);
       }
@@ -104,8 +110,8 @@ export function summarizeSharedTableRecords(
     leads = 0;
   }
 
-  const roasSpend = googleGoalOf ? ecommerceSpend : spend;
-  const cplSpend = googleGoalOf ? leadSpend : spend;
+  const roasSpend = goalOf ? ecommerceSpend : spend;
+  const cplSpend = goalOf ? leadSpend : spend;
   return {
     spend,
     impressions,
@@ -117,7 +123,47 @@ export function summarizeSharedTableRecords(
     addToCart,
     roas: roasSpend > 0 ? revenue / roasSpend : 0,
     cpl: leads > 0 ? cplSpend / leads : 0,
-    hasEcommerce: googleGoals ? googleGoals.ecommerce : forceEcommerceOnly,
-    hasLeads: googleGoals ? googleGoals.leads : forceLeadsOnly,
+    hasEcommerce: goals ? goals.ecommerce : forceEcommerceOnly,
+    hasLeads: goals ? goals.leads : forceLeadsOnly,
+  };
+}
+
+/** The key the Facebook aggregation groups a record under at this level. */
+function facebookEntityKey(data: RecordData, level: AdsEntityLevel): string {
+  return level === "campaign"
+    ? String(data.campaign_name || data.campaign || "ללא שם")
+    : getEntityGroupKey(data, level);
+}
+
+/**
+ * Facebook Insights rows of a shared report, split by goal the way the internal
+ * report does (sales / leads / traffic), plus each record's goal for the KPIs.
+ * A leads-only table (campaign_type leads) keeps every non-traffic row in leads.
+ */
+export function groupSharedFacebookRows(
+  records: Array<{ data?: RecordData | null }>,
+  level: AdsEntityLevel,
+  options: { leadsOnly: boolean },
+): {
+  ecommerce: FacebookCampaignRow[];
+  leads: FacebookCampaignRow[];
+  traffic: FacebookCampaignRow[];
+  goalOf: (data: RecordData) => SharedCampaignGoal;
+} {
+  const rows = aggregateFacebookRecordsAtLevel(records, level);
+  const groups = groupFacebookCampaigns(rows, {
+    forceLeadsOnly: options.leadsOnly,
+  });
+  const keyOf = (row: FacebookCampaignRow) =>
+    level === "campaign"
+      ? row.name
+      : ((row as FacebookCampaignRow & { key?: string }).key ?? row.name);
+  const goalByKey = new Map<string, SharedCampaignGoal>();
+  for (const row of groups.ecommerce) goalByKey.set(keyOf(row), "ecommerce");
+  for (const row of groups.leads) goalByKey.set(keyOf(row), "leads");
+  for (const row of groups.traffic) goalByKey.set(keyOf(row), "traffic");
+  return {
+    ...groups,
+    goalOf: (data) => goalByKey.get(facebookEntityKey(data, level)) ?? "leads",
   };
 }

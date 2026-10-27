@@ -137,6 +137,7 @@ import {
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
+import { weeklySourceModesForTable } from "@/lib/weeklyAdsComparison";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   ADS_ENTITY_SEARCH_PLACEHOLDERS,
@@ -3094,17 +3095,7 @@ export default function DynamicTableView({
           currency={getCurrencySymbol(table?.integration_settings?.currency)}
           isLoading={weeklyRecordsPending}
           tables={table ? [table] : undefined}
-          sourceModes={{
-            facebook_insights:
-              table?.integration_settings?.campaign_type === "leads"
-                ? "leads"
-                : undefined,
-            facebook_ecommerce: "ecommerce",
-            google_ads:
-              table?.integration_settings?.campaign_type === "ecommerce"
-                ? "ecommerce"
-                : "leads",
-          }}
+          sourceModes={weeklySourceModesForTable(table?.integration_settings)}
         />
       )}
 
@@ -4284,6 +4275,14 @@ export default function DynamicTableView({
                       ? displayRevenue / displayConversions
                       : 0;
                   // WooCommerce replaces the sales totals only.
+                  const wooOnSalesTotals =
+                    useGoogleWooOverlay &&
+                    goalSections.some(
+                      (section) => section.goal === "ecommerce",
+                    );
+                  const salesTotalLabel = mixedGoals
+                    ? "שורת סה״כ המכירות"
+                    : "שורת הסה״כ";
                   const gaDiffersFromWoo =
                     useGoogleWooOverlay &&
                     (Math.round(googleWooPaid.paidOrders) !==
@@ -4312,13 +4311,11 @@ export default function DynamicTableView({
 
                   return (
                     <div className="overflow-x-auto">
-                      {useGoogleWooOverlay && (
+                      {wooOnSalesTotals && (
                         <div className="m-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100">
                           <p>
-                            {mixedGoals
-                              ? "שורת סה״כ המכירות מבוססת על WooCommerce (Google Ads):"
-                              : "שורת הסה״כ מבוססת על WooCommerce (Google Ads):"}{" "}
-                            {Math.round(googleWooPaid.paidOrders)} רכישות,{" "}
+                            {salesTotalLabel} מבוססת על WooCommerce (Google
+                            Ads): {Math.round(googleWooPaid.paidOrders)} רכישות,{" "}
                             {gaCurrency}
                             {Math.round(
                               googleWooPaid.paidRevenue,
@@ -4419,17 +4416,20 @@ export default function DynamicTableView({
                           </span>
                         </div>
                       )}
+                      {useGoogleWooOverlay && (
+                        <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+                          * טבלת &quot;רכישות לפי מקור הגעה&quot; למעלה
+                          {wooOnSalesTotals
+                            ? ` ו${salesTotalLabel} מבוססות`
+                            : " מבוססת"}{" "}
+                          על WooCommerce Order Attribution. עמודות לפי קמפיין =
+                          דיווח Google Ads.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
               </Card>
-              {useGoogleWooOverlay && (
-                <p className="mb-4 text-xs text-muted-foreground px-1">
-                  * טבלת &quot;רכישות לפי מקור הגעה&quot; למעלה ושורת הסה&quot;כ
-                  מבוססים על WooCommerce Order Attribution. עמודות לפי קמפיין =
-                  דיווח Google Ads.
-                </p>
-              )}
             </>
           )}
 
