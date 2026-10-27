@@ -8,6 +8,7 @@ import { buildTimeline } from "../src/compose/timeline.mjs";
 import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
 import { SOUND_EFFECT_NAMES } from "../src/jobs/sound-effects-catalog.mjs";
 import {
+  OVER_QUOTE,
   filmSoundEffects,
   soundEffectsCostUsd,
 } from "../src/jobs/sound-effects.mjs";
@@ -207,8 +208,11 @@ test.skipIf(!hasFfmpeg)(
   60_000,
 );
 
-/** A database for one render: two scenes with clips in the tenant's folder. */
-function renderDb(dir, payload) {
+/**
+ * A database for one render: two scenes with clips in the tenant's folder, and the film's
+ * stored sound effects (`sounds`, marketing_assets rows).
+ */
+function renderDb(dir, payload, sounds = []) {
   const stored = new Map();
   const calls = { uploads: [], inserts: [] };
   const clipPath = (id) => `${TENANT}/general/${ITEM}/${id}.mp4`;
@@ -230,6 +234,11 @@ function renderDb(dir, payload) {
           clip_asset_id: clip,
           meta: {},
         }));
+      if (
+        table === "marketing_assets" &&
+        query.includes("type=eq.sound_effect")
+      )
+        return sounds;
       if (table === "marketing_assets" && query.startsWith("id=in."))
         return ["c1", "c2"].map((id) => ({
           id,
@@ -375,6 +384,46 @@ test.skipIf(!hasFfmpeg)(
       });
       expect(generated).toBe(0);
       expect(unquoted.costUsd).toBe(0);
+
+      // A production quoted before the set ($0.05) for a film with version 1's effects makes
+      // only what the quote covers, and its report says the set is incomplete although the
+      // old impact stands in.
+      await writeFile(join(dir, "impact-v1.wav"), fx);
+      const older = await renderFilm({
+        db: renderDb(
+          dir,
+          {
+            video: {
+              sound_design: true,
+              production: {
+                ...production,
+                estimate: { sound_effects: { usd: 0.05 } },
+              },
+            },
+          },
+          [
+            {
+              url: `${TENANT}/general/${ITEM}/sound-effects/impact-v1.wav`,
+              meta: { effect: "impact", version: 1 },
+            },
+          ],
+        ),
+        run: run(),
+        resolveElevenLabsKey: async () => "xi-key",
+        makeEffects: (input) =>
+          filmSoundEffects({
+            ...input,
+            generate: async () => {
+              generated += 1;
+              return fx;
+            },
+          }),
+        log: () => {},
+      });
+      expect(generated).toBe(4);
+      expect(older.costUsd).toBeLessThanOrEqual(0.05);
+      expect(older.output.sound_effects.impact).toMatch(/impact-v1\.wav$/);
+      expect(older.output.sound_effects_error).toBe(OVER_QUOTE);
 
       let asked = 0;
       const quiet = await renderFilm({

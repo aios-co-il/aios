@@ -81,7 +81,7 @@ Deno.test(
       ],
       { status: "done" },
     );
-    assertMatch(report.summary, /בלי אפקטי סאונד \(אין מפתח ElevenLabs/);
+    assertMatch(report.summary, /חסרים אפקטי סאונד \(אין מפתח ElevenLabs/);
     const fine = productionReport(
       [{ kind: "render", status: "completed", sound_effects_error: null }],
       { status: "done" },

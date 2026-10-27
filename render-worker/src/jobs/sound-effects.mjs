@@ -5,12 +5,14 @@
  * film with ElevenLabs sound effects (the tenant's key), stored in the creative-video bucket and
  * recorded as a marketing_assets row of type sound_effect named after it (meta.effect), so a
  * later render of the same film reuses it. They are paid for only in the render of a production
- * whose approved quote priced the set (workshop_produce_video); any other render (the studio
- * button, video_director) is free and only reuses stored effects. Within one render run each
- * effect is paid at most once: its path and price are recorded on the run as soon as it is made,
- * so a retry reuses it and still reports what the run paid, and a failure after the provider
- * charged is never retried. Without a working key, or when a call fails, the film is rendered
- * with the effects it has (none, or version 1's whoosh and impact) and the run's output says why.
+ * whose approved quote priced the set (workshop_produce_video), and never past that quote: a
+ * production quoted for less (an older, smaller set) makes only what its quote covers. Any other
+ * render (the studio button, video_director) is free and only reuses stored effects. Within one
+ * render run each effect is paid at most once: its path and price are recorded on the run as
+ * soon as it is made, so a retry reuses it and still reports what the run paid, and a failure
+ * after the provider charged is never retried. Without a working key, or when a call fails, the
+ * film is rendered with the effects it has (none, or version 1's whoosh and impact) and the
+ * run's output says why.
  */
 import { assertTenantPath, safeSegment } from "../guard.mjs";
 import {
@@ -36,15 +38,27 @@ const BUCKET = "creative-video";
 export const NOT_IN_PRODUCTION =
   "אפקטי הסאונד נוצרים רק בהפקה (workshop_produce_video); הרכבה בלבד לא משלמת עליהם";
 
-/** What this run paid for its effects, across its attempts (output.sound_effects_cost_usd). */
+/** Why a production's render made only part of the set. */
+export const OVER_QUOTE =
+  "הצעת המחיר של ההפקה כיסתה רק חלק מאפקטי הסאונד; השאר לא נוצרו כדי לא לחרוג ממנה";
+
+/** USD in ten-thousandths, the precision effect prices are recorded at. */
+const tenThousandths = (usd) => Math.round((Number(usd) || 0) * 10000);
+
+/**
+ * What this run paid for its effects, across its attempts (output.sound_effects_cost_usd),
+ * including an earlier attempt's version 1 whoosh.
+ */
 const paidByRun = (run) =>
-  Math.round(
-    NAMES.reduce(
-      (sum, name) =>
-        sum + (Number(run.output?.sound_effects_cost_usd?.[name]) || 0),
-      0,
-    ) * 10000,
+  Object.values(run.output?.sound_effects_cost_usd ?? {}).reduce(
+    (sum, usd) => sum + tenThousandths(usd),
+    0,
   ) / 10000;
+
+/** Version 1's transition sound(s): a film made before the set plays its one whoosh. */
+const LEGACY_TRANSITIONS = Object.keys(LEGACY_EFFECTS).filter(
+  (name) => LEGACY_EFFECTS[name] === "transition",
+);
 
 /**
  * The film's effects by kind, from filmSoundEffects' paths: its transition sounds in the set's
@@ -52,7 +66,7 @@ const paidByRun = (run) =>
  */
 export function effectsByKind(paths = {}) {
   return {
-    transitions: [...TRANSITION_NAMES, "whoosh"]
+    transitions: [...TRANSITION_NAMES, ...LEGACY_TRANSITIONS]
       .filter((name) => typeof paths[name] === "string")
       .map((name) => ({ name, path: paths[name] })),
     impact: typeof paths.impact === "string" ? paths.impact : null,
@@ -72,8 +86,10 @@ function withLegacy(paths, legacy) {
 /**
  * The film's effects as storage paths by effect name (any may be missing), what this run paid
  * for them (including an earlier attempt of the same run), and the reason when some of the set
- * are missing. Missing effects are made only when mayGenerate is true. A film made before the
- * set keeps version 1's whoosh and impact for a kind the set has nothing of.
+ * are missing. Missing effects are made only in a production's render, `quotedUsd` being what
+ * its approved quote priced them at (0 for a free render): each one only while what the run
+ * paid, with it, stays within the quote. A film made before the set keeps version 1's whoosh
+ * and impact for a kind the set has nothing of.
  */
 export async function filmSoundEffects({
   db,
@@ -81,7 +97,7 @@ export async function filmSoundEffects({
   item,
   resolveKey = async () => null,
   generate = generateSoundEffect,
-  mayGenerate = false,
+  quotedUsd = 0,
   log = console.log,
 }) {
   const paths = {};
@@ -113,13 +129,23 @@ export async function filmSoundEffects({
   // A failure after the provider charged (or a refusal) is final for the run.
   if (run.output?.sound_effects_error)
     return done(run.output.sound_effects_error);
-  if (!mayGenerate) return done(NOT_IN_PRODUCTION);
+  if (!(Number(quotedUsd) > 0)) return done(NOT_IN_PRODUCTION);
   const apiKey = await resolveKey().catch(() => null);
   if (!apiKey) return done("אין מפתח ElevenLabs לאפקטי סאונד");
   const made = [];
   let error = null;
+  let overQuote = false;
   for (const name of missing) {
     const effect = SOUND_EFFECTS[name];
+    // Never past the approved quote: what the run paid (every attempt) and this one.
+    if (
+      tenThousandths(paidByRun(run)) +
+        tenThousandths(soundEffectsCostUsd([name])) >
+      tenThousandths(quotedUsd)
+    ) {
+      overQuote = true;
+      continue;
+    }
     let bytes;
     try {
       bytes = await generate({
@@ -197,5 +223,9 @@ export async function filmSoundEffects({
   }
   missing = NAMES.filter((name) => !paths[name]);
   if (made.length) log(`[render] ${run.id} sound effects: ${made.join(", ")}`);
-  return done(missing.length ? error : null);
+  if (overQuote && !error)
+    log(
+      `[render] ${run.id} sound effects past the quote: ${missing.join(", ")}`,
+    );
+  return done(missing.length ? error || (overQuote ? OVER_QUOTE : null) : null);
 }

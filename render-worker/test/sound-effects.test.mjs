@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   NOT_IN_PRODUCTION,
+  OVER_QUOTE,
   SOUND_EFFECTS,
   effectsByKind,
   filmSoundEffects,
@@ -96,6 +97,8 @@ const asset = (effect, version = SOUND_EFFECTS_VERSION) => ({
   meta: { effect, version },
 });
 const ALL = SOUND_EFFECT_NAMES;
+/** What workshop_produce_video quotes for the set (video-cost.ts SOUND_EFFECTS_USD). */
+const QUOTE = 0.09;
 
 test("the film's set is made once, each sound stored, recorded on the run and priced", async () => {
   const db = effectsDb();
@@ -106,7 +109,7 @@ test("the film's set is made once, each sound stored, recorded on the run and pr
     run: current,
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async (input) => {
       asked.push(input);
       return new Uint8Array([1, 2, 3]);
@@ -179,7 +182,7 @@ test("a later render reuses each stored sound and makes only the missing ones, o
     run: run(),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate,
   });
   expect(reused).toStrictEqual({
@@ -196,7 +199,7 @@ test("a later render reuses each stored sound and makes only the missing ones, o
     run: run(),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate,
     log: () => {},
   });
@@ -217,7 +220,7 @@ test("a later render reuses each stored sound and makes only the missing ones, o
     }),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate,
   });
   expect(retried.paths.air).toBe("t/air-v2.mp3");
@@ -229,7 +232,7 @@ test("a later render reuses each stored sound and makes only the missing ones, o
     run: run({ sound_effects_error: "stored failed" }),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate,
   });
   expect(stopped.error).toBe("stored failed");
@@ -266,7 +269,7 @@ test("a film made before the set keeps its one whoosh and impact until a product
     run: run(),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate,
     log: () => {},
   });
@@ -294,7 +297,7 @@ test("without a working key the film has no effects and says why once", async ()
     run: run(),
     item,
     resolveKey: async () => null,
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => {
       throw new Error("not called");
     },
@@ -310,7 +313,7 @@ test("without a working key the film has no effects and says why once", async ()
     run: current,
     item,
     resolveKey: async () => "xi-bad",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => {
       calls += 1;
       throw new Error(
@@ -330,7 +333,7 @@ test("without a working key the film has no effects and says why once", async ()
     run: run(),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => new Uint8Array([1]),
     log: () => {},
   });
@@ -379,7 +382,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
     run: attempt1,
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => new Uint8Array([1, 2]),
     log: () => {},
   });
@@ -402,7 +405,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
       run: run(structuredClone(persisted)),
       item,
       resolveKey: async () => "xi-key",
-      mayGenerate: true,
+      quotedUsd: QUOTE,
       generate: async () => {
         paid += 1;
         return new Uint8Array([1]);
@@ -422,7 +425,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
     run: lostRun,
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => new Uint8Array([1]),
     log: () => {},
   });
@@ -431,7 +434,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
     run: run(structuredClone(lostRun.output)),
     item,
     resolveKey: async () => "xi-key",
-    mayGenerate: true,
+    quotedUsd: QUOTE,
     generate: async () => {
       paid += 1;
       return new Uint8Array([1]);
@@ -439,4 +442,80 @@ test("a retry of the run still reports what its first attempt paid for the effec
   });
   expect(again.costUsd).toBe(soundEffectsCostUsd(["air"]));
   expect(paid).toBe(0);
+});
+
+test("a production never pays past its quote for the effects", async () => {
+  const paid = [];
+  const generate = async ({ text }) => {
+    paid.push(ALL.find((name) => SOUND_EFFECTS[name].text === text));
+    return new Uint8Array([1]);
+  };
+  // A production quoted before the set ($0.05 for one whoosh and impact) makes what it covers.
+  const older = await filmSoundEffects({
+    db: effectsDb({ assets: [asset("whoosh", 1), asset("impact", 1)] }),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    quotedUsd: 0.05,
+    generate,
+    log: () => {},
+  });
+  expect(paid).toStrictEqual(["air", "shimmer", "blip", "swish"]);
+  expect(older.costUsd).toBe(soundEffectsCostUsd(paid));
+  expect(older.costUsd).toBeLessThanOrEqual(0.05);
+  // Version 1's impact still stands in, and the run says the set is incomplete.
+  expect(older.paths.impact).toBe("t/impact-v1.mp3");
+  expect("whoosh" in older.paths).toBe(false);
+  expect(older.error).toBe(OVER_QUOTE);
+  // The quote of the set buys all of it, to the cent.
+  paid.length = 0;
+  const full = await filmSoundEffects({
+    db: effectsDb(),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    quotedUsd: QUOTE,
+    generate,
+    log: () => {},
+  });
+  expect(paid).toStrictEqual(ALL);
+  expect(full.costUsd).toBe(QUOTE);
+  expect(full.error).toBe(null);
+  // A retry counts every attempt's spend against the quote: a first attempt on the old
+  // worker paid $0.0444 for version 1's whoosh and impact.
+  paid.length = 0;
+  const retried = await filmSoundEffects({
+    db: effectsDb(),
+    run: run({
+      sound_effects: {
+        whoosh: "t/attempt-1-whoosh.mp3",
+        impact: "t/attempt-1-impact.mp3",
+      },
+      sound_effects_cost_usd: { whoosh: 0.0144, impact: 0.03 },
+    }),
+    item,
+    resolveKey: async () => "xi-key",
+    quotedUsd: 0.05,
+    generate,
+    log: () => {},
+  });
+  // $0.0056 is left, less than the shortest sound: nothing more is made, and the run still
+  // reports both of its first attempt's charges.
+  expect(paid).toStrictEqual([]);
+  expect(retried.costUsd).toBe(0.0444);
+  expect(retried.paths.impact).toBe("t/attempt-1-impact.mp3");
+  expect(retried.error).toBe(OVER_QUOTE);
+  // A quote too small for any sound makes none.
+  paid.length = 0;
+  const tiny = await filmSoundEffects({
+    db: effectsDb(),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    quotedUsd: 0.005,
+    generate,
+    log: () => {},
+  });
+  expect(paid).toStrictEqual([]);
+  expect(tiny).toStrictEqual({ paths: {}, costUsd: 0, error: OVER_QUOTE });
 });

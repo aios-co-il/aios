@@ -194,9 +194,10 @@ export async function loadFilmSources(db, run) {
  * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
  * font, logo, CTA), whether the brief asked for trailer sound design (video.sound_design), and
  * whether this run may pay for the effects: only the assembly of a running production
- * (advance_video_production records its render_run_id) whose approved quote priced them
- * (workshop_produce_video puts estimate.sound_effects on the production). Every other render,
- * and a production quoted without them (the Video Studio's own plan), is free.
+ * (advance_video_production records its render_run_id), up to what its approved quote priced
+ * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
+ * production). Every other render, and a production quoted without them (the Video Studio's
+ * own plan), is free (0).
  */
 export async function loadFilmSettings(db, run) {
   const [row] =
@@ -208,11 +209,11 @@ export async function loadFilmSettings(db, run) {
   return {
     brand: brandFromPayload(row?.payload),
     soundDesign: row?.payload?.video?.sound_design === true,
-    effectsQuoted:
-      !!production &&
-      production.status === "running" &&
-      String(production.render_run_id ?? "") === String(run.id) &&
-      Number(production.estimate?.sound_effects?.usd) > 0,
+    effectsQuotedUsd:
+      production?.status === "running" &&
+      String(production.render_run_id ?? "") === String(run.id)
+        ? Math.max(0, Number(production.estimate?.sound_effects?.usd) || 0)
+        : 0,
   };
 }
 
@@ -282,15 +283,16 @@ export async function renderFilm({
     const settings = await loadFilmSettings(db, run);
     // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
     const brand = settings.brand;
-    // Trailer sound design: the set is made once per film, in the production's own (quoted)
-    // render; a free render only reuses stored effects. Without them the film renders as before.
+    // Trailer sound design: the set is made once per film, in the production's own render and
+    // within its quote; a free render only reuses stored effects. Without them the film renders
+    // as before.
     const effects = settings.soundDesign
       ? await makeEffects({
           db,
           run,
           item,
           resolveKey: resolveElevenLabsKey,
-          mayGenerate: settings.effectsQuoted,
+          quotedUsd: settings.effectsQuotedUsd,
           log,
         }).catch((error) => ({
           paths: {},
@@ -399,12 +401,15 @@ export async function renderFilm({
         ...(effects
           ? {
               sound_effects: effects.paths ?? {},
-              // The production report tells the user once that effects are missing.
+              // The production report tells the user once that effects are missing: in the
+              // production's render, any of the set it could not make (also when version 1's
+              // whoosh or impact stands in); in a free render, a kind the film has nothing of.
               sound_effects_error:
-                timeline.effects?.transitionPaths.length &&
+                (settings.effectsQuotedUsd > 0 && effects.error) ||
+                (timeline.effects?.transitionPaths.length &&
                 timeline.effects.impactPath
                   ? null
-                  : effects.error || "אפקטי הסאונד לא נטענו",
+                  : effects.error || "אפקטי הסאונד לא נטענו"),
             }
           : {}),
       },
