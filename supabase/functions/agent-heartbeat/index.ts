@@ -1,10 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
-import { jerusalemHour } from "./jerusalem-hour.ts";
-import {
-  staleReleaseAuditUser,
-  writeStaleReleaseAudit,
-} from "./stale-release-audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,9 +38,9 @@ Deno.serve(async (req) => {
       const tenantId = setting.tenant_id;
       const allowedActions = (setting.allowed_actions || []) as string[];
 
-      // Check active hours (Israel local time, DST-aware)
+      // Check active hours
       const now = new Date();
-      const currentHour = jerusalemHour(now);
+      const currentHour = now.getUTCHours() + 3; // Israel timezone offset
       if (
         currentHour < setting.active_hours_start ||
         currentHour >= setting.active_hours_end
@@ -70,7 +64,7 @@ Deno.serve(async (req) => {
         )
         .eq("tenant_id", tenantId)
         .in("status", ["open", "in_progress"])
-        .lt("due_date", jerusalemYmd(now))
+        .lt("due_date", now.toISOString().split("T")[0])
         .is("overdue_notified_at", null)
         .limit(50);
 
@@ -133,15 +127,18 @@ Deno.serve(async (req) => {
         staleTasks &&
         staleTasks.length > 0
       ) {
-        const auditUserId = await staleReleaseAuditUser(supabase, tenantId);
         for (const task of staleTasks) {
           await supabase
             .from("tasks")
             .update({ assigned_agent: null })
             .eq("id", task.id);
-          if (auditUserId) {
-            await writeStaleReleaseAudit(supabase, auditUserId, task);
-          }
+          await supabase.from("task_updates").insert({
+            task_id: task.id,
+            user_id: "system",
+            tenant_id: tenantId,
+            content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
+            update_type: "agent_action",
+          });
           actionsLog.push({
             type: "stale_task_released",
             task_id: task.id,
@@ -167,7 +164,7 @@ Deno.serve(async (req) => {
 
       // 6. Summary for heartbeat_logs
       const summaryLines = [
-        `סקירת Heartbeat - ${jerusalemYmd(now)}`,
+        `סקירת Heartbeat - ${now.toISOString().split("T")[0]}`,
         `משימות שנסקרו: ${tasksReviewed}`,
         `משימות באיחור: ${overdueTasks?.length || 0}`,
         `משימות חסומות (סוכן): ${staleTasks?.length || 0}`,
