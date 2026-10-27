@@ -14,6 +14,7 @@ import {
   parseUiAction,
   STUDIO_STALL_MESSAGE,
   STUDIO_STALL_MS,
+  studioRunBody,
   studioToolLine,
   uiActionLabel,
   type StudioUiAction,
@@ -70,6 +71,8 @@ function AssistantText({ text }: { text: string }) {
 
 /** Per project, kept while the studio is open so switching projects keeps each thread. */
 const threads = new Map<string, ChatEntry[]>();
+/** Per project, the server conversation its thread continues. */
+const conversations = new Map<string, string>();
 
 export function CreativeStudioChat({
   tenantId,
@@ -172,18 +175,16 @@ export function CreativeStudioChat({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            command_text: message,
-            tenant_id: tenantId,
-            client_id: clientId,
-            surface: "internal_chat",
-            stream: true,
-            task_mode: "marketing_creative",
-            task_skills: ["creative_studio"],
-            system_prompt_addon: contextAddon(),
-            conversation_history: history,
-            user_name: "סטודיו קריאייטיב",
-          }),
+          body: JSON.stringify(
+            studioRunBody({
+              message,
+              tenantId,
+              clientId,
+              contextAddon: contextAddon(),
+              history,
+              conversationId: conversations.get(itemId),
+            }),
+          ),
           signal: controller.signal,
         },
       );
@@ -207,6 +208,11 @@ export function CreativeStudioChat({
           if (event.type === "token" && typeof event.content === "string") {
             answer += event.content;
             setStreaming(answer);
+          } else if (
+            event.type === "conversation_id" &&
+            typeof event.id === "string"
+          ) {
+            conversations.set(itemId, event.id);
           } else if (event.type === "tool_call") {
             pushTool(studioToolLine(event.tool));
           } else if (event.type === "ui_action") {

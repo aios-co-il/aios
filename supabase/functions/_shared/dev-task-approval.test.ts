@@ -5,10 +5,12 @@ import {
 } from "jsr:@std/assert@1";
 import {
   DEV_TASK_OFFER_TTL_MS,
+  devTaskApprovalDecision,
+  type DevTaskApprovalInput,
+  devTaskSendRule,
+  directDevSendRefusal,
   isExplicitDevTaskApproval,
   namedDevAgent,
-  type WorkshopDevTaskInput,
-  workshopDevTaskDecision,
   workshopDevTaskRule,
 } from "./dev-task-approval.ts";
 
@@ -27,8 +29,8 @@ const offered = {
 };
 /** David's "כן" in the workshop chat, the turn after Carmen offered the task. */
 const yes = (
-  over: Partial<WorkshopDevTaskInput> = {},
-): WorkshopDevTaskInput => ({
+  over: Partial<DevTaskApprovalInput> = {},
+): DevTaskApprovalInput => ({
   task: offered,
   appChatUser: true,
   userText: "כן",
@@ -38,8 +40,8 @@ const yes = (
   offeredTaskId: "task-1",
   ...over,
 });
-const reason = (input: WorkshopDevTaskInput) => {
-  const decision = workshopDevTaskDecision(input);
+const reason = (input: DevTaskApprovalInput) => {
+  const decision = devTaskApprovalDecision(input);
   return decision.ok ? "ok" : decision.reason;
 };
 
@@ -105,9 +107,9 @@ Deno.test(
   "the user's yes in the next message approves the offered task",
   () => {
     for (const userText of ["כן", "כן תשלחי", "מאשר", "יאללה", "כן, לשלוח"])
-      assertEquals(workshopDevTaskDecision(yes({ userText })), { ok: true });
+      assertEquals(devTaskApprovalDecision(yes({ userText })), { ok: true });
     assertEquals(
-      workshopDevTaskDecision(
+      devTaskApprovalDecision(
         yes({
           task: { ...offered, status: "approved" },
           turnStartedAt: new Date(TURN),
@@ -119,7 +121,7 @@ Deno.test(
 );
 
 Deno.test("a task offered in this message waits for the next one", () => {
-  const decision = workshopDevTaskDecision(
+  const decision = devTaskApprovalDecision(
     yes({ task: { ...offered, created_at: LATER }, userText: "תשלחי לקרסר" }),
   );
   assertStrictEquals(decision.ok, false);
@@ -136,8 +138,14 @@ Deno.test("a task offered in this message waits for the next one", () => {
 Deno.test(
   "only a signed-in user's own message in the app chat approves",
   () => {
-    // A service call (WhatsApp webhook, a subagent run, an automation) or no conversation.
-    assertStrictEquals(reason(yes({ appChatUser: false })), "no_turn");
+    // A service call (WhatsApp webhook, a subagent run, an automation): the yes cannot be
+    // checked there, so the task waits for the Command Center's send button.
+    const whatsapp = devTaskApprovalDecision(yes({ appChatUser: false }));
+    assertStrictEquals(whatsapp.ok, false);
+    if (!whatsapp.ok) {
+      assertStrictEquals(whatsapp.reason, "not_app_chat");
+      assertMatch(whatsapp.message, /מרכז משימות הפיתוח/);
+    }
     assertStrictEquals(reason(yes({ conversationId: null })), "no_turn");
     assertStrictEquals(reason(yes({ userText: "  " })), "no_turn");
     assertStrictEquals(reason(yes({ turnStartedAt: null })), "no_turn");
@@ -161,7 +169,7 @@ Deno.test("only a task offered in this conversation, not long ago", () => {
 });
 
 Deno.test("a message that is not a yes is refused with what to ask", () => {
-  const decision = workshopDevTaskDecision(
+  const decision = devTaskApprovalDecision(
     yes({ userText: "יש לך גישה לתמונות של הסקינים שלך?" }),
   );
   assertStrictEquals(decision.ok, false);
@@ -258,8 +266,79 @@ Deno.test("a yes approves only the task Carmen's last message offered", () => {
     { task: { ...offered, id: null } },
   ])
     assertStrictEquals(reason(yes(over)), "not_offered", JSON.stringify(over));
-  const decision = workshopDevTaskDecision(yes({ lastAssistantText: "" }));
+  const decision = devTaskApprovalDecision(yes({ lastAssistantText: "" }));
   if (!decision.ok)
     assertMatch(decision.message, /\[\[בחירה: לשלוח את משימת הפיתוח\?/);
   assertStrictEquals(decision.ok, false);
 });
+
+/** David's turn in an AIOS chat outside the workshop (the video studio, the sidecar). */
+const turn = (over: Record<string, unknown> = {}) => ({
+  appChatUser: true,
+  userText: "כן",
+  lastAssistantText: OFFER,
+  ...over,
+});
+
+Deno.test(
+  "a direct send to Cursor or Claude waits for the user's yes to Carmen's offer",
+  () => {
+    for (const tool of [
+      "mcp_Cursor__request_dev_task",
+      "mcp_Cursor__ask_cursor",
+      "mcp_Claude__request_dev_task",
+      "mcp_Claude__ask_claude",
+      "request_dev_task",
+    ]) {
+      // Same turn as the request: nothing offered yet.
+      const asked = directDevSendRefusal(
+        tool,
+        turn({ userText: "תשלחי לקרסר לתקן את הכפתור", lastAssistantText: "" }),
+      );
+      assertStrictEquals(asked?.error, "dev_send_needs_yes", tool);
+      assertMatch(String(asked?.message), /\[\[בחירה: .*\| כן \| לא\]\]/);
+      assertStrictEquals(
+        directDevSendRefusal(tool, turn({ appChatUser: false }))?.error,
+        "dev_task_approval_not_app_chat",
+        tool,
+      );
+    }
+    assertStrictEquals(
+      directDevSendRefusal("mcp_Cursor__request_dev_task", turn()),
+      null,
+    );
+    assertStrictEquals(
+      directDevSendRefusal(
+        "mcp_Cursor__request_dev_task",
+        turn({ userText: "כן תשלחי לקלוד" }),
+      )?.error,
+      "dev_task_approval_target_mismatch",
+    );
+    // Reading a session or another connector is no send.
+    for (const tool of ["mcp_Cursor__list_cursor_task_sessions", "list_leads"])
+      assertStrictEquals(
+        directDevSendRefusal(
+          tool,
+          turn({ userText: "", lastAssistantText: "" }),
+        ),
+        null,
+        tool,
+      );
+  },
+);
+
+Deno.test(
+  "outside the workshop each chat is told how a dev task is sent",
+  () => {
+    const app = devTaskSendRule(true);
+    assertMatch(app, /\[\[בחירה: לשלוח את משימת הפיתוח\? \| כן \| לא\]\]/);
+    assertMatch(app, /בהודעה הבאה/);
+    const whatsapp = devTaskSendRule(false);
+    assertMatch(whatsapp, /create_dev_task/);
+    assertMatch(whatsapp, /מרכז משימות הפיתוח/);
+    assertStrictEquals(
+      /approve_dev_task|dispatch_dev_task/.test(whatsapp),
+      false,
+    );
+  },
+);

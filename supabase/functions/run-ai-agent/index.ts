@@ -205,11 +205,13 @@ import {
 } from "../_shared/dev-tasks.ts";
 import {
   declineOfferedDevTask,
+  devTaskSendRule,
+  directDevSendRefusal,
   findOfferedDevTask,
   isExplicitDevTaskApproval,
   isExplicitDevTaskDecline,
   offersDevTask,
-  workshopDevTaskDecision,
+  devTaskApprovalDecision,
   workshopDevTaskRule,
 } from "../_shared/dev-task-approval.ts";
 import {
@@ -5713,23 +5715,27 @@ async function tryCreateCalendarEventForTask(
 }
 
 /**
- * In the workshop, why approve_dev_task / dispatch_dev_task may not act on this task now (the
- * user's yes in the app chat must answer Carmen's previous message, which offered this task);
- * null outside the workshop, where the dev-task flow is unchanged, or when it may.
+ * Why approve_dev_task / dispatch_dev_task may not act on this task now, in any chat (the user's
+ * yes in an AIOS chat must answer Carmen's previous message, which offered this task), or null
+ * when it may. A call with no user turn (a service or out-of-band call) is never a yes.
  */
-async function workshopDevTaskRefusal(
+async function devTaskApprovalRefusal(
   supabase: any,
   tenantId: string,
   taskId: string,
   conversationId: string | null,
-  gate:
+  turn:
     | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
     | null
     | undefined,
   userText: string | null,
   approver: { id: string | null; tier: "full" | "bugfix" | null },
 ): Promise<{ error: string; message: string } | null> {
-  if (!gate) return null;
+  const gate = turn ?? {
+    turnStartedAt: "",
+    appChatUser: false,
+    lastAssistantText: "",
+  };
   const { data: task } = await supabase
     .from("dev_tasks")
     .select(
@@ -5745,7 +5751,7 @@ async function workshopDevTaskRefusal(
         turnStartedAt: gate.turnStartedAt,
       })
     : null;
-  const decision = workshopDevTaskDecision({
+  const decision = devTaskApprovalDecision({
     task: task ?? null,
     appChatUser: gate.appChatUser,
     userText,
@@ -5783,11 +5789,11 @@ async function executeTool(
     /** Carmen's previous message; the workshop reads the taps that answer it. */
     lastAssistant?: string | null;
     outOfBand?: boolean;
-    /** In the workshop, approve_dev_task and dispatch_dev_task wait for the user's later yes. */
-    workshopDevTasks?: {
+    /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
+    devTaskTurn?: {
       /** When the user's message of this turn arrived; the offered task must be older. */
       turnStartedAt: string;
-      /** A signed-in user typed this turn in the app chat (internal_chat). */
+      /** A signed-in user typed this turn in an AIOS chat (not a service call). */
       appChatUser: boolean;
       /** Carmen's previous message; the user's yes answers its dev-task question only. */
       lastAssistantText: string;
@@ -10809,8 +10815,8 @@ async function executeTool(
         priority: args.priority,
         assignedAgent: args.assigned_agent || "cursor",
         requestedByUserId: devActorId,
-        // In the workshop a task belongs to this chat: only a yes here may approve it.
-        sourceConversationId: approval.workshopDevTasks
+        // In an AIOS chat a task belongs to this chat: only a yes here may approve it.
+        sourceConversationId: approval.devTaskTurn?.appChatUser
           ? conversationId || null
           : args.source_conversation_id || conversationId || null,
         sourceMessage: args.source_message,
@@ -10830,16 +10836,16 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
-      const workshopRefusal = await workshopDevTaskRefusal(
+      const refusal = await devTaskApprovalRefusal(
         supabase,
         tenantId,
         String(args.dev_task_id),
         conversationId ?? null,
-        approval.workshopDevTasks,
+        approval.devTaskTurn,
         approval.userText ?? null,
         { id: approverId, tier: devEscalationTier },
       );
-      if (workshopRefusal) return workshopRefusal;
+      if (refusal) return refusal;
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10850,16 +10856,16 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
-      const workshopRefusal = await workshopDevTaskRefusal(
+      const refusal = await devTaskApprovalRefusal(
         supabase,
         tenantId,
         String(args.dev_task_id),
         conversationId ?? null,
-        approval.workshopDevTasks,
+        approval.devTaskTurn,
         approval.userText ?? null,
         { id: actorUserId, tier: devEscalationTier },
       );
-      if (workshopRefusal) return workshopRefusal;
+      if (refusal) return refusal;
       try {
         return await dispatchDevTask(supabase, {
           tenantId,
@@ -14031,8 +14037,13 @@ async function handleRunAgent(
     let serverConversationId: string | null = null;
     // A paid workshop confirm must arrive in a later user message than the quote it confirms.
     const turnId = crypto.randomUUID();
-    // A workshop dev task is approved only in a later user message than the one that offered it.
+    // A dev task is approved only in a later user message than the one that offered it.
     const turnStartedAt = new Date().toISOString();
+    // The signed-in user's own message in an AIOS chat (the workshop, the video studio, the
+    // Command Center), not a service call: only there is a dev-task yes read (dev-task-approval).
+    const appChatTurn =
+      request.authKind === "user" &&
+      (surface === "internal_chat" || surface === "aios");
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -14992,9 +15003,9 @@ async function handleRunAgent(
         "David is chatting from the persistent sidecar while viewing a live AIOS screen.\n" +
         "Use the screen context in system_prompt_addon / context_metadata to understand what he sees.\n" +
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
-        '1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) ask David for approval unless he said "תעבירי לפיתוח"/"שלחי לפיתוח" explicitly → 4) approve_dev_task + dispatch_dev_task.\n' +
+        "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]] → 4) only after his yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses them in the turn that opened the task, even when he already said 'שלחי לפיתוח').\n" +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
-        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
+        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
         `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
     }
@@ -15002,20 +15013,20 @@ async function handleRunAgent(
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
     // The workshop has no connector or delegate tools: there a dev task goes only through
-    // create_dev_task, sent after the user's yes in a later message (dev-task-approval.ts).
+    // create_dev_task. Everywhere a send to Cursor or Claude waits for the user's yes in a later
+    // message, read only in an AIOS chat (dev-task-approval.ts).
     systemPrompt +=
       inWorkshopRequest && devEscalationTier
         ? workshopDevTaskRule(devEscalationTier)
-        : buildDevEscalationPromptRule(devEscalationTier);
+        : buildDevEscalationPromptRule(devEscalationTier) +
+          (devEscalationTier ? devTaskSendRule(appChatTurn) : "");
 
     if (isCarmen && surface === "whatsapp" && canEscalateDevFixes) {
       systemPrompt +=
         "\n\n📱 === משימות פיתוח מ-WhatsApp (מורשה) ===\n" +
         'כשמבקשים "תעבירי לפיתוח" / "שלחי לקרסר" / תיקון מערכת:\n' +
-        '1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אם הבקשה מפורשת ("שלחי"/"תעבירי") — approve_dev_task + dispatch_dev_task מיד.\n' +
-        "4) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
-        '5) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
-        "אל תבקשי אישור נוסף כשהמשתמש כבר אמר לשלוח.";
+        "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי, ושהיא מחכה לאישור במרכז משימות הפיתוח באפליקציה (כפתור 'שלח'). מוואטסאפ לא מאשרים ולא שולחים: השרת מסרב ל-approve_dev_task, ל-dispatch_dev_task ולשליחה ישירה.\n" +
+        "4) שאלה על משימה שכבר נשלחה: list_dev_tasks או attach_dev_task_session.";
     }
 
     // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
@@ -15431,7 +15442,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           // WhatsApp shows assistant text as plain text; the AIOS chats (the video studio's
           // included) show a Markdown picture as an image.
           markdownImages: surface !== "whatsapp",
-          inWorkshop,
+          appChat: appChatTurn,
         },
       )}`;
     }
@@ -15547,19 +15558,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
-    // In the workshop the user's yes or no answers the dev task Carmen offered in her previous
+    // In an AIOS chat the user's yes or no answers the dev task Carmen offered in her previous
     // message, and only when that message asked about it: a yes names the task, so she approves
-    // and sends that one (workshopDevTaskRefusal checks it again); a no cancels it.
-    const workshopUserText = String(command_text ?? "");
-    const devTaskYes = isExplicitDevTaskApproval(workshopUserText);
-    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(workshopUserText);
+    // and sends that one (devTaskApprovalRefusal checks it again); a no cancels it.
+    const devTaskUserText = String(command_text ?? "");
+    const devTaskYes = isExplicitDevTaskApproval(devTaskUserText);
+    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(devTaskUserText);
+    // That answer is not also a yes or no to a pending WhatsApp/Meta approval below.
+    let devTaskOfferAnswered = false;
     if (
       isCarmen &&
-      inWorkshopRequest &&
       canEscalateDevFixes &&
       serverConversationId &&
-      request.authKind === "user" &&
-      surface === "internal_chat" &&
+      appChatTurn &&
       (devTaskYes || devTaskNo) &&
       offersDevTask(lastAssistantText(conversation_history))
     ) {
@@ -15568,6 +15579,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         conversationId: serverConversationId,
         turnStartedAt,
       });
+      devTaskOfferAnswered = Boolean(offeredTask);
       if (offeredTask && devTaskYes)
         systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
       else if (
@@ -15585,12 +15597,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // When the user explicitly confirms ("כן" / "מאשר" / …), resolve the latest
     // pending approval and either (a) execute it deterministically for short
     // confirms, or (b) inject a hard prompt so the model must call execute_pending_approval.
-    const userSaidApprove = isExplicitApprovalPhrase(
-      String(command_text || ""),
-    );
-    const userSaidReject = isExplicitRejectionPhrase(
-      String(command_text || ""),
-    );
+    const userSaidApprove =
+      !devTaskOfferAnswered &&
+      isExplicitApprovalPhrase(String(command_text || ""));
+    const userSaidReject =
+      !devTaskOfferAnswered &&
+      isExplicitRejectionPhrase(String(command_text || ""));
     let pendingForConfirm: any = null;
     // A workshop "כן" answers the workshop, never a pending WhatsApp/Meta approval; its budget
     // code is approved by workshopTurnNote.
@@ -15999,6 +16011,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     let usageTokensIn = 0;
     let usageTokensOut = 0;
 
+    // A direct send to Cursor or Claude runs only on the user's yes to Carmen's offer.
+    const devSendTurn = {
+      appChatUser: appChatTurn,
+      userText: String(command_text ?? ""),
+      lastAssistantText: lastAssistantText(conversation_history),
+    };
     let silentNudges = 0;
     for (let round = 0; round < maxRounds; round++) {
       // Provider failover: try the active provider; on a quota/credit error, advance
@@ -16221,6 +16239,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
+          } else if (directDevSendRefusal(toolName, devSendTurn)) {
+            // Straight to Cursor or Claude only after the user's yes to Carmen's offer.
+            result = directDevSendRefusal(toolName, devSendTurn);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
@@ -16242,17 +16263,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               {
                 turnId,
                 userText: String(command_text ?? ""),
-                workshopDevTasks: inWorkshop
-                  ? {
-                      turnStartedAt,
-                      // The user's own message in the app chat, not a service call.
-                      appChatUser:
-                        request.authKind === "user" &&
-                        surface === "internal_chat",
-                      lastAssistantText:
-                        lastAssistantText(conversation_history),
-                    }
-                  : null,
+                // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
+                devTaskTurn: {
+                  turnStartedAt,
+                  appChatUser: appChatTurn,
+                  lastAssistantText: lastAssistantText(conversation_history),
+                },
                 lastAssistant: lastAssistantText(conversation_history),
               },
               request.origin ?? null,

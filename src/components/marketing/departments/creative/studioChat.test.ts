@@ -7,6 +7,7 @@ import {
   STUDIO_STALL_MESSAGE,
   STUDIO_STALL_MS,
   studioContextAddon,
+  studioRunBody,
   studioToolLine,
 } from "./studioChat.ts";
 
@@ -79,6 +80,24 @@ test("a skin portrait in Carmen's answer is shown as a picture", () => {
   expect(chatParts("בלי תמונות")).toStrictEqual([
     { kind: "text", text: "בלי תמונות" },
   ]);
+});
+
+test("every turn of a project's studio chat continues one conversation", () => {
+  const turn = {
+    message: "כן",
+    tenantId: "t1",
+    clientId: null,
+    contextAddon: "--- הקשר ---",
+    history: [{ role: "assistant" as const, content: "לשלוח?" }],
+  };
+  // The first turn starts it; the server's conversation id then rides on every later turn, so
+  // a yes answers the dev task Carmen offered in the same conversation.
+  expect(studioRunBody(turn)).not.toHaveProperty("conversation_id");
+  const later = studioRunBody({ ...turn, conversationId: "conv-1" });
+  expect(later.conversation_id).toBe("conv-1");
+  expect(later.surface).toBe("internal_chat");
+  expect(later.task_skills).toStrictEqual(["creative_studio"]);
+  expect(later.conversation_history).toStrictEqual(turn.history);
 });
 
 test("the chat stops waiting after two silent minutes and says how to retry", () => {

@@ -231,3 +231,33 @@ export function chatParts(text: string): ChatPart[] {
 
 export const fileLine = (name: string, url: string) =>
   `[קובץ שהעליתי: ${name}](${url})`;
+
+export interface StudioTurn {
+  message: string;
+  tenantId: string;
+  clientId: string | null;
+  contextAddon: string;
+  history: { role: "user" | "assistant"; content: string }[];
+  /** The server's conversation for this project's chat, once its first turn started it. */
+  conversationId?: string | null;
+}
+
+/**
+ * The run-ai-agent request for one studio turn. Every turn after the first continues the same
+ * conversation, so a yes answers what Carmen offered in it (a dev task is approved only there).
+ */
+export function studioRunBody(turn: StudioTurn) {
+  return {
+    command_text: turn.message,
+    tenant_id: turn.tenantId,
+    client_id: turn.clientId,
+    surface: "internal_chat",
+    stream: true,
+    task_mode: "marketing_creative",
+    task_skills: ["creative_studio"],
+    system_prompt_addon: turn.contextAddon,
+    conversation_history: turn.history,
+    user_name: "סטודיו קריאייטיב",
+    ...(turn.conversationId ? { conversation_id: turn.conversationId } : {}),
+  };
+}
