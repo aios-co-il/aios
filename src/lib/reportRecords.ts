@@ -1,12 +1,12 @@
+import type { Tables } from "@/integrations/supabase/types";
 import {
   REPORT_QUERY_STALE_MS,
   reportQueryOptions,
 } from "./reportQueryOptions.ts";
 
-export interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
-}
+export type CrmRecord = Pick<Tables<"crm_records">, "id"> & {
+  data: Record<string, unknown>;
+};
 
 type ReportClient = {
   functions: {
@@ -55,10 +55,14 @@ export function reportRecordsQuery(
 
 /** Typed options for report views, with the shared loading/cache policy. */
 export function reportRecordsQueryOptions(
-  ...args: Parameters<typeof reportRecordsQuery>
+  client: ReportClient,
+  tableId: string,
+  dateFilter: string,
+  dateFrom?: string | null,
+  dateTo?: string | null,
 ) {
   return {
-    ...reportRecordsQuery(...args),
+    ...reportRecordsQuery(client, tableId, dateFilter, dateFrom, dateTo),
     ...reportQueryOptions<CrmRecord[]>(),
   };
 }
