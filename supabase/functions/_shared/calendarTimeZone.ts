@@ -56,7 +56,7 @@ export function shiftYmd(dateYmd: string, days: number): string {
   return utcDate.toISOString().slice(0, 10);
 }
 
-function timeZoneOffsetMs(date: Date, timeZone: string): number {
+export function timeZoneOffsetMs(date: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
@@ -172,82 +172,4 @@ export function getJerusalemDashboardDateRange(
     default:
       return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };
   }
-}
-
-// ── Shabbat quiet window (AIO-226) ──────────────────────────────────────────
-// Edge-only: the browser mirror has no notification policy.
-
-/** Start of the normal notification window on Sunday after Shabbat. */
-export const SHABBAT_RESUME_LOCAL = { hour: 8, minute: 30 } as const;
-
-/**
- * David's Shabbat rule: the whole Saturday, 00:00–23:59 Asia/Jerusalem
- * (calendar day, not candle-lighting/havdalah times).
- */
-export function isJerusalemShabbat(
-  date: Date = new Date(),
-  timeZone = APP_TIME_ZONE,
-): boolean {
-  return jerusalemWeekdayIndex(date, timeZone) === 6;
-}
-
-function zonedWallClockMs(date: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type: string) =>
-    Number(parts.find((p) => p.type === type)?.value || 0);
-  return Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour"),
-    get("minute"),
-  );
-}
-
-/** Wall-clock time on an Israel calendar day → UTC instant (DST-safe). */
-export function jerusalemLocalTimeToUtc(
-  dateYmd: string,
-  hour: number,
-  minute = 0,
-  timeZone = APP_TIME_ZONE,
-): Date {
-  const [y, m, d] = dateYmd.split("-").map(Number);
-  const target = Date.UTC(y, m - 1, d, hour, minute);
-  let result = target;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    result += target - zonedWallClockMs(new Date(result), timeZone);
-  }
-  return new Date(result);
-}
-
-/**
- * When a held (non-critical) notification may go out again, or null when `now`
- * is outside the quiet window. The window starts Saturday 00:00 Israel time and
- * ends on Sunday at `resume` (default 08:30, the start of the normal window).
- * Pass `{ hour: 0, minute: 0 }` for a Saturday-only window.
- */
-export function jerusalemShabbatHoldUntil(
-  now: Date = new Date(),
-  resume: { hour: number; minute: number } = SHABBAT_RESUME_LOCAL,
-  timeZone = APP_TIME_ZONE,
-): Date | null {
-  const weekday = jerusalemWeekdayIndex(now, timeZone);
-  if (weekday !== 6 && weekday !== 0) return null;
-  const today = jerusalemYmd(now, timeZone);
-  const sunday = weekday === 6 ? shiftYmd(today, 1) : today;
-  const resumeAt = jerusalemLocalTimeToUtc(
-    sunday,
-    resume.hour,
-    resume.minute,
-    timeZone,
-  );
-  return now.getTime() < resumeAt.getTime() ? resumeAt : null;
 }

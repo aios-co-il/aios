@@ -1,11 +1,9 @@
--- AIO-226: no task WhatsApp on Shabbat (Saturday, Asia/Jerusalem).
+-- AIO-226: no task WhatsApp on Shabbat (policy: COMMENT ON TABLE below).
 --
 -- Peer task notifications (collaborator added, update added) come straight
--- from the app to trigger-automation. During the quiet window (Saturday 00:00
--- to Sunday 08:30 Israel time) they are parked here, and task-notification-
--- worker sends each one once at the end of the window. A hold left unreleased
--- for 24h after hold_until expires unsent, so nothing old is ever replayed.
--- Worker-driven notifications need no row: their task markers stay NULL.
+-- from the app, so trigger-automation needs a place to keep them over the
+-- quiet window. Worker-driven notifications need no row: their task markers
+-- stay NULL until the window ends.
 --
 -- The table starts empty, so this migration sends nothing by itself.
 
@@ -32,6 +30,9 @@ COMMENT ON TABLE public.task_notification_holds IS
   'AIO-226: peer task WhatsApp notifications held over Shabbat; released once by task-notification-worker at Sunday 08:30 Israel time, expired unsent after 24h. Service role only.';
 
 -- One open hold per notification: a repeated call while held is a no-op.
+-- No tenant_id in the key: task_id already pins one tenant's task, and a
+-- tenant column here would let the task's tenant and a shared-agency tenant
+-- each queue (and replay) the same notification.
 CREATE UNIQUE INDEX IF NOT EXISTS task_notification_holds_open_key
   ON public.task_notification_holds (task_id, notification_type, hold_key)
   WHERE released_at IS NULL;
