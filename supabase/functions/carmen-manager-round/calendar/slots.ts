@@ -13,6 +13,9 @@ export const BRIEF_CRON = "0 8 * * 0-5";
 /** Batched non-urgent items for campaigners and managers: 08:30 Sunday–Thursday. */
 export const LIST_CRON = "30 8 * * 0-4";
 
+/** The managers' weekly roll-up (no_contact): with Sunday's 08:30 list. */
+export const ROLLUP_CRON = "30 8 * * 0";
+
 /** The round runs every 15 minutes; an hour covers a few missed calls. */
 export const DEFAULT_STALE_MINUTES = 60;
 

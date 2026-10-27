@@ -8,10 +8,14 @@
 import type { Json } from "../../_shared/database.types.ts";
 import { latestSlot } from "../calendar/slots.ts";
 import type { RoundStateRow } from "../state/store.ts";
+import { contactCollector } from "./contact/collector.ts";
 import { selfTestCollector } from "./self-test.ts";
 import type { Collector } from "./types.ts";
 
-export const COLLECTORS: readonly Collector[] = [selfTestCollector];
+export const COLLECTORS: readonly Collector[] = [
+  selfTestCollector,
+  contactCollector,
+];
 
 export type DueCollector = {
   collector: Collector;

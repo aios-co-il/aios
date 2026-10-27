@@ -2956,6 +2956,7 @@ export type Database = {
       };
       call_logs: {
         Row: {
+          caller_resolution: string | null;
           caller_user_id: string;
           client_id: string | null;
           created_at: string;
@@ -2974,6 +2975,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          caller_resolution?: string | null;
           caller_user_id: string;
           client_id?: string | null;
           created_at?: string;
@@ -2992,6 +2994,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          caller_resolution?: string | null;
           caller_user_id?: string;
           client_id?: string | null;
           created_at?: string;
@@ -15682,6 +15685,15 @@ export type Database = {
         };
         Returns: number;
       };
+      carmen_finding_resolve_confirmed: {
+        Args: {
+          p_actor_user_id: string;
+          p_finding_id: string;
+          p_note?: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       carmen_finding_set_status: {
         Args: {
           p_feedback?: string;
@@ -16022,6 +16034,32 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      get_client_contact_evidence: {
+        Args: {
+          p_client_ids?: string[];
+          p_min_call_seconds?: number;
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          agency_id: string;
+          client_id: string;
+          client_name: string;
+          client_since: string;
+          last_contact_at: string;
+          last_log_at: string;
+          unlogged_call_at: string;
+          unlogged_call_id: string;
+          unlogged_call_resolution: string;
+          unlogged_call_seconds: number;
+          unlogged_call_user_id: string;
+          unlogged_call_user_name: string;
+          unlogged_meeting_at: string;
+          unlogged_meeting_id: string;
+          unlogged_meeting_source: string;
+          unlogged_meeting_summary: string;
+        }[];
+      };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
       get_cron_job_history: {
         Args: { p_jobid: number; p_limit?: number };

@@ -61,6 +61,12 @@ import {
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
+  executeFindingDraftTool,
+  FINDING_DRAFT_TOOLS,
+  isFindingDraftTool,
+  promoteFindingDraftTool,
+} from "./finding-draft/tool.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -1315,6 +1321,7 @@ const ALL_TOOLS = [
       required: ["client_id", "content"],
     },
   },
+  ...FINDING_DRAFT_TOOLS,
   // MESSAGES
   {
     name: "send_message",
@@ -5648,6 +5655,20 @@ async function executeTool(
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
     );
+  }
+  if (isFindingDraftTool(name)) {
+    return executeFindingDraftTool(supabase, {
+      tenantId,
+      args,
+      requesterUserId: humanRequesterUserId ?? null,
+      caller: {
+        campaignerId: callerCampaignerId ?? null,
+        isManagerRole,
+        isTeamManager,
+        managedAgencyIds,
+      },
+      now: new Date(),
+    });
   }
   switch (name) {
     case "query_system_graph": {
@@ -14907,7 +14928,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           lazy: tokenOptimize,
           priorityTools: PRIORITY_TOOLS,
           legacyCoreTools: CORE_TOOLS,
-          forceInclude: (userText, picked, fullSchemaNames) =>
+          forceInclude: (userText, picked, fullSchemaNames) => {
             applyToolForceIncludes(
               userText,
               picked,
@@ -14917,7 +14938,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 extractMeetingUrl,
               },
               fullSchemaNames,
-            ),
+            );
+            promoteFindingDraftTool(userText, picked, fullSchemaNames);
+          },
         },
       );
       filteredTools = routed.tools;

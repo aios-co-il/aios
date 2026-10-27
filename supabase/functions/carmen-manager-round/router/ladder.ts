@@ -31,6 +31,8 @@ export type LadderContext = {
   settings: ManagerSettings;
   people: ClientRecipients;
   brief: Recipient[];
+  /** The finding's own person, for kinds routed to them first (KIND_POLICY.ownerFirst). */
+  owner?: Recipient | null;
 };
 
 /** Urgent kinds and critical findings go at once; the rest wait for the list. */
@@ -78,9 +80,10 @@ export function escalationTimes(
 }
 
 /**
- * The people at a level, each person once on the whole ladder. Level 0 falls
- * back to the managers, then the brief recipients, so someone always hears;
- * a later level without new people stays silent.
+ * The people at a level, each person once on the whole ladder. Level 0 is
+ * the finding's own person for owner-first kinds, else the campaigners; it
+ * falls back to the managers, then the brief recipients, so someone always
+ * hears; a later level without new people stays silent.
  */
 export function levelRecipients(
   level: Level,
@@ -88,9 +91,13 @@ export function levelRecipients(
   ctx: LadderContext,
 ): Recipient[] {
   const { campaigners, managers } = ctx.people;
-  const first = KIND_POLICY[kind].withManager
-    ? [...campaigners, ...managers]
-    : campaigners;
+  const policy = KIND_POLICY[kind];
+  const first =
+    policy.ownerFirst && ctx.owner
+      ? [ctx.owner]
+      : policy.withManager
+        ? [...campaigners, ...managers]
+        : campaigners;
   const rung0 = uniqueByKey(
     first.length ? first : managers.length ? managers : ctx.brief,
   );

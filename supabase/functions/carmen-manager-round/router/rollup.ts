@@ -1,0 +1,40 @@
+/**
+ * Kinds whose manager level is a weekly roll-up (KIND_POLICY.weeklyRollup,
+ * no_contact): the manager hears after the kind's business days, together
+ * with every such item on the next Sunday list, and the ladder stops there
+ * instead of reaching the owner level.
+ */
+import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
+import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
+import {
+  businessDaysLater,
+  nextBusinessStart,
+} from "../calendar/business-hours.ts";
+import { nextWorkingSlot, ROLLUP_CRON } from "../calendar/slots.ts";
+import { escalationTimes } from "./ladder.ts";
+import { KIND_POLICY } from "./policy.ts";
+
+/** When a ladder started at `start` reaches the manager and the owner level (null: never). */
+export function kindEscalationTimes(
+  start: Date,
+  kind: FindingKind,
+  settings: ManagerSettings,
+): [Date, Date | null] {
+  const rollup = KIND_POLICY[kind].weeklyRollup;
+  return rollup
+    ? [businessDaysLater(start, rollup.afterBusinessDays, settings), null]
+    : escalationTimes(start, settings);
+}
+
+/** True when the kind's manager level is the weekly roll-up. */
+export function isRollupKind(kind: FindingKind): boolean {
+  return !!KIND_POLICY[kind].weeklyRollup;
+}
+
+/** The first weekly roll-up at or after `from` (Sunday 08:30, holidays skipped). */
+export function rollupTime(from: Date, settings: ManagerSettings): Date {
+  return (
+    nextWorkingSlot(ROLLUP_CRON, from, settings) ??
+    nextBusinessStart(from, settings)
+  );
+}

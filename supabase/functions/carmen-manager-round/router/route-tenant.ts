@@ -15,6 +15,7 @@ import {
 } from "../recipients/resolve.ts";
 import { gapClientIds, listOpenGaps, recheckPeople } from "./gap-recheck.ts";
 import { recordGaps, routingGaps } from "./gaps.ts";
+import { resolveOwners } from "./owners.ts";
 import { type NotifyFloors, routeFinding } from "./route.ts";
 
 /** Findings routed per tenant per call; the rest wait for the next round. */
@@ -62,11 +63,18 @@ export async function routeTenant(
     ...gapClientIds(open),
   ];
   const people = await resolvePeople(deps.directory, input, staff, clientIds);
+  const owners = await resolveOwners(deps.directory, {
+    tenantId: input.tenantId,
+    findings,
+    people,
+    staff,
+  });
   const decisions = findings.map((finding) =>
     routeFinding(finding, {
       ...input,
       brief,
       people: people.get(finding.client_id ?? "") ?? NO_PEOPLE,
+      owner: owners.get(finding.id) ?? null,
     }),
   );
   const rechecked = await recheckPeople(
@@ -78,7 +86,7 @@ export async function routeTenant(
   const gaps = routingGaps(
     {
       clients: people,
-      people: [...brief, ...rechecked.people],
+      people: [...brief, ...rechecked.people, ...owners.values()],
       gone: rechecked.gone,
     },
     input.now,

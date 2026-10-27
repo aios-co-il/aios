@@ -2,6 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { MANAGER_DEFAULTS } from "../../_shared/manager-round/settings.ts";
 import {
   addBusinessHours,
+  businessDaysLater,
   isBusinessTime,
   nextBusinessStart,
 } from "./business-hours.ts";
@@ -71,5 +72,18 @@ Deno.test("addBusinessHours across both DST changes", () => {
   assertEquals(
     addBusinessHours(at("2026-10-24T19:00:00Z"), 1, calendar).toISOString(),
     "2026-10-25T08:00:00.000Z",
+  );
+});
+
+Deno.test("businessDaysLater opens the business day n days on", () => {
+  const thursday = at("2026-10-29T15:00:00Z"); // Thu 17:00
+  assertEquals(
+    businessDaysLater(thursday, 2, calendar).toISOString(),
+    "2026-11-01T07:00:00.000Z", // Fri, (Shabbat skipped) Sun 09:00
+  );
+  const holiday = { ...calendar, holidays: ["2026-11-01"] };
+  assertEquals(
+    businessDaysLater(thursday, 2, holiday).toISOString(),
+    "2026-11-02T07:00:00.000Z",
   );
 });

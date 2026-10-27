@@ -76,7 +76,7 @@ export function finding(fields: Partial<StoredFinding> = {}): StoredFinding {
     id: crypto.randomUUID(),
     client_id: null,
     agency_id: null,
-    kind: "no_contact",
+    kind: "cost_spike",
     severity: "warning",
     short_code: 1,
     status: "open",

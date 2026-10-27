@@ -86,7 +86,10 @@ function staffWith(
 }
 
 /** A staff member as a recipient with a normalised phone. */
-function staffRecipient(member: StaffMember, role: RecipientRole): Recipient {
+export function staffRecipient(
+  member: StaffMember,
+  role: RecipientRole,
+): Recipient {
   return {
     key: `user:${member.user_id}`,
     user_id: member.user_id,

@@ -1,7 +1,7 @@
 // Writes an incoming PBX event to call_logs.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
-import { WebhookError } from "./errors.ts";
+import { loadFirstTenantUser, resolveCaller } from "./caller.ts";
 import type { CallLogRow, Owner } from "./match.ts";
 import { mapCallStatus } from "./status.ts";
 
@@ -43,11 +43,8 @@ export async function insertCall(
   owner: Owner,
   recording: Recording,
 ): Promise<SavedCall> {
-  const callerUserId = await resolveCallerUser(
-    sb,
-    tenantId,
-    settings,
-    event.extension,
+  const caller = await resolveCaller(settings, event.extension, () =>
+    loadFirstTenantUser(sb, tenantId),
   );
   const { data, error } = await sb
     .from("call_logs")
@@ -55,7 +52,8 @@ export async function insertCall(
       tenant_id: tenantId,
       lead_id: owner.leadId,
       client_id: owner.clientId,
-      caller_user_id: callerUserId,
+      caller_user_id: caller.userId,
+      caller_resolution: caller.resolution,
       from_number: event.caller,
       to_number: event.called || event.caller || "unknown",
       status: resolveStatus(event, recording, null),
@@ -92,29 +90,6 @@ function resolveStatus(
   if (event.status) return mapCallStatus(event.status);
   if (hasRecording(recording)) return "completed";
   return existing?.status ?? "completed";
-}
-
-/** The agent on the extension, else the tenant's first user
- *  (call_logs.caller_user_id is required). */
-async function resolveCallerUser(
-  sb: SupabaseClient,
-  tenantId: string,
-  settings: PbxSettings,
-  extension: string | null,
-): Promise<string> {
-  const mapped = extension
-    ? (settings.extensions || []).find((e) => e.extension === extension)
-    : undefined;
-  if (mapped?.user_id) return mapped.user_id;
-  const { data } = await sb
-    .from("tenant_users")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!data?.user_id) throw new WebhookError("No tenant user found", 422);
-  return data.user_id;
 }
 
 function buildNotes(event: PbxEvent, settings: PbxSettings): string | null {

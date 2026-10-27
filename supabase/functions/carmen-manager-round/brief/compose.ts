@@ -5,7 +5,7 @@
  * Carmen already did in the last 24 hours. Read-only for now: replies act on
  * it only once the reply parser lands (plan component C16).
  */
-import { APP_TIME_ZONE } from "../../_shared/calendarTimeZone.ts";
+import { dayMonth } from "../calendar/day-month.ts";
 import { firstName } from "../dispatch/message.ts";
 
 export const BRIEF_MAX_LINES = 15;
@@ -25,11 +25,7 @@ export type BriefInput = {
 /** The brief text for one reader, at most BRIEF_MAX_LINES lines. */
 export function composeMorningBrief(input: BriefInput): string {
   const name = firstName(input.recipientName);
-  const day = input.now.toLocaleDateString("he-IL", {
-    timeZone: APP_TIME_ZONE,
-    day: "numeric",
-    month: "numeric",
-  });
+  const day = dayMonth(input.now);
   const lines = [`בוקר טוב${name ? ` ${name}` : ""}, הסיכום של כרמן ל־${day}:`];
   lines.push(...decisionLines(input.decisions));
   lines.push(...teamLines(input.team));

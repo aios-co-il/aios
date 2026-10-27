@@ -152,8 +152,8 @@ function parseMode(raw: unknown): ManagerMode | null {
   return MANAGER_MODES.find((mode) => mode === raw) ?? null;
 }
 
-/** A plain object's own keys, or an empty object. */
-function record(raw: unknown): Record<string, unknown> {
+/** A plain object's own keys, or an empty object (also for collectors' own keys under manager). */
+export function record(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" && !Array.isArray(raw)
     ? { ...raw }
     : {};
@@ -172,7 +172,7 @@ function isoOrNull(raw: unknown): string | null {
 }
 
 /** A positive number, or the fallback. */
-function positive(raw: unknown, fallback: number): number {
+export function positive(raw: unknown, fallback: number): number {
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }

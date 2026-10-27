@@ -30,7 +30,7 @@ Deno.test("routeFinding holds and previews without sending", async (t) => {
         reason(
           routeFinding(
             finding(),
-            ctx({ ...team, kinds: { no_contact: { enabled: false } } }),
+            ctx({ ...team, kinds: { cost_spike: { enabled: false } } }),
           ),
         ),
         "kind_off",
@@ -50,7 +50,7 @@ Deno.test("routeFinding holds and previews without sending", async (t) => {
       );
       const floored = routeFinding(
         finding(),
-        ctx(team, { floors: { no_contact: "2026-11-01T07:30:00Z" } }),
+        ctx(team, { floors: { cost_spike: "2026-11-01T07:30:00Z" } }),
       );
       assertEquals(reason(floored), "before_notify_since");
       assertEquals(floored.deliveries, []);
