@@ -41,6 +41,29 @@ jobs:
           test -s /tmp/carmen-job.mp4.json
           ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 /tmp/carmen-job.mp4
         working-directory: .
+      - name: Render a Workshop film (v3, looped bed, kickers over karaoke)
+        # fixtures/workshop-manifest.json is what render-worker's buildWorkshopManifest makes of a
+        # two-scene trailer: a 2 s music track laid five times across the 6.5 s film.
+        run: |
+          dir=$(mktemp -d)
+          cp fixtures/workshop-manifest.json "$dir/"
+          gen() { ffmpeg -hide_banner -loglevel error -y -f lavfi "$@"; }
+          gen -i color=c=0x123456:s=640x360:d=1 -frames:v 1 "$dir/still-0.png"
+          gen -i color=c=0x654321:s=640x360:d=1 -frames:v 1 "$dir/still-1.png"
+          gen -i sine=frequency=330:duration=2 -af volume=4 "$dir/music.wav"
+          gen -i sine=frequency=220:duration=3.5 -af volume=2 "$dir/narration.wav"
+          node render-job.mjs "$dir/workshop-manifest.json" /tmp/carmen-workshop.mp4
+      - name: Verify the Workshop film has its music to the end
+        run: |
+          frames=$(ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 /tmp/carmen-workshop.mp4)
+          test "$frames" = 195
+          # On the end card (from 4 s, before the closing fade at 5 s) nobody speaks, so the
+          # trailer bed is up: about -16.5 dB with the manifest's loops. Remotion's own `loop`
+          # restarts the volume envelope with each pass and plays it ducked (about -30 dB).
+          mean=$(ffmpeg -hide_banner -ss 4 -t 0.8 -i /tmp/carmen-workshop.mp4 -af volumedetect -f null - 2>&1 | sed -n 's/.*mean_volume: \(-\{0,1\}[0-9.]*\) dB.*/\1/p')
+          echo "end card mean volume: $mean dB"
+          awk -v m="$mean" 'BEGIN { exit !(m != "" && m > -22) }'
+        working-directory: .
       - name: Verify full video duration
         run: |
           test -s /tmp/carmen-full.mp4
@@ -59,6 +82,10 @@ jobs:
         with:
           name: carmen-remotion-full
           path: /tmp/carmen-full.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-workshop-film
+          path: /tmp/carmen-workshop.mp4
       - uses: actions/upload-artifact@v4
         with:
           name: carmen-manifest-job
