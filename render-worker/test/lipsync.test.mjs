@@ -9,6 +9,7 @@ import {
   talkingLine,
 } from "../src/narration.mjs";
 import {
+  getLipsyncProvider,
   lipsyncProviderNames,
   talkingPrompt,
 } from "../src/providers/index.mjs";
@@ -99,6 +100,42 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
     delete process.env.KLING_ACCESS_KEY;
     delete process.env.KLING_SECRET_KEY;
   }
+});
+
+test("Kling lip sync signs with the tenant's own Kling keys before the worker's", async () => {
+  process.env.KLING_ACCESS_KEY = "env-ak";
+  process.env.KLING_SECRET_KEY = "env-sk";
+  const realFetch = globalThis.fetch;
+  let auth = "";
+  globalThis.fetch = async (_url, init) => {
+    auth = init.headers.Authorization;
+    return new Response(JSON.stringify({ code: 0, data: { task_id: "k-1" } }));
+  };
+  try {
+    const provider = getLipsyncProvider("kling", {
+      klingAccessKey: "tenant-ak",
+      klingSecretKey: "tenant-sk",
+    });
+    await provider.submit({
+      videoUrl: "https://p.supabase.co/v.mp4",
+      audioUrl: "https://p.supabase.co/a.mp3",
+    });
+    const [, payload] = auth.replace("Bearer ", "").split(".");
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString()).iss).toBe(
+      "tenant-ak",
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.KLING_ACCESS_KEY;
+    delete process.env.KLING_SECRET_KEY;
+  }
+  // A tenant with its own pair is offered Kling on a worker without Kling keys.
+  expect(
+    lipsyncCandidates(
+      { klingAccessKey: "tenant-ak", klingSecretKey: "tenant-sk" },
+      {},
+    ),
+  ).toStrictEqual(["kling"]);
 });
 
 test("Higgsfield lip sync and talking clips use the documented Seedance 2.5 fields", () => {

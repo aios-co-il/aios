@@ -21,7 +21,11 @@ import { openRouterProvider } from "./openrouter.mjs";
 const LIPSYNC_PROVIDERS = {
   elevenlabs: (keys) =>
     elevenLabsLipsyncProvider({ apiKey: keys?.elevenLabsKey }),
-  kling: () => klingLipsyncProvider(),
+  kling: (keys) =>
+    klingLipsyncProvider({
+      accessKey: keys?.klingAccessKey,
+      secretKey: keys?.klingSecretKey,
+    }),
   heygen: (keys) => heygenLipsyncProvider({ apiKey: keys?.openRouterKey }),
   higgsfield: (keys) =>
     higgsfieldLipsyncProvider({

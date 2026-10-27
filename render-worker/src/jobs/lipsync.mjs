@@ -30,7 +30,7 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const NO_LIPSYNC_PROVIDER =
-  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), an OpenRouter key or a Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
+  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), a Kling key pair, an OpenRouter key or a Higgsfield key to the tenant";
 
 /** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
 export async function lipsyncPath(db, run, folder) {

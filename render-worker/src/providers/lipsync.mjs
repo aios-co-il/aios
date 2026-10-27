@@ -14,7 +14,7 @@
 import { elevenLabsBaseUrl, imageMime } from "./elevenlabs.mjs";
 import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 import { higgsfieldBaseUrl } from "./higgsfield.mjs";
-import { klingBaseUrl, klingToken } from "./kling.mjs";
+import { klingAuth, klingBaseUrl, klingKeys } from "./kling.mjs";
 import { openRouterProvider } from "./openrouter.mjs";
 
 /** Planning price per second of talking video, until the first paid run gives the real one. */
@@ -128,8 +128,8 @@ export function elevenLabsLipsyncProvider({ apiKey, fetchImpl = fetch } = {}) {
  * POST /v1/videos/lip-sync { input: { video_url, mode: "audio2video", audio_type: "url",
  * audio_url } }, then GET /v1/videos/lip-sync/{task_id}. Kling API reference, section
  * "Lip-Sync" (https://app.klingai.com/global/dev/document-api/apiReference/model/videoTolip;
- * mirrored at https://glama.ai/mcp/servers/@199-mcp/mcp-kling). Keys: KLING_ACCESS_KEY and
- * KLING_SECRET_KEY on the worker (Kling has no tenant key today).
+ * mirrored at https://glama.ai/mcp/servers/@199-mcp/mcp-kling). Keys: the tenant's own Kling pair
+ * (kling_access_key / kling_secret_key), as the Kling scene engine signs (klingKeys).
  */
 export function klingLipsyncBody({ videoUrl, audioUrl }) {
   if (!videoUrl) throw new Error("kling lipsync needs the scene clip");
@@ -144,19 +144,12 @@ export function klingLipsyncBody({ videoUrl, audioUrl }) {
   };
 }
 
-export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
-  const accessKey = process.env.KLING_ACCESS_KEY;
-  const secretKey = process.env.KLING_SECRET_KEY;
-  const auth = () => {
-    if (!accessKey || !secretKey)
-      throw new Error(
-        "KLING_ACCESS_KEY and KLING_SECRET_KEY are required for Kling lip sync",
-      );
-    return {
-      Authorization: `Bearer ${klingToken(accessKey, secretKey)}`,
-      "Content-Type": "application/json",
-    };
-  };
+export function klingLipsyncProvider({
+  accessKey,
+  secretKey,
+  fetchImpl = fetch,
+} = {}) {
+  const auth = klingAuth({ accessKey, secretKey });
   return {
     name: "kling",
     model: "kling-lip-sync",
@@ -355,13 +348,17 @@ export function higgsfieldLipsyncProvider({
 
 /**
  * Lip-sync providers this tenant can run, best first: ElevenLabs (the tenant's own key, a
- * documented image+audio lip-sync model), Kling (worker keys, needs the clip), HeyGen Avatar
- * IV (the tenant's OpenRouter key, image+audio), Higgsfield.
+ * documented image+audio lip-sync model), Kling (the tenant's Kling pair, needs the clip),
+ * HeyGen Avatar IV (the tenant's OpenRouter key, image+audio), Higgsfield.
  */
 export function lipsyncCandidates(keys = {}, env = process.env) {
   const names = [];
   if (keys.elevenLabsKey) names.push("elevenlabs");
-  if (env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY) names.push("kling");
+  const kling = klingKeys(
+    { accessKey: keys.klingAccessKey, secretKey: keys.klingSecretKey },
+    env,
+  );
+  if (kling.accessKey && kling.secretKey) names.push("kling");
   if (keys.openRouterKey) names.push("heygen");
   if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret))
     names.push("higgsfield");
