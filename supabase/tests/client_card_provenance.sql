@@ -12,6 +12,7 @@ DECLARE
   v_member uuid;
   v_campaigner uuid;
   v_carmen_row uuid;
+  v_shared_row uuid;
   v_ref text := 'qa-rollback-' || gen_random_uuid();
   v_counted_at timestamptz := now() + interval '1 day';
   v_last timestamptz;
@@ -106,6 +107,7 @@ BEGIN
   IF NOT r1.inserted OR r1.attribution <> 'attributed' THEN
     RAISE EXCEPTION 'An agency read_write tenant could not write the card: %', r1;
   END IF;
+  v_shared_row := r1.entry_id;
 
   -- Attribution: with no campaigner on the client, the tenant owner.
   SELECT * INTO r1 FROM public.record_client_card_entry(
@@ -196,9 +198,14 @@ BEGIN
   IF affected <> 1 THEN
     RAISE EXCEPTION 'The tenant owner could not edit a carmen row';
   END IF;
+
+  -- One shared card: the client's org sees the entry the sharing org wrote.
+  IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_shared_row) THEN
+    RAISE EXCEPTION 'The client''s org cannot see the entry the sharing org wrote';
+  END IF;
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 END;
 $test$;
-SELECT 'Tenant check, dedupe, attribution, refusals, pulse filter, RLS and grants passed' AS result;
+SELECT 'Tenant check, dedupe, attribution, refusals, pulse filter, RLS, shared card and grants passed' AS result;
 ROLLBACK;

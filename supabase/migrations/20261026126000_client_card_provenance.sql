@@ -37,10 +37,12 @@
 --    the baseline rule (calls only) the pulse's last-call dates do not move.
 --    No alert or message is replayed on deploy.
 --
--- 4. RLS: non-human rows are readable like any other row. In the browser they
---    can be edited or deleted only by tenant owners and agency owners;
---    campaigners keep editing and deleting their own human rows. The browser
---    may insert only human or system_send rows.
+-- 4. RLS: one shared card per client. Anyone who can see the client (its own
+--    org, or an org its agency is shared with) reads every entry on it,
+--    whichever org wrote it. Non-human rows are readable like any other
+--    row. In the browser they can be edited or deleted only by tenant owners
+--    and agency owners; campaigners keep editing and deleting their own human
+--    rows. The browser may insert only human or system_send rows.
 
 ALTER TABLE public.client_updates
   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'human',
@@ -352,6 +354,22 @@ CREATE POLICY "Users can create client updates in their tenant"
     OR (
       tenant_id = public.get_user_tenant_id(auth.uid())
       AND source IN ('human', 'system_send')
+    )
+  );
+
+-- Reads, one shared card: a user who can see the client (own org, or an org
+-- its agency is shared with) sees every entry on it, whichever org wrote it.
+-- The subquery runs under the caller's own clients policies.
+DROP POLICY IF EXISTS "Users view card entries of clients they can see" ON public.client_updates;
+CREATE POLICY "Users view card entries of clients they can see"
+  ON public.client_updates
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.clients AS c
+      WHERE c.id = client_updates.client_id
     )
   );
 
