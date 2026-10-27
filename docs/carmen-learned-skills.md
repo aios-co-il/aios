@@ -11,8 +11,8 @@ MCP bridge (`request_dev_task` / `ask_claude`). Claude solves it and then, if th
 task represents a **reusable** capability, does two things:
 
 1. **Makes Carmen independent** — writes a skin (row in `public.ai_skills`,
-   `scope='tenant'`, `created_by_agent=true`) so Carmen can do it herself next
-   time, triggered by the relevant Hebrew/English phrases.
+   `created_by_agent=true`, scoped as `docs/agents/carmen.md` says) so Carmen can
+   do it herself next time, triggered by the relevant Hebrew/English phrases.
 2. **Remembers it here** — appends a dated entry below, so future Claude sessions
    know this ground has already been covered (and which skin slug owns it).
 
@@ -24,10 +24,9 @@ When a skin ships with a code change, put its `ai_skills` row in a migration in
 Production. Older entries below that cite `supabase/ops/*.sql` record the
 legacy manual process.
 
-Tenant ids used below: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019` is MarketingCaptain
-(slug `marketingcaptain`) and `6ad8f321-25db-4a04-8e44-e57a7c8961b2` is DMM (slug
-`dmm`). A tenant skin reaches only that org's Carmen; behaviour every org's
-Carmen needs goes in a `scope='global'` row.
+Production tenant ids used below: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019` is
+MarketingCaptain (slug `marketingcaptain`) and
+`6ad8f321-25db-4a04-8e44-e57a7c8961b2` is DMM (slug `dmm`).
 
 ## Entry format
 
@@ -45,9 +44,9 @@ Carmen needs goes in a `scope='global'` row.
 
 ### 2026-10-27 — Learned conduct for every org's Carmen (AIO-262)
 
-- **Skin slugs:** `identity-guard`, `group_response_only_when_addressed`, `wa_notify_never_group_session`, `carmen_session_keyed_by_chat_id`, `wa_voice_transcript_capability`, `team_roster_awareness`, `diagnose_campaign_pulse_status`, `pulse_health_wa_digest_and_sync_truth` (now global; were MarketingCaptain only). `dmm_notify_recipient_routing` retired.
-- **What Carmen can now do:** DMM's Carmen, and every new org's, follows the same conduct MarketingCaptain's Carmen learned. DMM pulse recipients (Felix and David) come from the per-org recipients setting (AIO-260), not a skin.
-- **How:** Migration `20261027090000_carmen_learned_skins_for_every_org.sql`, keyed by slug and tenant slug.
+- **Skin slug:** `group_response_only_when_addressed`, `wa_notify_never_group_session`, `carmen_session_keyed_by_chat_id`, `diagnose_campaign_pulse_status` (tenant: global)
+- **What Carmen can now do:** Every org's Carmen follows these four rules, which MarketingCaptain's Carmen learned first. MarketingCaptain's own tenant rows stay and still win for its Carmen.
+- **How:** Migration `20261027090000_carmen_learned_skins_for_every_org.sql` adds global rows whose text names no org's people, phones or clients; `supabase/tests/carmen_learned_skins_global.sql` checks them. `wa_voice_transcript_capability`, `team_roster_awareness` and `pulse_health_wa_digest_and_sync_truth` get no global row: `run-ai-agent` already gives every org's Carmen the voice-note rule (`buildVoiceCapabilityPromptRule`) and the team roster, and `get_latest_campaign_pulse` returns the WhatsApp digest rule with its result.
 - **Origin:** DMM parity audit — David: every fix must reach DMM's Carmen too.
 
 ### 2026-10-14 — משימות שהושלמו נשארות בלוח השנה
