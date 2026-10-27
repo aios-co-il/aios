@@ -1,5 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { configuredCandidate, dedupeByPhone } from "./candidates.ts";
+import {
+  configuredCandidate,
+  dedupeByPhone,
+  dialablePhone,
+} from "./candidates.ts";
 import type {
   ConfiguredReportRecipient,
   ReportStaffMember,
@@ -151,5 +155,19 @@ Deno.test("configuredCandidate and dedupeByPhone", async (t) => {
         reason: "not_staff",
       },
     ]);
+  });
+});
+
+Deno.test("dialablePhone", async (t) => {
+  await t.step("accepts 9 to 15 digits after normalising", () => {
+    assertEquals(dialablePhone("050-000-0001"), "972500000001");
+    assertEquals(dialablePhone("+123456789"), "123456789");
+    assertEquals(dialablePhone("+123456789012345"), "123456789012345");
+  });
+
+  await t.step("refuses 8 or 16 digits, as the table's CHECK does", () => {
+    assertEquals(dialablePhone("+12345678"), null);
+    assertEquals(dialablePhone("+1234567890123456"), null);
+    assertEquals(dialablePhone(null), null);
   });
 });

@@ -22,8 +22,10 @@ create table if not exists public.carmen_report_recipients (
   created_at timestamptz not null default now(),
   constraint carmen_report_recipients_one_target_chk
     check ((user_id is null) <> (phone is null)),
+  -- 9 to 15 digits: the phones dialablePhone
+  -- (_shared/carmen-report-recipients/candidates.ts) sends to.
   constraint carmen_report_recipients_phone_e164_chk
-    check (phone ~ '^\+[1-9][0-9]{7,14}$'),
+    check (phone ~ '^\+[1-9][0-9]{8,14}$'),
   constraint carmen_report_recipients_phone_label_chk
     check (phone is null or coalesce(length(btrim(label)), 0) between 1 and 80),
   constraint carmen_report_recipients_tenant_user_key unique (tenant_id, user_id),
@@ -266,7 +268,7 @@ begin
   eligible as (
     select pp.tenant_id, pp.phone
     from pulse_phones pp
-    where pp.phone ~ '^\+[1-9][0-9]{7,14}$'
+    where pp.phone ~ '^\+[1-9][0-9]{8,14}$'
       and not exists (
         select 1 from public.carmen_report_recipients r
         where r.tenant_id = pp.tenant_id

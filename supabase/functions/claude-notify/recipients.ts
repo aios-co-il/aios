@@ -1,5 +1,5 @@
 import { normalizeNotifyPhone } from "../_shared/carmen-notify-target.ts";
-import { loadCarmenReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
+import { loadNotifyReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
 /**
@@ -13,7 +13,7 @@ export async function loadNotifyRecipients(
   tenantId: string,
 ) {
   const [report, sessions, campaigners] = await Promise.all([
-    loadCarmenReportRecipients(sb, tenantId),
+    loadNotifyReportRecipients(sb, tenantId, "claude-notify"),
     sb
       .from("carmen_whatsapp_sessions")
       .select(
@@ -33,12 +33,6 @@ export async function loadNotifyRecipients(
   const error = sessions.error ?? campaigners.error;
   if (error) {
     throw new Error(`claude-notify: load recipients failed: ${error.message}`);
-  }
-  if (report.error) {
-    console.warn("[claude-notify] report recipients unavailable", {
-      tenantId,
-      error: report.error,
-    });
   }
   return {
     reportRecipients: report.recipients,

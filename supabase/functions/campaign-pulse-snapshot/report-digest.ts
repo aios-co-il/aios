@@ -16,18 +16,26 @@ import {
 
 /**
  * Full-tenant digest to each report recipient; sent when any was queued.
- * `reached` holds the phones it was queued to, so the per-campaigner step
- * skips only people who already have the full digest.
+ * `getsDigest` holds the phones the scoped step then skips: the ones the
+ * digest was queued to, or in a preview everyone the real run sends it to.
+ * A run for one campaigner sends no digest and skips nobody, so that
+ * campaigner gets their own.
  */
 export async function deliverReportDigest(input: {
+  tenantId: string;
   recipients: CarmenReportRecipient[];
   digest: string;
   queue: Queue;
-  /** A preview run, or a run for one campaigner: no full digest goes out. */
-  partialRun: boolean;
+  previewOnly: boolean;
+  /** Set when the run is for one campaigner only. */
+  campaignerName: string | null;
 }): Promise<ReportDigestResult> {
-  if (input.partialRun) {
-    return { sent: false, entries: [], reached: new Set() };
+  if (input.campaignerName) {
+    return { sent: false, entries: [], getsDigest: new Set() };
+  }
+  if (input.previewOnly) {
+    const phones = input.recipients.map((recipient) => recipient.phone);
+    return { sent: false, entries: [], getsDigest: new Set(phones) };
   }
   const deliveries = await queueToReportRecipients(
     input.recipients,
@@ -35,10 +43,16 @@ export async function deliverReportDigest(input: {
     input.queue,
   );
   const queued = deliveries.filter((row) => row.queued);
+  if (!queued.length) {
+    console.error(
+      "[campaign-pulse] full digest reached no report recipient",
+      input.tenantId,
+    );
+  }
   return {
     sent: queued.length > 0,
     entries: deliveries.map((row) => ({ type: "report_digest", ...row })),
-    reached: new Set(queued.map((row) => row.phone)),
+    getsDigest: new Set(queued.map((row) => row.phone)),
   };
 }
 
@@ -77,8 +91,8 @@ export type ReportDigestEntry = ReportDelivery & { type: "report_digest" };
 export type ReportDigestResult = {
   sent: boolean;
   entries: ReportDigestEntry[];
-  /** Normalised phones the full digest was queued to. */
-  reached: Set<string>;
+  /** Normalised phones the scoped step skips (see deliverReportDigest). */
+  getsDigest: Set<string>;
 };
 
 export type MissingPhoneAlertEntry = {

@@ -37,6 +37,13 @@ BEGIN
   END;
 
   BEGIN
+    INSERT INTO public.carmen_report_recipients (tenant_id, phone, label)
+    VALUES (v_tenant, '+12345678', 'QA');
+    RAISE EXCEPTION 'e164: an 8-digit number the sends skip must be refused';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
     INSERT INTO public.carmen_report_recipients (tenant_id, phone)
     VALUES (v_tenant, '+972599999903');
     RAISE EXCEPTION 'label: an extra phone without a label must be refused';
@@ -63,15 +70,10 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 
-  -- A listed phone that later becomes a client contact's is reported to every send.
+  -- A listed phone that later becomes a client contact's (each send sees it
+  -- through carmen_report_client_phones, checked as the service role below).
   INSERT INTO public.client_contacts (client_id, tenant_id, contact_name, phone)
   VALUES (v_client, v_tenant, 'QA ROLLBACK late contact', '+972599999901');
-  IF NOT EXISTS (
-    SELECT 1 FROM public.carmen_report_client_phones(v_tenant) p
-    WHERE p = '+972599999901'
-  ) THEN
-    RAISE EXCEPTION 'send check: a listed phone that became a client must be reported';
-  END IF;
 
   -- A user without a role in the organization is refused.
   SELECT p.id INTO v_outsider FROM public.profiles p
@@ -124,10 +126,17 @@ BEGIN
   END IF;
 
   -- The service role (no signed-in user) lists the staff and the client
-  -- phones on the list; a stranger may not.
+  -- phones on the list, so every send skips the listed phone that became a
+  -- client contact's; a stranger may not. This session runs without a JWT,
+  -- which the owner check refuses, so the claim is set first.
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
   PERFORM * FROM public.carmen_report_staff(v_tenant);
-  PERFORM * FROM public.carmen_report_client_phones(v_tenant);
+  IF NOT EXISTS (
+    SELECT 1 FROM public.carmen_report_client_phones(v_tenant) p
+    WHERE p = '+972599999901'
+  ) THEN
+    RAISE EXCEPTION 'send check: a listed phone that became a client must be reported';
+  END IF;
   PERFORM set_config(
     'request.jwt.claims',
     json_build_object('role', 'authenticated', 'sub', gen_random_uuid())::text,
@@ -159,18 +168,22 @@ BEGIN
     AND p.status IS DISTINCT FROM 'inactive'
     AND p.id <> v_owner
   ORDER BY p.id LIMIT 1;
+  -- A super admin reads every list, so the other owner must not be one.
   SELECT p.id INTO v_other_owner FROM public.profiles p
   WHERE NOT EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = p.id AND ur.tenant_id = v_tenant)
     AND NOT EXISTS (SELECT 1 FROM public.tenant_users tu WHERE tu.user_id = p.id AND tu.tenant_id = v_tenant)
+    AND NOT public.is_super_admin(p.id)
     AND p.id NOT IN (v_owner, v_manager)
   ORDER BY p.id LIMIT 1;
   IF v_other_tenant IS NULL OR v_other_owner IS NULL THEN
     RAISE EXCEPTION 'Requires a second tenant and three profiles outside the first';
   END IF;
+  -- The other owner may already own that tenant.
   INSERT INTO public.user_roles (user_id, tenant_id, role) VALUES
     (v_owner, v_tenant, 'owner'),
     (v_manager, v_tenant, 'team_manager'),
-    (v_other_owner, v_other_tenant, 'owner');
+    (v_other_owner, v_other_tenant, 'owner')
+  ON CONFLICT ON CONSTRAINT user_roles_user_id_role_tenant_unique DO NOTHING;
 
   -- Another organization's owner learns nothing: refused before the client
   -- and staff checks, and reads no rows.

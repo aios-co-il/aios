@@ -11,7 +11,7 @@
 // Body: { tenant_id, message, chat_id? }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { loadCarmenReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
+import { loadNotifyReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
 import {
   normalizeNotifyPhone,
   pickNotifyDelivery,
@@ -154,9 +154,11 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const [report, { data: sessions }, { data: campaigners }] = await Promise.all(
-    [
-      loadCarmenReportRecipients(sb, tenantId),
+  // A failed report-list read leaves the staff chain below to decide; each
+  // response names the bypass (JSON drops the field when there is no error).
+  const [reportList, { data: sessions }, { data: campaigners }] =
+    await Promise.all([
+      loadNotifyReportRecipients(sb, tenantId, "manus-notify"),
       sb
         .from("carmen_whatsapp_sessions")
         .select(
@@ -172,17 +174,7 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .limit(200),
-    ],
-  );
-
-  // A failed list read leaves the staff chain below to decide; each response
-  // names the bypass (JSON drops the field when there is no error).
-  if (report.error) {
-    console.warn("[manus-notify] report recipients unavailable", {
-      tenantId,
-      error: report.error,
-    });
-  }
+    ]);
 
   const staff = (campaigners || [])
     .filter((c: any) => !!normalizeNotifyPhone(c.phone))
@@ -194,7 +186,7 @@ Deno.serve(async (req) => {
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
-    reportRecipients: report.recipients,
+    reportRecipients: reportList.recipients,
     sessions: (sessions || []).map((s: any) => ({
       chat_id: s.chat_id,
       phone: s.phone,
@@ -212,7 +204,7 @@ Deno.serve(async (req) => {
         target.reason ||
         "no resolvable Carmen WhatsApp recipient for this tenant",
       source: target.source,
-      report_recipients_error: report.error ?? undefined,
+      report_recipients_error: reportList.error ?? undefined,
     });
   }
 
@@ -226,7 +218,7 @@ Deno.serve(async (req) => {
       reason: "no Carmen WhatsApp automation/session bridge for this tenant",
       source: target.source,
       chat_id: delivery.chatId,
-      report_recipients_error: report.error ?? undefined,
+      report_recipients_error: reportList.error ?? undefined,
     });
   }
 
@@ -247,6 +239,6 @@ Deno.serve(async (req) => {
     phone: delivery.phoneNumber,
     contact_name: target.contactName,
     source: target.source,
-    report_recipients_error: report.error ?? undefined,
+    report_recipients_error: reportList.error ?? undefined,
   });
 });

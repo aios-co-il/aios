@@ -20,7 +20,6 @@ import {
   cachedLastMetaActivity,
   fetchLastMetaCampaignActivity,
 } from "../_shared/fbInsights.ts";
-import { normalizeNotifyPhone } from "../_shared/carmen-notify-target.ts";
 import {
   loadCarmenReportRecipients,
   warnListUnreachable,
@@ -29,15 +28,14 @@ import {
   deliverMissingPhoneAlert,
   deliverReportDigest,
 } from "./report-digest.ts";
+import { deliverScopedPulseRecipients } from "./scoped-delivery.ts";
 import {
-  buildPulsePreviewMessage,
   mergePulseDeliveryPlans,
   planCampaignerPulseDeliveries,
   planTeamManagerPulseDeliveries,
   findCampaignersMissingPulsePhone,
   filterPulsePlansByCampaignerName,
   filterMissingPhoneCampaignersByName,
-  scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
@@ -190,72 +188,6 @@ async function loadTeamManagerDeliveryPlans(
     })),
     tenantSlug,
   );
-}
-
-async function deliverScopedPulseRecipients(
-  supabase: any,
-  tenantId: string,
-  tenantSlug: string,
-  snapshots: any[],
-  dashboardUrl: string,
-  plans: PulseDeliveryPlan[],
-  previewPhone: string | null,
-  skipPhones: Set<string>,
-  previewOnly = false,
-): Promise<any[]> {
-  const deliveries: any[] = [];
-  for (const plan of plans) {
-    const recipientPhone = normalizeNotifyPhone(plan.phone);
-    if (
-      !recipientPhone ||
-      skipPhones.has(recipientPhone) ||
-      isPulseDeliveryExcludedPhone(recipientPhone, tenantSlug)
-    )
-      continue;
-
-    const scoped = scopeSnapshotsForPlan(snapshots, plan);
-    if (!scoped.length) continue;
-
-    const scopedDigest = buildPulseWhatsAppDigest(scoped, dashboardUrl);
-    const previewTarget = isPulseDeliveryExcludedPhone(previewPhone, tenantSlug)
-      ? null
-      : previewPhone;
-    if (previewTarget) {
-      const previewQueued = await queuePulseWhatsApp(
-        supabase,
-        tenantId,
-        tenantSlug,
-        buildPulsePreviewMessage(plan.name, scopedDigest),
-        previewTarget,
-      );
-      deliveries.push({
-        type: "preview",
-        recipient: plan.name,
-        role: plan.role,
-        preview_phone: previewTarget,
-        clients: scoped.length,
-        queued: previewQueued,
-      });
-    }
-
-    if (previewOnly) continue;
-
-    const queued = await queuePulseWhatsApp(
-      supabase,
-      tenantId,
-      tenantSlug,
-      scopedDigest,
-      recipientPhone,
-    );
-    deliveries.push({
-      type: plan.role,
-      recipient: plan.name,
-      phone: recipientPhone,
-      clients: scoped.length,
-      queued,
-    });
-  }
-  return deliveries;
 }
 
 Deno.serve(async (req) => {
@@ -912,7 +844,6 @@ Deno.serve(async (req) => {
         report.error,
       );
     }
-    warnListUnreachable("campaign-pulse", tenantId, report);
     const queueToPhone = (message: string, phone: string) =>
       queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, phone);
     let instantAlerts = noInstantAlerts();
@@ -979,23 +910,21 @@ Deno.serve(async (req) => {
           );
       }
     }
+    if (deliveryClaimed || instantAlerts.sent > 0) {
+      warnListUnreachable("campaign-pulse", tenantId, report);
+    }
     if (deliveryClaimed) {
       // Full-tenant digest to everyone the organization's Carmen reports to.
-      const partialRun = previewOnlyDelivery || !!campaignerNameFilter;
       const reportDigest = await deliverReportDigest({
+        tenantId,
         recipients: report.recipients,
         digest,
         queue: queueToPhone,
-        partialRun,
+        previewOnly: previewOnlyDelivery,
+        campaignerName: campaignerNameFilter,
       });
       scopedDeliveries.push(...reportDigest.entries);
       sent = reportDigest.sent;
-      if (!partialRun && !sent) {
-        console.error(
-          "[campaign-pulse] full digest reached no report recipient",
-          tenantId,
-        );
-      }
 
       const deliverToCampaigners =
         setting.campaign_pulse_deliver_to_campaigners === true;
@@ -1069,17 +998,16 @@ Deno.serve(async (req) => {
           mergePulseDeliveryPlans(plans),
           campaignerNameFilter || "",
         );
-        const recipientDeliveries = await deliverScopedPulseRecipients(
-          supabase,
-          tenantId,
-          tenantSlug,
+        const recipientDeliveries = await deliverScopedPulseRecipients({
+          plans: mergedPlans,
           snapshots,
           dashboardUrl,
-          mergedPlans,
-          setting.campaign_pulse_preview_phone || null,
-          reportDigest.reached,
-          previewOnlyDelivery,
-        );
+          tenantSlug,
+          previewPhone: setting.campaign_pulse_preview_phone || null,
+          previewOnly: previewOnlyDelivery,
+          reportDigest,
+          queue: queueToPhone,
+        });
         scopedDeliveries.push(...recipientDeliveries);
         if (!sent) {
           sent = previewOnlyDelivery

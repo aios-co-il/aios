@@ -111,10 +111,14 @@ function skippedEntry(
     : { name, extra_phone: candidate.rawPhone, source, reason };
 }
 
-/** Normalised digits, or null when the stored phone cannot be a WhatsApp number. */
-function dialablePhone(raw: string | null): string | null {
+/**
+ * Normalised digits (9 to 15, no leading 0), or null when the phone cannot be
+ * a WhatsApp number. The settings form stores only phones this accepts, and
+ * the carmen_report_recipients CHECK constraint mirrors it.
+ */
+export function dialablePhone(raw: string | null): string | null {
   const phone = normalizeNotifyPhone(raw);
-  return phone && phone.length >= 9 && phone.length <= 15 ? phone : null;
+  return phone && /^[1-9]\d{8,14}$/.test(phone) ? phone : null;
 }
 
 type Candidate = {

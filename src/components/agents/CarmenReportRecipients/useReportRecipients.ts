@@ -33,6 +33,7 @@ export function useReportRecipients(tenantId: string) {
     }),
     isLoading: queries.some((query) => query.isPending),
     isError: queries.some((query) => query.isError),
+    notOwner: queries.some((query) => isOwnerCheckRefusal(query.error)),
   };
 }
 
@@ -73,4 +74,18 @@ async function fetchReportClientPhones(tenantId: string) {
     throw error;
   }
   return data;
+}
+
+/**
+ * The owner-only RPCs refuse (insufficient_privilege) a signed-in user the
+ * database does not hold as an owner of this organization, though the app
+ * shows them as one: View As, or an owner role row without a tenant.
+ */
+function isOwnerCheckRefusal(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "42501"
+  );
 }

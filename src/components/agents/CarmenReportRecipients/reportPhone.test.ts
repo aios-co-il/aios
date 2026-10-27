@@ -20,4 +20,8 @@ describe("toReportPhoneE164", () => {
     expect(toReportPhoneE164("12345")).toBeNull();
     expect(toReportPhoneE164("phone")).toBeNull();
   });
+
+  it("refuses an 8-digit number the sends would skip", () => {
+    expect(toReportPhoneE164("+1234 5678")).toBeNull();
+  });
 });

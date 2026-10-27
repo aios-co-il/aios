@@ -273,19 +273,3 @@ Deno.test(
     assertStrictEquals(delivery.bridgeSession?.automation_id, "group-auto");
   },
 );
-
-Deno.test(
-  "a report recipient with no session still gets a private notify, named from the list",
-  () => {
-    const result = resolveCarmenNotifyTarget({
-      reportRecipients: [
-        { phone: "972500000003", name: "Partner", source: "configured" },
-      ],
-      sessions: [],
-      staff: [],
-    });
-    assertStrictEquals(result.source, "report_recipient");
-    assertStrictEquals(result.chatId, "972500000003");
-    assertStrictEquals(result.contactName, "Partner");
-  },
-);

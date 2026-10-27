@@ -1,8 +1,6 @@
 import {
-  assert,
   assertEquals,
   assertMatch,
-  assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
@@ -24,15 +22,18 @@ function recordingQueue(failPhone?: string) {
   return { sends, queue };
 }
 
+/** A real Sunday run: no preview, no campaigner filter. */
+const FULL_RUN = { tenantId: "t-1", previewOnly: false, campaignerName: null };
+
 Deno.test("deliverReportDigest", async (t) => {
   await t.step("sends the full digest to every report recipient", async () => {
     const { sends, queue } = recordingQueue();
 
     const result = await deliverReportDigest({
+      ...FULL_RUN,
       recipients: RECIPIENTS,
       digest: "full digest",
       queue,
-      partialRun: false,
     });
 
     assertEquals(sends, [
@@ -53,10 +54,10 @@ Deno.test("deliverReportDigest", async (t) => {
     const { queue } = recordingQueue("972500000011");
 
     const result = await deliverReportDigest({
+      ...FULL_RUN,
       recipients: RECIPIENTS,
       digest: "full digest",
       queue,
-      partialRun: false,
     });
 
     assertStrictEquals(result.sent, true);
@@ -66,46 +67,80 @@ Deno.test("deliverReportDigest", async (t) => {
     const { sends, queue } = recordingQueue();
 
     const result = await deliverReportDigest({
+      ...FULL_RUN,
       recipients: [],
       digest: "full digest",
       queue,
-      partialRun: false,
     });
 
     assertEquals(sends, []);
-    assertEquals(result, { sent: false, entries: [], reached: new Set() });
+    assertEquals(result, {
+      sent: false,
+      entries: [],
+      getsDigest: new Set<string>(),
+    });
   });
 
   await t.step(
-    "reached holds only the phones the digest was queued to",
+    "getsDigest holds only the phones the digest was queued to",
     async () => {
       const { queue } = recordingQueue("972500000011");
 
       const result = await deliverReportDigest({
+        ...FULL_RUN,
         recipients: RECIPIENTS,
         digest: "full digest",
         queue,
-        partialRun: false,
       });
 
-      assertEquals(result.reached, new Set(["972500000012"]));
+      assertEquals(result.getsDigest, new Set(["972500000012"]));
     },
   );
 
   await t.step(
-    "a preview or one-campaigner run sends no digest and skips nobody",
+    "a preview sends nothing and skips everyone the real run sends the digest to",
     async () => {
       const { sends, queue } = recordingQueue();
 
       const result = await deliverReportDigest({
+        ...FULL_RUN,
+        previewOnly: true,
         recipients: RECIPIENTS,
         digest: "full digest",
         queue,
-        partialRun: true,
       });
 
       assertEquals(sends, []);
-      assertEquals(result, { sent: false, entries: [], reached: new Set() });
+      assertEquals(result, {
+        sent: false,
+        entries: [],
+        getsDigest: new Set(["972500000011", "972500000012"]),
+      });
+    },
+  );
+
+  await t.step(
+    "a run for one campaigner sends no digest and skips nobody",
+    async () => {
+      const { sends, queue } = recordingQueue();
+
+      for (const previewOnly of [false, true]) {
+        const result = await deliverReportDigest({
+          ...FULL_RUN,
+          previewOnly,
+          campaignerName: "Felix",
+          recipients: RECIPIENTS,
+          digest: "full digest",
+          queue,
+        });
+
+        assertEquals(result, {
+          sent: false,
+          entries: [],
+          getsDigest: new Set<string>(),
+        });
+      }
+      assertEquals(sends, []);
     },
   );
 });
@@ -161,30 +196,3 @@ Deno.test("deliverMissingPhoneAlert", async (t) => {
     },
   );
 });
-
-Deno.test(
-  "campaign-pulse-snapshot sends the digest and instant alerts to the report recipients, and skips in the scoped step only the phones the digest reached",
-  async () => {
-    const source = await Deno.readTextFile(
-      new URL("./index.ts", import.meta.url),
-    );
-
-    assertMatch(source, /loadCarmenReportRecipients\(supabase, tenantId\)/);
-    assertMatch(source, /reportRecipients: report\.recipients/);
-    assertMatch(
-      source,
-      /deliverReportDigest\(\{\s*recipients: report\.recipients/,
-    );
-    assert(
-      source.includes(
-        "const partialRun = previewOnlyDelivery || !!campaignerNameFilter;",
-      ),
-    );
-    assertMatch(
-      source,
-      /mergedPlans,\s*setting\.campaign_pulse_preview_phone \|\| null,\s*reportDigest\.reached,/,
-    );
-    assertNotMatch(source, /new Set\(report\.recipients/);
-    assertNotMatch(source, /campaign_pulse_phone/);
-  },
-);

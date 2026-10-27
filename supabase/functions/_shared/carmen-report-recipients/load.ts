@@ -45,9 +45,30 @@ export async function loadCarmenReportRecipients(
 }
 
 /**
+ * loadCarmenReportRecipients for a notify to one person (claude-notify,
+ * manus-notify): a failed read is logged and returned, and the notify keeps
+ * its staff session chain.
+ */
+export async function loadNotifyReportRecipients(
+  db: Pick<DbClient, "from" | "rpc">,
+  tenantId: string,
+  sender: string,
+): Promise<LoadedReportRecipients> {
+  const report = await loadCarmenReportRecipients(db, tenantId);
+  if (report.error) {
+    console.warn(`[${sender}] report recipients unavailable`, {
+      tenantId,
+      error: report.error,
+    });
+  }
+  return report;
+}
+
+/**
  * Warns when nobody on the tenant's list is reachable. Only the senders that
- * then report to the owners call it (the Sunday digests and instant alerts);
- * a notify keeps the staff chain instead. Phones stay out of the log.
+ * then report to the owners call it (the Sunday digests and instant alerts),
+ * and only on a run that reports; a notify keeps the staff chain instead.
+ * Phones stay out of the log.
  */
 export function warnListUnreachable(
   sender: string,

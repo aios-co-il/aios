@@ -22,7 +22,7 @@ export function CarmenReportRecipientsSection() {
 
 /** The list, the team picker and the extra-phone form for one organization. */
 function ReportRecipientsEditor({ tenantId }: { tenantId: string }) {
-  const { rows, staff, resolved, isLoading, isError } =
+  const { rows, staff, resolved, isLoading, isError, notOwner } =
     useReportRecipients(tenantId);
   const { addMember, addPhone, remove } = useReportRecipientMutations(tenantId);
   const configuredIds = new Set(rows.map((row) => row.user_id));
@@ -36,7 +36,11 @@ function ReportRecipientsEditor({ tenantId }: { tenantId: string }) {
           ריקה — הדוחות לבעלי הארגון.
         </p>
       </div>
-      {isError ? (
+      {notOwner ? (
+        <p className="text-[11px] text-muted-foreground">
+          רק בעלי הארגון מנהלים את נמעני הדיווח
+        </p>
+      ) : isError ? (
         <p className="text-[11px] text-destructive">שגיאה בטעינת הנמענים</p>
       ) : isLoading ? (
         <p className="text-[11px] text-muted-foreground">טוען…</p>
