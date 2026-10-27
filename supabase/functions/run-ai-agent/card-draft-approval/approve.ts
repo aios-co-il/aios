@@ -10,7 +10,7 @@
  * that does not exist or a finding already closed (approved, or written by
  * Carmen), so codes cannot be probed and nothing is written twice.
  */
-import { ClientCardEntryError } from "../../_shared/client-card.ts";
+import { ClientCardEntryError } from "../../_shared/client-card/entry-types.ts";
 import {
   type CardDraft,
   cardDraftContent,

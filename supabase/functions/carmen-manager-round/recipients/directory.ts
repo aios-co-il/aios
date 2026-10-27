@@ -3,6 +3,7 @@
  * (agency_tenant_access) is routed to the routing tenant's own staff only, so
  * one tenant's round never messages another tenant's people.
  */
+import { isCampaignRole } from "../../_shared/client-team/campaign-role.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { throwIf } from "../db-error.ts";
 import { type Contact, loadContacts } from "./contacts.ts";
@@ -49,16 +50,25 @@ export type PeopleDirectory = {
 
 const STAFF_ROLES = ["owner", "agency_owner", "team_manager"] as const;
 
-/** PeopleDirectory over the service-role client. */
+/**
+ * PeopleDirectory over the service-role client. One directory serves one
+ * round call, so each tenant's shared agencies are read once per call, not
+ * once per client the router resolves.
+ */
 export function createPeopleDirectory(db: DbClient): PeopleDirectory {
+  const sharedAgencies = new Map<string, string[]>();
+  const agenciesOf = async (tenantId: string) => {
+    const known = sharedAgencies.get(tenantId);
+    if (known) {
+      return known;
+    }
+    const agencies = await loadSharedAgencies(db, tenantId);
+    sharedAgencies.set(tenantId, agencies);
+    return agencies;
+  };
   return {
     async client(tenantId, clientId) {
-      const shared = await db
-        .from("agency_tenant_access")
-        .select("agency_id")
-        .eq("accessing_tenant_id", tenantId);
-      throwIf(shared.error, "agency_tenant_access");
-      const agencies = (shared.data ?? []).map((row) => row.agency_id);
+      const agencies = await agenciesOf(tenantId);
       const scope = agencies.length
         ? `tenant_id.eq.${tenantId},agency_id.in.(${agencies.join(",")})`
         : `tenant_id.eq.${tenantId}`;
@@ -97,7 +107,7 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
           user_id: profile?.id ?? null,
           name: profile?.full_name || row.campaigners.full_name,
           phone: profile?.phone || row.campaigners.phone,
-          campaign_role: /campaign|ppc|קמפיינ/i.test(row.role_on_account ?? ""),
+          campaign_role: isCampaignRole(row.role_on_account),
           start_date: row.start_date,
           end_date: row.end_date,
         };
@@ -146,4 +156,17 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
 
     contacts: (tenantId, keys) => loadContacts(db, tenantId, keys),
   };
+}
+
+/** Agencies shared with the tenant (agency_tenant_access). */
+async function loadSharedAgencies(
+  db: DbClient,
+  tenantId: string,
+): Promise<string[]> {
+  const { data, error } = await db
+    .from("agency_tenant_access")
+    .select("agency_id")
+    .eq("accessing_tenant_id", tenantId);
+  throwIf(error, "agency_tenant_access");
+  return (data ?? []).map((row) => row.agency_id);
 }

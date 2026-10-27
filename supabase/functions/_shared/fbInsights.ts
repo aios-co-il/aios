@@ -9,6 +9,8 @@
 // `offsite_conversion.custom.*` prefix — so website-lead campaigns optimised on a
 // custom conversion were silently counted as 0 leads in the synced report.
 
+import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+
 export interface CampaignStatus {
   id: string;
   name: string;
@@ -17,8 +19,6 @@ export interface CampaignStatus {
   objective?: string | null;
   updated_time?: string | null;
 }
-
-export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
 export interface InsightRecord {
   date: string;
@@ -1040,7 +1040,6 @@ export async function buildAllLevelInsightRecords(
   /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
   levelErrors: Partial<Record<AdsEntityLevel, string>>;
 }> {
-  const levels: AdsEntityLevel[] = ["campaign", "adset", "ad"];
   const allRows: InsightRecord[] = [];
   const levelCounts: Record<AdsEntityLevel, number> = {
     campaign: 0,
@@ -1049,7 +1048,7 @@ export async function buildAllLevelInsightRecords(
   };
   const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
-  for (const level of levels) {
+  for (const level of ADS_LEVELS) {
     try {
       const raw = await fetchFacebookInsightsAtLevel(
         adAccountId,

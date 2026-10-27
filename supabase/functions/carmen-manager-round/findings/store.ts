@@ -1,17 +1,18 @@
 /** Findings persistence of the round: thin, tenant-scoped calls to the RPCs. */
-import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
+import {
+  FINDING_LIVE_STATUSES,
+  FINDING_ROUTABLE_STATUSES,
+} from "../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { FindingCandidate } from "../collectors/types.ts";
 import { throwIf } from "../db-error.ts";
 import {
   FINDING_COLUMNS,
   type FindingRow,
+  isUpsertOutcome,
   type RouteDecision,
   type UpsertOutcome,
 } from "./types.ts";
-
-/** Live statuses the router still acts on (acknowledged stops the ladder). */
-const ROUTABLE_STATUSES = ["open", "notified", "snoozed"];
 
 export type MissingScope = {
   kind: string;
@@ -69,7 +70,15 @@ export function createFindingsStore(db: DbClient): FindingsStore {
         p_candidates: candidates,
       });
       throwIf(error, "carmen_finding_upsert");
-      return data ?? [];
+      return (data ?? []).map((row) => {
+        // An outcome the round does not know means SQL and TypeScript drifted apart.
+        if (!isUpsertOutcome(row.outcome)) {
+          throw new Error(
+            `carmen_finding_upsert: unknown outcome ${row.outcome}`,
+          );
+        }
+        return { ...row, outcome: row.outcome };
+      });
     },
 
     async markMissing(tenantId, roundId, scope) {
@@ -91,7 +100,7 @@ export function createFindingsStore(db: DbClient): FindingsStore {
         .from("carmen_findings")
         .select(FINDING_COLUMNS)
         .eq("tenant_id", tenantId)
-        .in("status", ROUTABLE_STATUSES)
+        .in("status", [...FINDING_ROUTABLE_STATUSES])
         .or(`routed_at.is.null,next_action_at.lte.${now.toISOString()}`)
         .order("first_seen_at", { ascending: true })
         .limit(limit);

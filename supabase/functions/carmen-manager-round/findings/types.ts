@@ -24,25 +24,66 @@ export const FINDING_COLUMNS =
 
 export type DeliveryRow = Tables<"carmen_finding_deliveries">;
 
-export type DeliveryStatus =
-  | "planned"
-  | "sent"
-  | "delivery_unknown"
-  | "blocked_staging"
-  | "duplicate_skipped"
-  | "failed"
-  | "no_phone"
-  | "no_line"
-  | "no_sender"
-  | "cancelled";
+/** carmen_finding_deliveries.status CHECK values (types.test.ts pins them to the migration). */
+export const DELIVERY_STATUSES = [
+  "planned",
+  "claimed",
+  "sent",
+  "delivery_unknown",
+  "blocked_staging",
+  "duplicate_skipped",
+  "failed",
+  "no_phone",
+  "no_line",
+  "no_sender",
+  "cancelled",
+  "expired",
+] as const;
+
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
+/** Statuses of a message that went out or may have: carmen_delivery_went_out in the migration. */
+export const DELIVERED_STATUSES = [
+  "sent",
+  "delivery_unknown",
+] as const satisfies readonly DeliveryStatus[];
+
+/** True when a delivery with this status went out or may have. */
+export function wentOut(status: string): boolean {
+  return DELIVERED_STATUSES.some((delivered) => delivered === status);
+}
+
+/** carmen_finding_upsert outcomes that stored the candidate. */
+export const UPSERT_STORED = ["inserted", "seen", "worsened"] as const;
+
+/** carmen_finding_upsert outcomes of a candidate it did not store (it raises a NOTICE for them). */
+export const UPSERT_DROPPED = [
+  "invalid",
+  "duplicate",
+  "rejected_client",
+  "rejected_agency",
+  "suppressed",
+  "conflict",
+] as const;
+
+export type UpsertDrop = (typeof UPSERT_DROPPED)[number];
 
 export type UpsertOutcome = {
   finding_id: string | null;
   kind: string;
   fingerprint: string;
   short_code: number | null;
-  outcome: string;
+  outcome: (typeof UPSERT_STORED)[number] | UpsertDrop;
 };
+
+/** Narrows a carmen_finding_upsert outcome to the known ones. */
+export function isUpsertOutcome(
+  value: string,
+): value is UpsertOutcome["outcome"] {
+  return [...UPSERT_STORED, ...UPSERT_DROPPED].some(
+    (outcome) => outcome === value,
+  );
+}
 
 export type RecipientRole = "campaigner" | "manager" | "owner";
 
@@ -91,11 +132,22 @@ export type RouteDecision = {
   deliveries: PlannedDelivery[];
 };
 
-/** Reads `evidence.alert_type`, the Shabbat-critical marker (_shared/critical-alerts.ts). */
-export function alertTypeOf(evidence: Json): string | null {
+/**
+ * A string field of a finding's evidence, or null; `alert_type` is the
+ * Shabbat-critical marker (_shared/shabbat/critical-alerts.ts).
+ */
+export function evidenceText(evidence: Json, field: string): string | null {
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
     return null;
   }
-  const value = evidence.alert_type;
+  const value = evidence[field];
   return typeof value === "string" ? value : null;
+}
+
+/** Each recipient once, first occurrence kept. */
+export function uniqueByKey(recipients: Recipient[]): Recipient[] {
+  const seen = new Set<string>();
+  return recipients.filter(
+    (recipient) => !seen.has(recipient.key) && !!seen.add(recipient.key),
+  );
 }

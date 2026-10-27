@@ -1,7 +1,7 @@
 import {
   clientCardSourceCanCountAsContact,
   isHumanClientCardSource,
-} from "../../supabase/functions/_shared/client-card-sources.ts";
+} from "../../supabase/functions/_shared/client-card/sources.ts";
 
 const NEGATED_CLIENT_CALL_PATTERNS = [
   /(?:לא|טרם|עוד לא)\s+(?:הצלח(?:תי|נו)\s+)?(?:לדבר|דיבר(?:תי|נו|ה)?|שוחח(?:תי|נו|ה)?)/i,
@@ -39,7 +39,9 @@ export function resolveClientUpdateType(
   content: string,
   source?: string | null,
 ): string {
-  if (!isHumanClientCardSource(source)) return selectedType;
+  if (!isHumanClientCardSource(source)) {
+    return selectedType;
+  }
   if (
     selectedType === "weekly_update" &&
     describesCompletedClientPhoneCall(content)
@@ -60,8 +62,12 @@ export function isClientCallUpdate(
   source?: string | null,
   countsAsContact?: boolean | null,
 ): boolean {
-  if (!clientCardSourceCanCountAsContact(source)) return false;
-  if (countsAsContact === true) return true;
+  if (!clientCardSourceCanCountAsContact(source)) {
+    return false;
+  }
+  if (countsAsContact === true) {
+    return true;
+  }
   if (updateType === "call") return true;
   if (updateType === "weekly_update")
     return describesCompletedClientPhoneCall(content);

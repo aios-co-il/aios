@@ -5,6 +5,7 @@
  * no longer reachable) is cleared at once.
  */
 import type { FindingCandidate } from "../collectors/types.ts";
+import { type DroppedCounts, reportDropped } from "../findings/dropped.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { Recipient } from "../findings/types.ts";
 import {
@@ -62,13 +63,16 @@ export function routingGaps(input: GapInput, now: Date): Gaps {
   };
 }
 
-/** Upserts the gaps and clears those checked again and found fixed. */
+/**
+ * Upserts the gaps and clears those checked again and found fixed; returns
+ * the gaps the database did not store (counted and logged).
+ */
 export async function recordGaps(
   findings: FindingsStore,
   input: { tenantId: string; roundId: string },
   gaps: Gaps,
-): Promise<void> {
-  await findings.upsert(
+): Promise<DroppedCounts> {
+  const outcomes = await findings.upsert(
     input.tenantId,
     input.roundId,
     ROUTER_COLLECTOR,
@@ -93,4 +97,8 @@ export async function recordGaps(
       afterMisses: 1,
     });
   }
+  return reportDropped(
+    { tenantId: input.tenantId, collector: ROUTER_COLLECTOR.id },
+    outcomes,
+  );
 }

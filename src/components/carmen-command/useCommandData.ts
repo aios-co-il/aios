@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
 
 // Several ops tables (heartbeat_logs, integration_alerts_log, agent_action_log…)
 // are not in the generated Database types yet.
@@ -262,7 +263,7 @@ export function useHealth(tenantId: string | null) {
           .from("heartbeat_logs")
           .select("triggered_at, summary")
           .eq("tenant_id", tenantId)
-          .neq("run_kind", "manager_round")
+          .neq("run_kind", MANAGER_ROUND_RUN_KIND)
           .order("triggered_at", { ascending: false })
           .limit(1)
           .maybeSingle(),

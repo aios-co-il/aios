@@ -1,14 +1,17 @@
 /**
- * Who is responsible for a client (AIO-251, plan component C9): its active
- * campaigners (campaign role first), its managers (team managers and agency
- * owners who manage the client's agency); above them the brief recipients
- * (default: the tenant owners). Phones are
- * normalised the way sendStaffAlert normalises them, so a recipient without a
- * phone here is exactly one the send would refuse.
+ * Who is responsible for a client: its active campaigners (campaign role
+ * first), its managers (team managers and agency owners who manage the
+ * client's agency); above them the brief recipients (default: the tenant
+ * owners). Phones are normalised the way sendStaffAlert normalises them, so a
+ * recipient without a phone here is exactly one the send would refuse.
  */
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
-import type { Recipient, RecipientRole } from "../findings/types.ts";
+import {
+  type Recipient,
+  type RecipientRole,
+  uniqueByKey,
+} from "../findings/types.ts";
 import type {
   CampaignerAssignment,
   ClientInfo,
@@ -123,13 +126,5 @@ function sortCampaignRoleFirst(
 ): CampaignerAssignment[] {
   return [...assignments].sort(
     (a, b) => Number(b.campaign_role) - Number(a.campaign_role),
-  );
-}
-
-/** Each recipient once, first occurrence kept. */
-function uniqueByKey(recipients: Recipient[]): Recipient[] {
-  const seen = new Set<string>();
-  return recipients.filter(
-    (recipient) => !seen.has(recipient.key) && !!seen.add(recipient.key),
   );
 }

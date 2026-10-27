@@ -5,11 +5,11 @@
  * manager round (Carmen writes, no actor) and by approve_card_draft (the
  * approving person is the actor).
  */
-import {
-  type ClientCardEntryInput,
-  type ClientCardEntryResult,
-  recordClientCardEntry,
-} from "../client-card.ts";
+import { recordClientCardEntry } from "../client-card/entry.ts";
+import type {
+  ClientCardEntryInput,
+  ClientCardEntryResult,
+} from "../client-card/entry-types.ts";
 import type { DbClient } from "../supabase-clients.ts";
 import {
   type CardDraft,

@@ -6,6 +6,7 @@
  * always make the call a dry run: nothing is written or sent.
  */
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
+import { bearerToken } from "../_shared/automation-run-auth.ts";
 import type { Json } from "../_shared/database.types.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
@@ -23,13 +24,16 @@ export type ParsedRequest =
   | { ok: true; request: RoundRequest }
   | { ok: false; status: 400 | 403; error: string };
 
-/** True when the bearer token is the service-role key (constant-time compare). */
+/**
+ * True when the Authorization header carries the service-role key
+ * (constant-time compare). Like every caller of bearerToken, the key is
+ * accepted with or without the "Bearer " prefix.
+ */
 export function isServiceCaller(req: Request, serviceKey: string): boolean {
-  const header = req.headers.get("Authorization") ?? "";
-  const token = header.toLowerCase().startsWith("bearer ")
-    ? header.slice(7).trim()
-    : "";
-  return isServiceKey(token, serviceKey);
+  return isServiceKey(
+    bearerToken(req.headers.get("Authorization")),
+    serviceKey,
+  );
 }
 
 /** Validates the body; refuses fixtures in Production and makes them a dry run elsewhere. */
@@ -51,13 +55,7 @@ export function parseRoundRequest(
     return { ok: false, status: 400, error: "client_id_needs_tenant_id" };
   }
   const collectors = field("collectors");
-  if (
-    collectors !== undefined &&
-    !(
-      Array.isArray(collectors) &&
-      collectors.every((id) => typeof id === "string")
-    )
-  ) {
+  if (collectors !== undefined && !isStringList(collectors)) {
     return { ok: false, status: 400, error: "invalid_collectors" };
   }
   const fixtures = toJson(field("fixtures")) ?? null;
@@ -69,12 +67,19 @@ export function parseRoundRequest(
     request: {
       tenantId,
       clientId,
-      collectorIds: Array.isArray(collectors) ? collectors.map(String) : null,
+      collectorIds: collectors ?? null,
       dryRun: field("dry_run") === true || fixtures !== null,
       fixtures,
       now: fixtureNow(fixtures),
     },
   };
+}
+
+/** True for an array of strings. */
+function isStringList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
 }
 
 /** fixtures.now: a fake clock for dry runs outside Production. */

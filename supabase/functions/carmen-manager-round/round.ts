@@ -14,6 +14,7 @@ import { runTenant, type TenantReport } from "./tenant-run.ts";
 export const ROUND_BUDGET_MS = 110_000;
 /** Sends end by then; one starts only with SEND_RESERVE_MS of it left. */
 export const SEND_WINDOW_MS = 140_000;
+/** External API calls per call, shared by every tenant (RoundBudget.takeApiCall). */
 const ROUND_API_CALLS = 200;
 const TENANT_SLICE_MS = 45_000;
 const MIN_TENANT_MS = 8_000;

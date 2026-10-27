@@ -48,15 +48,4 @@ Deno.test("resolveManagerSettings", async (t) => {
     assertEquals(settings.max_alerts_per_recipient_per_day, 5);
     assertEquals(settings.round_llm_share_pct, 100);
   });
-
-  await t.step("a round LLM share of 0 turns the model off", () => {
-    const share = (raw: unknown) =>
-      resolveManagerSettings({ manager: { round_llm_share_pct: raw } })
-        .round_llm_share_pct;
-    assertEquals([share(0), share("0"), share(5)], [0, 0, 5]);
-    assertEquals(
-      [share(null), share(""), share(false), share(-1)],
-      [10, 10, 10, 10],
-    );
-  });
 });

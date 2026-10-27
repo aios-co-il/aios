@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { BRIEF_CRON, LIST_CRON, latestSlot, nextWorkingSlot } from "./slots.ts";
+import { BRIEF_CRON } from "../../_shared/manager-round/brief-schedule.ts";
+import { LIST_CRON, latestSlot, nextWorkingSlot } from "./slots.ts";
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 

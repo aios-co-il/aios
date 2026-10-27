@@ -29,6 +29,24 @@ Deno.test(
     );
 
     await t.step(
+      "the tenant's shared agencies are read once for every client",
+      async () => {
+        const { db, calls } = recordingClient((call) =>
+          call.path === "agency_tenant_access"
+            ? [{ agency_id: "a9" }]
+            : { id: "c1", agency_id: "a9", name: "לקוח" },
+        );
+        const directory = createPeopleDirectory(db);
+        await directory.client(T, "c1");
+        await directory.client(T, "c2");
+        assertEquals(
+          calls.map((call) => call.path),
+          ["agency_tenant_access", "clients", "clients"],
+        );
+      },
+    );
+
+    await t.step(
       "campaigners are the tenant's active ones, with their login profile",
       async () => {
         const { db, calls } = recordingClient((call) =>

@@ -65,6 +65,23 @@ BEGIN
     RAISE EXCEPTION 'resolve: a finding no longer live must answer false';
   END IF;
 
+  -- The card is shared: an entry another tenant wrote on the client closes it.
+  SELECT u.finding_id INTO v_finding
+  FROM public.carmen_finding_upsert(v_tenant, v_round, 'group_updates', '1',
+    jsonb_build_array(jsonb_build_object('kind', 'card_stale_group',
+      'fingerprint', 'qa-r6-fp-shared', 'severity', 'info', 'client_id', v_client,
+      'summary_he', 'QA ROLLBACK', 'source_event_at', now(),
+      'evidence', '{}'::jsonb))) AS u;
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, update_type, source, source_ref)
+  SELECT v_client, t.id, v_person, 'QA ROLLBACK', 'group_summary', 'group_digest', 'qa-r6-shared'
+  FROM public.tenants AS t WHERE t.id <> v_tenant ORDER BY t.id LIMIT 1
+  RETURNING id INTO v_entry;
+  IF v_entry IS NULL THEN
+    RAISE NOTICE 'resolve: shared-card case skipped (needs a second tenant)';
+  ELSIF NOT public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, NULL) THEN
+    RAISE EXCEPTION 'resolve: an entry on the shared card must close the finding';
+  END IF;
+
   -- The LLM allowance reads the project's month and the tenant round's day.
   INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd, created_at) VALUES
     (v_tenant, 'manager_round:group_updates', 0.25, now()),

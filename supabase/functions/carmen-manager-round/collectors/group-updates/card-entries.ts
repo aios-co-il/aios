@@ -9,7 +9,7 @@ import {
   jerusalemDayStartIso,
   jerusalemYmd,
 } from "../../../_shared/calendarTimeZone.ts";
-import { clientCardSourceCanCountAsContact } from "../../../_shared/client-card-sources.ts";
+import { clientCardSourceCanCountAsContact } from "../../../_shared/client-card/sources.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 

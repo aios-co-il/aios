@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
+import { logSystemSendClientUpdate } from "@/lib/logSystemSendClientUpdate";
 
 export interface ShareableRecording {
   id: string;
@@ -146,25 +147,17 @@ export function ShareSummaryDialog({
     else setEmailSender("aios");
   }, [gmailToken]);
 
-  // Log the send on the client card as a system entry: it shows the
-  // "נשלח מהמערכת" chip and never counts as client contact.
   const logClientUpdate = async () => {
     if (!recording.client_id) return;
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user?.id) return;
       const channels = [
         sendWhatsApp ? "בוואטסאפ" : null,
         sendEmail ? "באימייל" : null,
       ].filter(Boolean);
-      const { error } = await supabase.from("client_updates").insert({
-        tenant_id: tenantId,
-        client_id: recording.client_id,
-        user_id: user.id,
-        update_type: "meeting_summary",
-        source: "system_send",
+      const error = await logSystemSendClientUpdate({
+        tenantId,
+        clientId: recording.client_id,
+        updateType: "meeting_summary",
         content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח${channels.length ? ` ${channels.join(" ו")}` : ""}`,
         metadata: {
           recording_id: recording.id,
@@ -174,7 +167,9 @@ export function ShareSummaryDialog({
           ],
         },
       });
-      if (error) console.error("client_updates log failed:", error);
+      if (error) {
+        console.error("client_updates log failed:", error);
+      }
     } catch (err) {
       console.error("client_updates log failed:", err);
     }

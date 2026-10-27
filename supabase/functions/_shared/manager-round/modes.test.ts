@@ -1,11 +1,24 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { MANAGER_ROUND_MIGRATION, quotedList } from "./migration-lists.ts";
 import {
   isSendingMode,
   kindMode,
   kindNotifySince,
+  MANAGER_MODES,
   sendsAnything,
 } from "./modes.ts";
 import { resolveManagerSettings } from "./settings.ts";
+
+Deno.test(
+  "isSendingMode matches the database's carmen_manager_mode_sends",
+  async () => {
+    const sql = await Deno.readTextFile(MANAGER_ROUND_MIGRATION);
+    assertEquals(
+      MANAGER_MODES.filter(isSendingMode),
+      quotedList(sql, "FUNCTION public.carmen_manager_mode_sends", " IN ("),
+    );
+  },
+);
 
 Deno.test(
   "kindMode and kindNotifySince follow the database guard",

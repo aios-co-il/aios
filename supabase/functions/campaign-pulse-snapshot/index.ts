@@ -12,11 +12,11 @@ import {
   detectCampaignGoalMode,
   integrationTypeToGoal,
   isPulseDeliveryExcludedPhone,
-  resolveNoRecentClientCall,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
   fetchLastMetaCampaignActivity,
@@ -34,22 +34,16 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import {
-  instantPulseAlertsGate,
-  runGatedInstantPulseAlerts,
-  type InstantPulseAlertResult,
-} from "../_shared/pulse-instant-alerts.ts";
+import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
+import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
 } from "../_shared/pulse-campaign-goals.mjs";
 import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
-import {
-  fetchCampaignLevelRecords,
-  pulseClientWindows,
-  recordsThrough,
-} from "../_shared/pulse-inputs.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -277,15 +271,12 @@ Deno.serve(async (req) => {
     return json(retention, retention.error ? 500 : 200);
   }
   // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
-  // Instant alerts have their own gate (instantPulseAlertsGate): pulse and
-  // instant_wa_enabled on, not preview_only, not the manual trigger, and no
-  // `skip_instant_alerts: true` in the body. A caller that only wants fresh
-  // numbers (e.g. an ad-hoc run) sends skip_instant_alerts.
+  // Instant alerts: see gatedInstantAlerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
-    body.force_delivery === true && body.source === "approved_manual_trigger";
+    body.force_delivery === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const previewOnlyDelivery =
-    body.preview_only === true && body.source === "approved_manual_trigger";
+    body.preview_only === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const campaignerNameFilter =
     manualDeliveryBypass && typeof body.campaigner_name === "string"
       ? body.campaigner_name.trim()
@@ -514,9 +505,6 @@ Deno.serve(async (req) => {
     // Israel full days ending yesterday, like campaign_breakdown: the 7-day window
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
-    const d7Str = windows.current7Start;
-    const d14Str = windows.previous7Start;
-    const d30Str = windows.recent30Start;
     const snapshots: any[] = [];
     for (const client of reportableClients) {
       try {
@@ -571,11 +559,11 @@ Deno.serve(async (req) => {
         }
         // Every campaign-level row (no entity_level = campaign) since the oldest
         // window day, paged past PostgREST's 1000-row cap. A read error throws into
-        // the no_data row below instead of scoring a truncated set.
-        const records: any[] = await fetchCampaignLevelRecords(supabase, {
+        // the no_data row below instead of scoring a truncated set. Scoped by
+        // table_id like the sync that writes these rows (it sweeps other tenant_ids).
+        const records = await fetchCampaignLevelRecords(supabase, {
           tableIds,
           sinceYmd: windows.queryStart,
-          columns: "id, table_id, data",
         });
         const tableById = new Map(
           activeTables.map((table: any) => [table.id, table]),
@@ -599,20 +587,21 @@ Deno.serve(async (req) => {
           nowYmd: jerusalemYmd(now),
         });
         const recent = records.filter(
-          (row: any) => row.data?.date && row.data.date >= d30Str,
+          (row: any) =>
+            row.data?.date && row.data.date >= windows.recent30Start,
         );
         const goalMode = detectCampaignGoalMode(activeTables);
         const leadMetrics = computeGoalMetricsFromRecords(
           recordsThrough(leadRecords, windows.end),
           "leads",
-          d7Str,
-          d14Str,
+          windows.current7Start,
+          windows.previous7Start,
         );
         const ecommerceMetrics = computeGoalMetricsFromRecords(
           recordsThrough(ecommerceRecords, windows.end),
           "ecommerce",
-          d7Str,
-          d14Str,
+          windows.current7Start,
+          windows.previous7Start,
         );
         const spend7 = leadMetrics.spend + ecommerceMetrics.spend;
         const leads7 = leadMetrics.outcomes;
@@ -659,7 +648,8 @@ Deno.serve(async (req) => {
               integrationTypeToGoal(table.integration_type, table) === "leads",
           ),
           recentRecordCount: leadRecords.filter(
-            (row: any) => row.data?.date && row.data.date >= d30Str,
+            (row: any) =>
+              row.data?.date && row.data.date >= windows.recent30Start,
           ).length,
           isEcommerce: false,
           spend7: leadMetrics.spend,
@@ -678,7 +668,8 @@ Deno.serve(async (req) => {
               "ecommerce",
           ),
           recentRecordCount: ecommerceRecords.filter(
-            (row: any) => row.data?.date && row.data.date >= d30Str,
+            (row: any) =>
+              row.data?.date && row.data.date >= windows.recent30Start,
           ).length,
           isEcommerce: true,
           spend7: ecommerceMetrics.spend,
@@ -888,21 +879,10 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts: InstantPulseAlertResult = {
-      sent: 0,
-      skipped: 0,
-      candidates: 0,
-      analyzed: 0,
-      held: 0,
-    };
-    const instantGate = instantPulseAlertsGate({
-      campaignPulseEnabled: setting.campaign_pulse_enabled,
-      rules: setting.pulse_alert_rules,
-      body,
-    });
+    let instantAlerts = noInstantAlerts();
     if (snapshots.length) {
       try {
-        instantAlerts = await runGatedInstantPulseAlerts(instantGate, {
+        instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
           tenantId,
           tenantSlug,

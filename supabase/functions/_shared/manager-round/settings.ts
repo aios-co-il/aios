@@ -9,6 +9,7 @@
  * collectors' keys) are read by their own modules and never rewritten here.
  */
 import { type FindingKind, isFindingKind } from "./kinds.ts";
+import { roundLlmSharePct } from "./llm-share.ts";
 import {
   DEFAULT_MANAGER_MODE,
   MANAGER_MODES,
@@ -21,6 +22,7 @@ export type KindSettings = {
   mode: ManagerMode | null;
   /** Database stamp: when this kind started sending; null while it does not. */
   notify_since: string | null;
+  /** Team mode may write the drafted client-card entry (read by the group update collector, AIO-254). */
   card_write: boolean;
 };
 
@@ -36,6 +38,7 @@ export type ManagerSettings = {
   business_hours: BusinessHours;
   /** Israel calendar days (YYYY-MM-DD) with no business hours. */
   holidays: string[];
+  /** Business hours a client request may wait unanswered (read by the chat collector, AIO-252). */
   sla_business_hours: number;
   /** Business hours after the first send: [to the manager, to the owner]. */
   escalation_hours: [number, number];
@@ -70,31 +73,31 @@ export function resolveManagerSettings(
   pulseAlertRules: unknown,
 ): ManagerSettings {
   const manager = record(record(pulseAlertRules).manager);
-  const d = MANAGER_DEFAULTS;
   return {
     mode: parseMode(manager.mode) ?? DEFAULT_MANAGER_MODE,
     notify_since: isoOrNull(manager.notify_since),
     kinds: parseKinds(manager.kinds),
     brief_recipients: stringList(manager.brief_recipients),
     business_hours:
-      parseBusinessHours(manager.business_hours) ?? d.business_hours,
+      parseBusinessHours(manager.business_hours) ??
+      MANAGER_DEFAULTS.business_hours,
     holidays: stringList(manager.holidays).filter((day) =>
       /^\d{4}-\d{2}-\d{2}$/.test(day),
     ),
     sla_business_hours: positive(
       manager.sla_business_hours,
-      d.sla_business_hours,
+      MANAGER_DEFAULTS.sla_business_hours,
     ),
     escalation_hours:
-      parseEscalation(manager.escalation_hours) ?? d.escalation_hours,
+      parseEscalation(manager.escalation_hours) ??
+      MANAGER_DEFAULTS.escalation_hours,
     max_alerts_per_recipient_per_day: positive(
       manager.max_alerts_per_recipient_per_day,
-      d.max_alerts_per_recipient_per_day,
+      MANAGER_DEFAULTS.max_alerts_per_recipient_per_day,
     ),
-    // 0 is valid: the round classifies with the markers only.
-    round_llm_share_pct: Math.min(
-      100,
-      nonNegative(manager.round_llm_share_pct, d.round_llm_share_pct),
+    round_llm_share_pct: roundLlmSharePct(
+      manager.round_llm_share_pct,
+      MANAGER_DEFAULTS.round_llm_share_pct,
     ),
   };
 }
@@ -186,12 +189,4 @@ function isoOrNull(raw: unknown): string | null {
 function positive(raw: unknown, fallback: number): number {
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-/** A number of zero or more, or the fallback (also for null, "" and booleans). */
-function nonNegative(raw: unknown, fallback: number): number {
-  const numeric =
-    typeof raw === "number" || (typeof raw === "string" && raw.trim() !== "");
-  const value = numeric ? Number(raw) : Number.NaN;
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }

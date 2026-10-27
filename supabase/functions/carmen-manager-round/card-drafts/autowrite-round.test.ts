@@ -38,6 +38,23 @@ const draftCollector: Collector = {
     }),
 };
 
+/** The draft collector, during whose run the owner switches to observe. */
+function switchingToObserve(w: World): Collector {
+  return {
+    ...draftCollector,
+    collect: (context) => {
+      w.tenants = [
+        {
+          tenant_id: TENANT,
+          pulse_alert_rules: rules({ mode: "observe" }),
+          last_run_at: null,
+        },
+      ];
+      return draftCollector.collect(context);
+    },
+  };
+}
+
 function teamWorld(): World {
   return world({
     state: ["group_updates_test", "_round"].map((collector) => ({
@@ -64,7 +81,12 @@ function teamWorld(): World {
   });
 }
 
-function round(w: World, cardWrite: boolean, dryRun = false) {
+function round(
+  w: World,
+  cardWrite: boolean,
+  dryRun = false,
+  collector = draftCollector,
+) {
   const manager = {
     mode: "team",
     notify_since: NOTIFY,
@@ -72,23 +94,26 @@ function round(w: World, cardWrite: boolean, dryRun = false) {
       card_stale_group: { card_write: cardWrite, notify_since: NOTIFY },
     },
   };
-  return runTenant(
-    deps(w, [draftCollector]),
-    { tenant_id: TENANT, pulse_alert_rules: rules(manager), last_run_at: null },
-    {
-      roundId: "r1",
-      budget: RoundBudget.create(60_000, 10),
-      sendBudget: RoundBudget.create(140_000, 0),
-      request: {
-        tenantId: null,
-        clientId: null,
-        collectorIds: null,
-        dryRun,
-        fixtures: null,
-        now: null,
-      },
+  const tenant = {
+    tenant_id: TENANT,
+    pulse_alert_rules: rules(manager),
+    last_run_at: null,
+  };
+  // The round reads the stored settings again before writing and routing.
+  w.tenants = [tenant];
+  return runTenant(deps(w, [collector]), tenant, {
+    roundId: "r1",
+    budget: RoundBudget.create(60_000, 10),
+    sendBudget: RoundBudget.create(140_000, 0),
+    request: {
+      tenantId: null,
+      clientId: null,
+      collectorIds: null,
+      dryRun,
+      fixtures: null,
+      now: null,
     },
-  );
+  });
 }
 
 Deno.test("Carmen's own card writes in the round", async (t) => {
@@ -142,6 +167,17 @@ Deno.test("Carmen's own card writes in the round", async (t) => {
       );
       assertEquals(report.preview?.decisions, []);
       assertEquals(w.cardEntries, []);
+    },
+  );
+
+  await t.step(
+    "a switch to observe while the collectors run: nothing is written",
+    async () => {
+      const w = teamWorld();
+      const report = await round(w, true, false, switchingToObserve(w));
+      assertEquals(report.card_writes, null);
+      assertEquals(w.cardEntries, []);
+      assertEquals(w.deliveries, []);
     },
   );
 });

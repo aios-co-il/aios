@@ -3,6 +3,7 @@ import { deps } from "../tests/fakes.ts";
 import { finding, TENANT, world } from "../tests/fake-world.ts";
 import { gapClientIds, recheckPeople } from "./gap-recheck.ts";
 
+/** A missing_phone gap for the person `key`. */
 const gap = (key: string, role = "campaigner") =>
   finding({
     kind: "missing_phone",

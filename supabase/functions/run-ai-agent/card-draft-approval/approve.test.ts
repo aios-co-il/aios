@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import {
   ClientCardEntryError,
   type ClientCardEntryInput,
-} from "../../_shared/client-card.ts";
+} from "../../_shared/client-card/entry-types.ts";
 import { approveCardDraft, type ApproveInput } from "./approve.ts";
 import type { Approver } from "./authorize.ts";
 import type { ApprovalPorts, DraftFinding } from "./ports.ts";

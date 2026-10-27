@@ -1,11 +1,7 @@
 // Cron: scans all tenants' active Facebook campaigns, detects anomalies, writes to campaign_alerts.
 import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  CAMPAIGN_ALERT_SHABBAT_HOLD,
-  isAlertHeldForShabbat,
-  shouldReleaseHeldCampaignAlert,
-} from "../_shared/critical-alerts.ts";
+import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,62 +139,12 @@ async function notifyWhatsapp(
     .eq("id", alert_id);
 }
 
+/** Records one detected alert; only NOTIFY_TYPES send a WhatsApp. */
 async function upsertAlert(supabase: any, alert: AlertInput) {
-  const now = new Date();
-  // Avoid duplicates: skip if same open alert exists in last 24h
-  const { data: existing } = await supabase
-    .from("campaign_alerts")
-    .select("id, notified_at, details")
-    .eq("tenant_id", alert.tenant_id)
-    .eq("campaign_id", alert.campaign_id)
-    .eq("alert_type", alert.alert_type)
-    .is("resolved_at", null)
-    .gte(
-      "created_at",
-      new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-    )
-    .limit(1)
-    .maybeSingle();
-  if (existing) {
-    // A WhatsApp held on Shabbat goes out once, on the first run after it
-    // that still sees the alert open. Claim first so overlapping runs can't
-    // both send.
-    if (
-      NOTIFY_TYPES.has(alert.alert_type) &&
-      shouldReleaseHeldCampaignAlert(existing, now)
-    ) {
-      const { data: claimed } = await supabase
-        .from("campaign_alerts")
-        .update({ notified_at: now.toISOString() })
-        .eq("id", existing.id)
-        .is("notified_at", null)
-        .select("id")
-        .maybeSingle();
-      if (claimed) await notifyWhatsapp(supabase, alert, existing.id);
-    }
-    return null;
-  }
-  // Shabbat: only account-level stops/disables go out. Single-campaign and
-  // ad issues are recorded now and their WhatsApp is held (AIO-226).
-  const holdWhatsapp =
-    NOTIFY_TYPES.has(alert.alert_type) &&
-    isAlertHeldForShabbat(alert.alert_type, now);
-  const row = holdWhatsapp
-    ? {
-        ...alert,
-        details: {
-          ...(alert.details || {}),
-          whatsapp_hold: CAMPAIGN_ALERT_SHABBAT_HOLD,
-        },
-      }
-    : alert;
-  const { data } = await supabase
-    .from("campaign_alerts")
-    .insert(row)
-    .select("id")
-    .single();
-  if (data?.id && !holdWhatsapp) await notifyWhatsapp(supabase, alert, data.id);
-  return data;
+  const notify = NOTIFY_TYPES.has(alert.alert_type)
+    ? (alertId: string) => notifyWhatsapp(supabase, alert, alertId)
+    : null;
+  return await upsertCampaignAlert(supabase, alert, notify);
 }
 
 async function scanCampaign(

@@ -1,11 +1,12 @@
 /** The in-memory world the round's fakes read and write, and row builders. */
-import type { ClientCardEntryInput } from "../../_shared/client-card.ts";
+import type { ClientCardEntryInput } from "../../_shared/client-card/entry-types.ts";
 import type { Json, TablesInsert } from "../../_shared/database.types.ts";
-import type { StaffAlertStatus } from "../../_shared/staff-notify.ts";
+import type { StaffAlertStatus } from "../../_shared/staff-alert/send.ts";
 import type {
   DeliveryRow,
   FindingRow,
   RouteDecision,
+  UpsertDrop,
 } from "../findings/types.ts";
 import type { MissingScope } from "../findings/store.ts";
 import type { Contact } from "../recipients/contacts.ts";
@@ -39,6 +40,8 @@ export type World = {
   sent: { phone: string; message: string }[];
   decisions: RouteDecision[];
   marks: MissingScope[];
+  /** Fingerprints the fake upsert refuses, with the outcome it reports. */
+  refused: Record<string, UpsertDrop>;
   slots: string[];
   leased: Set<string>;
   sendStatus: StaffAlertStatus;
@@ -47,6 +50,7 @@ export type World = {
 
 export const TENANT = "11111111-1111-4111-8111-111111111111";
 
+/** An empty world at Sunday 2026-11-01 10:00 Israel time; `fields` override any part. */
 export function world(fields: Partial<World> = {}): World {
   return {
     now: new Date("2026-11-01T08:00:00Z"),
@@ -65,6 +69,7 @@ export function world(fields: Partial<World> = {}): World {
     sent: [],
     decisions: [],
     marks: [],
+    refused: {},
     slots: [],
     leased: new Set(),
     sendStatus: "sent",
@@ -97,6 +102,7 @@ export function finding(fields: Partial<StoredFinding> = {}): StoredFinding {
   };
 }
 
+/** A planned level-0 'now' row of TENANT; `fields` override any column. */
 export function delivery(fields: Partial<DeliveryRow>): DeliveryRow {
   return {
     id: crypto.randomUUID(),

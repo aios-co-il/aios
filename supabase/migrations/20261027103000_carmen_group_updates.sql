@@ -250,11 +250,13 @@ COMMENT ON FUNCTION public.get_client_group_digest_messages(uuid, uuid[], timest
 
 -- ─── 2. Close a finding whose draft is on the card ──────────────────────────
 
--- Resolves a live finding as fixed once its drafted entry (p_entry_id, on the
--- finding's client in this tenant) is on the card: by p_actor_user_id when a
--- person approved it, by Carmen when NULL. Planned messages are cancelled and
--- the 'resolved' event names the entry. False when the finding is no longer
--- live (a repeated approval).
+-- Resolves a live finding as fixed once its drafted entry (p_entry_id) is on
+-- the finding client's card: by p_actor_user_id when a person approved it, by
+-- Carmen when NULL. The card is one per client, and record_client_card_entry
+-- returns the entry already there even when another tenant wrote it, so the
+-- entry is matched by client, not by its writer's tenant. Planned messages are
+-- cancelled and the 'resolved' event names the entry. False when the finding
+-- is no longer live (a repeated approval).
 CREATE OR REPLACE FUNCTION public.carmen_finding_resolve_card_written(
   p_tenant_id uuid,
   p_finding_id uuid,
@@ -280,8 +282,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM public.carmen_findings AS f
-    JOIN public.client_updates AS u
-      ON u.client_id = f.client_id AND u.tenant_id = f.tenant_id
+    JOIN public.client_updates AS u ON u.client_id = f.client_id
     WHERE f.id = p_finding_id
       AND f.tenant_id = p_tenant_id
       AND u.id = p_entry_id
@@ -304,7 +305,8 @@ BEGIN
 
   UPDATE public.carmen_finding_deliveries AS d
   SET status = 'cancelled'
-  WHERE d.finding_id = p_finding_id AND d.status = 'planned';
+  WHERE d.tenant_id = p_tenant_id AND d.finding_id = p_finding_id
+    AND d.status = 'planned';
 
   INSERT INTO public.carmen_finding_events
     (tenant_id, finding_id, event, actor_user_id, details)

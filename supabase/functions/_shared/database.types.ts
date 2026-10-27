@@ -3817,11 +3817,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "carmen_finding_deliveries_finding_id_fkey";
-            columns: ["finding_id"];
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
             isOneToOne: false;
             referencedRelation: "carmen_findings";
-            referencedColumns: ["id"];
+            referencedColumns: ["tenant_id", "id"];
           },
           {
             foreignKeyName: "carmen_finding_deliveries_tenant_id_fkey";

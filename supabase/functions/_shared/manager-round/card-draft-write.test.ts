@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import type { ClientCardEntryInput } from "../client-card.ts";
+import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import type { CardDraft } from "./card-draft.ts";
 import {
   type CardDraftWritePorts,

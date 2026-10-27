@@ -11,6 +11,7 @@ import type { CardWriteReport } from "./card-drafts/autowrite.ts";
 import type { CollectorReport } from "./collectors/run.ts";
 import type { FindingCandidate } from "./collectors/types.ts";
 import type { RoundDeps } from "./deps.ts";
+import type { DroppedCounts } from "./findings/dropped.ts";
 import type { DispatchReport } from "./dispatch/dispatch.ts";
 import type { PreviewMessage } from "./dry-run.ts";
 import type { RouteDecision } from "./findings/types.ts";
@@ -29,6 +30,8 @@ export type TenantReport = {
   card_writes?: CardWriteReport | null;
   routed?: number;
   gaps?: number;
+  /** Routing gaps the database did not store, by outcome. */
+  gaps_dropped?: DroppedCounts;
   brief?: BriefReport | null;
   dispatch?: DispatchReport | null;
   preview?: {

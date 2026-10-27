@@ -6,7 +6,7 @@
  * client contact can be drafted this way: a group digest is information, not
  * a conversation with the client.
  */
-import type { ClientCardEntryInput } from "../client-card.ts";
+import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import type { Json } from "../database.types.ts";
 
 /** The reply word, sent before the finding's code. */
