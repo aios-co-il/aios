@@ -38,7 +38,7 @@ Deno.test("setClientMoodStatus", async (t) => {
           ],
         },
         { op: "update", args: [{ mood_status: "wavering" }] },
-        { op: "eq", args: ["id", CLIENT] },
+        { op: "match", args: [{ id: CLIENT }] },
         { op: "select", args: ["id"] },
       ]);
     },
@@ -124,36 +124,32 @@ function moodUpdate(tenantId: string, opts: FakeOptions = {}) {
 /**
  * Stand-ins for rpc("tenant_can_write_client") — the SQL rule: own client, or
  * a read_write share of its agency — and for
- * from("clients").update(...).eq(...).select(...), whose filters pick the rows
- * that take the update.
+ * from("clients").update(...).match({ id }).select("id"), which updates the
+ * row with that id.
  */
 function fakeDb(rows: Row[], opts: FakeOptions) {
   const log: Array<{ op: string; args: unknown[] }> = [];
-  const filters: Array<(row: Row) => boolean> = [];
-  let patch: Partial<Row> = {};
-  const chain: Record<string, unknown> = {
-    update: (values: Partial<Row>) => {
-      log.push({ op: "update", args: [values] });
-      patch = values;
-      return chain;
-    },
-    eq: (column: keyof Row, value: unknown) => {
-      log.push({ op: "eq", args: [column, value] });
-      filters.push((row) => row[column] === value);
-      return chain;
-    },
-    select: (...args: unknown[]) => {
-      log.push({ op: "select", args });
-      return chain;
-    },
-    then: (resolve: (result: unknown) => void) => {
-      if (opts.updateError) {
-        return resolve({ data: null, error: opts.updateError });
-      }
-      const matched = rows.filter((row) => filters.every((keep) => keep(row)));
-      matched.forEach((row) => Object.assign(row, patch));
-      return resolve({ data: matched.map(({ id }) => ({ id })), error: null });
-    },
+  const update = (values: Partial<Row>) => {
+    log.push({ op: "update", args: [values] });
+    return {
+      match: (query: { id: string }) => {
+        log.push({ op: "match", args: [query] });
+        return {
+          select: (columns: string) => {
+            log.push({ op: "select", args: [columns] });
+            if (opts.updateError) {
+              return Promise.resolve({ data: null, error: opts.updateError });
+            }
+            const matched = rows.filter((row) => row.id === query.id);
+            matched.forEach((row) => Object.assign(row, values));
+            return Promise.resolve({
+              data: matched.map(({ id }) => ({ id })),
+              error: null,
+            });
+          },
+        };
+      },
+    };
   };
   const rpc = (name: string, args: { p_tenant: string; p_client: string }) => {
     log.push({ op: "rpc", args: [name, args] });
@@ -168,5 +164,5 @@ function fakeDb(rows: Row[], opts: FakeOptions) {
           opts.share.level === "read_write"));
     return Promise.resolve({ data: canWrite, error: null });
   };
-  return { supabase: { from: (_table: string) => chain, rpc }, log };
+  return { supabase: { from: (_table: string) => ({ update }), rpc }, log };
 }
