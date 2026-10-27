@@ -107,7 +107,7 @@ export function skinForTool(tool: string): string | null {
   )
     return "copywriter";
   if (
-    /^workshop_(storyboard|make_stills|animate|sound|produce_video|edit_video)$/.test(
+    /^workshop_(storyboard|update_scene|make_stills|animate|sound|produce_video|edit_video)$/.test(
       tool,
     )
   )
