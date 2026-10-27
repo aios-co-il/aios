@@ -1,64 +1,25 @@
 import {
   assert,
   assertEquals,
-  assertMatch,
-  assertNotStrictEquals,
   assertRejects,
   assertStrictEquals,
   assertThrows,
 } from "jsr:@std/assert@1";
 
 import {
-  ClientCardEntryError,
   buildRecordClientCardEntryArgs,
-  hourlyDedupeRef,
   parseRecordClientCardEntryResult,
   recordClientCardEntry,
-  stableHash,
-} from "./client-card.ts";
+} from "./entry.ts";
 import {
-  clientCardSourceCanCountAsContact,
-  clientCardSourceLabel,
-  isHumanClientCardSource,
-} from "./client-card-sources.ts";
+  ClientCardEntryError,
+  type ClientCardEntryInput,
+} from "./entry-types.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const CLIENT = "22222222-2222-4222-8222-222222222222";
 const CAMPAIGNER_USER = "33333333-3333-4333-8333-333333333333";
 const OWNER_USER = "44444444-4444-4444-8444-444444444444";
-const NOW = new Date("2026-10-26T09:15:00Z");
-
-Deno.test(
-  "source vocabulary: legacy rows are human, only human and confirmed rows can count",
-  () => {
-    assertStrictEquals(isHumanClientCardSource(null), true);
-    assertStrictEquals(isHumanClientCardSource(undefined), true);
-    assertStrictEquals(isHumanClientCardSource("human"), true);
-    assertStrictEquals(isHumanClientCardSource("carmen"), false);
-    assertStrictEquals(isHumanClientCardSource("future_source"), false);
-    assertStrictEquals(clientCardSourceCanCountAsContact("human"), true);
-    assertStrictEquals(
-      clientCardSourceCanCountAsContact("carmen_confirmed"),
-      true,
-    );
-    for (const source of [
-      "carmen",
-      "system_send",
-      "group_digest",
-      "automation",
-    ])
-      assertStrictEquals(
-        clientCardSourceCanCountAsContact(source),
-        false,
-        source,
-      );
-    assertStrictEquals(clientCardSourceLabel("human"), null);
-    assertStrictEquals(clientCardSourceLabel("carmen_confirmed"), "כרמן");
-    assertStrictEquals(clientCardSourceLabel("system_send"), "נשלח מהמערכת");
-    assertStrictEquals(clientCardSourceLabel("group_digest"), "סיכום קבוצה");
-    assertStrictEquals(clientCardSourceLabel("automation"), "אוטומציה");
-  },
-);
 
 Deno.test("buildRecordClientCardEntryArgs maps and trims every field", () => {
   const args = buildRecordClientCardEntryArgs({
@@ -95,10 +56,10 @@ Deno.test(
       source: "automation",
       attributedUserId: "system",
     });
-    assertStrictEquals(args.p_attributed_user, null);
-    assertStrictEquals(args.p_source_ref, null);
-    assertStrictEquals(args.p_counts_as_contact, null);
-    assertStrictEquals(args.p_update_type, null);
+    assertStrictEquals(args.p_attributed_user, undefined);
+    assertStrictEquals(args.p_source_ref, undefined);
+    assertStrictEquals(args.p_counts_as_contact, undefined);
+    assertStrictEquals(args.p_update_type, undefined);
   },
 );
 
@@ -146,9 +107,14 @@ Deno.test(
       ),
       "invalid_input",
     );
+    // Deliberately feeds a source outside the vocabulary to test the runtime check.
+    const unknownSource: unknown = "bot";
     assertStrictEquals(
       codeOf(() =>
-        buildRecordClientCardEntryArgs({ ...base, source: "bot" as any }),
+        buildRecordClientCardEntryArgs({
+          ...base,
+          source: unknownSource as ClientCardEntryInput["source"],
+        }),
       ),
       "invalid_input",
     );
@@ -214,52 +180,17 @@ Deno.test(
           error: { code: sqlstate, message: "x" },
         }),
       };
-      const err = await assertRejects(() =>
-        recordClientCardEntry(supabase, {
-          tenantId: TENANT,
-          clientId: CLIENT,
-          content: "x",
-          source: "carmen",
-        }),
+      const err = await assertRejects(
+        () =>
+          recordClientCardEntry(supabase, {
+            tenantId: TENANT,
+            clientId: CLIENT,
+            content: "x",
+            source: "carmen",
+          }),
+        ClientCardEntryError,
       );
-      assertStrictEquals((err as any).code, code);
+      assertStrictEquals(err.code, code);
     }
-  },
-);
-
-Deno.test(
-  "hourlyDedupeRef is stable within the hour and differs by text, person and hour",
-  () => {
-    const a = hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello", NOW);
-    assertStrictEquals(
-      a,
-      hourlyDedupeRef(
-        "t",
-        CAMPAIGNER_USER,
-        "note\nhello",
-        new Date("2026-10-26T09:59:59Z"),
-      ),
-    );
-    assertMatch(a, /^t:33333333-3333-4333-8333-333333333333:2026-10-26T09:/);
-    assertNotStrictEquals(
-      a,
-      hourlyDedupeRef("t", CAMPAIGNER_USER, "note\nhello!", NOW),
-    );
-    assertNotStrictEquals(
-      a,
-      hourlyDedupeRef("t", OWNER_USER, "note\nhello", NOW),
-    );
-    assertNotStrictEquals(
-      a,
-      hourlyDedupeRef(
-        "t",
-        CAMPAIGNER_USER,
-        "note\nhello",
-        new Date("2026-10-26T10:00:00Z"),
-      ),
-    );
-    assertMatch(hourlyDedupeRef("t", "system", "x", NOW), /^t:system:/);
-    assertStrictEquals(stableHash("שלום"), stableHash("שלום"));
-    assertNotStrictEquals(stableHash("שלום"), stableHash("שלום."));
   },
 );
