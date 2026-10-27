@@ -65,6 +65,7 @@ test("on a new board a question about Carmen is answered without a project", () 
     projectId: null,
     title: null,
     selectedArtifactId: null,
+    clientId: null,
   })!.promptAddon;
   expect(blank).toMatch(/בקשת עבודה חדשה .*workshop_start_project/);
   expect(blank).toMatch(
