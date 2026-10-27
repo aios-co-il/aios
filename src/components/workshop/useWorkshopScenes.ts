@@ -10,6 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
 import { subscribeWorkshopEvents } from "@/lib/workshopBridge";
 import {
+  type PageScene,
+  storyboardPageWith,
+} from "../../../supabase/functions/_shared/workshop/storyboard-text.ts";
+import {
   BOARD_SCENE_COLUMNS,
   applySceneEdit,
   storyboardScenes,
@@ -116,12 +120,47 @@ export function useWorkshopScenes(
 }
 
 /**
+ * The storyboard page on the board lists the scenes as written: after an edit it shows the new
+ * texts too, as after Carmen's change (workshop_update_scene). Cosmetic: the scene is saved.
+ */
+async function refreshStoryboardPage(
+  tenantId: string,
+  projectId: string,
+  scene: PageScene,
+  edit: boolean,
+) {
+  try {
+    const { data } = await supabase
+      .from("workshop_artifacts" as never)
+      .select("id, meta")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", projectId)
+      .eq("kind", "storyboard")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const page = data as { id?: string; meta?: unknown } | null;
+    const meta = page?.id ? storyboardPageWith(page.meta, scene, edit) : null;
+    if (!page?.id || !meta) return;
+    await supabase
+      .from("workshop_artifacts" as never)
+      .update({ meta } as never)
+      .eq("id", page.id)
+      .eq("tenant_id", tenantId);
+  } catch {
+    // The page catches up with the next storyboard; the scene itself is saved.
+  }
+}
+
+/**
  * Saves the texts the user changed on one scene (on-screen text, narration, dialogue). The card
- * shows them at once; a failed save puts the old texts back and says so.
+ * shows them at once; a failed save puts the old texts back and says so. `edit`: the film is cut
+ * from the user's materials (payload.workshop_edit), whose storyboard page shows no frame text.
  */
 export function useEditSceneText(
   tenantId: string | undefined,
   projectId: string | null,
+  edit = false,
 ) {
   const queryClient = useQueryClient();
   const queryKey = scenesQueryKey(tenantId, projectId);
@@ -133,7 +172,7 @@ export function useEditSceneText(
       sceneId: string;
       patch: SceneTextPatch;
     }) => {
-      const { error } = await supabase.rpc(
+      const { data, error } = await supabase.rpc(
         "workshop_edit_scene_text" as never,
         {
           p_scene_id: sceneId,
@@ -143,6 +182,9 @@ export function useEditSceneText(
         } as never,
       );
       if (error) throw error;
+      const scene = data as PageScene | null;
+      if (tenantId && projectId && scene?.id)
+        await refreshStoryboardPage(tenantId, projectId, scene, edit);
     },
     onMutate: async ({ sceneId, patch }) => {
       await queryClient.cancelQueries({ queryKey });

@@ -22,7 +22,7 @@ import {
   planSceneUpdate,
   sceneSummary,
 } from "../scene-update.ts";
-import { type SceneText, storyboardText } from "../storyboard-text.ts";
+import { storyboardPageWith } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 /** The scene asked for: by id, else by its number on the board (1 = first). */
@@ -76,39 +76,11 @@ async function refreshStoryboardPage(
       .limit(1)
       .maybeSingle();
     if (!data?.id) return null;
-    const meta = asRecord(data.meta);
-    const rows = (Array.isArray(meta.scenes) ? meta.scenes : []).map(asRecord);
-    if (!rows.some((row) => row.id === scene.id)) return null;
-    const sceneMeta = asRecord(scene.meta);
-    const next = rows.map((row) =>
-      row.id === scene.id
-        ? {
-            ...row,
-            title: String(scene.title ?? row.title ?? ""),
-            duration_s: Number(scene.duration_s) || Number(row.duration_s) || 3,
-            visual_prompt: String(scene.visual_prompt ?? ""),
-            motion_prompt: String(scene.motion_prompt ?? ""),
-            overlay_text: String(scene.overlay_text ?? ""),
-            voiceover_text: String(scene.voiceover_text ?? ""),
-            lipsync: sceneMeta.lipsync === true,
-            speaker: String(sceneMeta.speaker ?? ""),
-            dialogue: String(sceneMeta.dialogue ?? ""),
-          }
-        : row,
-    );
+    const meta = storyboardPageWith(data.meta, scene, edit);
+    if (!meta) return null;
     const updated = await supabase
       .from("workshop_artifacts")
-      .update({
-        meta: {
-          ...meta,
-          scenes: next,
-          total_s: next.reduce(
-            (sum, row) => sum + (Number(row.duration_s) || 0),
-            0,
-          ),
-          text: storyboardText(next as unknown as SceneText[], edit),
-        },
-      })
+      .update({ meta })
       .eq("id", data.id)
       .eq("tenant_id", tenantId);
     return updated?.error ? null : String(data.id);

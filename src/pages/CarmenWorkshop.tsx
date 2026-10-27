@@ -151,6 +151,7 @@ export default function CarmenWorkshop() {
     tenantId,
     projectId: selected?.id ?? null,
     aspect: filmAspect(selected?.payload),
+    edit: selected?.payload?.workshop_edit === true,
     onPickScene: () => setArtifactId(null),
     openChat: () => setOpen(true),
   });

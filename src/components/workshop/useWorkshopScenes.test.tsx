@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   rows: [] as unknown[],
   realtime: null as null | (() => void),
+  /** The newest storyboard page of the project, and what was written to pages. */
+  page: null as null | { id: string; meta: Record<string, unknown> },
+  pageWrites: [] as { meta: Record<string, unknown> }[],
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
@@ -25,8 +28,13 @@ vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
 vi.mock("@/integrations/supabase/client", () => {
   const query = (table: string) => {
     const chain: Record<string, unknown> = {};
-    for (const name of ["select", "eq", "order", "in"])
+    for (const name of ["select", "eq", "order", "in", "limit"])
       chain[name] = () => chain;
+    chain.maybeSingle = async () => ({ data: mocks.page, error: null });
+    chain.update = (value: { meta: Record<string, unknown> }) => {
+      if (table === "workshop_artifacts") mocks.pageWrites.push(value);
+      return chain;
+    };
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({
         data:
@@ -77,6 +85,8 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mocks.rows = [row("s1", "ישן")];
+  mocks.page = null;
+  mocks.pageWrites = [];
 });
 
 test("the grid reads the scenes, signs clip paths and reloads when Carmen changes one", async () => {
@@ -92,7 +102,7 @@ test("the grid reads the scenes, signs clip paths and reloads when Carmen change
 
   mocks.rows = [row("s1", "מה Carmen כתבה")];
   act(() =>
-    emitWorkshopEvent({ event: "scenes", item_id: "p-1", scene_id: "s1" }),
+    emitWorkshopEvent({ event: "artifacts", item_id: "p-1", scene_id: "s1" }),
   );
   await waitFor(() =>
     expect(result.current.data?.[0]?.overlayText).toBe("מה Carmen כתבה"),
@@ -146,5 +156,45 @@ test("a saved text shows at once; a failed save puts the old text back and says 
   );
   expect(mocks.toastError).toHaveBeenCalledWith(
     "לא הצלחנו לשמור את הטקסט של הסצנה",
+  );
+});
+
+test("a saved text also brings the storyboard page up to date", async () => {
+  mocks.page = {
+    id: "page-1",
+    meta: {
+      scenes: [
+        {
+          id: "s1",
+          position: 1,
+          title: "ההוק",
+          duration_s: 3,
+          overlay_text: "ישן",
+          lipsync: true,
+          dialogue: "שורה ישנה",
+        },
+      ],
+      text: "1. ההוק (3 ש׳)\nכיתוב: ישן\nאומרת למצלמה: שורה ישנה",
+    },
+  };
+  mocks.rpc.mockResolvedValue({
+    data: {
+      ...row("s1", "חדש"),
+      meta: { lipsync: true, dialogue: "שורה חדשה" },
+    },
+    error: null,
+  });
+  const { result } = renderHook(() => useEditSceneText("t-1", "p-1", true), {
+    wrapper,
+  });
+  await act(async () => {
+    await result.current.mutateAsync({
+      sceneId: "s1",
+      patch: { overlay_text: "חדש", dialogue: "שורה חדשה" },
+    });
+  });
+  expect(mocks.pageWrites).toHaveLength(1);
+  expect(mocks.pageWrites[0].meta.text).toBe(
+    "1. ההוק (3 ש׳)\nכיתוב: חדש\nאומרת למצלמה: שורה חדשה",
   );
 });

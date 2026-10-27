@@ -12,19 +12,22 @@ export function useStoryboardBoard({
   tenantId,
   projectId,
   aspect,
+  edit = false,
   onPickScene,
   openChat,
 }: {
   tenantId: string | undefined;
   projectId: string | null;
   aspect: string;
+  /** The film is cut from the user's materials (payload.workshop_edit). */
+  edit?: boolean;
   /** A scene was picked: the board lets go of a picked page, "this" is the scene now. */
   onPickScene: () => void;
   /** Opens Carmen's session column, where the composer is. */
   openChat: () => void;
 }) {
   const scenes = useWorkshopScenes(tenantId, projectId);
-  const edit = useEditSceneText(tenantId, projectId);
+  const saveText = useEditSceneText(tenantId, projectId, edit);
   const [sceneId, setSceneId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +54,8 @@ export function useStoryboardBoard({
       openChat();
       prefillComposer(scenePrefix(scene.number));
     },
-    onSave: (scene, patch) => edit.mutateAsync({ sceneId: scene.id, patch }),
+    onSave: (scene, patch) =>
+      saveText.mutateAsync({ sceneId: scene.id, patch }),
   };
 
   return {
