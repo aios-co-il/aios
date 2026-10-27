@@ -5,6 +5,7 @@
  */
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { FindingCandidate } from "../collectors/types.ts";
+import type { DroppedCounts } from "../findings/dropped.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { FindingRow, RouteDecision } from "../findings/types.ts";
 import type { PeopleDirectory, StaffMember } from "../recipients/directory.ts";
@@ -14,7 +15,7 @@ import {
   resolveClientRecipients,
 } from "../recipients/resolve.ts";
 import { gapClientIds, listOpenGaps, recheckPeople } from "./gap-recheck.ts";
-import { recordGaps, routingGaps } from "./gaps.ts";
+import { type Gaps, recordGaps, routingGaps } from "./gaps.ts";
 import { type NotifyFloors, routeFinding } from "./route.ts";
 
 /** Findings routed per tenant per call; the rest wait for the next round. */
@@ -38,6 +39,8 @@ export type RouteTenantResult = {
   findings: FindingRow[];
   decisions: RouteDecision[];
   gaps: FindingCandidate[];
+  /** Gaps the database did not store, by outcome. */
+  gapsDropped: DroppedCounts;
 };
 
 /** Routes the tenant's due findings and records decisions and gaps (not in a dry run). */
@@ -53,7 +56,7 @@ export async function routeTenant(
   const findings = [...stored, ...(input.virtual ?? [])];
   const open = await listOpenGaps(deps.findings, input.tenantId);
   if (!findings.length && !open.length) {
-    return { findings, decisions: [], gaps: [] };
+    return { findings, decisions: [], gaps: [], gapsDropped: {} };
   }
   const staff = await input.staff();
   const brief = resolveBriefRecipients(staff, input.settings);
@@ -83,11 +86,21 @@ export async function routeTenant(
     },
     input.now,
   );
-  if (!input.dryRun) {
-    await deps.findings.applyRoute(input.tenantId, input.roundId, decisions);
-    await recordGaps(deps.findings, input, gaps);
-  }
-  return { findings, decisions, gaps: gaps.candidates };
+  const gapsDropped = input.dryRun
+    ? {}
+    : await applyAndRecord(deps.findings, input, decisions, gaps);
+  return { findings, decisions, gaps: gaps.candidates, gapsDropped };
+}
+
+/** Records the decisions, then the gaps; returns the gaps not stored. */
+async function applyAndRecord(
+  findings: FindingsStore,
+  input: RouteTenantInput,
+  decisions: RouteDecision[],
+  gaps: Gaps,
+): Promise<DroppedCounts> {
+  await findings.applyRoute(input.tenantId, input.roundId, decisions);
+  return await recordGaps(findings, input, gaps);
 }
 
 /** Each distinct client's people, resolved once per run ("" for no client). */

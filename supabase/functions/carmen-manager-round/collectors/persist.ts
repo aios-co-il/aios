@@ -3,7 +3,10 @@
  * findings it saw end (with their resolution), auto-clear what a complete run
  * no longer reports, then save its watermark (only now, so a failed run is
  * retried from the same point). `cleared` counts both kinds of closing.
+ * Candidates the database did not store are counted and logged
+ * (findings/dropped.ts).
  */
+import { type DroppedCounts, reportDropped } from "../findings/dropped.ts";
 import type { CollectorRunDeps, CollectorRunInput } from "./run.ts";
 import type { Collector, CollectorResult, FindingCandidate } from "./types.ts";
 
@@ -14,7 +17,7 @@ export async function persistRun(
   collector: Collector,
   result: CollectorResult,
   candidates: FindingCandidate[],
-): Promise<{ inserted: number; cleared: number }> {
+): Promise<{ inserted: number; cleared: number; dropped: DroppedCounts }> {
   const outcomes = await deps.findings.upsert(
     input.tenantId,
     input.roundId,
@@ -36,7 +39,11 @@ export async function persistRun(
     at: input.now,
   });
   const inserted = outcomes.filter((o) => o.outcome === "inserted").length;
-  return { inserted, cleared: cleared + resolved };
+  const dropped = reportDropped(
+    { tenantId: input.tenantId, collector: collector.id },
+    outcomes,
+  );
+  return { inserted, cleared: cleared + resolved, dropped };
 }
 
 /** Counts a miss for each kind's live findings the run covered and did not report. */

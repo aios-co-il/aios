@@ -9,6 +9,7 @@ import { resolveBriefRecipients, resolveClientRecipients } from "./resolve.ts";
 const TODAY = "2026-11-01";
 const client = { id: "c1", agency_id: "a1", name: "לקוח א" };
 
+/** A current non-campaign assignment of campaigner k1; `fields` override any part. */
 function assignment(
   fields: Partial<CampaignerAssignment>,
 ): CampaignerAssignment {
@@ -24,6 +25,7 @@ function assignment(
   };
 }
 
+/** A staff member with no roles; `fields` override any part. */
 function staffMember(fields: Partial<StaffMember>): StaffMember {
   return {
     user_id: "u1",
@@ -35,6 +37,7 @@ function staffMember(fields: Partial<StaffMember>): StaffMember {
   };
 }
 
+/** A directory with these assignments; `known` false hides the client. */
 function directory(
   assignments: CampaignerAssignment[],
   known = true,

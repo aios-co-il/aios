@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { lineAccess, senderAccess } from "./sender-access.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
@@ -70,9 +72,7 @@ Deno.serve(async (req) => {
             auth: { persistSession: false },
           },
     );
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = serviceClient();
 
     const body = await req.json();
     const {
@@ -144,16 +144,11 @@ Deno.serve(async (req) => {
       tenantId = data?.tenant_id;
     }
 
-    const [{ data: membership }, { data: superAdmin }] = await Promise.all([
-      admin
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle(),
-      admin.rpc("is_super_admin", { _user_id: userId }),
-    ]);
-    if (!membership && superAdmin !== true) {
+    const access = await senderAccess(admin, tenantId ?? "", userId);
+    if (access instanceof Response) {
+      return access;
+    }
+    if (!access.member && !access.superAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -186,16 +181,13 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .maybeSingle();
       integ = data;
-      if (integ?.tenant_id !== tenantId) {
-        const { data: canUse, error: accessError } = await admin.rpc(
-          "tenant_can_use_integration",
-          {
-            p_tenant_id: tenantId,
-            p_integration_id: integrationId,
-          },
-        );
-        if (accessError) throw accessError;
-        if (canUse !== true && superAdmin !== true) integ = null;
+      const usable =
+        integ && (await lineAccess(admin, tenantId, access, integ));
+      if (usable instanceof Response) {
+        return usable;
+      }
+      if (!usable) {
+        integ = null;
       }
     } else {
       const { data } = await admin

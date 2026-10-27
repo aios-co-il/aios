@@ -1,14 +1,16 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
+import { withConsoleErrors } from "../../_shared/testing/console-errors.ts";
 import { RoundBudget } from "../budget.ts";
 import { deps } from "../tests/fakes.ts";
-import { finding, TENANT, type World, world } from "../tests/fake-world.ts";
+import { TENANT, type World, world } from "../tests/fake-world.ts";
 import type { DueCollector } from "./registry.ts";
 import { runCollectors } from "./run.ts";
 import type { Collector, CollectorContext } from "./types.ts";
 
 const slot = new Date("2026-11-01T08:00:00Z");
 
+/** An hourly contact collector that collects with `collect`. */
 function collector(collect: Collector["collect"]): Collector {
   return {
     id: "contact",
@@ -19,6 +21,7 @@ function collector(collect: Collector["collect"]): Collector {
   };
 }
 
+/** A warning candidate for client c1 with this fingerprint. */
 const candidate = (
   fingerprint: string,
   kind: "no_contact" | "data_gap" = "no_contact",
@@ -34,6 +37,7 @@ const candidate = (
   owner_user_id: null,
 });
 
+/** runCollectors over `w` for these due collectors. */
 function run(
   w: World,
   due: DueCollector[],
@@ -74,6 +78,7 @@ Deno.test("runCollectors", async (t) => {
         candidates: 1,
         inserted: 1,
         cleared: 0,
+        dropped: {},
         llm: { calls: 0, costUsd: 0 },
       });
       assertEquals(
@@ -95,14 +100,8 @@ Deno.test("runCollectors", async (t) => {
   );
 
   await t.step(
-    "closes the findings its run saw end, only of its own kinds",
+    "passes the run mode to the collector and reports its note",
     async () => {
-      const w = world({
-        findings: [
-          finding({ fingerprint: "answered" }),
-          finding({ fingerprint: "other", kind: "data_gap" }),
-        ],
-      });
       const contexts: CollectorContext[] = [];
       const contact = collector((ctx) => {
         contexts.push(ctx);
@@ -110,60 +109,40 @@ Deno.test("runCollectors", async (t) => {
           candidates: [],
           watermark: null,
           coverage: { complete: false, clientIds: null },
-          resolved: [
-            {
-              kind: "no_contact",
-              fingerprint: "answered",
-              resolution: "answered",
-              details: { response_minutes: 42 },
-            },
-            {
-              kind: "data_gap",
-              fingerprint: "other",
-              resolution: "answered",
-              details: {},
-            },
-          ],
+          note: "lines_not_monitored:1",
         });
       });
-      const { reports } = await run(w, [{ collector: contact, slot }]);
-      assertEquals(reports[0].cleared, 1);
-      assertEquals(
-        w.findings.map((f) => [f.fingerprint, f.status]),
-        [
-          ["answered", "resolved"],
-          ["other", "open"],
-        ],
-      );
+      const { reports } = await run(world(), [{ collector: contact, slot }]);
       assertEquals(contexts[0]?.dryRun, false);
+      assertEquals(reports[0].reason, "lines_not_monitored:1");
     },
   );
 
   await t.step(
-    "clears only the kinds the run checked and reports its note",
+    "counts and logs the candidates the database did not store",
     async () => {
-      const w = world();
-      const both: Collector = {
-        ...collector(() =>
-          Promise.resolve({
-            candidates: [],
-            watermark: null,
-            coverage: {
-              complete: true,
-              clientIds: null,
-              kinds: ["no_contact", "cost_spike"],
-            },
-            note: "lines_not_monitored:1",
-          }),
-        ),
-        kinds: ["no_contact", "data_gap"],
-      };
-      const { reports } = await run(w, [{ collector: both, slot }]);
-      assertEquals(
-        w.marks.map((mark) => mark.kind),
-        ["no_contact"],
+      const w = world({
+        refused: { far: "rejected_client", long: "invalid", old: "suppressed" },
+      });
+      const contact = collector(() =>
+        Promise.resolve({
+          candidates: ["a", "far", "long", "old"].map((fp) => candidate(fp)),
+          watermark: null,
+          coverage: { complete: false, clientIds: null },
+        }),
       );
-      assertEquals(reports[0].reason, "lines_not_monitored:1");
+      const { result, logged } = await withConsoleErrors(() =>
+        run(w, [{ collector: contact, slot }]),
+      );
+      assertEquals(result.reports[0].inserted, 1);
+      assertEquals(result.reports[0].dropped, {
+        rejected_client: 1,
+        invalid: 1,
+        suppressed: 1,
+      });
+      assertStringIncludes(logged, '"fingerprint":"far"');
+      assertStringIncludes(logged, '"fingerprint":"long"');
+      assertEquals(logged.includes('"fingerprint":"old"'), false);
     },
   );
 

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { briefTime } from "../../../../supabase/functions/_shared/manager-round/brief-schedule.ts";
 import { ManagerModeSection } from "./ManagerModeSection";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -29,6 +30,13 @@ describe("ManagerModeSection", () => {
       "aria-checked",
       "true",
     );
+  });
+
+  it("shows the brief's time from its schedule", () => {
+    renderSection("observe");
+    expect(
+      screen.getByText(new RegExp(`סיכום בוקר ב־${briefTime()}`)),
+    ).toBeInTheDocument();
   });
 
   it("reports the picked mode", async () => {

@@ -14,30 +14,18 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
-  readCardLogSystemSends,
-  type PulseAlertRules,
-  type PulseManagerSettings,
+  type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
-import type { ManagerMode } from "../../../supabase/functions/_shared/manager-round/modes.ts";
-import { resolveManagerSettings } from "../../../supabase/functions/_shared/manager-round/settings.ts";
 import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 import { ManagerModeSection } from "./manager-round/ManagerModeSection";
+import { useManagerModeDraft } from "./manager-round/useManagerModeDraft";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  /**
-   * Saves the alert rules and, for owners, the manager settings. The caller
-   * merges both into the stored pulse_alert_rules (mergePulseAlertRules).
-   */
-  onSave: (
-    rules: PulseAlertRules,
-    manager: PulseManagerSettings,
-  ) => Promise<void> | void;
+  onSave: SavePulseAlertRules;
   saving?: boolean;
-  /** Tenant and agency owners see Carmen's manager settings (mode, card logging). */
-  canManageManager?: boolean;
 };
 
 export function PulseAlertRulesDialog({
@@ -46,21 +34,14 @@ export function PulseAlertRulesDialog({
   value,
   onSave,
   saving = false,
-  canManageManager = false,
 }: PulseAlertRulesDialogProps) {
-  const [rules, setRules] = useState<PulseAlertRules>(
-    DEFAULT_PULSE_ALERT_RULES,
-  );
-  const [managerMode, setManagerMode] = useState<ManagerMode>("observe");
-  const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
+  const [rules, setRules] = useState(DEFAULT_PULSE_ALERT_RULES);
+  const manager = useManagerModeDraft(open, value, onSave);
 
   useEffect(() => {
-    if (!open) {
-      return;
+    if (open) {
+      setRules(parsePulseAlertRules(value));
     }
-    setRules(parsePulseAlertRules(value));
-    setManagerMode(resolveManagerSettings(value).mode);
-    setCardLogSystemSends(readCardLogSystemSends(value));
   }, [open, value]);
 
   return (
@@ -170,38 +151,15 @@ export function PulseAlertRulesDialog({
             />
           </div>
 
-          {canManageManager && (
-            <>
-              <ManagerModeSection
-                mode={managerMode}
-                onChange={setManagerMode}
-              />
-              <CardLogSystemSendsSwitch
-                checked={cardLogSystemSends}
-                onCheckedChange={setCardLogSystemSends}
-              />
-            </>
-          )}
+          {manager.section && <ManagerModeSection {...manager.section} />}
+          {manager.cardLog && <CardLogSystemSendsSwitch {...manager.cardLog} />}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
-          <Button
-            disabled={saving}
-            onClick={() =>
-              onSave(
-                parsePulseAlertRules(rules),
-                canManageManager
-                  ? {
-                      mode: managerMode,
-                      card_log_system_sends: cardLogSystemSends,
-                    }
-                  : {},
-              )
-            }
-          >
+          <Button disabled={saving} onClick={() => manager.save(rules)}>
             שמור חוקים
           </Button>
         </DialogFooter>

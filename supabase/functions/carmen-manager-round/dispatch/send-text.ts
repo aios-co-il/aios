@@ -1,5 +1,5 @@
 /** One text from Carmen's own line (sendStaffAlert), as an outcome to record. */
-import type { StaffAlertResult } from "../../_shared/staff-notify.ts";
+import type { StaffAlertResult } from "../../_shared/staff-alert/send.ts";
 import type { SendOutcome } from "./store.ts";
 
 /**

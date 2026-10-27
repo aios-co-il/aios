@@ -5,10 +5,11 @@
  */
 import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
 import type { FindingsStore } from "../findings/store.ts";
-import type {
-  FindingRow,
-  Recipient,
-  RecipientRole,
+import {
+  evidenceText,
+  type FindingRow,
+  type Recipient,
+  type RecipientRole,
 } from "../findings/types.ts";
 import type { Contact } from "../recipients/contacts.ts";
 import { ROUTER_KINDS } from "../recipients/data-findings.ts";
@@ -46,9 +47,9 @@ export async function recheckPeople(
   gaps: FindingRow[],
 ): Promise<{ people: Recipient[]; gone: string[] }> {
   const named = gaps.flatMap((gap) => {
-    const key = evidenceText(gap, "recipient_key");
+    const key = evidenceText(gap.evidence, "recipient_key");
     return gap.kind === "missing_phone" && key
-      ? [{ key, role: roleOf(evidenceText(gap, "role")) }]
+      ? [{ key, role: roleOf(evidenceText(gap.evidence, "role")) }]
       : [];
   });
   const members = new Map(staff.map((m) => [`user:${m.user_id}`, m]));
@@ -73,16 +74,6 @@ export async function recheckPeople(
     });
   }
   return { people, gone };
-}
-
-/** A string field of the gap's evidence, or null. */
-function evidenceText(gap: FindingRow, field: string): string | null {
-  const evidence = gap.evidence;
-  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
-    return null;
-  }
-  const value = evidence[field];
-  return typeof value === "string" ? value : null;
 }
 
 /** The recorded role, or campaigner when it is not one. */

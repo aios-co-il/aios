@@ -147,11 +147,7 @@ import {
   scoreNameMatch,
   selectStaffMatch,
 } from "../_shared/staff-whatsapp.ts";
-import {
-  logStaffAlertOutcome,
-  sendStaffAlert,
-  staffAlertToolResult,
-} from "../_shared/staff-notify.ts";
+import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 import {
   buildGoogleCustomerClientMap,
   googleResolveClientCustomerId,
@@ -201,12 +197,13 @@ import {
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   normalizePulseRowClientCall,
-} from "../_shared/pulse-client-call.ts";
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
 import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
-import { fetchCampaignLevelRecords } from "../_shared/pulse-inputs.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -470,43 +467,6 @@ async function fetchOpenAiBillingStatus(args: {
   const summary_he = formatOpenAiBillingWhatsApp(status);
   // Never echo key material
   return { ...status, summary_he };
-}
-
-// Staff alerts leave only from Carmen's Manus line (send-manus-wa-message:
-// Staging guard + chat_messages record). See _shared/staff-notify.ts.
-async function sendStaffWhatsappMessage(args: {
-  supabase: any;
-  tenantId: string;
-  phone: string;
-  message: string;
-  requesterUserId?: string | null;
-  agentId?: string | null;
-  conversationId?: string | null;
-  recipient?: { entity_type?: string; id?: string; full_name?: string } | null;
-}): Promise<{
-  error?: string;
-  integration_id?: string | null;
-  provider?: string | null;
-  [k: string]: any;
-}> {
-  const result = await sendStaffAlert({
-    supabase: args.supabase,
-    supabaseUrl: SUPABASE_URL,
-    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-    tenantId: args.tenantId,
-    phone: args.phone,
-    message: args.message,
-    requesterUserId: args.requesterUserId ?? null,
-  });
-  await logStaffAlertOutcome(args.supabase, {
-    tenantId: args.tenantId,
-    agentId: args.agentId,
-    userId: args.requesterUserId,
-    conversationId: args.conversationId,
-    recipient: args.recipient,
-    result,
-  });
-  return staffAlertToolResult(result);
 }
 
 const corsHeaders = {
@@ -7313,7 +7273,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7362,6 +7321,7 @@ async function executeTool(
         }
       }
       // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
       let normalizedRows = Array.from(freshestByClient.values())
         .map((row: any) =>
           normalizePulseRowClientCall({
@@ -7372,7 +7332,7 @@ async function executeTool(
             agencies: undefined,
           }),
         )
-        .filter((row: any) => !args.status || row.status === args.status);
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7487,7 +7447,7 @@ async function executeTool(
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
       const noRecentClientCallCount = normalizedRows.filter(
-        (row: any) => row.no_recent_client_call === true,
+        pulseRowHasNoRecentClientCall,
       ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
@@ -11183,12 +11143,10 @@ async function executeTool(
       if (tableIds.length > 0) {
         // Campaign-level rows of the last 7 days, paged: one unfiltered request
         // stopped at 1000 rows of any level/date and missed real spend.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows as the untyped client returned them
-        const recs: any[] = await fetchCampaignLevelRecords(supabase, {
+        const recs = await fetchCampaignLevelRecords(supabase, {
           tableIds,
           sinceYmd: d7Str,
           tenantIds: accessibleTenantIds,
-          columns: "id, table_id, data",
         });
         for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
@@ -13370,6 +13328,8 @@ async function executeTool(
 
       const sendResult = await sendStaffWhatsappMessage({
         supabase,
+        supabaseUrl: SUPABASE_URL,
+        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
         tenantId,
         phone: contact.phone,
         message,

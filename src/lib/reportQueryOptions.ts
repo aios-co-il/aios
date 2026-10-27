@@ -3,7 +3,7 @@ import {
   worstSyncProblem,
   type SyncProblem,
   type SyncTableLike,
-} from "../../supabase/functions/_shared/sync-freshness.ts";
+} from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 
 /** Shared React Query tuning for report / dashboard data. */
 export const REPORT_QUERY_STALE_MS = 5 * 60 * 1000;
@@ -52,9 +52,7 @@ export function getReportLastSyncAt(
  * stored rows, so the "עדכון מקור" time is older than it looks.
  */
 export function getReportSyncProblem(
-  tables: SyncTableLike | SyncTableLike[] | null | undefined,
+  tables: readonly SyncTableLike[],
 ): SyncProblem | null {
-  if (!tables) return null;
-  const list = Array.isArray(tables) ? tables : [tables];
-  return worstSyncProblem(list.map((table) => syncOutcomeProblem(table)));
+  return worstSyncProblem(tables.map((table) => syncOutcomeProblem(table)));
 }

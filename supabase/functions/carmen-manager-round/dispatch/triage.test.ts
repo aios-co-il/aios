@@ -8,6 +8,7 @@ const settings = resolveManagerSettings({
   manager: { mode: "team", notify_since: "2026-10-01T00:00:00Z" },
 });
 
+/** Triage of one row for `f`, as [cancelled, held, ready] counts. */
 function split(
   f: FindingRow,
   slot: "now" | "list",

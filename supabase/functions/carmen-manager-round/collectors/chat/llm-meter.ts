@@ -9,11 +9,9 @@
  * since the usage log is written asynchronously.
  */
 import type { Json } from "../../../_shared/database.types.ts";
-import {
-  jerusalemLocalTimeToUtc,
-  jerusalemYmd,
-} from "../../../_shared/calendarTimeZone.ts";
+import { jerusalemYmd } from "../../../_shared/calendarTimeZone.ts";
 import type { ManagerSettings } from "../../../_shared/manager-round/settings.ts";
+import { jerusalemLocalTimeToUtc } from "../../../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 

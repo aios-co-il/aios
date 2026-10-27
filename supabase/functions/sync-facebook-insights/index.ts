@@ -16,12 +16,14 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import { isWriteSuccess } from "../_shared/ads-sync/outcome.ts";
+import { redactSyncError } from "../_shared/ads-sync/redact.ts";
+import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
-  buildSyncOutcome,
-  isWriteSuccess,
-  redactSyncError,
-} from "../_shared/sync-outcome.ts";
-import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
 
 const SOURCE = "sync-facebook-insights";
 
@@ -38,7 +40,7 @@ Deno.serve(async (req) => {
   }
 
   // Set once the table is known, so an unexpected error is recorded as a failed run.
-  let recordFailure: ((message: string) => Promise<unknown>) | null = null;
+  let recordFailure: ((message: string) => Promise<void>) | null = null;
   try {
     // Allow service-role internal calls (Carmen / cron) to bypass user auth —
     // mirrors sync-google-ads-data. Requires x-internal-cron: true AND service bearer.
@@ -223,15 +225,12 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = integration.api_key;
-    recordFailure = (message) =>
-      saveSyncRun(supabaseAdmin, table_id, {
-        outcome: buildSyncOutcome({
-          status: "failed",
-          error: message,
-          source: SOURCE,
-        }),
-        fallbackSettings: settings,
-      });
+    const run = { tableId: table_id, tenantId: tableTenantId };
+    recordFailure = failedRunRecorder(supabase, {
+      ...run,
+      source: SOURCE,
+      fallbackSettings: settings,
+    });
 
     // Calculate date range
     const now = new Date();
@@ -451,11 +450,7 @@ Deno.serve(async (req) => {
       .eq("table_id", table_id)
       .in("key", ["date_start", "date_stop", "landing_page_views"]);
 
-    // Replace only the days (and levels) this run re-fetched; rows older than the
-    // sync window are history a longer report window still needs. An empty run or a
-    // failed campaign-level fetch leaves the stored rows alone (syncAdsWindow).
-    // Scope by table_id only — shared-agency tables can leave orphan rows under a
-    // previous tenant_id; filtering by tenant_id would leave them forever and inflate KPIs.
+    // What may be replaced, and why the delete is table_id-only: see syncAdsWindow.
     const outcome = await syncAdsWindow(
       { deleteClient: supabaseAdmin, insertClient: supabase },
       {
@@ -477,7 +472,7 @@ Deno.serve(async (req) => {
     );
 
     // Account status always; last_sync_at only after a successful write (saveSyncRun).
-    const { lastSyncAt } = await saveSyncRun(supabase, table_id, {
+    const { lastSyncAt } = await saveSyncRun(supabase, run, {
       outcome,
       fallbackSettings: settings,
       settingsPatch: {
@@ -491,26 +486,19 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: outcome.status !== "failed",
-        ...(outcome.status === "failed" ? { error: outcome.error } : {}),
-        records_synced: outcome.rows,
-        by_level: levelCounts,
-        outcome,
-        account_status: accountStatus,
-        last_sync_at: lastSyncAt,
-      }),
-      {
-        status: outcome.status === "failed" ? 502 : 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    const { body, status } = syncRunBody(outcome, lastSyncAt, {
+      by_level: levelCounts,
+      account_status: accountStatus,
+    });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error: any) {
     console.error("Error in sync-facebook-insights:", error);
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
-    ).catch(() => {});
+    );
     // Upstream errors can print the request URL, Meta access token included.
     return new Response(
       JSON.stringify({ error: redactSyncError(error?.message ?? error) }),

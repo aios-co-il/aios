@@ -2,6 +2,7 @@
 import type { PeopleDirectory } from "../recipients/directory.ts";
 import type { World } from "./fake-world.ts";
 
+/** A PeopleDirectory that answers from the world's clients, assignments, staff and contacts. */
 export function fakeDirectory(w: World): PeopleDirectory {
   return {
     client: (_tenant, id) =>

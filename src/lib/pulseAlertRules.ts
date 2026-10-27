@@ -60,6 +60,15 @@ export function readCardLogSystemSends(raw: unknown): boolean {
 }
 
 /**
+ * Saves the edited alert rules and the manager settings; the caller merges
+ * both into the stored pulse_alert_rules (mergePulseAlertRules).
+ */
+export type SavePulseAlertRules = (
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings,
+) => void;
+
+/**
  * The pulse_alert_rules value to save: the stored JSON with the edited alert
  * rules laid over it; keys this screen does not know are kept. The manager
  * block is sent only when a manager setting actually changes: without it the
