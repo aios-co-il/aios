@@ -93,6 +93,22 @@ export function openRouterProvider({ apiKey, model, fetchImpl = fetch } = {}) {
       "Content-Type": "application/json",
     };
   };
+  /** Starts a job from a ready request body (any video model on OpenRouter). */
+  const submitBody = async (body) => {
+    const response = await fetchImpl(`${BASE()}/videos`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw beforeSubmit(
+        `openrouter submit ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`,
+        response.status,
+      );
+    if (!data.id) throw beforeSubmit("openrouter submit returned no job id");
+    return { jobId: data.id };
+  };
   return {
     name: "openrouter",
     model: chosen,
@@ -117,28 +133,16 @@ export function openRouterProvider({ apiKey, model, fetchImpl = fetch } = {}) {
     async submit(input) {
       const talking = input.talking === true;
       const submitModel = talking ? TALKING_MODEL() : chosen;
-      const response = await fetchImpl(`${BASE()}/videos`, {
-        method: "POST",
-        headers: auth(),
-        body: JSON.stringify(
-          openRouterClipBody({
-            ...input,
-            model: submitModel,
-            generateAudio: talking,
-          }),
-        ),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw beforeSubmit(
-          `openrouter submit ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`,
-          response.status,
-        );
-      if (!data.id) throw beforeSubmit("openrouter submit returned no job id");
-      return talking
-        ? { jobId: data.id, model: submitModel }
-        : { jobId: data.id };
+      const { jobId } = await submitBody(
+        openRouterClipBody({
+          ...input,
+          model: submitModel,
+          generateAudio: talking,
+        }),
+      );
+      return talking ? { jobId, model: submitModel } : { jobId };
     },
+    submitBody,
     async poll(jobId) {
       const id = encodeURIComponent(jobId);
       const response = await fetchImpl(`${BASE()}/videos/${id}`, {

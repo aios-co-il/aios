@@ -159,12 +159,19 @@ test("the lip sync of a chosen-voice scene animates the user's picture with that
   expect(attach.args.p_meta.dialogue).toBe(LINE);
 });
 
-test("a chosen-voice line never goes to OpenRouter Veo, which speaks in its own voice", async () => {
+test("a chosen-voice line goes to HeyGen with its own audio, never to OpenRouter Veo, which speaks in its own voice", async () => {
   const tried = [];
   const providerFor = (name) => {
     tried.push(name);
-    return { name, needs: "image" };
+    return {
+      name,
+      needs: "image",
+      submit: async () => {
+        throw new Error("openrouter submit 402: insufficient credits");
+      },
+    };
   };
+  // HeyGen refuses before any job starts: the run fails instead of falling back to Veo.
   await expect(
     generateLipsync({
       db: fakeDb(),
@@ -174,8 +181,8 @@ test("a chosen-voice line never goes to OpenRouter Veo, which speaks in its own 
       env: {},
       log: () => {},
     }),
-  ).rejects.toThrow(/no lip-sync provider/);
-  expect(tried).toStrictEqual([]);
+  ).rejects.toThrow(/openrouter submit 402/);
+  expect(tried).toStrictEqual(["heygen"]);
 });
 
 /** Five 80 px stripes side by side (red, green, blue, yellow, white): a 400x300 landscape still. */

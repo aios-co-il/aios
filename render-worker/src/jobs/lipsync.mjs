@@ -30,7 +30,7 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const NO_LIPSYNC_PROVIDER =
-  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan) or Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
+  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), an OpenRouter key or a Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
 
 /** Bytes of a creative-video file in the tenant folder, or of an allowed media URL. */
 async function loadFile(db, tenantId, url) {
@@ -331,7 +331,10 @@ async function finishLipsync({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const seconds = (await videoSeconds(bytes)) ?? durationS;
-  const estimate = provider.estimate({ durationS: seconds });
+  // What the provider charged when it says (OpenRouter), else the planning price.
+  const estimate = Number.isFinite(result.costUsd)
+    ? { usd: result.costUsd, credits: 0 }
+    : provider.estimate({ durationS: seconds });
   const path = await lipsyncPath(db, run, item.folder);
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {

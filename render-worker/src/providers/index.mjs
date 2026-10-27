@@ -9,6 +9,7 @@ import { higgsfieldProvider } from "./higgsfield.mjs";
 import { klingProvider } from "./kling.mjs";
 import {
   elevenLabsLipsyncProvider,
+  heygenLipsyncProvider,
   higgsfieldLipsyncProvider,
   klingLipsyncProvider,
   openRouterLipsyncProvider,
@@ -21,6 +22,7 @@ const LIPSYNC_PROVIDERS = {
   elevenlabs: (keys) =>
     elevenLabsLipsyncProvider({ apiKey: keys?.elevenLabsKey }),
   kling: () => klingLipsyncProvider(),
+  heygen: (keys) => heygenLipsyncProvider({ apiKey: keys?.openRouterKey }),
   higgsfield: (keys) =>
     higgsfieldLipsyncProvider({
       keyId: keys?.higgsfieldKeyId,
@@ -30,7 +32,7 @@ const LIPSYNC_PROVIDERS = {
     openRouterLipsyncProvider({ apiKey: keys?.openRouterKey }),
 };
 
-/** A lip-sync provider by name (elevenlabs | kling | higgsfield). */
+/** A lip-sync provider by name (elevenlabs | kling | heygen | higgsfield | openrouter). */
 export function getLipsyncProvider(name, keys = {}) {
   const factory = LIPSYNC_PROVIDERS[name];
   if (!factory)

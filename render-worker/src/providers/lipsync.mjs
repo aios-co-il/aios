@@ -16,15 +16,17 @@ import { klingBaseUrl, klingToken } from "./kling.mjs";
 import { openRouterProvider } from "./openrouter.mjs";
 
 /** Planning price per second of talking video, until the first paid run gives the real one. */
-const usdPerSecond = (name) =>
-  Number(process.env[`${name.toUpperCase()}_LIPSYNC_USD_PER_SECOND`]) || 0.1;
+const usdPerSecond = (name, fallback) =>
+  Number(process.env[`${name.toUpperCase()}_LIPSYNC_USD_PER_SECOND`]) ||
+  fallback;
 
 const estimateFor =
-  (name) =>
+  (name, fallback = 0.1) =>
   ({ durationS }) => ({
     credits: 0,
     usd: +(
-      Math.max(1, Math.ceil(Number(durationS) || 5)) * usdPerSecond(name)
+      Math.max(1, Math.ceil(Number(durationS) || 5)) *
+      usdPerSecond(name, fallback)
     ).toFixed(2),
   });
 
@@ -202,6 +204,45 @@ export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
 }
 
 /**
+ * HeyGen Avatar IV on OpenRouter: one portrait + the scene's own voice line -> a lip-synced
+ * talking video whose length follows the audio, at $0.05 a second. OpenRouter's model page:
+ * the spoken audio can be "a supplied audio track, which the image is lip-synced to directly";
+ * the video API takes image and audio references in input_references (ContentPartAudio).
+ * https://openrouter.ai/heygen/avatar-iv · https://openrouter.ai/api/v1/videos/models
+ * Same key, job API and poll as the OpenRouter scene engine. Verify with one paid call.
+ */
+export const HEYGEN_LIPSYNC_MODEL = "heygen/avatar-iv";
+
+export function heygenLipsyncBody({ imageUrl, audioUrl, prompt, aspect }) {
+  if (!imageUrl) throw new Error("heygen lipsync needs a public image url");
+  if (!audioUrl) throw new Error("heygen lipsync needs the voice line");
+  return {
+    model: HEYGEN_LIPSYNC_MODEL,
+    prompt,
+    resolution: "1080p",
+    // Avatar IV renders 16:9, 9:16 and 1:1.
+    aspect_ratio: ["16:9", "9:16", "1:1"].includes(aspect) ? aspect : "9:16",
+    input_references: [
+      { type: "image_url", image_url: { url: imageUrl } },
+      { type: "audio_url", audio_url: { url: audioUrl } },
+    ],
+  };
+}
+
+export function heygenLipsyncProvider({ apiKey, fetchImpl = fetch } = {}) {
+  const jobs = openRouterProvider({ apiKey, fetchImpl });
+  return {
+    name: "heygen",
+    model: HEYGEN_LIPSYNC_MODEL,
+    needs: "image",
+    needsPublicMedia: true,
+    estimate: estimateFor("heygen", 0.05),
+    submit: (input) => jobs.submitBody(heygenLipsyncBody(input)),
+    poll: (jobId) => jobs.poll(jobId),
+  };
+}
+
+/**
  * Higgsfield Seedance 2.5 reference-to-video: the still as the subject and the voice line as a
  * reference audio. Documented inputs: image_urls, audio_urls, prompt, duration (4-30),
  * aspect_ratio, resolution, generate_audio.
@@ -299,12 +340,14 @@ export function higgsfieldLipsyncProvider({
 
 /**
  * Lip-sync providers this tenant can run, best first: ElevenLabs (the tenant's own key, a
- * documented image+audio lip-sync model), Kling (worker keys, needs the clip), Higgsfield.
+ * documented image+audio lip-sync model), Kling (worker keys, needs the clip), HeyGen Avatar
+ * IV (the tenant's OpenRouter key, image+audio), Higgsfield.
  */
 export function lipsyncCandidates(keys = {}, env = process.env) {
   const names = [];
   if (keys.elevenLabsKey) names.push("elevenlabs");
   if (env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY) names.push("kling");
+  if (keys.openRouterKey) names.push("heygen");
   if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret))
     names.push("higgsfield");
   // Last: Veo speaks the line itself from the still, so the voice is Veo's, not the chosen one.

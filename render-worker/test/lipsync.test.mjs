@@ -581,8 +581,8 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
   const { lipsyncCandidates, openRouterLipsyncProvider } =
     await import("../src/providers/lipsync.mjs");
   expect(
-    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
-  ).toStrictEqual(["elevenlabs", "openrouter"]);
+    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}).at(-1),
+  ).toBe("openrouter");
   let sent = null;
   const provider = openRouterLipsyncProvider({
     apiKey: "or-key",
@@ -695,4 +695,193 @@ test("a new line keeps the movement: the earlier animated clip is reused, never 
   );
   expect(relipped.args.p_meta.source_asset_id).toBe("motion-1");
   expect(relipped.args.p_meta.motion_clip_asset_id).toBeUndefined();
+});
+
+test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voice line", async () => {
+  const { heygenLipsyncBody, heygenLipsyncProvider } =
+    await import("../src/providers/lipsync.mjs");
+  const body = heygenLipsyncBody({
+    imageUrl: "https://p.supabase.co/sign/still.png",
+    audioUrl: "https://p.supabase.co/sign/voice.audio",
+    prompt: 'Carmen speaks "שלום".',
+    aspect: "9:16",
+  });
+  expect(body).toStrictEqual({
+    model: "heygen/avatar-iv",
+    prompt: 'Carmen speaks "שלום".',
+    resolution: "1080p",
+    aspect_ratio: "9:16",
+    input_references: [
+      {
+        type: "image_url",
+        image_url: { url: "https://p.supabase.co/sign/still.png" },
+      },
+      {
+        type: "audio_url",
+        audio_url: { url: "https://p.supabase.co/sign/voice.audio" },
+      },
+    ],
+  });
+  // Avatar IV renders 16:9, 9:16 and 1:1 only.
+  expect(
+    heygenLipsyncBody({ ...body, imageUrl: "a", audioUrl: "b", aspect: "4:5" })
+      .aspect_ratio,
+  ).toBe("9:16");
+  expect(() => heygenLipsyncBody({ imageUrl: "a" })).toThrow(/voice line/);
+
+  const calls = [];
+  const provider = heygenLipsyncProvider({
+    apiKey: "or-key",
+    fetchImpl: async (url, init = {}) => {
+      calls.push({ url, body: init.body ? JSON.parse(init.body) : null });
+      if (init.method === "POST")
+        return { ok: true, json: async () => ({ id: "hg-1" }) };
+      if (url.endsWith("/content?index=0"))
+        return {
+          ok: true,
+          arrayBuffer: async () => new Uint8Array([1, 2]).buffer,
+        };
+      return {
+        ok: true,
+        json: async () => ({ status: "completed", usage: { cost: 0.2 } }),
+      };
+    },
+  });
+  expect(provider.name).toBe("heygen");
+  expect(provider.needs).toBe("image");
+  expect(provider.needsPublicMedia).toBe(true);
+  // $0.05 per second of the line.
+  expect(provider.estimate({ durationS: 3.2 }).usd).toBe(0.2);
+  const { jobId } = await provider.submit({
+    imageUrl: "https://p.supabase.co/sign/still.png",
+    audioUrl: "https://p.supabase.co/sign/voice.audio",
+    prompt: "p",
+    aspect: "9:16",
+  });
+  expect(jobId).toBe("hg-1");
+  expect(calls[0].url).toMatch(/\/videos$/);
+  expect(calls[0].body.model).toBe("heygen/avatar-iv");
+  const done = await provider.poll("hg-1");
+  expect(done.status).toBe("succeeded");
+  expect(done.costUsd).toBe(0.2);
+});
+
+test("HeyGen comes before the Veo fallback, and a refused plan moves the line on to it", async () => {
+  const { elevenLabsLipsyncProvider, heygenLipsyncProvider } =
+    await import("../src/providers/lipsync.mjs");
+  expect(
+    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
+  ).toStrictEqual(["elevenlabs", "heygen", "openrouter"]);
+  // A line in the chosen voice (Yael): never Veo, which speaks in its own voice.
+  const db = fakeDb({
+    scene: { meta: { ...talkingMeta, chosen_voice: true } },
+  });
+  const sent = [];
+  const result = await generateLipsync({
+    db,
+    run: RUN,
+    keys: { elevenLabsKey: "xi", openRouterKey: "or" },
+    providerFor: (name, keys) =>
+      name === "elevenlabs"
+        ? elevenLabsLipsyncProvider({
+            apiKey: keys.elevenLabsKey,
+            fetchImpl: async () => ({
+              ok: false,
+              status: 402,
+              json: async () => ({
+                detail: { code: "paid_plan_required" },
+              }),
+            }),
+          })
+        : heygenLipsyncProvider({
+            apiKey: keys.openRouterKey,
+            fetchImpl: async (url, init = {}) => {
+              if (init.method === "POST") {
+                sent.push(JSON.parse(init.body));
+                return { ok: true, json: async () => ({ id: "hg-1" }) };
+              }
+              if (url.endsWith("/content?index=0"))
+                return {
+                  ok: true,
+                  arrayBuffer: async () => new Uint8Array([0, 0, 0, 1]).buffer,
+                };
+              return {
+                ok: true,
+                json: async () => ({
+                  status: "completed",
+                  usage: { cost: 0.21 },
+                }),
+              };
+            },
+          }),
+    env: {},
+    log: () => {},
+  });
+  expect(result.provider).toBe("heygen");
+  expect(sent.length).toBe(1);
+  const [image, audio] = sent[0].input_references;
+  expect(image.image_url.url).toMatch(
+    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-still-r1\.png$/,
+  );
+  expect(audio.audio_url.url).toMatch(
+    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-audio-r1\.audio$/,
+  );
+  // The run records what OpenRouter charged, not the estimate.
+  expect(result.costUsd).toBe(0.21);
+  const attach = db.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attach.args.p_meta.provider).toBe("heygen");
+  expect(attach.args.p_meta.generation_cost.usd).toBe(0.21);
+});
+
+test("a HeyGen lip sync keeps the voice line's word timings for the captions; a Veo clip does not", async () => {
+  const alignment = { characters: ["ש"], character_start_times_seconds: [0] };
+  const sourcesWith = async (provider) => {
+    const scene = {
+      id: "b",
+      position: 1,
+      overlay_text: "",
+      voiceover_text: "",
+      duration_s: 3,
+      clip_asset_id: "cb",
+      voice_asset_id: "vb",
+      still_asset_id: null,
+      meta: talkingMeta,
+    };
+    const assets = [
+      {
+        id: "cb",
+        type: "video_clip",
+        url: "t1/c1/i1/b/lipsync-v1.mp4",
+        meta: {
+          provider,
+          lipsync: true,
+          dialogue: LINE,
+          source_kind: "still",
+          voice_asset_id: "vb",
+        },
+      },
+      {
+        id: "vb",
+        type: "voiceover",
+        url: "t1/c1/i1/b/voice.audio",
+        meta: { text: LINE, alignment },
+      },
+    ];
+    const db = {
+      select: async (table, query) =>
+        table === "marketing_video_scenes"
+          ? [scene]
+          : table === "marketing_assets" && query.startsWith("id=in.")
+            ? assets
+            : [],
+    };
+    return (await loadFilmSources(db, { item_id: "i1", tenant_id: "t1" }))
+      .scenes[0];
+  };
+  const heygen = await sourcesWith("heygen");
+  const veo = await sourcesWith("openrouter");
+  expect(heygen.spokenAlignment).toStrictEqual(alignment);
+  expect(veo.spokenAlignment).toBe(null);
 });

@@ -93,8 +93,9 @@ export function costSceneOf(scene: {
 
 /**
  * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
- * Creatify Aurora, Kling lip-sync and Higgsfield Seedance 2.5 all bill by length; the worker
- * picks the first one the tenant has a key for (render-worker/src/providers/lipsync.mjs).
+ * Creatify Aurora, Kling lip-sync, HeyGen Avatar IV ($0.05 on OpenRouter) and Higgsfield
+ * Seedance 2.5 all bill by length; the worker picks the first one the tenant has a key for
+ * (render-worker/src/providers/lipsync.mjs).
  */
 export const LIPSYNC_USD_PER_SECOND = 0.1;
 
