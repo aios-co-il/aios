@@ -18,7 +18,11 @@ export type LineStore = {
     type: ReportSenderType,
   ): Promise<SenderLine | null>;
   /** report_whatsapp_sender_usable, the rule the line list uses too. */
-  senderUsable(tenantId: string, integrationId: string): Promise<boolean>;
+  senderUsable(
+    tenantId: string,
+    integrationId: string,
+    userId: string,
+  ): Promise<boolean>;
   isMember(tenantId: string, userId: string): Promise<boolean>;
   isSuperAdmin(userId: string): Promise<boolean>;
 };
@@ -40,22 +44,32 @@ export async function callerMaySendForTenant(
 }
 
 /**
- * The line an explicit integrationId names, when the tenant may send from it:
- * active, of the expected type, and usable by the same SQL rule that lists
- * lines (owned by the tenant through a member, or shared with it). Null
- * otherwise, and the caller refuses the send rather than pick another line.
- * Super admins get no exception: a line never sends for a tenant that
- * neither owns it nor was given it.
+ * The line an explicit integrationId names, when userId may send the
+ * tenant's reports from it: active, of the expected type, and usable by the
+ * same SQL rule that lists lines (owned by the tenant through a member, or
+ * shared with it, and not another member's private line). Null otherwise,
+ * and the caller refuses the send rather than pick another line. Super
+ * admins get no exception: a line never sends for a tenant that neither
+ * owns it nor was given it, nor for a member its owner kept it from.
  */
 export async function loadSenderLine(
   store: LineStore,
-  input: { tenantId: string; integrationId: string; type: ReportSenderType },
+  input: {
+    tenantId: string;
+    userId: string;
+    integrationId: string;
+    type: ReportSenderType;
+  },
 ): Promise<SenderLine | null> {
   const line = await store.findActiveLine(input.integrationId, input.type);
   if (!line) {
     return null;
   }
-  const usable = await store.senderUsable(input.tenantId, line.id);
+  const usable = await store.senderUsable(
+    input.tenantId,
+    line.id,
+    input.userId,
+  );
   return usable ? line : null;
 }
 
@@ -92,10 +106,11 @@ export function lineStore(admin: DbClient): LineStore {
       }
       return data;
     },
-    async senderUsable(tenantId, integrationId) {
+    async senderUsable(tenantId, integrationId, userId) {
       const { data, error } = await admin.rpc("report_whatsapp_sender_usable", {
         p_tenant_id: tenantId,
         p_integration_id: integrationId,
+        p_user_id: userId,
       });
       if (error) {
         throw error;

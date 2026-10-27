@@ -28,7 +28,7 @@ export function useSetReportSender(tenantId: string) {
     onError: (error: Error) => {
       toast.error(
         reportSenderMessage(error.message) ??
-          REPORT_SENDER_MESSAGES.send_failed,
+          REPORT_SENDER_MESSAGES.settings_save_failed,
       );
     },
   });

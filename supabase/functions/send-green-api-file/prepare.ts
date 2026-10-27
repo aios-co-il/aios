@@ -14,7 +14,7 @@ import { resolveGreenFileLine } from "./sender.ts";
 export type GreenFileSendDeps = {
   store: LineStore;
   /** The line used when the call names none (the chat screen). */
-  legacyLine(): Promise<SenderLine | null>;
+  legacyLine(tenantId: string, userId: string): Promise<SenderLine | null>;
   /** checkWhatsAppSend: Staging sends only to allowlisted phones. */
   guard(destination: string): GuardResult;
 };
@@ -45,8 +45,9 @@ export async function prepareGreenFileSend(
   const sender = await resolveGreenFileLine({
     store: deps.store,
     tenantId: input.tenantId,
+    userId: input.userId,
     integrationId: input.integrationId,
-    legacyLine: deps.legacyLine,
+    legacyLine: () => deps.legacyLine(input.tenantId, input.userId),
   });
   if ("error" in sender) {
     return sender.error === "sender_not_allowed"

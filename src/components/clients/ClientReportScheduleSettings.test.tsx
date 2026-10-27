@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
@@ -55,6 +55,7 @@ const carmen = reportSender("carmen", { integration_type: "manus_wa" });
 const david = reportSender("david", { owner_name: "דוד", owner_user_id: "u1" });
 const office = reportSender("office", { display_name: "משרד" });
 
+/** The schedule form of one table report, over the mocked backend. */
 function renderSettings() {
   const { wrapper } = withTestQuery();
   return render(
@@ -76,7 +77,7 @@ beforeAll(() => {
   });
 });
 
-/** Clicks the save button. */
+/** Submits the form; backend.update or backend.insert records the row. */
 async function save() {
   await userEvent.click(screen.getByRole("button", { name: "שמור הגדרה" }));
 }

@@ -6,14 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usableReportSender } from "../../../supabase/functions/_shared/report-sender/pick.ts";
-import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import {
-  reportSenderLabel,
-  reportSenderOptionLabel,
-} from "./reportSenderLabel";
+  usableReportSender,
+  usableReportSenders,
+} from "../../../supabase/functions/_shared/report-sender/pick.ts";
+import { reportSenderLabel } from "./reportSenderLabel";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 import type { ScheduleSenderState } from "./scheduleSender";
+import { SenderOptions } from "./SenderOptions";
 import type { ScheduleSenderField } from "./useScheduleSender";
 
 /** Select value for "follow the organization default" (a NULL line). */
@@ -39,7 +39,7 @@ export function ScheduleSenderSelect({
       </p>
     );
   }
-  const ready = options.senders.filter((sender) => sender.ready);
+  const ready = usableReportSenders(options.senders);
   if (
     ready.length === 1 &&
     state.status === "line" &&
@@ -47,7 +47,7 @@ export function ScheduleSenderSelect({
   ) {
     return (
       <p className="text-xs text-muted-foreground">
-        יישלח מ: {reportSenderLabel(state.sender)}
+        {REPORT_SENDER_MESSAGES.sends_from} {reportSenderLabel(state.sender)}
       </p>
     );
   }
@@ -57,15 +57,18 @@ export function ScheduleSenderSelect({
   );
   return (
     <div className="space-y-1">
-      <Label className="text-xs">שלח מ:</Label>
+      <Label className="text-xs">{REPORT_SENDER_MESSAGES.send_from}:</Label>
       <Select
         value={selectValue(state)}
         onValueChange={(next) =>
           field.choose(next === TENANT_DEFAULT ? null : next)
         }
       >
-        <SelectTrigger className="h-8 text-xs" aria-label="שלח מ">
-          <SelectValue placeholder="בחרו טלפון" />
+        <SelectTrigger
+          className="h-8 text-xs"
+          aria-label={REPORT_SENDER_MESSAGES.send_from}
+        >
+          <SelectValue placeholder={REPORT_SENDER_MESSAGES.choose_phone} />
         </SelectTrigger>
         <SelectContent>
           {orgDefault && ready.length > 1 && (
@@ -73,7 +76,10 @@ export function ScheduleSenderSelect({
               {`ברירת המחדל של הארגון (${reportSenderLabel(orgDefault)})`}
             </SelectItem>
           )}
-          <SenderItems senders={options.senders} state={state} />
+          <SenderOptions
+            senders={options.senders}
+            missingId={state.status === "unusable" ? state.savedId : null}
+          />
         </SelectContent>
       </Select>
       {"error" in state && (
@@ -82,31 +88,6 @@ export function ScheduleSenderSelect({
         </p>
       )}
     </div>
-  );
-}
-
-/** Every line; ones that cannot send are shown disabled, a gone one named. */
-function SenderItems(props: {
-  senders: ReportSender[];
-  state: ScheduleSenderState;
-}) {
-  const { state } = props;
-  const gone =
-    state.status === "unusable" &&
-    !props.senders.some((sender) => sender.id === state.savedId);
-  return (
-    <>
-      {props.senders.map((sender) => (
-        <SelectItem key={sender.id} value={sender.id} disabled={!sender.ready}>
-          {reportSenderOptionLabel(sender)}
-        </SelectItem>
-      ))}
-      {gone && (
-        <SelectItem value={state.savedId} disabled>
-          הטלפון שנבחר כבר לא זמין
-        </SelectItem>
-      )}
-    </>
   );
 }
 

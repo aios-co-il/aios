@@ -1,6 +1,7 @@
 import {
   pickReportSender,
   usableReportSender,
+  usableReportSenders,
 } from "../../../supabase/functions/_shared/report-sender/pick.ts";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import {
@@ -70,7 +71,7 @@ export function resolveScheduleSender(
   const followsDefault =
     input.nullFollowsDefault &&
     pick.source === "tenant_default" &&
-    input.senders.filter((sender) => sender.ready).length > 1;
+    usableReportSenders(input.senders).length > 1;
   return followsDefault
     ? { status: "follows_default", sender: pick.sender }
     : { status: "line", sender: pick.sender };

@@ -7,6 +7,7 @@ import { resolveGreenFileLine } from "./sender.ts";
 
 const TENANT = "tenant-a";
 
+/** A ready Green API line of the given tenant, owned by "owner". */
 const line = (id: string, tenant_id: string): SenderLine => ({
   id,
   tenant_id,
@@ -20,22 +21,34 @@ const lines: Record<string, SenderLine> = {
   shared: line("shared", "tenant-b"),
   foreign: line("foreign", "tenant-c"),
   colleague: line("colleague", TENANT),
+  private: line("private", TENANT),
 };
 
+/**
+ * The SQL rule over the fixture: a colleague's line opened to the
+ * organization serves everyone, "private" serves its owner alone.
+ */
 const store: LineStore = {
   findActiveLine: async (id, type) =>
     type === "green_api" ? (lines[id] ?? null) : null,
-  senderUsable: async (tenantId, id) =>
-    tenantId === TENANT && ["own", "shared", "colleague"].includes(id),
+  senderUsable: async (tenantId, id, userId) =>
+    tenantId === TENANT &&
+    (["own", "shared", "colleague"].includes(id) ||
+      (id === "private" && userId === "owner")),
   isMember: async () => true,
   isSuperAdmin: async () => false,
 };
 
-/** The resolved line id, or the error. */
-async function resolve(integrationId: string | null, legacy?: SenderLine) {
+/** The resolved line id for the caller, or the error. */
+async function resolve(
+  integrationId: string | null,
+  legacy?: SenderLine,
+  userId = "member",
+) {
   const result = await resolveGreenFileLine({
     store,
     tenantId: TENANT,
+    userId,
     integrationId,
     legacyLine: async () => legacy ?? null,
   });
@@ -57,6 +70,11 @@ Deno.test("resolveGreenFileLine", async (t) => {
       assertEquals(await resolve("missing", lines.own), "sender_not_allowed");
     },
   );
+
+  await t.step("a private line only for its owner", async () => {
+    assertEquals(await resolve("private", lines.own), "sender_not_allowed");
+    assertEquals(await resolve("private", undefined, "owner"), "private");
+  });
 
   await t.step("without a named line keeps the old pick", async () => {
     assertEquals(await resolve(null, lines.own), "own");

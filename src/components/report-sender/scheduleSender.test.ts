@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import {
   resolveScheduleSender,
   type ScheduleSenderInput,
@@ -10,6 +10,7 @@ const carmen = reportSender("carmen", { integration_type: "manus_wa" });
 const own = reportSender("own", { owner_user_id: "u1" });
 const office = reportSender("office");
 
+/** The form of user u1 with Carmen's line and u1's own, unless overridden. */
 const input = (
   overrides: Partial<ScheduleSenderInput>,
 ): ScheduleSenderInput => ({

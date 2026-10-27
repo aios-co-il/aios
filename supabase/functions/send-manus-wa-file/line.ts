@@ -11,9 +11,9 @@ export type LineChoice =
   { line: SenderLine } | { error: "sender_not_allowed" | "not_configured" };
 
 /**
- * A named line must be one the tenant may use, and is never swapped for
- * another. Without one (older callers), the caller's own Manus line in the
- * tenant, as before.
+ * A named line must be one the caller may use for the tenant (never another
+ * member's private line), and is never swapped for another. Without one
+ * (older callers), the caller's own Manus line in the tenant, as before.
  */
 export async function resolveManusLine(
   deps: {
@@ -25,6 +25,7 @@ export async function resolveManusLine(
   const line = input.integrationId
     ? await loadSenderLine(deps.store, {
         tenantId: input.tenantId,
+        userId: input.userId,
         integrationId: input.integrationId,
         type: "manus_wa",
       })

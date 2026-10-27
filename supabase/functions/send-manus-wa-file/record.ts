@@ -1,5 +1,6 @@
 // The chat record of a Manus file that went out.
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import type { TablesInsert } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { MediaToSend } from "./gateway.ts";
 import type { SentOutcome } from "./handler.ts";
@@ -12,12 +13,30 @@ export async function recordSend(
   media: MediaToSend,
   outcome: SentOutcome,
 ): Promise<void> {
+  const { error } = await admin
+    .from("chat_messages")
+    .insert(sentFileRow(send, media, outcome));
+  if (error) {
+    console.error("[send-manus-wa-file] chat_messages insert failed", error);
+  }
+}
+
+/**
+ * The chat_messages row for a sent file. Its send_kind / send_ref decide
+ * whether the send reaches the client card, so a browser call may stamp only
+ * the browser kinds (sendKindColumns).
+ */
+export function sentFileRow(
+  send: SendContext,
+  media: MediaToSend,
+  outcome: SentOutcome,
+): TablesInsert<"chat_messages"> {
   const { request, isServiceRole, target } = send;
   const { sendKind, sendRef } = request;
   const label = media.isImage
     ? "[תמונה]"
     : `[קובץ: ${media.filename || "file"}]`;
-  const { error } = await admin.from("chat_messages").insert({
+  return {
     client_id: request.clientId,
     lead_id: request.leadId,
     group_id: target.isGroup ? request.groupId : null,
@@ -40,8 +59,5 @@ export async function recordSend(
     },
     sender_phone: target.isGroup ? null : target.to,
     ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
-  });
-  if (error) {
-    console.error("[send-manus-wa-file] chat_messages insert failed", error);
-  }
+  };
 }

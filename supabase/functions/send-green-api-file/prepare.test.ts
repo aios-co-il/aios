@@ -9,11 +9,13 @@ import {
 
 const TENANT = "tenant-a";
 const MEMBER = "user-member";
+const COLLEAGUE = "user-colleague";
 
-const line = (id: string, tenant_id: string): SenderLine => ({
+/** A ready Green API line of the given tenant and owner. */
+const line = (id: string, tenant_id: string, user_id = MEMBER): SenderLine => ({
   id,
   tenant_id,
-  user_id: MEMBER,
+  user_id,
   api_key: "token",
   settings: { instance_id: `inst-${id}` },
 });
@@ -21,6 +23,7 @@ const line = (id: string, tenant_id: string): SenderLine => ({
 const lines: Record<string, SenderLine> = {
   own: line("own", TENANT),
   foreign: line("foreign", "tenant-c"),
+  colleaguePrivate: line("colleaguePrivate", TENANT, COLLEAGUE),
 };
 
 const ALLOW: GuardResult = {
@@ -35,7 +38,9 @@ function deps(overrides: Partial<GreenFileSendDeps> = {}): GreenFileSendDeps {
     store: {
       findActiveLine: async (id, type) =>
         type === "green_api" ? (lines[id] ?? null) : null,
-      senderUsable: async (tenantId, id) => tenantId === TENANT && id === "own",
+      senderUsable: async (tenantId, id, userId) =>
+        tenantId === TENANT &&
+        (id === "own" || (id === "colleaguePrivate" && userId === COLLEAGUE)),
       isMember: async (tenantId, userId) =>
         tenantId === TENANT && userId === MEMBER,
       isSuperAdmin: async () => false,
@@ -71,6 +76,22 @@ Deno.test("prepareGreenFileSend refuses", async (t) => {
   await t.step("another tenant's line, never swapped for one", async () => {
     assertEquals(
       await prepareGreenFileSend(deps(), { ...send, integrationId: "foreign" }),
+      {
+        refusal: {
+          status: 403,
+          body: { error: "sender_not_allowed", code: "sender_not_allowed" },
+        },
+      },
+    );
+  });
+
+  await t.step("another member's private line", async () => {
+    // Member B naming member A's own WhatsApp: the client never gets it.
+    assertEquals(
+      await prepareGreenFileSend(deps(), {
+        ...send,
+        integrationId: "colleaguePrivate",
+      }),
       {
         refusal: {
           status: 403,

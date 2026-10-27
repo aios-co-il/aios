@@ -1,6 +1,8 @@
-import type { ReportSender } from "../../supabase/functions/_shared/report-sender/types.ts";
+// Test builder for report sender lines, used by the web app's tests and the
+// report worker's.
+import type { ReportSender } from "./types.ts";
 
-/** A ready Green API line of tenant t1, unless overridden. */
+/** A ready Green API line of tenant t1 that every member may use, unless overridden. */
 export function reportSender(
   id: string,
   overrides: Partial<ReportSender> = {},
@@ -15,6 +17,7 @@ export function reportSender(
     owner_tenant_id: "t1",
     owner_tenant_name: null,
     is_shared: false,
+    org_wide: true,
     carmen_role: null,
     ready: true,
     group_chat_ids: null,

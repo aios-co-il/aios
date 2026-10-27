@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { useReportSenderChoice } from "./useReportSenderChoice";

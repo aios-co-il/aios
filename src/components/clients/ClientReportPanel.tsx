@@ -814,9 +814,8 @@ export function ClientReportPanel({
           <div className="space-y-2">
             <ReportSenderPicker
               choice={waSender}
-              groupChatId={
-                groups?.find((g) => g.id === selectedGroupId)?.group_chat_id
-              }
+              groups={groups}
+              groupId={selectedGroupId}
             />
             <WhatsAppGroupSelect
               groups={groups}

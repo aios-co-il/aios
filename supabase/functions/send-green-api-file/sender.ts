@@ -11,14 +11,16 @@ export type GreenFileLine =
   { line: SenderLine } | { error: "sender_not_allowed" | "not_configured" };
 
 /**
- * A named line must be one the tenant may use, own or shared, and is never
- * swapped for another: an invalid choice used to fall back silently to a
- * different phone. Without a named line (the chat screen), the caller's own
- * line, else the tenant's most recently updated one, as before.
+ * A named line must be one the caller may use for the tenant (own or shared,
+ * never another member's private line) and is never swapped for another: an
+ * invalid choice used to fall back silently to a different phone. Without a
+ * named line (the chat screen), the caller's own line, else the tenant's
+ * most recently updated one, as before.
  */
 export async function resolveGreenFileLine(input: {
   store: LineStore;
   tenantId: string;
+  userId: string;
   integrationId: string | null;
   legacyLine: () => Promise<SenderLine | null>;
 }): Promise<GreenFileLine> {
@@ -28,6 +30,7 @@ export async function resolveGreenFileLine(input: {
   }
   const line = await loadSenderLine(input.store, {
     tenantId: input.tenantId,
+    userId: input.userId,
     integrationId: input.integrationId,
     type: "green_api",
   });

@@ -1,5 +1,6 @@
 // Who a Manus file goes to: a group's chat id, or a phone number.
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { toGatewayPhone } from "../_shared/telephony/phone.ts";
 
 export type ManusTarget = { to: string; isGroup: boolean };
 
@@ -33,21 +34,6 @@ export function manusTarget(input: {
   return /^\d{10,15}$/.test(phone)
     ? { to: phone, isGroup: false }
     : { error: "invalid_phone" };
-}
-
-/** Digits with the country code, from a local or international number. */
-export function toGatewayPhone(input: string, defaultCc = "972"): string {
-  let digits = (input || "").replace(/\D/g, "");
-  if (digits.startsWith("00")) {
-    digits = digits.slice(2);
-  }
-  if (digits.startsWith(defaultCc)) {
-    return digits;
-  }
-  if (digits.startsWith("0")) {
-    return defaultCc + digits.slice(1);
-  }
-  return defaultCc + digits;
 }
 
 /** The group's WhatsApp chat id, only from the sending tenant's groups. */

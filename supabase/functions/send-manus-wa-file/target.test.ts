@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { manusTarget, toGatewayPhone } from "./target.ts";
+import { manusTarget } from "./target.ts";
 
 const GROUP = "120363416882903532@g.us";
 
@@ -58,11 +58,4 @@ Deno.test("manusTarget", async (t) => {
       { error: "invalid_phone" },
     );
   });
-});
-
-Deno.test("toGatewayPhone", () => {
-  assertEquals(toGatewayPhone("050-123-4567"), "972501234567");
-  assertEquals(toGatewayPhone("+972 50 123 4567"), "972501234567");
-  assertEquals(toGatewayPhone("00972501234567"), "972501234567");
-  assertEquals(toGatewayPhone("2025550100", "1"), "12025550100");
 });

@@ -28,6 +28,14 @@ const lines: Record<string, SenderLine & { type: string }> = {
     api_key: "k",
     settings: { instance_id: 1101 },
   },
+  "member-a-green": {
+    id: "member-a-green",
+    type: "green_api",
+    tenant_id: OWN_TENANT,
+    user_id: "member-a",
+    api_key: "k",
+    settings: { instance_id: "inst-a" },
+  },
   "foreign-green": {
     id: "foreign-green",
     type: "green_api",
@@ -40,7 +48,8 @@ const lines: Record<string, SenderLine & { type: string }> = {
 
 /**
  * A store over the fixture lines. The SQL rule (report_whatsapp_sender_usable)
- * accepts DMM's own line and shared-green, which another tenant shared.
+ * accepts DMM's own line and shared-green, which another tenant shared, for
+ * every member, and member A's private line for member A alone.
  */
 function store(overrides: Partial<LineStore> = {}): LineStore {
   return {
@@ -48,9 +57,11 @@ function store(overrides: Partial<LineStore> = {}): LineStore {
       const row = lines[id];
       return row && row.type === type ? row : null;
     },
-    senderUsable: async (tenantId, integrationId) =>
+    senderUsable: async (tenantId, integrationId, userId) =>
       tenantId === OWN_TENANT &&
-      (integrationId === "own-carmen" || integrationId === "shared-green"),
+      (integrationId === "own-carmen" ||
+        integrationId === "shared-green" ||
+        (integrationId === "member-a-green" && userId === "member-a")),
     isMember: async (tenantId, userId) =>
       tenantId === OWN_TENANT && userId === "member",
     isSuperAdmin: async (userId) => userId === "admin",
@@ -62,6 +73,7 @@ Deno.test("loadSenderLine", async (t) => {
   await t.step("accepts the tenant's own line", async () => {
     const line = await loadSenderLine(store(), {
       tenantId: OWN_TENANT,
+      userId: "member",
       integrationId: "own-carmen",
       type: "manus_wa",
     });
@@ -71,15 +83,37 @@ Deno.test("loadSenderLine", async (t) => {
   await t.step("accepts a line another tenant shared with it", async () => {
     const line = await loadSenderLine(store(), {
       tenantId: OWN_TENANT,
+      userId: "member",
       integrationId: "shared-green",
       type: "green_api",
     });
     assertEquals(line?.id, "shared-green");
   });
 
+  await t.step("accepts a member's private line for its owner", async () => {
+    const line = await loadSenderLine(store(), {
+      tenantId: OWN_TENANT,
+      userId: "member-a",
+      integrationId: "member-a-green",
+      type: "green_api",
+    });
+    assertEquals(line?.id, "member-a-green");
+  });
+
+  await t.step("refuses another member's private line", async () => {
+    const line = await loadSenderLine(store(), {
+      tenantId: OWN_TENANT,
+      userId: "member",
+      integrationId: "member-a-green",
+      type: "green_api",
+    });
+    assertEquals(line, null);
+  });
+
   await t.step("refuses another tenant's line", async () => {
     const line = await loadSenderLine(store(), {
       tenantId: OWN_TENANT,
+      userId: "member",
       integrationId: "foreign-green",
       type: "green_api",
     });
@@ -94,6 +128,7 @@ Deno.test("loadSenderLine", async (t) => {
         store({ senderUsable: async () => false }),
         {
           tenantId: OWN_TENANT,
+          userId: "member",
           integrationId: "own-carmen",
           type: "manus_wa",
         },
@@ -105,6 +140,7 @@ Deno.test("loadSenderLine", async (t) => {
   await t.step("refuses a line of the wrong type", async () => {
     const line = await loadSenderLine(store(), {
       tenantId: OWN_TENANT,
+      userId: "member",
       integrationId: "own-carmen",
       type: "green_api",
     });

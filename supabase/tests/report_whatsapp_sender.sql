@@ -12,6 +12,8 @@ DECLARE
   v_foreign uuid;
   v_meta uuid;
   v_member uuid;
+  v_colleague uuid;
+  v_manager uuid;
   v_stranger uuid;
   v_member_line uuid;
   v_forged uuid;
@@ -21,11 +23,26 @@ DECLARE
   v_known_chat text := 'qa-known-' || gen_random_uuid() || '@g.us';
   v_other_chat text := 'qa-other-' || gen_random_uuid() || '@g.us';
 BEGIN
-  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
+  SELECT tu.tenant_id INTO v_tenant
+  FROM public.tenant_users AS tu
+  GROUP BY tu.tenant_id
+  HAVING count(*) >= 2
+  ORDER BY tu.tenant_id
+  LIMIT 1;
   SELECT id INTO v_other FROM public.tenants WHERE id <> v_tenant ORDER BY id LIMIT 1;
   SELECT id INTO v_client FROM public.clients ORDER BY id LIMIT 1;
   SELECT id INTO v_table FROM public.crm_tables ORDER BY id LIMIT 1;
   SELECT user_id INTO v_member FROM public.tenant_users WHERE tenant_id = v_tenant ORDER BY user_id LIMIT 1;
+  SELECT user_id INTO v_colleague
+  FROM public.tenant_users
+  WHERE tenant_id = v_tenant AND user_id <> v_member
+  ORDER BY user_id
+  LIMIT 1;
+  SELECT u.id INTO v_manager
+  FROM auth.users AS u
+  WHERE public.can_manage_report_settings(v_tenant, u.id)
+  ORDER BY u.id
+  LIMIT 1;
   SELECT u.id INTO v_stranger
   FROM auth.users AS u
   WHERE NOT EXISTS (
@@ -35,9 +52,9 @@ BEGIN
     AND NOT public.is_super_admin(u.id)
   ORDER BY u.id
   LIMIT 1;
-  IF v_other IS NULL OR v_client IS NULL OR v_table IS NULL
-     OR v_member IS NULL OR v_stranger IS NULL THEN
-    RAISE EXCEPTION 'Requires two tenants, a client, a table, a member and a non-member';
+  IF v_tenant IS NULL OR v_other IS NULL OR v_client IS NULL OR v_table IS NULL
+     OR v_colleague IS NULL OR v_manager IS NULL OR v_stranger IS NULL THEN
+    RAISE EXCEPTION 'Requires a tenant with two members and a report-settings manager, a second tenant, a client, a table and a non-member';
   END IF;
 
   -- Carmen's line has synced two groups; only one is a group of this tenant.
@@ -52,6 +69,7 @@ BEGIN
     )
   )
   RETURNING id INTO v_own;
+  -- A member's own line keeps the column default: private.
   INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, is_active, api_key, settings)
   VALUES (v_tenant, v_member, 'green_api', true, 'qa-key', '{"instance_id": "qa-member"}')
   RETURNING id INTO v_member_line;
@@ -72,24 +90,51 @@ BEGIN
   INSERT INTO public.integration_tenant_access (integration_id, accessing_tenant_id)
   VALUES (v_shared, v_tenant);
 
-  -- Own and shared lines are usable; another tenant's line, a row a
-  -- non-member wrote into the tenant, and Meta are not.
-  IF NOT public.report_whatsapp_sender_usable(v_tenant, v_own)
-     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line)
-     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_shared)
-     OR public.report_whatsapp_sender_usable(v_tenant, v_foreign)
-     OR public.report_whatsapp_sender_usable(v_tenant, v_forged)
-     OR public.report_whatsapp_sender_usable(v_tenant, v_meta) THEN
-    RAISE EXCEPTION 'usable: own, member and shared only, never foreign, forged or Meta';
+  -- The organization line and the shared line serve every member; another
+  -- tenant's line, a row a non-member wrote into the tenant, and Meta serve
+  -- no one.
+  IF NOT public.report_whatsapp_sender_usable(v_tenant, v_own, v_colleague)
+     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_own, NULL)
+     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_shared, v_colleague)
+     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_shared, NULL)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_foreign, v_member)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_forged, v_stranger)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_meta, v_member) THEN
+    RAISE EXCEPTION 'usable: organization and shared lines for everyone, never foreign, forged or Meta';
   END IF;
 
-  -- The worker (service role) lists exactly the usable lines, without
-  -- secrets, the tenant's own lines before the shared one, which says so.
+  -- A member's private line serves only its owner: another member of the
+  -- tenant may not send from it, and it cannot be the default.
+  IF NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_member)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_colleague)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_member_line, NULL) THEN
+    RAISE EXCEPTION 'usable: a private line serves its owner only';
+  END IF;
+
+  -- A grant opens it to that member alone; opening it to the organization
+  -- opens it to everyone.
+  INSERT INTO public.integration_user_permissions (integration_id, user_id, granted_by)
+  VALUES (v_member_line, v_colleague, v_member);
+  IF NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_colleague)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_member_line, NULL) THEN
+    RAISE EXCEPTION 'usable: a granted line serves the granted member, not everyone';
+  END IF;
+  DELETE FROM public.integration_user_permissions WHERE integration_id = v_member_line;
+  UPDATE public.tenant_integrations SET connection_visibility = 'org' WHERE id = v_member_line;
+  IF NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_colleague)
+     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, NULL) THEN
+    RAISE EXCEPTION 'usable: a line opened to the organization serves everyone';
+  END IF;
+  UPDATE public.tenant_integrations SET connection_visibility = 'private' WHERE id = v_member_line;
+
+  -- The worker (service role) lists the lines a schedule's creator may use,
+  -- without secrets, the tenant's own lines before the shared one, which
+  -- says so.
   PERFORM set_config('request.jwt.claims', '{"role": "service_role"}', true);
   SELECT array_agg(s.id ORDER BY s.ord) INTO v_ids
-  FROM public.list_report_whatsapp_senders(v_tenant) WITH ORDINALITY AS s(
+  FROM public.list_report_whatsapp_senders(v_tenant, v_member) WITH ORDINALITY AS s(
     id, integration_type, display_name, last4, owner_user_id, owner_name,
-    owner_tenant_id, owner_tenant_name, is_shared, carmen_role, ready,
+    owner_tenant_id, owner_tenant_name, is_shared, org_wide, carmen_role, ready,
     group_chat_ids, caller_can_manage, ord
   )
   WHERE s.id IN (v_own, v_member_line, v_shared, v_foreign, v_forged, v_meta);
@@ -100,15 +145,26 @@ BEGIN
   END IF;
   IF EXISTS (
     SELECT 1
-    FROM public.list_report_whatsapp_senders(v_tenant) AS s
+    FROM public.list_report_whatsapp_senders(v_tenant, v_member) AS s
     WHERE s.id IN (v_own, v_member_line, v_shared)
-      AND s.is_shared IS DISTINCT FROM (s.id = v_shared)
+      AND (
+        s.is_shared IS DISTINCT FROM (s.id = v_shared)
+        OR s.org_wide IS DISTINCT FROM (s.id <> v_member_line)
+      )
   ) THEN
-    RAISE EXCEPTION 'list: only the line of another tenant is_shared';
+    RAISE EXCEPTION 'list: only the line of another tenant is_shared; only the private line is not org_wide';
+  END IF;
+  -- Another member never gets the private line.
+  SELECT array_agg(s.id) INTO v_ids
+  FROM public.list_report_whatsapp_senders(v_tenant, v_colleague) AS s
+  WHERE s.id IN (v_own, v_member_line, v_shared);
+  IF v_ids IS NULL
+     OR NOT (v_ids @> ARRAY[v_own, v_shared] AND cardinality(v_ids) = 2) THEN
+    RAISE EXCEPTION 'list: another member must not get the private line, got %', v_ids;
   END IF;
   -- Group ids come back only for this tenant's own groups.
   SELECT s.group_chat_ids INTO v_chats
-  FROM public.list_report_whatsapp_senders(v_tenant) AS s
+  FROM public.list_report_whatsapp_senders(v_tenant, v_member) AS s
   WHERE s.id = v_own;
   IF v_chats IS DISTINCT FROM ARRAY[v_known_chat] THEN
     RAISE EXCEPTION 'list: group ids must be this tenant''s groups only, got %', v_chats;
@@ -124,6 +180,26 @@ BEGIN
     RAISE EXCEPTION 'list: must not return credentials';
   END IF;
 
+  -- A member lists their own lines and may not ask for another member's.
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  IF EXISTS (
+    SELECT 1
+    FROM public.list_report_whatsapp_senders(v_tenant) AS s
+    WHERE s.id = v_member_line
+  ) THEN
+    RAISE EXCEPTION 'list: a member must not see another member''s private line';
+  END IF;
+  BEGIN
+    PERFORM public.list_report_whatsapp_senders(v_tenant, v_member);
+    RAISE EXCEPTION 'list: a member must not list another member''s lines';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
   -- A non-member gets nothing.
   PERFORM set_config('request.jwt.claims', '{"role": "authenticated", "sub": "00000000-0000-0000-0000-000000000000"}', true);
   BEGIN
@@ -138,12 +214,39 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
   END;
+
+  -- The default serves every member: a private line is refused, the
+  -- organization line is taken.
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_manager)::text,
+    true
+  );
+  BEGIN
+    PERFORM public.set_report_whatsapp_sender(v_tenant, v_member_line);
+    RAISE EXCEPTION 'set: a private line must not become the default';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  PERFORM public.set_report_whatsapp_sender(v_tenant, v_own);
   PERFORM set_config('request.jwt.claims', '', true);
 
-  -- A schedule may name an own or shared line, never another tenant's.
+  -- A schedule may name a line its creator may use, never another member's
+  -- private line or another tenant's line.
   INSERT INTO public.report_schedules (tenant_id, client_id, target_type, table_id, whatsapp_integration_id)
   VALUES (v_tenant, v_client, 'table', v_table, v_shared)
   RETURNING id INTO v_schedule;
+  BEGIN
+    UPDATE public.report_schedules
+    SET whatsapp_integration_id = v_member_line, created_by = v_colleague
+    WHERE id = v_schedule;
+    RAISE EXCEPTION 'schedule: another member''s private line must be refused';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  UPDATE public.report_schedules
+  SET whatsapp_integration_id = v_member_line, created_by = v_member
+  WHERE id = v_schedule;
   BEGIN
     UPDATE public.report_schedules SET whatsapp_integration_id = v_foreign WHERE id = v_schedule;
     RAISE EXCEPTION 'schedule: a foreign line must be refused';
@@ -156,6 +259,7 @@ BEGIN
   EXCEPTION WHEN invalid_parameter_value THEN
     NULL;
   END;
+  UPDATE public.report_schedules SET whatsapp_integration_id = v_shared WHERE id = v_schedule;
 
   -- A line switched off later does not block editing or disabling the schedule.
   UPDATE public.tenant_integrations SET is_active = false WHERE id = v_shared;
@@ -170,13 +274,13 @@ BEGIN
   -- Browsers read settings through RLS and write only through the RPC.
   IF has_table_privilege('authenticated', 'public.tenant_report_settings', 'INSERT')
      OR has_table_privilege('authenticated', 'public.tenant_report_settings', 'UPDATE')
-     OR has_function_privilege('authenticated', 'public.report_whatsapp_sender_usable(uuid, uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.report_whatsapp_sender_usable(uuid, uuid, uuid)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.can_manage_report_settings(uuid, uuid)', 'EXECUTE')
-     OR has_function_privilege('anon', 'public.list_report_whatsapp_senders(uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.list_report_whatsapp_senders(uuid, uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.set_report_whatsapp_sender(uuid, uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'grants: browsers must not write settings or call internal checks';
   END IF;
-  IF NOT has_function_privilege('authenticated', 'public.list_report_whatsapp_senders(uuid)', 'EXECUTE')
+  IF NOT has_function_privilege('authenticated', 'public.list_report_whatsapp_senders(uuid, uuid)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.set_report_whatsapp_sender(uuid, uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'grants: members must list lines and owners set the default';
   END IF;

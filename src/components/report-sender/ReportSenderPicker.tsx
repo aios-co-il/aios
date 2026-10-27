@@ -2,22 +2,22 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { usableReportSenders } from "../../../supabase/functions/_shared/report-sender/pick.ts";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
-import {
-  reportSenderLabel,
-  reportSenderOptionLabel,
-} from "./reportSenderLabel";
+import { reportSenderLabel } from "./reportSenderLabel";
 import { pickErrorKey, REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
+import { SenderOptions } from "./SenderOptions";
 import type { ReportSenderChoice } from "./useReportSenderChoice";
 
 type Props = {
   choice: ReportSenderChoice;
-  /** The chosen group's chat id, to warn when the line is not in it. */
-  groupChatId?: string | null;
+  /** The dialog's WhatsApp groups, to warn when the line is not in the chosen one. */
+  groups?: readonly { id: string; group_chat_id?: string | null }[];
+  /** The chosen group's whatsapp_groups.id. */
+  groupId?: string | null;
 };
 
 /**
@@ -26,7 +26,7 @@ type Props = {
  * default or the sender's own line first); none is a clear message, and the
  * send then fails with the same text.
  */
-export function ReportSenderPicker({ choice, groupChatId }: Props) {
+export function ReportSenderPicker({ choice, groups, groupId }: Props) {
   const { pick, senders } = choice;
   if (
     "error" in pick &&
@@ -38,7 +38,7 @@ export function ReportSenderPicker({ choice, groupChatId }: Props) {
       </p>
     );
   }
-  const readyCount = senders.filter((sender) => sender.ready).length;
+  const readyCount = usableReportSenders(senders).length;
   if (readyCount === 0) {
     return (
       <p className="text-xs text-destructive" role="status">
@@ -47,11 +47,14 @@ export function ReportSenderPicker({ choice, groupChatId }: Props) {
     );
   }
   const selected = "error" in pick ? null : pick.sender;
+  const groupChatId = groups?.find(
+    (group) => group.id === groupId,
+  )?.group_chat_id;
   return (
     <div className="space-y-1" dir="rtl">
       {readyCount === 1 && selected ? (
         <p className="text-xs text-muted-foreground">
-          יישלח מ:{" "}
+          {REPORT_SENDER_MESSAGES.sends_from}{" "}
           <span className="font-medium text-foreground">
             {reportSenderLabel(selected)}
           </span>
@@ -85,21 +88,18 @@ function SenderSelect(props: {
 }) {
   return (
     <>
-      <Label className="text-xs text-muted-foreground">שלח מ:</Label>
+      <Label className="text-xs text-muted-foreground">
+        {REPORT_SENDER_MESSAGES.send_from}:
+      </Label>
       <Select value={props.value} onValueChange={props.onChange}>
-        <SelectTrigger className="h-8 text-xs" aria-label="שלח מ">
-          <SelectValue placeholder="בחרו טלפון" />
+        <SelectTrigger
+          className="h-8 text-xs"
+          aria-label={REPORT_SENDER_MESSAGES.send_from}
+        >
+          <SelectValue placeholder={REPORT_SENDER_MESSAGES.choose_phone} />
         </SelectTrigger>
         <SelectContent>
-          {props.senders.map((sender) => (
-            <SelectItem
-              key={sender.id}
-              value={sender.id}
-              disabled={!sender.ready}
-            >
-              {reportSenderOptionLabel(sender)}
-            </SelectItem>
-          ))}
+          <SenderOptions senders={props.senders} />
         </SelectContent>
       </Select>
     </>

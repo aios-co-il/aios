@@ -1,6 +1,7 @@
 // The WhatsApp half of a scheduled report (AIO-255): the report link goes out
 // from the line the schedule resolves to, a Green API phone or Carmen's Manus
-// line, owned by the tenant or shared with it.
+// line, owned by the tenant or shared with it, and one the schedule's creator
+// may use.
 import {
   pickReportSender,
   type ReportSenderSource,
@@ -39,7 +40,8 @@ export type WhatsAppChannelResult = {
 export type FunctionReply = { ok: boolean; status: number; text: string };
 
 export type WhatsAppChannelDeps = {
-  listSenders(tenantId: string): Promise<ReportSender[]>;
+  /** The lines userId may send the tenant's reports from. */
+  listSenders(tenantId: string, userId: string): Promise<ReportSender[]>;
   tenantDefaultId(tenantId: string): Promise<string | null>;
   callFunction(
     name: string,
@@ -49,10 +51,12 @@ export type WhatsAppChannelDeps = {
 
 /**
  * Sends the message from the schedule's own line, else the tenant default,
- * else the tenant's only own line, else the creator's own Green API line (how
- * scheduled reports were sent before). A chosen line that cannot send (the
- * schedule's or the default) fails this channel, as does no line at all; the
- * worker still advances the cadence, so nothing is resent.
+ * else the only own line the creator may use, else the creator's own Green
+ * API line (how scheduled reports were sent before). Only lines the creator
+ * may use count, so another member's private line is never picked. A chosen
+ * line that cannot send (the schedule's or the default) fails this channel,
+ * as does no line at all; the worker still advances the cadence, so nothing
+ * is resent.
  */
 export async function sendScheduledWhatsApp(
   deps: WhatsAppChannelDeps,
@@ -63,7 +67,7 @@ export async function sendScheduledWhatsApp(
     return { ok: false, error: "Missing schedule owner" };
   }
   const [senders, tenantDefaultId] = await Promise.all([
-    deps.listSenders(schedule.tenant_id),
+    deps.listSenders(schedule.tenant_id, schedule.created_by),
     deps.tenantDefaultId(schedule.tenant_id),
   ]);
   const pick = pickReportSender({
@@ -122,9 +126,10 @@ export function workerWhatsAppDeps(
   serviceRoleKey: string,
 ): WhatsAppChannelDeps {
   return {
-    async listSenders(tenantId) {
+    async listSenders(tenantId, userId) {
       const { data, error } = await admin.rpc("list_report_whatsapp_senders", {
         p_tenant_id: tenantId,
+        p_user_id: userId,
       });
       if (error) {
         throw error;

@@ -1,4 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   sendScheduledWhatsApp,
@@ -36,12 +35,8 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const admin = createClient(supabaseUrl, serviceRoleKey);
-  const whatsappDeps = workerWhatsAppDeps(
-    serviceClient(),
-    supabaseUrl,
-    serviceRoleKey,
-  );
+  const admin = serviceClient();
+  const whatsappDeps = workerWhatsAppDeps(admin, supabaseUrl, serviceRoleKey);
   const staleLockCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   await admin
     .from("report_schedules")
@@ -65,6 +60,15 @@ Deno.serve(async (req) => {
 
   const results: Array<Record<string, unknown>> = [];
   for (const schedule of schedules || []) {
+    const targetId =
+      schedule.target_type === "table"
+        ? schedule.table_id
+        : schedule.dashboard_id;
+    if (!targetId) {
+      // report_schedule_target_matches keeps this from happening.
+      console.error("[scheduled-report-worker] no target", schedule.id);
+      continue;
+    }
     const { data: claimed } = await admin
       .from("report_schedules")
       .update({ locked_at: new Date().toISOString() })
@@ -75,10 +79,6 @@ Deno.serve(async (req) => {
     if (!claimed) continue;
 
     const channelResults: Record<string, { ok: boolean; error?: string }> = {};
-    const targetId =
-      schedule.target_type === "table"
-        ? schedule.table_id
-        : schedule.dashboard_id;
 
     try {
       const shareTable =
@@ -102,18 +102,28 @@ Deno.serve(async (req) => {
           .eq(targetColumn, targetId);
       }
       if (!share) {
-        const token = `report-${crypto.randomUUID().slice(0, 8)}`;
-        const { data: created, error: createError } = await admin
-          .from(shareTable)
-          .insert({
-            [targetColumn]: targetId,
-            tenant_id: schedule.tenant_id,
-            share_token: token,
-            allowed_emails: [],
-            created_by: schedule.created_by,
-          })
-          .select("share_token, is_active")
-          .single();
+        // A share needs its creator; without one the insert would fail anyway.
+        if (!schedule.created_by) {
+          throw new Error("Missing schedule owner");
+        }
+        const row = {
+          tenant_id: schedule.tenant_id,
+          share_token: `report-${crypto.randomUUID().slice(0, 8)}`,
+          allowed_emails: [],
+          created_by: schedule.created_by,
+        };
+        const { data: created, error: createError } =
+          schedule.target_type === "table"
+            ? await admin
+                .from("table_shares")
+                .insert({ ...row, table_id: targetId })
+                .select("share_token, is_active")
+                .single()
+            : await admin
+                .from("dashboard_shares")
+                .insert({ ...row, dashboard_id: targetId })
+                .select("share_token, is_active")
+                .single();
         if (createError) throw createError;
         share = created;
       }

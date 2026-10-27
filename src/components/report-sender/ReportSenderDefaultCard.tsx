@@ -2,6 +2,7 @@ import { Smartphone } from "lucide-react";
 import {
   pickReportSender,
   usableReportSender,
+  usableReportSenders,
 } from "../../../supabase/functions/_shared/report-sender/pick.ts";
 import { ReportSenderDefaultSelect } from "./ReportSenderDefaultSelect";
 import { reportSenderLabel } from "./reportSenderLabel";
@@ -36,7 +37,11 @@ export function ReportSenderDefaultCard({ tenantId }: { tenantId: string }) {
   );
 }
 
-/** The line in use, or the owner's choice of it, and a stale-default note. */
+/**
+ * The line in use, or the owner's choice of it, and a stale-default note. A
+ * default that no longer serves every member (switched off, unshared, or made
+ * private) is stale: the sends of those who may not use it fail.
+ */
 function DefaultLine({
   tenantId,
   options,
@@ -44,7 +49,7 @@ function DefaultLine({
   tenantId: string;
   options: ReportSenderOptions;
 }) {
-  const ready = options.senders.filter((sender) => sender.ready);
+  const ready = usableReportSenders(options.senders);
   if (ready.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -54,7 +59,7 @@ function DefaultLine({
   }
   const stale =
     !!options.tenantDefaultId &&
-    !usableReportSender(options.senders, options.tenantDefaultId);
+    !usableReportSender(options.senders, options.tenantDefaultId)?.org_wide;
   // A single own line is used without a default; a shared one never is.
   const onlyOwnLine =
     !options.tenantDefaultId && ready.length === 1 && !ready[0].is_shared;

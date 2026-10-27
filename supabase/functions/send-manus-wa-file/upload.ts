@@ -16,19 +16,6 @@ const EXTENSION_BY_MIME: Record<string, string> = {
     "docx",
 };
 
-/** <tenant>/<yyyy-mm>/<id>.<ext>, so a tenant's files stay in its folder. */
-export function reportMediaPath(
-  tenantId: string,
-  file: { name: string; type: string },
-  now: Date,
-  id: string,
-): string {
-  const month = now.toISOString().slice(0, 7);
-  const fromName = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase();
-  const extension = fromName || EXTENSION_BY_MIME[file.type] || "bin";
-  return `${tenantId}/${month}/${id}.${extension}`;
-}
-
 /** Uploads the file and returns a signed URL the gateway can fetch. */
 export async function uploadReportMedia(
   admin: DbClient,
@@ -52,4 +39,17 @@ export async function uploadReportMedia(
     throw error;
   }
   return data.signedUrl;
+}
+
+/** <tenant>/<yyyy-mm>/<id>.<ext>, so a tenant's files stay in its folder. */
+export function reportMediaPath(
+  tenantId: string,
+  file: { name: string; type: string },
+  now: Date,
+  id: string,
+): string {
+  const month = now.toISOString().slice(0, 7);
+  const fromName = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase();
+  const extension = fromName || EXTENSION_BY_MIME[file.type] || "bin";
+  return `${tenantId}/${month}/${id}.${extension}`;
 }

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { toGatewayPhone } from "../_shared/telephony/phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,15 +10,6 @@ const corsHeaders = {
 };
 
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
-
-// Normalize Israeli/intl phone to digits-only with country code default 972.
-function toGatewayPhone(input: string, defaultCc = "972"): string {
-  let d = (input || "").replace(/[^0-9]/g, "");
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(defaultCc)) return d;
-  if (d.startsWith("0")) return defaultCc + d.slice(1);
-  return defaultCc + d;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")

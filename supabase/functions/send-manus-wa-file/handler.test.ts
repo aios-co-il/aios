@@ -6,6 +6,7 @@ import { type FileSendDeps, handleFileSend } from "./handler.ts";
 
 const TENANT = "tenant-dmm";
 const MEMBER = "user-member";
+const COLLEAGUE = "user-colleague";
 
 const lines: Record<string, SenderLine> = {
   carmen: {
@@ -14,6 +15,13 @@ const lines: Record<string, SenderLine> = {
     user_id: MEMBER,
     api_key: "key-carmen",
     settings: { instance_id: "inst-carmen" },
+  },
+  colleaguePrivate: {
+    id: "colleaguePrivate",
+    tenant_id: TENANT,
+    user_id: COLLEAGUE,
+    api_key: "key-colleague",
+    settings: { instance_id: "inst-colleague" },
   },
   foreign: {
     id: "foreign",
@@ -30,7 +38,10 @@ const ALLOW: GuardResult = {
   environment: "production",
 };
 
-/** Deps over the fixture lines; records every step that acts. */
+/**
+ * Deps over the fixture lines; records every step that acts. Carmen's line
+ * serves every member, the colleague's private line only the colleague.
+ */
 function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
   const calls = { uploads: 0, delivered: [] as DeliverInput[], records: 0 };
   const deps: FileSendDeps = {
@@ -38,10 +49,12 @@ function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
     store: {
       findActiveLine: async (id, type) =>
         type === "manus_wa" ? (lines[id] ?? null) : null,
-      senderUsable: async (tenantId, id) =>
-        tenantId === TENANT && id === "carmen",
+      senderUsable: async (tenantId, id, userId) =>
+        tenantId === TENANT &&
+        (id === "carmen" ||
+          (id === "colleaguePrivate" && userId === COLLEAGUE)),
       isMember: async (tenantId, userId) =>
-        tenantId === TENANT && userId === MEMBER,
+        tenantId === TENANT && (userId === MEMBER || userId === COLLEAGUE),
       isSuperAdmin: async () => false,
     },
     ownManusLine: async (tenantId, userId) =>
@@ -130,6 +143,47 @@ Deno.test("handleFileSend refuses before anything is uploaded", async (t) => {
     assertEquals(calls, { uploads: 0, delivered: [], records: 0 });
   });
 
+  await t.step("another member's private line", async () => {
+    const { deps, calls } = fakeDeps();
+    const result = await reply(
+      await handleFileSend(
+        reportRequest({ integrationId: "colleaguePrivate" }),
+        deps,
+      ),
+    );
+    assertEquals(result, {
+      status: 403,
+      body: { error: "sender_not_allowed", code: "sender_not_allowed" },
+    });
+    assertEquals(calls, { uploads: 0, delivered: [], records: 0 });
+  });
+
+  await t.step(
+    "a broadcast image from a private line its creator may not use",
+    async () => {
+      const { deps, calls } = fakeDeps({
+        authenticate: async () => ({ kind: "service", userId: null }),
+      });
+      const broadcast = new Request(
+        "https://functions.local/send-manus-wa-file",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            imageUrl: "https://cdn.local/promo.png",
+            phoneNumber: "0501234567",
+            tenantId: TENANT,
+            integrationId: "colleaguePrivate",
+            senderUserId: MEMBER,
+          }),
+        },
+      );
+      const result = await handleFileSend(broadcast, deps);
+      assertEquals(result.status, 403);
+      assertEquals(calls.delivered, []);
+    },
+  );
+
   await t.step("Staging blocks the recipient", async () => {
     const destinations: string[] = [];
     const { deps, calls } = fakeDeps({
@@ -167,6 +221,18 @@ Deno.test("handleFileSend sends from the resolved line", async (t) => {
     assertEquals(calls.delivered[0].instanceId, "inst-carmen");
     assertEquals(calls.delivered[0].to, "972501234567");
     assertEquals(calls.delivered[0].media.url, "https://storage.local/signed");
+  });
+
+  await t.step("a private line, for its owner", async () => {
+    const { deps, calls } = fakeDeps({
+      authenticate: async () => ({ kind: "user", userId: COLLEAGUE }),
+    });
+    const result = await handleFileSend(
+      reportRequest({ integrationId: "colleaguePrivate" }),
+      deps,
+    );
+    assertEquals(result.status, 200);
+    assertEquals(calls.delivered[0].apiKey, "key-colleague");
   });
 
   await t.step(
