@@ -24,7 +24,9 @@ test("every cut gets a different sound: all of the set before any repeat, never 
       for (const cuts of [1, 5, 6, 7, 13, 40]) {
         const order = cutSoundOrder(sounds, cuts, seed);
         expect(order.length).toBe(cuts);
-        expect(order.every((s) => Number.isInteger(s) && s >= 0 && s < sounds));
+        expect(
+          order.every((s) => Number.isInteger(s) && s >= 0 && s < sounds),
+        ).toBe(true);
         // No two cuts in a row play the same sound.
         for (let i = 1; i < order.length; i++)
           expect(order[i]).not.toBe(order[i - 1]);
