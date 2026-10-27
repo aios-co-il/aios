@@ -6,9 +6,10 @@
  * reached the monitored line as inbound. Kept in memory for labelling only.
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { phoneMatchKey } from "../../../_shared/telephony/phone.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { profilePhone, profilesBy } from "../../recipients/profiles.ts";
 
 /** Phone match keys of the staff of the tenant and its agency partners. */
@@ -74,10 +75,7 @@ async function relatedTenants(
 
 /** The number a Manus line sends from (settings.phone_number). */
 function linePhone(settings: Json | null): string | null {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-    return null;
-  }
-  const phone = settings.phone_number;
+  const phone = jsonObject(settings)?.phone_number;
   return typeof phone === "string" || typeof phone === "number"
     ? String(phone)
     : null;

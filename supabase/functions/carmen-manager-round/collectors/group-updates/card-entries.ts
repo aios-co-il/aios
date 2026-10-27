@@ -11,7 +11,7 @@ import {
 } from "../../../_shared/calendarTimeZone.ts";
 import { clientCardSourceCanCountAsContact } from "../../../_shared/client-card/sources.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 
 export type CardEntry = {
   client_id: string;

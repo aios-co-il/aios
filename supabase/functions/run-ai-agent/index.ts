@@ -63,9 +63,9 @@ import {
   CARD_DRAFT_TOOLS,
   executeCardDraftTool,
   isCardDraftTool,
-  isGroupSession,
   promoteCardDraftTool,
 } from "./card-draft-approval/tool.ts";
+import { isGroupSession } from "./group-session.ts";
 import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
@@ -5616,7 +5616,6 @@ async function executeTool(
       args,
       requesterUserId: humanRequesterUserId ?? null,
       isGroup: isGroupSession(waNotify),
-      now: new Date(),
     });
   }
   if (isCreativeStudioTool(name)) {
@@ -9809,9 +9808,7 @@ async function executeTool(
       let scopeNote = "current_chat";
       if (!browseAll && waNotify?.chat_id) {
         const chatId = String(waNotify.chat_id);
-        const isGroupChat =
-          /@g\.us/i.test(chatId) || waNotify.is_group === true;
-        if (isGroupChat) {
+        if (isGroupSession(waNotify)) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
             .select("id")

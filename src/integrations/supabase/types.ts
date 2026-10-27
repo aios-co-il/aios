@@ -15735,6 +15735,15 @@ export type Database = {
         };
         Returns: boolean;
       };
+      carmen_finding_role_of: {
+        Args: {
+          p_agency_id?: string;
+          p_client_id?: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
       carmen_finding_set_status: {
         Args: {
           p_feedback?: string;
@@ -15783,6 +15792,10 @@ export type Database = {
       };
       carmen_manager_is_owner: {
         Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner_of: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       carmen_manager_kind_sends: {

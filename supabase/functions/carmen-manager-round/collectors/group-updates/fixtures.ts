@@ -5,6 +5,7 @@
  * draft is read, so a fixture run is deterministic and free.
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import type { CardEntry } from "./card-entries.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
 import { groupHistory } from "./messages.ts";
@@ -15,12 +16,12 @@ import { markersOnlyPorts } from "./summarize.ts";
 export function fixtureSources(
   fixtures: Json | null,
 ): GroupUpdateSources | null {
-  const own = field(fixtures, GROUP_UPDATES_COLLECTOR);
+  const own = jsonObject(fixtures)?.[GROUP_UPDATES_COLLECTOR];
   if (!own) {
     return null;
   }
   const list = (key: string) => {
-    const value = field(own, key);
+    const value = jsonObject(own)?.[key];
     return Array.isArray(value) ? value : [];
   };
   const histories = list("histories").flatMap((row) => {
@@ -45,8 +46,9 @@ export function fixtureSources(
 
 /** A fixture group row with string ids and a messages array, else null. */
 function fixtureHistory(row: Json) {
+  const fields = jsonObject(row);
   const text = (key: string) => {
-    const value = field(row, key);
+    const value = fields?.[key];
     return typeof value === "string" ? value : null;
   };
   const [clientId, groupId] = [text("client_id"), text("group_id")];
@@ -56,18 +58,19 @@ function fixtureHistory(row: Json) {
         client_name: text("client_name") ?? "",
         group_id: groupId,
         group_name: text("group_name") ?? "",
-        messages: field(row, "messages") ?? [],
+        messages: fields?.messages ?? [],
       }
     : null;
 }
 
 /** A fixture card entry, as a one-item list, or an empty list. */
 function fixtureEntry(row: Json): CardEntry[] {
+  const fields = jsonObject(row);
   const [clientId, at, source, content] = [
-    field(row, "client_id"),
-    field(row, "created_at"),
-    field(row, "source"),
-    field(row, "content"),
+    fields?.client_id,
+    fields?.created_at,
+    fields?.source,
+    fields?.content,
   ];
   return typeof clientId === "string" &&
     typeof at === "string" &&
@@ -81,11 +84,4 @@ function fixtureEntry(row: Json): CardEntry[] {
         },
       ]
     : [];
-}
-
-/** A key of a JSON object, or undefined. */
-function field(value: Json | null | undefined, key: string): Json | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value[key]
-    : undefined;
 }

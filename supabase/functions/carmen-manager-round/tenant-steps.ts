@@ -55,6 +55,7 @@ export async function runSteps(
     settings: routing,
     floors,
     dryRun,
+    settingsChanged: changedSince(deps, tenantId, routing),
     virtual,
   });
   const routed = await routeTenant(deps, {
@@ -66,7 +67,8 @@ export async function runSteps(
     floors,
     staff,
     dryRun,
-    virtual: virtual?.filter((f) => !cardWrites?.finding_ids.includes(f.id)),
+    virtual,
+    onCard: cardWrites?.finding_ids ?? [],
   });
   // Read again for sending: a switch while routing must stop this run's sends
   // too, or a message routing just planned under the old mode would go out;
@@ -75,9 +77,7 @@ export async function runSteps(
   const { brief, dispatch } = await deliver(deps, {
     tenantId,
     settings: sending,
-    settingsChanged: async () =>
-      JSON.stringify(await currentSettings(deps, tenantId)) !==
-      JSON.stringify(sending),
+    settingsChanged: changedSince(deps, tenantId, sending),
     now,
     recipients: once(async () =>
       resolveBriefRecipients(await staff(), sending),
@@ -135,6 +135,17 @@ async function currentSettings(
   tenantId: string,
 ): Promise<ManagerSettings> {
   return resolveManagerSettings(await deps.state.loadRules(tenantId));
+}
+
+/** True once the tenant's stored settings differ from `settings`. */
+function changedSince(
+  deps: RoundDeps,
+  tenantId: string,
+  settings: ManagerSettings,
+): () => Promise<boolean> {
+  return async () =>
+    JSON.stringify(await currentSettings(deps, tenantId)) !==
+    JSON.stringify(settings);
 }
 
 /** Calls `load` at most once and shares its promise. */

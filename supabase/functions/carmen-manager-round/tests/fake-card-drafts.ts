@@ -1,9 +1,16 @@
 /** Card draft writes of the fake world: entries are recorded, findings closed. */
 import type { CardDraftWritePorts } from "../../_shared/manager-round/card-draft-write.ts";
-import type { World } from "./fake-world.ts";
+import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
+import { TENANT, type World } from "./fake-world.ts";
 
-const LIVE = ["open", "notified", "acknowledged", "snoozed"];
+const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
 
+/**
+ * The ports over `w`: an entry is deduplicated on client, source and
+ * source_ref (record_client_card_entry), and closing a live finding of TENANT
+ * cancels its planned deliveries, as carmen_finding_resolve_card_written does.
+ * `w.failOn === "card"` refuses every entry.
+ */
 export function fakeCardDrafts(w: World): CardDraftWritePorts {
   return {
     writeEntry(input) {
@@ -26,14 +33,25 @@ export function fakeCardDrafts(w: World): CardDraftWritePorts {
         attribution: "campaigner",
       });
     },
-    resolveWritten(_tenant, findingId) {
+    resolveWritten(tenantId, findingId) {
       const finding = w.findings.find(
-        (f) => f.id === findingId && LIVE.includes(f.status),
+        (f) =>
+          tenantId === TENANT && f.id === findingId && LIVE.includes(f.status),
       );
-      if (finding) {
-        finding.status = "resolved";
+      if (!finding) {
+        return Promise.resolve(false);
       }
-      return Promise.resolve(!!finding);
+      finding.status = "resolved";
+      for (const row of w.deliveries) {
+        if (
+          row.tenant_id === tenantId &&
+          row.finding_id === findingId &&
+          row.status === "planned"
+        ) {
+          row.status = "cancelled";
+        }
+      }
+      return Promise.resolve(true);
     },
   };
 }

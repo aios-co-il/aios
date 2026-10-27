@@ -25,4 +25,6 @@ export const DISPLAY_UPDATE_TYPES = [
   ...INTERACTION_TYPES,
   { value: "note", label: "הערה", icon: StickyNote },
   { value: "complaint", label: "תלונה", icon: AlertTriangle },
+  // Carmen's group digest entries (CARD_DRAFT_TYPES, AIO-254).
+  { value: "group_summary", label: "סיכום קבוצה", icon: MessageSquare },
 ];

@@ -3,10 +3,10 @@
  * source group_digest, attributed to the client's campaigner, never counted
  * as contact), then closes the finding as fixed by the approving person.
  * Only in a private chat with Carmen: a group session is client-visible, so
- * there the tool refuses without naming the client or the draft. Only the
- * finding's person, a manager over it or a campaigner of the client may
- * (authorize.ts, from roles in the run's tenant, which is also what the
- * closing function requires of the actor); the same refusal covers a code
+ * there the tool refuses without naming the client or the draft. Only a
+ * person the findings feed shows the finding to may approve it: the database
+ * owns that rule (carmen_finding_role_of, which the feed's RLS reads too),
+ * and the closing function checks it again. The same refusal covers a code
  * that does not exist or a finding already closed (approved, or written by
  * Carmen), so codes cannot be probed and nothing is written twice.
  */
@@ -17,7 +17,6 @@ import {
   cardDraftOf,
 } from "../../_shared/manager-round/card-draft.ts";
 import { writeCardDraft } from "../../_shared/manager-round/card-draft-write.ts";
-import { approveRight } from "./authorize.ts";
 import type { ApprovalPorts, DraftFinding } from "./ports.ts";
 
 export type ApproveInput = {
@@ -27,7 +26,6 @@ export type ApproveInput = {
   requesterUserId: string | null;
   /** The run is a WhatsApp group session, which the client can read. */
   isGroup: boolean;
-  now: Date;
 };
 
 type ToolResult = Record<string, unknown>;
@@ -56,7 +54,7 @@ export async function approveCardDraft(
   const userId = input.requesterUserId;
   const code = shortCodeOf(input.args.short_code);
   const found = code ? await findDraft(ports, input.tenantId, code) : null;
-  if (!found || !(await mayApprove(ports, found, userId, input))) {
+  if (!found || !(await mayApprove(ports, input.tenantId, found, userId))) {
     return refuse(
       "not_found",
       `לא מצאתי טיוטה פתוחה${code ? ` מספר ${code}` : ""} שאפשר לאשר בשמך.`,
@@ -88,6 +86,8 @@ async function write(
       short_code: found.finding.short_code,
       update_id: written.entryId,
       created: written.inserted,
+      // false when someone closed the finding meanwhile; the entry is on the card.
+      resolved: written.resolved,
       attributed_user_id: written.attributedUserId,
       message: `נרשם בכרטיס הלקוח (פריט ${found.finding.short_code}).`,
     };
@@ -113,24 +113,14 @@ async function findDraft(
     : null;
 }
 
-/** approveRight over the person's roles in the tenant; the assignment only when it decides. */
+/** True when the findings feed shows the finding to the person (the database's rule). */
 async function mayApprove(
   ports: ApprovalPorts,
+  tenantId: string,
   found: FoundDraft,
   userId: string,
-  input: ApproveInput,
 ): Promise<boolean> {
-  const approver = await ports.approver(input.tenantId, userId);
-  const right = approveRight(found.finding, approver);
-  if (right !== "if_assigned" || !approver.campaignerId) {
-    return right === "yes";
-  }
-  return ports.isAssigned(
-    input.tenantId,
-    found.finding.client_id,
-    approver.campaignerId,
-    input.now,
-  );
+  return (await ports.roleOf(tenantId, found.finding, userId)) !== null;
 }
 
 /** A positive integer code from a number or text such as "#123". */

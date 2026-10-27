@@ -1,4 +1,4 @@
--- Group updates to the client card (AIO-254, plan component C20).
+-- Group updates to the client card (AIO-254).
 --
 -- Once a day (19:30 Asia/Jerusalem, a slot of the manager round, no new
 -- cron) Carmen reads what was said in each client's WhatsApp group since the
@@ -16,13 +16,18 @@
 --    group linked to exactly one client whose card the tenant may write, as
 --    stored by the lines the round passes (the tenant's monitored Green API
 --    lines, the same lines AIO-252's chat collector reads).
--- 2. carmen_finding_resolve_card_written: closes a live finding whose drafted
---    entry is now on the card, by the person who approved it or by Carmen.
--- 3. carmen_round_llm_spend: copied verbatim from AIO-252
+-- 2. carmen_finding_role_of: who may act on a finding, for any person. The
+--    findings feed's rule (carmen_finding_viewer_role, carmen_manager_is_owner,
+--    AIO-251) now reads it for auth.uid(), so the feed and the "אשר <code>"
+--    approval apply one rule: whoever sees a finding may approve its draft.
+-- 3. carmen_finding_resolve_card_written: closes a live finding whose drafted
+--    entry is now on the card, by a person the rule allows or by Carmen.
+-- 4. carmen_round_llm_spend: copied verbatim from AIO-252
 --    (20261027101000_carmen_chat_sla.sql), so whichever of the two lands
 --    last leaves the same definition.
 --
--- All three are service-role only.
+-- The new functions are service-role only; the two AIO-251 functions keep
+-- their grants.
 --
 -- Indexes: none added; chat_messages is a hot webhook table. The function
 -- bodies are SECURITY DEFINER with a fixed search_path, so EXPLAIN of a call
@@ -59,7 +64,7 @@
 -- - Clients: the tenant's own and those of agencies shared with it
 --   read_write (record_client_card_entry's rule), not ended or inactive.
 -- - Links: clients.whatsapp_group_id, team_channel_whatsapp_links and
---   carmen_client_group_access (read only; plan C4) of the tenant or tenants
+--   carmen_client_group_access (read only) of the tenant or tenants
 --   related to it by agency_tenant_access, matched by group_chat_id. Only
 --   links to a client in scope count, so another tenant's link to its own
 --   client cannot make a group ambiguous. A group linked to two clients in
@@ -248,15 +253,129 @@ $$;
 COMMENT ON FUNCTION public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer) IS
   'Recent messages (newest p_per_group, oldest first) of each WhatsApp group linked to exactly one client whose card the tenant may write, as stored by the given lines; one reader per group_chat_id. Groups only; senders as phone_match_key. Service role only (AIO-254).';
 
--- ─── 2. Close a finding whose draft is on the card ──────────────────────────
+-- ─── 2. Who may act on a finding ────────────────────────────────────────────
+
+-- Owner level of p_user_id in a tenant: owner / agency_owner there, or a
+-- super admin acting in that tenant. The acting tenant
+-- (get_effective_tenant_id) belongs to the signed-in session, so the super
+-- admin path holds only when p_user_id is the caller (auth.uid()).
+CREATE OR REPLACE FUNCTION public.carmen_manager_is_owner_of(
+  p_user_id uuid,
+  p_tenant_id uuid
+)
+RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+  SELECT coalesce(p_user_id IS NOT NULL AND (
+    EXISTS (
+      SELECT 1 FROM public.user_roles AS ur
+      WHERE ur.user_id = p_user_id
+        AND ur.tenant_id = p_tenant_id
+        AND ur.role IN ('owner', 'agency_owner')
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.tenant_users AS tu
+      WHERE tu.user_id = p_user_id
+        AND tu.tenant_id = p_tenant_id
+        AND tu.role IN ('owner', 'agency_owner')
+    )
+    OR (
+      p_user_id = auth.uid()
+      AND public.is_super_admin(p_user_id)
+      AND public.get_effective_tenant_id() = p_tenant_id
+    )
+  ), false)
+$$;
+
+-- p_user_id's role for a finding: 'owner' (every finding of the tenant),
+-- 'manager' (team manager of the finding's agency), 'campaigner' (a member of
+-- the tenant assigned to the client today, Israel date) or NULL (no access).
+CREATE OR REPLACE FUNCTION public.carmen_finding_role_of(
+  p_user_id uuid,
+  p_tenant_id uuid,
+  p_client_id uuid DEFAULT NULL,
+  p_agency_id uuid DEFAULT NULL
+)
+RETURNS text
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+  WITH member AS (
+    SELECT ur.role::text AS role
+    FROM public.user_roles AS ur
+    WHERE ur.user_id = p_user_id AND ur.tenant_id = p_tenant_id
+    UNION ALL
+    SELECT tu.role
+    FROM public.tenant_users AS tu
+    WHERE tu.user_id = p_user_id AND tu.tenant_id = p_tenant_id
+  )
+  SELECT CASE
+    WHEN public.carmen_manager_is_owner_of(p_user_id, p_tenant_id) THEN 'owner'
+    WHEN p_agency_id IS NOT NULL
+      AND EXISTS (SELECT 1 FROM member WHERE role = 'team_manager')
+      AND EXISTS (
+        SELECT 1 FROM public.user_managed_agencies AS uma
+        WHERE uma.user_id = p_user_id AND uma.agency_id = p_agency_id
+      ) THEN 'manager'
+    WHEN p_client_id IS NOT NULL
+      AND EXISTS (SELECT 1 FROM member)
+      AND EXISTS (
+        SELECT 1
+        FROM public.profiles AS p
+        JOIN public.client_team AS ct ON ct.campaigner_id = p.campaigner_id
+        WHERE p.id = p_user_id
+          AND ct.client_id = p_client_id
+          AND (ct.start_date IS NULL
+            OR ct.start_date <= (now() AT TIME ZONE 'Asia/Jerusalem')::date)
+          AND (ct.end_date IS NULL
+            OR ct.end_date >= (now() AT TIME ZONE 'Asia/Jerusalem')::date)
+      ) THEN 'campaigner'
+  END
+$$;
+
+-- AIO-251's caller rules, now carmen_finding_role_of and
+-- carmen_manager_is_owner_of for auth.uid(); signatures, grants and the RLS
+-- policies that call them stay as they are.
+CREATE OR REPLACE FUNCTION public.carmen_manager_is_owner(p_tenant_id uuid)
+RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+  SELECT public.carmen_manager_is_owner_of(auth.uid(), p_tenant_id)
+$$;
+
+CREATE OR REPLACE FUNCTION public.carmen_finding_viewer_role(
+  p_tenant_id uuid,
+  p_client_id uuid,
+  p_agency_id uuid
+)
+RETURNS text
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+  SELECT public.carmen_finding_role_of(auth.uid(), p_tenant_id, p_client_id, p_agency_id)
+$$;
+
+-- ─── 3. Close a finding whose draft is on the card ──────────────────────────
 
 -- Resolves a live finding as fixed once its drafted entry (p_entry_id) is on
--- the finding client's card: by p_actor_user_id when a person approved it, by
--- Carmen when NULL. The card is one per client, and record_client_card_entry
--- returns the entry already there even when another tenant wrote it, so the
--- entry is matched by client, not by its writer's tenant. Planned messages are
--- cancelled and the 'resolved' event names the entry. False when the finding
--- is no longer live (a repeated approval).
+-- the finding client's card: by p_actor_user_id when a person approved it
+-- (refused unless carmen_finding_role_of gives them a role for the finding),
+-- by Carmen when NULL. The card is one per client, and
+-- record_client_card_entry returns the entry already there even when another
+-- tenant wrote it, so the entry is matched by client, not by its writer's
+-- tenant. Planned messages are cancelled and the 'resolved' event names the
+-- entry. False, with a NOTICE, when the finding is no longer live (a repeated
+-- approval, or a person closed it first).
 CREATE OR REPLACE FUNCTION public.carmen_finding_resolve_card_written(
   p_tenant_id uuid,
   p_finding_id uuid,
@@ -268,15 +387,17 @@ RETURNS boolean
   SECURITY DEFINER
   SET search_path TO ''
 AS $$
+DECLARE
+  v_client uuid;
+  v_agency uuid;
 BEGIN
-  IF p_actor_user_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM public.user_roles AS ur
-    WHERE ur.user_id = p_actor_user_id AND ur.tenant_id = p_tenant_id
-    UNION ALL
-    SELECT 1 FROM public.tenant_users AS tu
-    WHERE tu.user_id = p_actor_user_id AND tu.tenant_id = p_tenant_id
-  ) THEN
-    RAISE EXCEPTION 'actor_not_in_tenant' USING ERRCODE = '42501';
+  SELECT f.client_id, f.agency_id INTO v_client, v_agency
+  FROM public.carmen_findings AS f
+  WHERE f.id = p_finding_id AND f.tenant_id = p_tenant_id;
+
+  IF p_actor_user_id IS NOT NULL AND public.carmen_finding_role_of(
+    p_actor_user_id, p_tenant_id, v_client, v_agency) IS NULL THEN
+    RAISE EXCEPTION 'actor_may_not_approve' USING ERRCODE = '42501';
   END IF;
 
   IF NOT EXISTS (
@@ -300,6 +421,7 @@ BEGIN
     AND f.tenant_id = p_tenant_id
     AND f.status IN ('open', 'notified', 'acknowledged', 'snoozed');
   IF NOT FOUND THEN
+    RAISE NOTICE 'carmen_finding_resolve_card_written: finding % is no longer live', p_finding_id;
     RETURN false;
   END IF;
 
@@ -319,7 +441,7 @@ BEGIN
 END;
 $$;
 
--- ─── 3. carmen_round_llm_spend ──────────────────────────────────────────────
+-- ─── 4. carmen_round_llm_spend ──────────────────────────────────────────────
 
 -- project_month_usd: the project's LLM spend since p_month_start, the sum the
 -- health probe guards (ai_usage_log, agent_action_log and marketing_runs of
@@ -363,7 +485,9 @@ DECLARE
 BEGIN
   FOREACH fn IN ARRAY ARRAY[
     'public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer)',
-    'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)'
+    'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)',
+    'public.carmen_manager_is_owner_of(uuid, uuid)',
+    'public.carmen_finding_role_of(uuid, uuid, uuid, uuid)'
   ] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);

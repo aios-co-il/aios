@@ -1,16 +1,24 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
+import type { Collector } from "../collectors/types.ts";
 import { deps } from "../tests/fakes.ts";
-import { finding, rules, TENANT, world } from "../tests/fake-world.ts";
+import {
+  delivery,
+  finding,
+  rules,
+  TENANT,
+  world,
+} from "../tests/fake-world.ts";
 import { writeTeamDrafts, writingKinds } from "./autowrite.ts";
+import {
+  draft,
+  draftCollector,
+  NOTIFY,
+  round,
+  switchingToObserve,
+  teamWorld,
+} from "./draft-fixtures.ts";
 
-const NOTIFY = "2026-10-01T00:00:00Z";
-const draft = {
-  source: "group_digest",
-  update_type: "group_summary",
-  source_ref: "g1:m9",
-  content: "[כרמן · סיכום קבוצה] אישר תקציב",
-};
 const team = (cardWrite: boolean, mode = "team") =>
   resolveManagerSettings(
     rules({
@@ -35,6 +43,7 @@ const run = (settings = team(true), dryRun = false) => ({
   settings,
   floors,
   dryRun,
+  settingsChanged: () => Promise.resolve(false),
 });
 
 Deno.test("writingKinds", async (t) => {
@@ -48,9 +57,13 @@ Deno.test("writingKinds", async (t) => {
 
 Deno.test("writeTeamDrafts", async (t) => {
   await t.step(
-    "writes each due draft once and closes its finding",
+    "writes each due draft once, closes its finding and cancels its messages",
     async () => {
-      const w = world({ findings: [stale()] });
+      const f = stale();
+      const w = world({
+        findings: [f],
+        deliveries: [delivery({ finding_id: f.id })],
+      });
       const report = await writeTeamDrafts(deps(w), run());
       assertEquals([report?.written, report?.failed], [1, 0]);
       assertEquals(
@@ -58,6 +71,7 @@ Deno.test("writeTeamDrafts", async (t) => {
         [["group_digest", "g1:m9", false]],
       );
       assertEquals(w.findings[0].status, "resolved");
+      assertEquals(w.deliveries[0].status, "cancelled");
     },
   );
 
@@ -118,6 +132,133 @@ Deno.test("writeTeamDrafts", async (t) => {
       const report = await writeTeamDrafts(deps(w), run());
       assertEquals([report?.written, report?.failed], [0, 1]);
       assertEquals(w.findings[0].status, "open");
+    },
+  );
+
+  await t.step(
+    "a settings change between two writes leaves the rest for the next round",
+    async () => {
+      const w = world({
+        findings: [
+          stale(),
+          stale({
+            evidence: { card_draft: { ...draft, source_ref: "g2:m1" } },
+          }),
+        ],
+      });
+      let checks = 0;
+      const report = await writeTeamDrafts(deps(w), {
+        ...run(),
+        settingsChanged: () => Promise.resolve(++checks > 1),
+      });
+      assertEquals(report?.written, 1);
+      assertEquals(
+        w.findings.map((f) => f.status),
+        ["resolved", "open"],
+      );
+    },
+  );
+
+  await t.step(
+    "a finding someone closed meanwhile is counted as already closed",
+    async () => {
+      const w = world({ findings: [stale()] });
+      const fakes = deps(w);
+      const report = await writeTeamDrafts(
+        {
+          ...fakes,
+          cardDrafts: {
+            ...fakes.cardDrafts,
+            resolveWritten: () => Promise.resolve(false),
+          },
+        },
+        run(),
+      );
+      assertEquals([report?.written, report?.already_closed], [1, 1]);
+    },
+  );
+});
+
+/** A collector that reports nothing, so only stored findings are in play. */
+const quietCollector: Collector = {
+  ...draftCollector,
+  collect: () =>
+    Promise.resolve({
+      candidates: [],
+      watermark: null,
+      coverage: { complete: false, clientIds: null },
+    }),
+};
+
+Deno.test("Carmen's own card writes in the round", async (t) => {
+  await t.step(
+    "team with card_write: the draft is on the card and nobody is asked",
+    async () => {
+      const w = teamWorld();
+      const report = await round(w, true);
+      assertEquals(report.card_writes?.written, 1);
+      assertEquals(
+        w.cardEntries.map((e) => e.sourceRef),
+        ["g1:m9"],
+      );
+      assertEquals(
+        w.findings.map((f) => f.status),
+        ["resolved"],
+      );
+      assertEquals([w.decisions, w.deliveries], [[], []]);
+      const stats = w.heartbeats[0].stats;
+      assertEquals(
+        stats && typeof stats === "object" && !Array.isArray(stats)
+          ? stats.card_writes
+          : null,
+        { written: 1, failed: 0, already_closed: 0 },
+      );
+    },
+  );
+
+  await t.step(
+    "team without card_write: the campaigner is asked to approve",
+    async () => {
+      const w = teamWorld();
+      const report = await round(w, false);
+      assertEquals(report.card_writes, null);
+      assertEquals(w.cardEntries, []);
+      assertEquals(
+        w.deliveries.map((d) => d.recipient_key),
+        ["user:dana"],
+      );
+    },
+  );
+
+  await t.step(
+    "a dry run counts the write and plans no message for it, new or stored",
+    async () => {
+      for (const [w, collector] of [
+        [teamWorld(), draftCollector],
+        [teamWorld({ findings: [stale()] }), quietCollector],
+      ] as const) {
+        const report = await round(w, true, true, collector);
+        assertEquals(
+          [report.card_writes?.planned, report.card_writes?.written],
+          [1, 0],
+        );
+        assertEquals(
+          [report.preview?.decisions, report.preview?.messages],
+          [[], []],
+        );
+        assertEquals(w.cardEntries, []);
+      }
+    },
+  );
+
+  await t.step(
+    "a switch to observe while the collectors run: nothing is written",
+    async () => {
+      const w = teamWorld();
+      const report = await round(w, true, false, switchingToObserve(w));
+      assertEquals(report.card_writes, null);
+      assertEquals(w.cardEntries, []);
+      assertEquals(w.deliveries, []);
     },
   );
 });

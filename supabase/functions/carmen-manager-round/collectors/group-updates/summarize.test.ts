@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
-import { entry, window } from "../../tests/group-fixtures.ts";
+import { entry, window } from "./group-fixtures.ts";
 import { createLlmMeter } from "./llm-meter.ts";
 import type { AskModel } from "./ask-model.ts";
 import { digestWindows } from "./summarize.ts";

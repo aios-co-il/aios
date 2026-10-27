@@ -96,4 +96,29 @@ Deno.test("hasActivity and roundLog", async (t) => {
     });
     assertEquals(stats.gaps_dropped, { invalid: 1 });
   });
+
+  await t.step("a failed card write alone writes a row that counts it", () => {
+    const report = {
+      tenant_id: "t",
+      mode: "team" as const,
+      collectors: [],
+      card_writes: {
+        written: 0,
+        planned: 0,
+        failed: 1,
+        already_closed: 0,
+        finding_ids: [],
+      },
+      routed: 0,
+      brief: null,
+      dispatch: null,
+    };
+    assertEquals(hasActivity(report), true);
+    const stats = roundLog(report, 10).stats as { card_writes: unknown };
+    assertEquals(stats.card_writes, {
+      written: 0,
+      failed: 1,
+      already_closed: 0,
+    });
+  });
 });

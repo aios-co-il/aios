@@ -1,11 +1,12 @@
 /**
- * Carmen's own card writes (plan C14 write_card): for each kind in team mode
- * with manager.kinds.<kind>.card_write on, the drafted entry of every live
- * finding is written to the client card and the finding is closed, before
- * routing, so nobody is asked to approve what is already on the card. Only
- * events at or after the kind's notify_since and its collector's first run
- * qualify (the same gate as sending); an older draft waits for a person.
- * observe and david_only never write. A dry run only counts.
+ * Carmen's own card writes: for each kind in team mode with
+ * manager.kinds.<kind>.card_write on, the drafted entry of every live finding
+ * is written to the client card and the finding is closed, before routing,
+ * so nobody is asked to approve what is already on the card. Only events at
+ * or after the kind's notify_since and its collector's first run qualify
+ * (the same gate as sending); an older draft waits for a person. observe and
+ * david_only never write, and a settings change during the writes stops the
+ * rest, as it stops sends. A dry run only counts.
  */
 import { cardDraftOf } from "../../_shared/manager-round/card-draft.ts";
 import {
@@ -28,6 +29,12 @@ export type CardWriteReport = {
   /** Would be written (dry run). */
   planned: number;
   failed: number;
+  /**
+   * Written, but someone closed the finding meanwhile (a person approved it),
+   * so the closing function answered false.
+   */
+  already_closed: number;
+  /** Findings written (or, in a dry run, to be written); never routed. */
   finding_ids: string[];
 };
 
@@ -36,6 +43,8 @@ export type AutowriteRun = {
   settings: ManagerSettings;
   floors: NotifyFloors;
   dryRun: boolean;
+  /** True once the stored settings differ from `settings`; checked before each write. */
+  settingsChanged: () => Promise<boolean>;
   /** A dry run's candidates as unstored findings (dry-run.ts). */
   virtual?: FindingRow[];
 };
@@ -59,7 +68,7 @@ export async function writeTeamDrafts(
   if (run.dryRun) {
     return report({ planned: due.length, finding_ids: due.map((f) => f.id) });
   }
-  return writeAll(deps.cardDrafts, run.tenantId, due);
+  return writeAll(deps.cardDrafts, run, due);
 }
 
 /** Kinds in team mode with card_write on. */
@@ -87,10 +96,14 @@ function isDue(
   );
 }
 
-/** Writes each draft; a failure is counted and logged, and the rest go on. */
+/**
+ * Writes each draft while the settings stand; a failure is counted and
+ * logged, and the rest go on. After a settings change the rest wait for the
+ * next round, which reads the new settings.
+ */
 async function writeAll(
   ports: CardDraftWritePorts,
-  tenantId: string,
+  run: AutowriteRun,
   due: FindingRow[],
 ): Promise<CardWriteReport> {
   const done = report({});
@@ -99,15 +112,21 @@ async function writeAll(
     if (!draft || !finding.client_id) {
       continue;
     }
+    if (await run.settingsChanged()) {
+      break;
+    }
     try {
-      await writeCardDraft(ports, {
-        tenantId,
+      const written = await writeCardDraft(ports, {
+        tenantId: run.tenantId,
         finding: { ...finding, client_id: finding.client_id },
         draft,
         approvedBy: null,
       });
       done.written += 1;
       done.finding_ids.push(finding.id);
+      if (!written.resolved) {
+        done.already_closed += 1;
+      }
     } catch (error) {
       done.failed += 1;
       console.error("[carmen-manager-round] card write", finding.id, error);
@@ -118,5 +137,12 @@ async function writeAll(
 
 /** A report with zero counts by default. */
 function report(fields: Partial<CardWriteReport>): CardWriteReport {
-  return { written: 0, planned: 0, failed: 0, finding_ids: [], ...fields };
+  return {
+    written: 0,
+    planned: 0,
+    failed: 0,
+    already_closed: 0,
+    finding_ids: [],
+    ...fields,
+  };
 }

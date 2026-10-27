@@ -4,13 +4,18 @@ import { MANAGER_ROUND_RUN_KIND } from "../_shared/manager-round/run-kind.ts";
 import { unexpectedDrops } from "./findings/dropped.ts";
 import type { TenantReport } from "./tenant-run.ts";
 
-/** True when the run collected, routed, briefed, sent or failed. */
+/**
+ * True when the run collected, wrote or failed to write the card, routed,
+ * briefed, sent or failed. A failed card write is swallowed by design (the
+ * rest go on), so its row is the only durable record of it.
+ */
 export function hasActivity(report: TenantReport): boolean {
   return (
     !!report.error ||
     (report.collectors?.some((collector) => collector.status !== "skipped") ??
       false) ||
     (report.card_writes?.written ?? 0) > 0 ||
+    (report.card_writes?.failed ?? 0) > 0 ||
     (report.routed ?? 0) > 0 ||
     !!report.brief ||
     (report.dispatch?.messages ?? 0) > 0
@@ -75,6 +80,7 @@ export function roundLog(
         ? {
             written: report.card_writes.written,
             failed: report.card_writes.failed,
+            already_closed: report.card_writes.already_closed,
           }
         : null,
       routed: report.routed ?? 0,

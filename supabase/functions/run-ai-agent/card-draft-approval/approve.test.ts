@@ -4,7 +4,6 @@ import {
   type ClientCardEntryInput,
 } from "../../_shared/client-card/entry-types.ts";
 import { approveCardDraft, type ApproveInput } from "./approve.ts";
-import type { Approver } from "./authorize.ts";
 import type { ApprovalPorts, DraftFinding } from "./ports.ts";
 
 const draft = {
@@ -18,22 +17,25 @@ const live: DraftFinding = {
   client_id: "c1",
   agency_id: "a1",
   short_code: 31,
-  owner_user_id: "dana",
   evidence: { card_draft: draft },
 };
 
-/** People by user id, as their roles in tenant t1 read. */
-const people: Record<string, Omit<Approver, "userId">> = {
-  dana: { roles: ["campaigner"], managedAgencyIds: [], campaignerId: "camp1" },
-  ron: { roles: ["campaigner"], managedAgencyIds: [], campaignerId: "camp2" },
-  boss: { roles: ["owner"], managedAgencyIds: [], campaignerId: null },
-  outsider: { roles: [], managedAgencyIds: [], campaignerId: null },
-};
+/** Each person's role for the finding in t1, as carmen_finding_role_of answers. */
+const ROLES: Record<string, string> = { dana: "campaigner", boss: "owner" };
 
-function ports(finding: DraftFinding | null, assigned = false, refuse = false) {
+/**
+ * Fake ports over one live finding: `roles` stands for the database's rule
+ * (anyone missing has no role), and `refuse` makes the card write fail.
+ */
+function ports(
+  finding: DraftFinding | null,
+  roles: Record<string, string> = ROLES,
+  refuse = false,
+) {
   const written: ClientCardEntryInput[] = [];
   const closed: (string | null)[] = [];
   const looked: number[] = [];
+  const asked: unknown[][] = [];
   const fake: ApprovalPorts = {
     findLive: (_tenant, code) => {
       looked.push(code);
@@ -41,9 +43,10 @@ function ports(finding: DraftFinding | null, assigned = false, refuse = false) {
         finding && code === finding.short_code ? finding : null,
       );
     },
-    approver: (_tenant, userId) =>
-      Promise.resolve({ userId, ...people[userId] }),
-    isAssigned: () => Promise.resolve(assigned),
+    roleOf: (tenant, scope, userId) => {
+      asked.push([tenant, scope.client_id, scope.agency_id, userId]);
+      return Promise.resolve(roles[userId] ?? null);
+    },
     write: {
       writeEntry(input) {
         if (refuse) {
@@ -65,23 +68,23 @@ function ports(finding: DraftFinding | null, assigned = false, refuse = false) {
       },
     },
   };
-  return { fake, written, closed, looked };
+  return { fake, written, closed, looked, asked };
 }
 
+/** Dana's private-chat reply "אשר 31" in tenant t1; `fields` override. */
 const input = (fields: Partial<ApproveInput> = {}): ApproveInput => ({
   tenantId: "t1",
   args: { short_code: 31 },
   requesterUserId: "dana",
   isGroup: false,
-  now: new Date("2026-11-02T07:00:00Z"),
   ...fields,
 });
 
 Deno.test("approveCardDraft", async (t) => {
   await t.step(
-    "the finding's person writes the draft and closes it in their name",
+    "a campaigner the feed shows it to writes the draft and closes it in their name",
     async () => {
-      const { fake, written, closed } = ports(live);
+      const { fake, written, closed, asked } = ports(live);
       const result = await approveCardDraft(fake, input());
       assertEquals(result.success, true);
       assertEquals(result.message, "נרשם בכרטיס הלקוח (פריט 31).");
@@ -96,6 +99,7 @@ Deno.test("approveCardDraft", async (t) => {
         [["group_digest", "g1:m9", draft.content, false, null]],
       );
       assertEquals(closed, ["dana"]);
+      assertEquals(asked, [["t1", "c1", "a1", "dana"]]);
     },
   );
 
@@ -115,18 +119,17 @@ Deno.test("approveCardDraft", async (t) => {
   );
 
   await t.step(
-    "an assigned campaigner may; an unassigned one gets the not-found refusal",
+    "someone the database's rule gives no role gets the not-found refusal",
     async () => {
-      const asCampaigner = input({ requesterUserId: "ron" });
-      assertEquals(
-        (await approveCardDraft(ports(live, true).fake, asCampaigner)).success,
-        true,
-      );
+      const { fake, written } = ports(live);
       const refused = await approveCardDraft(
-        ports(live, false).fake,
-        asCampaigner,
+        fake,
+        input({ requesterUserId: "ron" }),
       );
-      assertEquals([refused.success, refused.error], [false, "not_found"]);
+      assertEquals(
+        [refused.success, refused.error, written.length],
+        [false, "not_found", 0],
+      );
     },
   );
 
@@ -145,20 +148,13 @@ Deno.test("approveCardDraft", async (t) => {
     },
   );
 
-  await t.step(
-    "an owner of this tenant may; roles in other tenants do not count",
-    async () => {
-      const asOwner = await approveCardDraft(
-        ports(live).fake,
-        input({ requesterUserId: "boss" }),
-      );
-      const asOutsider = await approveCardDraft(
-        ports(live, true).fake,
-        input({ requesterUserId: "outsider" }),
-      );
-      assertEquals([asOwner.success, asOutsider.error], [true, "not_found"]);
-    },
-  );
+  await t.step("an owner may", async () => {
+    const asOwner = await approveCardDraft(
+      ports(live).fake,
+      input({ requesterUserId: "boss" }),
+    );
+    assertEquals([asOwner.success, asOwner.resolved], [true, true]);
+  });
 
   await t.step(
     "a group session is refused before any lookup, naming no draft",
@@ -193,7 +189,7 @@ Deno.test("approveCardDraft", async (t) => {
   });
 
   await t.step("a refused card write is read back, not thrown", async () => {
-    const { fake, closed } = ports(live, false, true);
+    const { fake, closed } = ports(live, ROLES, true);
     const result = await approveCardDraft(fake, input());
     assertEquals(
       [result.success, result.error, closed.length],

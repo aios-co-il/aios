@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { cardDraftOf } from "../../../_shared/manager-round/card-draft.ts";
-import { CLIENT, GROUP, window } from "../../tests/group-fixtures.ts";
+import { CLIENT, GROUP, window } from "./group-fixtures.ts";
 import { draftCandidate } from "./candidate.ts";
 import { clamp } from "./clamp.ts";
 import { markerDigest } from "./fallback.ts";

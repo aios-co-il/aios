@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { entry } from "../../tests/group-fixtures.ts";
+import { entry } from "./group-fixtures.ts";
 import { dropKnownItems } from "./dedupe.ts";
 import type { Digest } from "./digest.ts";
 

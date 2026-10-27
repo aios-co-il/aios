@@ -5,7 +5,7 @@ import {
 } from "../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { FindingCandidate } from "../collectors/types.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import {
   FINDING_COLUMNS,
   type FindingRow,

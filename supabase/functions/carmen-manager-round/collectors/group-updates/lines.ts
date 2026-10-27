@@ -3,14 +3,15 @@
  * tenant's active Green API lines that belong to an owner or agency owner of
  * the tenant (the operator's own phone), or are shared with the whole
  * organisation (connection_visibility 'org'). A staff member's private line
- * is never read. Carmen's Manus line is not read until David decides to
- * monitor it. Nothing is ever sent through these lines.
+ * is never read, and neither is Carmen's Manus line, whose rows are stored
+ * under its own provider. Nothing is ever sent through these lines.
  *
- * The same rule as AIO-252's collectors/chat/connections.ts; once both are
- * merged one module serves the two collectors.
+ * AIO-252's collectors/chat/connections.ts applies the same rule. AIO-252
+ * merges first (its migration is dated earlier); AIO-254 then takes develop,
+ * reads the lines through that module and deletes this copy before it merges.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 
 /** The provider the monitored lines store their rows under. */
 export const MONITORED_PROVIDER = "green_api";

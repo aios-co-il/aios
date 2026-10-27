@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { entry, window } from "../../tests/group-fixtures.ts";
+import { entry, window } from "./group-fixtures.ts";
 import { digestPrompt, maskPhones } from "./prompt.ts";
 
 Deno.test("maskPhones", () => {

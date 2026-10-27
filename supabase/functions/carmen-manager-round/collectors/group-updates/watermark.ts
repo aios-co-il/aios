@@ -6,6 +6,7 @@
  * to this one (get_client_group_digest_messages).
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 
 /** A group's window never reaches further back than this. */
 export const LOOKBACK_DAYS = 7;
@@ -22,11 +23,13 @@ export type GroupWatermark = {
 
 /** The stored watermark, or a fresh one floored at `since` (the first run). */
 export function parseWatermark(raw: Json | null, since: Date): GroupWatermark {
-  const stored = record(raw);
+  const stored = jsonObject(raw);
   const floor = typeof stored?.floor === "string" ? stored.floor : null;
   const groups: Record<string, GroupMark> = {};
-  for (const [groupId, mark] of Object.entries(record(stored?.groups) ?? {})) {
-    const entry = record(mark ?? null);
+  for (const [groupId, mark] of Object.entries(
+    jsonObject(stored?.groups) ?? {},
+  )) {
+    const entry = jsonObject(mark);
     if (typeof entry?.at === "string" && typeof entry.id === "string") {
       groups[groupId] = { at: entry.at, id: entry.id };
     }
@@ -65,13 +68,4 @@ export function watermarkJson(
     groups: watermark.groups,
     read_lines: readLines,
   };
-}
-
-/** A plain JSON object, or null. */
-function record(
-  value: Json | null | undefined,
-): { [key: string]: Json | undefined } | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : null;
 }

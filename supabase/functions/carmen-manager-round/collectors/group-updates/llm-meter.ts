@@ -1,23 +1,25 @@
 /**
- * The round's LLM allowance for one tenant (plan C7): nothing once the
+ * The round's LLM allowance for one tenant: nothing once the
  * month-to-date LLM spend reaches the tenant's monthly_budget_usd (its active
  * 'llm' integration), and per Israel day at most round_llm_share_pct of that
  * budget / 30, or $1 when no budget is set; a share of 0 turns the model off
  * (markers only). The month spend is the project's, summed as the health
  * probe sums it (UTC month), because the OpenAI key and its budget are
  * project-wide today. This run's calls are added as they finish, since the
- * usage log is written asynchronously. AIO-252's chat collector meters the
- * same way over the same carmen_round_llm_spend; one of the two moves to a
- * shared module once both land.
+ * usage log is written asynchronously. AIO-252's collectors/chat/llm-meter.ts
+ * meters the same way over the same carmen_round_llm_spend. AIO-252 merges
+ * first; AIO-254 then takes develop, meters through that module and deletes
+ * this copy before it merges.
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import {
   jerusalemDayStartIso,
   jerusalemYmd,
 } from "../../../_shared/calendarTimeZone.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import type { ManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 
 /** Every ai_usage_log source of the round starts with this. */
 export const ROUND_SOURCE_PREFIX = "manager_round:";
@@ -109,9 +111,6 @@ async function monthlyBudget(
 
 /** A positive settings.monthly_budget_usd, or null. */
 function budgetOf(settings: Json | null): number | null {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-    return null;
-  }
-  const value = Number(settings.monthly_budget_usd);
+  const value = Number(jsonObject(settings)?.monthly_budget_usd);
   return Number.isFinite(value) && value > 0 ? value : null;
 }

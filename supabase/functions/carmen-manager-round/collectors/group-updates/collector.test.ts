@@ -1,15 +1,9 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assert, assertEquals } from "jsr:@std/assert@1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database, Json } from "../../../_shared/database.types.ts";
 import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import { RoundBudget } from "../../budget.ts";
-import {
-  entry,
-  GROUP,
-  history,
-  message,
-  STAFF_KEY,
-} from "../../tests/group-fixtures.ts";
+import { entry, GROUP, history, message, STAFF_KEY } from "./group-fixtures.ts";
 import type { CollectorContext } from "../types.ts";
 import { collectGroupUpdates, groupUpdatesCollector } from "./collector.ts";
 import type { CardEntry } from "./card-entries.ts";
@@ -28,6 +22,7 @@ const busy = history([
   message("m4", "2026-11-01T09:30:00Z", "עולה מחר בבוקר", { key: STAFF_KEY }),
 ]);
 
+/** A scheduled run's context at `now` (or a fixture run with `fixtures`). */
 function ctx(
   watermark: Json | null,
   fixtures: Json | null = null,
@@ -46,6 +41,10 @@ function ctx(
   };
 }
 
+/**
+ * Fake sources over these histories, card entries and live drafts; the model
+ * answers nothing (markers decide) and each history read is recorded.
+ */
 function sources(
   histories: GroupHistory[],
   entries: CardEntry[] = [],
@@ -190,5 +189,64 @@ Deno.test("groupUpdatesCollector", async (t) => {
     assertEquals(result.candidates.length, 1);
     assertEquals(result.candidates[0].evidence.digested_by, "markers");
     assertEquals(result.llm, { calls: 0, costUsd: 0 });
+  });
+});
+
+const folder = new URL("./", import.meta.url);
+const migration = new URL(
+  "../../../../migrations/20261027103000_carmen_group_updates.sql",
+  import.meta.url,
+);
+
+/** This folder's source files, tests excluded. */
+async function sourceFiles(): Promise<[string, string][]> {
+  const files: [string, string][] = [];
+  for await (const file of Deno.readDir(folder)) {
+    if (file.name.endsWith(".ts") && !file.name.endsWith(".test.ts")) {
+      files.push([
+        file.name,
+        await Deno.readTextFile(new URL(file.name, folder)),
+      ]);
+    }
+  }
+  return files;
+}
+
+// The collector reads client groups and drafts; it never grants Carmen access
+// to a group, never sends, and reads Green API rows (David's phone) only
+// through the service-role function.
+Deno.test("group-updates boundaries", async (t) => {
+  await t.step(
+    "never touches Carmen's group access or allowlists",
+    async () => {
+      for (const [name, text] of await sourceFiles()) {
+        assert(
+          !/allowed_group_ids|carmen_client_group_access/.test(text),
+          name,
+        );
+      }
+    },
+  );
+
+  await t.step("never sends and never reads chat rows directly", async () => {
+    for (const [name, text] of await sourceFiles()) {
+      assert(
+        !/send-|sendStaff|green-api|manage-manus|from\("chat_messages"\)/.test(
+          text,
+        ),
+        name,
+      );
+    }
+  });
+
+  await t.step("the SQL only reads Carmen's group access", async () => {
+    const sql = await Deno.readTextFile(migration);
+    assertEquals(
+      sql.match(
+        /(INSERT INTO|UPDATE|DELETE FROM)\s+public\.carmen_client_group_access/g,
+      ),
+      null,
+    );
+    assertEquals(/allowed_group_ids/.test(sql), false);
   });
 });

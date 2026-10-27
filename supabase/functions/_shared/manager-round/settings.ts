@@ -45,7 +45,7 @@ export type ManagerSettings = {
   max_alerts_per_recipient_per_day: number;
   /**
    * Percent of the tenant's monthly LLM budget the round may spend, spread
-   * evenly over 30 days (plan C7).
+   * evenly over 30 days.
    */
   round_llm_share_pct: number;
 };

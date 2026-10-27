@@ -2,8 +2,9 @@
  * The collector contract of Carmen's manager round (AIO-251).
  *
  * A collector turns AIOS data into finding candidates for one tenant. It is
- * deterministic: an LLM may only word text or classify chat intent, metered
- * and cached, and never drops a finding a rule raised.
+ * deterministic: an LLM may only word text or classify (chat intent, whether
+ * a group digest matters), metered and cached, and never drops a finding a
+ * rule raised.
  * The round decides when a collector is due, upserts its candidates
  * (carmen_finding_upsert), auto-clears the findings it no longer reports
  * (carmen_finding_mark_missing over `coverage`) and stores `watermark` only
@@ -18,9 +19,10 @@
  *   service-role SQL functions; nothing is ever sent through Green API.
  * - Only the tenant's own clients and clients of agencies shared with it; a
  *   group shared by several tenants is read once per group_chat_id.
- * - LLM use (chat intent only) is metered against the tenant's monthly
- *   budget (monthly_budget_usd and settings.round_llm_share_pct over
- *   ai_usage_log month to date), cached, with a deterministic fallback.
+ * - LLM use (wording, classifying chat intent, drafting a group digest) is
+ *   metered against the tenant's monthly budget (monthly_budget_usd and
+ *   settings.round_llm_share_pct over ai_usage_log month to date), cached,
+ *   with a deterministic fallback.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Json } from "../../_shared/database.types.ts";

@@ -7,19 +7,22 @@
  * a conversation with the client.
  */
 import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
+import {
+  CLIENT_CARD_SOURCE_LABELS,
+  type ClientCardSource,
+} from "../client-card/sources.ts";
 import type { Json } from "../database.types.ts";
+import { jsonObject } from "./json-object.ts";
 
 /** The reply word, sent before the finding's code. */
 export const APPROVE_DRAFT_WORD_HE = "אשר";
 
-export const CARD_DRAFT_SOURCES = ["group_digest"] as const;
+/** The card sources a finding may draft; each is a client card source. */
+export const CARD_DRAFT_SOURCES = [
+  "group_digest",
+] as const satisfies readonly ClientCardSource[];
 
 export const CARD_DRAFT_TYPES = ["group_summary"] as const;
-
-/** How each kind of drafted entry opens on the card, so readers see who wrote it. */
-export const CARD_DRAFT_PREFIX_HE: Record<CardDraft["source"], string> = {
-  group_digest: "[כרמן · סיכום קבוצה]",
-};
 
 export type CardDraft = {
   source: (typeof CARD_DRAFT_SOURCES)[number];
@@ -38,11 +41,11 @@ export type DraftedFinding = {
 
 /** evidence.card_draft when it is a well-formed draft, else null. */
 export function cardDraftOf(evidence: Json): CardDraft | null {
-  const draft = field(evidence, "card_draft");
-  const source = CARD_DRAFT_SOURCES.find((s) => s === field(draft, "source"));
-  const type = CARD_DRAFT_TYPES.find((t) => t === field(draft, "update_type"));
-  const ref = text(field(draft, "source_ref"));
-  const content = text(field(draft, "content"));
+  const draft = jsonObject(jsonObject(evidence)?.card_draft);
+  const source = CARD_DRAFT_SOURCES.find((s) => s === draft?.source);
+  const type = CARD_DRAFT_TYPES.find((t) => t === draft?.update_type);
+  const ref = text(draft?.source_ref);
+  const content = text(draft?.content);
   return source && type && ref && content
     ? { source, update_type: type, source_ref: ref, content }
     : null;
@@ -77,25 +80,22 @@ export function cardDraftEntry(
   };
 }
 
-/** The entry text: the source's prefix, then the wording. */
+/**
+ * The entry text: the source's prefix, then the wording. The prefix names
+ * Carmen and the source's card label, so readers see who wrote it.
+ */
 export function cardDraftContent(
   source: CardDraft["source"],
   wording: string,
 ): string {
-  return `${CARD_DRAFT_PREFIX_HE[source]} ${wording.trim()}`;
+  const prefix = `[${CLIENT_CARD_SOURCE_LABELS.carmen} · ${CLIENT_CARD_SOURCE_LABELS[source]}]`;
+  return `${prefix} ${wording.trim()}`;
 }
 
 /** The finding code in a reply such as "אשר 123", "אשרי #123" or "אשרו 123"; else null. */
 export function parseApproveDraftReply(message: string): number | null {
   const match = /(?:^|\s)אשר[יו]?\s*#?(\d{1,7})(?!\d)/.exec(message);
   return match ? Number(match[1]) : null;
-}
-
-/** A key of a JSON object, or undefined for anything else. */
-function field(value: Json | undefined, key: string): Json | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value[key]
-    : undefined;
 }
 
 /** A trimmed non-empty string, or null. */

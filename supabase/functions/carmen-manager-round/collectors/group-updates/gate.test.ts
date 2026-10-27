@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { entry, window } from "../../tests/group-fixtures.ts";
+import { entry, window } from "./group-fixtures.ts";
 import { gateWindow } from "./gate.ts";
 
 const three = window([{ text: "א ב" }, { text: "ג ד" }, { text: "ה ו" }]);

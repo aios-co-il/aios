@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { CLIENT, entry } from "../../tests/group-fixtures.ts";
+import { CLIENT, entry } from "./group-fixtures.ts";
 import { recordingClient } from "../../tests/recording-client.ts";
 import { keptDrafts, type LiveDraft, loadLiveDrafts } from "./live-drafts.ts";
 

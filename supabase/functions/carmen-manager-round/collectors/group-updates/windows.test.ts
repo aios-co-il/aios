@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { history, message, STAFF_KEY } from "../../tests/group-fixtures.ts";
+import { history, message, STAFF_KEY } from "./group-fixtures.ts";
 import { groupWindows } from "./windows.ts";
 
 const from = new Date("2026-11-01T00:00:00Z");

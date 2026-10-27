@@ -1,12 +1,21 @@
-import { assertEquals } from "jsr:@std/assert@1";
+/** A team-mode world and round with a group digest draft, for autowrite.test.ts. */
 import { RoundBudget } from "../budget.ts";
 import type { Collector } from "../collectors/types.ts";
 import { runTenant } from "../tenant-run.ts";
 import { deps } from "../tests/fakes.ts";
 import { rules, TENANT, type World, world } from "../tests/fake-world.ts";
 
-const NOTIFY = "2026-10-01T00:00:00Z";
-const draftCollector: Collector = {
+export const NOTIFY = "2026-10-01T00:00:00Z";
+
+export const draft = {
+  source: "group_digest",
+  update_type: "group_summary",
+  source_ref: "g1:m9",
+  content: "[כרמן · סיכום קבוצה] אישר תקציב",
+};
+
+/** Reports one card_stale_group candidate for client c1 holding `draft`. */
+export const draftCollector: Collector = {
   id: "group_updates_test",
   kinds: ["card_stale_group"],
   detectorVersion: "1",
@@ -22,14 +31,7 @@ const draftCollector: Collector = {
           agency_id: null,
           source_event_at: "2026-10-31T10:00:00Z",
           summary_he: "לקוח א: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס",
-          evidence: {
-            card_draft: {
-              source: "group_digest",
-              update_type: "group_summary",
-              source_ref: "g1:m9",
-              content: "[כרמן · סיכום קבוצה] אישר תקציב",
-            },
-          },
+          evidence: { card_draft: draft },
           owner_user_id: null,
         },
       ],
@@ -39,7 +41,7 @@ const draftCollector: Collector = {
 };
 
 /** The draft collector, during whose run the owner switches to observe. */
-function switchingToObserve(w: World): Collector {
+export function switchingToObserve(w: World): Collector {
   return {
     ...draftCollector,
     collect: (context) => {
@@ -55,7 +57,8 @@ function switchingToObserve(w: World): Collector {
   };
 }
 
-function teamWorld(): World {
+/** Client c1 with Dana as its campaigner; the collectors first ran at NOTIFY. */
+export function teamWorld(fields: Partial<World> = {}): World {
   return world({
     state: ["group_updates_test", "_round"].map((collector) => ({
       collector,
@@ -78,10 +81,12 @@ function teamWorld(): World {
         },
       ],
     },
+    ...fields,
   });
 }
 
-function round(
+/** One tenant run in team mode, card_write on or off, with `collector`. */
+export function round(
   w: World,
   cardWrite: boolean,
   dryRun = false,
@@ -115,69 +120,3 @@ function round(
     },
   });
 }
-
-Deno.test("Carmen's own card writes in the round", async (t) => {
-  await t.step(
-    "team with card_write: the draft is on the card and nobody is asked",
-    async () => {
-      const w = teamWorld();
-      const report = await round(w, true);
-      assertEquals(report.card_writes?.written, 1);
-      assertEquals(
-        w.cardEntries.map((e) => e.sourceRef),
-        ["g1:m9"],
-      );
-      assertEquals(
-        w.findings.map((f) => f.status),
-        ["resolved"],
-      );
-      assertEquals([w.decisions, w.deliveries], [[], []]);
-      const stats = w.heartbeats[0].stats;
-      assertEquals(
-        stats && typeof stats === "object" && !Array.isArray(stats)
-          ? stats.card_writes
-          : null,
-        { written: 1, failed: 0 },
-      );
-    },
-  );
-
-  await t.step(
-    "team without card_write: the campaigner is asked to approve",
-    async () => {
-      const w = teamWorld();
-      const report = await round(w, false);
-      assertEquals(report.card_writes, null);
-      assertEquals(w.cardEntries, []);
-      assertEquals(
-        w.deliveries.map((d) => d.recipient_key),
-        ["user:dana"],
-      );
-    },
-  );
-
-  await t.step(
-    "a dry run counts the write and plans no message for it",
-    async () => {
-      const w = teamWorld();
-      const report = await round(w, true, true);
-      assertEquals(
-        [report.card_writes?.planned, report.card_writes?.written],
-        [1, 0],
-      );
-      assertEquals(report.preview?.decisions, []);
-      assertEquals(w.cardEntries, []);
-    },
-  );
-
-  await t.step(
-    "a switch to observe while the collectors run: nothing is written",
-    async () => {
-      const w = teamWorld();
-      const report = await round(w, true, false, switchingToObserve(w));
-      assertEquals(report.card_writes, null);
-      assertEquals(w.cardEntries, []);
-      assertEquals(w.deliveries, []);
-    },
-  );
-});

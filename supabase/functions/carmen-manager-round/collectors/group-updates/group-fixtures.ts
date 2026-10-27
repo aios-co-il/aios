@@ -1,13 +1,7 @@
-/** Builders for the group-updates collector's tests: messages, groups, windows. */
-import type { CardEntry } from "../collectors/group-updates/card-entries.ts";
-import type {
-  GroupHistory,
-  GroupMessage,
-} from "../collectors/group-updates/messages.ts";
-import type {
-  GroupWindow,
-  WindowMessage,
-} from "../collectors/group-updates/windows.ts";
+/** Builders for this collector's tests: messages, groups, windows. */
+import type { CardEntry } from "./card-entries.ts";
+import type { GroupHistory, GroupMessage } from "./messages.ts";
+import type { GroupWindow, WindowMessage } from "./windows.ts";
 
 export const CLIENT = "22222222-2222-4222-8222-222222222221";
 export const GROUP = "99999999-9999-4999-8999-999999999991";

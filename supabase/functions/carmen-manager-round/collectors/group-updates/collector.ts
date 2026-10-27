@@ -1,5 +1,5 @@
 /**
- * R6 group updates to the client card (AIO-254, plan C20). Daily at 19:30
+ * Group updates to the client card (AIO-254). Daily at 19:30
  * Israel time (a slot of the round, never replayed), for each WhatsApp group
  * linked to exactly one client: when the group had at least three
  * substantive messages since its watermark and nobody updated the card after

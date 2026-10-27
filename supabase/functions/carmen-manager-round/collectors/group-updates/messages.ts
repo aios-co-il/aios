@@ -6,7 +6,7 @@
  */
 import type { Database, Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MONITORED_PROVIDER } from "./lines.ts";
 
 type GroupRow =

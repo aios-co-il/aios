@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { window } from "../../tests/group-fixtures.ts";
+import { window } from "./group-fixtures.ts";
 import { markerDigest } from "./fallback.ts";
 
 Deno.test("markerDigest", async (t) => {

@@ -4,13 +4,13 @@
  * auto-cleared) once a person updated the card after its first message, or
  * once its last message is older than the lookback.
  */
-import type { Json } from "../../../_shared/database.types.ts";
 import {
   FINDING_LIVE_STATUSES,
   isFindingSeverity,
 } from "../../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import type { FindingCandidate } from "../types.ts";
 import { type CardEntry, humanUpdateAfter } from "./card-entries.ts";
 import { LOOKBACK_DAYS } from "./watermark.ts";
@@ -44,8 +44,8 @@ export async function loadLiveDrafts(
     : live);
   throwIf(error, "carmen_findings drafts");
   return (data ?? []).flatMap((row) => {
-    const evidence = objectOf(row.evidence);
-    const window = objectOf(evidence?.window ?? null);
+    const evidence = jsonObject(row.evidence);
+    const window = jsonObject(evidence?.window);
     const from = window?.from;
     const to = window?.to;
     const severity = row.severity;
@@ -83,13 +83,4 @@ export function keptDrafts(
       );
     })
     .map((draft) => draft.candidate);
-}
-
-/** A JSON object, or null. */
-function objectOf(
-  value: Json | null | undefined,
-): { [key: string]: Json | undefined } | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : null;
 }
