@@ -1,3 +1,5 @@
+import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
+
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
 export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
@@ -117,9 +119,8 @@ function campaignKind(
     campaignType?: string;
   },
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
-  googleGoal?: "leads" | "ecommerce",
+  googleGoal?: GoogleReportCampaignGoal,
 ): WeeklyCampaignKind {
-  // Google: each campaign by its own goal; the report's type only when unknown.
   if (source === "google_ads")
     return (
       googleGoal ??
@@ -142,7 +143,7 @@ export function buildWeeklyCampaignSections(
     defaultSource?: WeeklyAdsSource;
     sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
-    googleCampaignGoals?: Map<string, "leads" | "ecommerce">;
+    googleCampaignGoals?: Map<string, GoogleReportCampaignGoal>;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();

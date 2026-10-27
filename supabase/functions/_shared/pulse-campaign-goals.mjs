@@ -981,44 +981,6 @@ function datesBetween(start, end) {
   return dates;
 }
 
-/**
- * Goal per Google Ads campaign for reports, using the same rules as the pulse check
- * so the report shows each campaign by the goal the pulse measures it on.
- * Keyed by campaign id (name when the id is missing).
- * @returns {Map<string, "ecommerce" | "leads" | "engagement">}
- */
-export function googleReportCampaignGoals({ records = [], tables = [] } = {}) {
-  const tableMap = new Map(tables.map((table) => [table.id, table]));
-  const votes = [];
-  for (const record of records) {
-    const data = record.data || {};
-    const table = tableMap.get(record.table_id);
-    if (!table || table.integration_type !== "google_ads") {
-      continue;
-    }
-    const key = googleReportCampaignKey(data);
-    if (!key) {
-      continue;
-    }
-    const classification = classifyPulseCampaignGoal(data, {
-      integration_type: table.integration_type,
-      integration_settings: table.integration_settings || {},
-      category: table.category,
-    });
-    votes.push({
-      key,
-      goal: classification.goal,
-      source: classification.source,
-      spend: Number(data.spend ?? data.cost) || 0,
-    });
-  }
-  return resolveCampaignGoals(votes);
-}
-
-export function googleReportCampaignKey(data = {}) {
-  return String(data.campaign_id || data.campaign_name || "");
-}
-
 export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
   const windows = pulseTrendWindows(nowYmd);
   const tableMap = new Map(tables.map((table) => [table.id, table]));

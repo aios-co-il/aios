@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   buildWeeklyCampaignSections,
   formatWeeklyRange,
@@ -138,58 +138,60 @@ test("the current week rolls over at Sunday midnight in Jerusalem", () => {
   expect(sections[1].startDate).toBe("2026-09-13");
 });
 
-test("google campaigns use their own goal and lead value is not revenue", () => {
-  const google = (campaign: string, value: number) => ({
-    _source: "google_ads",
-    data: {
-      date: "2026-09-14",
-      campaign_id: campaign,
-      campaign_name: campaign,
-      cost: 100,
-      conversions: 2,
-      conversions_value: value,
-    },
-  });
-  const sections = buildWeeklyCampaignSections(
-    [google("leads", 3), google("shop", 600)],
-    {
-      now: new Date("2026-09-18T12:00:00Z"),
-      sourceModes: { google_ads: "leads" },
-      googleCampaignGoals: new Map([["shop", "ecommerce"]]),
-    },
-  );
-  const byId = Object.fromEntries(
-    sections[0].rows.map((row) => [row.campaignId, row]),
-  );
-  expect(byId.leads.kind).toBe("leads");
-  expect(byId.leads.revenue).toBe(0);
-  expect(byId.leads.roas).toBe(0);
-  expect(byId.shop.kind).toBe("ecommerce");
-  expect(byId.shop.roas).toBe(6);
-  expect(sections[0].totals.revenue).toBe(600);
-  expect(sections[0].totals.roas).toBe(6);
-});
-
-test("a leads-only google week carries no revenue", () => {
-  const sections = buildWeeklyCampaignSections(
-    [
-      {
-        _source: "google_ads",
-        data: {
-          date: "2026-09-14",
-          campaign_id: "a",
-          campaign_name: "תרגום משפטי",
-          cost: 750,
-          conversions: 4,
-          conversions_value: 3,
-        },
+describe("buildWeeklyCampaignSections – Google campaign goals", () => {
+  test("google campaigns use their own goal and lead value is not revenue", () => {
+    const google = (campaign: string, value: number) => ({
+      _source: "google_ads",
+      data: {
+        date: "2026-09-14",
+        campaign_id: campaign,
+        campaign_name: campaign,
+        cost: 100,
+        conversions: 2,
+        conversions_value: value,
       },
-    ],
-    {
-      now: new Date("2026-09-18T12:00:00Z"),
-      sourceModes: { google_ads: "leads" },
-    },
-  );
-  expect(sections[0].rows.every((row) => row.kind === "leads")).toBeTruthy();
-  expect(sections[0].totals.revenue).toBe(0);
+    });
+    const sections = buildWeeklyCampaignSections(
+      [google("leads", 3), google("shop", 600)],
+      {
+        now: new Date("2026-09-18T12:00:00Z"),
+        sourceModes: { google_ads: "leads" },
+        googleCampaignGoals: new Map([["shop", "ecommerce"]]),
+      },
+    );
+    const byId = Object.fromEntries(
+      sections[0].rows.map((row) => [row.campaignId, row]),
+    );
+    expect(byId.leads.kind).toBe("leads");
+    expect(byId.leads.revenue).toBe(0);
+    expect(byId.leads.roas).toBe(0);
+    expect(byId.shop.kind).toBe("ecommerce");
+    expect(byId.shop.roas).toBe(6);
+    expect(sections[0].totals.revenue).toBe(600);
+    expect(sections[0].totals.roas).toBe(6);
+  });
+
+  test("a leads-only google week carries no revenue", () => {
+    const sections = buildWeeklyCampaignSections(
+      [
+        {
+          _source: "google_ads",
+          data: {
+            date: "2026-09-14",
+            campaign_id: "a",
+            campaign_name: "תרגום משפטי",
+            cost: 750,
+            conversions: 4,
+            conversions_value: 3,
+          },
+        },
+      ],
+      {
+        now: new Date("2026-09-18T12:00:00Z"),
+        sourceModes: { google_ads: "leads" },
+      },
+    );
+    expect(sections[0].rows.every((row) => row.kind === "leads")).toBeTruthy();
+    expect(sections[0].totals.revenue).toBe(0);
+  });
 });

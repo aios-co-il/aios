@@ -2,7 +2,6 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
-  googleReportCampaignGoals,
   pulseCampaignOutcome,
 } from "./pulse-campaign-goals.mjs";
 
@@ -191,33 +190,3 @@ Deno.test(
     assertStrictEquals(rows[0].goal, "ecommerce");
   },
 );
-
-Deno.test("reports get each Google campaign's own goal", () => {
-  const records = lastWeek.flatMap((date) => [
-    googleRow("g", date, {
-      campaign_id: "pmax-shop",
-      campaign_name: "PMax חנות",
-      conversion_goal: "ecommerce",
-      cost: 100,
-    }),
-    googleRow("g", date, {
-      campaign_id: "pmax-leads",
-      campaign_name: "PMax כללי",
-      conversion_goal: "leads",
-      cost: 100,
-      conversions_value: 5,
-    }),
-    googleRow("g", date, {
-      campaign_id: "search",
-      campaign_name: "Search",
-      cost: 50,
-    }),
-  ]);
-  const goals = googleReportCampaignGoals({
-    records,
-    tables: [googleTable("g", { campaign_type: "ecommerce" }, "איקומרס")],
-  });
-  assertStrictEquals(goals.get("pmax-shop"), "ecommerce");
-  assertStrictEquals(goals.get("pmax-leads"), "leads");
-  assertStrictEquals(goals.get("search"), "ecommerce");
-});

@@ -7,7 +7,10 @@ import {
   type WeeklyAdsRecord,
   type WeeklyAdsSource,
 } from "@/lib/weeklyAdsComparison";
-import { googleCampaignGoalsForRecords } from "@/lib/googleAdsReport";
+import {
+  googleCampaignGoalsForRecords,
+  type GoogleReportTable,
+} from "@/lib/googleCampaignGoals";
 
 type Props = {
   records: WeeklyAdsRecord[];
@@ -15,12 +18,7 @@ type Props = {
   defaultSource?: WeeklyAdsSource;
   sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
   /** The report's tables: Google campaigns then show by their own goal. */
-  tables?: Array<{
-    id: string;
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-    category?: string | null;
-  }>;
+  tables?: GoogleReportTable[];
   isLoading?: boolean;
 };
 
@@ -108,7 +106,6 @@ export function WeeklyCampaignComparison({
                 ? "עלות לקליק"
                 : "עלות לליד"
             : "עלות לתוצאה";
-        // Revenue and ROAS only when the week has an ecommerce campaign.
         const showRevenue = week.rows.some((row) => row.kind === "ecommerce");
 
         return (

@@ -1,5 +1,6 @@
-import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection";
-import { summarizeGoogleAdsCampaigns } from "@/lib/googleAdsReport";
+import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
+import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1183,18 +1184,17 @@ export default function SharedDashboard({
     facebookCampaignGroups,
   ]);
 
-  // Google Ads campaigns, each with its own goal (same rules as the pulse check):
-  // one account can run ecommerce and lead campaigns side by side.
   const googleAdsSummary = useMemo(
     () =>
       summarizeGoogleAdsCampaigns(
-        records.filter((r: any) => (r._source || "") === "google_ads"),
+        records.filter(
+          (r: { _source?: string }) => (r._source || "") === "google_ads",
+        ),
         tables || [],
       ),
     [records, tables],
   );
-  // Ecommerce as soon as one campaign in the tab is an ecommerce campaign.
-  const googleAdsCampaignType: "leads" | "ecommerce" =
+  const googleAdsCampaignType: GoogleReportCampaignGoal =
     googleAdsSummary.hasEcommerce ? "ecommerce" : "leads";
 
   const googleAdsTableSettings = useMemo(() => {
@@ -1216,14 +1216,6 @@ export default function SharedDashboard({
       data?.dashboard?.client_id,
       googleAdsTableSettings,
     );
-  const googleWooOverlay = useGoogleWooOverlay
-    ? {
-        purchases: googleWooAttribution.paidOrders,
-        revenue: googleWooAttribution.paidRevenue,
-        organicOrders: googleWooAttribution.organicOrders,
-        organicRevenue: googleWooAttribution.organicRevenue,
-      }
-    : null;
 
   const analyticsTableIds = useMemo(
     () =>
@@ -1922,7 +1914,6 @@ export default function SharedDashboard({
               </div>
             )}
 
-          {/* Google Ads: each campaign by its own goal (same rules as the pulse check) */}
           {platformFilter === "google_ads" && (
             <GoogleAdsCampaignSection
               summary={googleAdsSummary}
@@ -1930,7 +1921,7 @@ export default function SharedDashboard({
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
               formatUnitCost={formatUnitCost}
-              woo={googleWooOverlay}
+              woo={useGoogleWooOverlay ? googleWooAttribution : null}
             />
           )}
 

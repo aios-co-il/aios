@@ -1,7 +1,5 @@
-import {
-  googleReportCampaignGoals,
-  googleReportCampaignKey,
-} from "@/lib/pulseCampaignGoals";
+import { useGoogleCampaignGoals } from "@/hooks/useGoogleCampaignGoals";
+import type { GoogleReportRecord } from "@/lib/googleCampaignGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -288,38 +286,16 @@ export default function SharedTable() {
           : tableCampaignType === "ecommerce"
             ? "ecommerce"
             : "leads";
-  // Google Ads: each campaign by its own goal (same rules as the pulse check),
-  // so one account can show ecommerce and lead campaigns side by side.
-  const googleGoalOf = useMemo(() => {
-    const table = data?.table;
-    if (!isGoogleAds || !table?.id) return null;
-    const goals = googleReportCampaignGoals({
-      records: (data?.records || []).map((record: any) => ({
-        table_id: table.id,
-        data: record.data,
-      })),
-      tables: [table],
-    });
-    return (recordData: Record<string, unknown> | null | undefined) =>
-      goals.get(googleReportCampaignKey(recordData)) ?? tableMode;
-  }, [data, isGoogleAds, tableMode]);
-  const googleGoals = useMemo(() => {
-    if (!googleGoalOf) return null;
-    const goals = new Set(
-      (data?.records || []).map((record: any) => googleGoalOf(record.data)),
-    );
-    return {
-      ecommerce: goals.size
-        ? goals.has("ecommerce")
-        : tableMode === "ecommerce",
-      leads: goals.size ? goals.has("leads") : tableMode === "leads",
-    };
-  }, [data, googleGoalOf, tableMode]);
+  const googleGoals = useGoogleCampaignGoals(
+    data?.records,
+    isGoogleAds ? data?.table : null,
+    tableMode,
+  );
   const forceLeadsOnly = googleGoals
-    ? !googleGoals.ecommerce
+    ? !googleGoals.hasEcommerce
     : tableMode === "leads";
   const forceEcommerceOnly = googleGoals
-    ? !googleGoals.leads
+    ? !googleGoals.hasLeads
     : tableMode === "ecommerce";
 
   const { data: weeklyData, isPending: weeklyPending } = useQuery({
@@ -379,9 +355,8 @@ export default function SharedTable() {
         spend += getSpendFromData(d);
         impressions += Number(d.impressions) || 0;
         clicks += Number(d.clicks) || 0;
-        if (googleGoalOf) {
-          // Google Ads: a campaign counts toward its own goal only.
-          if (googleGoalOf(d) === "ecommerce") {
+        if (googleGoals) {
+          if (googleGoals.goalOf(d) === "ecommerce") {
             purchases += getAdsPurchasesFromData(d);
             revenue += getRevenueFromData(d);
             addToCart += getAddToCartFromData(d);
@@ -413,9 +388,9 @@ export default function SharedTable() {
     const roas = spend > 0 ? revenue / spend : 0;
     const cpl = leads > 0 ? spend / leads : 0;
     const hasEcommerce = googleGoals
-      ? googleGoals.ecommerce
+      ? googleGoals.hasEcommerce
       : forceEcommerceOnly;
-    const hasLeads = googleGoals ? googleGoals.leads : forceLeadsOnly;
+    const hasLeads = googleGoals ? googleGoals.hasLeads : forceLeadsOnly;
 
     return {
       spend,
@@ -437,7 +412,6 @@ export default function SharedTable() {
     isIntegrationTable,
     forceLeadsOnly,
     forceEcommerceOnly,
-    googleGoalOf,
     googleGoals,
   ]);
 
@@ -474,7 +448,7 @@ export default function SharedTable() {
       return { ecommerce: [], leads: rows, all: rows, entityColumnLabel };
     }
 
-    const googleRows = (records: any[]) =>
+    const googleRows = (records: GoogleReportRecord[]) =>
       aggregateGoogleRecordsAtLevel(records, adsEntityLevel).map((c) => ({
         name: c.name,
         spend: c.cost || c.spend,
@@ -485,12 +459,16 @@ export default function SharedTable() {
         revenue: c.conversions_value || c.purchase_value,
         addToCart: c.add_to_cart,
       }));
-    const goalOf = googleGoalOf ?? (() => tableMode);
+    const goalOf = googleGoals?.goalOf ?? (() => tableMode);
     const ecommerce = googleRows(
-      filteredRecords.filter((r: any) => goalOf(r.data) === "ecommerce"),
+      filteredRecords.filter(
+        (r: GoogleReportRecord) => goalOf(r.data) === "ecommerce",
+      ),
     );
     const leads = googleRows(
-      filteredRecords.filter((r: any) => goalOf(r.data) !== "ecommerce"),
+      filteredRecords.filter(
+        (r: GoogleReportRecord) => goalOf(r.data) !== "ecommerce",
+      ),
     );
     return {
       ecommerce,
@@ -502,7 +480,7 @@ export default function SharedTable() {
     filteredRecords,
     integrationType,
     forceEcommerceOnly,
-    googleGoalOf,
+    googleGoals,
     tableMode,
     adsEntityLevel,
   ]);
