@@ -6,6 +6,10 @@ import {
   formatWeeklyRange,
   type WeeklyAdsRecord,
   type WeeklyAdsSource,
+  type WeeklyCampaignKind,
+  type WeeklyCampaignSection,
+  type WeeklyGoalGroup,
+  type WeeklyGoalTotals,
 } from "@/lib/weeklyAdsComparison";
 import { googleCampaignGoalsForRecords } from "@/lib/googleAdsReport";
 
@@ -30,8 +34,164 @@ const sourceLabel: Record<WeeklyAdsSource, string> = {
   google_ads: "Google Ads",
 };
 
+const goalTitle: Record<WeeklyCampaignKind, string> = {
+  ecommerce: "קמפייני מכירות",
+  leads: "קמפייני לידים",
+  traffic: "קמפייני תנועה",
+};
+
+const goalTotalLabel: Record<WeeklyCampaignKind, string> = {
+  ecommerce: "סה״כ מכירות",
+  leads: "סה״כ לידים",
+  traffic: "סה״כ תנועה",
+};
+
 const number = (value: number, digits = 0) =>
   value.toLocaleString("he-IL", { maximumFractionDigits: digits });
+
+type Column = {
+  label: string;
+  value: (metrics: WeeklyGoalTotals, currency: string) => string;
+  className?: string;
+};
+
+const impressions: Column = {
+  label: "חשיפות",
+  value: (m) => number(m.impressions),
+};
+const clicks: Column = { label: "קליקים", value: (m) => number(m.clicks) };
+const spend: Column = {
+  label: "הוצאה",
+  value: (m, currency) => `${currency}${number(m.spend)}`,
+};
+const results = (label: string): Column => ({
+  label,
+  value: (m) => number(m.results, 1),
+  className: "font-medium text-green-600",
+});
+const costPerResult = (label: string, digits = 1): Column => ({
+  label,
+  value: (m, currency) =>
+    m.results > 0 ? `${currency}${number(m.costPerResult, digits)}` : "—",
+  className: "font-medium text-blue-600",
+});
+
+/** Each goal shows only its own metrics: no revenue or ROAS outside sales. */
+const goalColumns: Record<WeeklyCampaignKind, Column[]> = {
+  ecommerce: [
+    impressions,
+    clicks,
+    results("רכישות"),
+    spend,
+    costPerResult("עלות לרכישה"),
+    {
+      label: "הכנסה",
+      value: (m, currency) =>
+        m.revenue > 0 ? `${currency}${number(m.revenue)}` : "—",
+    },
+    {
+      label: "ROAS",
+      value: (m) => (m.roas > 0 ? `${number(m.roas, 2)}x` : "—"),
+    },
+  ],
+  leads: [
+    impressions,
+    clicks,
+    results("לידים"),
+    spend,
+    costPerResult("עלות לליד"),
+  ],
+  // A traffic campaign's result is the click itself.
+  traffic: [
+    impressions,
+    { ...clicks, className: "font-medium text-green-600" },
+    spend,
+    costPerResult("עלות לקליק", 2),
+  ],
+};
+
+function weekTitle(week: WeeklyCampaignSection) {
+  if (week.index === 0) return "השבוע";
+  if (week.index === 1) return "שבוע שעבר";
+  return `לפני ${week.index} שבועות`;
+}
+
+function GoalTable({
+  group,
+  currency,
+  showPlatform,
+  showTitle,
+}: {
+  group: WeeklyGoalGroup;
+  currency: string;
+  showPlatform: boolean;
+  showTitle: boolean;
+}) {
+  const columns = goalColumns[group.kind];
+  return (
+    <section aria-label={goalTitle[group.kind]}>
+      {showTitle && (
+        <h4 className="border-b bg-muted/10 px-4 py-2 text-sm font-semibold">
+          {goalTitle[group.kind]}
+        </h4>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="border-b bg-muted/20">
+            <tr>
+              {showPlatform && (
+                <th className="p-2 text-right font-medium">פלטפורמה</th>
+              )}
+              <th className="p-2 text-right font-medium">קמפיין</th>
+              {columns.map((column) => (
+                <th key={column.label} className="p-2 text-center font-medium">
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((row) => (
+              <tr
+                key={row.key}
+                className="border-b last:border-0 hover:bg-muted/20"
+              >
+                {showPlatform && (
+                  <td className="p-2 text-right">{sourceLabel[row.source]}</td>
+                )}
+                <td className="p-2 text-right font-medium">{row.campaign}</td>
+                {columns.map((column) => (
+                  <td
+                    key={column.label}
+                    className={`p-2 text-center ${column.className ?? ""}`}
+                  >
+                    {column.value(row, currency)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-primary/10 font-bold">
+            <tr>
+              {showPlatform && <td />}
+              <td className="p-2 text-right">
+                {showTitle ? goalTotalLabel[group.kind] : "סה״כ שבועי"}
+              </td>
+              {columns.map((column) => (
+                <td
+                  key={column.label}
+                  className={`p-2 text-center ${column.className ?? ""}`}
+                >
+                  {column.value(group.totals, currency)}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 export function WeeklyCampaignComparison({
   records,
@@ -86,42 +246,17 @@ export function WeeklyCampaignComparison({
         <h2 className="text-lg font-semibold">השוואה שבועית לפי קמפיין</h2>
         <p className="text-sm text-muted-foreground">
           כל שבוע מוצג מראשון עד שבת, מהשבוע האחרון ועד שנה אחורה לפי הנתונים
-          הזמינים.
+          הזמינים. כל קמפיין מוצג לפי היעד שלו: מכירות, לידים או תנועה.
         </p>
       </div>
 
       {weeks.map((week) => {
-        const kinds = new Set(week.rows.map((row) => row.kind));
-        const resultLabel =
-          kinds.size === 1
-            ? kinds.has("ecommerce")
-              ? "רכישות"
-              : kinds.has("traffic")
-                ? "קליקים"
-                : "לידים"
-            : "תוצאות";
-        const costLabel =
-          kinds.size === 1
-            ? kinds.has("ecommerce")
-              ? "עלות לרכישה"
-              : kinds.has("traffic")
-                ? "עלות לקליק"
-                : "עלות לליד"
-            : "עלות לתוצאה";
-        // Revenue and ROAS only when the week has an ecommerce campaign.
-        const showRevenue = week.rows.some((row) => row.kind === "ecommerce");
-
+        const multipleGoals = week.groups.length > 1;
         return (
           <Card key={week.key} className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
               <div>
-                <h3 className="font-semibold">
-                  {week.index === 0
-                    ? "השבוע"
-                    : week.index === 1
-                      ? "שבוע שעבר"
-                      : `לפני ${week.index} שבועות`}
-                </h3>
+                <h3 className="font-semibold">{weekTitle(week)}</h3>
                 <p className="text-xs text-muted-foreground">
                   {formatWeeklyRange(week.startDate, week.endDate)}
                 </p>
@@ -131,113 +266,27 @@ export function WeeklyCampaignComparison({
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="border-b bg-muted/20">
-                  <tr>
-                    {showPlatform && (
-                      <th className="p-2 text-right font-medium">פלטפורמה</th>
-                    )}
-                    <th className="p-2 text-right font-medium">קמפיין</th>
-                    <th className="p-2 text-center font-medium">חשיפות</th>
-                    <th className="p-2 text-center font-medium">קליקים</th>
-                    <th className="p-2 text-center font-medium">
-                      {resultLabel}
-                    </th>
-                    <th className="p-2 text-center font-medium">הוצאה</th>
-                    <th className="p-2 text-center font-medium">{costLabel}</th>
-                    {showRevenue && (
-                      <th className="p-2 text-center font-medium">הכנסה</th>
-                    )}
-                    {showRevenue && (
-                      <th className="p-2 text-center font-medium">ROAS</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {week.rows.map((row) => (
-                    <tr
-                      key={row.key}
-                      className="border-b last:border-0 hover:bg-muted/20"
-                    >
-                      {showPlatform && (
-                        <td className="p-2 text-right">
-                          {sourceLabel[row.source]}
-                        </td>
-                      )}
-                      <td className="p-2 text-right font-medium">
-                        {row.campaign}
-                      </td>
-                      <td className="p-2 text-center">
-                        {number(row.impressions)}
-                      </td>
-                      <td className="p-2 text-center">{number(row.clicks)}</td>
-                      <td className="p-2 text-center font-medium text-green-600">
-                        {number(row.results, 1)}
-                      </td>
-                      <td className="p-2 text-center">
-                        {currency}
-                        {number(row.spend)}
-                      </td>
-                      <td className="p-2 text-center font-medium text-blue-600">
-                        {row.results > 0
-                          ? `${currency}${number(row.costPerResult, 1)}`
-                          : "—"}
-                      </td>
-                      {showRevenue && (
-                        <td className="p-2 text-center">
-                          {row.revenue > 0
-                            ? `${currency}${number(row.revenue)}`
-                            : "—"}
-                        </td>
-                      )}
-                      {showRevenue && (
-                        <td className="p-2 text-center">
-                          {row.roas > 0 ? `${number(row.roas, 2)}x` : "—"}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-primary/10 font-bold">
-                  <tr>
-                    {showPlatform && <td />}
-                    <td className="p-2 text-right">סה״כ שבועי</td>
-                    <td className="p-2 text-center">
-                      {number(week.totals.impressions)}
-                    </td>
-                    <td className="p-2 text-center">
-                      {number(week.totals.clicks)}
-                    </td>
-                    <td className="p-2 text-center text-green-600">
-                      {number(week.totals.results, 1)}
-                    </td>
-                    <td className="p-2 text-center">
-                      {currency}
-                      {number(week.totals.spend)}
-                    </td>
-                    <td className="p-2 text-center text-blue-600">
-                      {week.totals.results > 0
-                        ? `${currency}${number(week.totals.costPerResult, 1)}`
-                        : "—"}
-                    </td>
-                    {showRevenue && (
-                      <td className="p-2 text-center">
-                        {currency}
-                        {number(week.totals.revenue)}
-                      </td>
-                    )}
-                    {showRevenue && (
-                      <td className="p-2 text-center">
-                        {week.totals.roas > 0
-                          ? `${number(week.totals.roas, 2)}x`
-                          : "—"}
-                      </td>
-                    )}
-                  </tr>
-                </tfoot>
-              </table>
+            <div className={multipleGoals ? "divide-y" : undefined}>
+              {week.groups.map((group) => (
+                <GoalTable
+                  key={group.kind}
+                  group={group}
+                  currency={currency}
+                  showPlatform={showPlatform}
+                  showTitle={multipleGoals}
+                />
+              ))}
             </div>
+
+            {multipleGoals && (
+              <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2 text-sm font-semibold">
+                <span>הוצאה כוללת בשבוע (כל היעדים)</span>
+                <span>
+                  {currency}
+                  {number(week.totals.spend)}
+                </span>
+              </div>
+            )}
           </Card>
         );
       })}

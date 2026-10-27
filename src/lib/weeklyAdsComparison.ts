@@ -1,3 +1,9 @@
+import {
+  effectiveFacebookCampaignType,
+  isFacebookEcommerceCampaign,
+  preferFacebookCampaignType,
+} from "@/lib/adsMetrics";
+
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
 export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
@@ -23,18 +29,38 @@ export type WeeklyCampaignRow = {
   roas: number;
 };
 
+export type WeeklyGoalTotals = Omit<
+  WeeklyCampaignRow,
+  "key" | "source" | "campaignId" | "campaign" | "kind"
+>;
+
+/** One goal's campaigns in a week, with totals of that goal only. */
+export type WeeklyGoalGroup = {
+  kind: WeeklyCampaignKind;
+  rows: WeeklyCampaignRow[];
+  totals: WeeklyGoalTotals;
+};
+
 export type WeeklyCampaignSection = {
   key: string;
   index: number;
   startDate: string;
   endDate: string;
   isCurrentWeek: boolean;
+  /** Every campaign of the week, highest spend first. */
   rows: WeeklyCampaignRow[];
-  totals: Omit<
-    WeeklyCampaignRow,
-    "key" | "source" | "campaignId" | "campaign" | "kind"
-  >;
+  /** Campaigns by goal (sales, leads, traffic); empty goals are left out. */
+  groups: WeeklyGoalGroup[];
+  /** Delivery and spend across goals. Results are only totalled per goal. */
+  totals: { impressions: number; clicks: number; spend: number };
 };
+
+/** Fixed order of the goal groups in a week. */
+export const WEEKLY_GOAL_ORDER: readonly WeeklyCampaignKind[] = [
+  "ecommerce",
+  "leads",
+  "traffic",
+];
 
 const ADS_SOURCES = new Set<WeeklyAdsSource>([
   "facebook_insights",
@@ -61,18 +87,46 @@ const shouldIncludeCampaignRow = (data: Record<string, unknown>): boolean => {
   return !level || level === "campaign";
 };
 
-const facebookKind = (totals: {
+type CampaignAccumulator = {
   leads: number;
   purchases: number;
   revenue: number;
   campaignType?: string;
-}): WeeklyCampaignKind => {
-  const explicit = String(totals.campaignType || "").toLowerCase();
-  if (explicit === "traffic") return "traffic";
-  if (explicit === "ecommerce") return "ecommerce";
-  if (explicit === "lead" || explicit === "leads") return "leads";
-  return (totals.purchases > 0 || totals.revenue > 0) &&
-    !(totals.leads > 0 && totals.purchases === 0 && totals.revenue === 0)
+  objective?: string;
+  resultKind?: string;
+};
+
+type WeekCampaign = CampaignAccumulator & {
+  source: WeeklyAdsSource;
+  campaignId: string;
+  campaign: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  addToCart: number;
+};
+
+/** Same split as the report's Facebook tables (objective first, then results). */
+const facebookKind = (
+  totals: CampaignAccumulator,
+  leadsOnly: boolean,
+): WeeklyCampaignKind => {
+  const type = String(totals.campaignType || "").toLowerCase();
+  if (type === "traffic") return "traffic";
+  if (leadsOnly) return "leads";
+  return isFacebookEcommerceCampaign({
+    name: "",
+    impressions: 0,
+    clicks: 0,
+    spend: 0,
+    leads: totals.leads,
+    purchases: totals.purchases,
+    purchase_value: totals.revenue,
+    add_to_cart: 0,
+    campaign_type: type || undefined,
+    campaign_objective: totals.objective,
+    result_kind: totals.resultKind,
+  })
     ? "ecommerce"
     : "leads";
 };
@@ -110,12 +164,7 @@ export function getSundayStart(date: Date): Date {
 
 function campaignKind(
   source: WeeklyAdsSource,
-  totals: {
-    leads: number;
-    purchases: number;
-    revenue: number;
-    campaignType?: string;
-  },
+  totals: CampaignAccumulator,
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
   googleGoal?: "leads" | "ecommerce",
 ): WeeklyCampaignKind {
@@ -126,8 +175,34 @@ function campaignKind(
       (sourceModes[source] === "ecommerce" ? "ecommerce" : "leads")
     );
   if (source === "facebook_ecommerce") return "ecommerce";
-  if (sourceModes[source] === "leads") return "leads";
-  return facebookKind(totals);
+  return facebookKind(totals, sourceModes[source] === "leads");
+}
+
+const emptyTotals = (): WeeklyGoalTotals => ({
+  impressions: 0,
+  clicks: 0,
+  results: 0,
+  spend: 0,
+  costPerResult: 0,
+  revenue: 0,
+  addToCart: 0,
+  roas: 0,
+});
+
+/** Totals of one goal: its own results, cost per result and (sales only) ROAS. */
+function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
+  const totals = rows.reduce((sum, row) => {
+    sum.impressions += row.impressions;
+    sum.clicks += row.clicks;
+    sum.results += row.results;
+    sum.spend += row.spend;
+    sum.revenue += row.revenue;
+    sum.addToCart += row.addToCart;
+    return sum;
+  }, emptyTotals());
+  totals.costPerResult = totals.results > 0 ? totals.spend / totals.results : 0;
+  totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
+  return totals;
 }
 
 /**
@@ -151,25 +226,7 @@ export function buildWeeklyCampaignSections(
   // attached to the previous week merely because it is still Saturday in UTC.
   const currentSunday = getSundayStart(dateInTimeZone(now, "Asia/Jerusalem"));
   const sourceModes = options.sourceModes ?? {};
-  const weeks = new Map<
-    number,
-    Map<
-      string,
-      {
-        source: WeeklyAdsSource;
-        campaignId: string;
-        campaign: string;
-        impressions: number;
-        clicks: number;
-        leads: number;
-        purchases: number;
-        spend: number;
-        revenue: number;
-        addToCart: number;
-        campaignType?: string;
-      }
-    >
-  >();
+  const weeks = new Map<number, Map<string, WeekCampaign>>();
 
   for (const record of records) {
     const source = (record._source ?? options.defaultSource) as
@@ -191,8 +248,8 @@ export function buildWeeklyCampaignSections(
     );
     const campaignId = String(data.campaign_id || campaign);
     const rowKey = `${source}:${campaignId}`;
-    const week = weeks.get(weekIndex) ?? new Map();
-    const row = week.get(rowKey) ?? {
+    const week = weeks.get(weekIndex) ?? new Map<string, WeekCampaign>();
+    const row: WeekCampaign = week.get(rowKey) ?? {
       source,
       campaignId,
       campaign,
@@ -203,7 +260,6 @@ export function buildWeeklyCampaignSections(
       spend: 0,
       revenue: 0,
       addToCart: 0,
-      campaignType: undefined,
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -237,13 +293,13 @@ export function buildWeeklyCampaignSections(
       "conversion_value",
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
-    const explicitType = String(data.campaign_type || "").toLowerCase();
-    if (
-      explicitType === "ecommerce" ||
-      explicitType === "lead" ||
-      explicitType === "traffic"
-    ) {
-      row.campaignType = explicitType;
+    if (source !== "google_ads") {
+      // The Meta objective decides when known; WhatsApp "traffic" counts as leads.
+      const type = effectiveFacebookCampaignType(data);
+      if (type !== "other")
+        row.campaignType = preferFacebookCampaignType(row.campaignType, type);
+      row.objective ||= String(data.campaign_objective || "") || undefined;
+      row.resultKind ||= String(data.result_kind || "") || undefined;
     }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
@@ -291,35 +347,18 @@ export function buildWeeklyCampaignSections(
         })
         .sort((a, b) => b.spend - a.spend);
 
+      const groups = WEEKLY_GOAL_ORDER.map((kind) => {
+        const goalRows = rows.filter((row) => row.kind === kind);
+        return { kind, rows: goalRows, totals: goalTotals(goalRows) };
+      }).filter((group) => group.rows.length > 0);
       const totals = rows.reduce(
         (sum, row) => ({
           impressions: sum.impressions + row.impressions,
           clicks: sum.clicks + row.clicks,
-          results: sum.results + row.results,
           spend: sum.spend + row.spend,
-          costPerResult: 0,
-          revenue: sum.revenue + row.revenue,
-          addToCart: sum.addToCart + row.addToCart,
-          roas: 0,
         }),
-        {
-          impressions: 0,
-          clicks: 0,
-          results: 0,
-          spend: 0,
-          costPerResult: 0,
-          revenue: 0,
-          addToCart: 0,
-          roas: 0,
-        },
+        { impressions: 0, clicks: 0, spend: 0 },
       );
-      totals.costPerResult =
-        totals.results > 0 ? totals.spend / totals.results : 0;
-      // ROAS over ecommerce campaigns only: lead spend earns no revenue.
-      const ecommerceSpend = rows
-        .filter((row) => row.kind === "ecommerce")
-        .reduce((sum, row) => sum + row.spend, 0);
-      totals.roas = ecommerceSpend > 0 ? totals.revenue / ecommerceSpend : 0;
 
       return {
         key: utcDateString(start),
@@ -328,6 +367,7 @@ export function buildWeeklyCampaignSections(
         endDate: utcDateString(end),
         isCurrentWeek: index === 0,
         rows,
+        groups,
         totals,
       };
     });

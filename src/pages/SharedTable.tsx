@@ -66,14 +66,11 @@ import {
 } from "@/lib/sharedReportTabs";
 import { aggregateGscQueryRows } from "@/lib/gscPosition";
 import {
-  getAddToCartFromData,
-  getAdsPurchasesFromData,
-  getLeadsFromData,
   getPurchasesFromData,
   getRevenueFromData,
   getSessionsFromData,
-  getSpendFromData,
 } from "@/lib/adsMetrics";
+import { summarizeSharedTableRecords } from "@/lib/sharedTableSummary";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
@@ -359,78 +356,13 @@ export default function SharedTable() {
   // Summary for integration tables
   const summary = useMemo(() => {
     if (!isIntegrationTable) return null;
-    let spend = 0,
-      impressions = 0,
-      clicks = 0,
-      leads = 0,
-      sessions = 0;
-    let purchases = 0,
-      revenue = 0,
-      addToCart = 0;
-
-    filteredRecords.forEach((r: any) => {
-      const d = r.data || {};
-      if (isAnalyticsPlatform(integrationType || "")) {
-        sessions += getSessionsFromData(d);
-        purchases += getPurchasesFromData(d);
-        revenue += getRevenueFromData(d);
-        addToCart += getAddToCartFromData(d);
-      } else {
-        spend += getSpendFromData(d);
-        impressions += Number(d.impressions) || 0;
-        clicks += Number(d.clicks) || 0;
-        if (googleGoalOf) {
-          // Google Ads: a campaign counts toward its own goal only.
-          if (googleGoalOf(d) === "ecommerce") {
-            purchases += getAdsPurchasesFromData(d);
-            revenue += getRevenueFromData(d);
-            addToCart += getAddToCartFromData(d);
-          } else {
-            leads += getLeadsFromData(d);
-          }
-          return;
-        }
-        purchases += getAdsPurchasesFromData(d);
-        revenue += getRevenueFromData(d);
-        addToCart += getAddToCartFromData(d);
-        leads += getLeadsFromData(d);
-      }
+    return summarizeSharedTableRecords(filteredRecords, {
+      integrationType: integrationType || "",
+      googleGoalOf,
+      googleGoals,
+      forceLeadsOnly,
+      forceEcommerceOnly,
     });
-
-    // Round leads (Google Ads conversions can be fractional)
-    leads = Math.round(leads);
-
-    // Honor table-level overrides
-    if (forceLeadsOnly) {
-      purchases = 0;
-      revenue = 0;
-      addToCart = 0;
-    }
-    if (forceEcommerceOnly) {
-      leads = 0;
-    }
-
-    const roas = spend > 0 ? revenue / spend : 0;
-    const cpl = leads > 0 ? spend / leads : 0;
-    const hasEcommerce = googleGoals
-      ? googleGoals.ecommerce
-      : forceEcommerceOnly;
-    const hasLeads = googleGoals ? googleGoals.leads : forceLeadsOnly;
-
-    return {
-      spend,
-      impressions,
-      clicks,
-      leads,
-      sessions,
-      purchases,
-      revenue,
-      addToCart,
-      roas,
-      cpl,
-      hasEcommerce,
-      hasLeads,
-    };
   }, [
     filteredRecords,
     integrationType,

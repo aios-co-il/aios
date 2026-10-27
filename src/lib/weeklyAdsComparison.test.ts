@@ -58,7 +58,7 @@ test("excludes ad-set and ad rows so campaign totals are not tripled", () => {
   );
 
   expect(sections[0].totals.spend).toBe(100);
-  expect(sections[0].totals.results).toBe(5);
+  expect(sections[0].groups[0].totals.results).toBe(5);
 });
 
 test("separates same-named campaigns from different platforms", () => {
@@ -166,8 +166,12 @@ test("google campaigns use their own goal and lead value is not revenue", () => 
   expect(byId.leads.roas).toBe(0);
   expect(byId.shop.kind).toBe("ecommerce");
   expect(byId.shop.roas).toBe(6);
-  expect(sections[0].totals.revenue).toBe(600);
-  expect(sections[0].totals.roas).toBe(6);
+  const [sales, leads] = sections[0].groups;
+  expect(sales.kind).toBe("ecommerce");
+  expect(sales.totals.revenue).toBe(600);
+  expect(sales.totals.roas).toBe(6);
+  expect(leads.kind).toBe("leads");
+  expect(leads.totals.revenue).toBe(0);
 });
 
 test("a leads-only google week carries no revenue", () => {
@@ -191,5 +195,151 @@ test("a leads-only google week carries no revenue", () => {
     },
   );
   expect(sections[0].rows.every((row) => row.kind === "leads")).toBeTruthy();
-  expect(sections[0].totals.revenue).toBe(0);
+  expect(sections[0].groups.map((group) => group.kind)).toStrictEqual([
+    "leads",
+  ]);
+  expect(sections[0].groups[0].totals.revenue).toBe(0);
+});
+
+const NOW = new Date("2026-09-18T12:00:00Z");
+const fb = (campaign: string, data: Record<string, unknown>) => ({
+  _source: "facebook_insights",
+  data: {
+    date: "2026-09-14",
+    campaign_id: campaign,
+    campaign_name: campaign,
+    entity_level: "campaign",
+    impressions: 1000,
+    clicks: 50,
+    ...data,
+  },
+});
+
+test("a lead-only week has one leads group with no revenue", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [record("2026-09-14", "A", 100, 5), record("2026-09-15", "B", 60, 2)],
+    { now: NOW },
+  );
+  expect(week.groups.map((group) => group.kind)).toStrictEqual(["leads"]);
+  expect(week.groups[0].totals.results).toBe(7);
+  expect(week.groups[0].totals.costPerResult).toBeCloseTo(160 / 7);
+  expect(week.groups[0].totals.revenue).toBe(0);
+  expect(week.groups[0].totals.roas).toBe(0);
+});
+
+test("an ecommerce-only week has one sales group with purchases and ROAS", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [
+      fb("Shop", {
+        campaign_type: "ecommerce",
+        spend: 200,
+        purchases: 4,
+        purchase_value: 1000,
+      }),
+      fb("Catalog", {
+        campaign_objective: "OUTCOME_SALES",
+        spend: 100,
+        purchases: 1,
+        purchase_value: 200,
+      }),
+    ],
+    { now: NOW },
+  );
+  expect(week.groups.map((group) => group.kind)).toStrictEqual(["ecommerce"]);
+  const { totals } = week.groups[0];
+  expect(totals.results).toBe(5);
+  expect(totals.costPerResult).toBe(60);
+  expect(totals.revenue).toBe(1200);
+  expect(totals.roas).toBe(4);
+});
+
+test("a mixed week splits sales and leads, each with its own totals", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [
+      record("2026-09-14", "Leads", 300, 10),
+      fb("Shop", {
+        campaign_type: "ecommerce",
+        spend: 200,
+        purchases: 4,
+        purchase_value: 800,
+      }),
+    ],
+    { now: NOW },
+  );
+  const [sales, leads] = week.groups;
+  expect(week.groups.map((group) => group.kind)).toStrictEqual([
+    "ecommerce",
+    "leads",
+  ]);
+  expect(sales.rows.map((row) => row.campaign)).toStrictEqual(["Shop"]);
+  expect(sales.totals).toMatchObject({
+    results: 4,
+    spend: 200,
+    costPerResult: 50,
+    revenue: 800,
+    roas: 4,
+  });
+  expect(leads.rows.map((row) => row.campaign)).toStrictEqual(["Leads"]);
+  expect(leads.totals).toMatchObject({
+    results: 10,
+    spend: 300,
+    costPerResult: 30,
+    revenue: 0,
+    roas: 0,
+  });
+  // Only delivery and spend are totalled across goals.
+  expect(week.totals).toStrictEqual({
+    impressions: 2000,
+    clicks: 100,
+    spend: 500,
+  });
+});
+
+test("traffic campaigns get their own group, last, measured by clicks", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [
+      fb("Traffic", { campaign_type: "traffic", spend: 50, clicks: 200 }),
+      record("2026-09-14", "Leads", 100, 5),
+      fb("Shop", { campaign_type: "ecommerce", spend: 80, purchases: 2 }),
+    ],
+    { now: NOW, sourceModes: { facebook_insights: "leads" } },
+  );
+  expect(week.groups.map((group) => group.kind)).toStrictEqual([
+    "leads",
+    "traffic",
+  ]);
+  const traffic = week.groups[1];
+  expect(traffic.rows.map((row) => row.campaign)).toStrictEqual(["Traffic"]);
+  expect(traffic.totals.results).toBe(200);
+  expect(traffic.totals.costPerResult).toBe(0.25);
+  // A leads-only report keeps its sales-looking campaign in leads.
+  expect(week.groups[0].rows.map((row) => row.campaign).sort()).toStrictEqual([
+    "Leads",
+    "Shop",
+  ]);
+});
+
+test("facebook goals follow the Meta objective like the report tables", () => {
+  const [week] = buildWeeklyCampaignSections(
+    [
+      // A sales campaign without purchases this week is still a sales campaign.
+      fb("Sales", { campaign_objective: "OUTCOME_SALES", spend: 90 }),
+      // WhatsApp campaigns stored as traffic are lead campaigns.
+      fb("WhatsApp", {
+        campaign_type: "traffic",
+        campaign_name: "WhatsApp לידים",
+        spend: 40,
+        leads: 4,
+      }),
+    ],
+    { now: NOW },
+  );
+  const kinds = Object.fromEntries(
+    week.rows.map((row) => [row.campaignId, row.kind]),
+  );
+  expect(kinds).toStrictEqual({ Sales: "ecommerce", WhatsApp: "leads" });
+  expect(week.groups.map((group) => group.kind)).toStrictEqual([
+    "ecommerce",
+    "leads",
+  ]);
 });
