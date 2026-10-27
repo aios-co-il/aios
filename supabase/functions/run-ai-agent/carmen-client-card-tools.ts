@@ -89,9 +89,12 @@ export const HEALTH_CARD_ENTRY_ERROR_HINT =
 
 /**
  * The card entry of a health update that is already written, as fields to
- * spread into the tool result. A card refusal (no person to attribute it to,
- * a read-only shared agency) is logged and returned as card_entry_error, so
- * the health update still reports success; any other error is rethrown.
+ * spread into the tool result. Every failed card write is logged and returned
+ * as card_entry_error, so the health update still reports success: a refusal
+ * (no person to attribute it to, a read-only shared agency) and an outage or
+ * timeout alike, because supabase-js returns those as `{ error }` and
+ * recordClientCardEntry turns every RPC error into a ClientCardEntryError.
+ * Only an exception that is not a card error (a bug) is rethrown.
  */
 export async function recordHealthCardEntryAfterUpdate(
   supabase: Pick<DbClient, "rpc">,

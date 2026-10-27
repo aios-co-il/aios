@@ -40,6 +40,7 @@ Deno.test(
     const result = await listUpdates(supabase, {
       entityType: "lead",
       entityId: LEAD,
+      tenantId: TENANT,
       accessibleTenantIds: [TENANT],
     });
     assertEquals(result, {
@@ -62,6 +63,7 @@ Deno.test(
     const result = await listUpdates(supabase, {
       entityType: "lead",
       entityId: LEAD,
+      tenantId: TENANT,
       accessibleTenantIds: [TENANT],
     });
     assertEquals(result, {
@@ -84,6 +86,7 @@ Deno.test("listUpdates: a failed lead lookup throws", async () => {
     listUpdates(supabase, {
       entityType: "lead",
       entityId: LEAD,
+      tenantId: TENANT,
       accessibleTenantIds: [TENANT],
     }),
   );

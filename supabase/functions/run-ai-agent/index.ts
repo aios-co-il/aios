@@ -54,6 +54,7 @@ import {
   recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { setClientMoodStatus } from "./client-health-status.ts";
 import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -8015,13 +8016,11 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
-      const { error: clientErr } = await supabase
-        .from("clients")
-        .update(updateData)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (clientErr) throw clientErr;
+      await setClientMoodStatus(supabase, {
+        clientId: args.client_id,
+        moodStatus: args.mood_status,
+        accessibleTenantIds,
+      });
 
       // 2. Create communication_log entry
       const commStatus =
@@ -8204,12 +8203,11 @@ async function executeTool(
         }
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          const { error: clientErr } = await supabase
-            .from("clients")
-            .update({ mood_status: mood })
-            .eq("id", clientId)
-            .in("tenant_id", accessibleTenantIds);
-          if (clientErr) throw clientErr;
+          await setClientMoodStatus(supabase, {
+            clientId,
+            moodStatus: mood,
+            accessibleTenantIds,
+          });
           const commStatus =
             update.communication_status ||
             (mood === "happy"
@@ -10402,6 +10400,7 @@ async function executeTool(
       return await listUpdates(supabase, {
         entityType: args.entity_type,
         entityId: args.entity_id,
+        tenantId,
         accessibleTenantIds,
         limit: args.limit,
       });
