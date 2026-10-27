@@ -339,30 +339,33 @@ Deno.test("stale platform on otherwise healthy client becomes warning", () => {
   assert(result.flags.some((flag) => flag.includes("Meta")));
 });
 
-Deno.test("client without a documented call in 14 days becomes warning", () => {
-  const result = classifyCampaignPulseStatus({
-    activeTables: [
-      {
-        integration_type: "facebook_insights",
-        campaign_active: true,
-        last_sync_at: FRESH,
-        integration_settings: {},
-      },
-    ],
-    hasConfiguredCampaignTable: true,
-    recentRecordCount: 20,
-    isEcommerce: false,
-    spend7: 900,
-    leads7: 10,
-    purchases7: 0,
-    roas: null,
-    cplChangePct: 5,
-    lastClientCallAt: "2026-07-15T12:00:00.000Z",
-    nowMs: NOW,
-  });
-  assertStrictEquals(result.status, "warning");
-  assert(result.flags.some((flag) => flag.includes("14 הימים")));
-});
+Deno.test(
+  "client without a documented call in 14 days stays healthy (call is a separate indicator)",
+  () => {
+    const result = classifyCampaignPulseStatus({
+      activeTables: [
+        {
+          integration_type: "facebook_insights",
+          campaign_active: true,
+          last_sync_at: FRESH,
+          integration_settings: {},
+        },
+      ],
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 20,
+      isEcommerce: false,
+      spend7: 900,
+      leads7: 10,
+      purchases7: 0,
+      roas: null,
+      cplChangePct: 5,
+      lastClientCallAt: "2026-07-15T12:00:00.000Z",
+      nowMs: NOW,
+    });
+    assertStrictEquals(result.status, "healthy");
+    assertEquals(result.flags, []);
+  },
+);
 
 Deno.test("client call within 14 days keeps healthy campaign healthy", () => {
   const result = classifyCampaignPulseStatus({
@@ -389,7 +392,7 @@ Deno.test("client call within 14 days keeps healthy campaign healthy", () => {
   assertEquals(result.flags, []);
 });
 
-Deno.test("client with no documented call is flagged", () => {
+Deno.test("client with no documented call keeps its performance status", () => {
   const result = classifyCampaignPulseStatus({
     activeTables: [
       {
@@ -410,8 +413,8 @@ Deno.test("client with no documented call is flagged", () => {
     lastClientCallAt: null,
     nowMs: NOW,
   });
-  assertStrictEquals(result.status, "warning");
-  assertEquals(result.flags, ["לא תועדה שיחה טלפונית עם הלקוח"]);
+  assertStrictEquals(result.status, "healthy");
+  assertEquals(result.flags, []);
 });
 
 Deno.test("stopped campaign makes the client critical", () => {
@@ -803,7 +806,8 @@ Deno.test(
     assertMatch(digest, /🔴 \*1\* דורשים טיפול/);
     assertMatch(digest, /🟡 \*1\* במגמה שלילית/);
     assertMatch(digest, /🟢 \*1\* תקינים/);
-    assertMatch(digest, /⚙️ \*2\* עם בעיית תפעול/);
+    assertMatch(digest, /⚙️ \*1\* עם בעיית תפעול/);
+    assertMatch(digest, /📞 \*1\* ללא שיחה מתועדת/);
     assertMatch(digest, /\*DMM-LTD\* \(2\) — 🔴 1 · 🟡 0 · 🟢 1/);
     assertMatch(digest, /🔴 Smart air — הוצאה ללא רכישות/);
     assertMatch(digest, /\*promo\* \(2\) — 🔴 0 · 🟡 1 · 🟢 0/);

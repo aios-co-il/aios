@@ -3,6 +3,17 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
+import { syncOutcomeProblem } from "./sync-freshness.ts";
+import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  isLegacyClientCallFlag,
+  pulseRowHasNoRecentClientCall,
+} from "./pulse-client-call.ts";
+
+export {
+  CLIENT_CALL_STALE_MS,
+  resolveNoRecentClientCall,
+} from "./pulse-client-call.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -10,7 +21,6 @@ export const CAMPAIGN_TABLE_TYPES = [
   "facebook_ecommerce",
   "google_ads",
 ] as const;
-export const CLIENT_CALL_STALE_MS = 14 * 24 * 60 * 60 * 1000;
 /** Alert types worth interrupting someone's morning for. */
 export const PULSE_CRITICAL_ALERT_TYPES = [
   "campaign_stopped",
@@ -34,6 +44,8 @@ export type CampaignTableLike = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
+  /** Latest run's outcome (also mirrored in integration_settings), see sync-outcome.ts. */
+  last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
 
@@ -49,11 +61,16 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
   )[0];
 }
 
+/**
+ * Stale = no successful write within `staleMs`, or the latest run came back empty
+ * or failed (its stored rows were not refreshed, whatever last_sync_at says).
+ */
 export function isSyncStale(
   table: CampaignTableLike,
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
+  if (syncOutcomeProblem(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
@@ -369,8 +386,6 @@ export type ClassifyPulseInput = {
   purchases7: number;
   roas: number | null;
   cplChangePct: number | null;
-  /** Latest client-card update with update_type='call'. Undefined skips this rule. */
-  lastClientCallAt?: string | null;
   /** Open `campaign_stopped` alerts attributed to this client's active tables. */
   stoppedCampaignCount?: number;
   nowMs?: number;
@@ -387,35 +402,15 @@ function applyStoppedCampaigns(
   return { status: "critical", flags };
 }
 
-function applyClientCallFreshness(
-  status: PulseStatus,
-  flags: string[],
-  lastClientCallAt: string | null | undefined,
-  nowMs: number,
-): { status: PulseStatus; flags: string[] } {
-  if (lastClientCallAt === undefined) return { status, flags };
-
-  const timestamp = lastClientCallAt
-    ? new Date(lastClientCallAt).getTime()
-    : Number.NaN;
-  const missing = Number.isNaN(timestamp);
-  const stale = !missing && nowMs - timestamp > CLIENT_CALL_STALE_MS;
-  if (!missing && !stale) return { status, flags };
-
-  flags.push(
-    missing
-      ? "לא תועדה שיחה טלפונית עם הלקוח"
-      : "לא תועדה שיחה טלפונית עם הלקוח ב-14 הימים האחרונים",
-  );
-  return { status: status === "healthy" ? "warning" : status, flags };
-}
-
 /**
  * Classify a client row for the deterministic campaign pulse.
  *
  * - no_data: no campaign report table connected for expected services
  * - warning: tables connected but sync/data stale, or soft metric issues
  * - critical / healthy: metric-driven when recent data exists
+ *
+ * A missing client call never changes the status (AIO-227): it is reported as
+ * the separate `no_recent_client_call` indicator (see pulse-client-call.ts).
  */
 export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   status: PulseStatus;
@@ -430,14 +425,9 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
     .map((table) => platformLabel(table.integration_type));
 
   if (!input.hasConfiguredCampaignTable || input.activeTables.length === 0) {
-    const result = applyClientCallFreshness(
-      "no_data",
-      ["אין טבלת קמפיין מחוברת"],
-      input.lastClientCallAt,
-      nowMs,
-    );
     return {
-      ...result,
+      status: "no_data",
+      flags: ["אין טבלת קמפיין מחוברת"],
       stalePlatforms,
     };
   }
@@ -451,13 +441,7 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
       [`סנכרון ישן או חסר — אין נתונים ב-30 הימים האחרונים${staleNote}`],
       input.stoppedCampaignCount,
     );
-    const result = applyClientCallFreshness(
-      stopped.status,
-      stopped.flags,
-      input.lastClientCallAt,
-      nowMs,
-    );
-    return { ...result, stalePlatforms };
+    return { ...stopped, stalePlatforms };
   }
 
   let status: PulseStatus = "healthy";
@@ -490,13 +474,7 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
     flags,
     input.stoppedCampaignCount,
   );
-  const result = applyClientCallFreshness(
-    stopped.status,
-    stopped.flags,
-    input.lastClientCallAt,
-    nowMs,
-  );
-  return { ...result, stalePlatforms };
+  return { ...stopped, stalePlatforms };
 }
 
 export type PulseStatusCounts = {
@@ -945,6 +923,7 @@ export function buildPulseWhatsAppDigest(
     client_name?: string | null;
     agency_name?: string | null;
     flags?: unknown;
+    no_recent_client_call?: boolean | null;
     campaign_goal_mode?: string | null;
     is_ecommerce?: boolean | null;
     lead_goal_status?: string | null;
@@ -983,10 +962,14 @@ export function buildPulseWhatsAppDigest(
       row.efficiency_kind === "roas"
         ? `רכישות: ${row.outcomes_7d} · ROAS: ${row.efficiency ?? "—"}${row.change_pct !== null && row.change_pct !== undefined ? ` · שינוי ${row.change_pct > 0 ? "+" : ""}${row.change_pct}%` : ""}`
         : `לידים: ${row.outcomes_7d} · CPL: ₪${row.efficiency ?? "—"}${row.change_pct !== null && row.change_pct !== undefined ? ` · שינוי ${row.change_pct > 0 ? "+" : ""}${row.change_pct}%` : ""}`;
+    const callLine = pulseRowHasNoRecentClientCall(rows[0])
+      ? [`📞 ${NO_RECENT_CLIENT_CALL_TEXT}`]
+      : [];
     return [
       `*בדיקת דופק${name}${goalSuffix}*`,
       `סטטוס: ${label}`,
       metricLine,
+      ...callLine,
       ...(categoryLines.length ? ["", ...categoryLines] : []),
       ...issueLines,
       "",
@@ -1032,8 +1015,12 @@ export function buildPulseWhatsAppDigest(
     `🟢 *${tally.healthy}* תקינים`,
     ...(tally.ops
       ? [
-          `⚙️ *${tally.ops}* עם בעיית תפעול (בלי טבלה מחוברת / בלי שיחה / סנכרון ישן) — בדשבורד`,
+          `⚙️ *${tally.ops}* עם בעיית תפעול (בלי טבלה מחוברת / סנכרון ישן) — בדשבורד`,
         ]
+      : []),
+    // Contact gap is its own count, never part of the status counts above.
+    ...(tally.noCall
+      ? ["", `📞 *${tally.noCall}* ${NO_RECENT_CLIENT_CALL_TEXT}`]
       : []),
     ...agencyLines,
     ...issueLines,
@@ -1049,6 +1036,7 @@ type PulseDigestClientRow = {
   agency_name?: string | null;
   flags?: unknown;
   campaign_breakdown?: PulseCampaignBreakdownRow[] | null;
+  no_recent_client_call?: boolean | null;
 };
 
 type ClientPerformance = {
@@ -1057,26 +1045,30 @@ type ClientPerformance = {
   status: "critical" | "warning" | "healthy" | null;
   reason: string | null;
   ops: boolean;
+  /** Separate contact indicator: no client call logged in 14 days. */
+  noRecentCall: boolean;
 };
 
-/** Flags about our process (call log, report table, sync), not about campaign results. */
-const OPERATIONAL_FLAG = /שיחה|סנכרון|אין טבלת קמפיין/;
+/** Flags about our data pipeline (report table, sync), not about campaign results. */
+const OPERATIONAL_FLAG = /סנכרון|אין טבלת קמפיין/;
 
 /**
- * Campaign-performance status of one client, with operational gaps set aside so a
- * missing phone-call log does not paint a healthy account yellow.
+ * Campaign-performance status of one client, with operational gaps set aside.
+ * The client-call gap is reported separately and never paints an account yellow.
  */
 export function clientPerformance(
   row: PulseDigestClientRow,
 ): ClientPerformance {
-  const flags = (Array.isArray(row.flags) ? row.flags : []).map(String);
+  const allFlags = (Array.isArray(row.flags) ? row.flags : []).map(String);
+  // Snapshots written before AIO-227 still carry the call gap as a flag.
+  const flags = allFlags.filter((flag) => !isLegacyClientCallFlag(flag));
   const perfFlags = flags.filter((flag) => !OPERATIONAL_FLAG.test(flag));
   const ops = row.status === "no_data" || flags.length > perfFlags.length;
   let status: ClientPerformance["status"] = null;
   if (row.status === "critical") status = "critical";
-  // Only a warning explained entirely by operational flags counts as healthy performance.
+  // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
   else if (row.status === "warning")
-    status = perfFlags.length || !flags.length ? "warning" : "healthy";
+    status = perfFlags.length || !allFlags.length ? "warning" : "healthy";
   else if (row.status === "healthy") status = "healthy";
   const criticalCampaign = (
     Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : []
@@ -1093,6 +1085,7 @@ export function clientPerformance(
         ? campaignReason || perfFlags[0] || null
         : perfFlags[0] || null,
     ops,
+    noRecentCall: pulseRowHasNoRecentClientCall(row),
   };
 }
 
@@ -1102,6 +1095,7 @@ function tallyPerformance(clients: ClientPerformance[]) {
     warning: clients.filter((c) => c.status === "warning").length,
     healthy: clients.filter((c) => c.status === "healthy").length,
     ops: clients.filter((c) => c.ops).length,
+    noCall: clients.filter((c) => c.noRecentCall).length,
   };
 }
 
