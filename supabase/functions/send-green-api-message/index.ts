@@ -2,6 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import {
+  authorizeClientSend,
+  clientSendRequest,
+} from "../_shared/client-send/authorize.ts";
+import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -286,6 +292,25 @@ Deno.serve(async (req) => {
       }
 
       chatId = `${e164Digits}@c.us`;
+    }
+
+    // The client send guard (AIO-261): an automatic send reaches a client only
+    // with a proof or the client card's opt-in (_shared/client-send/rules.ts).
+    const clientSend = await authorizeClientSend(
+      serviceClient(),
+      clientSendRequest({
+        functionName: "send-green-api-message",
+        tenantId,
+        channel: "whatsapp",
+        address: chatId,
+        isServiceRole,
+        sendKind,
+        sendRef,
+        clientId,
+      }),
+    );
+    if (!clientSend.allowed) {
+      return clientSendRefusedResponse(clientSend, corsHeaders);
     }
 
     const guard = checkWhatsAppSend(

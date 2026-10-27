@@ -1,6 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import {
+  authorizeClientSend,
+  clientSendRequest,
+} from "../_shared/client-send/authorize.ts";
+import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -235,6 +241,25 @@ Deno.serve(async (req) => {
           String(phoneNumber || ""),
           /^\d{1,3}$/.test(cc) ? cc : "972",
         );
+
+    // The client send guard (AIO-261): an automatic send reaches a client only
+    // with a proof or the client card's opt-in (_shared/client-send/rules.ts).
+    const clientSend = await authorizeClientSend(
+      serviceClient(),
+      clientSendRequest({
+        functionName: "send-manus-wa-message",
+        tenantId,
+        channel: "whatsapp",
+        address: to,
+        isServiceRole,
+        sendKind,
+        sendRef,
+        clientId,
+      }),
+    );
+    if (!clientSend.allowed) {
+      return clientSendRefusedResponse(clientSend, corsHeaders);
+    }
 
     const guard = checkWhatsAppSend(groupChatId ? `group:${groupChatId}` : to);
     if (guard.decision === "BLOCK") {

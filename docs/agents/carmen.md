@@ -78,6 +78,13 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Sends are stamped `chat_messages.send_kind` (`_shared/client-card/send-kind.ts`): Carmen's replies and group introductions are `carmen`, her notifications to team members (task and follow-up notices) are `staff_alert`. While the tenant's `pulse_alert_rules.manager.card_log_system_sends` switch is on, a `carmen` send in a group of exactly one client becomes a `carmen_message` entry (`system_send`, never contact); `staff_alert` is never logged.
 - Her webhook-fallback replies (straight to Green API or Manus when her automation's send step is missing or failed) are stored as `carmen` chat rows by `_shared/client-card/system-send.ts`, only in a group of one client and only while the switch is on.
 
+## Client sends
+
+- A client gets no automatic message unless something the tenant set up asked for it (AIO-261). Send functions call `authorizeClientSend` (`supabase/functions/_shared/client-send/authorize.ts`) after their tenant, membership and recipient checks and before the provider call.
+- A signed-in person's send always passes. A service-role send names its `sendKind`, plus the `sendRef` its rule asks for; `resolve_send_recipient` decides whether the address is a client, a client's contact or a client's group. The rule per kind, Carmen's `carmen` included, and the refusals that are only logged for now are in `_shared/client-send/rules.ts`.
+- Every refusal is a `client_send_refusals` row (`enforced = false` while observed). A card's switches are `client_auto_send_opt_ins`.
+- A function that calls a provider directly calls the guard or is listed in `_shared/client-send/call-site-allowlist.ts`; `call-sites.test.ts` fails otherwise.
+
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 
 - Carmen talks to **Cursor Cloud Agents** over MCP via the `cursor-mcp` edge function. It exposes `request_dev_task` + `ask_cursor`, and each call creates a real Cloud Agent via `POST https://api.cursor.com/v1/agents`. See `supabase/functions/cursor-mcp/README.md`.

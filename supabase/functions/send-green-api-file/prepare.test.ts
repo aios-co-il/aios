@@ -1,4 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
+import {
+  CLIENT,
+  guardDb,
+  resolved,
+} from "../_shared/client-send/fake-guard-db.ts";
+import type { ClientSendRequest } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import type { SenderLine } from "../_shared/report-sender/line-access.ts";
 import {
@@ -42,6 +49,8 @@ function deps(overrides: Partial<GreenFileSendDeps> = {}): GreenFileSendDeps {
     },
     legacyLine: async () => lines.own,
     guard: () => ALLOW,
+    authorizeClientSend: (request) =>
+      authorizeClientSend(guardDb().db, request),
     ...overrides,
   };
 }
@@ -53,6 +62,9 @@ const send: GreenFileSendInput = {
   groupId: null,
   groupChatId: undefined,
   phoneNumber: "0501234567",
+  clientId: CLIENT,
+  sendKind: "report",
+  sendRef: null,
 };
 
 Deno.test("prepareGreenFileSend refuses", async (t) => {
@@ -131,5 +143,60 @@ Deno.test("prepareGreenFileSend resolves the line and chat", async (t) => {
       integrationId: null,
     });
     assertEquals("line" in result ? result.line.id : null, "own");
+  });
+});
+
+Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
+  await t.step("a person's report to a client, without a lookup", async () => {
+    const requests: ClientSendRequest[] = [];
+    const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
+    const result = await prepareGreenFileSend(
+      deps({
+        authorizeClientSend: (request) => {
+          requests.push(request);
+          return authorizeClientSend(guard.db, request);
+        },
+      }),
+      send,
+    );
+    assertEquals("line" in result, true);
+    assertEquals(requests, [
+      {
+        functionName: "send-green-api-file",
+        tenantId: TENANT,
+        channel: "whatsapp",
+        address: "972501234567@c.us",
+        origin: "person",
+        sendKind: "report",
+        sendRef: null,
+        subjectClientId: CLIENT,
+      },
+    ]);
+    assertEquals(guard.rpcCalls, []);
+  });
+
+  await t.step("a refusal stops the send before Green API", async () => {
+    const destinations: string[] = [];
+    const result = await prepareGreenFileSend(
+      deps({
+        authorizeClientSend: async () => ({
+          allowed: false,
+          reason: "staff_only",
+          recipient: null,
+        }),
+        guard: (destination) => {
+          destinations.push(destination);
+          return ALLOW;
+        },
+      }),
+      send,
+    );
+    assertEquals(result, {
+      refusal: {
+        status: 403,
+        body: { error: "client_send_not_authorized", reason: "staff_only" },
+      },
+    });
+    assertEquals(destinations, []);
   });
 });

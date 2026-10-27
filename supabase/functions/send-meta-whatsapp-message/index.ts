@@ -7,6 +7,12 @@ import {
 } from "../_shared/meta-whatsapp.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import {
+  authorizeClientSend,
+  clientSendRequest,
+} from "../_shared/client-send/authorize.ts";
+import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,6 +144,25 @@ Deno.serve(async (request) => {
     ]);
     if (!membership && superAdmin !== true)
       return reply({ error: "forbidden" }, 403);
+
+    // The client send guard (AIO-261): an automatic send reaches a client only
+    // with a proof or the client card's opt-in (_shared/client-send/rules.ts).
+    const clientSend = await authorizeClientSend(
+      serviceClient(),
+      clientSendRequest({
+        functionName: "send-meta-whatsapp-message",
+        tenantId,
+        channel: "whatsapp",
+        address: to,
+        isServiceRole,
+        sendKind,
+        sendRef,
+        clientId,
+      }),
+    );
+    if (!clientSend.allowed) {
+      return clientSendRefusedResponse(clientSend, corsHeaders);
+    }
 
     let integrationQuery = admin
       .from("tenant_integrations")

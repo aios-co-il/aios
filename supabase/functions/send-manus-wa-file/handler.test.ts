@@ -1,4 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
+import {
+  CLIENT,
+  guardDb,
+  refusalRows,
+  resolved,
+} from "../_shared/client-send/fake-guard-db.ts";
+import type { ClientSendRequest } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import type { SenderLine } from "../_shared/report-sender/line-access.ts";
 import type { DeliverInput } from "./gateway.ts";
@@ -49,6 +57,8 @@ function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
     resolveTenantId: async (request) => request.tenantId,
     findGroupChatId: async () => null,
     guard: () => ALLOW,
+    authorizeClientSend: (request) =>
+      authorizeClientSend(guardDb().db, request),
     upload: async () => {
       calls.uploads += 1;
       return "https://storage.local/signed";
@@ -189,5 +199,62 @@ Deno.test("handleFileSend sends from the resolved line", async (t) => {
     assertEquals(result.status, 202);
     assertEquals(result.body.delivered, "unknown");
     assertEquals(calls.records, 0);
+  });
+});
+
+Deno.test("handleFileSend asks the client send guard first", async (t) => {
+  await t.step("a staff alert to a client is refused, never sent", async () => {
+    const requests: ClientSendRequest[] = [];
+    const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
+    const { deps, calls } = fakeDeps({
+      authenticate: async () => ({ kind: "service", userId: null }),
+      authorizeClientSend: (request) => {
+        requests.push(request);
+        return authorizeClientSend(guard.db, request);
+      },
+    });
+    const result = await reply(
+      await handleFileSend(
+        reportRequest({
+          senderUserId: MEMBER,
+          integrationId: "carmen",
+          sendKind: "staff_alert",
+          clientId: CLIENT,
+        }),
+        deps,
+      ),
+    );
+    assertEquals(result, {
+      status: 403,
+      body: { error: "client_send_not_authorized", reason: "staff_only" },
+    });
+    assertEquals(calls, { uploads: 0, delivered: [], records: 0 });
+    assertEquals(requests, [
+      {
+        functionName: "send-manus-wa-file",
+        tenantId: TENANT,
+        channel: "whatsapp",
+        address: "972501234567",
+        origin: "system",
+        sendKind: "staff_alert",
+        sendRef: null,
+        subjectClientId: CLIENT,
+      },
+    ]);
+    assertEquals(refusalRows(guard.writes).length, 1);
+  });
+
+  await t.step("a person's report to a client goes out", async () => {
+    const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
+    const { deps, calls } = fakeDeps({
+      authorizeClientSend: (request) => authorizeClientSend(guard.db, request),
+    });
+    const result = await handleFileSend(
+      reportRequest({ integrationId: "carmen", sendKind: "report" }),
+      deps,
+    );
+    assertEquals(result.status, 200);
+    assertEquals(calls.delivered.length, 1);
+    assertEquals(guard.rpcCalls, []);
   });
 });

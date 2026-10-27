@@ -1,5 +1,7 @@
 // The handler's dependencies in production: the service-role client, the
-// caller's JWT, the Staging guard and the Manus gateway.
+// caller's JWT, the Staging guard, the client send guard and the Manus
+// gateway.
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineStore } from "../_shared/report-sender/line-access.ts";
 import { requireAuth } from "../_shared/security.ts";
@@ -24,6 +26,7 @@ export function liveFileSendDeps(): FileSendDeps {
     findGroupChatId: (tenantId, groupId) =>
       findGroupChatId(admin, tenantId, groupId),
     guard: checkWhatsAppSend,
+    authorizeClientSend: (request) => authorizeClientSend(admin, request),
     upload: (tenantId, file) => uploadReportMedia(admin, tenantId, file),
     deliver: (input) => deliverManusMedia(fetch, input),
     record: (send, media, outcome) => recordSend(admin, send, media, outcome),

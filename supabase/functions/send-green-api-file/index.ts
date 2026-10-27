@@ -10,6 +10,7 @@ import {
   lineStore,
 } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { prepareGreenFileSend } from "./prepare.ts";
 import { legacyGreenLine } from "./sender.ts";
@@ -201,12 +202,14 @@ Deno.serve(async (req) => {
     }
 
     const tenantForSend = resolvedTenantId;
+    const admin = serviceClient();
     const send = await prepareGreenFileSend(
       {
-        store: lineStore(serviceClient()),
+        store: lineStore(admin),
         legacyLine: () =>
           legacyGreenLine(supabaseClient, tenantForSend, user.id),
         guard: checkWhatsAppSend,
+        authorizeClientSend: (request) => authorizeClientSend(admin, request),
       },
       {
         tenantId: tenantForSend,
@@ -215,6 +218,9 @@ Deno.serve(async (req) => {
         groupId,
         groupChatId,
         phoneNumber,
+        clientId,
+        sendKind: formData.get("sendKind"),
+        sendRef: formData.get("sendRef"),
       },
     );
     if ("refusal" in send) {

@@ -1,6 +1,13 @@
 // Everything checked before a Green API file leaves (AIO-255): the caller
 // belongs to the tenant, the line is one the tenant may use, there is a
-// recipient, and this environment may send there.
+// recipient, the client send guard lets the file reach it (AIO-261), and
+// this environment may send there.
+import { clientSendRequest } from "../_shared/client-send/authorize.ts";
+import { clientSendRefusal } from "../_shared/client-send/response.ts";
+import type {
+  ClientSendDecision,
+  ClientSendRequest,
+} from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
   callerMaySendForTenant,
@@ -17,6 +24,8 @@ export type GreenFileSendDeps = {
   legacyLine(): Promise<SenderLine | null>;
   /** checkWhatsAppSend: Staging sends only to allowlisted phones. */
   guard(destination: string): GuardResult;
+  /** The client send guard over the service-role client. */
+  authorizeClientSend(request: ClientSendRequest): Promise<ClientSendDecision>;
 };
 
 export type GreenFileSendInput = {
@@ -26,6 +35,10 @@ export type GreenFileSendInput = {
   groupId: string | null;
   groupChatId: string | undefined;
   phoneNumber: string | null;
+  /** The body's clientId, sendKind and sendRef, as sent. */
+  clientId: string | null;
+  sendKind: unknown;
+  sendRef: unknown;
 };
 
 export type GreenFileSend =
@@ -64,6 +77,10 @@ export async function prepareGreenFileSend(
     return refuse(400, { error: target.message, code: target.error });
   }
   const usedGroupChat = target.via === "group";
+  const clientRefusal = await clientSendBlock(deps, input, target.chatId);
+  if (clientRefusal) {
+    return clientRefusal;
+  }
   const guard = deps.guard(
     usedGroupChat ? `group:${target.chatId}` : target.chatId,
   );
@@ -76,6 +93,30 @@ export async function prepareGreenFileSend(
     });
   }
   return { line: sender.line, chatId: target.chatId, usedGroupChat };
+}
+
+/**
+ * The client send guard's refusal, else null. index.ts serves signed-in
+ * users only, so the recipient is always a person's pick.
+ */
+async function clientSendBlock(
+  deps: GreenFileSendDeps,
+  input: GreenFileSendInput,
+  chatId: string,
+): Promise<GreenFileSend | null> {
+  const decision = await deps.authorizeClientSend(
+    clientSendRequest({
+      functionName: "send-green-api-file",
+      tenantId: input.tenantId,
+      channel: "whatsapp",
+      address: chatId,
+      isServiceRole: false,
+      sendKind: input.sendKind,
+      sendRef: input.sendRef,
+      clientId: input.clientId,
+    }),
+  );
+  return decision.allowed ? null : { refusal: clientSendRefusal(decision) };
 }
 
 /** A refusal with its HTTP status. */
