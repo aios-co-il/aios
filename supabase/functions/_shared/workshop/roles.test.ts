@@ -236,3 +236,67 @@ Deno.test(
     assertStrictEquals(workshopRole("תעשי לי תמונה למבצע", null), "designer");
   },
 );
+
+Deno.test("close variants of David's question are about Carmen too", () => {
+  for (const text of [
+    "תראי לי תמונה שלך",
+    "יש לך תמונה של עצמך?",
+    "תראי לי את התמונה של המעצבת שלך",
+    "איך נראית המעצבת שלך?",
+    "יש לך תמונות של הפרסונות?",
+    "אילו יכולות יש לך?",
+    "באילו סקילים את משתמשת?",
+    "מה הסקין של המעצבת?",
+  ]) {
+    assertStrictEquals(aboutCarmen(text), true, text);
+    assertStrictEquals(workshopRole(text, null), null, text);
+    assertStrictEquals(
+      workshopRole(text, null, { video: true, edit: false }),
+      null,
+      text,
+    );
+  }
+});
+
+Deno.test(
+  "skincare, skinny jeans and work about products are not about Carmen",
+  () => {
+    for (const [text, role] of [
+      ["תכיני סרטון לקרם סקינקר", "producer"],
+      ["a reel for our skin care line", "producer"],
+      ["תעשי לי מודעה לסרום סקין קר החדש", "designer"],
+      ["באנר לסדרת הסקין קר שלנו", "designer"],
+      ["פוסט לאינסטגרם על קרם סקין קר", "designer"],
+      ["תעשי לי מודעה לג׳ינס סקיני החדש", "designer"],
+      ["make an ad for our skin cream", "designer"],
+      ["יש לך גישה לתמונות של המוצר? תעשי מהן מודעה", "designer"],
+      ["תבני 3 פרסונות לקהל היעד", "designer"],
+    ] as const) {
+      assertStrictEquals(aboutCarmen(text), false, text);
+      assertStrictEquals(workshopRole(text, "creative_direct"), role, text);
+    }
+    // On a fresh board the skincare film still goes to the producer.
+    assertStrictEquals(
+      workshopRole("תכיני סרטון לקרם סקינקר", null),
+      "producer",
+    );
+  },
+);
+
+Deno.test(
+  "a bare yes with no project or role stays with the workshop's own persona",
+  () => {
+    for (const text of ["כן", "כן, לשלוח", "כן, לשלוח ל-Cursor", "לא"])
+      assertStrictEquals(workshopRole(text, null), null, text);
+    // Inside a project or with a specialist, the yes is hers.
+    assertStrictEquals(workshopRole("כן", "creative_direct"), "designer");
+    assertStrictEquals(
+      workshopRole("כן", null, { video: false, edit: false }),
+      "designer",
+    );
+    assertStrictEquals(
+      workshopRole("כן", null, { video: true, edit: false }),
+      "producer",
+    );
+  },
+);
