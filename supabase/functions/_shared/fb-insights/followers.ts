@@ -28,6 +28,8 @@ const FACEBOOK_FOLLOW_ACTION_TYPES = ["like"];
  * Meta's field catalog names the metric `instagram_profile_follow_v2` and
  * connectors read `instagram_profile_follow`; the Ads Action Stats reference
  * lists neither, so both are aliases of one count (MAX, never SUM).
+ * Unverified against a live account: AIO-264's Staging sync confirms which key
+ * `actions` carries at our Graph version, and only that key stays.
  */
 const INSTAGRAM_FOLLOW_ACTION_TYPES = [
   "instagram_profile_follow",
