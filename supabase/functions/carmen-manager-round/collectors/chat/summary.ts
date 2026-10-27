@@ -6,7 +6,7 @@
  */
 import { clip } from "./clip.ts";
 import { israelDayAndClock } from "./israel-time.ts";
-import { readMarkers } from "./markers.ts";
+import { onlyAcknowledgements, readMarkers } from "./markers.ts";
 import type { Thread, Turn } from "./threads.ts";
 
 const QUOTE_MAX = 200;
@@ -80,10 +80,17 @@ function place(
   return `בקבוצה ${when(at)}${quote ? `: "${quote}"` : ""}`;
 }
 
-/** The latest turn with the marker, else the latest turn. */
+/**
+ * The latest turn with the marker. Without one (a model verdict found it),
+ * the latest turn that says more than thanks, since the client may have
+ * thanked after the line the model read; else the latest turn.
+ */
 function markedTurn(turns: Turn[], marker: Marker): Turn | undefined {
-  const marked = turns.filter((turn) => readMarkers([turn.text])[marker]);
-  return marked.at(-1) ?? turns.at(-1);
+  return (
+    turns.findLast((turn) => readMarkers([turn.text])[marker]) ??
+    turns.findLast((turn) => !onlyAcknowledgements([turn.text])) ??
+    turns.at(-1)
+  );
 }
 
 /** "ב-27.10 בשעה 21:14", or nothing without a time. */

@@ -162,6 +162,13 @@ Deno.test("threadFindings", async (t) => {
         ]),
         [["unanswered_request", "chat:group:111@g.us:c1", "llm"]],
       );
+      const [request] = found.candidates;
+      assertEquals(
+        request.summary_he,
+        'לקוח א: הלקוח כתב בקבוצה ב-27.10 בשעה 09:00: "הדוח של החודש עוד לא הגיע" ועדיין לא קיבל מענה (5 שעות עסקיות)',
+        "the request is quoted, not the thanks",
+      );
+      assertEquals(request.evidence.quote, "הדוח של החודש עוד לא הגיע");
     },
   );
 
