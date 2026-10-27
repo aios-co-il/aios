@@ -194,4 +194,29 @@ describe("buildWeeklyCampaignSections – Google campaign goals", () => {
     expect(sections[0].rows.every((row) => row.kind === "leads")).toBeTruthy();
     expect(sections[0].totals.revenue).toBe(0);
   });
+
+  test("a Facebook leads campaign keeps its conversion value", () => {
+    const sections = buildWeeklyCampaignSections(
+      [
+        {
+          _source: "facebook_insights",
+          data: {
+            date: "2026-09-14",
+            campaign_id: "fb",
+            campaign_name: "לידים",
+            spend: 100,
+            leads: 5,
+            purchase_value: 250,
+          },
+        },
+      ],
+      {
+        now: new Date("2026-09-18T12:00:00Z"),
+        sourceModes: { facebook_insights: "leads" },
+      },
+    );
+    expect(sections[0].rows[0].kind).toBe("leads");
+    expect(sections[0].rows[0].revenue).toBe(250);
+    expect(sections[0].totals.roas).toBe(2.5);
+  });
 });

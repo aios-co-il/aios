@@ -267,7 +267,9 @@ export function buildWeeklyCampaignSections(
             sourceModes,
             options.googleCampaignGoals?.get(campaign.campaignId),
           );
-          const revenue = earnsRevenue(kind) ? campaign.revenue : 0;
+          const revenue = earnsRevenue(campaign.source, kind)
+            ? campaign.revenue
+            : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases

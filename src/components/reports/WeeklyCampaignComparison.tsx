@@ -96,7 +96,9 @@ export function WeeklyCampaignComparison({
                 ? "עלות לקליק"
                 : "עלות לליד"
             : "עלות לתוצאה";
-        const showRevenue = week.rows.some((row) => row.kind === "ecommerce");
+        const showRevenue = week.rows.some(
+          (row) => row.kind === "ecommerce" || row.revenue > 0,
+        );
 
         return (
           <Card key={week.key} className="overflow-hidden">
