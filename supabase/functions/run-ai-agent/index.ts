@@ -11821,7 +11821,6 @@ async function executeTool(
       // Only requests this caller may approve, each with the short code for "כן <קוד>".
       const pick = await loadApprovalPick(supabase, tenantId, {
         userId: actorUserId,
-        role: callerRole,
         surface,
         conversationId,
         waChatId: waNotify?.chat_id,
@@ -11851,7 +11850,6 @@ async function executeTool(
       // AIO-230: others' requests are approved by "כן <קוד>" or in the approvals screen.
       const pick = await loadApprovalPick(supabase, tenantId, {
         userId: actorUserId,
-        role: callerRole,
         surface,
         conversationId,
         waChatId: waNotify?.chat_id,
@@ -15216,7 +15214,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       approvalPick = await loadApprovalPick(supabase, resolvedTenantId, {
         ...approvalConversation,
         userId: callerUserId,
-        role: callerRole,
         code: approvalReply.code,
         mode: userSaidApprove ? "approve" : "reject",
       });
