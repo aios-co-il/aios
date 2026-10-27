@@ -2,13 +2,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { EFFECT_LUFS } from "../src/compose/music-bed.mjs";
+import { EFFECT_LUFS, IMPACT_LUFS } from "../src/compose/music-bed.mjs";
 import { levelGain, prepareSound } from "../src/compose/sound-prep.mjs";
 import { measureLoudness, parseLoudness } from "../src/ffmpeg.mjs";
 import { hasFfmpeg, media } from "./media.mjs";
 
 test.skipIf(!hasFfmpeg)(
-  "a loud whoosh and a quiet decaying impact hit at the same level after levelling",
+  "a loud transition sound and a quiet decaying impact each hit at its own level after levelling",
   async () => {
     const dir = await mkdtemp(join(tmpdir(), "sfx-level-"));
     try {
@@ -31,13 +31,17 @@ test.skipIf(!hasFfmpeg)(
       // Like the showcase's ElevenLabs pair: far apart, the impact mostly decaying tail.
       expect(before[0].integrated - before[1].integrated).toBeGreaterThan(10);
       const prepared = await prepareSound(
-        { scenes: [], effects: { whooshPath: loud, impactPath: quiet } },
+        { scenes: [], effects: { transitionPaths: [loud], impactPath: quiet } },
         join(dir, "sound"),
         { log: () => {} },
       );
-      for (const file of Object.values(prepared.effects)) {
+      const targets = [
+        [prepared.effects.transitionPaths[0], EFFECT_LUFS],
+        [prepared.effects.impactPath, IMPACT_LUFS],
+      ];
+      for (const [file, target] of targets) {
         const after = await measureLoudness(file);
-        expect(Math.abs(after.maxMomentary - EFFECT_LUFS)).toBeLessThan(1);
+        expect(Math.abs(after.maxMomentary - target)).toBeLessThan(1);
         expect(after.truePeak).toBeLessThan(0);
       }
     } finally {
@@ -100,6 +104,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
       bodyEndS: 38,
     },
     "/w.mp3": { integrated: -10.1, truePeak: 0.6, maxMomentary: -9.2 },
+    "/s.mp3": { integrated: -22, truePeak: -9, maxMomentary: -20 },
     "/i.mp3": { integrated: -24.7, truePeak: -6.3, maxMomentary: -18.3 },
     "/n.mp3": { integrated: -19.1, truePeak: -1.6, maxMomentary: -13.2 },
   };
@@ -108,7 +113,11 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     {
       musicPath: "/m.mp3",
       narrationPath: "/n.mp3",
-      effects: { whooshPath: "/w.mp3", impactPath: "/i.mp3" },
+      effects: {
+        transitionPaths: ["/w.mp3", "/s.mp3"],
+        impactPath: "/i.mp3",
+        seed: "film",
+      },
       scenes: [],
     },
     "/out",
@@ -121,18 +130,28 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   expect(prepared.musicPath).toBe("/out/music-levelled.wav");
   expect(prepared.musicBodyS).toBe(38);
   expect(prepared.effects).toStrictEqual({
-    whooshPath: "/out/sfx-whoosh-levelled.wav",
+    transitionPaths: [
+      "/out/sfx-cut-0-levelled.wav",
+      "/out/sfx-cut-1-levelled.wav",
+    ],
     impactPath: "/out/sfx-impact-levelled.wav",
+    seed: "film",
   });
   expect(prepared.voiceLufs).toBe(-19.1);
   const gains = Object.fromEntries(written.map(([f, , g]) => [f, g.gainDb]));
   expect(gains["/m.mp3"]).toBe(3);
-  // The whoosh and the impact land on the same hit level (15 LU apart before).
+  // Every transition sound lands on the same hit level; the impact (15 LU under the whoosh
+  // before) lands 3 LU softer.
   expect(-9.2 + gains["/w.mp3"]).toBeCloseTo(EFFECT_LUFS, 5);
-  expect(-18.3 + gains["/i.mp3"]).toBeCloseTo(EFFECT_LUFS, 5);
+  expect(-20 + gains["/s.mp3"]).toBeCloseTo(EFFECT_LUFS, 5);
+  expect(-18.3 + gains["/i.mp3"]).toBeCloseTo(IMPACT_LUFS, 5);
   // A file that cannot be measured or written keeps its own level.
   const kept = await prepareSound(
-    { musicPath: "/m.mp3", effects: { whooshPath: "/w.mp3" }, scenes: [] },
+    {
+      musicPath: "/m.mp3",
+      effects: { transitionPaths: ["/w.mp3"], impactPath: null },
+      scenes: [],
+    },
     "/out",
     {
       measure: async (file) => {
@@ -146,7 +165,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     },
   );
   expect(kept.musicPath).toBe("/m.mp3");
-  expect(kept.effects.whooshPath).toBe("/w.mp3");
+  expect(kept.effects.transitionPaths).toStrictEqual(["/w.mp3"]);
   expect(kept.voiceLufs).toBe(null);
 });
 

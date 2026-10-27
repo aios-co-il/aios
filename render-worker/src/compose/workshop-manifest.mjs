@@ -11,6 +11,7 @@ import {
 } from "./captions.mjs";
 import { kickerTitle } from "./kicker.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
+import { cutSoundOrder } from "./transition-sounds.mjs";
 import {
   MIX,
   effectCues,
@@ -296,7 +297,8 @@ export function buildWorkshopManifest(timeline) {
     voiceLufs: timeline.voiceLufs ?? null,
   });
 
-  // Trailer sound design, mixed under the voice: ducked like the music bed.
+  // Trailer sound design, mixed under the voice: ducked like the music bed. Each cut gets its
+  // own transition sound from the film's set (cutSoundOrder); only the ones it plays are staged.
   const fx = timeline.effects;
   const stage = (path, name) => {
     if (!path) return null;
@@ -304,18 +306,30 @@ export function buildWorkshopManifest(timeline) {
     files.push({ from: path, to });
     return to;
   };
-  const whoosh = fx ? stage(fx.whooshPath, "sfx-whoosh") : null;
+  const sounds = fx?.transitionPaths ?? [];
+  const staged = new Map();
+  const cutSounds = cutSoundOrder(
+    sounds.length,
+    scenes.length - 1,
+    fx?.seed,
+  ).map((index) => {
+    if (!staged.has(index))
+      staged.set(index, {
+        file: stage(sounds[index], `sfx-cut-${index}`),
+        frames: Math.ceil(seconds(fx.transitionDurationsS?.[index]) * fps),
+      });
+    return staged.get(index);
+  });
   const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;
   const effects =
-    whoosh || impact
+    cutSounds.length || impact
       ? effectCues(scenes, {
           fps,
           totalFrames,
-          whoosh,
           impact,
-          whooshFrames: Math.ceil(seconds(fx.whooshDurationS) * fps),
           impactFrames: Math.ceil(seconds(fx.impactDurationS) * fps),
           endCardStart: endCard?.startFrame ?? null,
+          cutSounds,
         })
       : [];
   return {

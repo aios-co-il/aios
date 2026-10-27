@@ -324,7 +324,9 @@ Deno.test(
         .soundEffects.usd,
       SOUND_EFFECTS_USD,
     );
-    // 3.7 s of effects at 40 credits a second and $0.0003 a credit, rounded up to the cent.
-    assert(SOUND_EFFECTS_USD >= 3.7 * 40 * 0.0003);
+    // The whole set: six transition sounds (5.5 s) and the impact (2 s) at 40 credits a
+    // second and $0.0003 a credit.
+    assertStrictEquals(SOUND_EFFECTS_USD, 0.09);
+    assert(SOUND_EFFECTS_USD >= Math.round(7.5 * 40 * 0.0003 * 10000) / 10000);
   },
 );

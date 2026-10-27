@@ -1,9 +1,16 @@
 import { expect, test } from "vitest";
 import {
   NOT_IN_PRODUCTION,
+  SOUND_EFFECTS,
+  effectsByKind,
   filmSoundEffects,
   soundEffectsCostUsd,
 } from "../src/jobs/sound-effects.mjs";
+import {
+  SOUND_EFFECTS_VERSION,
+  SOUND_EFFECT_NAMES,
+  TRANSITION_NAMES,
+} from "../src/jobs/sound-effects-catalog.mjs";
 import {
   generateSoundEffect,
   soundEffectBody,
@@ -83,8 +90,14 @@ const run = (output = {}) => ({
   output,
 });
 const item = { folder: `${TENANT}/general/${ITEM}` };
+/** A stored effect of the film, as marketing_assets returns it. */
+const asset = (effect, version = SOUND_EFFECTS_VERSION) => ({
+  url: `t/${effect}-v${version}.mp3`,
+  meta: { effect, version },
+});
+const ALL = SOUND_EFFECT_NAMES;
 
-test("the film's effects are made once, stored, recorded on the run and priced", async () => {
+test("the film's set is made once, each sound stored, recorded on the run and priced", async () => {
   const db = effectsDb();
   const asked = [];
   const current = run();
@@ -100,49 +113,68 @@ test("the film's effects are made once, stored, recorded on the run and priced",
     },
     log: () => {},
   });
-  expect(asked.map((input) => input.durationS)).toStrictEqual([1.2, 2.5]);
-  expect(asked.every((input) => input.apiKey === "xi-key")).toBe(true);
-  expect(Object.keys(result.paths)).toStrictEqual(["whoosh", "impact"]);
-  expect(result.paths.whoosh).toBe(
-    `${item.folder}/sound-effects/whoosh-run-1.mp3`,
+  // Six transition sounds and the impact, each asked once with its own prompt and length.
+  expect(asked.map((input) => input.text)).toStrictEqual(
+    ALL.map((name) => SOUND_EFFECTS[name].text),
   );
+  expect(asked.map((input) => input.durationS)).toStrictEqual([
+    1, 1, 0.7, 1, 1.2, 0.6, 2,
+  ]);
+  expect(asked.every((input) => input.apiKey === "xi-key")).toBe(true);
+  expect(Object.keys(result.paths)).toStrictEqual(ALL);
+  expect(result.paths.air).toBe(`${item.folder}/sound-effects/air-run-1.mp3`);
   expect(result.error).toBe(null);
-  // 3.7 s at 40 credits a second.
-  expect(result.costUsd).toBe(soundEffectsCostUsd(["whoosh", "impact"]));
-  expect(result.costUsd).toBeCloseTo(3.7 * 40 * 0.0003, 4);
-  expect(db.calls.uploads.map((u) => u.bucket)).toStrictEqual([
-    "creative-video",
-    "creative-video",
-  ]);
-  // Each stored path is on the run before the next effect is paid for.
+  // 7.5 s at 40 credits a second: what the quote prices.
+  expect(result.costUsd).toBe(soundEffectsCostUsd(ALL));
+  expect(result.costUsd).toBeCloseTo(7.5 * 40 * 0.0003, 4);
+  expect(db.calls.uploads.length).toBe(7);
+  expect(new Set(db.calls.uploads.map((u) => u.bucket))).toStrictEqual(
+    new Set(["creative-video"]),
+  );
+  // Each stored path and its price are on the run before the next sound is paid for.
   expect(db.calls.updates[0].patch.output.sound_effects).toStrictEqual({
-    whoosh: result.paths.whoosh,
+    air: result.paths.air,
   });
+  expect(db.calls.updates[0].patch.output.sound_effects_cost_usd).toStrictEqual(
+    { air: soundEffectsCostUsd(["air"]) },
+  );
   expect(current.output.sound_effects).toStrictEqual(result.paths);
-  expect(db.calls.inserts.map((i) => i.row.type)).toStrictEqual([
-    "sound_effect",
-    "sound_effect",
-  ]);
-  expect(db.calls.inserts[1].row.meta).toMatchObject({
-    effect: "impact",
-    version: 1,
+  expect(Object.keys(current.output.sound_effects_cost_usd)).toStrictEqual(ALL);
+  // Each sound is the film's asset, named after it, so later renders find it.
+  expect(db.calls.inserts.map((i) => i.row.type)).toStrictEqual(
+    Array(7).fill("sound_effect"),
+  );
+  expect(db.calls.inserts.map((i) => i.row.meta.effect)).toStrictEqual(ALL);
+  expect(db.calls.inserts[2].row.meta).toMatchObject({
+    effect: "blip",
+    kind: "transition",
+    version: SOUND_EFFECTS_VERSION,
     provider: "elevenlabs",
+    duration_s: 0.7,
+    cost_usd: soundEffectsCostUsd(["blip"]),
+  });
+  expect(db.calls.inserts[6].row.meta).toMatchObject({
+    effect: "impact",
+    kind: "impact",
+  });
+  expect(effectsByKind(result.paths)).toStrictEqual({
+    transitions: TRANSITION_NAMES.map((name) => ({
+      name,
+      path: result.paths[name],
+    })),
+    impact: result.paths.impact,
   });
 });
 
-test("a later render reuses the film's effects, and a retry never pays twice", async () => {
-  let paid = 0;
-  const generate = async () => {
-    paid += 1;
+test("a later render reuses each stored sound and makes only the missing ones, once", async () => {
+  let paid = [];
+  const generate = async ({ text }) => {
+    paid.push(ALL.find((name) => SOUND_EFFECTS[name].text === text));
     return new Uint8Array([1]);
   };
   const reused = await filmSoundEffects({
     db: effectsDb({
-      assets: [
-        { url: "t/whoosh.mp3", meta: { effect: "whoosh", version: 1 } },
-        { url: "t/impact.mp3", meta: { effect: "impact", version: 1 } },
-        { url: "t/old.mp3", meta: { effect: "impact", version: 0 } },
-      ],
+      assets: [...ALL.map((name) => asset(name)), asset("impact", 0)],
     }),
     run: run(),
     item,
@@ -151,24 +183,46 @@ test("a later render reuses the film's effects, and a retry never pays twice", a
     generate,
   });
   expect(reused).toStrictEqual({
-    paths: { whoosh: "t/whoosh.mp3", impact: "t/impact.mp3" },
+    paths: Object.fromEntries(ALL.map((name) => [name, `t/${name}-v2.mp3`])),
     costUsd: 0,
     error: null,
   });
-  const retried = await filmSoundEffects({
+  expect(paid).toStrictEqual([]);
+  // A film with part of the set: the next production pays only for the rest.
+  const part = await filmSoundEffects({
     db: effectsDb({
-      assets: [{ url: "t/w.mp3", meta: { effect: "whoosh", version: 1 } }],
+      assets: [asset("air"), asset("chime"), asset("impact")],
     }),
-    run: run({ sound_effects: { impact: "t/from-attempt-1.mp3" } }),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    mayGenerate: true,
+    generate,
+    log: () => {},
+  });
+  expect(paid).toStrictEqual(["shimmer", "blip", "swish", "swipe"]);
+  expect(part.paths.air).toBe("t/air-v2.mp3");
+  expect(part.paths.blip).toBe(`${item.folder}/sound-effects/blip-run-1.mp3`);
+  expect(part.costUsd).toBe(
+    soundEffectsCostUsd(["shimmer", "blip", "swish", "swipe"]),
+  );
+  paid = [];
+  // A retry of the run reuses what its first attempt stored.
+  const retried = await filmSoundEffects({
+    db: effectsDb({ assets: [asset("air")] }),
+    run: run({
+      sound_effects: Object.fromEntries(
+        ALL.slice(1).map((name) => [name, `t/attempt-1-${name}.mp3`]),
+      ),
+    }),
     item,
     resolveKey: async () => "xi-key",
     mayGenerate: true,
     generate,
   });
-  expect(retried.paths).toStrictEqual({
-    whoosh: "t/w.mp3",
-    impact: "t/from-attempt-1.mp3",
-  });
+  expect(retried.paths.air).toBe("t/air-v2.mp3");
+  expect(retried.paths.swipe).toBe("t/attempt-1-swipe.mp3");
+  expect(retried.error).toBe(null);
   // A charged effect that could not be stored is not made again on the retry.
   const stopped = await filmSoundEffects({
     db: effectsDb(),
@@ -179,7 +233,59 @@ test("a later render reuses the film's effects, and a retry never pays twice", a
     generate,
   });
   expect(stopped.error).toBe("stored failed");
+  expect(paid).toStrictEqual([]);
+});
+
+test("a film made before the set keeps its one whoosh and impact until a production makes the set", async () => {
+  const assets = [asset("whoosh", 1), asset("impact", 1)];
+  let paid = 0;
+  const generate = async () => {
+    paid += 1;
+    return new Uint8Array([1]);
+  };
+  const free = await filmSoundEffects({
+    db: effectsDb({ assets }),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    generate,
+  });
+  expect(free.paths).toStrictEqual({
+    whoosh: "t/whoosh-v1.mp3",
+    impact: "t/impact-v1.mp3",
+  });
+  expect(free.error).toBe(NOT_IN_PRODUCTION);
+  expect(effectsByKind(free.paths)).toStrictEqual({
+    transitions: [{ name: "whoosh", path: "t/whoosh-v1.mp3" }],
+    impact: "t/impact-v1.mp3",
+  });
   expect(paid).toBe(0);
+  // The production makes the whole set; the old ones are then left out.
+  const made = await filmSoundEffects({
+    db: effectsDb({ assets }),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    mayGenerate: true,
+    generate,
+    log: () => {},
+  });
+  expect(paid).toBe(7);
+  expect(Object.keys(made.paths)).toStrictEqual(ALL);
+  expect(made.paths.impact).toBe(
+    `${item.folder}/sound-effects/impact-run-1.mp3`,
+  );
+  // Part of the set stands alone: the old whoosh never plays beside the new sounds.
+  const part = await filmSoundEffects({
+    db: effectsDb({ assets: [...assets, asset("swish")] }),
+    run: run(),
+    item,
+    generate,
+  });
+  expect(part.paths).toStrictEqual({
+    swish: "t/swish-v2.mp3",
+    impact: "t/impact-v1.mp3",
+  });
 });
 
 test("without a working key the film has no effects and says why once", async () => {
@@ -213,6 +319,7 @@ test("without a working key the film has no effects and says why once", async ()
     },
     log: () => {},
   });
+  // The same key refuses the rest of the set: one call, not seven.
   expect(calls).toBe(1);
   expect(refused.error).toMatch(/מפתח ה-ElevenLabs לא תקין/);
   expect(refused.costUsd).toBe(0);
@@ -229,7 +336,7 @@ test("without a working key the film has no effects and says why once", async ()
   });
   expect(lost.error).toMatch(/לא נוצר שוב/);
   // The provider charged for the one it made.
-  expect(lost.costUsd).toBe(soundEffectsCostUsd(["whoosh"]));
+  expect(lost.costUsd).toBe(soundEffectsCostUsd(["air"]));
 });
 
 test("a render outside a production never pays: it reuses stored effects or goes without", async () => {
@@ -251,12 +358,7 @@ test("a render outside a production never pays: it reuses stored effects or goes
     error: NOT_IN_PRODUCTION,
   });
   const stored = await filmSoundEffects({
-    db: effectsDb({
-      assets: [
-        { url: "t/whoosh.mp3", meta: { effect: "whoosh", version: 1 } },
-        { url: "t/impact.mp3", meta: { effect: "impact", version: 1 } },
-      ],
-    }),
+    db: effectsDb({ assets: ALL.map((name) => asset(name)) }),
     run: run(),
     item,
     resolveKey: async () => "xi-key",
@@ -268,8 +370,8 @@ test("a render outside a production never pays: it reuses stored effects or goes
 });
 
 test("a retry of the run still reports what its first attempt paid for the effects", async () => {
-  // Attempt 1 makes and stores both effects; the render then fails, and the worker requeues
-  // the run with the output that attempt wrote (finish() never wrote its cost_usd).
+  // Attempt 1 makes and stores the set; the render then fails, and the worker requeues the
+  // run with the output that attempt wrote (finish() never wrote its cost_usd).
   const first = effectsDb();
   const attempt1 = run();
   const made = await filmSoundEffects({
@@ -281,13 +383,12 @@ test("a retry of the run still reports what its first attempt paid for the effec
     generate: async () => new Uint8Array([1, 2]),
     log: () => {},
   });
-  const both = soundEffectsCostUsd(["whoosh", "impact"]);
-  expect(made.costUsd).toBe(both);
+  const all = soundEffectsCostUsd(ALL);
+  expect(made.costUsd).toBe(all);
   const persisted = first.calls.updates.at(-1).patch.output;
-  expect(persisted.sound_effects_cost_usd).toStrictEqual({
-    whoosh: soundEffectsCostUsd(["whoosh"]),
-    impact: soundEffectsCostUsd(["impact"]),
-  });
+  expect(persisted.sound_effects_cost_usd).toStrictEqual(
+    Object.fromEntries(ALL.map((name) => [name, soundEffectsCostUsd([name])])),
+  );
 
   let paid = 0;
   const assets = first.calls.inserts.map(({ row }) => ({
@@ -309,7 +410,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
       log: () => {},
     });
     expect(retried.paths).toStrictEqual(made.paths);
-    expect(retried.costUsd).toBe(both);
+    expect(retried.costUsd).toBe(all);
     expect(retried.error).toBe(null);
   }
   expect(paid).toBe(0);
@@ -336,6 +437,6 @@ test("a retry of the run still reports what its first attempt paid for the effec
       return new Uint8Array([1]);
     },
   });
-  expect(again.costUsd).toBe(soundEffectsCostUsd(["whoosh"]));
+  expect(again.costUsd).toBe(soundEffectsCostUsd(["air"]));
   expect(paid).toBe(0);
 });

@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { assembleFilm } from "../src/compose/assemble.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
+import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
+import { SOUND_EFFECT_NAMES } from "../src/jobs/sound-effects-catalog.mjs";
 import {
   filmSoundEffects,
   soundEffectsCostUsd,
@@ -95,7 +97,7 @@ test.skipIf(!hasFfmpeg)(
       expect(loudness(output, 0, 0.5)).toBeGreaterThan(-40);
       expect(loudness(output, 3.0, 0.8)).toBeLessThan(-60);
       expect(loudness(silent, 1.65, 0.3)).toBeLessThan(-60);
-      // Under a narration the effects are compressed by the voice (sidechain), not removed.
+      // Under a narration the effects dip with the voice (the effects envelope), not removed.
       const voice = join(dir, "voice.wav");
       media([
         "-f",
@@ -125,6 +127,79 @@ test.skipIf(!hasFfmpeg)(
       expect(lift).toBeLessThan(
         loudness(output, 1.65, 0.3) - loudness(silent, 1.65, 0.3),
       );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+/** Mean level (dB) of `file` over [from, from + length] in a narrow band around `hz`. */
+const bandDb = (file, from, length, hz) => {
+  const out = spawnSync(
+    "ffmpeg",
+    [
+      "-ss",
+      String(from),
+      "-t",
+      String(length),
+      "-i",
+      file,
+      "-af",
+      `bandpass=f=${hz}:width_type=q:w=8,bandpass=f=${hz}:width_type=q:w=8,volumedetect`,
+      "-f",
+      "null",
+      "-",
+    ],
+    { encoding: "utf8" },
+  );
+  return Number(out.stderr.match(/mean_volume:\s*(-?[0-9.]+) dB/)?.[1] ?? -91);
+};
+
+test.skipIf(!hasFfmpeg)(
+  "the ffmpeg edit plays a different transition sound at each cut, in the film's order",
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sfx-cuts-"));
+    try {
+      // Three sounds told apart by their pitch, four scenes of 1.5 s: three cuts.
+      const tones = [500, 1100, 2400];
+      const sounds = tones.map((hz) => {
+        const file = join(dir, `t${hz}.wav`);
+        media([
+          "-f",
+          "lavfi",
+          "-i",
+          `sine=frequency=${hz}:duration=0.6`,
+          "-af",
+          "volume=2",
+          file,
+        ]);
+        return file;
+      });
+      const clip = (name, color) => colorClip(join(dir, `${name}.mp4`), color);
+      const scenes = ["red", "blue", "green", "white"].map((color, index) => ({
+        id: color,
+        position: index + 1,
+        clipPath: clip(color, color),
+        durationS: 1.5,
+      }));
+      const seed = "film-7";
+      const output = join(dir, "film.mp4");
+      await assembleFilm(
+        buildTimeline(scenes, {
+          effects: { transitionPaths: sounds, seed },
+        }),
+        output,
+      );
+      const order = cutSoundOrder(3, 3, seed);
+      expect(new Set(order).size).toBe(3);
+      for (const [cut, sound] of order.entries()) {
+        // The sound starts 0.4 s before its cut (1.5 s, 3 s, 4.5 s).
+        const at = 1.5 * (cut + 1) - 0.3;
+        const levels = tones.map((hz) => bandDb(output, at, 0.4, hz));
+        const loudest = levels.indexOf(Math.max(...levels));
+        expect(loudest).toBe(sound);
+      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -200,7 +275,7 @@ test.skipIf(!hasFfmpeg)(
       const production = {
         status: "running",
         render_run_id: "run-1",
-        estimate: { sound_effects: { usd: 0.05 } },
+        estimate: { sound_effects: { usd: 0.09 } },
       };
       const db = renderDb(dir, { video: { sound_design: true, production } });
       const done = await renderFilm({
@@ -212,11 +287,10 @@ test.skipIf(!hasFfmpeg)(
         log: () => {},
       });
       expect(done.output.sound_effects_error).toBe(null);
-      expect(Object.keys(done.output.sound_effects)).toStrictEqual([
-        "whoosh",
-        "impact",
-      ]);
-      expect(done.costUsd).toBe(soundEffectsCostUsd(["whoosh", "impact"]));
+      expect(Object.keys(done.output.sound_effects)).toStrictEqual(
+        SOUND_EFFECT_NAMES,
+      );
+      expect(done.costUsd).toBe(soundEffectsCostUsd(SOUND_EFFECT_NAMES));
       const film = join(dir, "film.mp4");
       await writeFile(film, db.stored.get(done.output.path));
       expect(loudness(film, 1.65, 0.3)).toBeGreaterThan(-40);

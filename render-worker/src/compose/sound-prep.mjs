@@ -1,16 +1,22 @@
 /**
- * The film's sound, levelled on the local files before either edit mixes it. Each sound effect's
- * hit is brought to EFFECT_LUFS (an ElevenLabs impact came out 15 LU under its whoosh) and, in a
- * trailer, the music bed to MUSIC_LUFS, so the trailer mix's gains are loudness targets. An
- * ordinary film's bed keeps its own level under today's MIX; it is only measured, for where its
- * body ends (the loop hand-over). It runs at render time, so effects stored by earlier renders
- * are levelled too. The narration is only measured: the trailer mix sets the bed under it. A file
- * that cannot be read keeps its level.
+ * The film's sound, levelled on the local files before either edit mixes it. Each transition
+ * sound's hit is brought to EFFECT_LUFS and the impact's to IMPACT_LUFS, a little softer (an
+ * ElevenLabs impact came out 15 LU under its whoosh), and, in a trailer, the music bed to
+ * MUSIC_LUFS, so the trailer mix's gains are loudness targets. An ordinary film's bed keeps
+ * its own level under today's MIX; it is only measured, for where its body ends (the loop
+ * hand-over). It runs at render time, so effects stored by earlier renders are levelled too.
+ * The narration is only measured: the trailer mix sets the bed under it. A file that cannot be
+ * read keeps its level.
  */
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { measureLoudness, normalizeAudio } from "../ffmpeg.mjs";
-import { EFFECT_LUFS, MUSIC_LUFS, isTrailer } from "./music-bed.mjs";
+import {
+  EFFECT_LUFS,
+  IMPACT_LUFS,
+  MUSIC_LUFS,
+  isTrailer,
+} from "./music-bed.mjs";
 
 /** Peaks stay under this (dBTP); the limiter takes at most LIMITER_DB above it. */
 const CEILING_DB = -1;
@@ -93,24 +99,34 @@ export async function prepareSound(
         )
       : (timeline.musicPath ?? null);
 
+  /** A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail. */
+  const levelHit = async (path, name, target) => {
+    const loudness = await read(path);
+    if (!loudness) return path;
+    return levelled(
+      path,
+      name,
+      levelGain({
+        measured: loudness.maxMomentary ?? loudness.integrated,
+        target,
+        peak: loudness.truePeak,
+      }),
+    );
+  };
   let effects = timeline.effects ?? null;
   if (effects) {
-    effects = { ...effects };
-    for (const name of ["whoosh", "impact"]) {
-      const path = effects[`${name}Path`];
-      const loudness = await read(path);
-      if (!loudness) continue;
-      // A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail.
-      effects[`${name}Path`] = await levelled(
-        path,
-        `sfx-${name}`,
-        levelGain({
-          measured: loudness.maxMomentary ?? loudness.integrated,
-          target: EFFECT_LUFS,
-          peak: loudness.truePeak,
-        }),
+    const transitionPaths = [];
+    for (const [index, path] of (effects.transitionPaths ?? []).entries())
+      transitionPaths.push(
+        await levelHit(path, `sfx-cut-${index}`, EFFECT_LUFS),
       );
-    }
+    effects = {
+      ...effects,
+      transitionPaths,
+      impactPath: effects.impactPath
+        ? await levelHit(effects.impactPath, "sfx-impact", IMPACT_LUFS)
+        : null,
+    };
   }
 
   // Only the trailer mix sets the bed by the voice; an ordinary film's levels are fixed.

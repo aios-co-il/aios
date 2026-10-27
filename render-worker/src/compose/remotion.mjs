@@ -55,17 +55,19 @@ async function measured(timeline, probeFile) {
     ? await read(timeline.narrationPath)
     : null;
   const music = timeline.musicPath ? await read(timeline.musicPath) : null;
-  const effects = timeline.effects
-    ? {
-        ...timeline.effects,
-        whooshDurationS: timeline.effects.whooshPath
-          ? (await read(timeline.effects.whooshPath))?.duration || 0
-          : 0,
-        impactDurationS: timeline.effects.impactPath
-          ? (await read(timeline.effects.impactPath))?.duration || 0
-          : 0,
-      }
-    : null;
+  let effects = null;
+  if (timeline.effects) {
+    const transitionDurationsS = [];
+    for (const path of timeline.effects.transitionPaths ?? [])
+      transitionDurationsS.push((await read(path))?.duration || 0);
+    effects = {
+      ...timeline.effects,
+      transitionDurationsS,
+      impactDurationS: timeline.effects.impactPath
+        ? (await read(timeline.effects.impactPath))?.duration || 0
+        : 0,
+    };
+  }
   return {
     ...timeline,
     scenes,

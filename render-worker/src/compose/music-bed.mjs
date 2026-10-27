@@ -12,19 +12,25 @@ import { MIX } from "./workshop-edit.mjs";
  * ordinary film's bed is not levelled and keeps today's MIX gains.
  */
 export const MUSIC_LUFS = -17;
-/** Each sound effect's loudest moment (momentary LUFS) after normalization. */
+/** Each transition sound's loudest moment (momentary LUFS) after normalization. */
 export const EFFECT_LUFS = -14;
+/** The impact's loudest moment: 3 LU under a transition's, a soft low boom on title and end card. */
+export const IMPACT_LUFS = -17;
 /** The narration's loudness when it cannot be measured (an ElevenLabs take reads about -19). */
 export const VOICE_LUFS = -19;
 
 /**
  * The trailer mix of a film with sound design: the bed comes up to about -21.5 LUFS when
  * nobody speaks (title, long pauses, end card) and sits 13.5 dB under the voice while she
- * speaks. A pause shorter than a second keeps the bed down, so it does not pump.
+ * speaks. A pause shorter than a second keeps the bed down, so it does not pump. A transition
+ * sound's hit is gentle: about 4 LU over the bed when nobody speaks, and 11 LU under the voice
+ * while she speaks (there about 2.5 LU over the ducked bed), so it is heard without covering her.
  */
 export const TRAILER = {
   bedLufs: -21.5,
   underVoiceDb: 13.5,
+  effectOverBedDb: 4,
+  effectUnderVoiceDb: 11,
   attack: 6,
   release: 12,
   hold: 12,
@@ -41,8 +47,10 @@ const dbGain = (db) => Math.round(10 ** (db / 20) * 1000) / 1000;
 
 /**
  * The film's mix: today's MIX for an ordinary film, the trailer profile when the film has
- * sound design. `voiceLufs` (the measured narration) sets how far the bed dips under it.
- * `bed` is the music bed's envelope options (musicEnvelope in workshop-edit.mjs).
+ * sound design. `voiceLufs` (the measured narration) sets how far the bed and the effects dip
+ * under it. `bed` is the music bed's envelope options (musicEnvelope in workshop-edit.mjs).
+ * `effects` and `effectsDucked` are the effects' gains (they play only in a trailer), set from
+ * EFFECT_LUFS, the level each transition sound arrives at.
  */
 export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
   const ramps = trailer
@@ -55,12 +63,21 @@ export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
   const musicDucked = trailer
     ? Math.min(music, dbGain(voice - TRAILER.underVoiceDb - MUSIC_LUFS))
     : MIX.musicDucked;
+  const effects = dbGain(
+    TRAILER.bedLufs + TRAILER.effectOverBedDb - EFFECT_LUFS,
+  );
+  const effectsDucked = Math.min(
+    effects,
+    dbGain(voice - TRAILER.effectUnderVoiceDb - EFFECT_LUFS),
+  );
   return {
     ...MIX,
     ...ramps,
     trailer,
     music,
     musicDucked,
+    effects,
+    effectsDucked,
     bed: { base: music, ducked: musicDucked, ...ramps },
   };
 }

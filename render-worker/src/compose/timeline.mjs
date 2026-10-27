@@ -13,6 +13,19 @@ export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
 export const sceneSeconds = (value) =>
   Math.min(120, Math.max(0.5, Number(value) || 3));
 
+/** The film's effects: its transition sounds (a lone whooshPath is a set of one) and impact. */
+function soundDesignEffects(effects) {
+  const transitionPaths = (
+    effects?.transitionPaths ?? [effects?.whooshPath]
+  ).filter(Boolean);
+  if (!transitionPaths.length && !effects?.impactPath) return null;
+  return {
+    transitionPaths,
+    impactPath: effects.impactPath || null,
+    seed: String(effects.seed ?? ""),
+  };
+}
+
 /**
  * Approved scenes, in storyboard order. A scene without a clip is skipped.
  * Duration is the scene length the editor saved, not the provider clip length.
@@ -69,14 +82,10 @@ export function buildTimeline(
     narrationAlignment: narration ? narrationAlignment : null,
     brand,
     clipAudio: clipAudio !== false,
-    // Trailer sound design: a whoosh at each cut, an impact on the title and the end card.
-    effects:
-      effects?.whooshPath || effects?.impactPath
-        ? {
-            whooshPath: effects.whooshPath || null,
-            impactPath: effects.impactPath || null,
-          }
-        : null,
+    // Trailer sound design: a transition sound at each cut (a different one each time,
+    // transition-sounds.mjs, drawn from `seed`, the film's id) and an impact on the title and
+    // the end card.
+    effects: soundDesignEffects(effects),
     // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
     // also when its effects could not be made.
     soundDesign: soundDesign === true,

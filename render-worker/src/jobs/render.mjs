@@ -20,7 +20,7 @@ import {
   talkingLine,
 } from "../narration.mjs";
 import { inList, metaOf } from "./rows.mjs";
-import { filmSoundEffects } from "./sound-effects.mjs";
+import { effectsByKind, filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
 
@@ -282,8 +282,8 @@ export async function renderFilm({
     const settings = await loadFilmSettings(db, run);
     // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
     const brand = settings.brand;
-    // Trailer sound design: made once per film, in the production's own (quoted) render; a
-    // free render only reuses stored effects. Without them the film renders as before.
+    // Trailer sound design: the set is made once per film, in the production's own (quoted)
+    // render; a free render only reuses stored effects. Without them the film renders as before.
     const effects = settings.soundDesign
       ? await makeEffects({
           db,
@@ -298,22 +298,34 @@ export async function renderFilm({
           error: `יצירת אפקטי הסאונד נכשלה: ${String(error?.message ?? error).slice(0, 120)}`,
         }))
       : null;
-    const effectFiles = {};
-    for (const name of ["whoosh", "impact"]) {
-      if (!effects?.paths?.[name]) continue;
+    const stored = effectsByKind(effects?.paths);
+    const fetchEffect = async (name, path) => {
       try {
-        effectFiles[`${name}Path`] = await materialize(
+        return await materialize(
           db,
           run.tenant_id,
-          effects.paths[name],
+          path,
           join(dir, `sfx-${name}`),
         );
       } catch (error) {
         log(
           `[render] ${run.id} sound effect ${name} skipped: ${error.message}`,
         );
+        return null;
       }
+    };
+    // The film's id draws which transition sound plays at which cut, the same every render.
+    const effectFiles = {
+      transitionPaths: [],
+      impactPath: null,
+      seed: run.item_id,
+    };
+    for (const { name, path } of stored.transitions) {
+      const file = await fetchEffect(name, path);
+      if (file) effectFiles.transitionPaths.push(file);
     }
+    if (stored.impact)
+      effectFiles.impactPath = await fetchEffect("impact", stored.impact);
     let logoPath = null;
     if (brand?.logoUrl) {
       try {
@@ -389,7 +401,8 @@ export async function renderFilm({
               sound_effects: effects.paths ?? {},
               // The production report tells the user once that effects are missing.
               sound_effects_error:
-                timeline.effects?.whooshPath && timeline.effects?.impactPath
+                timeline.effects?.transitionPaths.length &&
+                timeline.effects.impactPath
                   ? null
                   : effects.error || "אפקטי הסאונד לא נטענו",
             }
