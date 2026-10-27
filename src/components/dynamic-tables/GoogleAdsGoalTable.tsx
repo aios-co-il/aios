@@ -2,7 +2,7 @@ import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
-import type { GoogleReportCampaignGoal } from "@/lib/pulseCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import {
   formatReportNumber,
   ratio,
@@ -20,7 +20,7 @@ type Metrics = {
 export type GoogleAdsGoalTableRow = Metrics & { key: string; name: string };
 
 type Props = {
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
   rows: GoogleAdsGoalTableRow[];
   entityColumnLabel: string;
   currency: string;

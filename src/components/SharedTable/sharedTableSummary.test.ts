@@ -25,9 +25,7 @@ describe("summarizeSharedTableRecords", () => {
       {
         integrationType: "google_ads",
         goalOf,
-        goals: { ecommerce: true, leads: true },
-        forceLeadsOnly: false,
-        forceEcommerceOnly: false,
+        goals: { hasEcommerce: true, hasLeads: true },
       },
     );
     expect(summary.spend).toBe(500);
@@ -48,9 +46,7 @@ describe("summarizeSharedTableRecords", () => {
       {
         integrationType: "facebook_ecommerce",
         goalOf: null,
-        goals: null,
-        forceLeadsOnly: true,
-        forceEcommerceOnly: false,
+        goals: { hasEcommerce: false, hasLeads: true },
       },
     );
     expect(summary).toMatchObject({

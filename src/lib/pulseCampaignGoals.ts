@@ -6,8 +6,6 @@ import {
   classificationDataFromStoredRow as classificationDataFromRow,
   campaignDeliveryStatusLabel as deliveryStatusLabel,
   dedupePulseCampaignRows as dedupeRows,
-  googleReportCampaignGoals as googleCampaignGoals,
-  googleReportCampaignKey as googleCampaignKey,
   integrationTypeToGoal as tableIntegrationGoal,
   isEcommerceReportTable as isEcommerceTable,
   pulseCampaignOutcome as campaignOutcome,
@@ -122,29 +120,3 @@ export const classificationDataFromStoredRow = classificationDataFromRow as (
 ) => Record<string, unknown>;
 
 export const tableReportGoal = reportTableGoal;
-
-export type GoogleReportCampaignGoal = "ecommerce" | "leads";
-
-/**
- * Goal of each Google Ads campaign in a report, keyed by campaign id (name when
- * missing). Same rules as the pulse check; engagement shows as leads (conversions).
- */
-export function googleReportCampaignGoals(input: {
-  records: Array<{ table_id?: string; data?: Record<string, unknown> | null }>;
-  tables: Array<{
-    id: string;
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-    category?: string | null;
-  }>;
-}): Map<string, GoogleReportCampaignGoal> {
-  const raw = googleCampaignGoals(input as never) as Map<string, string>;
-  const result = new Map<string, GoogleReportCampaignGoal>();
-  for (const [key, goal] of raw)
-    result.set(key, goal === "ecommerce" ? "ecommerce" : "leads");
-  return result;
-}
-
-export const googleReportCampaignKey = googleCampaignKey as (
-  data?: Record<string, unknown> | null,
-) => string;

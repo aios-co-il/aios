@@ -1,13 +1,13 @@
 import {
   getAddToCartFromData,
-  getAdsPurchasesFromData,
-  getLeadsFromData,
   getPurchasesFromData,
   getRevenueFromData,
   getSessionsFromData,
   getSpendFromData,
 } from "@/lib/adsMetrics";
 import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
+import { adsRowOutcomes } from "./adsRowOutcomes";
 
 type RecordData = Record<string, unknown>;
 
@@ -38,13 +38,11 @@ export function summarizeSharedTableRecords(
     integrationType: string;
     /** Goal of a record's campaign; null when the table has a single goal. */
     goalOf: ((data: RecordData) => CampaignGoal) | null;
-    goals: { ecommerce: boolean; leads: boolean } | null;
-    forceLeadsOnly: boolean;
-    forceEcommerceOnly: boolean;
+    /** Goals the table shows; a goal it does not show has its totals zeroed. */
+    goals: GoogleGoalPresence;
   },
 ): SharedTableSummary {
-  const { integrationType, goalOf, goals, forceLeadsOnly, forceEcommerceOnly } =
-    options;
+  const { integrationType, goalOf, goals } = options;
   const isAnalytics = integrationType === "google_analytics";
   let spend = 0,
     impressions = 0,
@@ -66,38 +64,33 @@ export function summarizeSharedTableRecords(
       addToCart += getAddToCartFromData(d);
       continue;
     }
-    spend += getSpendFromData(d);
+    const rowSpend = getSpendFromData(d);
+    spend += rowSpend;
     impressions += Number(d.impressions) || 0;
     clicks += Number(d.clicks) || 0;
-    if (goalOf) {
-      const goal = goalOf(d);
-      if (goal === "ecommerce") {
-        ecommerceSpend += getSpendFromData(d);
-        purchases += getAdsPurchasesFromData(d);
-        revenue += getRevenueFromData(d);
-        addToCart += getAddToCartFromData(d);
-      } else if (goal === "leads") {
-        leadSpend += getSpendFromData(d);
-        leads += getLeadsFromData(d);
-      }
-      continue;
+    const goal = goalOf?.(d);
+    if (goal === "ecommerce") {
+      ecommerceSpend += rowSpend;
+    } else if (goal === "leads") {
+      leadSpend += rowSpend;
     }
-    purchases += getAdsPurchasesFromData(d);
-    revenue += getRevenueFromData(d);
-    addToCart += getAddToCartFromData(d);
-    leads += getLeadsFromData(d);
+    const outcomes = adsRowOutcomes(d, goal);
+    purchases += outcomes.purchases;
+    revenue += outcomes.revenue;
+    addToCart += outcomes.addToCart;
+    leads += outcomes.leads;
   }
 
   // Round leads (Google Ads conversions can be fractional)
   leads = Math.round(leads);
 
   // Honor table-level overrides
-  if (forceLeadsOnly) {
+  if (!goals.hasEcommerce) {
     purchases = 0;
     revenue = 0;
     addToCart = 0;
   }
-  if (forceEcommerceOnly) {
+  if (!goals.hasLeads) {
     leads = 0;
   }
 
@@ -114,7 +107,7 @@ export function summarizeSharedTableRecords(
     addToCart,
     roas: roasSpend > 0 ? revenue / roasSpend : 0,
     cpl: leads > 0 ? cplSpend / leads : 0,
-    hasEcommerce: goals ? goals.ecommerce : forceEcommerceOnly,
-    hasLeads: goals ? goals.leads : forceLeadsOnly,
+    hasEcommerce: goals.hasEcommerce,
+    hasLeads: goals.hasLeads,
   };
 }

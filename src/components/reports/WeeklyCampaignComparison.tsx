@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -9,7 +8,8 @@ import {
   type WeeklyCampaignSection,
   type WeeklySourceModes,
 } from "@/lib/weeklyAdsComparison";
-import { googleCampaignGoalsForRecords } from "@/lib/googleAdsReport";
+import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
+import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
 import { formatReportNumber } from "@/components/dynamic-tables/reportTableFormat";
 
@@ -19,12 +19,7 @@ type Props = {
   defaultSource?: WeeklyAdsSource;
   sourceModes?: WeeklySourceModes;
   /** The report's tables: Google campaigns then show by their own goal. */
-  tables?: Array<{
-    id: string;
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-    category?: string | null;
-  }>;
+  tables?: GoogleReportTable[];
   isLoading?: boolean;
 };
 
@@ -36,17 +31,10 @@ export function WeeklyCampaignComparison({
   tables,
   isLoading = false,
 }: Props) {
-  const googleCampaignGoals = useMemo(
-    () =>
-      tables
-        ? googleCampaignGoalsForRecords(
-            records.filter(
-              (record) => (record._source ?? defaultSource) === "google_ads",
-            ),
-            tables,
-          )
-        : undefined,
-    [records, tables, defaultSource],
+  const googleCampaignGoals = useWeeklyGoogleCampaignGoals(
+    records,
+    tables,
+    defaultSource,
   );
   const weeks = buildWeeklyCampaignSections(records, {
     defaultSource,

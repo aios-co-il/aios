@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { GoogleReportCampaignGoal } from "@/lib/pulseCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { googleGoalSections } from "./googleGoalSections";
 
 describe("googleGoalSections", () => {
   it("puts sales before leads and leaves out a goal without campaigns", () => {
-    const rows: Array<{ key: string; goal: GoogleReportCampaignGoal }> = [
+    const rows: Array<{ key: string; goal: GoogleCampaignGoal }> = [
       { key: "search", goal: "leads" },
       { key: "pmax", goal: "ecommerce" },
       { key: "brand", goal: "leads" },

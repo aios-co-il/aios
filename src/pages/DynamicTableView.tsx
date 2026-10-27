@@ -3,10 +3,10 @@ import { toPng } from "html-to-image";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  googleReportCampaignGoals,
-  googleReportCampaignKey,
-} from "@/lib/pulseCampaignGoals";
+import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
+import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -3889,20 +3889,15 @@ export default function DynamicTableView({
               )}
               <Card className="mb-4 overflow-hidden">
                 {(() => {
-                  const tableIsEcommerce =
-                    table?.integration_settings?.campaign_type === "ecommerce";
-                  // Each campaign by its own goal (same rules as the pulse check):
-                  // one account can run ecommerce and lead campaigns side by side.
-                  const campaignGoals = googleReportCampaignGoals({
-                    records: filteredRecords.map((record) => ({
+                  const fallbackGoal = googleReportFallbackGoal([table]);
+                  const { goalOf } = googleCampaignGoalOf(
+                    filteredRecords.map((record) => ({
                       table_id: table.id,
                       data: record.data,
                     })),
-                    tables: [table],
-                  });
-                  const goalOf = (data: Record<string, unknown> | null) =>
-                    campaignGoals.get(googleReportCampaignKey(data)) ??
-                    (tableIsEcommerce ? "ecommerce" : "leads");
+                    [table],
+                    fallbackGoal,
+                  );
                   const entityColumnLabel =
                     adsEntityLevel === "ad"
                       ? "מודעה"
@@ -3961,7 +3956,7 @@ export default function DynamicTableView({
                       string,
                       {
                         name: string;
-                        goal: "ecommerce" | "leads";
+                        goal: GoogleCampaignGoal;
                         impressions: number;
                         clicks: number;
                         conversions: number;
@@ -4007,31 +4002,13 @@ export default function DynamicTableView({
                   const groupList = Object.entries(campaignGroups).map(
                     ([key, group]) => ({ key, ...group }),
                   );
-                  const hasEcommerceGroups = groupList.some(
-                    (group) => group.goal === "ecommerce",
-                  );
-                  const hasLeadGroups = groupList.some(
-                    (group) => group.goal === "leads",
-                  );
                   // Mixed: one table per goal, each with its own columns and totals.
-                  const mixedGoals = hasEcommerceGroups && hasLeadGroups;
-                  const isEcommerce = groupList.length
-                    ? hasEcommerceGroups && !hasLeadGroups
-                    : tableIsEcommerce;
+                  const { mixedGoals, isEcommerce, ecommerceTotals } =
+                    splitGoogleGroupsByGoal(groupList, fallbackGoal);
                   const goalSections = googleGoalSections(
                     groupList,
-                    tableIsEcommerce ? "ecommerce" : "leads",
+                    fallbackGoal,
                   );
-                  const ecommerceTotals = groupList
-                    .filter((group) => group.goal === "ecommerce")
-                    .reduce(
-                      (acc, group) => ({
-                        conversions: acc.conversions + group.conversions,
-                        conversions_value:
-                          acc.conversions_value + group.conversions_value,
-                      }),
-                      { conversions: 0, conversions_value: 0 },
-                    );
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders

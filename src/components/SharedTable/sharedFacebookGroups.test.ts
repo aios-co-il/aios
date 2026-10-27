@@ -35,11 +35,9 @@ const summarize = (
     integrationType: "facebook_insights",
     goalOf: groups.goalOf,
     goals: {
-      ecommerce: groups.ecommerce.length > 0,
-      leads: groups.leads.length > 0,
+      hasEcommerce: groups.ecommerce.length > 0,
+      hasLeads: groups.leads.length > 0,
     },
-    forceLeadsOnly: groups.ecommerce.length === 0,
-    forceEcommerceOnly: groups.leads.length === 0,
   });
 };
 

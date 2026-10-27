@@ -11,10 +11,8 @@ import {
   resolvePruneStart,
   toDateString,
 } from "../_shared/report-sync-window.ts";
-import {
-  conversionCategorySide,
-  googleCampaignConversionGoal,
-} from "../_shared/google-ads-conversion-goal.mjs";
+import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
+import { enrichConversionCategories } from "./conversion-enrichment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,7 +56,7 @@ interface GoogleAdsRecord {
   campaign_channel_type?: string;
   bidding_strategy_type?: string;
   /** What the campaign converts on, from its conversion goals: drives the pulse goal. */
-  conversion_goal?: "ecommerce" | "leads";
+  conversion_goal?: GoogleCampaignGoal;
   // Verified leads from connected WordPress site (Elementor submissions with matching gad_campaignid)
   verified_leads?: number;
   verified_source?: string; // site URL we verified against, for transparency
@@ -997,123 +995,14 @@ Deno.serve(async (req) => {
     console.log(`[sync-google-ads] total records parsed: ${records.length}`);
 
     // ============================================================
-    // ENRICHMENT: conversion categories per campaign.
-    // 1. Which goal each campaign converts on. Performance Max and Search carry no
-    //    objective, so the pulse check reads `conversion_goal` to tell an ecommerce
-    //    campaign from a lead campaign inside the same account.
-    // 2. Add-to-cart per campaign/day for ecommerce tables. Add-to-cart is usually a
-    //    SECONDARY action, so it lives in `all_conversions`; purchases stay on
-    //    `metrics.conversions` so the report keeps matching the Google Ads UI.
+    // ENRICHMENT: conversion goal per campaign, add-to-cart per campaign/day.
     // ============================================================
-    try {
-      const categoryBatches = await runGaqlSearch(`
-        SELECT
-          segments.date,
-          campaign.id,
-          segments.conversion_action_category,
-          metrics.conversions,
-          metrics.all_conversions
-        FROM campaign
-        WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
-      `);
-      const addToCartByCampaignDay = new Map<string, number>();
-      const conversionsByCampaign = new Map<
-        string,
-        { purchaseConversions: number; leadConversions: number }
-      >();
-      for (const batch of categoryBatches) {
-        for (const row of batch.results || []) {
-          const campaignId = String(row.campaign?.id || "");
-          const category = row.segments?.conversionActionCategory;
-          if (category === "ADD_TO_CART") {
-            const key = `${campaignId}|${row.segments?.date || ""}`;
-            addToCartByCampaignDay.set(
-              key,
-              (addToCartByCampaignDay.get(key) || 0) +
-                parseFloat(row.metrics?.allConversions || "0"),
-            );
-          }
-          const side = conversionCategorySide(category);
-          if (!side) continue;
-          const totals = conversionsByCampaign.get(campaignId) || {
-            purchaseConversions: 0,
-            leadConversions: 0,
-          };
-          const value = parseFloat(row.metrics?.conversions || "0");
-          if (side === "ecommerce") totals.purchaseConversions += value;
-          else totals.leadConversions += value;
-          conversionsByCampaign.set(campaignId, totals);
-        }
-      }
-
-      const biddableByCampaign = new Map<string, string[]>();
-      try {
-        const goalBatches = await runGaqlSearch(`
-          SELECT
-            campaign.id,
-            campaign_conversion_goal.category,
-            campaign_conversion_goal.biddable
-          FROM campaign_conversion_goal
-        `);
-        for (const batch of goalBatches) {
-          for (const row of batch.results || []) {
-            if (!row.campaignConversionGoal?.biddable) continue;
-            const campaignId = String(row.campaign?.id || "");
-            const list = biddableByCampaign.get(campaignId) || [];
-            list.push(String(row.campaignConversionGoal?.category || ""));
-            biddableByCampaign.set(campaignId, list);
-          }
-        }
-      } catch (goalErr) {
-        console.warn(
-          "[sync-google-ads] campaign conversion goals failed (non-fatal):",
-          goalErr instanceof Error
-            ? goalErr.message
-            : JSON.stringify(goalErr).slice(0, 300),
-        );
-      }
-
-      const goalByCampaign = new Map<string, "ecommerce" | "leads">();
-      const campaignIds = new Set([
-        ...conversionsByCampaign.keys(),
-        ...biddableByCampaign.keys(),
-      ]);
-      for (const campaignId of campaignIds) {
-        const goal = googleCampaignConversionGoal({
-          biddableCategories: biddableByCampaign.get(campaignId) || [],
-          ...(conversionsByCampaign.get(campaignId) || {}),
-        });
-        if (goal) goalByCampaign.set(campaignId, goal);
-      }
-      for (const rec of records) {
-        const goal = goalByCampaign.get(rec.campaign_id);
-        if (goal) rec.conversion_goal = goal;
-      }
-
-      // Only annotate when the account actually tracks add-to-cart; leaving the
-      // field out keeps the report showing the column as unavailable.
-      if (
-        settings.campaign_type === "ecommerce" &&
-        addToCartByCampaignDay.size > 0
-      ) {
-        for (const rec of records) {
-          if ((rec.entity_level || "campaign") !== "campaign") continue;
-          rec.add_to_cart =
-            addToCartByCampaignDay.get(`${rec.campaign_id}|${rec.date}`) || 0;
-        }
-      }
-      console.log(
-        `[sync-google-ads] conversion goals: ${goalByCampaign.size} campaigns, add-to-cart segments: ${addToCartByCampaignDay.size}`,
-      );
-    } catch (categoryErr) {
-      // Non-fatal: the pulse falls back to the report type, add-to-cart shows as unavailable.
-      console.warn(
-        "[sync-google-ads] conversion category enrichment failed (non-fatal):",
-        categoryErr instanceof Error
-          ? categoryErr.message
-          : JSON.stringify(categoryErr).slice(0, 300),
-      );
-    }
+    await enrichConversionCategories(records, {
+      runGaqlSearch,
+      startIso,
+      endIso,
+      campaignType: settings.campaign_type,
+    });
 
     // ============================================================
     // ENRICHMENT: Verify lead counts against connected WordPress site
