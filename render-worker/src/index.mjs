@@ -71,6 +71,8 @@ const HANDLERS = {
         ...ctx,
         apiKey: keys.elevenLabsKey,
         googleKey: keys.googleKey,
+        // ElevenLabs through OpenRouter, read from Vault only when the direct key cannot narrate.
+        resolveOpenRouterKey: () => openRouterKey(ctx.db, ctx.run.tenant_id),
       });
     },
   },

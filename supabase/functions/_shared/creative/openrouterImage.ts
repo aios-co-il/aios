@@ -4,6 +4,7 @@
  */
 import type { SecretClient } from "../carmen/brain-connections/overrides.ts";
 import { connectionSecret } from "../carmen/brain-connections/overrides.ts";
+import { toBase64 } from "../workshop/image-providers.ts";
 
 export const OPENROUTER_IMAGE_MODEL = "google/gemini-3.1-flash-image";
 const IMAGES_URL = "https://openrouter.ai/api/v1/images";
@@ -40,12 +41,16 @@ export async function tenantOpenRouterKey(
   return await connectionSecret(sb, id);
 }
 
-/** One image; throws with the provider's status on failure (502 is not billed). */
+/**
+ * One image; throws with the provider's status on failure (502 is not billed). Reference
+ * pictures go in `input_references` as data URLs, which Gemini image models accept.
+ */
 export async function generateOpenRouterImage(args: {
   apiKey: string;
   prompt: string;
   aspectRatio?: string;
   model?: string;
+  references?: { bytes: Uint8Array; mime: string }[];
   fetchImpl?: typeof fetch;
 }): Promise<{
   b64: string;
@@ -66,6 +71,16 @@ export async function generateOpenRouterImage(args: {
       n: 1,
       aspect_ratio: args.aspectRatio || "1:1",
       output_format: "png",
+      ...(args.references?.length
+        ? {
+            input_references: args.references.map((reference) => ({
+              type: "image_url",
+              image_url: {
+                url: `data:${reference.mime};base64,${toBase64(reference.bytes)}`,
+              },
+            })),
+          }
+        : {}),
     }),
     redirect: "manual",
   });

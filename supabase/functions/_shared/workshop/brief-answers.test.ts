@@ -1,13 +1,55 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  answerFor,
   answersFromArgs,
   answersFromMessage,
   briefAnswersOf,
   filmFromAnswers,
+  styleFromAnswers,
+  topicOf,
   unanswered,
   withBriefAnswers,
 } from "./brief-answers.ts";
-import { FILM_CHOICES } from "./briefing-choices.ts";
+import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
+
+Deno.test("a question counts as answered under any of its names", () => {
+  for (const name of ["סיום", "סגיר", "סגירה", "קריאה לפעולה"])
+    assertStrictEquals(topicOf(name), "סיום", name);
+  for (const name of ["קול", "קריינות"])
+    assertStrictEquals(topicOf(name), "קול", name);
+  for (const name of ["מראה", "סגנון", "סגנון חזותי"])
+    assertStrictEquals(topicOf(name), "מראה", name);
+  for (const name of ["דמות", "דמויות"])
+    assertStrictEquals(topicOf(name), "דמות", name);
+  assertStrictEquals(topicOf("אווירה"), "אווירה");
+  const answers = {
+    סגיר: "לוגו בלבד",
+    קריינות: "קריין",
+    "סגנון חזותי": "איור מונפש",
+    דמויות: "כמה דמויות",
+    צבעים: "חם ומזמין",
+    מוזיקה: "תזמורתית",
+    קצב: "מצחיק וקליל",
+  };
+  assertStrictEquals(answerFor(answers, "סיום"), "לוגו בלבד");
+  assertEquals(
+    unanswered([...STYLE_CHOICES.video, ...FILM_CHOICES], answers),
+    [],
+  );
+  assertStrictEquals(
+    filmFromAnswers(answers),
+    "קצב: מצחיק וקליל. קול: קריין. מוזיקה: תזמורתית. סיום: לוגו בלבד",
+  );
+  assertStrictEquals(
+    styleFromAnswers(answers, "video"),
+    "דמות: כמה דמויות. מראה: איור מונפש. צבעים: חם ומזמין",
+  );
+  assertStrictEquals(styleFromAnswers({ מראה: "x" }, "video"), null);
+  // Carmen's own names are read from the user's lines too.
+  assertEquals(answersFromMessage("סגיר: בלי סגיר", FILM_CHOICES), {
+    סגיר: "בלי סגיר",
+  });
+});
 
 Deno.test(
   "tapped answers are read by question, unknown lines are ignored",

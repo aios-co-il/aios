@@ -17,8 +17,7 @@ export type ModuleRouteHandle = {
 const MODULE_ROUTE_PERMISSIONS: Record<string, ModulePermission> = {
   "": "dashboard",
   dashboard: "dashboard",
-  // workshop: no module gate, like /marketing (any signed-in tenant user who can open the
-  // marketing department; social_media users included). The menu item still asks social_media.
+  workshop: "social_media",
   agencies: "agencies",
   clients: "clients",
   campaigners: "campaigners",

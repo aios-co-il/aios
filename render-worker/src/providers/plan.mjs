@@ -10,3 +10,15 @@ export function isPaidPlanError(error) {
     /\b402\b/.test(text)
   );
 }
+
+/** ElevenLabs refusing the key itself (invalid, or out of quota): another route may still work. */
+export function isRejectedKeyError(error) {
+  const text = String(
+    error instanceof Error ? error.message : error,
+  ).toLowerCase();
+  return (
+    /\b401\b/.test(text) ||
+    text.includes("invalid_api_key") ||
+    text.includes("quota_exceeded")
+  );
+}

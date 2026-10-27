@@ -60,6 +60,19 @@ test("the client in view is named to Carmen and sent with the request", () => {
   expect(unnamed?.workshopClientId).toBe("c-2");
 });
 
+test("on a new board a question about Carmen is answered without a project", () => {
+  const blank = workshopRequestParts({
+    projectId: null,
+    title: null,
+    selectedArtifactId: null,
+    clientId: null,
+  })!.promptAddon;
+  expect(blank).toMatch(/בקשת עבודה חדשה .*workshop_start_project/);
+  expect(blank).toMatch(
+    /שאלה עלייך או על המערכת מקבלת תשובה ישירה, בלי פרויקט/,
+  );
+});
+
 test("only well-formed workshop stream events reach the board", () => {
   expect(
     workshopEventFrom({

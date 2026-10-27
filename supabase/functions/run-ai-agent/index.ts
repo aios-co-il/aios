@@ -18,8 +18,14 @@ import {
 } from "../_shared/carmen/brain-guard.ts";
 import {
   type BrainEngine,
+  type BrainEngineTarget,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import {
+  movesToNextLink,
+  openRouterTail,
+  lazyBrainTail,
+} from "../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { makeAdImage } from "../_shared/creative/ad-image.ts";
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
@@ -80,6 +86,7 @@ import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
   connectedProviders,
@@ -117,6 +124,7 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
   buildQuickAck,
@@ -194,6 +202,22 @@ import {
   findDuplicateDevTasks,
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
+import {
+  declineOfferedDevTask,
+  findOfferedDevTask,
+  isExplicitDevTaskApproval,
+  isExplicitDevTaskDecline,
+  offersDevTask,
+  workshopDevTaskDecision,
+  workshopDevTaskRule,
+} from "../_shared/dev-task-approval.ts";
+import {
+  appOrigin,
+  carmenSkinEntries,
+  carmenSkinsResult,
+  customSkinPaths,
+  pathsToSign,
+} from "../_shared/carmen/skin-gallery.ts";
 import {
   addGoalBlocker,
   addGoalMilestone,
@@ -818,6 +842,8 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  // Questions about Carmen herself: her personas and their portraits, on every surface.
+  "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
   // Offered only inside the workshop skin, where they are the main tools.
   ...WORKSHOP_TOOLS.map((tool) => tool.name),
@@ -3672,6 +3698,12 @@ const ALL_TOOLS = [
   // HERMES SKILLS SYSTEM (self-improving procedural memory)
   // ===========================
   {
+    name: "get_carmen_skins",
+    description:
+      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url הוא קישור מלא: בצ׳אט שמציג Markdown כתמונה ![שם](portrait_url), בוואטסאפ כקישור. לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "recall_skills",
     description:
       "חיפוש סקילים (פרוצדורות שמורות) רלוונטיים למשימה הנוכחית. השתמש כשהמשימה מורכבת/חוזרת ויתכן שכבר יש לך פרוצדורה שמורה לבצע אותה. הסקילים הרלוונטיים ביותר כבר מוזרקים אוטומטית, אבל ניתן לחפש עוד.",
@@ -5679,6 +5711,57 @@ async function tryCreateCalendarEventForTask(
   }
 }
 
+/**
+ * In the workshop, why approve_dev_task / dispatch_dev_task may not act on this task now (the
+ * user's yes in the app chat must answer Carmen's previous message, which offered this task);
+ * null outside the workshop, where the dev-task flow is unchanged, or when it may.
+ */
+async function workshopDevTaskRefusal(
+  supabase: any,
+  tenantId: string,
+  taskId: string,
+  conversationId: string | null,
+  gate:
+    | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
+    | null
+    | undefined,
+  userText: string | null,
+  approver: { id: string | null; tier: "full" | "bugfix" | null },
+): Promise<{ error: string; message: string } | null> {
+  if (!gate) return null;
+  const { data: task } = await supabase
+    .from("dev_tasks")
+    .select(
+      "id, status, created_at, assigned_agent, requested_by_user_id, source_conversation_id",
+    )
+    .eq("id", taskId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const offered = conversationId
+    ? await findOfferedDevTask(supabase, {
+        tenantId,
+        conversationId,
+        turnStartedAt: gate.turnStartedAt,
+      })
+    : null;
+  const decision = workshopDevTaskDecision({
+    task: task ?? null,
+    appChatUser: gate.appChatUser,
+    userText,
+    turnStartedAt: gate.turnStartedAt,
+    conversationId,
+    lastAssistantText: gate.lastAssistantText,
+    offeredTaskId: offered?.id ?? null,
+    approver,
+  });
+  return decision.ok
+    ? null
+    : {
+        error: `dev_task_approval_${decision.reason}`,
+        message: decision.message,
+      };
+}
+
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -5696,10 +5779,23 @@ async function executeTool(
   approval: {
     turnId?: string | null;
     userText?: string | null;
+    /** Carmen's previous message; the workshop reads the taps that answer it. */
+    lastAssistant?: string | null;
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
+    /** In the workshop, approve_dev_task and dispatch_dev_task wait for the user's later yes. */
+    workshopDevTasks?: {
+      /** When the user's message of this turn arrived; the offered task must be older. */
+      turnStartedAt: string;
+      /** A signed-in user typed this turn in the app chat (internal_chat). */
+      appChatUser: boolean;
+      /** Carmen's previous message; the user's yes answers its dev-task question only. */
+      lastAssistantText: string;
+    } | null;
   } = {},
+  /** The chat's app origin (request Origin), for full links to files the app serves. */
+  appLinkOrigin?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5758,6 +5854,7 @@ async function executeTool(
       {
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
+        lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
         imageEngines: async () => {
@@ -5864,6 +5961,21 @@ async function executeTool(
           return sceneEngineFor(
             (data?.settings || {}) as Record<string, unknown>,
             fetch,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        sceneEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return connectedSceneEngines(
+            (data?.settings || {}) as Record<string, unknown>,
             await videoConnectionsFor(supabase, tenantId),
           );
         },
@@ -8737,32 +8849,28 @@ async function executeTool(
       };
     }
     case "update_marketing_work_item": {
-      const { data: item } = await supabase
-        .from("marketing_work_items")
-        .select("id, payload, title, status")
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (!item) return { error: "עבודה לא נמצאה" };
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (args.title != null) patch.title = String(args.title);
-      if (args.status != null) patch.status = args.status;
       // The workshop's budget and project state are written only by its own server code.
       let droppedKeys: string[] = [];
+      let payloadPatch: Record<string, unknown> | null = null;
       if (args.payload_patch && typeof args.payload_patch === "object") {
         const safe = stripServerOnlyPayloadKeys(args.payload_patch);
         droppedKeys = safe.dropped;
-        patch.payload = { ...(item.payload || {}), ...safe.patch };
+        payloadPatch = safe.patch;
       }
-      const { data: updated, error } = await supabase
-        .from("marketing_work_items")
-        .update(patch)
-        .eq("id", args.item_id)
-        .select("id, title, status")
-        .single();
+      // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
+      const { data: rows, error } = await supabase.rpc(
+        "patch_marketing_work_item",
+        {
+          p_item_id: args.item_id,
+          p_tenant_id: tenantId,
+          p_title: args.title != null ? String(args.title) : null,
+          p_status: args.status != null ? String(args.status) : null,
+          p_payload_patch: payloadPatch,
+        },
+      );
       if (error) throw error;
+      const updated = Array.isArray(rows) ? rows[0] : rows;
+      if (!updated) return { error: "עבודה לא נמצאה" };
       if (droppedKeys.length === 0) return { success: true, item: updated };
       return {
         success: true,
@@ -10707,8 +10815,10 @@ async function executeTool(
         priority: args.priority,
         assignedAgent: args.assigned_agent || "cursor",
         requestedByUserId: devActorId,
-        sourceConversationId:
-          args.source_conversation_id || conversationId || null,
+        // In the workshop a task belongs to this chat: only a yes here may approve it.
+        sourceConversationId: approval.workshopDevTasks
+          ? conversationId || null
+          : args.source_conversation_id || conversationId || null,
         sourceMessage: args.source_message,
         dedupOf: args.dedup_of || null,
         actorUserId: devActorId,
@@ -10726,6 +10836,16 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
+      const workshopRefusal = await workshopDevTaskRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.workshopDevTasks,
+        approval.userText ?? null,
+        { id: approverId, tier: devEscalationTier },
+      );
+      if (workshopRefusal) return workshopRefusal;
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10736,6 +10856,16 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
+      const workshopRefusal = await workshopDevTaskRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.workshopDevTasks,
+        approval.userText ?? null,
+        { id: actorUserId, tier: devEscalationTier },
+      );
+      if (workshopRefusal) return workshopRefusal;
       const result = await dispatchDevTask(supabase, {
         tenantId,
         taskId: String(args.dev_task_id),
@@ -11593,16 +11723,43 @@ async function executeTool(
     // ===========================
     // HERMES SKILLS SYSTEM
     // ===========================
+    case "get_carmen_skins": {
+      // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
+      const { data: carmenAgent } = await supabase
+        .from("ai_agents")
+        .select("metadata")
+        .eq("tenant_id", tenantId)
+        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
+      const signed: Record<string, string> = {};
+      await Promise.all(
+        pathsToSign(paths).map(async (path) => {
+          const { data, error } = await supabase.storage
+            .from("entity-attachments")
+            .createSignedUrl(path, 3600);
+          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+        }),
+      );
+      return carmenSkinsResult(
+        carmenSkinEntries(paths, signed),
+        appOrigin(appLinkOrigin, Deno.env.get("APP_URL")),
+      );
+    }
     case "recall_skills": {
       const limit = Math.min(args.limit || 5, 20);
       const q = String(args.query || "").trim();
+      // The tenant's own skills and the global skins every tenant has (scope = 'global').
+      const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
       // Try FTS first; fall back to ILIKE
       const { data: matchedSkills, error } = await supabase
         .from("ai_skills")
         .select(
           "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
         )
-        .eq("tenant_id", tenantId)
+        .or(skillScope)
         .eq("is_active", true)
         .textSearch(
           "search_vector",
@@ -11617,7 +11774,7 @@ async function executeTool(
           .select(
             "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
           )
-          .eq("tenant_id", tenantId)
+          .or(skillScope)
           .eq("is_active", true)
           .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
           .limit(limit);
@@ -13635,6 +13792,14 @@ async function handleRunAgent(
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
+  request: {
+    /** How the request was authenticated (requireAuth): a signed-in user, or a service call. */
+    authKind?: string;
+    /** The browser's Origin header, for full links back to the app the chat runs on. */
+    origin?: string | null;
+  } = {},
+  /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
+  internalTail?: () => Promise<BrainEngineTarget[]>,
 ): Promise<Response> {
   try {
     const {
@@ -13866,6 +14031,8 @@ async function handleRunAgent(
     let serverConversationId: string | null = null;
     // A paid workshop confirm must arrive in a later user message than the quote it confirms.
     const turnId = crypto.randomUUID();
+    // A workshop dev task is approved only in a later user message than the one that offered it.
+    const turnStartedAt = new Date().toISOString();
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -14834,7 +15001,12 @@ async function handleRunAgent(
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
-    systemPrompt += buildDevEscalationPromptRule(devEscalationTier);
+    // The workshop has no connector or delegate tools: there a dev task goes only through
+    // create_dev_task, sent after the user's yes in a later message (dev-task-approval.ts).
+    systemPrompt +=
+      inWorkshopRequest && devEscalationTier
+        ? workshopDevTaskRule(devEscalationTier)
+        : buildDevEscalationPromptRule(devEscalationTier);
 
     if (isCarmen && surface === "whatsapp" && canEscalateDevFixes) {
       systemPrompt +=
@@ -14924,9 +15096,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
+    // Carmen can always answer about herself (her personas and their portraits), whatever
+    // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
       allowedTools.length > 0
-        ? ALL_TOOLS.filter((t) => allowedTools.includes(t.name))
+        ? ALL_TOOLS.filter(
+            (t) =>
+              allowedTools.includes(t.name) ||
+              (isCarmen && t.name === "get_carmen_skins"),
+          )
         : ALL_TOOLS;
     const toolPoolBeforeRouting = filteredTools;
 
@@ -15244,6 +15422,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
       systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${CONNECTIONS_STANDING}`;
+      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
+        {
+          tier: devEscalationTier,
+          // WhatsApp and the video studio chat show assistant text as plain text.
+          markdownImages:
+            surface !== "whatsapp" &&
+            !(
+              Array.isArray(requestedTaskSkills) &&
+              requestedTaskSkills.includes("creative_studio")
+            ),
+          inWorkshop,
+        },
+      )}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===
@@ -15355,6 +15546,40 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // a rule was just persisted and can acknowledge it briefly without re-saving.
     if (instructionCaptured) {
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
+    }
+
+    // In the workshop the user's yes or no answers the dev task Carmen offered in her previous
+    // message, and only when that message asked about it: a yes names the task, so she approves
+    // and sends that one (workshopDevTaskRefusal checks it again); a no cancels it.
+    const workshopUserText = String(command_text ?? "");
+    const devTaskYes = isExplicitDevTaskApproval(workshopUserText);
+    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(workshopUserText);
+    if (
+      isCarmen &&
+      inWorkshopRequest &&
+      canEscalateDevFixes &&
+      serverConversationId &&
+      request.authKind === "user" &&
+      surface === "internal_chat" &&
+      (devTaskYes || devTaskNo) &&
+      offersDevTask(lastAssistantText(conversation_history))
+    ) {
+      const offeredTask = await findOfferedDevTask(supabase, {
+        tenantId: resolvedTenantId,
+        conversationId: serverConversationId,
+        turnStartedAt,
+      });
+      if (offeredTask && devTaskYes)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
+      else if (
+        offeredTask &&
+        (await declineOfferedDevTask(supabase, {
+          tenantId: resolvedTenantId,
+          taskId: offeredTask.id,
+          actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
+        }))
+      )
+        systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
     }
 
     // ─── WhatsApp Meta approval flow (smooth confirm → execute) ───
@@ -15728,6 +15953,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const runsInternal = !brainEngine || brainEngine.fallbackInternal;
     const llmChain: LLMTarget[] = brainEngine
       ? [
           ...brainEngine.targets,
@@ -15736,6 +15962,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             : []),
         ]
       : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
+    // Carmen's own engine ends on the tenant's OpenRouter brain, read only once the chain
+    // runs out, so a missing or refused provider key continues there instead of failing.
+    const extendChain = lazyBrainTail<LLMTarget>(
+      llmChain,
+      runsInternal ? internalTail : undefined,
+    );
+    if (llmChain.length === 0) await extendChain();
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15836,22 +16069,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, or any body signalling exhausted balance/quota, triggers failover.
-        const outOfCredit =
-          res.status === 429 ||
-          /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-            err,
-          );
-        // A connected brain may also fail on size, model or auth; any failure
-        // moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
+        // triggers failover. A connected brain may also fail on size, model or auth; any
+        // failure moves on, and the chain holds only what this brain plan allowed.
         if (
-          (outOfCredit || !!llm.connectionId) &&
-          activeIdx < llmChain.length - 1
+          movesToNextLink(res.status, err, !!llm.connectionId) &&
+          (activeIdx < llmChain.length - 1 || (await extendChain()))
         ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason = res.status === 429 ? "מגבלת קצב/קרדיט" : "קרדיט נגמר";
+          const reason =
+            res.status === 429
+              ? "מגבלת קצב/קרדיט"
+              : res.status === 401 || res.status === 403
+                ? "המפתח נדחה"
+                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
@@ -16005,7 +16238,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 viewClientId: inWorkshop
                   ? workshopClientIdFrom(bodyJson)
                   : null,
+                workshopDevTasks: inWorkshop
+                  ? {
+                      turnStartedAt,
+                      // The user's own message in the app chat, not a service call.
+                      appChatUser:
+                        request.authKind === "user" &&
+                        surface === "internal_chat",
+                      lastAssistantText:
+                        lastAssistantText(conversation_history),
+                    }
+                  : null,
+                lastAssistant: lastAssistantText(conversation_history),
               },
+              request.origin ?? null,
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
@@ -16542,9 +16788,19 @@ Deno.serve(async (req) => {
     if (denied) return denied;
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
+  // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
+  // that brain's own access rules.
+  const internalTail = () => openRouterTail(guardClient, auth, bodyJson);
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
+    return await handleRunAgent(
+      bodyJson,
+      surface,
+      undefined,
+      brainEngine,
+      { authKind: auth.kind, origin: req.headers.get("origin") },
+      internalTail,
+    );
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16560,7 +16816,17 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
+        const resp = await handleRunAgent(
+          bodyJson,
+          surface,
+          emit,
+          brainEngine,
+          {
+            authKind: auth.kind,
+            origin: req.headers.get("origin"),
+          },
+          internalTail,
+        );
         let final: any = {};
         try {
           final = await resp.json();

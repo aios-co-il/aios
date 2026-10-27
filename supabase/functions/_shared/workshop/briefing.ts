@@ -13,7 +13,7 @@ import {
   STYLE_CHOICES,
   type Choice,
 } from "./briefing-choices.ts";
-import { unanswered, type BriefAnswers } from "./brief-answers.ts";
+import { answerFor, unanswered, type BriefAnswers } from "./brief-answers.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -67,7 +67,7 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   const hasBible = input.look.bible.trim().length > 0;
   const answers = input.answers ?? {};
   const answered = (choices: Choice[]) =>
-    choices.some((choice) => Boolean(answers[choice.label]));
+    choices.some((choice) => Boolean(answerFor(answers, choice.label)));
   const userStyle = answered(STYLE_CHOICES[input.kind]);
   const styleOk =
     input.needsStyle === false ||

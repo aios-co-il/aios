@@ -1,8 +1,10 @@
 import { syncClientAssets } from "../assets.ts";
+import { withBriefAnswers } from "../brief-answers.ts";
 import { type StartProjectPlan, planProject } from "../defaults.ts";
 import { publicUrlOf } from "../project-io.ts";
 import { creativeStageFor, recordArtifact } from "../record.ts";
 import { briefPayload } from "../scene-helpers.ts";
+import { tappedAnswers } from "../tapped-answers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { VIEW_CLIENT_DENIED, startProjectClient } from "../view-client.ts";
 
@@ -64,7 +66,12 @@ export async function workshopStartProject(ctx: ToolContext) {
       title: plan.title,
       status: "draft",
       target_channel: plan.projectType === "video" ? "video" : "creative",
-      payload: briefPayload(plan, brief),
+      // Taps on questions Carmen asked before the project existed start its brief, so the
+      // briefing does not ask them again.
+      payload: withBriefAnswers(
+        briefPayload(plan, brief),
+        tappedAnswers(deps.lastAssistant ?? "", deps.userText ?? ""),
+      ),
       created_by: userId,
     })
     .select("id")

@@ -43,15 +43,15 @@ serve(async (req) => {
       dry_run = false,
     } = await req.json().catch(() => ({}));
 
-    // Cron and the service role may sweep every tenant. A signed-in user may
-    // only publish one entry or one work item of a tenant they belong to.
+    // Only cron sweeps every tenant. The service role must name one entry or
+    // work item; a signed-in user, one of a tenant they belong to.
     let scopeTenantId: string | null = null;
     if (!isCron) {
       const auth = await requireAuth(req);
       if (!auth) return respond({ error: "Unauthorized" }, 401);
+      if (!entry_id && !work_item_id)
+        return respond({ error: "entry_id or work_item_id required" }, 400);
       if (auth.kind === "user") {
-        if (!entry_id && !work_item_id)
-          return respond({ error: "entry_id or work_item_id required" }, 400);
         const { data: target } = entry_id
           ? await admin
               .from("seo_geo_calendar_entries")

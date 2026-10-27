@@ -18,6 +18,7 @@ const NEW_PROJECT_DEPARTMENTS: DepartmentId[] = [
   "seo",
   "social",
   "web",
+  "campaigns",
 ];
 
 const siteHref = (url: string) =>

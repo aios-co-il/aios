@@ -96,10 +96,15 @@ export function useWorkshopClientCard(clientId: string) {
     };
   });
 
+  // Only articles on PBN sites: publishing_articles also holds client WordPress and custom-API posts.
   const pbn = useBlock("pbn-month", clientId, async () => {
     const { count, error } = await supabase
       .from("publishing_articles")
-      .select("id", { count: "exact", head: true })
+      .select("id, publishing_sites!inner(destination_type)", {
+        count: "exact",
+        head: true,
+      })
+      .eq("publishing_sites.destination_type", "pbn")
       .eq("client_id", clientId)
       .eq("status", "published")
       .gte("published_at", startOfMonth(new Date()).toISOString());

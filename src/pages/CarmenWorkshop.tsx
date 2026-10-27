@@ -135,12 +135,12 @@ export default function CarmenWorkshop() {
     queryKey: ["carmen-workshop-projects", tenantId, clientParam],
     queryFn: tenantId
       ? async (): Promise<WorkshopListRow[]> => {
-          const { data, error } = await supabase.rpc(
-            "workshop_list_projects" as never,
-            { p_tenant_id: tenantId, p_client: clientParam } as never,
-          );
+          const { data, error } = await supabase.rpc("workshop_list_projects", {
+            p_tenant_id: tenantId,
+            p_client: clientParam,
+          });
           if (error) throw error;
-          return (data ?? []) as unknown as WorkshopListRow[];
+          return data ?? [];
         }
       : skipToken,
   });
@@ -212,10 +212,11 @@ export default function CarmenWorkshop() {
       hasBoard: boolean;
     }) => {
       // One assign path for every department; the RPC refuses moving an SEO or social project.
-      const { error } = await supabase.rpc(
-        "workshop_assign_client" as never,
-        { p_item_id: itemId, p_client_id: clientId } as never,
-      );
+      // An omitted p_client_id defaults to null in SQL: unassign.
+      const { error } = await supabase.rpc("workshop_assign_client", {
+        p_item_id: itemId,
+        p_client_id: clientId ?? undefined,
+      });
       if (error) throw error;
       // Only a workshop board has an assets tab to fill with the client's material.
       const synced = hasBoard

@@ -30,6 +30,9 @@ const OUTSIDE_TOOLS = [
   "update_calendar_invite",
   "cancel_calendar_invite",
   "join_meeting_for_client",
+  // Task updates and collaborators WhatsApp the task's staff (trigger-automation).
+  "add_task_update",
+  "manage_task_collaborators",
   // Creates or changes ad campaigns, ads and budgets on Meta and Google Ads.
   "toggle_facebook_campaign",
   "update_facebook_budget",
@@ -70,6 +73,11 @@ const OUTSIDE_TOOLS = [
   "delegate_parallel",
   "delegate_to_manus",
   "send_message_to_manus",
+  // Starts a goal loop that a background worker runs later.
+  "create_autonomous_goal",
+  "create_execution_goal",
+  // Sends a CRM task to Cursor at once; in the workshop a dev task waits for the user's yes.
+  "assign_task_to_cursor",
 ];
 
 const WORKSHOP_BLOCKED_TOOLS = new Set([...APPROVAL_TOOLS, ...OUTSIDE_TOOLS]);
@@ -80,11 +88,14 @@ const APPROVAL_TOOL_SET = new Set(APPROVAL_TOOLS);
  * send, publish or change things, and none of them goes through the workshop's approval.
  */
 const MCP_TOOL_PREFIX = "mcp_";
+/** Hand-offs to subagents and outside agents (Manus, the GitHub agent) run outside the board. */
+const DELEGATE_TOOL_PREFIX = "delegate_";
 
 export const isBlockedInWorkshop = (toolName: string, inWorkshop: boolean) =>
   inWorkshop &&
   (WORKSHOP_BLOCKED_TOOLS.has(toolName) ||
-    toolName.startsWith(MCP_TOOL_PREFIX));
+    toolName.startsWith(MCP_TOOL_PREFIX) ||
+    toolName.startsWith(DELEGATE_TOOL_PREFIX));
 
 /** The tool result Carmen gets when she calls a blocked tool from the workshop. */
 export function workshopBlockedResult(toolName: string) {
