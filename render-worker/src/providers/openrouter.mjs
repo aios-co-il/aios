@@ -170,7 +170,8 @@ export function openRouterProvider({ apiKey, model, fetchImpl = fetch } = {}) {
           status: "succeeded",
           bytes: new Uint8Array(await video.arrayBuffer()),
           // What OpenRouter actually charged; the run records it instead of the estimate.
-          ...(Number.isFinite(cost) && cost >= 0 ? { costUsd: cost } : {}),
+          // A job not priced yet reads 0: the run keeps its estimate then.
+          ...(Number.isFinite(cost) && cost > 0 ? { costUsd: cost } : {}),
         };
       }
       if (["failed", "cancelled", "canceled", "expired"].includes(data.status))

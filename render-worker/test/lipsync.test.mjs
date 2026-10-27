@@ -721,13 +721,16 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
     await import("../src/providers/lipsync.mjs");
   const body = heygenLipsyncBody({
     imageUrl: "https://p.supabase.co/sign/still.png",
-    audioUrl: "https://p.supabase.co/sign/voice.audio",
-    prompt: 'Carmen speaks "שלום".',
+    audioUrl: "https://p.supabase.co/sign/voice.mp3",
+    line: "שלום",
+    motionPrompt: "She raises one eyebrow and smiles.",
     aspect: "9:16",
   });
+  // The prompt is only the line, so even read as a script it says the right words; the
+  // scene's own movement goes to Avatar IV's motion_prompt.
   expect(body).toStrictEqual({
     model: "heygen/avatar-iv",
-    prompt: 'Carmen speaks "שלום".',
+    prompt: "שלום",
     resolution: "1080p",
     aspect_ratio: "9:16",
     input_references: [
@@ -737,10 +740,19 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
       },
       {
         type: "audio_url",
-        audio_url: { url: "https://p.supabase.co/sign/voice.audio" },
+        audio_url: { url: "https://p.supabase.co/sign/voice.mp3" },
       },
     ],
+    provider: {
+      options: {
+        heygen: { motion_prompt: "She raises one eyebrow and smiles." },
+      },
+    },
   });
+  // No movement written: no passthrough at all.
+  expect(
+    heygenLipsyncBody({ imageUrl: "a", audioUrl: "b", line: "שלום" }).provider,
+  ).toBe(undefined);
   // Avatar IV renders 16:9, 9:16 and 1:1 only.
   expect(
     heygenLipsyncBody({ ...body, imageUrl: "a", audioUrl: "b", aspect: "4:5" })
@@ -760,8 +772,8 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
   expect(provider.estimate({ durationS: 3.2 }).usd).toBe(0.2);
   const { jobId } = await provider.submit({
     imageUrl: "https://p.supabase.co/sign/still.png",
-    audioUrl: "https://p.supabase.co/sign/voice.audio",
-    prompt: "p",
+    audioUrl: "https://p.supabase.co/sign/voice.mp3",
+    line: "שלום",
     aspect: "9:16",
   });
   expect(jobId).toBe("hg-1");
@@ -769,6 +781,12 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
   const done = await provider.poll("hg-1");
   expect(done.status).toBe("succeeded");
   expect(done.costUsd).toBe(0.2);
+  // A job OpenRouter has not priced yet (cost 0) reports no cost, so the estimate stands.
+  const unpriced = heygenLipsyncProvider({
+    apiKey: "or-key",
+    fetchImpl: fakeOpenRouterFetch(0),
+  });
+  expect((await unpriced.poll("hg-1")).costUsd).toBe(undefined);
 });
 
 test("HeyGen comes before the Veo fallback, and a refused plan moves the line on to it", async () => {
@@ -779,7 +797,10 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
   ).toStrictEqual(["elevenlabs", "heygen", "openrouter"]);
   // A line in the chosen voice (Yael): never Veo, which speaks in its own voice.
   const db = fakeDb({
-    scene: { meta: { ...talkingMeta, chosen_voice: true } },
+    scene: {
+      meta: { ...talkingMeta, chosen_voice: true },
+      motion_prompt: "She leans toward the camera and raises one eyebrow.",
+    },
   });
   const sent = [];
   const result = await generateLipsync({
@@ -811,8 +832,13 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
   expect(image.image_url.url).toMatch(
     /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-still-r1\.png$/,
   );
+  // The voice copy is named by its real type, so a provider that reads the extension takes it.
   expect(audio.audio_url.url).toMatch(
-    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-audio-r1\.audio$/,
+    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-audio-r1\.mp3$/,
+  );
+  expect(sent[0].prompt).toBe(LINE);
+  expect(sent[0].provider.options.heygen.motion_prompt).toBe(
+    "She leans toward the camera and raises one eyebrow.",
   );
   // The run records what OpenRouter charged, not the estimate.
   expect(result.costUsd).toBe(0.21);

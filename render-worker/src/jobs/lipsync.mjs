@@ -124,7 +124,7 @@ export async function generateLipsync({
   const scene = await loadRunScene(
     db,
     run,
-    "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,meta",
+    "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,motion_prompt,meta",
   );
   if (!isTalkingScene(scene))
     throw finalError(
@@ -180,6 +180,7 @@ export async function generateLipsync({
             voice,
             line,
             speaker: String(scene.meta?.speaker ?? "").trim() || null,
+            motionPrompt: scene.motion_prompt,
             durationS,
             aspect,
           });
@@ -255,11 +256,13 @@ async function providerInput(
   run,
   item,
   provider,
-  { picture, voice, line, speaker, durationS, aspect },
+  { picture, voice, line, speaker, motionPrompt, durationS, aspect },
 ) {
   const audioBytes = await loadFile(db, run.tenant_id, voice.url);
   const input = {
     prompt: `${speaker || "The character"} speaks this exact audio line to the camera with natural lip sync: "${line}". No text, no letters, no logos.`,
+    line,
+    motionPrompt,
     durationS,
     aspect,
     audioBytes,
@@ -269,11 +272,13 @@ async function providerInput(
   if (provider.needsPublicMedia) {
     // Stored files are private: hand the provider fresh signed links of copies in the tenant folder.
     const base = `${item.folder}/${safeSegment(run.scene_id)}`;
+    // Named by its real type: a provider may read the format from the link.
+    const audioType = audioMime(audioBytes);
     const audioPath = assertTenantPath(
       run.tenant_id,
-      `${base}/lipsync-audio-${safeSegment(run.id)}.audio`,
+      `${base}/lipsync-audio-${safeSegment(run.id)}.${audioType === "audio/wav" ? "wav" : "mp3"}`,
     );
-    await db.upload(BUCKET, audioPath, audioBytes, audioMime(audioBytes));
+    await db.upload(BUCKET, audioPath, audioBytes, audioType);
     input.audioUrl = await db.sign(BUCKET, audioPath, 3600);
     if (provider.needs === "video") {
       input.videoUrl = await db.sign(

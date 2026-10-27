@@ -5,7 +5,8 @@
 //   submit(input)            -> { jobId }
 //   poll(jobId)              -> { status: "pending" | "succeeded" | "failed", url?, bytes?,
 //                                 costUsd?, error? }  (costUsd: what the provider charged)
-// input: { imageBytes, imageUrl, audioBytes, audioUrl, videoUrl, prompt, durationS, aspect }
+// input: { imageBytes, imageUrl, audioBytes, audioUrl, videoUrl, prompt, line, motionPrompt,
+//          durationS, aspect }
 // `needs` says which picture the provider animates: "image" (the still) or "video" (the clip).
 //
 // Request shapes come from the published docs cited on each provider. None has been
@@ -214,12 +215,21 @@ export const HEYGEN_LIPSYNC_MODEL = "heygen/avatar-iv";
  * https://openrouter.ai/heygen/avatar-iv · https://openrouter.ai/api/v1/videos/models
  * Same key, job API and poll as the OpenRouter scene engine. Verify with one paid call.
  */
-export function heygenLipsyncBody({ imageUrl, audioUrl, prompt, aspect }) {
+export function heygenLipsyncBody({
+  imageUrl,
+  audioUrl,
+  line,
+  motionPrompt,
+  aspect,
+}) {
   if (!imageUrl) throw new Error("heygen lipsync needs a public image url");
   if (!audioUrl) throw new Error("heygen lipsync needs the voice line");
+  const motion = String(motionPrompt ?? "").trim();
   return {
     model: HEYGEN_LIPSYNC_MODEL,
-    prompt,
+    // The model can also voice a text script: the prompt is the line alone, so it can never
+    // say other words than the voice file.
+    prompt: line,
     resolution: "1080p",
     // Avatar IV renders 16:9, 9:16 and 1:1.
     aspect_ratio: ["16:9", "9:16", "1:1"].includes(aspect) ? aspect : "9:16",
@@ -227,6 +237,10 @@ export function heygenLipsyncBody({ imageUrl, audioUrl, prompt, aspect }) {
       { type: "image_url", image_url: { url: imageUrl } },
       { type: "audio_url", audio_url: { url: audioUrl } },
     ],
+    // The skin's own movement while she speaks (Avatar IV's motion_prompt passthrough).
+    ...(motion
+      ? { provider: { options: { heygen: { motion_prompt: motion } } } }
+      : {}),
   };
 }
 
