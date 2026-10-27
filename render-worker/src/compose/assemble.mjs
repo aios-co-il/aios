@@ -2,6 +2,14 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
+import {
+  END_CARD_S,
+  ctaFontPx,
+  ctaLines,
+  endCardBackground,
+  endCardTextFilters,
+  hasEndCard,
+} from "./end-card.mjs";
 import { MIX, WHOOSH_LEAD } from "./workshop-edit.mjs";
 
 const ffmpeg = (args) =>
@@ -146,6 +154,87 @@ async function segment(timeline, scene, index, dir) {
   return output;
 }
 
+/**
+ * The closing card as a segment: the brand colour, the logo, the call to action wrapped into at
+ * most three centred lines (drawtext shapes the Hebrew right to left) and the website, in silence.
+ */
+const RLM = "‏";
+
+async function endCardSegment(timeline, index, dir) {
+  const brand = timeline.brand;
+  const { width, height } = timeline;
+  const lines = ctaLines(brand.ctaText);
+  const lineFiles = [];
+  for (const [line, text] of lines.entries()) {
+    const file = join(dir, `cta-${line}.txt`);
+    // A right-to-left mark first: a line that opens with a number ("1000 הנרשמים") still
+    // reads right to left.
+    await writeFile(file, `${RLM}${text}`);
+    lineFiles.push(file);
+  }
+  let urlFile = null;
+  if (brand.ctaUrl) {
+    urlFile = join(dir, "cta-url.txt");
+    await writeFile(urlFile, String(brand.ctaUrl).slice(0, 120));
+  }
+  // ffmpeg cannot draw an SVG logo: the card then shows the call to action alone.
+  const logo =
+    brand.logoPath && !/\.svg$/i.test(brand.logoPath) ? brand.logoPath : null;
+  const text = endCardTextFilters({
+    lineFiles,
+    urlFile,
+    fontPx: ctaFontPx(lines, { width, height }),
+    width,
+    height,
+    accent: brand.primaryColor,
+    fontFile: FONT(),
+    centreShare: logo ? 0.62 : 0.5,
+  });
+  const duration = END_CARD_S.toFixed(3);
+  const background = `color=c=${endCardBackground(brand)}:s=${width}x${height}:r=${timeline.fps}:d=${duration}`;
+  const graph = logo
+    ? `[1:v]scale=${Math.round(width * 0.58)}:${Math.round(height * 0.24)}:force_original_aspect_ratio=decrease[logo];[0:v][logo]overlay=x=(W-w)/2:y=H*0.34-h/2${text.length ? `,${text.join(",")}` : ""},fade=t=in:st=0:d=0.4[v]`
+    : `[0:v]${text.length ? `${text.join(",")},` : ""}fade=t=in:st=0:d=0.4[v]`;
+  const output = join(dir, `seg-${index}.mp4`);
+  await ffmpeg([
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    background,
+    ...(logo ? ["-i", logo] : []),
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=channel_layout=stereo:sample_rate=48000",
+    "-filter_complex",
+    graph,
+    "-map",
+    "[v]",
+    "-map",
+    `${logo ? 2 : 1}:a`,
+    "-t",
+    duration,
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    String(timeline.fps),
+    "-c:a",
+    "aac",
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
+    output,
+  ]);
+  return output;
+}
+
 const TAIL_S = 0.5;
 
 /**
@@ -245,6 +334,11 @@ export async function assembleFilm(timeline, outputPath) {
       ),
     );
   }
+  // The closing card (logo, call to action, website) after the last scene.
+  const scenesS = lengths.reduce((sum, length) => sum + length, 0);
+  const endCard = hasEndCard(timeline.brand);
+  if (endCard)
+    segments.push(await endCardSegment(timeline, segments.length, dir));
   const list = join(dir, "list.txt");
   await writeFile(
     list,
@@ -271,7 +365,7 @@ export async function assembleFilm(timeline, outputPath) {
   const cues = fallbackEffectCues(lengths, {
     whoosh: Boolean(timeline.effects?.whooshPath),
     impact: Boolean(timeline.effects?.impactPath),
-    endCardS: timeline.endCardS ?? null,
+    endCardS: endCard ? scenesS : null,
   });
   if (!timeline.narrationPath && !timeline.musicPath && !cues.length) {
     await ffmpeg([
@@ -287,7 +381,7 @@ export async function assembleFilm(timeline, outputPath) {
     ]);
     return outputPath;
   }
-  const duration = lengths.reduce((sum, length) => sum + length, 0).toFixed(3);
+  const duration = (scenesS + (endCard ? END_CARD_S : 0)).toFixed(3);
   const inputs = ["-i", picture];
   const filters = [];
   const beds = [];

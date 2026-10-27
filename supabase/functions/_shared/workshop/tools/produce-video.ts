@@ -195,7 +195,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
   const ctaText =
     typeof args.cta_text === "string"
-      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 60)
+      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
       : "";
   const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
   // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and

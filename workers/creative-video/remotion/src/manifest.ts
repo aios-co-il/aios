@@ -99,6 +99,8 @@ export type WorkshopBrand = {
   logo?: string | null;
   fontFamily?: string | null;
   ctaText?: string | null;
+  /** ctaText in reading order, one entry per line (at most three). */
+  ctaLines?: string[] | null;
   ctaUrl?: string | null;
 };
 export type WorkshopScene = {

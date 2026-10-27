@@ -728,16 +728,21 @@ Deno.test(
       )) as Record<string, any>;
       const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
         ?.value as Record<string, any>;
-      const saved = db.calls
+      const payload = db.calls
         .filter((c) => c.table === "marketing_work_items" && c.op === "update")
-        .map((c) => (c.value as Record<string, any>).payload?.video)
-        .filter(Boolean)
+        .map((c) => (c.value as Record<string, any>).payload)
+        .filter((saved) => saved?.video)
         .pop();
-      return { result, rpc, saved };
+      return { result, rpc, saved: payload.video, payload };
     };
+    const waitlist =
+      "הירשמו לרשימת ההמתנה — 1000 הנרשמים הראשונים יקבלו את חבילת הבסיס בחינם לכל החיים!";
     const trailer = await run(
       "סגנון: כרמן מציגה את המערכת. מוזיקה: מוזיקת טריילר אקשן, לא מוגזם.",
+      { cta_text: waitlist },
     );
+    // The whole sentence reaches the end card, which wraps it into lines.
+    assertStrictEquals(trailer.payload.cta_text, waitlist);
     assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);

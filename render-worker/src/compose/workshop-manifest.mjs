@@ -1,6 +1,7 @@
 /** The edit Remotion renders. A mock clip is a still with a zoom, so the
  * composition animates the still. A real video clip is placed on the timeline as-is. */
 import { brandColor, brandFont } from "./brand.mjs";
+import { MAX_CTA_CHARS, ctaLines } from "./end-card.mjs";
 import { lineFrames } from "./line-sync.mjs";
 import {
   captionChunks,
@@ -68,13 +69,15 @@ function brandOf(brand, files) {
     ctaText:
       String(brand.ctaText ?? "")
         .trim()
-        .slice(0, 60) || null,
+        .slice(0, MAX_CTA_CHARS) || null,
     ctaUrl:
       String(brand.ctaUrl ?? "")
         .trim()
         .slice(0, 120) || null,
   };
-  return Object.values(out).some(Boolean) ? out : null;
+  if (!Object.values(out).some(Boolean)) return null;
+  // A whole-sentence call to action is shown in up to three balanced lines (end-card.mjs).
+  return out.ctaText ? { ...out, ctaLines: ctaLines(out.ctaText) } : out;
 }
 
 /**

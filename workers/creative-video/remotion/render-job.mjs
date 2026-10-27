@@ -233,7 +233,12 @@ if (manifest.schemaVersion === 1) {
         : null,
       logo: b.logo ? await stageFile(root, publicDir, b.logo) : null,
       fontFamily: FONT.test(b.fontFamily ?? "") ? b.fontFamily : null,
-      ctaText: b.ctaText ? text(b.ctaText, 60) : null,
+      ctaText: b.ctaText ? text(b.ctaText, 120) : null,
+      // The call to action already wrapped into at most three lines.
+      ctaLines:
+        Array.isArray(b.ctaLines) && b.ctaLines.length
+          ? b.ctaLines.slice(0, 3).map((line) => text(line, 120))
+          : null,
       ctaUrl: b.ctaUrl ? text(b.ctaUrl, 120) : null,
     };
   }

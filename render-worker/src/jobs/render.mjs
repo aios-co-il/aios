@@ -283,7 +283,8 @@ export async function renderFilm({
       : null;
     const remotion = process.env.REMOTION_DISABLE !== "1";
     const settings = await loadFilmSettings(db, run);
-    const brand = remotion ? settings.brand : null;
+    // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
+    const brand = settings.brand;
     // Trailer sound design: made once per film; without it the film renders as before.
     const effects = settings.soundDesign
       ? await makeEffects({
