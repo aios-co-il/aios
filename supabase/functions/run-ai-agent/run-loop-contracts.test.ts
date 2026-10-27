@@ -1,6 +1,9 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { readWaChatScope, readWaNotifyTarget } from "./wa-notify.ts";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  readWaChatScope,
+  readWaNotifyTarget,
+  type WaNotifyTarget,
+} from "./wa-notify.ts";
 import {
   firstChoiceMessage,
   isChatCompletionMessage,
@@ -15,202 +18,240 @@ import {
   readConversationTurns,
 } from "./run-request.ts";
 
-test("request body keeps typed fields and treats wrongly typed values as absent", () => {
-  const body = parseRunAgentRequest({
-    agent_id: 42,
-    command_text: "hello",
-    temperature: 0.4,
-    tenant_id: "tenant-1",
-    lead_data: { phone: "0501234567", channel: "whatsapp_private" },
-    task_skills: ["copywriter", 7, "seo"],
-    conversation_history: [{ role: "user", content: "hi" }],
-    pin_skills_only: true,
-    stream: "yes",
-    wa_notify: {
-      surface: "whatsapp",
+Deno.test(
+  "request body keeps typed fields and treats wrongly typed values as absent",
+  () => {
+    const body = parseRunAgentRequest({
+      agent_id: 42,
+      command_text: "hello",
+      temperature: 0.4,
       tenant_id: "tenant-1",
-      automation_id: null,
-      connection_user_id: "u1",
-      chat_id: "972@c.us",
-      phone_number: null,
-      is_group: false,
-    },
-    carmen_automation: ["not", "an", "object"],
-    context_metadata: { source: "command_center_sidebar" },
-  });
-  assert.equal(body.agent_id, undefined);
-  assert.equal(body.command_text, "hello");
-  assert.equal(body.temperature, 0.4);
-  assert.equal(body.tenant_id, "tenant-1");
-  assert.deepEqual(body.lead_data, {
-    phone: "0501234567",
-    channel: "whatsapp_private",
-  });
-  assert.deepEqual(body.task_skills, ["copywriter", "seo"]);
-  assert.deepEqual(body.conversation_history, [
-    { role: "user", content: "hi" },
-  ]);
-  assert.equal(body.pin_skills_only, true);
-  assert.equal(body.stream, undefined);
-  assert.equal(body.wa_notify?.chat_id, "972@c.us");
-  assert.equal(body.wa_notify?.is_group, false);
-  assert.equal(body.carmen_automation, undefined);
-  assert.deepEqual(body.context_metadata, { source: "command_center_sidebar" });
-  assert.equal(body.direct_tool, undefined);
-});
+      lead_data: { phone: "0501234567", channel: "whatsapp_private" },
+      task_skills: ["copywriter", 7, "seo"],
+      conversation_history: [{ role: "user", content: "hi" }],
+      pin_skills_only: true,
+      stream: "yes",
+      wa_notify: {
+        surface: "whatsapp",
+        tenant_id: "tenant-1",
+        automation_id: null,
+        connection_user_id: "u1",
+        chat_id: "972@c.us",
+        phone_number: null,
+        is_group: false,
+      },
+      carmen_automation: ["not", "an", "object"],
+      context_metadata: { source: "command_center_sidebar" },
+    });
+    assertStrictEquals(body.agent_id, undefined);
+    assertStrictEquals(body.command_text, "hello");
+    assertStrictEquals(body.temperature, 0.4);
+    assertStrictEquals(body.tenant_id, "tenant-1");
+    assertEquals(body.lead_data, {
+      phone: "0501234567",
+      channel: "whatsapp_private",
+    });
+    assertEquals(body.task_skills, ["copywriter", "seo"]);
+    assertEquals(body.conversation_history, [{ role: "user", content: "hi" }]);
+    assertStrictEquals(body.pin_skills_only, true);
+    assertStrictEquals(body.stream, undefined);
+    assertStrictEquals(body.wa_notify?.chat_id, "972@c.us");
+    assertStrictEquals(body.wa_notify?.is_group, false);
+    assertStrictEquals(body.carmen_automation, undefined);
+    assertEquals(body.context_metadata, { source: "command_center_sidebar" });
+    assertStrictEquals(body.direct_tool, undefined);
+  },
+);
 
-test("non-object bodies parse as empty and any truthy direct_tool is a direct call", () => {
-  assert.deepEqual(
-    Object.values(parseRunAgentRequest(null)).filter((v) => v !== undefined),
-    [],
-  );
-  assert.deepEqual(parseRunAgentRequest({ direct_tool: true }).direct_tool, {
-    action: undefined,
-    caller: undefined,
-    approval_id: undefined,
-    approved_by: undefined,
-    name: undefined,
-    args: undefined,
-  });
-  assert.equal(parseRunAgentRequest({ direct_tool: 0 }).direct_tool, undefined);
-  const call = parseRunAgentRequest({
-    direct_tool: { action: "call", name: "list_clients", args: { q: "a" } },
-  }).direct_tool;
-  assert.equal(call?.action, "call");
-  assert.deepEqual(call?.args, { q: "a" });
-});
+Deno.test(
+  "non-object bodies parse as empty and any truthy direct_tool is a direct call",
+  () => {
+    assertEquals(
+      Object.values(parseRunAgentRequest(null)).filter((v) => v !== undefined),
+      [],
+    );
+    assertEquals(parseRunAgentRequest({ direct_tool: true }).direct_tool, {
+      action: undefined,
+      caller: undefined,
+      approval_id: undefined,
+      approved_by: undefined,
+      name: undefined,
+      args: undefined,
+    });
+    assertStrictEquals(
+      parseRunAgentRequest({ direct_tool: 0 }).direct_tool,
+      undefined,
+    );
+    const call = parseRunAgentRequest({
+      direct_tool: { action: "call", name: "list_clients", args: { q: "a" } },
+    }).direct_tool;
+    assertStrictEquals(call?.action, "call");
+    assertEquals(call?.args, { q: "a" });
+  },
+);
 
-test("conversation turns keep user/assistant entries and stringify content", () => {
-  assert.deepEqual(
-    readConversationTurns([
-      { role: "user", content: "hi" },
-      { role: "system", content: "x" },
-      null,
-      { role: "assistant", content: 5 },
-      { role: "assistant" },
-    ]),
-    [
-      { role: "user", content: "hi" },
-      { role: "assistant", content: "5" },
-      { role: "assistant", content: "" },
-    ],
-  );
-  assert.deepEqual(readConversationTurns({ role: "user" }), []);
-});
+Deno.test(
+  "conversation turns keep user/assistant entries and stringify content",
+  () => {
+    assertEquals(
+      readConversationTurns([
+        { role: "user", content: "hi" },
+        { role: "system", content: "x" },
+        null,
+        { role: "assistant", content: 5 },
+        { role: "assistant" },
+      ]),
+      [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "5" },
+        { role: "assistant", content: "" },
+      ],
+    );
+    assertEquals(readConversationTurns({ role: "user" }), []);
+  },
+);
 
-test("embedded names are read only from objects with a string name", () => {
-  assert.equal(embeddedName({ name: "Acme" }), "Acme");
-  assert.equal(embeddedName(null), undefined);
-  assert.equal(embeddedName("column 'type' does not exist"), undefined);
-});
+Deno.test(
+  "embedded names are read only from objects with a string name",
+  () => {
+    assertStrictEquals(embeddedName({ name: "Acme" }), "Acme");
+    assertStrictEquals(embeddedName(null), undefined);
+    assertStrictEquals(embeddedName("column 'type' does not exist"), undefined);
+  },
+);
 
-test("chat completion messages keep provider fields and reject malformed tool calls", () => {
-  const message = {
-    role: "assistant",
-    content: null,
-    reasoning_content: "kept",
-    tool_calls: [
-      { id: "c1", type: "function", function: { name: "a", arguments: "{}" } },
-    ],
-  };
-  const data = { choices: [{ message }], usage: { input_tokens: 3 } };
-  assert.equal(firstChoiceMessage(data), message);
-  assert.equal(isChatCompletionMessage(message), true);
-  assert.equal(
-    isChatCompletionMessage({ content: "x", tool_calls: null }),
-    true,
-  );
-  assert.equal(isChatCompletionMessage({ tool_calls: {} }), false);
-  assert.equal(isChatCompletionMessage({ tool_calls: [{ id: "c" }] }), false);
-  assert.equal(isChatCompletionMessage("text"), false);
-  assert.equal(firstChoiceMessage({ choices: [] }), undefined);
-  assert.equal(firstChoiceMessage(null), undefined);
-  assert.deepEqual(readChatUsage(data), { input: 3, output: 0 });
-  assert.deepEqual(
-    readChatUsage({
-      usage: { prompt_tokens: 0, input_tokens: 9, completion_tokens: 4 },
-    }),
-    { input: 0, output: 4 },
-  );
-  assert.equal(readChatUsage({}), null);
-});
+Deno.test(
+  "chat completion messages keep provider fields and reject malformed tool calls",
+  () => {
+    const message = {
+      role: "assistant",
+      content: null,
+      reasoning_content: "kept",
+      tool_calls: [
+        {
+          id: "c1",
+          type: "function",
+          function: { name: "a", arguments: "{}" },
+        },
+      ],
+    };
+    const data = { choices: [{ message }], usage: { input_tokens: 3 } };
+    assertStrictEquals(firstChoiceMessage(data), message);
+    assertStrictEquals(isChatCompletionMessage(message), true);
+    assertStrictEquals(
+      isChatCompletionMessage({ content: "x", tool_calls: null }),
+      true,
+    );
+    assertStrictEquals(isChatCompletionMessage({ tool_calls: {} }), false);
+    assertStrictEquals(
+      isChatCompletionMessage({ tool_calls: [{ id: "c" }] }),
+      false,
+    );
+    assertStrictEquals(isChatCompletionMessage("text"), false);
+    assertStrictEquals(firstChoiceMessage({ choices: [] }), undefined);
+    assertStrictEquals(firstChoiceMessage(null), undefined);
+    assertEquals(readChatUsage(data), { input: 3, output: 0 });
+    assertEquals(
+      readChatUsage({
+        usage: { prompt_tokens: 0, input_tokens: 9, completion_tokens: 4 },
+      }),
+      { input: 0, output: 4 },
+    );
+    assertStrictEquals(readChatUsage({}), null);
+  },
+);
 
-test("tool arguments parse JSON objects and fall back to an empty object", () => {
-  assert.deepEqual(parseToolArguments('{"query":"x","limit":3}'), {
-    query: "x",
-    limit: 3,
-  });
-  assert.deepEqual(parseToolArguments(undefined), {});
-  assert.deepEqual(parseToolArguments(""), {});
-  assert.deepEqual(parseToolArguments("{bad"), {});
-  assert.deepEqual(parseToolArguments({ query: "x" }), {});
-});
+Deno.test(
+  "tool arguments parse JSON objects and fall back to an empty object",
+  () => {
+    assertEquals(parseToolArguments('{"query":"x","limit":3}'), {
+      query: "x",
+      limit: 3,
+    });
+    assertEquals(parseToolArguments(undefined), {});
+    assertEquals(parseToolArguments(""), {});
+    assertEquals(parseToolArguments("{bad"), {});
+    assertEquals(parseToolArguments({ query: "x" }), {});
+  },
+);
 
-test("tool results expose the fields the run loop reads", () => {
-  assert.deepEqual(readToolResult("done"), {});
-  assert.deepEqual(readToolResult(null), {});
+Deno.test("tool results expose the fields the run loop reads", () => {
+  assertEquals(readToolResult("done"), {});
+  assertEquals(readToolResult(null), {});
   const view = readToolResult({
     success: true,
     whatsapp_digest: " d ",
     ui_action: { button: "x" },
   });
-  assert.equal(view.success, true);
-  assert.equal(view.whatsapp_digest, " d ");
-  assert.deepEqual(view.ui_action, { button: "x" });
-  assert.equal(view.error, undefined);
+  assertStrictEquals(view.success, true);
+  assertStrictEquals(view.whatsapp_digest, " d ");
+  assertEquals(view.ui_action, { button: "x" });
+  assertStrictEquals(view.error, undefined);
 });
 
-test("tool results serialize for jsonb exactly as JSON.stringify would", () => {
-  assert.equal(toJson(undefined), undefined);
-  assert.deepEqual(toJson({ a: 1, b: undefined, c: [1, undefined] }), {
-    a: 1,
-    c: [1, null],
-  });
-  assert.equal(toJson(new Date(0)), "1970-01-01T00:00:00.000Z");
-});
+Deno.test(
+  "tool results serialize for jsonb exactly as JSON.stringify would",
+  () => {
+    assertStrictEquals(toJson(undefined), undefined);
+    assertEquals(toJson({ a: 1, b: undefined, c: [1, undefined] }), {
+      a: 1,
+      c: [1, null],
+    });
+    assertStrictEquals(toJson(new Date(0)), "1970-01-01T00:00:00.000Z");
+  },
+);
 
-test("readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones", () => {
-  const target = {
-    surface: "whatsapp",
-    tenant_id: "t1",
-    automation_id: null,
-    connection_user_id: "u1",
-    chat_id: "123@g.us",
-    phone_number: null,
-    is_group: true,
-  };
-  assert.deepEqual(readWaNotifyTarget(target), target);
-  assert.equal(readWaNotifyTarget(undefined), undefined);
-  assert.equal(readWaNotifyTarget(null), null);
-  assert.equal(readWaNotifyTarget({ ...target, surface: "email" }), null);
-  assert.equal(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
-  assert.equal(readWaNotifyTarget(["x"]), null);
-});
+Deno.test(
+  "readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones",
+  () => {
+    const target: WaNotifyTarget = {
+      surface: "whatsapp",
+      tenant_id: "t1",
+      automation_id: null,
+      connection_user_id: "u1",
+      chat_id: "123@g.us",
+      phone_number: null,
+      is_group: true,
+    };
+    assertEquals(readWaNotifyTarget(target), target);
+    assertStrictEquals(readWaNotifyTarget(undefined), undefined);
+    assertStrictEquals(readWaNotifyTarget(null), null);
+    assertStrictEquals(
+      readWaNotifyTarget({ ...target, surface: "email" }),
+      null,
+    );
+    assertStrictEquals(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
+    assertStrictEquals(readWaNotifyTarget(["x"]), null);
+  },
+);
 
-test("a partial WhatsApp target keeps its chat scope while delivery is dropped", () => {
-  const body = parseRunAgentRequest({
-    wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us" },
-  });
-  assert.equal(body.wa_notify, null);
-  assert.deepEqual(body.wa_chat_scope, {
-    chat_id: "972501234567@c.us",
-    is_group: null,
-  });
-});
+Deno.test(
+  "a partial WhatsApp target keeps its chat scope while delivery is dropped",
+  () => {
+    const body = parseRunAgentRequest({
+      wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us" },
+    });
+    assertStrictEquals(body.wa_notify, null);
+    assertEquals(body.wa_chat_scope, {
+      chat_id: "972501234567@c.us",
+      is_group: null,
+    });
+  },
+);
 
-test("readWaChatScope marks WhatsApp requests without a usable chat id as unknown", () => {
-  assert.equal(readWaChatScope(undefined), null);
-  assert.equal(readWaChatScope(null), null);
-  assert.deepEqual(readWaChatScope({ surface: "whatsapp" }), {
-    chat_id: null,
-    is_group: null,
-  });
-  assert.deepEqual(
-    readWaChatScope({ chat_id: 972501234567, is_group: false }),
-    {
+Deno.test(
+  "readWaChatScope marks WhatsApp requests without a usable chat id as unknown",
+  () => {
+    assertStrictEquals(readWaChatScope(undefined), null);
+    assertStrictEquals(readWaChatScope(null), null);
+    assertEquals(readWaChatScope({ surface: "whatsapp" }), {
+      chat_id: null,
+      is_group: null,
+    });
+    assertEquals(readWaChatScope({ chat_id: 972501234567, is_group: false }), {
       chat_id: "972501234567",
       is_group: false,
-    },
-  );
-  assert.equal(parseRunAgentRequest({}).wa_chat_scope, undefined);
-});
+    });
+    assertStrictEquals(parseRunAgentRequest({}).wa_chat_scope, undefined);
+  },
+);
