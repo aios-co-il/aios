@@ -7,36 +7,47 @@
  */
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import type { DbClient } from "../supabase-clients.ts";
-import { decideInstantAlertDelivery } from "./instant-alert-dedupe.ts";
-
-type OtherTenantLogRow = {
-  tenant_id?: string | null;
-  recipient_phone?: string | null;
-  fingerprint?: string | null;
-  severity_score?: number | string | null;
-};
+import {
+  decideInstantAlertDelivery,
+  recentAlertDeliveries,
+} from "./instant-alert-dedupe.ts";
 
 /**
- * `recipients` minus the phones another org already sent this finding to
- * inside the rule's throttle window.
+ * `recipients` minus the phones an org sharing the client's agency with this
+ * org already sent this finding to inside the rule's throttle window. A
+ * failed lookup alerts everyone: a duplicate beats a missed alert, and this
+ * org's own dedupe has already run.
  */
 export async function withoutPhonesAlertedElsewhere<
   Recipient extends { phone: string },
 >(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
+  agencyId: string | null | undefined,
   recipients: Recipient[],
   throttleHours: number,
   now: Date,
 ): Promise<Recipient[]> {
-  const rows = await otherTenantDeliveries(
-    input,
+  const peerTenantIds = await tenantsSharingAgency(input, agencyId);
+  if (!peerTenantIds.length) {
+    return recipients;
+  }
+  const { data, error } = await recentAlertDeliveries(
+    input.supabase,
+    peerTenantIds,
     candidate,
     throttleHours,
     now,
   );
+  if (error) {
+    console.error(
+      "[pulse-instant-alerts] cross-org dedupe lookup failed",
+      error.message,
+    );
+    return recipients;
+  }
   const alerted = new Set<string>();
-  for (const row of rows) {
+  for (const row of data) {
     if (decideInstantAlertDelivery(candidate, [row]).send) {
       continue;
     }
@@ -50,38 +61,38 @@ export async function withoutPhonesAlertedElsewhere<
 }
 
 /**
- * Other orgs' log rows of this client + rule (+ campaign) inside the throttle
- * window, newest first. Own-org rows are left to isInstantAlertSuppressed. A
- * failed lookup returns none, so everyone is alerted: a duplicate beats a
- * missed alert, and this org's own dedupe has already run.
+ * The other orgs on this org's own grants of the agency (agency_tenant_access,
+ * this org on either side), so the cross-org log read stays inside orgs this
+ * org shares the client with (TENANT_ISOLATION.md). An unshared agency has
+ * none, and then no log read runs.
  */
-async function otherTenantDeliveries(
+async function tenantsSharingAgency(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
-  candidate: PulseInstantAlertCandidate,
-  throttleHours: number,
-  now: Date,
-): Promise<OtherTenantLogRow[]> {
-  const since = new Date(
-    now.getTime() - throttleHours * 60 * 60 * 1000,
-  ).toISOString();
-  let query = input.supabase
-    .from("pulse_instant_alert_log")
-    .select("tenant_id, recipient_phone, fingerprint, severity_score")
-    .eq("client_id", candidate.client_id)
-    .eq("rule_type", candidate.rule_type)
-    .gte("sent_at", since)
-    .order("sent_at", { ascending: false })
-    .limit(50);
-  if (candidate.campaign_key) {
-    query = query.eq("campaign_key", candidate.campaign_key);
+  agencyId: string | null | undefined,
+): Promise<string[]> {
+  if (!agencyId) {
+    return [];
   }
-  const { data, error } = await query;
+  const { data, error } = await input.supabase
+    .from("agency_tenant_access")
+    .select("source_tenant_id, accessing_tenant_id")
+    .eq("agency_id", agencyId)
+    .or(
+      `source_tenant_id.eq.${input.tenantId},accessing_tenant_id.eq.${input.tenantId}`,
+    );
   if (error) {
     console.error(
-      "[pulse-instant-alerts] cross-org dedupe lookup failed",
+      "[pulse-instant-alerts] shared-agency lookup failed",
       error.message,
     );
     return [];
   }
-  return (data || []).filter((row) => row.tenant_id !== input.tenantId);
+  const peers = new Set(
+    data.flatMap((grant) => [
+      grant.source_tenant_id,
+      grant.accessing_tenant_id,
+    ]),
+  );
+  peers.delete(input.tenantId);
+  return Array.from(peers);
 }

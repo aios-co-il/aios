@@ -436,6 +436,32 @@ export async function deliverInstantPulseAlerts(input: {
       continue;
     }
 
+    const agencyId = input.snapshots.find(
+      (snapshot) => snapshot.client_id === candidate.client_id,
+    )?.agency_id;
+    const tenantRecipients = await resolveInstantAlertRecipients(
+      input.supabase,
+      input.tenantId,
+      candidate.client_id,
+      agencyId,
+      input.pulsePhone,
+      input.tenantSlug,
+    );
+    // Before the AI check, so a campaign_exception everyone already got from
+    // another org costs no AI call.
+    const recipients = await withoutPhonesAlertedElsewhere(
+      input,
+      candidate,
+      agencyId,
+      tenantRecipients,
+      throttleHours,
+      now,
+    );
+    if (!recipients.length) {
+      skipped += 1;
+      continue;
+    }
+
     if (candidate.rule_type === "campaign_exception") {
       // AI is never used during collection or trend calculation. It receives
       // only a deterministic exception candidate and may veto the notification.
@@ -454,49 +480,34 @@ export async function deliverInstantPulseAlerts(input: {
       candidate.evidence = confirmed.evidence;
     }
 
-    const tenantRecipients = await resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      input.snapshots.find(
-        (snapshot) => snapshot.client_id === candidate.client_id,
-      )?.agency_id,
-      input.pulsePhone,
-      input.tenantSlug,
-    );
-    const recipients = await withoutPhonesAlertedElsewhere(
-      input,
-      candidate,
-      tenantRecipients,
-      throttleHours,
-      now,
-    );
-    if (!recipients.length) {
-      skipped += 1;
-      continue;
-    }
-
-    let delivered = false;
+    // Only phones whose send was queued: the other org's dedupe reads them.
+    const deliveredPhones: string[] = [];
     for (const recipient of recipients) {
-      const queued = await input.queueWhatsApp(
-        candidate.message,
-        recipient.phone,
-      );
-      if (queued) delivered = true;
+      if (await input.queueWhatsApp(candidate.message, recipient.phone)) {
+        deliveredPhones.push(recipient.phone);
+      }
     }
-    if (delivered) {
+    if (deliveredPhones.length) {
       sent += 1;
-      await input.supabase.from("pulse_instant_alert_log").insert({
-        tenant_id: input.tenantId,
-        client_id: candidate.client_id,
-        rule_type: candidate.rule_type,
-        message: candidate.message,
-        recipient_phone: recipients.map((row) => row.phone).join(","),
-        campaign_key: candidate.campaign_key || null,
-        fingerprint: candidate.fingerprint || null,
-        severity_score: candidate.severity_score || null,
-        evidence: candidate.evidence || {},
-      });
+      const { error } = await input.supabase
+        .from("pulse_instant_alert_log")
+        .insert({
+          tenant_id: input.tenantId,
+          client_id: candidate.client_id,
+          rule_type: candidate.rule_type,
+          message: candidate.message,
+          recipient_phone: deliveredPhones.join(","),
+          campaign_key: candidate.campaign_key || null,
+          fingerprint: candidate.fingerprint || null,
+          severity_score: candidate.severity_score || null,
+          evidence: candidate.evidence || {},
+        });
+      if (error) {
+        console.error(
+          "[pulse-instant-alerts] alert log insert failed; the next run resends",
+          error.message,
+        );
+      }
     } else {
       skipped += 1;
     }
