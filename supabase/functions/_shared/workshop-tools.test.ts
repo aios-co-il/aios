@@ -2147,6 +2147,57 @@ Deno.test(
 );
 
 Deno.test(
+  "an uploaded picture the user names as the logo becomes the project's logo",
+  async () => {
+    const db = fakeDb({
+      ...project,
+      "workshop_assets:select": [
+        {
+          id: "a-1",
+          asset_type: "image",
+          url: "https://files.test/wordmark.png",
+        },
+      ],
+    });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_add_assets",
+      {
+        item_id: "item-1",
+        assets: [
+          {
+            kind: "image",
+            url: "https://files.test/wordmark.png",
+            use_as_logo: true,
+          },
+        ],
+      },
+      async () => {},
+      null,
+      {
+        importImage: async () => {
+          throw new Error("an uploaded picture is not imported again");
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(result.logo_url, "https://files.test/wordmark.png");
+    assertMatch(result.message, /הלוגו נשמר לפרויקט/);
+    const saved = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as Record<string, any>).payload);
+    assertStrictEquals(
+      saved[saved.length - 1].logo_url,
+      "https://files.test/wordmark.png",
+    );
+    const inserted = db.calls.filter(
+      (c) => c.table === "workshop_assets" && c.op === "insert",
+    );
+    assertStrictEquals(inserted.length, 0);
+  },
+);
+
+Deno.test(
   "pictures given to a tool as references also appear in the assets tab",
   async () => {
     const db = fakeDb({

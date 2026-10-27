@@ -107,6 +107,11 @@ export const WORKSHOP_TOOLS = [
               text: { type: "string", description: "תוכן בריף לסוג text" },
               title: { type: "string" },
               use_as_reference: { type: "boolean" },
+              use_as_logo: {
+                type: "boolean",
+                description:
+                  "true לתמונה שהמשתמש אמר שהיא הלוגו של המותג (גם תמונה שכבר בלשונית הנכסים, לפי ה-url שלה): נשמרת כלוגו של הפרויקט ומופיעה בסגיר הסרט.",
+              },
             },
             required: ["kind"],
           },
