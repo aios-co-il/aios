@@ -632,6 +632,41 @@ Deno.test(
 );
 
 Deno.test(
+  "skin_switch marks each cut to another skin, kept beside the talking scene's meta",
+  async () => {
+    const db = materials();
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_edit_from_assets",
+      { ...editArgs, skin_switch: true },
+    )) as Row;
+    assertStrictEquals(result.success, true, JSON.stringify(result));
+    const scenes = db.tables.marketing_video_scenes;
+    assertEquals(scenes[0].meta, {});
+    assertEquals(scenes[1].meta, {
+      lipsync: true,
+      speaker: editArgs.speaker[1],
+      dialogue: editArgs.dialogue[1],
+      chosen_voice: true,
+      skin_switch: true,
+    });
+    assertStrictEquals(scenes[2].meta.skin_switch, true);
+    assertStrictEquals(scenes[2].meta.chosen_voice, true);
+    // One scene turned back to a plain cut, for free and without re-animating it.
+    const changed = await update(db, {
+      scene_id: scenes[2].id,
+      skin_switch: false,
+    });
+    assertEquals(changed.changed, ["skin_switch"]);
+    assertStrictEquals(changed.clip_redo, undefined);
+    assertStrictEquals(changed.scene.skin_switch, false);
+    assertStrictEquals(scenes[2].meta.skin_switch, false);
+    assertStrictEquals(scenes[2].meta.chosen_voice, true);
+  },
+);
+
+Deno.test(
   "a film from the user's pictures keeps the project's format",
   async () => {
     for (const format of ["9:16", "16:9"]) {

@@ -386,6 +386,11 @@ export const WORKSHOP_TOOLS = [
           type: "boolean",
           description: "true כדי להנפיש מחדש רק את הסצנה הזו בהפקה הבאה",
         },
+        skin_switch: {
+          type: "boolean",
+          description:
+            "true: המעבר לסצנה הזו מחליף את הלוק של אותה דמות (למשל לסקין אחר של כרמן) ומקבל מעבר החלפת סקין (הבזק, פופ וסוויפ של אור). false: מעבר רגיל. בלי עלות, נכנס בהרכבה הבאה.",
+        },
       },
       required: ["item_id"],
     },

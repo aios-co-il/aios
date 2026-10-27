@@ -123,3 +123,35 @@ Deno.test(
     assertStrictEquals(spokenSeconds(Array(60).fill("מילה").join(" ")), 15);
   },
 );
+
+Deno.test(
+  "skin_switch marks the cuts between the pictures, for the film or per scene",
+  () => {
+    const pictures = [
+      asset("i1", "image"),
+      asset("i2", "image"),
+      asset("i2", "image"),
+      asset("v1", "video"),
+    ];
+    // One boolean for the film: every cut to another picture, never the first scene.
+    assertEquals(
+      planEditScenes(pictures, { skin_switch: true }).map((s) => s.skinSwitch),
+      [null, true, false, true],
+    );
+    assertEquals(
+      planEditScenes(pictures, { skin_switch: false }).map((s) => s.skinSwitch),
+      [null, false, false, false],
+    );
+    // Per scene, as asked; without it the film decides.
+    assertEquals(
+      planEditScenes(pictures, { skin_switch: [false, true, null] }).map(
+        (s) => s.skinSwitch,
+      ),
+      [false, true, null, null],
+    );
+    assertEquals(
+      planEditScenes(pictures, {}).map((s) => s.skinSwitch),
+      [null, null, null, null],
+    );
+  },
+);

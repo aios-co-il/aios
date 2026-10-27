@@ -17,7 +17,7 @@ const LINK_SECONDS = 7 * 24 * 60 * 60;
 export const EDIT_TOOL = {
   name: "workshop_edit_from_assets",
   description:
-    "עורכת סרט מהחומרים של המשתמש: כל סרטון או תמונה שהועלו ללשונית הנכסים של הפרויקט הופכים לסצנה, לפי הסדר. סרטון נכנס כמו שהוא, ותמונה מקבלת תנועה בסרט (motion) או הנפשה במנוע בתשלום בהפקה. אפשר לתת לכל סצנה כותרת, כיתוב, קריינות, תנועה ואורך. סצנה מדברת: כשהמשתמש מבקש שהדמות בתמונה תדבר למצלמה (למשל כל סקין מציגה את עצמה), מעבירים לסצנה lipsync=true ו-dialogue עם המשפט שלה, ו-speaker. הדמות בתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט (workshop_choose_voice), ולא בקול של המנוע. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונה שהומצאה. כל המערכים לפי סדר הסצנות. הפורמט נשאר של הפרויקט (סרט לרילס הוא 9:16), ותמונה בגודל אחר ממלאת את המסך בחיתוך, בלי מתיחה. לא עולה כסף. כשהמשתמש ביקש לאשר את התסריט לפני: הציגי לו את הסצנות והמשפטים ועצרי עד שהוא מאשר, ורק אז workshop_produce_video מרכיב את הסרט.",
+    "עורכת סרט מהחומרים של המשתמש: כל סרטון או תמונה שהועלו ללשונית הנכסים של הפרויקט הופכים לסצנה, לפי הסדר. סרטון נכנס כמו שהוא, ותמונה מקבלת תנועה בסרט (motion) או הנפשה במנוע בתשלום בהפקה. אפשר לתת לכל סצנה כותרת, כיתוב, קריינות, תנועה ואורך. סצנה מדברת: כשהמשתמש מבקש שהדמות בתמונה תדבר למצלמה (למשל כל סקין מציגה את עצמה), מעבירים לסצנה lipsync=true ו-dialogue עם המשפט שלה, ו-speaker. הדמות בתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט (workshop_choose_voice), ולא בקול של המנוע. כשכל תמונה היא לוק אחר של אותה דמות (הסקינים של כרמן), skin_switch=true בכל סצנה שעוברת ללוק אחר. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונה שהומצאה. כל המערכים לפי סדר הסצנות. הפורמט נשאר של הפרויקט (סרט לרילס הוא 9:16), ותמונה בגודל אחר ממלאת את המסך בחיתוך, בלי מתיחה. לא עולה כסף. כשהמשתמש ביקש לאשר את התסריט לפני: הציגי לו את הסצנות והמשפטים ועצרי עד שהוא מאשר, ורק אז workshop_produce_video מרכיב את הסרט.",
   parameters: {
     type: "object",
     properties: {
@@ -68,6 +68,12 @@ export const EDIT_TOOL = {
         items: { type: "string" },
         description:
           "מי מדברת בכל סצנה, באנגלית, לפי הסדר (למשל Carmen, a 3D animated woman with long curly brown hair in a black blazer).",
+      },
+      skin_switch: {
+        type: "array",
+        items: { type: "boolean" },
+        description:
+          "מעבר החלפת סקין (הבזק, פופ וסוויפ של אור) לפי סדר הסצנות: true בסצנה שהמעבר אליה מחליף את הלוק של אותה דמות (למשל מסקין אחד של כרמן לאחר), false לבטל. לסצנה הראשונה אין מעבר.",
       },
       durations: {
         type: "array",
@@ -135,19 +141,26 @@ export async function buildEditScenes(
   }
   // A talking picture speaks in the project's chosen voice, never the engine's: the clip job
   // leaves its clip silent and the lip-sync pass makes the user's own picture say the line.
+  // A skin switch is kept in meta too (save_video_storyboard keeps only its own keys).
   const savedMeta = new Map(
     (Array.isArray(saved.data) ? saved.data : []).map(
       (row: Record<string, unknown>) => [String(row.id), asRecord(row.meta)],
     ),
   );
-  for (const scene of plan.filter((entry) => entry.talking)) {
+  for (const scene of plan.filter(
+    (entry) => entry.talking || entry.skinSwitch !== null,
+  )) {
     const meta = {
-      ...(savedMeta.get(scene.row.id) ?? {
-        lipsync: true,
-        speaker: scene.row.speaker ?? "",
-        dialogue: scene.row.dialogue ?? "",
-      }),
-      chosen_voice: true,
+      ...(savedMeta.get(scene.row.id) ??
+        (scene.talking
+          ? {
+              lipsync: true,
+              speaker: scene.row.speaker ?? "",
+              dialogue: scene.row.dialogue ?? "",
+            }
+          : {})),
+      ...(scene.talking ? { chosen_voice: true } : {}),
+      ...(scene.skinSwitch !== null ? { skin_switch: scene.skinSwitch } : {}),
     };
     const marked = await supabase
       .from("marketing_video_scenes")

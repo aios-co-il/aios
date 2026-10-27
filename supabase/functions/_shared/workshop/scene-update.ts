@@ -3,7 +3,7 @@
  * out what to write and what the change costs later, without touching the database.
  *
  * Free in itself. What a change makes the next workshop_produce_video do:
- *   - text on screen, narration, length, title: assembled again, nothing re-animated;
+ *   - text on screen, narration, length, title, skin switch: assembled again, nothing re-animated;
  *   - motion, or the talking line of a scene with a clip: that scene's clip only is made again
  *     (the scene trigger marks a motion change stale; a new line is marked here), priced in the
  *     production quote like any stale clip;
@@ -150,6 +150,15 @@ export function planSceneUpdate(
     changed.push("lipsync");
     metaChanged = true;
   }
+  // The cut into this scene as a skin switch (the Remotion film's flash), or not: assembly only.
+  if (
+    typeof args.skin_switch === "boolean" &&
+    args.skin_switch !== meta.skin_switch
+  ) {
+    nextMeta.skin_switch = args.skin_switch;
+    changed.push("skin_switch");
+    metaChanged = true;
+  }
   // A picture of the user's that starts talking says its line in the project's chosen voice.
   if (
     nextMeta.lipsync === true &&
@@ -208,6 +217,9 @@ export function sceneSummary(scene: SceneRow, number: number) {
     dialogue: String(meta.dialogue ?? ""),
     speaker: String(meta.speaker ?? ""),
     chosen_voice: meta.chosen_voice === true,
+    ...(typeof meta.skin_switch === "boolean"
+      ? { skin_switch: meta.skin_switch }
+      : {}),
     has_still: Boolean(scene.still_asset_id),
     has_clip: Boolean(scene.clip_asset_id),
     clip_outdated: scene.clip_stale === true,

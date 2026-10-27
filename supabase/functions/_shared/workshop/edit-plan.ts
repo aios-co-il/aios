@@ -3,7 +3,9 @@
  * into film scenes, one scene per item in the order asked. A video becomes the scene's clip; a
  * picture becomes its still, which the film moves with a camera move or an engine animates.
  * A picture can also be a talking scene: the character in it says a line to the camera in the
- * project's chosen voice, lip-synced (meta lipsync, speaker, dialogue, chosen_voice).
+ * project's chosen voice, lip-synced (meta lipsync, speaker, dialogue, chosen_voice). A cut
+ * into a picture of the same character in another look (Carmen's skins) can be a skin switch
+ * (meta skin_switch): the Remotion film flashes there (render-worker compose/skin-switch.mjs).
  */
 
 import type { AssetView } from "./assets.ts";
@@ -37,6 +39,8 @@ export interface EditScene {
   url: string | null;
   /** The character in the user's picture speaks its line in the chosen voice. */
   talking: boolean;
+  /** The cut into this scene is (true) or is not (false) a skin switch; null: the film decides. */
+  skinSwitch: boolean | null;
 }
 
 const text = (value: unknown) =>
@@ -60,6 +64,20 @@ const flagAt = (value: unknown, index: number): boolean | null =>
   Array.isArray(value) && typeof value[index] === "boolean"
     ? (value[index] as boolean)
     : null;
+
+/**
+ * skin_switch: one flag per scene, or one boolean for the film. true: every cut to another
+ * picture switches skin (the first scene and a repeated picture have no cut to flash).
+ */
+function skinSwitchAt(
+  value: unknown,
+  materials: AssetView[],
+  index: number,
+): boolean | null {
+  if (Array.isArray(value)) return flagAt(value, index);
+  if (typeof value !== "boolean" || index === 0) return null;
+  return value ? materials[index - 1].id !== materials[index].id : false;
+}
 
 /** Seconds a spoken line needs on screen. */
 export function spokenSeconds(line: string) {
@@ -85,7 +103,8 @@ export function pickMaterials(assets: AssetView[], ids: unknown): AssetView[] {
 
 /**
  * The scenes, by order of the materials. Per-scene arrays: titles, captions, voiceover, motion
- * (how the picture moves), durations (seconds), lipsync, dialogue and speaker. A picture talks
+ * (how the picture moves), durations (seconds), lipsync, dialogue, speaker and skin_switch (also
+ * one boolean for the whole film). A picture talks
  * when lipsync is true for it, or when it has a dialogue line and lipsync is not false; a
  * user's video never does (it has no still to lip-sync).
  */
@@ -142,6 +161,7 @@ export function planEditScenes(
       storagePath: asset.storage_path,
       url: asset.url,
       talking,
+      skinSwitch: skinSwitchAt(args.skin_switch, materials, index),
     };
   });
 }
