@@ -2,10 +2,13 @@
  * Trailer sound design for a film: a whoosh played at each scene cut and a low impact on the
  * opening title and on the end card. Made once per film with ElevenLabs sound effects (the
  * tenant's key), stored in the creative-video bucket and recorded as marketing_assets of type
- * sound_effect, so a later render of the same film reuses them. Within one render run each
- * effect is paid at most once: its path is recorded on the run as soon as it is stored, and a
- * failure after the provider charged is never retried. Without a working key, or when a call
- * fails, the film is rendered without effects and the run's output says why.
+ * sound_effect, so a later render of the same film reuses them. They are paid for only in the
+ * render of a production whose approved quote priced them (workshop_produce_video); any other
+ * render (the studio button, video_director) is free and only reuses stored effects. Within one
+ * render run each effect is paid at most once: its path and price are recorded on the run as
+ * soon as it is made, so a retry reuses it and still reports what the run paid, and a failure
+ * after the provider charged is never retried. Without a working key, or when a call fails, the
+ * film is rendered without effects and the run's output says why.
  */
 import { assertTenantPath, safeSegment } from "../guard.mjs";
 import {
@@ -36,9 +39,24 @@ const metaOf = (row) => {
   return meta && typeof meta === "object" ? meta : {};
 };
 
+/** Why a free render has no effects to reuse. */
+export const NOT_IN_PRODUCTION =
+  "אפקטי הסאונד נוצרים רק בהפקה (workshop_produce_video); הרכבה בלבד לא משלמת עליהם";
+
+/** What this run paid for its effects, across its attempts (output.sound_effects_cost_usd). */
+const paidByRun = (run) =>
+  Math.round(
+    NAMES.reduce(
+      (sum, name) =>
+        sum + (Number(run.output?.sound_effects_cost_usd?.[name]) || 0),
+      0,
+    ) * 10000,
+  ) / 10000;
+
 /**
  * The film's effects as storage paths ({ whoosh, impact }, either may be missing), what this
- * run paid for them, and the reason when some are missing.
+ * run paid for them (including an earlier attempt of the same run), and the reason when some
+ * are missing. Missing effects are made only when mayGenerate is true.
  */
 export async function filmSoundEffects({
   db,
@@ -46,6 +64,7 @@ export async function filmSoundEffects({
   item,
   resolveKey = async () => null,
   generate = generateSoundEffect,
+  mayGenerate = false,
   log = console.log,
 }) {
   const paths = {};
@@ -69,15 +88,22 @@ export async function filmSoundEffects({
     if (!paths[name] && typeof earlier[name] === "string")
       paths[name] = earlier[name];
   let missing = NAMES.filter((name) => !paths[name]);
-  if (missing.length === 0) return { paths, costUsd: 0, error: null };
+  if (missing.length === 0)
+    return { paths, costUsd: paidByRun(run), error: null };
   // A failure after the provider charged (or a refusal) is final for the run.
   if (run.output?.sound_effects_error)
-    return { paths, costUsd: 0, error: run.output.sound_effects_error };
+    return {
+      paths,
+      costUsd: paidByRun(run),
+      error: run.output.sound_effects_error,
+    };
+  if (!mayGenerate)
+    return { paths, costUsd: paidByRun(run), error: NOT_IN_PRODUCTION };
   const apiKey = await resolveKey().catch(() => null);
   if (!apiKey)
     return {
       paths,
-      costUsd: 0,
+      costUsd: paidByRun(run),
       error: "אין מפתח ElevenLabs לאפקטי סאונד",
     };
   const made = [];
@@ -99,6 +125,14 @@ export async function filmSoundEffects({
       break;
     }
     made.push(name);
+    // The provider charged: the price stays on the run even if storing fails below.
+    run.output = {
+      ...(run.output ?? {}),
+      sound_effects_cost_usd: {
+        ...(run.output?.sound_effects_cost_usd ?? {}),
+        [name]: soundEffectsCostUsd([name]),
+      },
+    };
     const path = assertTenantPath(
       run.tenant_id,
       `${item.folder}/sound-effects/${name}-${safeSegment(run.id)}.mp3`,
@@ -154,7 +188,7 @@ export async function filmSoundEffects({
   if (made.length) log(`[render] ${run.id} sound effects: ${made.join(", ")}`);
   return {
     paths,
-    costUsd: soundEffectsCostUsd(made),
+    costUsd: paidByRun(run),
     error: missing.length ? error : null,
   };
 }

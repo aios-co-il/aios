@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  NOT_IN_PRODUCTION,
   filmSoundEffects,
   soundEffectsCostUsd,
 } from "../src/jobs/sound-effects.mjs";
@@ -92,6 +93,7 @@ test("the film's effects are made once, stored, recorded on the run and priced",
     run: current,
     item,
     resolveKey: async () => "xi-key",
+    mayGenerate: true,
     generate: async (input) => {
       asked.push(input);
       return new Uint8Array([1, 2, 3]);
@@ -145,6 +147,7 @@ test("a later render reuses the film's effects, and a retry never pays twice", a
     run: run(),
     item,
     resolveKey: async () => "xi-key",
+    mayGenerate: true,
     generate,
   });
   expect(reused).toStrictEqual({
@@ -159,6 +162,7 @@ test("a later render reuses the film's effects, and a retry never pays twice", a
     run: run({ sound_effects: { impact: "t/from-attempt-1.mp3" } }),
     item,
     resolveKey: async () => "xi-key",
+    mayGenerate: true,
     generate,
   });
   expect(retried.paths).toStrictEqual({
@@ -171,6 +175,7 @@ test("a later render reuses the film's effects, and a retry never pays twice", a
     run: run({ sound_effects_error: "stored failed" }),
     item,
     resolveKey: async () => "xi-key",
+    mayGenerate: true,
     generate,
   });
   expect(stopped.error).toBe("stored failed");
@@ -183,6 +188,7 @@ test("without a working key the film has no effects and says why once", async ()
     run: run(),
     item,
     resolveKey: async () => null,
+    mayGenerate: true,
     generate: async () => {
       throw new Error("not called");
     },
@@ -198,6 +204,7 @@ test("without a working key the film has no effects and says why once", async ()
     run: current,
     item,
     resolveKey: async () => "xi-bad",
+    mayGenerate: true,
     generate: async () => {
       calls += 1;
       throw new Error(
@@ -216,10 +223,119 @@ test("without a working key the film has no effects and says why once", async ()
     run: run(),
     item,
     resolveKey: async () => "xi-key",
+    mayGenerate: true,
     generate: async () => new Uint8Array([1]),
     log: () => {},
   });
   expect(lost.error).toMatch(/לא נוצר שוב/);
   // The provider charged for the one it made.
   expect(lost.costUsd).toBe(soundEffectsCostUsd(["whoosh"]));
+});
+
+test("a render outside a production never pays: it reuses stored effects or goes without", async () => {
+  let paid = 0;
+  const generate = async () => {
+    paid += 1;
+    return new Uint8Array([1]);
+  };
+  const free = await filmSoundEffects({
+    db: effectsDb(),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    generate,
+  });
+  expect(free).toStrictEqual({
+    paths: {},
+    costUsd: 0,
+    error: NOT_IN_PRODUCTION,
+  });
+  const stored = await filmSoundEffects({
+    db: effectsDb({
+      assets: [
+        { url: "t/whoosh.mp3", meta: { effect: "whoosh", version: 1 } },
+        { url: "t/impact.mp3", meta: { effect: "impact", version: 1 } },
+      ],
+    }),
+    run: run(),
+    item,
+    resolveKey: async () => "xi-key",
+    generate,
+  });
+  expect(stored.error).toBe(null);
+  expect(stored.costUsd).toBe(0);
+  expect(paid).toBe(0);
+});
+
+test("a retry of the run still reports what its first attempt paid for the effects", async () => {
+  // Attempt 1 makes and stores both effects; the render then fails, and the worker requeues
+  // the run with the output that attempt wrote (finish() never wrote its cost_usd).
+  const first = effectsDb();
+  const attempt1 = run();
+  const made = await filmSoundEffects({
+    db: first,
+    run: attempt1,
+    item,
+    resolveKey: async () => "xi-key",
+    mayGenerate: true,
+    generate: async () => new Uint8Array([1, 2]),
+    log: () => {},
+  });
+  const both = soundEffectsCostUsd(["whoosh", "impact"]);
+  expect(made.costUsd).toBe(both);
+  const persisted = first.calls.updates.at(-1).patch.output;
+  expect(persisted.sound_effects_cost_usd).toStrictEqual({
+    whoosh: soundEffectsCostUsd(["whoosh"]),
+    impact: soundEffectsCostUsd(["impact"]),
+  });
+
+  let paid = 0;
+  const assets = first.calls.inserts.map(({ row }) => ({
+    url: row.url,
+    meta: row.meta,
+  }));
+  // The retry finds the effects as the film's assets and through the run's output alike.
+  for (const db of [effectsDb({ assets }), effectsDb()]) {
+    const retried = await filmSoundEffects({
+      db,
+      run: run(structuredClone(persisted)),
+      item,
+      resolveKey: async () => "xi-key",
+      mayGenerate: true,
+      generate: async () => {
+        paid += 1;
+        return new Uint8Array([1]);
+      },
+      log: () => {},
+    });
+    expect(retried.paths).toStrictEqual(made.paths);
+    expect(retried.costUsd).toBe(both);
+    expect(retried.error).toBe(null);
+  }
+  expect(paid).toBe(0);
+
+  // A charged effect that could not be stored keeps its price on the retry too.
+  const lostRun = run();
+  await filmSoundEffects({
+    db: effectsDb({ failUpload: true }),
+    run: lostRun,
+    item,
+    resolveKey: async () => "xi-key",
+    mayGenerate: true,
+    generate: async () => new Uint8Array([1]),
+    log: () => {},
+  });
+  const again = await filmSoundEffects({
+    db: effectsDb(),
+    run: run(structuredClone(lostRun.output)),
+    item,
+    resolveKey: async () => "xi-key",
+    mayGenerate: true,
+    generate: async () => {
+      paid += 1;
+      return new Uint8Array([1]);
+    },
+  });
+  expect(again.costUsd).toBe(soundEffectsCostUsd(["whoosh"]));
+  expect(paid).toBe(0);
 });
