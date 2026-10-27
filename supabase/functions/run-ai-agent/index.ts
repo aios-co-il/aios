@@ -8017,9 +8017,9 @@ async function executeTool(
 
       // 1. Update mood_status on client
       await setClientMoodStatus(supabase, {
+        tenantId,
         clientId: args.client_id,
         moodStatus: args.mood_status,
-        accessibleTenantIds,
       });
 
       // 2. Create communication_log entry
@@ -8204,9 +8204,9 @@ async function executeTool(
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
           await setClientMoodStatus(supabase, {
+            tenantId,
             clientId,
             moodStatus: mood,
-            accessibleTenantIds,
           });
           const commStatus =
             update.communication_status ||

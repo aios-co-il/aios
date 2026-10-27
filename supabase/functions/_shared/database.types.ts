@@ -16197,6 +16197,10 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_can_write_client: {
+        Args: { p_client: string; p_tenant: string };
+        Returns: boolean;
+      };
       try_acquire_manychat_destination_lock: {
         Args: { p_destination_key: string; p_ttl_seconds?: number };
         Returns: boolean;
