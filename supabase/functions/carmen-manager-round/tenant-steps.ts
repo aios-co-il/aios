@@ -72,6 +72,7 @@ export async function runSteps(
     recipients: once(async () =>
       resolveBriefRecipients(await staff(), sending),
     ),
+    state,
     floors,
     budget: run.sendBudget,
     dryRun,
@@ -87,6 +88,7 @@ export async function runSteps(
     collectors: collected.reports,
     routed: routed.decisions.length,
     gaps: routed.gaps.length,
+    gaps_dropped: routed.gapsDropped,
     brief,
     dispatch,
     preview,

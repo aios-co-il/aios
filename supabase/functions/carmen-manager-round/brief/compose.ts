@@ -1,10 +1,10 @@
 /**
- * The 08:00 morning brief (Sunday–Friday) for the brief recipients: at most
- * 15 lines, deterministic. Sections: what needs the reader's decision (up to
- * five items with short codes), the team's open items (team mode) and what
- * Carmen already did in the last 24 hours. Read-only: the short codes only
- * point at findings until a reply parser lets owners answer them (deferred;
- * the PR body carries its Linear id).
+ * The morning brief (BRIEF_CRON) for the brief recipients: at most
+ * BRIEF_MAX_LINES lines, deterministic. Sections: what needs the reader's
+ * decision (up to five items with short codes), the team's open items (team
+ * mode) and what Carmen already did in the last 24 hours. Read-only: the
+ * short codes point at findings in the app; a parser for replies to the brief
+ * is deferred.
  */
 import { APP_TIME_ZONE } from "../../_shared/calendarTimeZone.ts";
 import { firstName } from "../dispatch/message.ts";

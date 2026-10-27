@@ -37,7 +37,10 @@ export class RoundBudget {
     return this.remainingMs() >= ms;
   }
 
-  /** Takes one external API call (Meta, Google, OpenAI); false when none are left. */
+  /**
+   * Takes one external API call (the LLM calls of the chat and group update
+   * collectors, AIO-252 and AIO-254); false when none are left.
+   */
   takeApiCall(): boolean {
     if (this.#apiPool.left <= 0) {
       return false;

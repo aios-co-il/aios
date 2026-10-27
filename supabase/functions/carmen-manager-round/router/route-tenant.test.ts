@@ -1,5 +1,6 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
+import { withConsoleErrors } from "../../_shared/testing/console-errors.ts";
 import { deps } from "../tests/fakes.ts";
 import {
   delivery,
@@ -81,6 +82,17 @@ Deno.test("routeTenant", async (t) => {
         w.deliveries.map((d) => d.recipient_key),
         ["user:dana", "user:dana", "user:owner"],
       );
+    },
+  );
+
+  await t.step(
+    "reports the routing gaps the database did not store",
+    async () => {
+      const w = setup();
+      w.refused = { "client:c2": "rejected_client" };
+      const { result, logged } = await withConsoleErrors(() => route(w));
+      assertEquals(result.gapsDropped, { rejected_client: 1 });
+      assertStringIncludes(logged, '"collector":"router"');
     },
   );
 

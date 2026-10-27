@@ -4,16 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PulseAlertRulesButton } from "./PulseAlertRulesButton";
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@/hooks/useCurrentTenant", () => ({
-  useCurrentTenant: () => ({ tenantId: null }),
+// The viewer owns the tenant (carmen_manager_is_owner answers true).
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: () => Promise.resolve({ data: true, error: null }) },
 }));
-vi.mock("@/hooks/useUserRole", () => ({
-  useUserRole: () => ({
-    isOwner: true,
-    isAgencyOwner: false,
-    isSuperAdmin: false,
-  }),
+vi.mock("@/hooks/useCurrentTenant", () => ({
+  useCurrentTenant: () => ({ tenantId: "t1" }),
+}));
+vi.mock("@/components/pulse/manager-round/OpenFindingsList", () => ({
+  OpenFindingsList: () => null,
 }));
 
 /** Renders the button over `stored`, opens the dialog and saves; returns the save spy. */
@@ -27,7 +26,7 @@ async function openAndSave(stored: unknown) {
   await userEvent.click(
     screen.getByRole("button", { name: /ניהול חוקי התראות דופק/ }),
   );
-  await userEvent.click(screen.getByRole("radio", { name: /צוות מלא/ }));
+  await userEvent.click(await screen.findByRole("radio", { name: /צוות מלא/ }));
   await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
   return save;
 }

@@ -1,5 +1,5 @@
 -- Carmen manager round: findings store, rollout settings guard and the
--- 15-minute round cron (AIO-251; plan components C6, C7, C8 and C14).
+-- 15-minute round cron (AIO-251).
 --
 -- Nothing is sent by this migration. A tenant without settings runs in
 -- 'observe': the round records findings and the actions it would take, and
@@ -7,8 +7,10 @@
 -- the tenant owners); 'team' routes campaigner -> manager -> owner. Messages
 -- leave only through send-manus-wa-message (Carmen's own line, Staging guard).
 --
--- 1. heartbeat_logs: run_kind / status / stats / llm_calls / llm_cost_usd, so
---    a round run is told apart from the Carmen heartbeat (default run_kind).
+-- 1. heartbeat_logs: run_kind / status / stats, so a round run is told apart
+--    from the Carmen heartbeat (default run_kind), and llm_calls /
+--    llm_cost_usd for the LLM use of the chat (AIO-252) and group update
+--    (AIO-254) collectors.
 -- 2. carmen_findings: one row per live condition, deduplicated on
 --    (tenant_id, kind, fingerprint) over the live statuses, with a per-tenant
 --    short_code people can quote. carmen_finding_events is its audit trail,
@@ -19,6 +21,7 @@
 --    rate; managers and campaigners in scope may acknowledge, snooze, resolve.
 -- 4. Service-role RPCs used by carmen-manager-round: upsert, mark_missing,
 --    apply_route, claim/record deliveries, brief record, lease and slots.
+--    The upsert reports every candidate it does not store, with a NOTICE.
 -- 5. Settings guard on tenant_heartbeat_settings.pulse_alert_rules.manager:
 --    notify_since is stamped by the database the moment a mode (or a kind
 --    override) starts sending and cleared when it stops; a writer's own value
@@ -89,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.carmen_findings (
   round_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  -- The target of carmen_finding_deliveries' tenant-keyed foreign key.
+  -- The target of the events' and deliveries' tenant-keyed foreign keys.
   UNIQUE (tenant_id, id)
 );
 
@@ -127,7 +130,7 @@ COMMENT ON TABLE public.carmen_finding_counters IS
 CREATE TABLE IF NOT EXISTS public.carmen_finding_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  finding_id uuid NOT NULL REFERENCES public.carmen_findings(id) ON DELETE CASCADE,
+  finding_id uuid NOT NULL,
   event text NOT NULL CHECK (event IN (
     'detected', 'worsened', 'notified', 'acknowledged', 'snoozed',
     'escalated', 'resolved', 'dismissed', 'feedback'
@@ -136,7 +139,10 @@ CREATE TABLE IF NOT EXISTS public.carmen_finding_events (
   level smallint,
   note text CHECK (note IS NULL OR length(note) <= 1000),
   details jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  -- Like a delivery, an event belongs to a finding of its own tenant.
+  FOREIGN KEY (tenant_id, finding_id)
+    REFERENCES public.carmen_findings (tenant_id, id) ON DELETE CASCADE
 );
 
 COMMENT ON TABLE public.carmen_finding_events IS
@@ -172,7 +178,7 @@ CREATE TABLE IF NOT EXISTS public.carmen_finding_deliveries (
   round_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  -- A delivery belongs to a finding of its own tenant, and the plan key
+  -- A delivery belongs to a finding of its own tenant, and its unique key
   -- carries the tenant, so no writer can reach another tenant's row.
   FOREIGN KEY (tenant_id, finding_id)
     REFERENCES public.carmen_findings (tenant_id, id) ON DELETE CASCADE,
@@ -440,13 +446,21 @@ GRANT EXECUTE ON FUNCTION public.carmen_finding_set_status(uuid, text, text, tex
 
 -- ─── 6. Round RPCs (service role only) ──────────────────────────────────────
 
--- Upsert collector candidates. A live finding with the same
--- (tenant, kind, fingerprint) is only bumped (last_seen_at, occurrence_count,
--- latest evidence and summary; severity only rises, and a rise re-routes it).
--- A fingerprint dismissed in the last 14 days is not reopened. A client or
--- agency the tenant cannot reach (not its own, no agency access) is
--- rejected; a client's own agency always wins; an owner_user_id outside the
--- tenant is dropped (the router then picks the client's campaigner).
+-- Upsert collector candidates in a fixed number of set-based statements,
+-- whatever the batch size. Each candidate gets one outcome:
+-- 'inserted'; 'seen' (the live finding with the same tenant, kind and
+-- fingerprint is bumped: last_seen_at, occurrence_count, latest evidence and
+-- summary); 'worsened' (bumped, and its severity rose, which re-routes it);
+-- or a skip: 'invalid' (outside the carmen_findings CHECKs), 'duplicate'
+-- (the same kind and fingerprint earlier in the batch), 'rejected_client' /
+-- 'rejected_agency' (not the tenant's own and no agency access),
+-- 'suppressed' (dismissed in the last 14 days) or 'conflict' (a concurrent
+-- writer changed it first; the next run sees it again). Skips raise one
+-- NOTICE with their counts; the round logs and counts them too. A client's
+-- own agency always wins; an owner_user_id outside the tenant is dropped
+-- (the router then picks the client's campaigner). An unknown kind fails the
+-- call: collectors emit only FindingKind (kinds.ts). New findings take
+-- consecutive short codes from one counter bump; a conflict leaves a gap.
 -- Candidate keys: kind, fingerprint, severity, client_id, agency_id,
 -- source_event_at, summary_he, evidence, owner_user_id.
 CREATE OR REPLACE FUNCTION public.carmen_finding_upsert(
@@ -463,146 +477,157 @@ RETURNS TABLE (finding_id uuid, kind text, fingerprint text, short_code integer,
 AS $$
 #variable_conflict use_column
 DECLARE
-  c record;
-  v_rank_new integer;
-  v_existing record;
-  v_agency uuid;
-  v_owner uuid;
-  v_code integer;
-  v_id uuid;
+  v_outcomes jsonb;
+  v_skipped text;
 BEGIN
-  FOR c IN
-    SELECT x.* FROM jsonb_to_recordset(coalesce(p_candidates, '[]'::jsonb)) AS x(
+  WITH candidate AS (
+    SELECT o.n, x.kind, x.fingerprint, coalesce(x.severity, 'warning') AS severity,
+           x.client_id, x.agency_id, x.source_event_at, x.summary_he, x.evidence,
+           x.owner_user_id,
+           -- The carmen_findings CHECKs, so no insert or bump can fail.
+           x.kind IS NOT NULL
+             AND coalesce(length(x.fingerprint) BETWEEN 1 AND 300, false)
+             AND coalesce(length(x.summary_he) BETWEEN 1 AND 500, false)
+             AND coalesce(x.severity, 'warning') IN ('info', 'warning', 'critical') AS valid
+    FROM jsonb_array_elements(coalesce(p_candidates, '[]'::jsonb)) WITH ORDINALITY AS o(value, n)
+    CROSS JOIN LATERAL jsonb_to_record(o.value) AS x(
       kind text, fingerprint text, severity text, client_id uuid,
       agency_id uuid, source_event_at timestamptz, summary_he text,
       evidence jsonb, owner_user_id uuid)
-  LOOP
-    kind := c.kind;
-    fingerprint := c.fingerprint;
-    finding_id := NULL;
-    short_code := NULL;
-
-    IF coalesce(c.fingerprint, '') = '' OR coalesce(c.summary_he, '') = ''
-       OR coalesce(c.severity, 'warning') NOT IN ('info', 'warning', 'critical') THEN
-      outcome := 'invalid';
-      RETURN NEXT;
-      CONTINUE;
-    END IF;
-
-    v_agency := c.agency_id;
-    IF c.client_id IS NOT NULL THEN
-      SELECT cl.agency_id INTO v_agency
-      FROM public.clients AS cl
+  ), classified AS (
+    SELECT c.n, c.kind, c.fingerprint, c.severity, c.client_id,
+           c.source_event_at, c.summary_he, c.evidence,
+           CASE WHEN c.client_id IS NOT NULL THEN sc.agency_id ELSE c.agency_id END AS agency_id,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM public.user_roles AS ur
+             WHERE ur.user_id = c.owner_user_id AND ur.tenant_id = p_tenant_id
+           ) OR EXISTS (
+             SELECT 1 FROM public.tenant_users AS tu
+             WHERE tu.user_id = c.owner_user_id AND tu.tenant_id = p_tenant_id
+           ) THEN c.owner_user_id END AS owner_user_id,
+           live.id AS live_id,
+           array_position(ARRAY['info', 'warning', 'critical'], c.severity) AS rank_new,
+           array_position(ARRAY['info', 'warning', 'critical'], live.severity) AS rank_live,
+           CASE
+             WHEN NOT c.valid THEN 'invalid'
+             WHEN row_number() OVER (PARTITION BY c.valid, c.kind, c.fingerprint ORDER BY c.n) > 1
+               THEN 'duplicate'
+             WHEN c.client_id IS NOT NULL AND sc.id IS NULL THEN 'rejected_client'
+             WHEN c.client_id IS NULL AND c.agency_id IS NOT NULL AND sa.id IS NULL
+               THEN 'rejected_agency'
+             WHEN EXISTS (
+               SELECT 1 FROM public.carmen_findings AS f
+               WHERE f.tenant_id = p_tenant_id AND f.kind = c.kind
+                 AND f.fingerprint = c.fingerprint AND f.status = 'dismissed'
+                 AND f.resolved_at > now() - interval '14 days'
+             ) THEN 'suppressed'
+           END AS skip
+    FROM candidate AS c
+    LEFT JOIN LATERAL (
+      SELECT cl.id, cl.agency_id FROM public.clients AS cl
       WHERE cl.id = c.client_id
         AND (cl.tenant_id = p_tenant_id OR EXISTS (
           SELECT 1 FROM public.agency_tenant_access AS ata
-          WHERE ata.agency_id = cl.agency_id AND ata.accessing_tenant_id = p_tenant_id));
-      IF NOT FOUND THEN
-        outcome := 'rejected_client';
-        RETURN NEXT;
-        CONTINUE;
-      END IF;
-    ELSIF c.agency_id IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM public.agencies AS a
+          WHERE ata.agency_id = cl.agency_id AND ata.accessing_tenant_id = p_tenant_id))
+    ) AS sc ON true
+    LEFT JOIN LATERAL (
+      SELECT a.id FROM public.agencies AS a
       WHERE a.id = c.agency_id
         AND (a.tenant_id = p_tenant_id OR EXISTS (
           SELECT 1 FROM public.agency_tenant_access AS ata
           WHERE ata.agency_id = a.id AND ata.accessing_tenant_id = p_tenant_id))
-    ) THEN
-      outcome := 'rejected_agency';
-      RETURN NEXT;
-      CONTINUE;
-    END IF;
-
-    v_owner := c.owner_user_id;
-    IF v_owner IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM public.user_roles AS ur
-      WHERE ur.user_id = v_owner AND ur.tenant_id = p_tenant_id
-      UNION ALL
-      SELECT 1 FROM public.tenant_users AS tu
-      WHERE tu.user_id = v_owner AND tu.tenant_id = p_tenant_id
-    ) THEN
-      v_owner := NULL;
-    END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM public.carmen_findings AS f
-      WHERE f.tenant_id = p_tenant_id AND f.kind = c.kind
-        AND f.fingerprint = c.fingerprint AND f.status = 'dismissed'
-        AND f.resolved_at > now() - interval '14 days'
-    ) THEN
-      outcome := 'suppressed';
-      RETURN NEXT;
-      CONTINUE;
-    END IF;
-
-    v_rank_new := array_position(ARRAY['info', 'warning', 'critical'], c.severity);
-    SELECT f.id, f.short_code,
-           array_position(ARRAY['info', 'warning', 'critical'], f.severity) AS rank
-      INTO v_existing
-    FROM public.carmen_findings AS f
-    WHERE f.tenant_id = p_tenant_id AND f.kind = c.kind
-      AND f.fingerprint = c.fingerprint
+    ) AS sa ON true
+    LEFT JOIN public.carmen_findings AS live
+      ON live.tenant_id = p_tenant_id AND live.kind = c.kind
+     AND live.fingerprint = c.fingerprint
+     AND live.status IN ('open', 'notified', 'acknowledged', 'snoozed')
+  ), bumped AS (
+    -- Severity only rises, and a rise re-routes the finding at once.
+    UPDATE public.carmen_findings AS f
+    SET last_seen_at = now(),
+        occurrence_count = f.occurrence_count + 1,
+        missed_runs = 0,
+        evidence = coalesce(k.evidence, f.evidence),
+        summary_he = k.summary_he,
+        severity = CASE WHEN k.rank_new > k.rank_live THEN k.severity ELSE f.severity END,
+        next_action_at = CASE WHEN k.rank_new > k.rank_live THEN now() ELSE f.next_action_at END,
+        detector_version = coalesce(p_detector_version, f.detector_version),
+        round_id = p_round_id
+    FROM classified AS k
+    WHERE k.skip IS NULL AND f.id = k.live_id
       AND f.status IN ('open', 'notified', 'acknowledged', 'snoozed')
-    FOR UPDATE;
-
-    IF FOUND THEN
-      UPDATE public.carmen_findings AS f
-      SET last_seen_at = now(),
-          occurrence_count = f.occurrence_count + 1,
-          missed_runs = 0,
-          evidence = coalesce(c.evidence, f.evidence),
-          summary_he = coalesce(c.summary_he, f.summary_he),
-          severity = CASE WHEN v_rank_new > v_existing.rank THEN c.severity ELSE f.severity END,
-          next_action_at = CASE WHEN v_rank_new > v_existing.rank THEN now() ELSE f.next_action_at END,
-          detector_version = coalesce(p_detector_version, f.detector_version),
-          round_id = p_round_id
-      WHERE f.id = v_existing.id;
-      finding_id := v_existing.id;
-      short_code := v_existing.short_code;
-      outcome := CASE WHEN v_rank_new > v_existing.rank THEN 'worsened' ELSE 'seen' END;
-      IF outcome = 'worsened' THEN
-        INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, details)
-        VALUES (p_tenant_id, v_existing.id, 'worsened',
-          jsonb_build_object('severity', c.severity));
-      END IF;
-      RETURN NEXT;
-      CONTINUE;
-    END IF;
-
-    -- A kind outside the table's list (or a concurrent insert) skips only
-    -- this candidate; the counter bump rolls back with it.
-    BEGIN
-      INSERT INTO public.carmen_finding_counters AS fc (tenant_id, last_code)
-      VALUES (p_tenant_id, 1)
-      ON CONFLICT (tenant_id) DO UPDATE SET last_code = fc.last_code + 1
-      RETURNING fc.last_code INTO v_code;
-
-      INSERT INTO public.carmen_findings (
-        tenant_id, client_id, agency_id, kind, severity, fingerprint, short_code,
-        owner_user_id, source_event_at, evidence, summary_he, collector,
-        detector_version, round_id)
-      VALUES (
-        p_tenant_id, c.client_id, v_agency, c.kind,
-        coalesce(c.severity, 'warning'), c.fingerprint, v_code, v_owner,
-        coalesce(c.source_event_at, now()), coalesce(c.evidence, '{}'::jsonb),
-        c.summary_he, p_collector, coalesce(p_detector_version, '1'), p_round_id)
-      RETURNING id INTO v_id;
-    EXCEPTION WHEN check_violation OR unique_violation OR not_null_violation THEN
-      outcome := 'invalid';
-      RETURN NEXT;
-      CONTINUE;
-    END;
-
+    RETURNING k.n, f.id, f.short_code, f.severity, k.rank_new > k.rank_live AS worsened
+  ), fresh AS (
+    SELECT k.*, row_number() OVER (ORDER BY k.n) AS seq, count(*) OVER () AS total
+    FROM classified AS k
+    WHERE k.skip IS NULL AND k.live_id IS NULL
+  ), counter AS (
+    INSERT INTO public.carmen_finding_counters AS fc (tenant_id, last_code)
+    SELECT p_tenant_id, count(*) FROM fresh HAVING count(*) > 0
+    ON CONFLICT (tenant_id) DO UPDATE SET last_code = fc.last_code + EXCLUDED.last_code
+    RETURNING fc.last_code
+  ), inserted AS (
+    INSERT INTO public.carmen_findings AS f (
+      tenant_id, client_id, agency_id, kind, severity, fingerprint, short_code,
+      owner_user_id, source_event_at, evidence, summary_he, collector,
+      detector_version, round_id)
+    SELECT p_tenant_id, k.client_id, k.agency_id, k.kind, k.severity,
+           k.fingerprint, (ctr.last_code - k.total + k.seq)::integer,
+           k.owner_user_id, coalesce(k.source_event_at, now()),
+           coalesce(k.evidence, '{}'::jsonb), k.summary_he, p_collector,
+           coalesce(p_detector_version, '1'), p_round_id
+    FROM fresh AS k CROSS JOIN counter AS ctr
+    ON CONFLICT (tenant_id, kind, fingerprint)
+      WHERE status IN ('open', 'notified', 'acknowledged', 'snoozed')
+      DO NOTHING
+    RETURNING f.id, f.short_code, f.kind, f.fingerprint, f.severity
+  ), detected AS (
     INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, details)
-    VALUES (p_tenant_id, v_id, 'detected',
-      jsonb_build_object('collector', p_collector, 'severity', coalesce(c.severity, 'warning')));
+    SELECT p_tenant_id, i.id, 'detected',
+           jsonb_build_object('collector', p_collector, 'severity', i.severity)
+    FROM inserted AS i
+  ), worsened AS (
+    INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, details)
+    SELECT p_tenant_id, b.id, 'worsened', jsonb_build_object('severity', b.severity)
+    FROM bumped AS b
+    WHERE b.worsened
+  )
+  SELECT jsonb_agg(jsonb_build_object(
+           'finding_id', coalesce(b.id, i.id),
+           'kind', k.kind,
+           'fingerprint', k.fingerprint,
+           'short_code', coalesce(b.short_code, i.short_code),
+           'outcome', CASE
+             WHEN k.skip IS NOT NULL THEN k.skip
+             WHEN b.worsened THEN 'worsened'
+             WHEN b.id IS NOT NULL THEN 'seen'
+             WHEN i.id IS NOT NULL THEN 'inserted'
+             ELSE 'conflict'
+           END) ORDER BY k.n)
+    INTO v_outcomes
+  FROM classified AS k
+  LEFT JOIN bumped AS b ON b.n = k.n
+  LEFT JOIN inserted AS i
+    ON k.skip IS NULL AND k.live_id IS NULL
+   AND i.kind = k.kind AND i.fingerprint = k.fingerprint;
 
-    finding_id := v_id;
-    short_code := v_code;
-    outcome := 'inserted';
-    RETURN NEXT;
-  END LOOP;
+  SELECT string_agg(s.outcome || ' ' || s.count, ', ' ORDER BY s.outcome)
+    INTO v_skipped
+  FROM (
+    SELECT e ->> 'outcome' AS outcome, count(*) AS count
+    FROM jsonb_array_elements(coalesce(v_outcomes, '[]'::jsonb)) AS e
+    WHERE e ->> 'outcome' NOT IN ('inserted', 'seen', 'worsened')
+    GROUP BY 1
+  ) AS s;
+  IF v_skipped IS NOT NULL THEN
+    RAISE NOTICE 'carmen_finding_upsert: tenant %, collector %: not stored: %',
+      p_tenant_id, p_collector, v_skipped;
+  END IF;
+
+  RETURN QUERY
+  SELECT r.finding_id, r.kind, r.fingerprint, r.short_code, r.outcome
+  FROM jsonb_to_recordset(coalesce(v_outcomes, '[]'::jsonb)) AS r(
+    finding_id uuid, kind text, fingerprint text, short_code integer, outcome text);
 END;
 $$;
 
@@ -793,6 +818,18 @@ BEGIN
 END;
 $$;
 
+-- True for a delivery status meaning the message went out or may have (a
+-- send cut off mid-way): it writes 'notified' events, and the round counts
+-- it toward the daily cap (DELIVERED_STATUSES in findings/types.ts).
+CREATE OR REPLACE FUNCTION public.carmen_delivery_went_out(p_status text)
+RETURNS boolean
+  LANGUAGE sql
+  IMMUTABLE
+  SET search_path TO ''
+AS $$
+  SELECT p_status IN ('sent', 'delivery_unknown')
+$$;
+
 -- Record the outcome of one message (the claimed rows it carried). 'claimed'
 -- marks the rows as being sent now (attempted_at), just before the send, so
 -- a call cut off mid-send never resends them. 'planned' puts the rows back
@@ -830,7 +867,7 @@ AS $$
            jsonb_build_object('recipient_key', r.recipient_key, 'status', p_status,
              'message_key', p_message_key)
     FROM recorded AS r
-    WHERE p_status IN ('sent', 'delivery_unknown')
+    WHERE public.carmen_delivery_went_out(p_status)
     RETURNING 1
   )
   SELECT count(*)::integer FROM recorded
@@ -874,7 +911,7 @@ BEGIN
   WHERE d.status = 'planned';
   GET DIAGNOSTICS v_count = ROW_COUNT;
 
-  IF p_status IN ('sent', 'delivery_unknown') THEN
+  IF public.carmen_delivery_went_out(p_status) THEN
     INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, level, details)
     SELECT p_tenant_id, f.id, 'notified', 2,
            jsonb_build_object('recipient_key', p_recipient ->> 'recipient_key',
@@ -956,6 +993,7 @@ BEGIN
     'public.carmen_finding_mark_missing(uuid, text, text[], uuid[], text[], integer, uuid)',
     'public.carmen_finding_apply_route(uuid, uuid, jsonb)',
     'public.carmen_finding_claim_deliveries(uuid, integer)',
+    'public.carmen_delivery_went_out(text)',
     'public.carmen_finding_record_send(uuid, uuid[], text, uuid, text, text, timestamptz)',
     'public.carmen_finding_record_brief(uuid, uuid[], jsonb, text, uuid, text, text)',
     'public.carmen_round_try_lease(uuid, integer)',
@@ -1124,7 +1162,11 @@ DECLARE
   v_mode_changed boolean;
   v_changed_kinds text[];
 BEGIN
-  IF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.pulse_alert_rules -> 'manager') = 'object' THEN
+  -- An INSERT has no stored block: it is checked and stamped against an empty
+  -- one, and has no ladders to reset. An UPDATE compares with the stored block.
+  IF TG_OP = 'INSERT' THEN
+    v_old := '{}'::jsonb;
+  ELSIF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.pulse_alert_rules -> 'manager') = 'object' THEN
     v_old := OLD.pulse_alert_rules -> 'manager';
   END IF;
 

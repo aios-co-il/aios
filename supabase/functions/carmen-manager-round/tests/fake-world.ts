@@ -5,6 +5,7 @@ import type {
   DeliveryRow,
   FindingRow,
   RouteDecision,
+  UpsertDrop,
 } from "../findings/types.ts";
 import type { MissingScope } from "../findings/store.ts";
 import type { Contact } from "../recipients/contacts.ts";
@@ -37,6 +38,8 @@ export type World = {
   sent: { phone: string; message: string }[];
   decisions: RouteDecision[];
   marks: MissingScope[];
+  /** Fingerprints the fake upsert refuses, with the outcome it reports. */
+  refused: Record<string, UpsertDrop>;
   slots: string[];
   leased: Set<string>;
   sendStatus: StaffAlertStatus;
@@ -63,6 +66,7 @@ export function world(fields: Partial<World> = {}): World {
     sent: [],
     decisions: [],
     marks: [],
+    refused: {},
     slots: [],
     leased: new Set(),
     sendStatus: "sent",

@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { briefTime } from "../../../../supabase/functions/_shared/manager-round/brief-schedule.ts";
 import {
   MANAGER_MODES,
   type ManagerMode,
@@ -14,7 +15,7 @@ const MODE_TEXT: Record<ManagerMode, { label: string; hint: string }> = {
   },
   david_only: {
     label: "רק לבעלים",
-    hint: "סיכום בוקר ב־08:00 ודחופים לבעלי הארגון בלבד, מהקו של כרמן.",
+    hint: `סיכום בוקר ב־${briefTime()} ודחופים לבעלי הארגון בלבד, מהקו של כרמן.`,
   },
   team: {
     label: "צוות מלא",

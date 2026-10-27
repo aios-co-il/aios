@@ -1,23 +1,23 @@
 /**
- * Sends the morning brief once per slot (08:00 Sunday–Friday, not on
- * holidays) to each brief recipient, from Carmen's own line. Each
- * recipient's slot is claimed just before their send, so a failure never
- * sends it twice, and a recipient the call had no time for gets it on the
- * next call within the slot's stale window. Each outcome is recorded on the
- * findings the brief listed.
+ * Sends the morning brief once per slot (BRIEF_CRON, not on holidays) to each
+ * brief recipient, from Carmen's own line. Each recipient's slot is claimed
+ * just before their send, so a failure never sends it twice, and a recipient
+ * the call had no time for gets it on the next call within the slot's stale
+ * window. Each outcome is recorded on the findings the brief listed.
  */
 import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
+import { BRIEF_CRON } from "../../_shared/manager-round/brief-schedule.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { RoundBudget } from "../budget.ts";
-import { BRIEF_CRON, latestSlot } from "../calendar/slots.ts";
+import { latestSlot } from "../calendar/slots.ts";
 import {
   SEND_RESERVE_MS,
   type SendStaffMessage,
   sendText,
 } from "../dispatch/send-text.ts";
-import type { Recipient } from "../findings/types.ts";
+import { type Recipient, wentOut } from "../findings/types.ts";
 import type { NotifyFloors } from "../router/route.ts";
-import type { RoundStateStore } from "../state/store.ts";
+import type { RoundStateRow, RoundStateStore } from "../state/store.ts";
 import { BRIEF_MAX_DECISIONS, composeMorningBrief } from "./compose.ts";
 import { type BriefContent, gatherBrief, type GatherDeps } from "./gather.ts";
 
@@ -35,6 +35,8 @@ export type BriefRun = {
   now: Date;
   /** Resolved only when the brief is due. */
   recipients: () => Promise<Recipient[]>;
+  /** Round state read at the start of the run: a brief slot it shows as claimed is skipped before anything is read. */
+  state: RoundStateRow[];
   floors: NotifyFloors;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
@@ -47,7 +49,10 @@ export type BriefRun = {
 export type BriefReport = {
   slot: string;
   sent: { key: string; status: string; text?: string }[];
-  /** Recipients not tried for lack of time; the next call tries them. */
+  /**
+   * Recipients not tried: no time left in the call, or the settings changed
+   * during the run (claimUnlessChanged). The next call tries them.
+   */
   deferred: number;
 };
 
@@ -65,8 +70,11 @@ export async function sendBriefIfDue(
     sent: [],
     deferred: 0,
   };
+  const due = (await run.recipients()).filter(
+    (recipient) => run.dryRun || !slotClaimed(run.state, recipient, slot),
+  );
   let content: BriefContent | null = null;
-  for (const recipient of await run.recipients()) {
+  for (const recipient of due) {
     if (!run.dryRun && !run.budget.hasTime(SEND_RESERVE_MS)) {
       report.deferred += 1;
       continue;
@@ -83,6 +91,21 @@ export async function sendBriefIfDue(
     }
   }
   return report.sent.length || report.deferred ? report : null;
+}
+
+/**
+ * True when the state read at the start of the run already holds this slot
+ * (or a later one) for the recipient: carmen_round_claim_slot would refuse
+ * it, so the call need not read the brief's content again.
+ */
+function slotClaimed(
+  state: RoundStateRow[],
+  recipient: Recipient,
+  slot: Date,
+): boolean {
+  const key = `${BRIEF_STATE_PREFIX}${recipient.key}`;
+  const last = state.find((row) => row.collector === key)?.last_slot;
+  return !!last && Date.parse(last) >= slot.getTime();
 }
 
 /**
@@ -112,7 +135,7 @@ async function claimUnlessChanged(
 export function briefed(report: BriefReport | null): Set<string> {
   return new Set(
     (report?.sent ?? [])
-      .filter((entry) => ["sent", "delivery_unknown"].includes(entry.status))
+      .filter((entry) => wentOut(entry.status))
       .map((entry) => entry.key),
   );
 }

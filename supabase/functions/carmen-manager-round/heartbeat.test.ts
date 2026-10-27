@@ -32,6 +32,7 @@ Deno.test("hasActivity and roundLog", async (t) => {
             candidates: 3,
             inserted: 2,
             cleared: 1,
+            dropped: {},
             llm: { calls: 4, costUsd: 0.02 },
           },
         ],
@@ -57,5 +58,42 @@ Deno.test("hasActivity and roundLog", async (t) => {
       row.summary,
       "סבב כרמן (team): 2 ממצאים חדשים, 1 נסגרו, 2 הודעות",
     );
+  });
+
+  await t.step("the row counts the candidates that were not stored", () => {
+    const row = roundLog(
+      {
+        tenant_id: "t",
+        mode: "observe",
+        collectors: [
+          {
+            id: "c",
+            status: "ok",
+            candidates: 3,
+            inserted: 1,
+            cleared: 0,
+            dropped: { rejected_client: 1, suppressed: 1 },
+            llm: { calls: 0, costUsd: 0 },
+          },
+        ],
+        routed: 0,
+        gaps: 1,
+        gaps_dropped: { invalid: 1 },
+      },
+      10,
+    );
+    assertEquals(
+      row.summary,
+      "סבב כרמן (observe): 1 ממצאים חדשים, 0 נסגרו, 0 הודעות, 2 לא נשמרו",
+    );
+    const stats = row.stats as {
+      collectors: { dropped: unknown }[];
+      gaps_dropped: unknown;
+    };
+    assertEquals(stats.collectors[0].dropped, {
+      rejected_client: 1,
+      suppressed: 1,
+    });
+    assertEquals(stats.gaps_dropped, { invalid: 1 });
   });
 });

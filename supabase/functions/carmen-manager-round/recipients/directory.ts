@@ -50,16 +50,25 @@ export type PeopleDirectory = {
 
 const STAFF_ROLES = ["owner", "agency_owner", "team_manager"] as const;
 
-/** PeopleDirectory over the service-role client. */
+/**
+ * PeopleDirectory over the service-role client. One directory serves one
+ * round call, so each tenant's shared agencies are read once per call, not
+ * once per client the router resolves.
+ */
 export function createPeopleDirectory(db: DbClient): PeopleDirectory {
+  const sharedAgencies = new Map<string, string[]>();
+  const agenciesOf = async (tenantId: string) => {
+    const known = sharedAgencies.get(tenantId);
+    if (known) {
+      return known;
+    }
+    const agencies = await loadSharedAgencies(db, tenantId);
+    sharedAgencies.set(tenantId, agencies);
+    return agencies;
+  };
   return {
     async client(tenantId, clientId) {
-      const shared = await db
-        .from("agency_tenant_access")
-        .select("agency_id")
-        .eq("accessing_tenant_id", tenantId);
-      throwIf(shared.error, "agency_tenant_access");
-      const agencies = (shared.data ?? []).map((row) => row.agency_id);
+      const agencies = await agenciesOf(tenantId);
       const scope = agencies.length
         ? `tenant_id.eq.${tenantId},agency_id.in.(${agencies.join(",")})`
         : `tenant_id.eq.${tenantId}`;
@@ -147,4 +156,17 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
 
     contacts: (tenantId, keys) => loadContacts(db, tenantId, keys),
   };
+}
+
+/** Agencies shared with the tenant (agency_tenant_access). */
+async function loadSharedAgencies(
+  db: DbClient,
+  tenantId: string,
+): Promise<string[]> {
+  const { data, error } = await db
+    .from("agency_tenant_access")
+    .select("agency_id")
+    .eq("accessing_tenant_id", tenantId);
+  throwIf(error, "agency_tenant_access");
+  return (data ?? []).map((row) => row.agency_id);
 }

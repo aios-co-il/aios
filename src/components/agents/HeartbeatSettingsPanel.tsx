@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -78,18 +83,22 @@ export function HeartbeatSettingsPanel() {
 
   const { data: heartbeatLogs = [] } = useQuery({
     queryKey: ["heartbeat_logs", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("heartbeat_logs")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        // Carmen's manager round logs every run; this list is the heartbeat's.
-        .neq("run_kind", MANAGER_ROUND_RUN_KIND)
-        .order("triggered_at", { ascending: false })
-        .limit(10);
-      return (data as any[]) || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("heartbeat_logs")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            // Carmen's manager round logs every run; this list is the heartbeat's.
+            .neq("run_kind", MANAGER_ROUND_RUN_KIND)
+            .order("triggered_at", { ascending: false })
+            .limit(10);
+          if (error) {
+            throw error;
+          }
+          return data;
+        }
+      : skipToken,
   });
 
   const saveHeartbeatSettings = useMutation({

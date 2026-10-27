@@ -24,7 +24,11 @@ export type ParsedRequest =
   | { ok: true; request: RoundRequest }
   | { ok: false; status: 400 | 403; error: string };
 
-/** True when the bearer token is the service-role key (constant-time compare). */
+/**
+ * True when the Authorization header carries the service-role key
+ * (constant-time compare). Like every caller of bearerToken, the key is
+ * accepted with or without the "Bearer " prefix.
+ */
 export function isServiceCaller(req: Request, serviceKey: string): boolean {
   return isServiceKey(
     bearerToken(req.headers.get("Authorization")),
@@ -51,13 +55,7 @@ export function parseRoundRequest(
     return { ok: false, status: 400, error: "client_id_needs_tenant_id" };
   }
   const collectors = field("collectors");
-  if (
-    collectors !== undefined &&
-    !(
-      Array.isArray(collectors) &&
-      collectors.every((id) => typeof id === "string")
-    )
-  ) {
+  if (collectors !== undefined && !isStringList(collectors)) {
     return { ok: false, status: 400, error: "invalid_collectors" };
   }
   const fixtures = toJson(field("fixtures")) ?? null;
@@ -69,12 +67,19 @@ export function parseRoundRequest(
     request: {
       tenantId,
       clientId,
-      collectorIds: Array.isArray(collectors) ? collectors.map(String) : null,
+      collectorIds: collectors ?? null,
       dryRun: field("dry_run") === true || fixtures !== null,
       fixtures,
       now: fixtureNow(fixtures),
     },
   };
+}
+
+/** True for an array of strings. */
+function isStringList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
 }
 
 /** fixtures.now: a fake clock for dry runs outside Production. */

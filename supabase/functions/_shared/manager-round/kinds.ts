@@ -6,6 +6,8 @@
  */
 
 export const FINDING_KINDS = [
+  // No collector emits these nine yet: the KPI, platform alert and
+  // reconciliation detectors are deferred.
   "cost_spike",
   "roas_drop",
   "kpi_exception",
@@ -15,12 +17,17 @@ export const FINDING_KINDS = [
   "reconcile_mismatch",
   "reconcile_missing_day",
   "unmapped_spend",
+  // Chat collector (AIO-252).
   "unanswered_request",
   "client_complaint",
+  // Contact collector (AIO-253).
   "contact_not_logged",
   "no_contact",
+  // Group update collector (AIO-254).
   "card_stale_group",
+  // Chat collector (AIO-252).
   "unlinked_group",
+  // The router's own routing gaps (recipients/data-findings.ts).
   "no_campaigner",
   "missing_phone",
 ] as const;

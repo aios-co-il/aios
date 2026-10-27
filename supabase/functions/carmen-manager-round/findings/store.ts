@@ -9,6 +9,7 @@ import { throwIf } from "../db-error.ts";
 import {
   FINDING_COLUMNS,
   type FindingRow,
+  isUpsertOutcome,
   type RouteDecision,
   type UpsertOutcome,
 } from "./types.ts";
@@ -69,7 +70,15 @@ export function createFindingsStore(db: DbClient): FindingsStore {
         p_candidates: candidates,
       });
       throwIf(error, "carmen_finding_upsert");
-      return data ?? [];
+      return (data ?? []).map((row) => {
+        // An outcome the round does not know means SQL and TypeScript drifted apart.
+        if (!isUpsertOutcome(row.outcome)) {
+          throw new Error(
+            `carmen_finding_upsert: unknown outcome ${row.outcome}`,
+          );
+        }
+        return { ...row, outcome: row.outcome };
+      });
     },
 
     async markMissing(tenantId, roundId, scope) {

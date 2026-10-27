@@ -19,6 +19,32 @@ Deno.test(
   "createFindingsStore keeps every call inside the tenant",
   async (t) => {
     await t.step(
+      "upsert raises on an outcome the round does not know",
+      async () => {
+        const { db } = recordingClient(() => [
+          {
+            finding_id: null,
+            kind: "no_contact",
+            fingerprint: "client:c1",
+            short_code: null,
+            outcome: "skipped_somehow",
+          },
+        ]);
+        await assertRejects(
+          () =>
+            createFindingsStore(db).upsert(
+              T,
+              "r1",
+              { id: "contact", detectorVersion: "2" },
+              [candidate],
+            ),
+          Error,
+          "unknown outcome skipped_somehow",
+        );
+      },
+    );
+
+    await t.step(
       "upsert sends the candidates to the RPC, and nothing when there are none",
       async () => {
         const { db, calls } = recordingClient(() => [

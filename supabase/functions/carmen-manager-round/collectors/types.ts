@@ -2,8 +2,8 @@
  * The collector contract of Carmen's manager round (AIO-251).
  *
  * A collector turns AIOS data into finding candidates for one tenant. It is
- * deterministic: an LLM may only word text or classify chat intent where the
- * plan says so, metered and cached, and never drops a finding a rule raised.
+ * deterministic: an LLM may only word text or classify chat intent, metered
+ * and cached, and never drops a finding a rule raised.
  * The round decides when a collector is due, upserts its candidates
  * (carmen_finding_upsert), auto-clears the findings it no longer reports
  * (carmen_finding_mark_missing over `coverage`) and stores `watermark` only
