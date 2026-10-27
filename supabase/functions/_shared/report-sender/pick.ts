@@ -8,20 +8,28 @@ import {
 export type ReportSenderSource =
   "requested" | "schedule" | "tenant_default" | "only_sender" | "own_line";
 
+/** A line someone chose: for this send, for the schedule, or as the default. */
+export type NamedSenderSource = Extract<
+  ReportSenderSource,
+  "requested" | "schedule" | "tenant_default"
+>;
+
 /**
  * Why no line was chosen:
  * - no_report_sender: the tenant has no ready Green API or Manus line;
- * - sender_not_allowed: the line named for this send or schedule is not one
- *   the tenant may use (or it is not ready), and such a line is never
+ * - sender_not_allowed: the line someone chose (`refused` says where) is not
+ *   one the tenant may use, or it is not ready, and a chosen line is never
  *   silently replaced;
- * - choose_sender: several lines and nothing says which one.
+ * - choose_sender: no line of the tenant's own resolves (several, or only
+ *   lines shared by other tenants) and nothing says which one.
  */
 export type ReportSenderError =
   "no_report_sender" | "sender_not_allowed" | "choose_sender";
 
 export type ReportSenderPick<T extends PickableSender> =
   | { sender: T; type: ReportSenderType; source: ReportSenderSource }
-  | { error: ReportSenderError };
+  | { error: "sender_not_allowed"; refused: NamedSenderSource }
+  | { error: Exclude<ReportSenderError, "sender_not_allowed"> };
 
 export type PickReportSenderInput<T extends PickableSender> = {
   /** Lines from list_report_whatsapp_senders (own and shared). */
@@ -36,12 +44,19 @@ export type PickReportSenderInput<T extends PickableSender> = {
   callerUserId?: string | null;
 };
 
+/** A line that can send reports now, its type narrowed. */
+type UsableSender<T extends PickableSender> = T & {
+  integration_type: ReportSenderType;
+};
+
 /**
- * The line a report goes out from. Order: the line picked for this send, the
- * schedule's line, the tenant default, the tenant's only ready line, then the
+ * The line a report goes out from. A chosen line comes first: the one picked
+ * for this send, the schedule's line, then the tenant default. A chosen line
+ * that cannot send fails the pick, the default included, until someone picks
+ * another. Without a choice: the tenant's only own ready line, then the
  * caller's own Green API line (how reports were sent before lines could be
- * chosen). The tenant default is a preference: once its line is switched off
- * it is skipped, so a single ready line left still sends.
+ * chosen). A line shared by another tenant is never picked on its own: any
+ * owner can share a line into any tenant unasked (AIO-245).
  */
 export function pickReportSender<T extends PickableSender>(
   input: PickReportSenderInput<T>,
@@ -52,22 +67,18 @@ export function pickReportSender<T extends PickableSender>(
     const match = usable.find((sender) => sender.id === named.id);
     return match
       ? chosen(match, named.source)
-      : { error: "sender_not_allowed" };
-  }
-  const tenantDefault = usableReportSender(usable, input.tenantDefaultId);
-  if (tenantDefault) {
-    return chosen(tenantDefault, "tenant_default");
+      : { error: "sender_not_allowed", refused: named.source };
   }
   if (usable.length === 0) {
     return { error: "no_report_sender" };
   }
-  if (usable.length === 1) {
-    return chosen(usable[0], "only_sender");
+  const owned = usable.filter((sender) => !sender.is_shared);
+  if (owned.length === 1) {
+    return chosen(owned[0], "only_sender");
   }
-  const own = usable.find(
+  const own = owned.find(
     (sender) =>
       sender.integration_type === "green_api" &&
-      !sender.is_shared &&
       !!input.callerUserId &&
       sender.owner_user_id === input.callerUserId,
   );
@@ -86,33 +97,32 @@ export function usableReportSender<T extends PickableSender>(
 }
 
 /** Ready, and of a type that may send reports (never Meta Cloud). */
-function isUsable(sender: PickableSender): boolean {
+function isUsable<T extends PickableSender>(
+  sender: T,
+): sender is UsableSender<T> {
   return sender.ready && isReportSenderType(sender.integration_type);
 }
 
-/** The explicit choice for this send, else the schedule's own line. */
+/** The choice for this send, else the schedule's line, else the default. */
 function namedSender(
   input: PickReportSenderInput<PickableSender>,
-): { id: string; source: ReportSenderSource } | null {
+): { id: string; source: NamedSenderSource } | null {
   if (input.requestedId) {
     return { id: input.requestedId, source: "requested" };
   }
   if (input.scheduleSenderId) {
     return { id: input.scheduleSenderId, source: "schedule" };
   }
+  if (input.tenantDefaultId) {
+    return { id: input.tenantDefaultId, source: "tenant_default" };
+  }
   return null;
 }
 
-/**
- * A pick result. The callers already filtered the type; checking it again
- * lets TypeScript narrow integration_type without a cast.
- */
+/** A pick result for a usable line. */
 function chosen<T extends PickableSender>(
-  sender: T,
+  sender: UsableSender<T>,
   source: ReportSenderSource,
 ): ReportSenderPick<T> {
-  if (!isReportSenderType(sender.integration_type)) {
-    return { error: "sender_not_allowed" };
-  }
   return { sender, type: sender.integration_type, source };
 }

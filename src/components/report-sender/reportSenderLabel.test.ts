@@ -61,9 +61,9 @@ describe("reportSenderLabel", () => {
         is_shared: true,
         owner_tenant_name: "AIOS",
       }),
-    ).toBe("הטלפון של כרמן (משותף מ-AIOS)");
+    ).toBe("הטלפון של כרמן (משותף מארגון אחר: AIOS)");
     expect(reportSenderLabel({ ...base, last4: "9", is_shared: true })).toBe(
-      "וואטסאפ ··9 (משותף)",
+      "וואטסאפ ··9 (משותף מארגון אחר)",
     );
   });
 

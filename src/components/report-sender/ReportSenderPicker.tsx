@@ -11,7 +11,7 @@ import {
   reportSenderLabel,
   reportSenderOptionLabel,
 } from "./reportSenderLabel";
-import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
+import { pickErrorKey, REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 import type { ReportSenderChoice } from "./useReportSenderChoice";
 
 type Props = {
@@ -22,8 +22,9 @@ type Props = {
 
 /**
  * Which phone a report goes out from. One line is shown, not offered; several
- * lines are a choice (the tenant default or the sender's own line first);
- * none is a clear message, and the send then fails with the same text.
+ * lines, or one shared by another organization, are a choice (the tenant
+ * default or the sender's own line first); none is a clear message, and the
+ * send then fails with the same text.
  */
 export function ReportSenderPicker({ choice, groupChatId }: Props) {
   const { pick, senders } = choice;
@@ -64,7 +65,7 @@ export function ReportSenderPicker({ choice, groupChatId }: Props) {
       )}
       {"error" in pick && (
         <p className="text-xs text-amber-600">
-          {REPORT_SENDER_MESSAGES[pick.error]}
+          {REPORT_SENDER_MESSAGES[pickErrorKey(pick)]}
         </p>
       )}
       {selected && notInGroup(selected, groupChatId) && (

@@ -154,18 +154,6 @@ Deno.test("sendScheduledWhatsApp picks the line", async (t) => {
       assertEquals(calls[0].name, "send-green-api-message");
     },
   );
-
-  await t.step(
-    "a default whose line was switched off is skipped for the only line left",
-    async () => {
-      // list_report_whatsapp_senders no longer returns the inactive default.
-      const { calls, channel } = deps([carmen], "office-green");
-      const result = await sendScheduledWhatsApp(channel, schedule, "msg");
-      assertEquals(result.ok, true);
-      assertEquals(result.sender?.source, "only_sender");
-      assertEquals(calls[0].body.integrationId, "carmen");
-    },
-  );
 });
 
 Deno.test(
@@ -188,6 +176,28 @@ Deno.test(
         "msg",
       );
       assertEquals(result, { ok: false, error: "sender_not_allowed" });
+      assertEquals(calls.length, 0);
+    });
+
+    await t.step(
+      "a default whose line was switched off or unshared",
+      async () => {
+        // list_report_whatsapp_senders no longer returns the default line.
+        const { calls, channel } = deps([carmen], "office-green");
+        const result = await sendScheduledWhatsApp(channel, schedule, "msg");
+        assertEquals(result, { ok: false, error: "sender_not_allowed" });
+        assertEquals(calls.length, 0);
+      },
+    );
+
+    await t.step("only a line shared by another tenant", async () => {
+      const shared = sender("shared", {
+        integration_type: "manus_wa",
+        is_shared: true,
+      });
+      const { calls, channel } = deps([shared]);
+      const result = await sendScheduledWhatsApp(channel, schedule, "msg");
+      assertEquals(result, { ok: false, error: "choose_sender" });
       assertEquals(calls.length, 0);
     });
 

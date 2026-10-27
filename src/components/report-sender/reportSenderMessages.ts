@@ -9,7 +9,9 @@ export const REPORT_SENDER_MESSAGES = {
   report_sender_not_allowed: "הטלפון שנבחר לא זמין לארגון הזה. בחרו טלפון אחר.",
   report_settings_forbidden: "רק בעלי הארגון יכולים לשנות את טלפון השליחה",
   stale_default:
-    "טלפון ברירת המחדל לדוחות כבר לא מחובר, ולכן הדוחות לא נשלחים ממנו. בעלי הארגון יכולים לבחור טלפון אחר.",
+    "טלפון ברירת המחדל של הארגון לדוחות כבר לא זמין (נותק או שהשיתוף שלו בוטל), ולכן דוחות שיוצאים לפי ברירת המחדל לא נשלחים. בעלי הארגון צריכים לבחור ברירת מחדל חדשה; עד אז בחרו טלפון בשליחה או בתזמון.",
+  stale_default_owner:
+    "טלפון ברירת המחדל כבר לא זמין (נותק או שהשיתוף שלו בוטל), ולכן דוחות שיוצאים לפי ברירת המחדל לא נשלחים. בחרו ברירת מחדל חדשה.",
   not_configured: "הטלפון שנבחר עוד לא מחובר עד הסוף. בדקו אותו בהגדרות.",
   forbidden: "אין לכם הרשאה לשלוח בשם הארגון הזה",
   missing_recipient: "בחרו קבוצה או הזינו מספר טלפון",
@@ -52,6 +54,17 @@ export function isReportSenderMessageKey(
     typeof code === "string" &&
     Object.keys(REPORT_SENDER_MESSAGES).includes(code)
   );
+}
+
+/**
+ * The message for a pick that found no line. A refused organization default
+ * gets its own text: only an owner can choose a new one.
+ */
+export function pickErrorKey<K extends ReportSenderMessageKey>(pick: {
+  error: K;
+  refused?: string;
+}): K | "stale_default" {
+  return pick.refused === "tenant_default" ? "stale_default" : pick.error;
 }
 
 /** The Hebrew text for a known code or server text, else null. */

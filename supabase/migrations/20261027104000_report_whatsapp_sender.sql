@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_report_settings (
 COMMENT ON TABLE public.tenant_report_settings IS
   'Per-tenant report delivery settings. Written only by set_report_whatsapp_sender.';
 COMMENT ON COLUMN public.tenant_report_settings.whatsapp_integration_id IS
-  'Default WhatsApp line (green_api or manus_wa, own or shared) for reports. NULL: the only line, else the sender''s own Green API line.';
+  'Default WhatsApp line (green_api or manus_wa, own or shared) for reports; sends that rely on it fail while it cannot send. NULL: the tenant''s only own line, else the sender''s own Green API line. A shared line is used only when chosen.';
 
 ALTER TABLE public.tenant_report_settings ENABLE ROW LEVEL SECURITY;
 
@@ -174,11 +174,11 @@ GRANT EXECUTE ON FUNCTION public.set_report_whatsapp_sender(uuid, uuid)
   TO authenticated, service_role;
 
 -- 5. The lines a tenant may send reports from, for its members and for the
--- report worker (service role). Returns labels and readiness, never api_key
--- or any part of it, because tenant_integrations rows are readable by every
--- member. last4 is the end of the instance id, to tell lines apart. A line's
--- group_chat_ids are only the ones of this tenant's own groups: a shared
--- Carmen line is in other tenants' groups too.
+-- report worker (service role), its own lines first. Returns labels and
+-- readiness, never api_key or any part of it, because tenant_integrations
+-- rows are readable by every member. last4 is the end of the instance id, to
+-- tell lines apart. A line's group_chat_ids are only the ones of this
+-- tenant's own groups: a shared Carmen line is in other tenants' groups too.
 CREATE OR REPLACE FUNCTION public.list_report_whatsapp_senders(p_tenant_id uuid)
 RETURNS TABLE (
   id uuid,
@@ -261,7 +261,7 @@ BEGIN
       )
     )
     AND public.report_whatsapp_sender_usable(p_tenant_id, ti.id)
-  ORDER BY ti.integration_type DESC, ti.created_at;
+  ORDER BY ti.tenant_id <> p_tenant_id, ti.integration_type DESC, ti.created_at;
 END;
 $$;
 

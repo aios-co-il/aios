@@ -72,6 +72,35 @@ describe("ReportSenderPicker", () => {
     expect(screen.getByText("בחרו מאיזה טלפון לשלוח")).toBeInTheDocument();
   });
 
+  it("offers a line another organization shared instead of using it", () => {
+    const shared = reportSender("shared", {
+      integration_type: "manus_wa",
+      is_shared: true,
+    });
+    render(
+      <ReportSenderPicker
+        choice={choice({ senders: [shared], pick: { error: "choose_sender" } })}
+      />,
+    );
+    expect(screen.getByRole("combobox", { name: "שלח מ" })).toBeInTheDocument();
+    expect(screen.queryByText(/יישלח מ:/)).not.toBeInTheDocument();
+  });
+
+  it("asks for a new organization default when the default cannot send", () => {
+    render(
+      <ReportSenderPicker
+        choice={choice({
+          senders: [carmen],
+          pick: { error: "sender_not_allowed", refused: "tenant_default" },
+        })}
+      />,
+    );
+    expect(screen.getByRole("combobox", { name: "שלח מ" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/בעלי הארגון צריכים לבחור ברירת מחדל חדשה/),
+    ).toBeInTheDocument();
+  });
+
   it("warns when Carmen's phone is not in the chosen group", () => {
     const pick = {
       sender: carmen,

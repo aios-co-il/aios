@@ -142,6 +142,22 @@ describe("sendReportWhatsApp", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("asks for a new organization default when the default cannot send", async () => {
+    await expect(
+      sendReportWhatsApp({
+        ...screenshot,
+        pick: { error: "sender_not_allowed", refused: "tenant_default" },
+      }),
+    ).rejects.toThrow("בעלי הארגון צריכים לבחור ברירת מחדל חדשה");
+    await expect(
+      sendReportWhatsApp({
+        ...screenshot,
+        pick: { error: "sender_not_allowed", refused: "requested" },
+      }),
+    ).rejects.toThrow("הטלפון שנבחר לא זמין לארגון הזה");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("explains a refused line, an unknown delivery and a timeout in Hebrew", async () => {
     const refused = new Response(
       JSON.stringify({

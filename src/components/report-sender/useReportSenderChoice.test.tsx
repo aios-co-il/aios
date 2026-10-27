@@ -100,6 +100,27 @@ describe("useReportSenderChoice", () => {
     });
   });
 
+  it("never sends from a shared line nobody chose", async () => {
+    backend.senders = [shared];
+    const { result } = await resolvedFor("t1");
+    expect(result.current.pick).toEqual({ error: "choose_sender" });
+    act(() => result.current.choose("shared"));
+    expect(result.current.pick).toMatchObject({
+      sender: { id: "shared" },
+      source: "requested",
+    });
+  });
+
+  it("refuses a default that can no longer send", async () => {
+    backend.senders = [carmen];
+    backend.tenantDefault = "off";
+    const { result } = await resolvedFor("t1");
+    expect(result.current.pick).toEqual({
+      error: "sender_not_allowed",
+      refused: "tenant_default",
+    });
+  });
+
   it("has no line for a tenant without a ready phone", async () => {
     backend.senders = [reportSender("off", { ready: false })];
     const { result } = await resolvedFor("t1");

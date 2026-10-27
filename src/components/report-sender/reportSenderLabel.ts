@@ -24,8 +24,8 @@ export function reportSenderLabel(sender: Labelled): string {
     return name;
   }
   return sender.owner_tenant_name
-    ? `${name} (משותף מ-${sender.owner_tenant_name})`
-    : `${name} (משותף)`;
+    ? `${name} (משותף מארגון אחר: ${sender.owner_tenant_name})`
+    : `${name} (משותף מארגון אחר)`;
 }
 
 /** The label in a list, marking a line that cannot send yet. */

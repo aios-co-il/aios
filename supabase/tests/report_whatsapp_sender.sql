@@ -83,14 +83,28 @@ BEGIN
     RAISE EXCEPTION 'usable: own, member and shared only, never foreign, forged or Meta';
   END IF;
 
-  -- The worker (service role) lists exactly the usable lines, without secrets.
+  -- The worker (service role) lists exactly the usable lines, without
+  -- secrets, the tenant's own lines before the shared one, which says so.
   PERFORM set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  SELECT array_agg(s.id) INTO v_ids
-  FROM public.list_report_whatsapp_senders(v_tenant) AS s
+  SELECT array_agg(s.id ORDER BY s.ord) INTO v_ids
+  FROM public.list_report_whatsapp_senders(v_tenant) WITH ORDINALITY AS s(
+    id, integration_type, display_name, last4, owner_user_id, owner_name,
+    owner_tenant_id, owner_tenant_name, is_shared, carmen_role, ready,
+    group_chat_ids, caller_can_manage, ord
+  )
   WHERE s.id IN (v_own, v_member_line, v_shared, v_foreign, v_forged, v_meta);
   IF v_ids IS NULL
-     OR NOT (v_ids @> ARRAY[v_own, v_member_line, v_shared] AND cardinality(v_ids) = 3) THEN
-    RAISE EXCEPTION 'list: expected the own, member and shared lines, got %', v_ids;
+     OR NOT (v_ids @> ARRAY[v_own, v_member_line, v_shared] AND cardinality(v_ids) = 3)
+     OR v_ids[3] <> v_shared THEN
+    RAISE EXCEPTION 'list: expected the own and member lines, then the shared one, got %', v_ids;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.list_report_whatsapp_senders(v_tenant) AS s
+    WHERE s.id IN (v_own, v_member_line, v_shared)
+      AND s.is_shared IS DISTINCT FROM (s.id = v_shared)
+  ) THEN
+    RAISE EXCEPTION 'list: only the line of another tenant is_shared';
   END IF;
   -- Group ids come back only for this tenant's own groups.
   SELECT s.group_chat_ids INTO v_chats

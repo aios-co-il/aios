@@ -73,6 +73,47 @@ describe("ReportSenderDefaultCard", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  it("says the default covers new sends and schedules that follow it", async () => {
+    backend.senders = [carmen(owner)];
+    renderCard();
+    expect(
+      await screen.findByText("טלפון ברירת המחדל לשליחת דוחות"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/תזמונים שנבחר להם טלפון משלהם ממשיכים לשלוח ממנו/),
+    ).toBeInTheDocument();
+  });
+
+  it("lets an owner make a line another organization shared the default", async () => {
+    // A shared line is never used on its own, so the only line is a choice.
+    backend.senders = [
+      carmen({ ...owner, is_shared: true, owner_tenant_name: "AIOS" }),
+    ];
+    renderCard();
+    const select = await screen.findByRole("combobox", { name: "שלח דוחות מ" });
+    expect(select).toHaveTextContent("בלי טלפון קבוע");
+    await userEvent.click(select);
+    await userEvent.click(
+      await screen.findByRole("option", {
+        name: "הטלפון של כרמן (משותף מארגון אחר: AIOS)",
+      }),
+    );
+    await waitFor(() =>
+      expect(backend.setDefault).toHaveBeenCalledWith({
+        p_tenant_id: "t1",
+        p_integration_id: "carmen",
+      }),
+    );
+  });
+
+  it("shows members that a lone shared line is chosen per send", async () => {
+    backend.senders = [carmen({ is_shared: true })];
+    renderCard();
+    expect(
+      await screen.findByText(/אין טלפון קבוע לדוחות/),
+    ).toBeInTheDocument();
+  });
+
   it("says there is no phone to send from", async () => {
     renderCard();
     expect(
@@ -107,27 +148,24 @@ describe("ReportSenderDefaultCard", () => {
     );
   });
 
-  it("flags a default whose line was switched off, and names the line used", async () => {
-    // The list no longer returns the inactive default line.
+  it("tells members a stale default fails until an owner replaces it", async () => {
+    // The default line was switched off or unshared: the list no longer
+    // returns it, and no other line takes its place.
     backend.senders = [carmen()];
     backend.tenantDefault = "off";
     renderCard();
     expect(
-      await screen.findByText("דוחות נשלחים מ: הטלפון של כרמן"),
+      await screen.findByText(/בעלי הארגון צריכים לבחור ברירת מחדל חדשה/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/טלפון ברירת המחדל לדוחות כבר לא מחובר/),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/דוחות נשלחים מ/)).not.toBeInTheDocument();
   });
 
-  it("shows owners the stale default as unavailable", async () => {
-    backend.senders = [carmen(owner), david(owner)];
+  it("asks owners to choose a new default for a stale one", async () => {
+    backend.senders = [carmen(owner)];
     backend.tenantDefault = "off";
     renderCard();
     const select = await screen.findByRole("combobox", { name: "שלח דוחות מ" });
     expect(select).toHaveTextContent("הטלפון שנבחר כבר לא זמין");
-    expect(
-      screen.getByText(/טלפון ברירת המחדל לדוחות כבר לא מחובר/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/בחרו ברירת מחדל חדשה/)).toBeInTheDocument();
   });
 });

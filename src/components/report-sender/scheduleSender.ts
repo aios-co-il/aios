@@ -3,14 +3,18 @@ import {
   usableReportSender,
 } from "../../../supabase/functions/_shared/report-sender/pick.ts";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
-import type { ReportSenderMessageKey } from "./reportSenderMessages";
+import {
+  pickErrorKey,
+  type ReportSenderMessageKey,
+} from "./reportSenderMessages";
 
 /**
  * A schedule's line as its form shows it:
  * - follows_default: NULL, chosen to follow the organization default;
  * - line: a concrete line, stored by id so it never moves on its own;
  * - unusable: the stored line is gone or cannot send;
- * - none: no line resolves (no phone at all, or several and no choice).
+ * - none: no line resolves (no phone at all, no own line to take, or an
+ *   organization default that can no longer send).
  */
 export type ScheduleSender =
   | { status: "follows_default"; sender: ReportSender }
@@ -20,7 +24,14 @@ export type ScheduleSender =
       savedId: string;
       error: "sender_not_allowed" | "not_configured";
     }
-  | { status: "none"; error: "no_report_sender" | "choose_sender" };
+  | {
+      status: "none";
+      error:
+        | "no_report_sender"
+        | "choose_sender"
+        | "sender_not_allowed"
+        | "stale_default";
+    };
 
 /** The form's line, or that the lines are still loading or failed to. */
 export type ScheduleSenderState =
@@ -54,9 +65,7 @@ export function resolveScheduleSender(
     callerUserId: input.userId,
   });
   if ("error" in pick) {
-    const error =
-      pick.error === "no_report_sender" ? pick.error : "choose_sender";
-    return { status: "none", error };
+    return { status: "none", error: pickErrorKey(pick) };
   }
   const followsDefault =
     input.nullFollowsDefault &&

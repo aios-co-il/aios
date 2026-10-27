@@ -21,8 +21,8 @@ const NO_SENDERS: ReportSender[] = [];
 
 /**
  * The line one send goes out from: the one picked in the dialog, else the
- * tenant default, else the only line, else the sender's own Green API line
- * (the same order the server and the report worker use).
+ * tenant default, else the tenant's only own line, else the sender's own
+ * Green API line (the same order the server and the report worker use).
  */
 export function useReportSenderChoice(
   tenantId: string | null | undefined,

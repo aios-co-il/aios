@@ -28,9 +28,12 @@ const sharedCarmen = line("shared-carmen", {
 
 /** The id and source a pick resolved to, or its error. */
 function outcome(result: ReturnType<typeof pickReportSender>) {
-  return "error" in result
-    ? { error: result.error }
-    : { id: result.sender.id, type: result.type, source: result.source };
+  if ("sender" in result) {
+    return { id: result.sender.id, type: result.type, source: result.source };
+  }
+  return "refused" in result
+    ? { error: result.error, refused: result.refused }
+    : { error: result.error };
 }
 
 Deno.test("pickReportSender with no line", () => {
@@ -45,19 +48,18 @@ Deno.test("pickReportSender with no line", () => {
 });
 
 Deno.test(
-  "pickReportSender with one line uses it (a Manus-only tenant)",
+  "pickReportSender with one own line uses it (a Manus-only tenant)",
   () => {
     assertEquals(outcome(pickReportSender({ senders: [carmen] })), {
       id: "carmen",
       type: "manus_wa",
       source: "only_sender",
     });
-    // A line shared by another tenant is a line like any other.
-    assertEquals(outcome(pickReportSender({ senders: [sharedCarmen] })), {
-      id: "shared-carmen",
-      type: "manus_wa",
-      source: "only_sender",
-    });
+    // A line shared by another tenant does not count against it.
+    assertEquals(
+      outcome(pickReportSender({ senders: [carmen, sharedCarmen] })),
+      { id: "carmen", type: "manus_wa", source: "only_sender" },
+    );
     // Lines that are not ready do not count.
     assertEquals(
       outcome(
@@ -124,6 +126,7 @@ Deno.test("pickReportSender with several lines", async (t) => {
         pickReportSender({
           senders: [
             carmen,
+            colleagueGreen,
             line("shared-own", { owner_user_id: CALLER, is_shared: true }),
           ],
           callerUserId: CALLER,
@@ -134,15 +137,50 @@ Deno.test("pickReportSender with several lines", async (t) => {
   });
 });
 
+Deno.test(
+  "pickReportSender never picks a shared line on its own",
+  async (t) => {
+    await t.step("the only ready line, when shared, asks for a choice", () => {
+      assertEquals(outcome(pickReportSender({ senders: [sharedCarmen] })), {
+        error: "choose_sender",
+      });
+    });
+
+    await t.step("a shared line chosen for the send is used", () => {
+      assertEquals(
+        outcome(
+          pickReportSender({
+            senders: [sharedCarmen],
+            requestedId: "shared-carmen",
+          }),
+        ),
+        { id: "shared-carmen", type: "manus_wa", source: "requested" },
+      );
+    });
+
+    await t.step("so is a shared line an owner set as the default", () => {
+      assertEquals(
+        outcome(
+          pickReportSender({
+            senders: [ownGreen, sharedCarmen],
+            tenantDefaultId: "shared-carmen",
+          }),
+        ),
+        { id: "shared-carmen", type: "manus_wa", source: "tenant_default" },
+      );
+    });
+  },
+);
+
 Deno.test("pickReportSender never replaces a named line", () => {
   // A line of another tenant (not in the list) is refused, not swapped.
-  for (const named of [
-    { requestedId: "foreign" },
-    { scheduleSenderId: "foreign" },
-  ]) {
+  for (const [named, refused] of [
+    [{ requestedId: "foreign" }, "requested"],
+    [{ scheduleSenderId: "foreign" }, "schedule"],
+  ] as const) {
     assertEquals(
       outcome(pickReportSender({ senders: [carmen], ...named })),
-      { error: "sender_not_allowed" },
+      { error: "sender_not_allowed", refused },
       JSON.stringify(named),
     );
   }
@@ -154,7 +192,7 @@ Deno.test("pickReportSender never replaces a named line", () => {
         requestedId: "off",
       }),
     ),
-    { error: "sender_not_allowed" },
+    { error: "sender_not_allowed", refused: "requested" },
   );
   assertEquals(
     outcome(
@@ -163,23 +201,27 @@ Deno.test("pickReportSender never replaces a named line", () => {
         requestedId: "meta",
       }),
     ),
-    { error: "sender_not_allowed" },
+    { error: "sender_not_allowed", refused: "requested" },
   );
 });
 
-Deno.test("pickReportSender skips a stale tenant default", async (t) => {
-  // The default line was switched off: the list no longer returns it, or
-  // returns it as not ready.
+Deno.test("pickReportSender refuses a stale tenant default", async (t) => {
+  const stale = {
+    error: "sender_not_allowed",
+    refused: "tenant_default",
+  } as const;
+  // The default line was switched off or unshared: the list no longer
+  // returns it, or returns it as not ready.
   for (const senders of [[carmen], [carmen, line("off", { ready: false })]]) {
-    await t.step(`one ready line left (${senders.length})`, () => {
+    await t.step(`even with one ready line left (${senders.length})`, () => {
       assertEquals(
         outcome(pickReportSender({ senders, tenantDefaultId: "off" })),
-        { id: "carmen", type: "manus_wa", source: "only_sender" },
+        stale,
       );
     });
   }
 
-  await t.step("several lines fall back to the caller's own line", () => {
+  await t.step("instead of the caller's own line", () => {
     assertEquals(
       outcome(
         pickReportSender({
@@ -187,8 +229,21 @@ Deno.test("pickReportSender skips a stale tenant default", async (t) => {
           tenantDefaultId: "off",
           callerUserId: CALLER,
         }),
+      ),
+      stale,
+    );
+  });
+
+  await t.step("a line chosen for the send still goes out", () => {
+    assertEquals(
+      outcome(
+        pickReportSender({
+          senders: [carmen],
+          requestedId: "carmen",
+          tenantDefaultId: "off",
+        }),
       ).source,
-      "own_line",
+      "requested",
     );
   });
 });

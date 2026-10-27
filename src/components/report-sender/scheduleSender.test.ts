@@ -80,6 +80,33 @@ describe("resolveScheduleSender", () => {
       error: "choose_sender",
     });
   });
+
+  it("never stores a shared line nobody chose", () => {
+    const shared = reportSender("shared", { is_shared: true });
+    expect(outcome({ senders: [shared] })).toEqual({
+      status: "none",
+      error: "choose_sender",
+    });
+    // The tenant's own line is still taken when it is its only one.
+    expect(outcome({ senders: [carmen, shared], userId: null })).toEqual({
+      status: "line",
+      id: "carmen",
+    });
+    expect(outcome({ senders: [shared], value: "shared" })).toEqual({
+      status: "line",
+      id: "shared",
+    });
+  });
+
+  it("refuses an organization default that can no longer send", () => {
+    // The default line was switched off or unshared; no line replaces it.
+    for (const nullFollowsDefault of [true, false]) {
+      expect(outcome({ tenantDefaultId: "off", nullFollowsDefault })).toEqual({
+        status: "none",
+        error: "stale_default",
+      });
+    }
+  });
 });
 
 describe("scheduleSenderToSave", () => {
@@ -97,6 +124,12 @@ describe("scheduleSenderToSave", () => {
   it("blocks an enabled WhatsApp schedule without a working line", () => {
     expect(scheduleSenderToSave(none, null, true)).toEqual({
       error: "choose_sender",
+    });
+    const stale = resolveScheduleSender(
+      input({ tenantDefaultId: "off", nullFollowsDefault: true }),
+    );
+    expect(scheduleSenderToSave(stale, null, true)).toEqual({
+      error: "stale_default",
     });
     expect(
       scheduleSenderToSave({ status: "pending", error: "loading" }, null, true),

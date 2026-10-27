@@ -2,6 +2,7 @@ import { FunctionsFetchError, FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { reportSenderFunction } from "../../../supabase/functions/_shared/report-sender/routes.ts";
 import {
+  pickErrorKey,
   REPORT_SENDER_MESSAGES,
   reportSenderMessage,
 } from "./reportSenderMessages";
@@ -49,7 +50,7 @@ export async function sendReportWhatsApp(
 ): Promise<ReportWhatsAppResult> {
   const { pick } = input;
   if ("error" in pick) {
-    throw new Error(REPORT_SENDER_MESSAGES[pick.error]);
+    throw new Error(REPORT_SENDER_MESSAGES[pickErrorKey(pick)]);
   }
   const isFile = "file" in input;
   const { data, error } = await supabase.functions.invoke(

@@ -49,9 +49,10 @@ export type WhatsAppChannelDeps = {
 
 /**
  * Sends the message from the schedule's own line, else the tenant default,
- * else the tenant's only line, else the creator's own Green API line (how
- * scheduled reports were sent before). A schedule with none of these fails
- * this channel; the worker still advances the cadence, so nothing is resent.
+ * else the tenant's only own line, else the creator's own Green API line (how
+ * scheduled reports were sent before). A chosen line that cannot send (the
+ * schedule's or the default) fails this channel, as does no line at all; the
+ * worker still advances the cadence, so nothing is resent.
  */
 export async function sendScheduledWhatsApp(
   deps: WhatsAppChannelDeps,
