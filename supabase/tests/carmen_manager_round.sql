@@ -7,6 +7,7 @@ DECLARE
   v_client uuid;
   v_other_client uuid;
   v_other_agency uuid;
+  v_other_tenant uuid;
   v_member uuid;
   v_planned uuid;
   v_stranger uuid := gen_random_uuid();
@@ -18,6 +19,8 @@ DECLARE
   v_rules jsonb;
   v_stamp text;
   v_message text;
+  v_outcomes text;
+  v_codes integer[];
   cand jsonb;
 BEGIN
   SELECT c.tenant_id, c.id INTO v_tenant, v_client
@@ -50,6 +53,31 @@ BEGIN
   END IF;
   IF (SELECT occurrence_count FROM public.carmen_findings WHERE id = v_finding) <> 3 THEN
     RAISE EXCEPTION 'upsert: occurrences must be counted';
+  END IF;
+
+  -- One call stores a whole batch: new findings take consecutive codes and
+  -- a 'detected' event each; a repeat in the batch, a summary or fingerprint
+  -- over the table's limits and a bad severity are reported, not stored.
+  SELECT string_agg(u.outcome, ',' ORDER BY u.ord),
+         array_agg(u.short_code ORDER BY u.ord) FILTER (WHERE u.outcome = 'inserted')
+    INTO v_outcomes, v_codes
+  FROM public.carmen_finding_upsert(v_tenant, v_round, 'qa', '1', jsonb_build_array(
+    cand || '{"fingerprint": "qa-batch-1"}',
+    cand || '{"fingerprint": "qa-batch-2"}',
+    cand || '{"fingerprint": "qa-batch-1"}',
+    cand || jsonb_build_object('fingerprint', 'qa-batch-3', 'summary_he', repeat('x', 501)),
+    cand || jsonb_build_object('fingerprint', repeat('f', 301)),
+    cand || '{"fingerprint": "qa-batch-4", "severity": "urgent"}',
+    cand || '{"fingerprint": "qa-rollback-fp"}'
+  )) WITH ORDINALITY AS u(finding_id, kind, fingerprint, short_code, outcome, ord);
+  IF v_outcomes IS DISTINCT FROM 'inserted,inserted,duplicate,invalid,invalid,invalid,seen'
+     OR v_codes[2] <> v_codes[1] + 1 THEN
+    RAISE EXCEPTION 'upsert batch: got % with codes %', v_outcomes, v_codes;
+  END IF;
+  IF (SELECT count(*) FROM public.carmen_finding_events AS e
+      JOIN public.carmen_findings AS f ON f.id = e.finding_id
+      WHERE f.fingerprint IN ('qa-batch-1', 'qa-batch-2') AND e.event = 'detected') <> 2 THEN
+    RAISE EXCEPTION 'upsert batch: one detected event per new finding expected';
   END IF;
 
   -- Another tenant's client is never written into this tenant.
@@ -111,6 +139,39 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM public.carmen_finding_events WHERE finding_id = v_finding AND event = 'notified') THEN
     RAISE EXCEPTION 'record_send: outcome and notified event expected';
   END IF;
+
+  -- Delivery keys carry the tenant, and a delivery or event can only point at
+  -- a finding of its own tenant, so no writer can plan into or rewrite
+  -- another tenant's row. A throwaway tenant keeps this check running on a
+  -- database with one tenant.
+  IF EXISTS (
+    SELECT 1 FROM pg_index AS i
+    WHERE i.indrelid = 'public.carmen_finding_deliveries'::regclass
+      AND i.indisunique AND NOT i.indisprimary
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_attribute AS a
+        WHERE a.attrelid = i.indrelid AND a.attname = 'tenant_id'
+          AND a.attnum = ANY (i.indkey::smallint[]))) THEN
+    RAISE EXCEPTION 'deliveries: every unique key must include tenant_id';
+  END IF;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA rollback tenant', 'qa-rollback-' || gen_random_uuid())
+  RETURNING id INTO v_other_tenant;
+  BEGIN
+    INSERT INTO public.carmen_finding_deliveries (tenant_id, finding_id, level,
+      recipient_key, channel, slot, status)
+    VALUES (v_other_tenant, v_finding, 0, 'qa:one', 'manus_wa', 'now', 'planned');
+    RAISE EXCEPTION 'deliveries: a row of another tenant must not reference this finding';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event)
+    VALUES (v_other_tenant, v_finding, 'feedback');
+    RAISE EXCEPTION 'events: a row of another tenant must not reference this finding';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
 
   -- Auto-clear after two runs without the fingerprint.
   PERFORM public.carmen_finding_mark_missing(v_tenant, 'data_gap', '{}'::text[], ARRAY[v_client], NULL, 2, v_round);

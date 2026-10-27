@@ -1,5 +1,6 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
+import { withConsoleErrors } from "../../_shared/testing/console-errors.ts";
 import { RoundBudget } from "../budget.ts";
 import { deps } from "../tests/fakes.ts";
 import { TENANT, type World, world } from "../tests/fake-world.ts";
@@ -9,6 +10,7 @@ import type { Collector, CollectorContext } from "./types.ts";
 
 const slot = new Date("2026-11-01T08:00:00Z");
 
+/** An hourly contact collector that collects with `collect`. */
 function collector(collect: Collector["collect"]): Collector {
   return {
     id: "contact",
@@ -19,6 +21,7 @@ function collector(collect: Collector["collect"]): Collector {
   };
 }
 
+/** A warning candidate for client c1 with this fingerprint. */
 const candidate = (
   fingerprint: string,
   kind: "no_contact" | "data_gap" = "no_contact",
@@ -34,6 +37,7 @@ const candidate = (
   owner_user_id: null,
 });
 
+/** runCollectors over `w` for these due collectors. */
 function run(
   w: World,
   due: DueCollector[],
@@ -74,6 +78,7 @@ Deno.test("runCollectors", async (t) => {
         candidates: 1,
         inserted: 1,
         cleared: 0,
+        dropped: {},
         llm: { calls: 0, costUsd: 0 },
       });
       assertEquals(
@@ -91,6 +96,34 @@ Deno.test("runCollectors", async (t) => {
       ]);
       assertEquals(w.state[0].watermark, { cursor: 5 });
       assertEquals(contexts[0]?.since.toISOString(), w.now.toISOString());
+    },
+  );
+
+  await t.step(
+    "counts and logs the candidates the database did not store",
+    async () => {
+      const w = world({
+        refused: { far: "rejected_client", long: "invalid", old: "suppressed" },
+      });
+      const contact = collector(() =>
+        Promise.resolve({
+          candidates: ["a", "far", "long", "old"].map((fp) => candidate(fp)),
+          watermark: null,
+          coverage: { complete: false, clientIds: null },
+        }),
+      );
+      const { result, logged } = await withConsoleErrors(() =>
+        run(w, [{ collector: contact, slot }]),
+      );
+      assertEquals(result.reports[0].inserted, 1);
+      assertEquals(result.reports[0].dropped, {
+        rejected_client: 1,
+        invalid: 1,
+        suppressed: 1,
+      });
+      assertStringIncludes(logged, '"fingerprint":"far"');
+      assertStringIncludes(logged, '"fingerprint":"long"');
+      assertEquals(logged.includes('"fingerprint":"old"'), false);
     },
   );
 

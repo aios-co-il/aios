@@ -1,10 +1,11 @@
 /** Delivery persistence: claims, outcomes, the daily cap and brief activity. */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { throwIf } from "../db-error.ts";
-import type {
-  DeliveryRow,
-  DeliveryStatus,
-  Recipient,
+import {
+  DELIVERED_STATUSES,
+  type DeliveryRow,
+  type DeliveryStatus,
+  type Recipient,
 } from "../findings/types.ts";
 
 export type SendOutcome = {
@@ -43,8 +44,6 @@ export type DeliveriesStore = {
     since: Date,
   ): Promise<{ autoCleared: number; messages: number }>;
 };
-
-const DELIVERED = ["sent", "delivery_unknown"];
 
 /** DeliveriesStore over the service-role client. */
 export function createDeliveriesStore(db: DbClient): DeliveriesStore {
@@ -133,7 +132,7 @@ async function deliveredMessages(db: DbClient, tenantId: string, since: Date) {
     .from("carmen_finding_deliveries")
     .select("recipient_key, message_key")
     .eq("tenant_id", tenantId)
-    .in("status", DELIVERED)
+    .in("status", [...DELIVERED_STATUSES])
     .in("slot", ["now", "list"])
     .gte("attempted_at", since.toISOString())
     .limit(1000);

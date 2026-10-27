@@ -6,15 +6,15 @@
  */
 import {
   isAlertHeldForShabbat,
-  isCriticalAlert,
-} from "../../_shared/critical-alerts.ts";
+  isShabbatCriticalAlert,
+} from "../../_shared/shabbat/critical-alerts.ts";
 import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
 import { isSendingMode, kindMode } from "../../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import { isBusinessTime } from "../calendar/business-hours.ts";
 import {
-  alertTypeOf,
   type DeliveryRow,
+  evidenceText,
   type FindingRow,
 } from "../findings/types.ts";
 import { isDeliverable, type NotifyFloors } from "../router/route.ts";
@@ -109,11 +109,11 @@ function isQuiet(
   finding: FindingRow,
   input: TriageInput,
 ): boolean {
-  const alertType = alertTypeOf(finding.evidence);
+  const alertType = evidenceText(finding.evidence, "alert_type");
   if (isAlertHeldForShabbat(alertType, input.now)) {
     return true;
   }
-  if (isCriticalAlert(alertType)) {
+  if (isShabbatCriticalAlert(alertType)) {
     return false;
   }
   const soon = new Date(input.now.getTime() + LIST_LEAD_MS);

@@ -48,6 +48,15 @@ export type PulseManagerSettings = {
   mode?: ManagerMode;
 };
 
+/**
+ * Saves the edited alert rules and the manager settings; the caller merges
+ * both into the stored pulse_alert_rules (mergePulseAlertRules).
+ */
+export type SavePulseAlertRules = (
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings,
+) => void;
+
 function asRecord(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" && !Array.isArray(raw)
     ? { ...raw }

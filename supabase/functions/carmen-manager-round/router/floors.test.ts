@@ -20,6 +20,7 @@ const later: Collector = {
   id: "contact_v2",
   kinds: ["no_contact"],
 };
+/** A collector's state row that first ran at `first_run_at`. */
 const row = (collector: string, first_run_at: string) => ({
   collector,
   first_run_at,

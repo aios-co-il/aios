@@ -7,21 +7,23 @@
  * brief recipients (owner by default) after escalation_hours[1], or at once
  * when critical.
  */
-import { isCriticalAlert } from "../../_shared/critical-alerts.ts";
+import { isShabbatCriticalAlert } from "../../_shared/shabbat/critical-alerts.ts";
+import { BRIEF_CRON } from "../../_shared/manager-round/brief-schedule.ts";
 import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import {
   addBusinessHours,
   nextBusinessStart,
 } from "../calendar/business-hours.ts";
-import { BRIEF_CRON, LIST_CRON, nextWorkingSlot } from "../calendar/slots.ts";
+import { LIST_CRON, nextWorkingSlot } from "../calendar/slots.ts";
 import {
-  alertTypeOf,
+  evidenceText,
   type FindingRow,
   type Level,
   type PlannedAction,
   type PlannedDelivery,
   type Recipient,
+  uniqueByKey,
 } from "../findings/types.ts";
 import type { ClientRecipients } from "../recipients/resolve.ts";
 import { KIND_POLICY } from "./policy.ts";
@@ -46,7 +48,7 @@ export function isUrgent(finding: FindingRow, kind: FindingKind): boolean {
  * other at the next business moment (never on Shabbat or a holiday).
  */
 export function sendTime(finding: FindingRow, ctx: LadderContext): Date {
-  return isCriticalAlert(alertTypeOf(finding.evidence))
+  return isShabbatCriticalAlert(evidenceText(finding.evidence, "alert_type"))
     ? ctx.now
     : nextBusinessStart(ctx.now, ctx.settings);
 }
@@ -150,13 +152,5 @@ function without(recipients: Recipient[], already: Recipient[]): Recipient[] {
   const keys = new Set(already.map((recipient) => recipient.key));
   return uniqueByKey(
     recipients.filter((recipient) => !keys.has(recipient.key)),
-  );
-}
-
-/** Each recipient once, first occurrence kept. */
-function uniqueByKey(recipients: Recipient[]): Recipient[] {
-  const seen = new Set<string>();
-  return recipients.filter(
-    (recipient) => !seen.has(recipient.key) && !!seen.add(recipient.key),
   );
 }

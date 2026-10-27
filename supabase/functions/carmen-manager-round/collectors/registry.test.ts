@@ -29,6 +29,7 @@ const fixture: Collector = { ...hourly, id: "self_test", fixturesOnly: true };
 const all = [hourly, onData, fixture];
 const now = new Date("2026-11-01T08:10:00Z");
 const none = { collectorIds: null, fixtures: null };
+/** The hourly collector's state with this last slot. */
 const state = (last_slot: string | null): RoundStateRow[] => [
   {
     collector: "hourly",
@@ -38,6 +39,7 @@ const state = (last_slot: string | null): RoundStateRow[] => [
     watermark: null,
   },
 ];
+/** Each due collector as `id@slot`. */
 const ids = (due: ReturnType<typeof dueCollectors>) =>
   due.map((d) => `${d.collector.id}@${d.slot?.toISOString() ?? "-"}`);
 

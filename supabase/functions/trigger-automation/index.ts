@@ -7,7 +7,8 @@ import {
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
-import { recordClientCardEntry } from "../_shared/client-card.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import { isCampaignRole } from "../_shared/client-team/campaign-role.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -24,7 +25,7 @@ import {
   releaseTaskNotificationDelivery,
   taskNotificationRecipientKey,
 } from "../_shared/task-notification-dedupe.ts";
-import { holdTaskNotificationForShabbat } from "../_shared/task-notification-hold.ts";
+import { holdOnShabbat } from "./shabbat-hold-response.ts";
 import {
   formatTaskNotificationMessage,
   resolveTaskNotificationLinkTenantId,
@@ -1010,7 +1011,7 @@ async function sendTaskNotificationFromTenantCarmen(
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("created_at", { ascending: true });
     const preferred = (team || []).find((row: any) =>
-      /campaign|ppc|קמפיינ/i.test(String(row.role_on_account || "")),
+      isCampaignRole(row.role_on_account),
     );
     campaignerId = preferred?.campaigner_id || team?.[0]?.campaigner_id || null;
   }
@@ -1511,28 +1512,9 @@ Deno.serve(async (req) => {
     }
 
     if (TASK_NOTIFICATION_TYPES.has(requestBody.trigger_type)) {
-      // No task WhatsApp on Shabbat (AIO-226): held, then sent Sunday 08:30.
-      // A queued hold is replayed with the service key, so the caller must
-      // pass the generic path's tenant check before anything is queued.
-      const shabbatHold = await holdTaskNotificationForShabbat(
-        supabase,
-        requestBody,
-        {
-          authorizeTenant: (tenantId) =>
-            authorizeTenantCaller(
-              supabase,
-              userClient,
-              req.headers.get("Authorization"),
-              supabaseKey,
-              tenantId,
-            ),
-        },
-      );
-      if (shabbatHold) {
-        return new Response(JSON.stringify(shabbatHold.body), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: shabbatHold.status,
-        });
+      const held = await holdOnShabbat(supabase, requestBody, req, corsHeaders);
+      if (held) {
+        return held;
       }
       const taskNotification = await sendTaskNotificationFromTenantCarmen(
         supabase,
@@ -6934,7 +6916,6 @@ async function executeAddClientUpdate(
   // record_client_card_entry checks the client is in this tenant, marks the
   // row as an automation entry (never counted as client contact) and
   // attributes it to the client's campaigner, else the tenant owner.
-  let entryId: string;
   try {
     const entry = await recordClientCardEntry(supabase, {
       tenantId,
@@ -6942,17 +6923,17 @@ async function executeAddClientUpdate(
       content: updateContent,
       source: "automation",
     });
-    entryId = entry.entryId;
-  } catch (insertError: any) {
+    return {
+      success: true,
+      update_id: entry.entryId,
+      content: updateContent,
+    };
+  } catch (insertError) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError?.message}`);
+    const reason =
+      insertError instanceof Error ? insertError.message : String(insertError);
+    throw new Error(`שגיאה בשמירת עדכון: ${reason}`);
   }
-
-  return {
-    success: true,
-    update_id: entryId,
-    content: updateContent,
-  };
 }
 
 // Execute create task action

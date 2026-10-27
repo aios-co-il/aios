@@ -6,10 +6,8 @@
  * starts only while the call's send window allows it, and every outcome is
  * recorded on its rows.
  */
-import {
-  jerusalemLocalTimeToUtc,
-  jerusalemYmd,
-} from "../../_shared/calendarTimeZone.ts";
+import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
+import { jerusalemLocalTimeToUtc } from "../../_shared/shabbat/quiet-window.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { RoundBudget } from "../budget.ts";
 import type { FindingsStore } from "../findings/store.ts";
@@ -37,6 +35,8 @@ export type DispatchInput = {
   briefKeys: () => Promise<Set<string>>;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
+  /** True once the stored settings differ from `settings` (checked before each person and again just before their message). */
+  settingsChanged: () => Promise<boolean>;
 };
 
 export type DispatchReport = {
@@ -82,7 +82,13 @@ export async function dispatchDue(
   const briefKeys = await input.briefKeys();
   const groups = groupByRecipient(rows);
   for (const [index, group] of groups.entries()) {
-    if (!input.budget.hasTime(SEND_RESERVE_MS)) {
+    // Out of time, or the owner changed the rollout mid-send (the database
+    // cancels only planned rows, not this claim): the next call triages the
+    // rest under the settings it reads then.
+    if (
+      !input.budget.hasTime(SEND_RESERVE_MS) ||
+      (await input.settingsChanged())
+    ) {
       await putBack(deps, input, groups.slice(index).flat(), report);
       return report;
     }
@@ -90,17 +96,21 @@ export async function dispatchDue(
     const capped =
       (sentToday.get(key) ?? 0) >=
       input.settings.max_alerts_per_recipient_per_day;
-    await dispatchGroup(
+    const stopped = await dispatchGroup(
       deps,
       { ...input, briefKeys, capped, waiting: input.skip.has(key) },
       { group, findings },
       report,
     );
+    if (stopped) {
+      await putBack(deps, input, groups.slice(index + 1).flat(), report);
+      return report;
+    }
   }
   return report;
 }
 
-/** Out of time: the rest of the claim goes back to planned, due at once, for the next call. */
+/** The rest of the claim goes back to planned, due at once, for the next call. */
 async function putBack(
   deps: DispatchDeps,
   input: DispatchInput,

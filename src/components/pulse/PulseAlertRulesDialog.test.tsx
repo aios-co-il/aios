@@ -4,12 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PulseAlertRulesDialog } from "./PulseAlertRulesDialog";
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+const owner = vi.hoisted(() => ({ value: false }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rpc: () => Promise.resolve({ data: owner.value, error: null }),
+  },
+}));
 vi.mock("@/hooks/useCurrentTenant", () => ({
-  useCurrentTenant: () => ({ tenantId: null }),
+  useCurrentTenant: () => ({ tenantId: "t1" }),
+}));
+vi.mock("@/components/pulse/manager-round/OpenFindingsList", () => ({
+  OpenFindingsList: () => null,
 }));
 
-function renderDialog(value: unknown, canManageManager?: boolean) {
+/** Renders the open dialog for a viewer the database does (or does not) treat as an owner; returns its onSave spy. */
+function renderDialog(value: unknown, isOwner = false) {
+  owner.value = isOwner;
   const onSave = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -18,7 +28,6 @@ function renderDialog(value: unknown, canManageManager?: boolean) {
         onOpenChange={() => {}}
         value={value}
         onSave={onSave}
-        canManageManager={canManageManager}
       />
     </QueryClientProvider>,
   );
@@ -28,10 +37,9 @@ function renderDialog(value: unknown, canManageManager?: boolean) {
 describe("PulseAlertRulesDialog manager mode", () => {
   it("lets an owner change Carmen's mode, starting from the stored one", async () => {
     const onSave = renderDialog({ manager: { mode: "david_only" } }, true);
-    expect(screen.getByRole("radio", { name: /רק לבעלים/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    expect(
+      await screen.findByRole("radio", { name: /רק לבעלים/ }),
+    ).toHaveAttribute("aria-checked", "true");
     await userEvent.click(screen.getByRole("radio", { name: /צוות מלא/ }));
     await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
     expect(onSave.mock.calls[0][1]).toEqual({ mode: "team" });

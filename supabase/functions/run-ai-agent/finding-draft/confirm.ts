@@ -8,7 +8,7 @@
  * that does not exist and one they may not log get the same refusal, so
  * codes cannot be probed.
  */
-import { HUMAN_REQUESTER_REQUIRED_HE } from "../../_shared/client-card-contact-policy.ts";
+import { HUMAN_REQUESTER_REQUIRED_HE } from "../client-card-contact-policy.ts";
 import {
   type ContactDraft,
   contactDraftOf,

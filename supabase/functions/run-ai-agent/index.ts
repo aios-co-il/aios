@@ -43,13 +43,17 @@ import {
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
-import { recordClientCardEntry } from "../_shared/client-card.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
 import {
   addClientUpdateFromCarmen,
-  recordCarmenHealthCardEntry,
-} from "../_shared/carmen-client-card-tools.ts";
-import { resolveHumanRequesterUserId } from "../_shared/client-card-contact-policy.ts";
-import { listClientCardEntries } from "../_shared/client-card-list.ts";
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
@@ -153,11 +157,7 @@ import {
   scoreNameMatch,
   selectStaffMatch,
 } from "../_shared/staff-whatsapp.ts";
-import {
-  logStaffAlertOutcome,
-  sendStaffAlert,
-  staffAlertToolResult,
-} from "../_shared/staff-notify.ts";
+import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 import {
   buildGoogleCustomerClientMap,
   googleResolveClientCustomerId,
@@ -207,12 +207,13 @@ import {
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   normalizePulseRowClientCall,
-} from "../_shared/pulse-client-call.ts";
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
 import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
-import { fetchCampaignLevelRecords } from "../_shared/pulse-inputs.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -476,43 +477,6 @@ async function fetchOpenAiBillingStatus(args: {
   const summary_he = formatOpenAiBillingWhatsApp(status);
   // Never echo key material
   return { ...status, summary_he };
-}
-
-// Staff alerts leave only from Carmen's Manus line (send-manus-wa-message:
-// Staging guard + chat_messages record). See _shared/staff-notify.ts.
-async function sendStaffWhatsappMessage(args: {
-  supabase: any;
-  tenantId: string;
-  phone: string;
-  message: string;
-  requesterUserId?: string | null;
-  agentId?: string | null;
-  conversationId?: string | null;
-  recipient?: { entity_type?: string; id?: string; full_name?: string } | null;
-}): Promise<{
-  error?: string;
-  integration_id?: string | null;
-  provider?: string | null;
-  [k: string]: any;
-}> {
-  const result = await sendStaffAlert({
-    supabase: args.supabase,
-    supabaseUrl: SUPABASE_URL,
-    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-    tenantId: args.tenantId,
-    phone: args.phone,
-    message: args.message,
-    requesterUserId: args.requesterUserId ?? null,
-  });
-  await logStaffAlertOutcome(args.supabase, {
-    tenantId: args.tenantId,
-    agentId: args.agentId,
-    userId: args.requesterUserId,
-    conversationId: args.conversationId,
-    recipient: args.recipient,
-    result,
-  });
-  return staffAlertToolResult(result);
 }
 
 const corsHeaders = {
@@ -1317,7 +1281,7 @@ const ALL_TOOLS = [
         content: { type: "string" },
         update_type: {
           type: "string",
-          enum: ["note", "call", "meeting", "complaint", "weekly_update"],
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
           description:
             "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
         },
@@ -3034,8 +2998,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description:
-      "רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: human / carmen / carmen_confirmed / system_send / group_digest / automation).",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -7331,7 +7294,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7380,6 +7342,7 @@ async function executeTool(
         }
       }
       // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
       let normalizedRows = Array.from(freshestByClient.values())
         .map((row: any) =>
           normalizePulseRowClientCall({
@@ -7390,7 +7353,7 @@ async function executeTool(
             agencies: undefined,
           }),
         )
-        .filter((row: any) => !args.status || row.status === args.status);
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7505,7 +7468,7 @@ async function executeTool(
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
       const noRecentClientCallCount = normalizedRows.filter(
-        (row: any) => row.no_recent_client_call === true,
+        pulseRowHasNoRecentClientCall,
       ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
@@ -8004,8 +7967,8 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client card entry (source carmen) for the updates tab
-      await recordCarmenHealthCardEntry(supabase, {
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntryError = await recordHealthCardEntryAfterUpdate(supabase, {
         tenantId,
         clientId: args.client_id,
         note: args.note,
@@ -8020,6 +7983,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
       };
     }
     case "get_client_retention_scan": {
@@ -8188,18 +8152,22 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          await recordCarmenHealthCardEntry(supabase, {
-            tenantId,
-            clientId,
-            note,
-            moodStatus: mood,
-            requesterUserId: humanRequesterUserId,
-            tool: "batch_update_client_health",
-          });
+          const cardEntryError = await recordHealthCardEntryAfterUpdate(
+            supabase,
+            {
+              tenantId,
+              clientId,
+              note,
+              moodStatus: mood,
+              requesterUserId: humanRequesterUserId,
+              tool: "batch_update_client_health",
+            },
+          );
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
           });
         } catch (err: any) {
           results.push({
@@ -10357,28 +10325,13 @@ async function executeTool(
           args.entity_id,
           callerScope,
         );
-        return await listClientCardEntries(supabase, {
-          clientId: args.entity_id,
-          accessibleTenantIds,
-          limit: args.limit,
-        });
       }
-      const { data: lead } = await supabase
-        .from("leads")
-        .select("id")
-        .eq("id", args.entity_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (!lead)
-        return { error: "not_found", message: "הליד לא נמצא בארגון הזה" };
-      const { data, error } = await supabase
-        .from("lead_updates")
-        .select("id, content, created_at")
-        .eq("lead_id", args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -11211,12 +11164,10 @@ async function executeTool(
       if (tableIds.length > 0) {
         // Campaign-level rows of the last 7 days, paged: one unfiltered request
         // stopped at 1000 rows of any level/date and missed real spend.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows as the untyped client returned them
-        const recs: any[] = await fetchCampaignLevelRecords(supabase, {
+        const recs = await fetchCampaignLevelRecords(supabase, {
           tableIds,
           sinceYmd: d7Str,
           tenantIds: accessibleTenantIds,
-          columns: "id, table_id, data",
         });
         for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
@@ -12635,7 +12586,12 @@ async function executeTool(
         source: "carmen",
         attributedUserId: effectiveUserId,
         metadata: { tool: "connect_client_meta_ad_account" },
-      }).catch(() => {});
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13393,6 +13349,8 @@ async function executeTool(
 
       const sendResult = await sendStaffWhatsappMessage({
         supabase,
+        supabaseUrl: SUPABASE_URL,
+        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
         tenantId,
         phone: contact.phone,
         message,
@@ -13558,11 +13516,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
+import type { Surface } from "./surface.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.

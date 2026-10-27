@@ -14,12 +14,14 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { redactSyncError } from "../_shared/ads-sync/redact.ts";
+import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
-  buildSyncOutcome,
-  redactSyncError,
-  scheduledMarkerPatch,
-} from "../_shared/sync-outcome.ts";
-import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
 
 const SOURCE = "sync-facebook-ecommerce";
 
@@ -36,7 +38,7 @@ Deno.serve(async (req) => {
   }
 
   // Set once the table is known, so an unexpected error is recorded as a failed run.
-  let recordFailure: ((message: string) => Promise<unknown>) | null = null;
+  let recordFailure: ((message: string) => Promise<void>) | null = null;
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -208,16 +210,13 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = integration.api_key;
-    recordFailure = (message) =>
-      saveSyncRun(supabaseAdmin, table_id, {
-        outcome: buildSyncOutcome({
-          status: "failed",
-          error: message,
-          source: SOURCE,
-        }),
-        catchup: update_last_sync === false,
-        fallbackSettings: settings,
-      });
+    const run = { tableId: table_id, tenantId: tableTenantId };
+    recordFailure = failedRunRecorder(supabaseAdmin, {
+      ...run,
+      source: SOURCE,
+      catchup: update_last_sync === false,
+      fallbackSettings: settings,
+    });
 
     // Calculate date range
     const now = new Date();
@@ -394,11 +393,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Replace only the days (and levels) this run re-fetched (admin client to bypass
-    // RLS); rows older than the sync window are history a longer report window still
-    // needs. An empty run or a failed campaign-level fetch leaves the stored rows alone
-    // (syncAdsWindow); a failed delete inserts nothing.
-    // table_id only — orphan rows from a previous tenant_id must not survive sync.
+    // Admin client bypasses RLS; what may be replaced (table_id-only): see syncAdsWindow.
     const outcome = await syncAdsWindow(
       { deleteClient: supabaseAdmin },
       {
@@ -419,7 +414,7 @@ Deno.serve(async (req) => {
 
     // last_sync_at (column + settings) and the scheduled markers move only after a
     // successful write; catch-up chunks (update_last_sync=false) never stamp it.
-    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, table_id, {
+    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
       catchup: update_last_sync === false,
       fallbackSettings: settings,
@@ -433,24 +428,16 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: outcome.status !== "failed",
-        ...(outcome.status === "failed" ? { error: outcome.error } : {}),
-        records_synced: outcome.rows,
-        outcome,
-        last_sync_at: lastSyncAt,
-      }),
-      {
-        status: outcome.status === "failed" ? 502 : 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    const { body, status } = syncRunBody(outcome, lastSyncAt);
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error: any) {
     console.error("Error in sync-facebook-ecommerce:", error);
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
-    ).catch(() => {});
+    );
     // Upstream errors can print the request URL, Meta access token included.
     return new Response(
       JSON.stringify({ error: redactSyncError(error?.message ?? error) }),

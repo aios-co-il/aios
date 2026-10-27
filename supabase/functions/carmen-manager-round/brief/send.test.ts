@@ -17,6 +17,7 @@ const SINCE = "2026-10-01T00:00:00Z";
 // Sunday 08:07 Israel time.
 const SLOT_TIME = new Date("2026-11-01T06:07:00Z");
 
+/** sendBriefIfDue for David over `w` with these manager settings; `fields` override the run. */
 function brief(
   w: World,
   manager: Record<string, unknown>,
@@ -25,6 +26,7 @@ function brief(
     recipients?: Recipient[];
     budget?: RoundBudget;
     ports?: ReturnType<typeof deps>;
+    settingsChanged?: () => boolean;
   } = {},
 ) {
   return sendBriefIfDue(fields.ports ?? deps(w), {
@@ -32,8 +34,10 @@ function brief(
     settings: resolveManagerSettings({ manager }),
     now: w.now,
     recipients: () => Promise.resolve(fields.recipients ?? [david]),
+    state: w.state,
     floors: {},
     budget: fields.budget ?? RoundBudget.create(140_000, 0),
+    settingsChanged: () => Promise.resolve(fields.settingsChanged?.() ?? false),
     dryRun: fields.dryRun ?? false,
   });
 }
@@ -60,6 +64,36 @@ Deno.test("sendBriefIfDue", async (t) => {
         }),
         null,
       );
+    },
+  );
+
+  await t.step(
+    "a slot the run's state shows as claimed is skipped without reading the brief",
+    async () => {
+      const w = world({
+        now: SLOT_TIME,
+        state: [
+          {
+            collector: "brief:user:david",
+            first_run_at: SINCE,
+            last_run_at: null,
+            last_slot: "2026-11-01T06:00:00Z",
+            watermark: null,
+          },
+        ],
+      });
+      const ports = deps(w);
+      let reads = 0;
+      ports.findings = {
+        ...ports.findings,
+        listLive: () => {
+          reads += 1;
+          return Promise.reject(new Error("db down"));
+        },
+      };
+      const team = { mode: "team", notify_since: SINCE };
+      assertEquals(await brief(w, team, { ports }), null);
+      assertEquals([reads, w.sent.length, w.slots.length], [0, 0, 0]);
     },
   );
 
@@ -155,6 +189,44 @@ Deno.test("sendBriefIfDue", async (t) => {
       const next = await brief(w, manager, { recipients });
       assertEquals(next?.sent, [{ key: "user:dana", status: "sent" }]);
       assertEquals(w.sent.length, 2);
+    },
+  );
+
+  await t.step(
+    "after the owner changed the settings mid-run nothing is claimed or sent",
+    async () => {
+      const w = world({ now: SLOT_TIME });
+      const report = await brief(
+        w,
+        { mode: "david_only", notify_since: SINCE },
+        { settingsChanged: () => true },
+      );
+      assertEquals([report?.sent, report?.deferred], [[], 1]);
+      assertEquals([w.sent.length, w.slots.length], [0, 0]);
+    },
+  );
+
+  await t.step(
+    "a switch while the brief is gathered: nothing is claimed or sent",
+    async () => {
+      const w = world({ now: SLOT_TIME });
+      const ports = deps(w);
+      let changed = false;
+      const listLive = ports.findings.listLive;
+      ports.findings = {
+        ...ports.findings,
+        listLive: (...args) => {
+          changed = true;
+          return listLive(...args);
+        },
+      };
+      const report = await brief(
+        w,
+        { mode: "david_only", notify_since: SINCE },
+        { ports, settingsChanged: () => changed },
+      );
+      assertEquals([report?.sent, report?.deferred], [[], 1]);
+      assertEquals([w.sent.length, w.slots.length], [0, 0]);
     },
   );
 

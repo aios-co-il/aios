@@ -1,14 +1,11 @@
 /**
  * Schedule slots (Asia/Jerusalem) of the round: collector crons, the morning
- * brief and the daily list. A slot older than its stale window is skipped,
- * never replayed.
+ * brief (BRIEF_CRON, _shared/manager-round/brief-schedule.ts) and the daily
+ * list. A slot older than its stale window is skipped, never replayed.
  */
 import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
 import { nextCronRun } from "../../_shared/cron-next.ts";
 import type { BusinessCalendar } from "./business-hours.ts";
-
-/** Morning brief to the brief recipients: 08:00 Sunday–Friday. */
-export const BRIEF_CRON = "0 8 * * 0-5";
 
 /** Batched non-urgent items for campaigners and managers: 08:30 Sunday–Thursday. */
 export const LIST_CRON = "30 8 * * 0-4";

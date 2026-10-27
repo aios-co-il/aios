@@ -29,6 +29,7 @@ export const SINCE = "2026-10-31T00:00:00Z";
 // Sunday 2026-11-01 10:00 Israel time (UTC+2).
 export const SUNDAY_10 = "2026-11-01T08:00:00Z";
 
+/** A route context at Sunday 10:00 for `client`, with Dana, Avi and David; `fields` override any part. */
 export function ctx(
   manager: Record<string, unknown>,
   fields: Partial<RouteContext> = {},
@@ -44,6 +45,7 @@ export function ctx(
 }
 
 export const team = { mode: "team", notify_since: SINCE };
+/** Each planned delivery as `level:recipient:slot:not_before`. */
 export const keys = (decision: RouteDecision) =>
   decision.deliveries.map(
     (d) => `${d.level}:${d.recipient_key}:${d.slot}:${d.not_before}`,

@@ -3,17 +3,12 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
-import { syncOutcomeProblem } from "./sync-freshness.ts";
+import { syncOutcomeProblem } from "./ads-sync/freshness.ts";
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
   pulseRowHasNoRecentClientCall,
-} from "./pulse-client-call.ts";
-
-export {
-  CLIENT_CALL_STALE_MS,
-  resolveNoRecentClientCall,
-} from "./pulse-client-call.ts";
+} from "./pulse/client-call.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -44,7 +39,7 @@ export type CampaignTableLike = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
-  /** Latest run's outcome (also mirrored in integration_settings), see sync-outcome.ts. */
+  /** Latest run's outcome (also mirrored in integration_settings), see ads-sync/outcome.ts. */
   last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
@@ -70,7 +65,9 @@ export function isSyncStale(
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
-  if (syncOutcomeProblem(table)) return true;
+  if (syncOutcomeProblem(table)) {
+    return true;
+  }
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
@@ -410,7 +407,7 @@ function applyStoppedCampaigns(
  * - critical / healthy: metric-driven when recent data exists
  *
  * A missing client call never changes the status (AIO-227): it is reported as
- * the separate `no_recent_client_call` indicator (see pulse-client-call.ts).
+ * the separate `no_recent_client_call` indicator (see pulse/client-call.ts).
  */
 export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   status: PulseStatus;
@@ -1065,11 +1062,14 @@ export function clientPerformance(
   const perfFlags = flags.filter((flag) => !OPERATIONAL_FLAG.test(flag));
   const ops = row.status === "no_data" || flags.length > perfFlags.length;
   let status: ClientPerformance["status"] = null;
-  if (row.status === "critical") status = "critical";
-  // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
-  else if (row.status === "warning")
+  if (row.status === "critical") {
+    status = "critical";
+  } else if (row.status === "warning") {
+    // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
     status = perfFlags.length || !allFlags.length ? "warning" : "healthy";
-  else if (row.status === "healthy") status = "healthy";
+  } else if (row.status === "healthy") {
+    status = "healthy";
+  }
   const criticalCampaign = (
     Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : []
   ).find((campaign) => campaign.status === "critical");

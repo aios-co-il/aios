@@ -1,13 +1,13 @@
 /**
- * The router (AIO-251, plan component C14): turns one live finding into
- * planned messages for the right people at a sensible time.
+ * The router: turns one live finding into planned messages for the right
+ * people at a sensible time.
  *
  * - observe (and a kind in observe): records what team mode would do and
  *   sends nothing;
  * - nothing is sent about an event before the kind's notify_since (stamped by
  *   the database when sending started) or before its collector first ran;
  * - david_only: only the brief recipients, urgent items at once and the rest
- *   in the 08:00 brief;
+ *   in the morning brief (BRIEF_CRON);
  * - team: the escalation ladder of team-ladder.ts, one level at a time.
  * The router never creates tasks and never writes the client card.
  */

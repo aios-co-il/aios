@@ -8,6 +8,7 @@ import type { Json } from "../../_shared/database.types.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { RoundBudget } from "../budget.ts";
+import type { DroppedCounts } from "../findings/dropped.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { RoundStateRow, RoundStateStore } from "../state/store.ts";
 import { collectorContext } from "./context.ts";
@@ -40,6 +41,8 @@ export type CollectorReport = {
   candidates: number;
   inserted: number;
   cleared: number;
+  /** Candidates the database did not store, by outcome. */
+  dropped: DroppedCounts;
   llm: { calls: number; costUsd: number };
   reason?: string;
 };
@@ -88,7 +91,7 @@ async function runOne(
       collector.kinds.includes(c.kind),
     );
     const stored = input.dryRun
-      ? { inserted: 0, cleared: 0 }
+      ? { inserted: 0, cleared: 0, dropped: {} }
       : await persistRun(deps, input, collector, result, candidates);
     const fields = {
       candidates: candidates.length,
@@ -138,6 +141,7 @@ function report(
     candidates: 0,
     inserted: 0,
     cleared: 0,
+    dropped: {},
     ...fields,
     llm: fields.llm ?? { calls: 0, costUsd: 0 },
   };

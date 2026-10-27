@@ -27,6 +27,8 @@ export const ROUND_STATE_KEY = "_round";
 
 export type RoundStateStore = {
   listTenants(): Promise<TenantRow[]>;
+  /** The tenant's pulse_alert_rules as stored now, to re-check a setting mid-run. */
+  loadRules(tenantId: string): Promise<Json | null>;
   loadState(tenantId: string): Promise<RoundStateRow[]>;
   /** Success stores the watermark and run time; failure only the error. */
   saveCollectorState(
@@ -81,6 +83,19 @@ export function createRoundStateStore(db: DbClient): RoundStateStore {
         pulse_alert_rules: rules.get(tenant.id) ?? null,
         last_run_at: lastRun.get(tenant.id) ?? null,
       }));
+    },
+
+    async loadRules(tenantId) {
+      // No unique key on tenant_id: the newest row wins, as in listTenants.
+      const { data, error } = await db
+        .from("tenant_heartbeat_settings")
+        .select("pulse_alert_rules")
+        .eq("tenant_id", tenantId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      throwIf(error, "tenant_heartbeat_settings load");
+      return data?.pulse_alert_rules ?? null;
     },
 
     async loadState(tenantId) {

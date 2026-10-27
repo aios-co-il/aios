@@ -68,6 +68,24 @@ Deno.test("createRoundStateStore", async (t) => {
     },
   );
 
+  await t.step("loadRules reads the tenant's newest settings row", async () => {
+    const { db, calls } = recordingClient(() => [
+      { pulse_alert_rules: { manager: { mode: "observe" } } },
+    ]);
+    assertEquals(await createRoundStateStore(db).loadRules(T), {
+      manager: { mode: "observe" },
+    });
+    assertEquals(
+      [
+        calls[0].path,
+        calls[0].query.get("tenant_id"),
+        calls[0].query.get("order"),
+        calls[0].query.get("limit"),
+      ],
+      ["tenant_heartbeat_settings", `eq.${T}`, "updated_at.desc", "1"],
+    );
+  });
+
   await t.step(
     "lease and slot answers are booleans from the RPCs",
     async () => {

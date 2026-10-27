@@ -5,7 +5,7 @@
  * round share one setting.
  */
 import { positive, record } from "../../../_shared/manager-round/settings.ts";
-import { CLIENT_CALL_STALE_DAYS } from "../../../_shared/pulse-client-call.ts";
+import { CLIENT_CALL_STALE_DAYS } from "../../../_shared/pulse/client-call.ts";
 import { parsePulseAlertRules } from "../../../_shared/pulse-instant-alerts.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";

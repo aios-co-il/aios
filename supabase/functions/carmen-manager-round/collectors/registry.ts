@@ -1,7 +1,8 @@
 /**
- * The collector registry. A new detector (R4 unanswered requests, R5 contact,
- * R6 group updates, KPI, platform alerts, reconciliation) is one file in this
- * folder implementing `Collector` (types.ts) and one entry here. Ids share
+ * The collector registry. A new detector (unanswered requests AIO-252,
+ * contact AIO-253, group updates AIO-254; the kinds without a detector yet
+ * are listed in _shared/manager-round/kinds.ts) is one file in this folder
+ * implementing `Collector` (types.ts) and one entry here. Ids share
  * carmen_round_state with the round's own keys ('_round', 'router',
  * 'brief:*'), and each kind belongs to one collector (registry.test.ts).
  */

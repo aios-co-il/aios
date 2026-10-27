@@ -30,6 +30,7 @@ function batch(count: number, slot: "now" | "list", critical = false) {
   return { w, findings, group };
 }
 
+/** dispatchGroup for the batch's person; returns the report. */
 async function dispatch(
   b: ReturnType<typeof batch>,
   flags: { capped?: boolean; waiting?: boolean } = {},
@@ -51,6 +52,7 @@ async function dispatch(
       briefKeys: new Set(),
       capped: flags.capped ?? false,
       waiting: flags.waiting ?? false,
+      settingsChanged: () => Promise.resolve(false),
     },
     { group: b.group, findings: b.findings },
     report,
@@ -58,6 +60,7 @@ async function dispatch(
   return report;
 }
 
+/** The not_before of each row still planned. */
 const planned = (b: ReturnType<typeof batch>) =>
   b.w.deliveries.filter((d) => d.status === "planned").map((d) => d.not_before);
 
