@@ -37,7 +37,7 @@ import {
   instantPulseAlertsGate,
   runGatedInstantPulseAlerts,
   type InstantPulseAlertResult,
-} from "../_shared/pulse-instant-alerts.ts";
+} from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -271,10 +271,7 @@ Deno.serve(async (req) => {
     return json(retention, retention.error ? 500 : 200);
   }
   // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
-  // Instant alerts have their own gate (instantPulseAlertsGate): pulse and
-  // instant_wa_enabled on, not preview_only, not the manual trigger, and no
-  // `skip_instant_alerts: true` in the body. A caller that only wants fresh
-  // numbers (e.g. an ad-hoc run) sends skip_instant_alerts.
+  // Instant alerts: see instantPulseAlertsGate.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
     body.force_delivery === true && body.source === "approved_manual_trigger";

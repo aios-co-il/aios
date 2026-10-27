@@ -1,11 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   taskNotificationScope,
-  taskNotificationsHeldUntil,
   taskOverdueNotifyAt,
   taskReminderAt,
 } from "./schedule.ts";
-import { releaseHeldTaskNotifications } from "../_shared/task-notification-hold.ts";
+import { postTriggerAutomation } from "./post-trigger-automation.ts";
+import { releaseHeldTaskNotifications } from "./release-held.ts";
+import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
+import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,35 +58,17 @@ async function invokeNotification(
   task: TaskRow,
   triggerType: NotificationType,
 ) {
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/trigger-automation`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        trigger_type: triggerType,
-        data: {
-          task_id: task.id,
-          title: task.title,
-          tenant_id: task.tenant_id,
-          campaigner_id: task.campaigner_id,
-          sales_person_id: task.sales_person_id,
-          created_by: task.created_by,
-        },
-      }),
+  const body = await postTriggerAutomation({
+    trigger_type: triggerType,
+    data: {
+      task_id: task.id,
+      title: task.title,
+      tenant_id: task.tenant_id,
+      campaigner_id: task.campaigner_id,
+      sales_person_id: task.sales_person_id,
+      created_by: task.created_by,
     },
-  );
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok && response.status !== 202) {
-    throw new Error(
-      body?.reason ||
-        body?.error ||
-        `trigger-automation returned ${response.status}`,
-    );
-  }
+  });
   if (body?.sent === true) return { delivered: true, body };
   if (body?.handled === true && body?.sent === false) {
     return { delivered: false, body };
@@ -98,30 +82,6 @@ async function invokeNotification(
   throw new Error(
     body?.reason || body?.error || "task notification was not handled",
   );
-}
-
-/** Replays a peer notification that trigger-automation held over Shabbat. */
-async function deliverHeldNotification(requestBody: unknown) {
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/trigger-automation`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify(requestBody),
-    },
-  );
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok && response.status !== 202) {
-    throw new Error(
-      body?.reason ||
-        body?.error ||
-        `trigger-automation returned ${response.status}`,
-    );
-  }
-  return body;
 }
 
 async function claimAndSend(
@@ -438,25 +398,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    // Shabbat (Saturday 00:00 → Sunday 08:30 Israel): claim nothing. Task
-    // markers stay NULL, so the first run after the window sends each held
-    // notification exactly once.
-    const heldUntil = taskNotificationsHeldUntil(new Date());
+    // Claim nothing on Shabbat: task markers stay NULL, so the first run after
+    // the window sends each held notification once.
+    const heldUntil = jerusalemShabbatHoldUntil();
     if (heldUntil) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          held: "shabbat",
-          hold_until: heldUntil.toISOString(),
-          processed: 0,
-          results: [],
-          errors: [],
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return shabbatHeldResponse(heldUntil, corsHeaders);
     }
     let tasks: TaskRow[] = [];
 
@@ -465,7 +411,6 @@ Deno.serve(async (req) => {
       if (task) tasks = [task];
     } else {
       const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-      const taskColumns = TASK_COLUMNS;
       const [
         assignments,
         reminders,
@@ -477,42 +422,42 @@ Deno.serve(async (req) => {
       ] = await Promise.all([
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .or("campaigner_id.not.is.null,sales_person_id.not.is.null")
           .neq("status", "done")
           .is("assignment_notification_sent_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("campaigner_id", "is", null)
           .eq("status", "open")
           .is("high_priority_reminder_sent_at", null)
           .limit(100),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .lte("high_priority_reminder_sent_at", oneMinuteAgo)
           .is("high_priority_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .lte("overdue_notified_at", oneMinuteAgo)
           .is("overdue_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .eq("status", "done")
           .is("completion_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("self_reminder_at", "is", null)
           .lte("self_reminder_at", new Date().toISOString())
           .neq("status", "done")
@@ -520,7 +465,7 @@ Deno.serve(async (req) => {
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("campaigner_id", "is", null)
           .not("due_date", "is", null)
           .lt("due_date", new Date().toISOString().slice(0, 10))
@@ -565,12 +510,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Peer notifications parked by trigger-automation over Shabbat.
     if (!body?.task_id) {
       results.push(
         ...(await releaseHeldTaskNotifications(
           supabase,
-          deliverHeldNotification,
+          postTriggerAutomation,
         )),
       );
     }
