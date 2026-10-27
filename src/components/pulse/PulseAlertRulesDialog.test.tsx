@@ -8,8 +8,14 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: null }),
 }));
+const role = vi.hoisted(() => ({ isOwner: false }));
+vi.mock("@/hooks/useUserRole", () => ({
+  useUserRole: () => ({ ...role, isAgencyOwner: false, isSuperAdmin: false }),
+}));
 
-function renderDialog(value: unknown, canManageManager?: boolean) {
+/** Renders the open dialog for an owner or a non-owner; returns its onSave spy. */
+function renderDialog(value: unknown, isOwner = false) {
+  role.isOwner = isOwner;
   const onSave = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -18,7 +24,6 @@ function renderDialog(value: unknown, canManageManager?: boolean) {
         onOpenChange={() => {}}
         value={value}
         onSave={onSave}
-        canManageManager={canManageManager}
       />
     </QueryClientProvider>,
   );

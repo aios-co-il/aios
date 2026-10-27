@@ -22,7 +22,7 @@ const MODE_TEXT: Record<ManagerMode, { label: string; hint: string }> = {
   },
 };
 
-type ManagerModeSectionProps = {
+export type ManagerModeSectionProps = {
   mode: ManagerMode;
   onChange: (mode: ManagerMode) => void;
 };

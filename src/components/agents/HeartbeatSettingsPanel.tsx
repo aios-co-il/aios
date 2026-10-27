@@ -27,7 +27,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { PulseAlertRulesDialog } from "@/components/pulse/PulseAlertRulesDialog";
 import { mergePulseAlertRules } from "@/lib/pulseAlertRules";
-import { useUserRole } from "@/hooks/useUserRole";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
 
@@ -67,8 +66,6 @@ export function HeartbeatSettingsPanel() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [pulseRulesOpen, setPulseRulesOpen] = useState(false);
-  const { isOwner, isAgencyOwner, isSuperAdmin } = useUserRole();
-  const canManageManager = isOwner || isAgencyOwner || isSuperAdmin;
 
   const { data: heartbeatSettings } = useQuery({
     queryKey: ["heartbeat_settings", tenantId],
@@ -424,20 +421,22 @@ export function HeartbeatSettingsPanel() {
         onOpenChange={setPulseRulesOpen}
         value={heartbeatSettings?.pulse_alert_rules}
         saving={saveHeartbeatSettings.isPending}
-        canManageManager={canManageManager}
-        onSave={async (rules, manager) => {
-          await saveHeartbeatSettings.mutateAsync({
-            ...coreSettings(),
-            ...campaignPulseSettings(),
-            // Merge, so keys this dialog does not edit are never dropped.
-            pulse_alert_rules: mergePulseAlertRules(
-              heartbeatSettings?.pulse_alert_rules,
-              rules,
-              manager,
-            ),
-          });
-          setPulseRulesOpen(false);
-        }}
+        onSave={(rules, manager) =>
+          saveHeartbeatSettings.mutate(
+            {
+              ...coreSettings(),
+              ...campaignPulseSettings(),
+              // Merge, so keys this dialog does not edit are never dropped.
+              pulse_alert_rules: mergePulseAlertRules(
+                heartbeatSettings?.pulse_alert_rules,
+                rules,
+                manager,
+              ),
+            },
+            // The mutation's own onError shows the failure; the dialog stays open.
+            { onSuccess: () => setPulseRulesOpen(false) },
+          )
+        }
       />
     </div>
   );
