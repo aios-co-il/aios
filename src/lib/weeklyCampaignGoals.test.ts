@@ -110,6 +110,36 @@ describe("groupWeeklyRowsByGoal", () => {
     });
   });
 
+  it("a group's ROAS leaves out the spend of Google lead campaigns", () => {
+    const [week] = buildWeeklyCampaignSections(
+      [
+        fb("Facebook leads", {
+          campaign_type: "lead",
+          spend: 100,
+          leads: 5,
+          purchase_value: 250,
+        }),
+        {
+          _source: "google_ads",
+          data: {
+            date: "2026-09-14",
+            campaign_id: "Google leads",
+            campaign_name: "Google leads",
+            cost: 300,
+            conversions: 4,
+            conversions_value: 3,
+          },
+        },
+      ],
+      { now: NOW },
+    );
+    const [leads] = week.groups;
+    expect(leads.kind).toBe("leads");
+    expect(leads.totals).toMatchObject({ spend: 400, revenue: 250 });
+    // 250 ÷ 100 Facebook spend; dividing by all 400 would give 0.625.
+    expect(leads.totals.roas).toBe(2.5);
+  });
+
   it("traffic campaigns get their own group, last, measured by clicks", () => {
     const [week] = buildWeeklyCampaignSections(
       [
