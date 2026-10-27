@@ -3,7 +3,8 @@
  * board or named ("סצנה 3"). Free: it only writes the scene. A new motion marks that scene's clip
  * alone for the next workshop_produce_video, and a new talking line is recorded and lip-synced
  * again there (both priced in its quote; scene-update.ts); a new frame description of a generated
- * picture queues that picture alone for workshop_make_stills.
+ * picture queues that picture alone for workshop_make_stills. While the film is being produced
+ * nothing is changed: the change would enter that production unpriced.
  */
 
 import type { Db } from "../db.ts";
@@ -106,6 +107,15 @@ export async function workshopUpdateScene(ctx: ToolContext) {
   );
   if ("error" in loaded) return loaded;
   const { project } = loaded;
+  // While the film is being produced its scenes stay as they are: the running production would
+  // lip-sync a new line, or miss its narration, with nothing priced for it. The board's own edit
+  // (workshop_edit_scene_text) refuses too.
+  if (productionRunning(asRecord(asRecord(project.payload.video).production)))
+    return {
+      error:
+        "הסרט בהפקה עכשיו, ובזמן ההפקה לא משנים סצנות: שינוי באמצע היה נכנס להפקה הזו בלי הצעת מחיר. אמרי למשתמש שאפשר לשנות את הסצנה כשההפקה מסתיימת (workshop_get_state מראה את מצב ההפקה), ואל תפיקי שוב.",
+      production_running: true,
+    };
   const scenes = await loadScenes(supabase, tenantId, itemId);
   const found = findScene(scenes, args);
   if (!found)
@@ -163,9 +173,6 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     scene,
     project.payload.workshop_edit === true,
   );
-  const running = productionRunning(
-    asRecord(asRecord(project.payload.video).production),
-  );
   const next = [
     `סצנה ${found.number} עודכנה בלוח (${plan.changed.join(", ") || "redo_clip"}), בלי עלות.`,
     plan.clipRedo
@@ -175,9 +182,6 @@ export async function workshopUpdateScene(ctx: ToolContext) {
         : "שום סצנה לא מונפשת מחדש: workshop_produce_video מרכיב את הסרט מחדש עם השינוי.",
     plan.stillRedo
       ? "התמונה של הסצנה לא תואמת עוד לתיאור החדש: workshop_make_stills יוצר מחדש רק אותה (עולה כסף, דרך התקציב)."
-      : "",
-    running
-      ? "הפקה רצה עכשיו: השינוי ייכנס בהפקה הבאה. אל תפיקי שוב עד שהנוכחית מסתיימת."
       : "",
     "אמרי למשתמש במשפט אחד מה השתנה, ושאלי אם להרכיב את הסרט מחדש.",
   ].filter(Boolean);

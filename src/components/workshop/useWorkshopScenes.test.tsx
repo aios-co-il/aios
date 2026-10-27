@@ -159,6 +159,25 @@ test("a saved text shows at once; a failed save puts the old text back and says 
   );
 });
 
+test("an edit refused while the film is produced says so", async () => {
+  mocks.rpc.mockResolvedValue({
+    data: null,
+    // workshop_edit_scene_text's refusal (object_in_use) while the production runs.
+    error: { code: "55006", message: "the film is being produced" },
+  });
+  const { result } = renderHook(() => useEditSceneText("t-1", "p-1"), {
+    wrapper,
+  });
+  await act(async () => {
+    await result.current
+      .mutateAsync({ sceneId: "s1", patch: { voiceover_text: "חדש" } })
+      .catch(() => {});
+  });
+  expect(mocks.toastError).toHaveBeenCalledWith(
+    "הסרט בהפקה עכשיו. אפשר לשנות את הטקסט כשההפקה מסתיימת.",
+  );
+});
+
 test("a saved text also brings the storyboard page up to date", async () => {
   mocks.page = {
     id: "page-1",

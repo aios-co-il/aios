@@ -1,6 +1,12 @@
--- AIO-224 / AIO-270: the board's scene text edit follows Carmen's rule for a changed line.
+-- AIO-224 / AIO-270: the board's scene text edit follows Carmen's rules for a changed scene.
 -- Replaces workshop_edit_scene_text (20261026103240_workshop_scene_text_edit.sql); the same
 -- arguments, limits, meta merge and grants. Safe to re-run.
+--
+-- While the film is being produced (produce_video's own lock: payload.video.production running,
+-- started within the hour) its scenes are not edited, as in workshop_update_scene: the running
+-- production would lip-sync a new line (advance_video_production reads the current lines) or
+-- fail for a narration that no longer reads the script, with nothing priced for it. The edit is
+-- refused with object_in_use (55006), and the board says to change it once the film is done.
 --
 -- A changed line marks the clip stale exactly as workshop_update_scene does (scene-update.ts):
 --   * a clip that says the line itself: a talking scene on an engine that speaks (ElevenLabs,
@@ -30,6 +36,7 @@ declare
   v_before public.marketing_video_scenes;
   v_scene public.marketing_video_scenes;
   v_engine text;
+  v_production jsonb;
   v_meta jsonb;
   v_voiceover text;
   v_line_before text;
@@ -47,10 +54,16 @@ begin
   if not found then
     raise exception 'workshop_edit_scene_text: scene % not found', p_scene_id using errcode = 'P0002';
   end if;
-  select coalesce(item.payload->'video'->>'scene_engine', '')
-    into v_engine
+  select coalesce(item.payload->'video'->>'scene_engine', ''),
+         item.payload->'video'->'production'
+    into v_engine, v_production
     from public.marketing_work_items as item
    where item.id = v_before.item_id;
+  if coalesce(v_production->>'status', '') = 'running'
+     and coalesce((v_production->>'started_at')::timestamptz, now()) > now() - interval '1 hour' then
+    raise exception 'workshop_edit_scene_text: the film is being produced'
+      using errcode = '55006';
+  end if;
 
   v_voiceover := coalesce(left(btrim(p_voiceover_text), 2000), v_before.voiceover_text);
   v_meta := case

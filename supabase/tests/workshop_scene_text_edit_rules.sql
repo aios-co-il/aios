@@ -82,4 +82,54 @@ BEGIN
   RAISE NOTICE 'workshop_scene_text_edit_rules: stale checks passed';
 END;
 $stale$;
+
+-- While the film is being produced its scenes are not edited: the production would lip-sync a
+-- new line, or miss its narration, with nothing priced for it. produce_video's own lock: status
+-- running, started within the hour.
+DO $running$
+DECLARE
+  v_tenant uuid;
+  v_item uuid;
+  v_scene uuid := gen_random_uuid();
+  v_failed boolean;
+  r public.marketing_video_scenes;
+BEGIN
+  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
+  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant'; END IF;
+  INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
+  VALUES (v_tenant, 'QA ROLLBACK scene text during production', 'draft',
+          jsonb_build_object('workshop', '{}'::jsonb, 'video', jsonb_build_object(
+            'production', jsonb_build_object('status', 'running', 'started_at', now()))))
+  RETURNING id INTO v_item;
+  INSERT INTO public.marketing_video_scenes (id, tenant_id, item_id, position, overlay_text, voiceover_text, meta)
+  VALUES (v_scene, v_tenant, v_item, 1, 'ישן', 'קריינות ישנה', '{"lipsync":true,"dialogue":"שורה ישנה"}');
+
+  BEGIN
+    PERFORM public.workshop_edit_scene_text(v_scene, 'חדש', 'קריינות חדשה', 'שורה חדשה');
+    v_failed := false;
+  EXCEPTION WHEN object_in_use THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'running: an edit during the production must be refused'; END IF;
+  SELECT * INTO r FROM public.marketing_video_scenes WHERE id = v_scene;
+  IF r.overlay_text <> 'ישן' OR r.voiceover_text <> 'קריינות ישנה' OR r.meta->>'dialogue' <> 'שורה ישנה' THEN
+    RAISE EXCEPTION 'running: a refused edit changes nothing (%)', r;
+  END IF;
+
+  -- A production marked running for over an hour holds nothing (it was cut off).
+  UPDATE public.marketing_work_items
+     SET payload = jsonb_set(payload, '{video,production,started_at}', to_jsonb(now() - interval '2 hours'))
+   WHERE id = v_item;
+  r := public.workshop_edit_scene_text(v_scene, NULL, 'קריינות חדשה');
+  IF r.voiceover_text <> 'קריינות חדשה' THEN RAISE EXCEPTION 'running: a cut-off production holds nothing'; END IF;
+
+  -- A finished production holds nothing either.
+  UPDATE public.marketing_work_items
+     SET payload = jsonb_set(payload, '{video,production}', '{"status":"done"}')
+   WHERE id = v_item;
+  r := public.workshop_edit_scene_text(v_scene, 'חדש');
+  IF r.overlay_text <> 'חדש' THEN RAISE EXCEPTION 'running: a finished production holds nothing'; END IF;
+
+  RAISE NOTICE 'workshop_scene_text_edit_rules: production checks passed';
+END;
+$running$;
 ROLLBACK;
