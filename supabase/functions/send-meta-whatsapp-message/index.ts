@@ -119,6 +119,8 @@ Deno.serve(async (request) => {
 
     const service = serviceClient();
     const access = lineStore(service);
+    // callerMaySendForTenant's rule, kept inline because superAdmin is reused
+    // below for the integration ownership check.
     const [member, superAdmin] = await Promise.all([
       access.isMember(tenantId, userId),
       access.isSuperAdmin(userId),

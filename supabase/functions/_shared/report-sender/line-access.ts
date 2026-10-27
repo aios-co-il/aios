@@ -1,5 +1,5 @@
-// Server-side check of the line a file send names (AIO-255). Used by
-// send-green-api-file and send-manus-wa-file, which run with the service role
+// Server-side check of the line a file send names (AIO-255), and whether a
+// caller may send for a tenant. The WhatsApp senders run with the service role
 // once the caller is known, so they must check tenant access themselves.
 import type { Json, Tables } from "../database.types.ts";
 import type { DbClient } from "../supabase-clients.ts";
