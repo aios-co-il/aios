@@ -94,6 +94,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 
@@ -191,6 +192,7 @@ export function ClientsChatView({
   const queryClient = useQueryClient();
   const { buildPath } = useTenantPath();
   const { tenantId } = useCurrentTenant();
+  const { hasPermission } = useUserPermissions();
   const { provision, provisioning } = useProvisionClientChannels();
 
   const { data: whatsappGroups = [] } = useQuery({
@@ -1225,22 +1227,25 @@ export function ClientsChatView({
                     )}
                   </Button>
 
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1"
-                    title="פתח בסדנה"
-                  >
-                    <RouterLink
-                      to={buildPath(
-                        `workshop?client=${encodeURIComponent(selectedClient.id)}`,
-                      )}
+                  {/* The workshop route needs social_media (moduleRoutePermissions). */}
+                  {hasPermission("social_media") && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      title="פתח בסדנה"
                     >
-                      <Palette className="h-4 w-4" />
-                      פתח בסדנה
-                    </RouterLink>
-                  </Button>
+                      <RouterLink
+                        to={buildPath(
+                          `workshop?client=${encodeURIComponent(selectedClient.id)}`,
+                        )}
+                      >
+                        <Palette className="h-4 w-4" />
+                        פתח בסדנה
+                      </RouterLink>
+                    </Button>
+                  )}
 
                   <Button
                     variant="outline"
