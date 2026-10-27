@@ -138,8 +138,11 @@ describe("getReconciliationStatus", () => {
 });
 
 /** The tool context for user-1 in tenant-1; run-ai-agent's cross-tenant flags stay false. */
-const toolCtx = (userRoles: Array<Record<string, unknown>>) => ({
-  supabase: memoryDb({ user_roles: userRoles, reconcile_runs: [] }),
+const toolCtx = (
+  userRoles: Array<Record<string, unknown>>,
+  runs: Array<Record<string, unknown>> = [],
+): Parameters<typeof reconciliationStatusTool>[0] => ({
+  supabase: memoryDb({ user_roles: userRoles, reconcile_runs: runs }),
   callerScope: {
     isManagerRole: false,
     isTeamManager: false,
@@ -188,5 +191,43 @@ describe("reconciliationStatusTool", () => {
       const status = await reconciliationStatusTool(toolCtx([row]), {});
       assertEquals(status.checked, 0);
     }
+  });
+
+  it("shows the unmapped-account rows only for an owner role in this tenant", async () => {
+    // Started now: the tool reads runs since Date.now() minus the max age.
+    const now = new Date().toISOString();
+    const runs = [
+      statusRun("table", "ok", now, { findings_total: 0 }),
+      {
+        ...statusRun("accounts", "mismatch", now, { findings_total: 1 }),
+        client_id: null,
+        table_id: null,
+        crm_tables: null,
+        clients: null,
+      },
+    ];
+    const managerHere = await reconciliationStatusTool(
+      toolCtx(
+        [
+          { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
+          { user_id: "user-1", tenant_id: "tenant-1", role: "agency_manager" },
+        ],
+        runs,
+      ),
+      {},
+    );
+    assertStrictEquals(managerHere.checked, 1);
+    assertEquals(
+      managerHere.items.map((i) => i.table_id),
+      ["t1"],
+    );
+    const ownerHere = await reconciliationStatusTool(
+      toolCtx(
+        [{ user_id: "user-1", tenant_id: "tenant-1", role: "owner" }],
+        runs,
+      ),
+      {},
+    );
+    assertStrictEquals(ownerHere.checked, 2);
   });
 });

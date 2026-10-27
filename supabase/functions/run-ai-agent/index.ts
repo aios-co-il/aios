@@ -37,6 +37,7 @@ import {
 import { listVerifyTables } from "./verify-tables.ts";
 import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
 import { reconciliationStatusTool } from "./reconciliation-status.ts";
+import { MANAGER_ROLES } from "./manager-roles.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
@@ -5670,12 +5671,8 @@ async function executeTool(
     };
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // Role-based scope: managers (owner/agency_owner/agency_manager/super_admin) bypass the campaigner narrow-scope.
-  const isManagerRole =
-    !!callerRole &&
-    ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-      callerRole,
-    );
+  // Role-based scope: managers (MANAGER_ROLES) bypass the campaigner narrow-scope.
+  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
     ? callerManagedAgencyIds
@@ -13663,10 +13660,7 @@ async function handleRunAgent(
       );
     }
     const isManagerRoleCaller =
-      !!callerRole &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        callerRole,
-      );
+      !!callerRole && MANAGER_ROLES.includes(callerRole);
     const isTeamManagerCaller = callerRole === "team_manager";
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
@@ -16020,11 +16014,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   const pool = directToolPool(ALL_TOOLS as any[], {
     allowedTools: agent.allowed_tools || [],
     disabledTools: agent.disabled_tools || [],
-    isManager:
-      !!scope.role &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        scope.role,
-      ),
+    isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
   });
 
   if (req.action === "list") {

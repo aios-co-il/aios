@@ -9,6 +9,7 @@ import {
 } from "../_shared/auth-helpers.ts";
 import { RECONCILE_RESULT_MAX_AGE_MS } from "../_shared/reconcile/run-status.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { MANAGER_ROLES } from "./manager-roles.ts";
 import { latestPerKey, rank, runKey, toStatusItem } from "./status-items.ts";
 import { scopedRuns } from "./status-runs.ts";
 import {
@@ -16,14 +17,6 @@ import {
   reconcileStatusScope,
   rolesInTenant,
 } from "./status-scope.ts";
-
-/** Roles that may list every client's status: isManagerRole in index.ts. */
-const STATUS_MANAGER_ROLES = [
-  "owner",
-  "agency_owner",
-  "agency_manager",
-  "super_admin",
-];
 
 const RATE_LIMITED_NOTE =
   "הדוחות האלה לא נבדקו בבדיקה האחרונה כי הפלטפורמה הגבילה את קצב הבקשות, אז אי אפשר לומר שהם תואמים. התוצאה של הבדיקה הקודמת שלהם, אם יש, מופיעה ב-previous";
@@ -47,9 +40,7 @@ export async function reconciliationStatusTool(
     ctx.tenantId,
     ctx.actorUserId,
   );
-  const isManager = callerRoles.some((role) =>
-    STATUS_MANAGER_ROLES.includes(role),
-  );
+  const isManager = callerRoles.some((role) => MANAGER_ROLES.includes(role));
   if (args.client_id) {
     await assertCallerCanAccessClient(ctx.supabase, args.client_id, {
       ...ctx.callerScope,
