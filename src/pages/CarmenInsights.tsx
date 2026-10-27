@@ -2,7 +2,7 @@ import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
-import { readErrorMessage } from "@/lib/errorMessage";
+import { readErrorMessage } from "@/lib/readErrorMessage";
 import { asJsonObject, type JsonObject } from "@/lib/jsonObject";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

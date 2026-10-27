@@ -37,7 +37,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { attachmentsFromMetadata } from "@/lib/chatMessageAttachments";
-import { readErrorMessage } from "@/lib/errorMessage";
+import { readErrorMessage } from "@/lib/readErrorMessage";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";

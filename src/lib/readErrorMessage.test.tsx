@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readErrorMessage } from "./errorMessage";
+import { readErrorMessage } from "./readErrorMessage";
 
 describe("readErrorMessage", () => {
   it("reads the message of Error instances and error-like objects", () => {
