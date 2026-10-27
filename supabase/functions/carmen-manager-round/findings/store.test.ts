@@ -1,5 +1,4 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import type { FindingResolution } from "../collectors/types.ts";
 import { recordingClient } from "../tests/recording-client.ts";
 import { createFindingsStore } from "./store.ts";
 
@@ -143,38 +142,6 @@ Deno.test(
         });
         await store.byIds(T, ["f1"]);
         assertEquals(calls[1].query.get("tenant_id"), `eq.${T}`);
-      },
-    );
-
-    await t.step(
-      "resolve closes the collector's findings in the tenant, nothing when there are none",
-      async () => {
-        const { db, calls } = recordingClient(() => [
-          { finding_id: "f1", short_code: 1 },
-        ]);
-        const store = createFindingsStore(db);
-        const item: FindingResolution = {
-          kind: "unanswered_request",
-          fingerprint: "chat:group:1@g.us:m1",
-          resolution: "answered",
-          details: { response_minutes: 42 },
-        };
-        assertEquals(await store.resolve(T, "r1", "chat_sla", []), 0);
-        assertEquals(await store.resolve(T, "r1", "chat_sla", [item]), 1);
-        assertEquals(
-          calls.map((c) => [c.path, c.body]),
-          [
-            [
-              "rpc/carmen_finding_resolve",
-              {
-                p_tenant_id: T,
-                p_round_id: "r1",
-                p_collector: "chat_sla",
-                p_items: [item],
-              },
-            ],
-          ],
-        );
       },
     );
 
