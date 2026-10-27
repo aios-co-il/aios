@@ -37,6 +37,18 @@ function db(rows: unknown[], clientPhones: string[] = []) {
   return { client, staffCalls };
 }
 
+/** Runs `fn` with console.warn recorded instead of printed. */
+async function withWarnings<T>(fn: () => Promise<T>) {
+  const warnings: unknown[][] = [];
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args);
+  try {
+    return { result: await fn(), warnings };
+  } finally {
+    console.warn = warn;
+  }
+}
+
 Deno.test("loadCarmenReportRecipients", async (t) => {
   await t.step("reads this tenant's list, oldest first", async () => {
     const { client, staffCalls } = db([
@@ -72,7 +84,7 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
   });
 
   await t.step(
-    "an extra phone that became a client's is skipped at send time",
+    "a list whose only phone became a client's reports to the owners, with a warning naming the tenant",
     async () => {
       const { client } = db(
         [
@@ -87,9 +99,14 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
         ["+972500000009"],
       );
 
-      const result = await loadCarmenReportRecipients(client, TENANT);
+      const { result, warnings } = await withWarnings(() =>
+        loadCarmenReportRecipients(client, TENANT),
+      );
 
-      assertEquals(result.recipients, []);
+      assertEquals(
+        result.recipients.map((r) => [r.user_id, r.source]),
+        [["u-owner", "owner_fallback"]],
+      );
       assertEquals(result.skipped, [
         {
           name: "Partner",
@@ -97,8 +114,33 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
           reason: "client_phone",
         },
       ]);
+      assertEquals(warnings.length, 1);
+      assertEquals(warnings[0][1], {
+        tenantId: TENANT,
+        skipped: ["client_phone"],
+        owners: 1,
+      });
     },
   );
+
+  await t.step("a reachable list logs no warning", async () => {
+    const { warnings } = await withWarnings(() =>
+      loadCarmenReportRecipients(
+        db([
+          {
+            tenant_id: TENANT,
+            user_id: "u-member",
+            phone: null,
+            label: null,
+            created_at: "2026-10-27T10:00:00Z",
+          },
+        ]).client,
+        TENANT,
+      ),
+    );
+
+    assertEquals(warnings, []);
+  });
 
   await t.step("an empty list resolves to the owners", async () => {
     const result = await loadCarmenReportRecipients(db([]).client, TENANT);
@@ -125,6 +167,7 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
       assertEquals(result, {
         recipients: [],
         skipped: [],
+        listUnreachable: false,
         error: "permission denied",
       });
     },

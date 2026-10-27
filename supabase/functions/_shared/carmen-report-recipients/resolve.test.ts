@@ -132,17 +132,50 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
   });
 
   await t.step(
-    "a list of only client phones sends to nobody, not to the owners",
+    "a list nobody on it can receive falls back to the owners with phones",
     () => {
       const result = resolveCarmenReportRecipients({
         configured: [
+          { user_id: "u-gone", phone: null, label: null },
           { user_id: null, phone: "+972500000009", label: "Partner" },
+          { user_id: "u-nophone", phone: null, label: null },
         ],
         staff: STAFF,
         clientPhones: ["+972500000009"],
       });
 
-      assertEquals(result.recipients, []);
+      assertEquals(result.recipients, [
+        {
+          user_id: "u-owner",
+          name: "Owner One",
+          phone: "972500000001",
+          source: "owner_fallback",
+        },
+      ]);
+      assertEquals(result.listUnreachable, true);
+      assertEquals(
+        result.skipped.map((row) => row.reason),
+        ["not_staff", "client_phone", "member_without_phone"],
+      );
+    },
+  );
+
+  await t.step(
+    "one reachable entry keeps the list and leaves the owners out",
+    () => {
+      const result = resolveCarmenReportRecipients({
+        configured: [
+          { user_id: "u-gone", phone: null, label: null },
+          { user_id: "u-manager", phone: null, label: null },
+        ],
+        staff: STAFF,
+      });
+
+      assertEquals(
+        result.recipients.map((r) => [r.user_id, r.source]),
+        [["u-manager", "configured"]],
+      );
+      assertEquals(result.listUnreachable, false);
     },
   );
 
@@ -192,7 +225,7 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
   await t.step("skips a configured user who is no longer staff", () => {
     const result = resolveCarmenReportRecipients({
       configured: [{ user_id: "u-gone", phone: null, label: null }],
-      staff: STAFF,
+      staff: [MANAGER],
     });
 
     assertEquals(result.recipients, []);
@@ -211,6 +244,7 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
     assertEquals(result.skipped, [
       { user_id: "u-manager", name: "Manager", reason: "invalid_phone" },
     ]);
+    assertEquals(result.listUnreachable, true);
   });
 
   await t.step("never returns anyone but configured rows and staff", () => {
@@ -219,6 +253,10 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
       staff: [MANAGER, NO_PHONE],
     });
 
-    assertEquals(result, { recipients: [], skipped: [] });
+    assertEquals(result, {
+      recipients: [],
+      skipped: [],
+      listUnreachable: false,
+    });
   });
 });

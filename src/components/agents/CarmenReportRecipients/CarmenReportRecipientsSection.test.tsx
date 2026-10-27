@@ -140,6 +140,21 @@ describe("CarmenReportRecipientsSection", () => {
     );
   });
 
+  it("names the owners Carmen falls back to when nobody on the list is reachable", async () => {
+    state.rows = [
+      { id: "r1", user_id: "u-nophone", phone: null, label: null },
+      { id: "r2", user_id: "u-gone", phone: null, label: null },
+    ];
+
+    mount();
+
+    expect(
+      await screen.findByText(
+        "אף נמען ברשימה לא זמין — כרמן מדווחת לבעלי הארגון: פליקס",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("warns only on the duplicate of two extra phones with one label", async () => {
     state.rows = [
       { id: "r1", user_id: "u-felix", phone: null, label: null },

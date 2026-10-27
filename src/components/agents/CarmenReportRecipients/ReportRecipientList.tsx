@@ -9,7 +9,7 @@ import { SKIP_WARNINGS } from "./skipWarnings";
 
 /**
  * The configured recipients, each with a warning when Carmen cannot reach
- * them; an empty list shows the owners Carmen falls back to.
+ * them; an empty or unreachable list shows the owners Carmen falls back to.
  */
 export function ReportRecipientList({
   rows,
@@ -28,18 +28,21 @@ export function ReportRecipientList({
     return <OwnerFallbackNote resolved={resolved} />;
   }
   return (
-    <ul className="space-y-1.5" aria-label="נמעני הדיווח">
-      {rows.map((row) => (
-        <RecipientItem
-          key={row.id}
-          row={row}
-          member={staff.find((m) => m.user_id === row.user_id)}
-          resolved={resolved}
-          removing={removing}
-          onRemove={onRemove}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="space-y-1.5" aria-label="נמעני הדיווח">
+        {rows.map((row) => (
+          <RecipientItem
+            key={row.id}
+            row={row}
+            member={staff.find((m) => m.user_id === row.user_id)}
+            resolved={resolved}
+            removing={removing}
+            onRemove={onRemove}
+          />
+        ))}
+      </ul>
+      {resolved.listUnreachable && <UnreachableListNote resolved={resolved} />}
+    </>
   );
 }
 
@@ -109,6 +112,24 @@ function OwnerFallbackNote({ resolved }: { resolved: CarmenReportRecipients }) {
       הרשימה ריקה — כרמן מדווחת לבעלי הארגון:{" "}
       {resolved.recipients.map((r) => r.name).join(", ")}
     </p>
+  );
+}
+
+/** Nobody on the list is reachable: Carmen reports to the owners who have a phone. */
+function UnreachableListNote({
+  resolved,
+}: {
+  resolved: CarmenReportRecipients;
+}) {
+  const owners = resolved.recipients.map((r) => r.name).join(", ");
+  return (
+    <RecipientWarning
+      text={
+        owners
+          ? `אף נמען ברשימה לא זמין — כרמן מדווחת לבעלי הארגון: ${owners}`
+          : "אף נמען ברשימה לא זמין ולאף בעלים אין טלפון — דוח הדופק המלא לא יישלח"
+      }
+    />
   );
 }
 
