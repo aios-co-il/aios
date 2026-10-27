@@ -18,8 +18,8 @@
 -- line went to a separate voice and lip-sync pass, a different film and price than the same
 -- change through Carmen.
 --
--- Security invoker, as before: RLS on marketing_video_scenes and marketing_work_items keeps the
--- scene and its film to the caller's tenant.
+-- Security invoker, as before: the RLS of marketing_video_scenes and marketing_work_items decides
+-- which scene and film the caller reaches.
 
 create or replace function public.workshop_edit_scene_text(
   p_scene_id uuid,
