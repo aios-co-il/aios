@@ -859,6 +859,55 @@ Deno.test(
 );
 
 Deno.test(
+  "assigning a project of another department passes the RPC's refusal through",
+  async () => {
+    const seo = {
+      "marketing_work_items:select": {
+        id: "item-2",
+        title: "SEO",
+        client_id: "client-1",
+        current_stage_id: "stage-1",
+        payload: { department: "seo" },
+      },
+    };
+    const locked =
+      "פרויקט SEO / GEO נשאר אצל הלקוח שלו: אי אפשר להעביר אותו ללקוח אחר או להסיר את השיוך";
+    const refused = fakeDb({
+      ...seo,
+      "rpc:workshop_assign_client:error": locked,
+    });
+    const denied = (await executeWorkshopTool(
+      refused,
+      "tenant-1",
+      "workshop_assign_client",
+      { item_id: "item-2", client_id: "client-2" },
+    )) as Record<string, unknown>;
+    assertStrictEquals(denied.error, locked);
+
+    const db = fakeDb({
+      ...seo,
+      "marketing_work_items:select": {
+        ...seo["marketing_work_items:select"],
+        client_id: null,
+        payload: { department: "copy" },
+      },
+    });
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_assign_client",
+      { item_id: "item-2", client_id: "client-2" },
+    )) as Record<string, any>;
+    assertStrictEquals(done.success, true);
+    // No workshop board, so no assets tab to fill.
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "workshop_assets"),
+      false,
+    );
+  },
+);
+
+Deno.test(
   "the connections check reports what is connected and never the key values",
   async () => {
     const db = fakeDb({

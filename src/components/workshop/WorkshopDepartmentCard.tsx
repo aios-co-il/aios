@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { ExternalLink } from "lucide-react";
@@ -17,7 +18,14 @@ import {
 } from "./workshopProjectList";
 
 /** A project that lives in a department screen, not on a workshop board. */
-export function WorkshopDepartmentCard({ item }: { item: WorkshopListRow }) {
+export function WorkshopDepartmentCard({
+  item,
+  assignControl,
+}: {
+  item: WorkshopListRow;
+  /** The client picker (workshop_assign_client), the same one a workshop board has. */
+  assignControl?: ReactNode;
+}) {
   const { buildPath } = useTenantPath();
   const dept = projectDepartment(item);
   // The campaigns screen is not open yet; a creative handed off to it is still shown in Creative.
@@ -54,6 +62,7 @@ export function WorkshopDepartmentCard({ item }: { item: WorkshopListRow }) {
             </div>
           ))}
         </dl>
+        {assignControl ? <div className="mt-4">{assignControl}</div> : null}
         <p className="mt-4 text-sm text-muted-foreground">
           לפרויקט הזה אין לוח בסדנה. עובדים עליו במסך המחלקה.
         </p>

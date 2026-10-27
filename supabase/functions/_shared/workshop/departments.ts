@@ -64,6 +64,7 @@ const STAGE_DEPARTMENT: Record<string, DepartmentId> = {
 /**
  * A project's department, strongest signal first: the department it was tagged with, a workshop
  * board, its pipeline track, its current stage, then what its payload holds. Creative otherwise.
+ * public.workshop_assign_client mirrors this rule in SQL: change both together.
  */
 export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
   if (isDepartmentId(row.department_hint)) return row.department_hint;
@@ -77,3 +78,31 @@ export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
   if (row.has_creative) return "creative";
   return "creative";
 }
+
+const ASSIGN_FAILED = "לא הצלחנו לשייך את הפרויקט ללקוח";
+
+/**
+ * What to tell the user when workshop_assign_client fails. The RPC explains its own refusals in
+ * Hebrew; anything else (a network or RLS error) gets a plain sentence, with the raw detail
+ * appended when asked for (Carmen can explain it, a toast should not show it).
+ */
+export function assignClientErrorMessage(
+  error: { message?: string | null } | null | undefined,
+  withDetail = false,
+): string {
+  const message = error?.message?.trim() ?? "";
+  if (/[א-ת]/.test(message)) return message;
+  return withDetail && message ? `${ASSIGN_FAILED}: ${message}` : ASSIGN_FAILED;
+}
+
+/** Departments whose projects stay with their client once assigned (workshop_assign_client). */
+export const CLIENT_LOCKED_DEPARTMENTS: readonly DepartmentId[] = [
+  "seo",
+  "social",
+];
+
+/** True when the project has a client it cannot leave: moving or releasing it is refused. */
+export const isClientLocked = (
+  row: ProjectDepartmentInput & { client_id?: string | null },
+) =>
+  !!row.client_id && CLIENT_LOCKED_DEPARTMENTS.includes(projectDepartment(row));

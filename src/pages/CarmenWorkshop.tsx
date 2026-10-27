@@ -21,6 +21,7 @@ import {
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
 import { WorkshopClientCard } from "@/components/workshop/WorkshopClientCard";
 import { WorkshopDepartmentCard } from "@/components/workshop/WorkshopDepartmentCard";
+import { WorkshopAssignControl } from "@/components/workshop/WorkshopAssignControl";
 import {
   defaultProject,
   groupProjects,
@@ -38,6 +39,7 @@ import {
   ASSET_BUCKET,
   syncClientAssets,
 } from "../../supabase/functions/_shared/workshop/assets.ts";
+import { assignClientErrorMessage } from "../../supabase/functions/_shared/workshop/departments.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -203,24 +205,32 @@ export default function CarmenWorkshop() {
     mutationFn: async ({
       itemId,
       clientId,
+      hasBoard,
     }: {
       itemId: string;
       clientId: string | null;
+      hasBoard: boolean;
     }) => {
+      // One assign path for every department; the RPC refuses moving an SEO or social project.
       const { error } = await supabase.rpc(
         "workshop_assign_client" as never,
         { p_item_id: itemId, p_client_id: clientId } as never,
       );
       if (error) throw error;
-      const synced = await syncClientAssets(
-        supabase,
-        { tenantId: tenantId ?? "", itemId, clientId },
-        (path) =>
-          supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data.publicUrl,
-      );
+      // Only a workshop board has an assets tab to fill with the client's material.
+      const synced = hasBoard
+        ? await syncClientAssets(
+            supabase,
+            { tenantId: tenantId ?? "", itemId, clientId },
+            (path) =>
+              supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data
+                .publicUrl,
+          )
+        : { added: 0 };
       return { itemId, clientId, synced };
     },
-    onError: () => toast.error("לא הצלחנו לשייך את הפרויקט ללקוח"),
+    onError: (error: { message?: string }) =>
+      toast.error(assignClientErrorMessage(error)),
     onSuccess: ({ itemId, clientId, synced }) => {
       if (synced.error)
         toast.error("הפרויקט שויך, אך הנכסים של הלקוח לא נטענו");
@@ -249,7 +259,12 @@ export default function CarmenWorkshop() {
     },
   });
   const assignClient = (clientId: string | null) => {
-    if (board && tenantId) assign.mutate({ itemId: board.id, clientId });
+    if (selected && tenantId)
+      assign.mutate({
+        itemId: selected.id,
+        clientId,
+        hasBoard: selected.has_board,
+      });
   };
 
   const viewClient = useQuery({
@@ -364,16 +379,12 @@ export default function CarmenWorkshop() {
             generalLabel="ללא לקוח"
           />
           {board ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">שיוך:</span>
-              <ClientSelector
-                tenantId={tenantId}
-                value={board.client_id}
-                onChange={assignClient}
-                allowGeneral
-                generalLabel="ללא לקוח"
-              />
-            </div>
+            <WorkshopAssignControl
+              tenantId={tenantId}
+              item={board}
+              busy={assign.isPending}
+              onAssign={assignClient}
+            />
           ) : null}
         </div>
       </header>
@@ -401,7 +412,17 @@ export default function CarmenWorkshop() {
               onNewCreative={startNew}
             />
           ) : selected && !selected.has_board ? (
-            <WorkshopDepartmentCard item={selected} />
+            <WorkshopDepartmentCard
+              item={selected}
+              assignControl={
+                <WorkshopAssignControl
+                  tenantId={tenantId}
+                  item={selected}
+                  busy={assign.isPending}
+                  onAssign={assignClient}
+                />
+              }
+            />
           ) : (
             <WorkshopFeed
               artifacts={artifacts.data ?? []}
