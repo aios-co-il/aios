@@ -51,9 +51,14 @@ export function buildTimeline(
       voiceoverText: String(scene.voiceoverText ?? "").trim(),
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
-      // What a talking clip says, for its captions.
+      // What a talking clip says, for its captions, with the word timings of the voice line
+      // that drove its lips when there is one.
       spokenText:
         scene.lipsync === true ? String(scene.spokenText ?? "").trim() : "",
+      spokenAlignment:
+        scene.lipsync === true ? scene.spokenAlignment || null : null,
+      // A line lip-synced on the still: the scene's animated clip plays after it (the move).
+      moveClipPath: scene.lipsync === true ? scene.moveClipPath || null : null,
       // A talking clip made for an older line: its speech is muted.
       muteClip: scene.muteClip === true,
       transition: scene.transition || null,

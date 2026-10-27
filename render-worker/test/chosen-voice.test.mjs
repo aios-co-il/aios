@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { generateClip } from "../src/jobs/clip.mjs";
 import { generateLipsync } from "../src/jobs/lipsync.mjs";
+import { loadFilmSources } from "../src/jobs/render.mjs";
 import { speaksInChosenVoice } from "../src/narration.mjs";
 import { kenBurnsClip } from "../src/providers/mock.mjs";
 
@@ -266,3 +267,81 @@ test.skipIf(!hasFfmpeg)(
     }
   },
 );
+
+test("the film plays the skin's move after her lip-synced line, captioned on the voice's timings", async () => {
+  const words = { words: [{ text: "אני", start: 0, end: 0.3 }] };
+  const assets = [
+    {
+      id: "lipsync-1",
+      type: "video_clip",
+      url: "t1/c1/i1/s1/lipsync-v1.mp4",
+      meta: {
+        lipsync: true,
+        dialogue: LINE,
+        provider: "elevenlabs",
+        source_kind: "still",
+        voice_asset_id: "voice-1",
+        motion_clip_asset_id: "clip-1",
+      },
+    },
+    {
+      id: "still-1",
+      type: "video_still",
+      url: "t1/c1/i1/s1/still.png",
+      meta: {},
+    },
+    {
+      id: "voice-1",
+      type: "voiceover",
+      url: "t1/c1/i1/s1/voice-r0.audio",
+      meta: { text: LINE, alignment: words },
+    },
+    {
+      id: "clip-1",
+      type: "video_clip",
+      url: "t1/c1/i1/s1/clip-v1.mp4",
+      meta: {},
+    },
+  ];
+  const scene = {
+    id: "s1",
+    position: 1,
+    overlay_text: "",
+    voiceover_text: "",
+    duration_s: 5,
+    clip_asset_id: "lipsync-1",
+    voice_asset_id: "voice-1",
+    still_asset_id: "still-1",
+    meta: ownPicture,
+  };
+  const db = {
+    select: async (table, query) => {
+      if (!query.includes("tenant_id=eq.t1")) return [];
+      if (table === "marketing_video_scenes") return [scene];
+      if (table === "marketing_assets") {
+        const ids = /id=in\.\(([^)]*)\)/.exec(query)?.[1] ?? "";
+        return assets.filter((asset) => ids.includes(asset.id));
+      }
+      return [];
+    },
+  };
+  const { scenes } = await loadFilmSources(db, {
+    id: "r1",
+    tenant_id: "t1",
+    item_id: "i1",
+  });
+  expect(scenes[0].clipPath).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
+  expect(scenes[0].lipsync).toBe(true);
+  expect(scenes[0].voicePath).toBe(null);
+  expect(scenes[0].moveClipPath).toBe("t1/c1/i1/s1/clip-v1.mp4");
+  expect(scenes[0].spokenAlignment).toStrictEqual(words);
+  // A clip that speaks in its engine's own voice has no voice file behind its lips.
+  assets[0].meta = { lipsync: true, dialogue: LINE, provider: "openrouter" };
+  const own = await loadFilmSources(db, {
+    id: "r1",
+    tenant_id: "t1",
+    item_id: "i1",
+  });
+  expect(own.scenes[0].spokenAlignment).toBe(null);
+  expect(own.scenes[0].moveClipPath).toBe(null);
+});

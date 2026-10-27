@@ -131,6 +131,13 @@ export type WorkshopScene = {
   clipVolume?: number;
   /** The clip's own length; past it the last frame holds. */
   clipFrames?: number;
+  /**
+   * A line lip-synced on the still: the scene's animated clip (the skin's own move), muted, from
+   * picture frame `moveFrom` on (the talking clip's end), `moveFrames` long before it holds.
+   */
+  moveClip?: string | null;
+  moveFrom?: number;
+  moveFrames?: number;
 };
 /** One sound effect (a whoosh at a cut, an impact on the title or end card). */
 export type WorkshopEffect = {

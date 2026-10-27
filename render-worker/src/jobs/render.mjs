@@ -24,6 +24,8 @@ import { inList, metaOf } from "./rows.mjs";
 import { filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
+/** Lip-sync providers whose mouth follows the voice file as it is, so its word timings hold. */
+const AUDIO_DRIVEN = new Set(["elevenlabs", "kling"]);
 
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
@@ -79,15 +81,25 @@ export async function loadFilmSources(db, run) {
       scene.still_asset_id,
     ])
     .filter(Boolean);
-  const assets = new Map(
-    (assetIds.length
+  const assetsByIds = async (ids) =>
+    ids.length
       ? ((await db.select(
           "marketing_assets",
-          `id=in.${inList(assetIds)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
+          `id=in.${inList(ids)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
         )) ?? [])
-      : []
-    ).map((asset) => [asset.id, asset]),
+      : [];
+  const assets = new Map(
+    (await assetsByIds(assetIds)).map((asset) => [asset.id, asset]),
   );
+  // A lip sync of the still keeps the scene's animated clip (jobs/lipsync.mjs), and the voice
+  // line that drove its lips: the move after the line, and the line's word timings.
+  const lipsyncedFrom = scenes
+    .map((scene) => metaOf(assets.get(scene.clip_asset_id)))
+    .filter((meta) => meta.lipsync === true)
+    .flatMap((meta) => [meta.motion_clip_asset_id, meta.voice_asset_id])
+    .filter((id) => id && !assets.has(id));
+  for (const asset of await assetsByIds([...new Set(lipsyncedFrom)]))
+    assets.set(asset.id, asset);
   const [music] =
     (await db.select(
       "marketing_assets",
@@ -158,6 +170,21 @@ export async function loadFilmSources(db, run) {
         spokenLine(clipMeta.dialogue) !== talkingLine(scene);
       const clipTalks = clipMeta.lipsync === true && !spokeOldLine;
       const voicePath = voicePathOf(scene, clipTalks);
+      // The voice file that drove the lips (a lip-sync pass of this very line, not a clip that
+      // speaks in its engine's own voice), and the animated clip the lip sync was made beside.
+      const lineVoice =
+        clipTalks && clipMeta.source_kind
+          ? assets.get(clipMeta.voice_asset_id)
+          : null;
+      const spokenAlignment =
+        lineVoice?.type === "voiceover" &&
+        AUDIO_DRIVEN.has(String(clipMeta.provider)) &&
+        String(metaOf(lineVoice).text ?? "") === talkingLine(scene)
+          ? metaOf(lineVoice).alignment || null
+          : null;
+      const motionClip = clipTalks
+        ? assets.get(clipMeta.motion_clip_asset_id)
+        : null;
       const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
       const still = assets.get(scene.still_asset_id);
       const sceneMeta = metaOf(scene);
@@ -189,6 +216,9 @@ export async function loadFilmSources(db, run) {
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
         spokenText: clipTalks ? talkingLine(scene) : "",
+        spokenAlignment,
+        moveClipPath:
+          motionClip?.type === "video_clip" ? motionClip.url || null : null,
         muteClip: spokeOldLine,
       };
     })
@@ -281,6 +311,18 @@ export async function renderFilm({
               scene.voicePath,
               join(dir, `voice-${index}`),
             )
+          : null,
+        // The move is extra: a file that cannot be read leaves the scene as its talking clip.
+        moveClipPath: scene.moveClipPath
+          ? await materialize(
+              db,
+              run.tenant_id,
+              scene.moveClipPath,
+              join(dir, `move-${index}`),
+            ).catch((error) => {
+              log(`[render] ${run.id} move clip skipped: ${error.message}`);
+              return null;
+            })
           : null,
       });
     }

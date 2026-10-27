@@ -44,11 +44,17 @@ async function measured(timeline, probeFile) {
   for (const scene of timeline.scenes) {
     const clip = scene.clipPath ? await read(scene.clipPath) : null;
     const voice = scene.voicePath ? await read(scene.voicePath) : null;
+    const move = scene.moveClipPath ? await read(scene.moveClipPath) : null;
     scenes.push({
       ...scene,
       clipHasAudio: clip ? clip.hasAudio : scene.clipHasAudio,
       clipDurationS: clip?.duration || scene.clipDurationS || 0,
       voiceDurationS: voice?.duration || scene.voiceDurationS || 0,
+      ...(scene.moveClipPath
+        ? {
+            moveClipDurationS: move?.duration || scene.moveClipDurationS || 0,
+          }
+        : {}),
     });
   }
   const narration = timeline.narrationPath

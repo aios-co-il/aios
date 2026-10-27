@@ -213,6 +213,19 @@ if (manifest.schemaVersion === 1) {
     if (still) await stageFile(root, publicDir, still);
     if (clip) await stageFile(root, publicDir, clip);
     if (v3 && scene.voice) await stageFile(root, publicDir, scene.voice);
+    // After a line lip-synced on the still: the scene's animated clip (the skin's move).
+    if (v3 && scene.moveClip) {
+      assert(clip && scene.lipsync === true, "A move needs a talking clip");
+      assert(
+        Number.isInteger(scene.moveFrom) &&
+          scene.moveFrom >= 0 &&
+          scene.moveFrom < scene.frameCount + (scene.transitionFrames ?? 0) &&
+          Number.isInteger(scene.moveFrames) &&
+          scene.moveFrames > 0,
+        "Invalid move timing",
+      );
+      await stageFile(root, publicDir, scene.moveClip);
+    }
     assert(MOVES.includes(scene.move), "Invalid camera move");
     if (v3) {
       assert(
@@ -316,6 +329,13 @@ if (manifest.schemaVersion === 1) {
               Number.isInteger(scene.clipFrames) && scene.clipFrames > 0
                 ? scene.clipFrames
                 : undefined,
+            ...(scene.moveClip
+              ? {
+                  moveClip: scene.moveClip,
+                  moveFrom: scene.moveFrom,
+                  moveFrames: scene.moveFrames,
+                }
+              : {}),
           }
         : // A v2 manifest keeps its look: muted clips and short crossfades.
           { transition: "crossfade", transitionFrames: 8, clipVolume: 0 }),

@@ -75,6 +75,33 @@ const Clip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
   return video(false);
 };
 
+/** Frames the move fades in over the talking clip's last frame (lip sync to the skin's move). */
+const MOVE_FADE = 5;
+
+/** After a line lip-synced on the still, the scene's animated clip: the skin's own move. */
+const MoveClip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
+  const frame = useCurrentFrame();
+  const video = (
+    <OffthreadVideo
+      src={staticFile(scene.moveClip || "")}
+      muted
+      style={cover}
+    />
+  );
+  const length = scene.moveFrames ?? 0;
+  return (
+    <AbsoluteFill
+      style={{ opacity: interpolate(frame, [0, MOVE_FADE], [0, 1], clamp) }}
+    >
+      {length > 0 && frame >= length ? (
+        <Freeze frame={Math.max(0, length - 1)}>{video}</Freeze>
+      ) : (
+        video
+      )}
+    </AbsoluteFill>
+  );
+};
+
 type TitleMode = "none" | "kicker" | "card";
 
 const Picture: React.FC<{
@@ -130,7 +157,14 @@ const Picture: React.FC<{
             style={{ transform: `scale(${scale}) translate(${x}%, ${y}%)` }}
           >
             {scene.clip ? (
-              <Clip scene={scene} />
+              <>
+                <Clip scene={scene} />
+                {scene.moveClip ? (
+                  <Sequence from={Math.max(0, scene.moveFrom ?? 0)}>
+                    <MoveClip scene={scene} />
+                  </Sequence>
+                ) : null}
+              </>
             ) : scene.still ? (
               <Img src={staticFile(scene.still)} style={cover} />
             ) : (
