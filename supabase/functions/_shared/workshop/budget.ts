@@ -43,6 +43,21 @@ export const approvalCode = (token: string) =>
     .slice(-4)
     .toUpperCase();
 
+/**
+ * Whether the user's message is the approval tap: "מאשר תקציב <code>" (or a typed "מאשרת"), with
+ * the code as a whole word. A message that merely contains the code (a year, a price, a phone
+ * number, a link) or says "לא מאשר" approves nothing. Several taps at once arrive one per line
+ * as "question: answer" (src/lib/quickReplies.ts), so the phrase may follow a colon.
+ */
+export function approvesRequest(userText: unknown, code: string): boolean {
+  const wanted = code.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  if (!wanted) return false;
+  return new RegExp(
+    `(?<!לא\\s*)(?:^|[^\\p{L}\\p{N}])מאשרת?\\s+תקציב\\s+${wanted}(?![\\p{L}\\p{N}])`,
+    "u",
+  ).test(String(userText ?? "").toUpperCase());
+}
+
 /** The tap-to-answer marker Carmen puts under the budget (see src/lib/quickReplies.ts). */
 export const budgetPrompt = (capUsd: number, code: string) =>
   `[[בחירה: לאשר תקציב של $${capUsd} לפרויקט? | מאשר תקציב ${code} | לא עכשיו]]`;
@@ -139,11 +154,7 @@ export function checkBudget(
   if (request.turn_id === context.turnId)
     return { ok: false, reason: "same_turn" };
   if (!requestFresh(request, now)) return { ok: false, reason: "expired" };
-  if (
-    !String(context.userText ?? "")
-      .toUpperCase()
-      .includes(request.code)
-  )
+  if (!approvesRequest(context.userText, request.code))
     return { ok: false, reason: "not_user" };
   if (request.cap_usd - budget.spent_usd + 0.005 < quote.usd)
     return { ok: false, reason: "over_budget" };

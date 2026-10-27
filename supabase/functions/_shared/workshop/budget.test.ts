@@ -139,6 +139,31 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "only the tapped approval with the whole code approves, not a message that contains it",
+  () => {
+    // A code of digits only (about one in seven) could sit in a year, a price or a phone number.
+    const { payload } = requestBudget({}, 10, "turn-1", "tok-2026");
+    const answer = (userText: string) =>
+      checkBudget(payload, film, { turnId: "turn-2", userText }).ok;
+    for (const userText of [
+      "סרטון לקמפיין 2026",
+      "תתקשרי ל-054-2026111",
+      "https://example.com/ab2026cd",
+      "מאשר תקציב 20261",
+      "לא מאשר תקציב 2026",
+    ])
+      assertStrictEquals(answer(userText), false, userText);
+    for (const userText of [
+      "מאשר תקציב 2026",
+      "מאשרת תקציב 2026!",
+      // Several questions answered at once: one line per question (src/lib/quickReplies.ts).
+      "קצב: רגוע\nלאשר תקציב של $10 לפרויקט?: מאשר תקציב 2026",
+    ])
+      assertStrictEquals(answer(userText), true, userText);
+  },
+);
+
 const filmBudget = () => {
   const priced = checkBudget(
     { workshop_budget: { cap_usd: 10, spent_usd: 0, unit_usd: {} } },
