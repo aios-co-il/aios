@@ -105,3 +105,21 @@ export function campaignNames(
 export function summaryText(sends: Array<{ message: string }>): string {
   return sends.find((send) => isSummary(send.message))?.message ?? "";
 }
+
+/** The console.error calls made while `body` runs. */
+export async function consoleErrorsOf(
+  body: () => Promise<void>,
+): Promise<unknown[][]> {
+  const errors: unknown[][] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  try {
+    await body();
+  } finally {
+    console.error = original;
+  }
+
+  return errors;
+}

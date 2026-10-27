@@ -18,8 +18,15 @@ type FakeQuery = {
   gte: (col: string, val: string) => FakeQuery;
   order: (col: string, opts?: { ascending?: boolean }) => FakeQuery;
   limit: (n: number) => FakeQuery;
-  insert: (row: Row) => Promise<{ error: null }>;
+  insert: (row: Row) => Promise<{ error: { message: string } | null }>;
   then: (resolve: (value: Result) => void) => void;
+};
+
+type FakeClient = {
+  from: (table: string) => FakeQuery;
+  log: Row[];
+  clock: string;
+  insertError: string | null;
 };
 
 type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
@@ -49,13 +56,16 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
   last_client_call_at: WEDNESDAY.toISOString(),
 });
 
-/** pulse_instant_alert_log in memory; inserts are stamped with `clock`. */
+/**
+ * pulse_instant_alert_log in memory; inserts are stamped with `clock`, and
+ * fail with `insertError` while it is set.
+ */
 export function fakeSupabase(
   log: Row[] = [],
   tables: Record<string, Row[]> = {},
 ) {
   const db: Record<string, Row[]> = { ...tables, pulse_instant_alert_log: log };
-  const fake = { from, log, clock: "" };
+  const fake: FakeClient = { from, log, clock: "", insertError: null };
   function from(table: string): FakeQuery {
     const filters: Array<(row: Row) => boolean> = [];
     let limit = Infinity;
@@ -80,6 +90,10 @@ export function fakeSupabase(
       ),
       limit: (n) => ((limit = n), builder),
       insert: async (row) => {
+        if (fake.insertError) {
+          return { error: { message: fake.insertError } };
+        }
+
         (db[table] ||= []).push({ sent_at: fake.clock, ...row });
         return { error: null };
       },

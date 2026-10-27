@@ -14,7 +14,7 @@ const EXCEPTION_SUMMARY_MAX_LINES = 15;
  * Queues one summary message per phone over the cap, built by code. Each
  * alert in a queued summary is logged like a sent one, so the next run's
  * dedupe treats it as delivered; if no summary with it is queued, it is not
- * logged and the next run sends it.
+ * logged and the next run sends it. `summarized` counts the logged ones.
  */
 export async function sendExceptionSummaries(
   input: Pick<DeliverInput, "supabase" | "tenantId" | "queueWhatsApp">,
@@ -42,8 +42,9 @@ export async function sendExceptionSummaries(
         delivery: "summary",
       };
       item.delivered = true;
-      await logInstantAlert(input.supabase, input.tenantId, item);
-      summarized += 1;
+      if (await logInstantAlert(input.supabase, input.tenantId, item)) {
+        summarized += 1;
+      }
     }
   }
 

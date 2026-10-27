@@ -1,5 +1,6 @@
 import { assertNotMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  consoleErrorsOf,
   exceptionCampaigns,
   exceptionSnapshot,
   isSummary,
@@ -83,6 +84,27 @@ Deno.test("sendExceptionSummaries", async (t) => {
       assertStrictEquals(next.result.summarized, 1);
       assertStrictEquals(next.result.skipped, 3);
       assertStrictEquals(supabase.log.length, 7);
+    },
+  );
+
+  await t.step(
+    "a summarized alert whose log insert fails is not counted",
+    async () => {
+      const supabase = fakeSupabase();
+      supabase.insertError = "connection reset";
+      const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
+      const errors = await consoleErrorsOf(async () => {
+        const { result, sends } = await run(supabase, WEDNESDAY, [snapshot], {
+          rules: NO_CONTACT_OFF,
+        });
+        assertStrictEquals(sends.length, 4);
+        assertStrictEquals(result.sent, 3);
+        assertStrictEquals(result.summary_messages, 1);
+        assertStrictEquals(result.summarized, 0);
+        assertStrictEquals(result.skipped, 0);
+      });
+      assertStrictEquals(errors.length, 7);
+      assertStrictEquals(supabase.log.length, 0);
     },
   );
 });
