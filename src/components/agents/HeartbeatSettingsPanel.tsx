@@ -26,10 +26,8 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { PulseAlertRulesDialog } from "@/components/pulse/PulseAlertRulesDialog";
-import {
-  parsePulseAlertRules,
-  type PulseAlertRules,
-} from "@/lib/pulseAlertRules";
+import { mergePulseAlertRules } from "@/lib/pulseAlertRules";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
 
@@ -56,7 +54,8 @@ type HeartbeatSettingsInput = {
   campaign_pulse_phone?: string | null;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
-  pulse_alert_rules?: PulseAlertRules;
+  // The full stored JSON: alert rules plus keys this screen does not edit.
+  pulse_alert_rules?: Record<string, unknown>;
 };
 
 /**
@@ -68,6 +67,8 @@ export function HeartbeatSettingsPanel() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [pulseRulesOpen, setPulseRulesOpen] = useState(false);
+  const { isOwner, isAgencyOwner, isSuperAdmin } = useUserRole();
+  const canManageManager = isOwner || isAgencyOwner || isSuperAdmin;
 
   const { data: heartbeatSettings } = useQuery({
     queryKey: ["heartbeat_settings", tenantId],
@@ -89,6 +90,8 @@ export function HeartbeatSettingsPanel() {
         .from("heartbeat_logs")
         .select("*")
         .eq("tenant_id", tenantId!)
+        // Carmen's manager round logs every run; this list is the heartbeat's.
+        .neq("run_kind", "manager_round")
         .order("triggered_at", { ascending: false })
         .limit(10);
       return (data as any[]) || [];
@@ -422,11 +425,17 @@ export function HeartbeatSettingsPanel() {
         onOpenChange={setPulseRulesOpen}
         value={heartbeatSettings?.pulse_alert_rules}
         saving={saveHeartbeatSettings.isPending}
-        onSave={async (rules) => {
+        canManageManager={canManageManager}
+        onSave={async (rules, manager) => {
           await saveHeartbeatSettings.mutateAsync({
             ...coreSettings(),
             ...campaignPulseSettings(),
-            pulse_alert_rules: parsePulseAlertRules(rules),
+            // Merge, so keys this dialog does not edit are never dropped.
+            pulse_alert_rules: mergePulseAlertRules(
+              heartbeatSettings?.pulse_alert_rules,
+              rules,
+              manager,
+            ),
           });
           setPulseRulesOpen(false);
         }}

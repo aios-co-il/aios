@@ -1,3 +1,5 @@
+import type { ManagerMode } from "../../supabase/functions/_shared/manager-round/modes.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -34,4 +36,44 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
   };
+}
+
+/**
+ * Manager-round settings stored under pulse_alert_rules.manager. Other code
+ * may keep more keys there (cost thresholds, logging switches, collector
+ * settings); they are always preserved.
+ */
+export type PulseManagerSettings = {
+  /** Carmen's rollout mode; owner-only (the database refuses others). */
+  mode?: ManagerMode;
+};
+
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...raw }
+    : {};
+}
+
+/**
+ * The pulse_alert_rules value to save: the stored JSON with the edited alert
+ * rules and manager settings laid over it. Keys this screen does not know
+ * (other manager settings, future rules) are kept as they are.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings = {},
+): Record<string, unknown> {
+  const current = asRecord(stored);
+  const merged: Record<string, unknown> = {
+    ...current,
+    ...parsePulseAlertRules({ ...current, ...rules }),
+  };
+  const managerPatch = Object.fromEntries(
+    Object.entries(manager).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(managerPatch).length > 0 || "manager" in current) {
+    merged.manager = { ...asRecord(current.manager), ...managerPatch };
+  }
+  return merged;
 }

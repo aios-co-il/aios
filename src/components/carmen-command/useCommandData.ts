@@ -262,6 +262,7 @@ export function useHealth(tenantId: string | null) {
           .from("heartbeat_logs")
           .select("triggered_at, summary")
           .eq("tenant_id", tenantId)
+          .neq("run_kind", "manager_round")
           .order("triggered_at", { ascending: false })
           .limit(1)
           .maybeSingle(),

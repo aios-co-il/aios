@@ -15,14 +15,27 @@ import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
   type PulseAlertRules,
+  type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
+import type { ManagerMode } from "../../../supabase/functions/_shared/manager-round/modes.ts";
+import { resolveManagerSettings } from "../../../supabase/functions/_shared/manager-round/settings.ts";
+import { ManagerModeSection } from "./manager-round/ManagerModeSection";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  onSave: (rules: PulseAlertRules) => Promise<void> | void;
+  /**
+   * Saves the alert rules and, for owners, the manager settings. The caller
+   * merges both into the stored pulse_alert_rules (mergePulseAlertRules).
+   */
+  onSave: (
+    rules: PulseAlertRules,
+    manager: PulseManagerSettings,
+  ) => Promise<void> | void;
   saving?: boolean;
+  /** Tenant and agency owners see Carmen's manager mode. */
+  canManageManager?: boolean;
 };
 
 export function PulseAlertRulesDialog({
@@ -31,13 +44,19 @@ export function PulseAlertRulesDialog({
   value,
   onSave,
   saving = false,
+  canManageManager = false,
 }: PulseAlertRulesDialogProps) {
   const [rules, setRules] = useState<PulseAlertRules>(
     DEFAULT_PULSE_ALERT_RULES,
   );
+  const [managerMode, setManagerMode] = useState<ManagerMode>("observe");
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (!open) {
+      return;
+    }
+    setRules(parsePulseAlertRules(value));
+    setManagerMode(resolveManagerSettings(value).mode);
   }, [open, value]);
 
   return (
@@ -146,6 +165,10 @@ export function PulseAlertRulesDialog({
               }
             />
           </div>
+
+          {canManageManager && (
+            <ManagerModeSection mode={managerMode} onChange={setManagerMode} />
+          )}
         </div>
 
         <DialogFooter>
@@ -154,7 +177,12 @@ export function PulseAlertRulesDialog({
           </Button>
           <Button
             disabled={saving}
-            onClick={() => onSave(parsePulseAlertRules(rules))}
+            onClick={() =>
+              onSave(
+                parsePulseAlertRules(rules),
+                canManageManager ? { mode: managerMode } : {},
+              )
+            }
           >
             שמור חוקים
           </Button>
