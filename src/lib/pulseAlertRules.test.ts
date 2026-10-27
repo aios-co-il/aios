@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parsePulseAlertRules } from "./pulseAlertRules";
 
 describe("parsePulseAlertRules", () => {
-  it("keeps a stored instant cap, so saving the rules dialog does not reset it", () => {
+  it("keeps the stored instant value, so saving the rules dialog does not reset it", () => {
     const stored = {
       instant_wa_enabled: true,
       cpl_spike_pct: 60,
@@ -15,12 +15,8 @@ describe("parsePulseAlertRules", () => {
     expect(saved.cpl_spike_pct).toBe(60);
   });
 
-  it("fills the default cap when none is stored", () => {
-    expect(parsePulseAlertRules({}).instant).toEqual({
-      max_exception_messages_per_run: 3,
-    });
-    expect(parsePulseAlertRules(null).instant).toEqual({
-      max_exception_messages_per_run: 3,
-    });
+  it("adds no instant value when none is stored", () => {
+    expect("instant" in parsePulseAlertRules({})).toBe(false);
+    expect("instant" in parsePulseAlertRules(null)).toBe(false);
   });
 });

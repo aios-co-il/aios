@@ -19,17 +19,17 @@ import {
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
-import { capExceptionMessages } from "./pulse/exception-flood-guard.ts";
+import {
+  capExceptionMessages,
+  parsePulseInstantRunRules,
+  type PulseInstantRunRules,
+} from "./pulse/exception-flood-guard.ts";
 import { sendExceptionSummaries } from "./pulse/exception-summary.ts";
 import {
   DEFAULT_EXCEPTION_CHECK_LINE,
   type PhrasePulseException,
 } from "./pulse/exception-wording.ts";
 import { sendIndividualAlerts } from "./pulse/individual-alerts.ts";
-import {
-  parsePulseInstantRunRules,
-  type PulseInstantRunRules,
-} from "./pulse/instant-run-rules.ts";
 import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
 
 export type PulseAlertRuleType =

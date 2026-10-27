@@ -21,12 +21,37 @@ import {
   SUMMARY_HEADER,
   summaryText,
 } from "./exception-fixtures.ts";
+import { parsePulseInstantRunRules } from "./exception-flood-guard.ts";
 import {
   fakeSupabase,
   NO_CONTACT_OFF,
   run,
   WEDNESDAY,
 } from "./fake-alert-log.ts";
+
+Deno.test("parsePulseInstantRunRules", async (t) => {
+  await t.step(
+    "max_exception_messages_per_run is clamped to 1..10, default 3",
+    () => {
+      const cap = (value: unknown) =>
+        parsePulseInstantRunRules({ max_exception_messages_per_run: value })
+          .max_exception_messages_per_run;
+      assertStrictEquals(
+        parsePulseInstantRunRules(null).max_exception_messages_per_run,
+        3,
+      );
+      assertStrictEquals(cap(5), 5);
+      assertStrictEquals(cap("6"), 6);
+      assertStrictEquals(cap(0), 1);
+      assertStrictEquals(cap(-4), 1);
+      assertStrictEquals(cap(50), 10);
+      assertStrictEquals(cap(2.9), 2);
+      assertStrictEquals(cap("many"), 3);
+      assertStrictEquals(cap(null), 3);
+      assertStrictEquals(cap(true), 3);
+    },
+  );
+});
 
 Deno.test("capExceptionMessages", async (t) => {
   await t.step(

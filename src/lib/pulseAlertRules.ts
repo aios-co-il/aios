@@ -1,17 +1,15 @@
-import {
-  parsePulseInstantRunRules,
-  type PulseInstantRunRules,
-} from "../../supabase/functions/_shared/pulse/instant-run-rules.ts";
-
 export type PulseAlertRules = {
+  /**
+   * Per-run limits the dialog does not edit, kept as stored; the edge parser
+   * (supabase/functions/_shared/pulse/exception-flood-guard.ts) reads them.
+   */
+  instant?: unknown;
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
   no_contact_days?: number;
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
-  /** Not edited in the dialog, but kept on save. */
-  instant: PulseInstantRunRules;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -21,13 +19,13 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
-  instant: parsePulseInstantRunRules(undefined),
 };
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
   const input = raw as Record<string, unknown>;
   return {
+    ...(input.instant === undefined ? {} : { instant: input.instant }),
     instant_wa_enabled: input.instant_wa_enabled !== false,
     no_contact_enabled: input.no_contact_enabled !== false,
     no_contact_days: Math.max(
@@ -41,6 +39,5 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
-    instant: parsePulseInstantRunRules(input.instant),
   };
 }
