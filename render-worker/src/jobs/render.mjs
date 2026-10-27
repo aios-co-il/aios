@@ -406,8 +406,7 @@ export async function renderFilm({
               // whoosh or impact stands in); in a free render, a kind the film has nothing of.
               sound_effects_error:
                 (settings.effectsQuotedUsd > 0 && effects.error) ||
-                (timeline.effects?.transitionPaths.length &&
-                timeline.effects.impactPath
+                (effectFiles.transitionPaths.length && effectFiles.impactPath
                   ? null
                   : effects.error || "אפקטי הסאונד לא נטענו"),
             }

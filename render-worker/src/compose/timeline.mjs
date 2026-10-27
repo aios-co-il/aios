@@ -1,5 +1,7 @@
 /** The edit decision list the ffmpeg assembly renders. */
 
+import { cutSoundPlan } from "./transition-sounds.mjs";
+
 export const FRAME_SIZE = {
   "16:9": [1280, 720],
   "9:16": [720, 1280],
@@ -13,16 +15,23 @@ export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
 export const sceneSeconds = (value) =>
   Math.min(120, Math.max(0.5, Number(value) || 3));
 
-/** The film's effects: its transition sounds (a lone whooshPath is a set of one) and impact. */
-function soundDesignEffects(effects) {
+/**
+ * The film's effects: the sound of each of its `cuts` cuts ({ path, pitch }: one of its
+ * transition sounds, a lone whooshPath being a set of one, and the semitones its round shifts
+ * it by; cutSoundPlan, drawn from `seed`) and its impact.
+ */
+function soundDesignEffects(effects, cuts) {
   const transitionPaths = (
     effects?.transitionPaths ?? [effects?.whooshPath]
   ).filter(Boolean);
   if (!transitionPaths.length && !effects?.impactPath) return null;
   return {
-    transitionPaths,
+    cuts: cutSoundPlan(
+      transitionPaths.length,
+      cuts,
+      String(effects.seed ?? ""),
+    ).map(({ sound, pitch }) => ({ path: transitionPaths[sound], pitch })),
     impactPath: effects.impactPath || null,
-    seed: String(effects.seed ?? ""),
   };
 }
 
@@ -85,7 +94,7 @@ export function buildTimeline(
     // Trailer sound design: a transition sound at each cut (a different one each time,
     // transition-sounds.mjs, drawn from `seed`, the film's id) and an impact on the title and
     // the end card.
-    effects: soundDesignEffects(effects),
+    effects: soundDesignEffects(effects, frames.length - 1),
     // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
     // also when its effects could not be made.
     soundDesign: soundDesign === true,

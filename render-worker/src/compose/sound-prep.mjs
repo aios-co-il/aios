@@ -5,8 +5,10 @@
  * MUSIC_LUFS, so the trailer mix's gains are loudness targets. An ordinary film's bed keeps
  * its own level under today's MIX; it is only measured, for where its body ends (the loop
  * hand-over). It runs at render time, so effects stored by earlier renders are levelled too.
- * The narration is only measured: the trailer mix sets the bed under it. A file that cannot be
- * read keeps its level.
+ * A cut in a later round of the set gets its sound shifted by its round's pitch
+ * (transition-sounds.mjs ROUND_PITCH), then levelled like the others. The narration is only
+ * measured: the trailer mix sets the bed under it. A file that cannot be read keeps its level,
+ * and a sound that cannot be shifted plays as made.
  */
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -17,6 +19,7 @@ import {
   MUSIC_LUFS,
   isTrailer,
 } from "./music-bed.mjs";
+import { pitchAudio } from "./sound-pitch.mjs";
 
 /** Peaks stay under this (dBTP); the limiter takes at most LIMITER_DB above it. */
 const CEILING_DB = -1;
@@ -48,8 +51,9 @@ const mean = (values) => {
 };
 
 /**
- * Returns the timeline with its music and effects levelled into `dir` (WAV), the music track's
- * musical end (musicBodyS, where a loop hands over) and the narration's loudness (voiceLufs).
+ * Returns the timeline with its music and effects levelled into `dir` (WAV), each cut's sound
+ * at its round's pitch (effects.cuts: { path }), the music track's musical end (musicBodyS,
+ * where a loop hands over) and the narration's loudness (voiceLufs).
  */
 export async function prepareSound(
   timeline,
@@ -57,6 +61,7 @@ export async function prepareSound(
   {
     measure = measureLoudness,
     normalize = normalizeAudio,
+    vary = pitchAudio,
     log = console.log,
   } = {},
 ) {
@@ -113,16 +118,37 @@ export async function prepareSound(
       }),
     );
   };
+  /** `file` shifted by `pitch` semitones, or `file` itself when it cannot be. */
+  const pitched = async (file, name, pitch) => {
+    if (!pitch) return file;
+    const out = join(dir, `${name}-pitched.wav`);
+    try {
+      await vary(file, out, pitch);
+      return out;
+    } catch (error) {
+      log(`[sound] ${name} kept at its own pitch: ${error?.message ?? error}`);
+      return file;
+    }
+  };
   let effects = timeline.effects ?? null;
   if (effects) {
-    const transitionPaths = [];
-    for (const [index, path] of (effects.transitionPaths ?? []).entries())
-      transitionPaths.push(
-        await levelHit(path, `sfx-cut-${index}`, EFFECT_LUFS),
-      );
+    // Each sound at each pitch is made once, however many cuts play it.
+    const made = new Map();
+    const cuts = [];
+    for (const { path, pitch = 0 } of effects.cuts ?? []) {
+      const key = `${pitch}|${path}`;
+      if (!made.has(key)) {
+        const name = `sfx-cut-${made.size}`;
+        made.set(
+          key,
+          await levelHit(await pitched(path, name, pitch), name, EFFECT_LUFS),
+        );
+      }
+      cuts.push({ path: made.get(key) });
+    }
     effects = {
       ...effects,
-      transitionPaths,
+      cuts,
       impactPath: effects.impactPath
         ? await levelHit(effects.impactPath, "sfx-impact", IMPACT_LUFS)
         : null,

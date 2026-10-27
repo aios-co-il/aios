@@ -8,7 +8,7 @@ import {
   mixProfile,
 } from "../src/compose/music-bed.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
-import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
+import { cutSoundPlan } from "../src/compose/transition-sounds.mjs";
 import { effectCues } from "../src/compose/workshop-edit.mjs";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 
@@ -71,16 +71,19 @@ const still = (id, extra = {}) => ({
 });
 
 test("the Remotion edit plays a different transition sound at each cut and ducks them under the voice", () => {
-  const transitionPaths = ["/tmp/t0.mp3", "/tmp/t1.mp3", "/tmp/t2.mp3"];
+  // Three sounds, five cuts: the second round plays them shifted (sound-prep makes the files).
+  const plan = cutSoundPlan(3, 5, ITEM);
+  const lengths = [1, 0.6, 1.2];
   const timeline = {
     aspect: "9:16",
     brand: { ctaText: "הירשמו", endCard: true },
     effects: {
-      transitionPaths,
-      transitionDurationsS: [1, 0.6, 1.2],
+      cuts: plan.map(({ sound, pitch }) => ({
+        path: `/tmp/t${sound}${pitch ? `-p${pitch}` : ""}.mp3`,
+        durationS: lengths[sound],
+      })),
       impactPath: "/tmp/i.mp3",
       impactDurationS: 2,
-      seed: ITEM,
     },
     scenes: [
       still("a", {
@@ -91,23 +94,19 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
           character_end_times_seconds: [0.2, 0.3, 0.4, 1.5],
         },
       }),
-      ...["b", "c", "d", "e"].map((id) => still(id)),
+      ...["b", "c", "d", "e", "f"].map((id) => still(id)),
     ],
   };
   const { manifest, files } = buildWorkshopManifest(timeline);
-  const order = cutSoundOrder(3, 4, ITEM);
   const cuts = manifest.effects.filter((cue) => cue.file !== "sfx-impact.mp3");
-  expect(cuts.map((cue) => cue.file)).toStrictEqual(
-    order.map((index) => `sfx-cut-${index}.mp3`),
-  );
-  // Each cue lasts its own sound.
-  for (const cue of cuts)
-    expect(cue.frameCount).toBe(
-      [30, 18, 36][Number(/cut-(\d)/.exec(cue.file)[1])],
-    );
-  for (let i = 1; i < cuts.length; i++)
-    expect(cuts[i].file).not.toBe(cuts[i - 1].file);
-  expect(new Set(cuts.slice(0, 3).map((cue) => cue.file)).size).toBe(3);
+  // Every cut its own file, each lasting its own sound.
+  expect(cuts.length).toBe(5);
+  expect(new Set(cuts.map((cue) => cue.file)).size).toBe(5);
+  const staging = Object.fromEntries(files.map((f) => [f.to, f.from]));
+  for (const [cut, cue] of cuts.entries()) {
+    expect(staging[cue.file]).toBe(timeline.effects.cuts[cut].path);
+    expect(cue.frameCount).toBe([30, 18, 36][plan[cut].sound]);
+  }
   // Only the sounds the film plays are staged; the same film renders the same sounds again.
   const staged = files.map((f) => f.to).filter((to) => to.startsWith("sfx-"));
   expect(new Set(staged)).toStrictEqual(
@@ -138,19 +137,28 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
   expect(level(20)).toBe(mix.effectsDucked);
   expect(level(manifest.endCard.startFrame)).toBe(mix.effects);
   expect(mix.effectsDucked).toBeLessThan(mix.effects);
-  // A film from before the set (one whoosh) plays it at every cut.
-  const legacy = buildTimeline(
-    timeline.scenes.map((scene, position) => ({ ...scene, position })),
-    { effects: { whooshPath: "/tmp/w.mp3" } },
-  );
-  expect(legacy.effects).toStrictEqual({
-    transitionPaths: ["/tmp/w.mp3"],
-    impactPath: null,
-    seed: "",
+  // The timeline plans each cut's sound from the film's id: a film from before the set (one
+  // whoosh) plays it at every cut, each a few semitones off the one before.
+  const sceneRows = timeline.scenes.map((scene, position) => ({
+    ...scene,
+    position,
+  }));
+  const legacy = buildTimeline(sceneRows, {
+    effects: { whooshPath: "/tmp/w.mp3" },
   });
-  expect(
-    buildWorkshopManifest(legacy).manifest.effects.map((cue) => cue.file),
-  ).toStrictEqual(Array(4).fill("sfx-cut-0.mp3"));
+  expect(legacy.effects).toStrictEqual({
+    cuts: [0, -3, 3, -5, 5].map((pitch) => ({ path: "/tmp/w.mp3", pitch })),
+    impactPath: null,
+  });
+  const set = buildTimeline(sceneRows, {
+    effects: { transitionPaths: ["/a", "/b", "/c"], seed: ITEM },
+  });
+  expect(set.effects.cuts).toStrictEqual(
+    plan.map(({ sound, pitch }) => ({
+      path: ["/a", "/b", "/c"][sound],
+      pitch,
+    })),
+  );
   // A film without sound design keeps its manifest as it was.
   const plain = buildWorkshopManifest({ aspect: "9:16", scenes: [still("a")] });
   expect("effects" in plain.manifest).toBe(false);

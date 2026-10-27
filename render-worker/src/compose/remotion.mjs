@@ -57,12 +57,17 @@ async function measured(timeline, probeFile) {
   const music = timeline.musicPath ? await read(timeline.musicPath) : null;
   let effects = null;
   if (timeline.effects) {
-    const transitionDurationsS = [];
-    for (const path of timeline.effects.transitionPaths ?? [])
-      transitionDurationsS.push((await read(path))?.duration || 0);
+    // Each cut's sound with its length (a file two cuts share is read once).
+    const lengths = new Map();
+    const cuts = [];
+    for (const cut of timeline.effects.cuts ?? []) {
+      if (!lengths.has(cut.path))
+        lengths.set(cut.path, (await read(cut.path))?.duration || 0);
+      cuts.push({ ...cut, durationS: lengths.get(cut.path) });
+    }
     effects = {
       ...timeline.effects,
-      transitionDurationsS,
+      cuts,
       impactDurationS: timeline.effects.impactPath
         ? (await read(timeline.effects.impactPath))?.duration || 0
         : 0,

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { assembleFilm } from "../src/compose/assemble.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
-import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
+import { cutSoundPlan } from "../src/compose/transition-sounds.mjs";
 import { SOUND_EFFECT_NAMES } from "../src/jobs/sound-effects-catalog.mjs";
 import {
   OVER_QUOTE,
@@ -162,7 +162,8 @@ test.skipIf(!hasFfmpeg)(
   async () => {
     const dir = await mkdtemp(join(tmpdir(), "sfx-cuts-"));
     try {
-      // Three sounds told apart by their pitch, four scenes of 1.5 s: three cuts.
+      // Three sounds told apart by their pitch, six scenes of 1.5 s: five cuts, the last two
+      // a second round, its sounds shifted down three semitones.
       const tones = [500, 1100, 2400];
       const sounds = tones.map((hz) => {
         const file = join(dir, `t${hz}.wav`);
@@ -178,7 +179,8 @@ test.skipIf(!hasFfmpeg)(
         return file;
       });
       const clip = (name, color) => colorClip(join(dir, `${name}.mp4`), color);
-      const scenes = ["red", "blue", "green", "white"].map((color, index) => ({
+      const colors = ["red", "blue", "green", "white", "yellow", "black"];
+      const scenes = colors.map((color, index) => ({
         id: color,
         position: index + 1,
         clipPath: clip(color, color),
@@ -192,14 +194,17 @@ test.skipIf(!hasFfmpeg)(
         }),
         output,
       );
-      const order = cutSoundOrder(3, 3, seed);
-      expect(new Set(order).size).toBe(3);
-      for (const [cut, sound] of order.entries()) {
-        // The sound starts 0.4 s before its cut (1.5 s, 3 s, 4.5 s).
+      const plan = cutSoundPlan(3, 5, seed);
+      expect(new Set(plan.slice(0, 3).map((cut) => cut.sound)).size).toBe(3);
+      expect(plan.slice(3).map((cut) => cut.pitch)).toStrictEqual([-3, -3]);
+      // Every sound as made and shifted: each cut's own is the loudest of them.
+      const heard = tones.flatMap((hz) => [hz, hz * 2 ** (-3 / 12)]);
+      for (const [cut, { sound, pitch }] of plan.entries()) {
+        // The sound starts 0.4 s before its cut (1.5 s, 3 s, ...).
         const at = 1.5 * (cut + 1) - 0.3;
-        const levels = tones.map((hz) => bandDb(output, at, 0.4, hz));
-        const loudest = levels.indexOf(Math.max(...levels));
-        expect(loudest).toBe(sound);
+        const levels = heard.map((hz) => bandDb(output, at, 0.4, hz));
+        const loudest = heard[levels.indexOf(Math.max(...levels))];
+        expect(loudest).toBe(tones[sound] * 2 ** (pitch / 12));
       }
     } finally {
       await rm(dir, { recursive: true, force: true });

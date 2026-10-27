@@ -13,7 +13,6 @@ import {
 import { wordsFromAlignment } from "./captions.mjs";
 import { prepareSound } from "./sound-prep.mjs";
 import { bedVolume, effectsVolume, musicBedFilters } from "./ffmpeg-bed.mjs";
-import { cutSoundOrder } from "./transition-sounds.mjs";
 import { WHOOSH_LEAD } from "./workshop-edit.mjs";
 
 const ffmpeg = (args) =>
@@ -388,17 +387,19 @@ export async function assembleFilm(
     "copy",
     picture,
   ]);
-  // Each cut plays its own transition sound from the film's set, as in the Remotion edit.
-  const sounds = timeline.effects?.transitionPaths ?? [];
-  const cuts = cutSoundOrder(
-    sounds.length,
-    lengths.length - 1,
-    timeline.effects?.seed,
-  );
+  // Each cut plays its own sound (the timeline's plan), as in the Remotion edit; a file two
+  // cuts share is one input.
+  const sounds = new Map();
+  const cutSounds = (timeline.effects?.cuts ?? [])
+    .slice(0, lengths.length - 1)
+    .map(({ path }) => {
+      if (!sounds.has(path)) sounds.set(path, `cut${sounds.size}`);
+      return sounds.get(path);
+    });
   const cues = fallbackEffectCues(lengths, {
     impact: Boolean(timeline.effects?.impactPath),
     endCardS: endCard ? scenesS : null,
-    cutSounds: cuts.map((sound) => `cut${sound}`),
+    cutSounds,
   });
   if (!timeline.narrationPath && !timeline.musicPath && !cues.length) {
     await ffmpeg([
@@ -448,7 +449,7 @@ export async function assembleFilm(
     const index = {};
     const files = {
       impact: timeline.effects?.impactPath,
-      ...Object.fromEntries(sounds.map((path, i) => [`cut${i}`, path])),
+      ...Object.fromEntries([...sounds].map(([path, name]) => [name, path])),
     };
     for (const [name, path] of Object.entries(files)) {
       if (!path || !cues.some((cue) => cue.name === name)) continue;

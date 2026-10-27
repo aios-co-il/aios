@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { EFFECT_LUFS, IMPACT_LUFS } from "../src/compose/music-bed.mjs";
 import { levelGain, prepareSound } from "../src/compose/sound-prep.mjs";
-import { measureLoudness, parseLoudness } from "../src/ffmpeg.mjs";
+import { measureLoudness, parseLoudness, pitchAudio } from "../src/ffmpeg.mjs";
 import { hasFfmpeg, media } from "./media.mjs";
 
 test.skipIf(!hasFfmpeg)(
@@ -31,14 +31,28 @@ test.skipIf(!hasFfmpeg)(
       // Like the showcase's ElevenLabs pair: far apart, the impact mostly decaying tail.
       expect(before[0].integrated - before[1].integrated).toBeGreaterThan(10);
       const prepared = await prepareSound(
-        { scenes: [], effects: { transitionPaths: [loud], impactPath: quiet } },
+        {
+          scenes: [],
+          effects: {
+            cuts: [
+              { path: loud, pitch: 0 },
+              { path: loud, pitch: -3 },
+            ],
+            impactPath: quiet,
+          },
+        },
         join(dir, "sound"),
         { log: () => {} },
       );
+      // A cut of a later round, its sound shifted, is levelled like the first.
       const targets = [
-        [prepared.effects.transitionPaths[0], EFFECT_LUFS],
+        [prepared.effects.cuts[0].path, EFFECT_LUFS],
+        [prepared.effects.cuts[1].path, EFFECT_LUFS],
         [prepared.effects.impactPath, IMPACT_LUFS],
       ];
+      expect(prepared.effects.cuts[1].path).not.toBe(
+        prepared.effects.cuts[0].path,
+      );
       for (const [file, target] of targets) {
         const after = await measureLoudness(file);
         expect(Math.abs(after.maxMomentary - target)).toBeLessThan(1);
@@ -109,14 +123,27 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     "/n.mp3": { integrated: -19.1, truePeak: -1.6, maxMomentary: -13.2 },
   };
   const written = [];
+  const shifted = [];
+  // The shifted whoosh comes out a little softer; it is levelled to the same hit.
+  readings["/out/sfx-cut-2-pitched.wav"] = {
+    integrated: -11,
+    truePeak: 0,
+    maxMomentary: -10.4,
+  };
   const prepared = await prepareSound(
     {
       musicPath: "/m.mp3",
       narrationPath: "/n.mp3",
       effects: {
-        transitionPaths: ["/w.mp3", "/s.mp3"],
+        // The timeline's plan: two sounds, the second round shifted.
+        cuts: [
+          { path: "/w.mp3", pitch: 0 },
+          { path: "/s.mp3", pitch: 0 },
+          { path: "/w.mp3", pitch: -3 },
+          { path: "/s.mp3", pitch: -3 },
+          { path: "/w.mp3", pitch: -3 },
+        ],
         impactPath: "/i.mp3",
-        seed: "film",
       },
       scenes: [],
     },
@@ -124,18 +151,25 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     {
       measure: async (file) => readings[file],
       normalize: async (file, out, gain) => written.push([file, out, gain]),
+      vary: async (file, out, pitch) => {
+        shifted.push([file, out, pitch]);
+        if (file === "/s.mp3") throw new Error("atempo failed");
+      },
       log: () => {},
     },
   );
   expect(prepared.musicPath).toBe("/out/music-levelled.wav");
   expect(prepared.musicBodyS).toBe(38);
+  // Each sound at each pitch is made once; one that cannot be shifted plays as made.
+  expect(shifted).toStrictEqual([
+    ["/w.mp3", "/out/sfx-cut-2-pitched.wav", -3],
+    ["/s.mp3", "/out/sfx-cut-3-pitched.wav", -3],
+  ]);
   expect(prepared.effects).toStrictEqual({
-    transitionPaths: [
-      "/out/sfx-cut-0-levelled.wav",
-      "/out/sfx-cut-1-levelled.wav",
-    ],
+    cuts: [0, 1, 2, 3, 2].map((n) => ({
+      path: `/out/sfx-cut-${n}-levelled.wav`,
+    })),
     impactPath: "/out/sfx-impact-levelled.wav",
-    seed: "film",
   });
   expect(prepared.voiceLufs).toBe(-19.1);
   const gains = Object.fromEntries(written.map(([f, , g]) => [f, g.gainDb]));
@@ -144,12 +178,16 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   // before) lands 3 LU softer.
   expect(-9.2 + gains["/w.mp3"]).toBeCloseTo(EFFECT_LUFS, 5);
   expect(-20 + gains["/s.mp3"]).toBeCloseTo(EFFECT_LUFS, 5);
+  expect(-10.4 + gains["/out/sfx-cut-2-pitched.wav"]).toBeCloseTo(
+    EFFECT_LUFS,
+    5,
+  );
   expect(-18.3 + gains["/i.mp3"]).toBeCloseTo(IMPACT_LUFS, 5);
   // A file that cannot be measured or written keeps its own level.
   const kept = await prepareSound(
     {
       musicPath: "/m.mp3",
-      effects: { transitionPaths: ["/w.mp3"], impactPath: null },
+      effects: { cuts: [{ path: "/w.mp3", pitch: 0 }], impactPath: null },
       scenes: [],
     },
     "/out",
@@ -165,7 +203,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     },
   );
   expect(kept.musicPath).toBe("/m.mp3");
-  expect(kept.effects.transitionPaths).toStrictEqual(["/w.mp3"]);
+  expect(kept.effects.cuts).toStrictEqual([{ path: "/w.mp3" }]);
   expect(kept.voiceLufs).toBe(null);
 });
 

@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { parseShowinfoTimes } from "./shots.mjs";
 
-const run = (command, args) =>
+/** Runs `command` with `args`; resolves its output, rejects with the end of its stderr. */
+export const run = (command, args) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";

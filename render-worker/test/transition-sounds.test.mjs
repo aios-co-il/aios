@@ -1,4 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
   EFFECT_LUFS,
@@ -7,14 +11,19 @@ import {
   VOICE_LUFS,
   mixProfile,
 } from "../src/compose/music-bed.mjs";
-import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
+import { pitchAudio } from "../src/compose/sound-pitch.mjs";
+import {
+  ROUND_PITCH,
+  cutSoundOrder,
+  cutSoundPlan,
+} from "../src/compose/transition-sounds.mjs";
 import {
   SOUND_EFFECTS,
   SOUND_EFFECT_NAMES,
   TRANSITION_NAMES,
   soundEffectsCostUsd,
 } from "../src/jobs/sound-effects-catalog.mjs";
-import { db } from "./media.mjs";
+import { db, hasFfmpeg, media } from "./media.mjs";
 
 const ITEM = "22222222-2222-2222-2222-222222222222";
 
@@ -49,6 +58,42 @@ test("every cut gets a different sound: all of the set before any repeat, never 
   expect(cutSoundOrder(1, 3, ITEM)).toStrictEqual([0, 0, 0]);
   expect(cutSoundOrder(0, 3, ITEM)).toStrictEqual([]);
   expect(cutSoundOrder(6, 0, ITEM)).toStrictEqual([]);
+});
+
+test("a film with more cuts than sounds hears each later round shifted: no cut repeats another", () => {
+  for (const seed of [ITEM, "a", "film-42"]) {
+    for (const sounds of [1, 2, 3, 6]) {
+      const cuts = 40;
+      const plan = cutSoundPlan(sounds, cuts, seed);
+      // The same order as cutSoundOrder, each round at its own pitch, the first as made.
+      expect(plan.map((cut) => cut.sound)).toStrictEqual(
+        cutSoundOrder(sounds, cuts, seed),
+      );
+      for (const [cut, { pitch }] of plan.entries())
+        expect(pitch).toBe(
+          ROUND_PITCH[Math.floor(cut / sounds) % ROUND_PITCH.length],
+        );
+      expect(plan.slice(0, sounds).every((cut) => cut.pitch === 0)).toBe(true);
+      // No sound is heard twice until every pitch of every sound has played.
+      const distinct = sounds * ROUND_PITCH.length;
+      const heard = plan.slice(0, distinct).map((c) => `${c.sound}${c.pitch}`);
+      expect(new Set(heard).size).toBe(Math.min(distinct, cuts));
+      // Never the same sound twice in a row.
+      for (let i = 1; i < plan.length; i++)
+        expect(`${plan[i].sound}${plan[i].pitch}`).not.toBe(
+          `${plan[i - 1].sound}${plan[i - 1].pitch}`,
+        );
+    }
+  }
+  // The showcase's 11 cuts of six sounds: eleven different sounds, the last five shifted down.
+  const showcase = cutSoundPlan(6, 11, "carmen-showcase-film");
+  expect(new Set(showcase.map((c) => `${c.sound}${c.pitch}`)).size).toBe(11);
+  expect(showcase.map((c) => c.pitch)).toStrictEqual([
+    ...Array(6).fill(0),
+    ...Array(5).fill(-3),
+  ]);
+  // A pitch stays within a few semitones of the sound as made.
+  expect(Math.max(...ROUND_PITCH.map(Math.abs))).toBeLessThanOrEqual(5);
 });
 
 test("the set: six short, subtle transition sounds and one soft impact", () => {
@@ -115,3 +160,39 @@ test("the trailer mix keeps the effects gentle: over the bed between lines, far 
   expect(IMPACT_LUFS + db(mix.effects)).toBeLessThan(-14 + db(0.7) - 3);
   expect(IMPACT_LUFS + db(mix.effectsDucked)).toBeLessThan(-14 + db(0.35) - 9);
 });
+
+/** The main frequency of `file` (Hz), from its zero crossings, and its length (seconds). */
+const toneOf = (file) => {
+  const pcm = spawnSync(
+    "ffmpeg",
+    ["-v", "error", "-i", file, "-ac", "1", "-ar", "48000", "-f", "s16le", "-"],
+    { maxBuffer: 64 * 1024 * 1024 },
+  ).stdout;
+  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length >> 1);
+  let crossings = 0;
+  for (let i = 1; i < samples.length; i++)
+    if (samples[i - 1] < 0 !== samples[i] < 0) crossings += 1;
+  const seconds = samples.length / 48000;
+  return { hz: crossings / 2 / seconds, seconds };
+};
+
+test.skipIf(!hasFfmpeg)(
+  "a later round's sound is the same sound a few semitones off, as long as before",
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sfx-pitch-"));
+    try {
+      const tone = join(dir, "tone.wav");
+      media(["-f", "lavfi", "-i", "sine=frequency=1000:duration=1", tone]);
+      for (const semitones of [-5, -3, 3, 5]) {
+        const out = join(dir, `tone${semitones}.wav`);
+        await pitchAudio(tone, out, semitones);
+        const { hz, seconds } = toneOf(out);
+        expect(hz / (1000 * 2 ** (semitones / 12))).toBeCloseTo(1, 2);
+        expect(Math.abs(seconds - 1)).toBeLessThan(0.03);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);

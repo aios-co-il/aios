@@ -11,7 +11,6 @@ import {
 } from "./captions.mjs";
 import { kickerTitle } from "./kicker.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
-import { cutSoundOrder } from "./transition-sounds.mjs";
 import {
   MIX,
   effectCues,
@@ -297,8 +296,8 @@ export function buildWorkshopManifest(timeline) {
     voiceLufs: timeline.voiceLufs ?? null,
   });
 
-  // Trailer sound design, mixed under the voice: ducked like the music bed. Each cut gets its
-  // own transition sound from the film's set (cutSoundOrder); only the ones it plays are staged.
+  // Trailer sound design, mixed under the voice: ducked like the music bed. Each cut plays its
+  // own sound (the timeline's plan, transition-sounds.mjs); a file two cuts share is staged once.
   const fx = timeline.effects;
   const stage = (path, name) => {
     if (!path) return null;
@@ -306,19 +305,14 @@ export function buildWorkshopManifest(timeline) {
     files.push({ from: path, to });
     return to;
   };
-  const sounds = fx?.transitionPaths ?? [];
   const staged = new Map();
-  const cutSounds = cutSoundOrder(
-    sounds.length,
-    scenes.length - 1,
-    fx?.seed,
-  ).map((index) => {
-    if (!staged.has(index))
-      staged.set(index, {
-        file: stage(sounds[index], `sfx-cut-${index}`),
-        frames: Math.ceil(seconds(fx.transitionDurationsS?.[index]) * fps),
+  const cutSounds = (fx?.cuts ?? []).slice(0, scenes.length - 1).map((cut) => {
+    if (!staged.has(cut.path))
+      staged.set(cut.path, {
+        file: stage(cut.path, `sfx-cut-${staged.size}`),
+        frames: Math.ceil(seconds(cut.durationS) * fps),
       });
-    return staged.get(index);
+    return staged.get(cut.path);
   });
   const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;
   const effects =
