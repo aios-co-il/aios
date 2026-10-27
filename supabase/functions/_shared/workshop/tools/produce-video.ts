@@ -145,9 +145,18 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       voiceover_text: String(scene.voiceover_text ?? ""),
       lipsync: asRecord(scene.meta).lipsync === true,
       dialogue: String(asRecord(scene.meta).dialogue ?? ""),
+      chosen_voice: asRecord(scene.meta).chosen_voice === true,
     }));
   const withVoice = scenes.some((scene) =>
     String(scene.voiceover_text ?? "").trim(),
+  );
+  // A talking scene's own line is recorded in the project's voice too (queue_video_lipsync
+  // reads video.voice_id), so it also needs a voice the user chose.
+  const talking = scenes.some(
+    (scene) =>
+      asRecord(scene.meta).lipsync === true &&
+      (String(asRecord(scene.meta).dialogue ?? "").trim() ||
+        String(scene.voiceover_text ?? "").trim()) !== "",
   );
   const withMusic = args.music !== false;
   // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
@@ -165,7 +174,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   );
   // Narration needs a voice the user chose after hearing it.
   const chosenVoice = narrationVoiceId(args.voice_id, video.voice_id);
-  if (withVoice && !chosenVoice)
+  if ((withVoice || talking) && !chosenVoice)
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
@@ -190,6 +199,13 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       clip_seconds: estimate.clipSeconds,
       with_voice: withVoice,
       with_music: withMusic,
+      // Talking scenes and what their voice lines and lip sync add to the price.
+      ...(estimate.talkingScenes > 0
+        ? {
+            talking_scenes: estimate.talkingScenes,
+            lipsync_usd: estimate.lipsync.usd,
+          }
+        : {}),
       ...(soundDesign
         ? {
             with_sound_effects: true,

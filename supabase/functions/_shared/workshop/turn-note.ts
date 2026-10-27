@@ -34,6 +34,8 @@ export interface FilmState {
   scenes: number;
   withStill: number;
   narrated: boolean;
+  /** A scene's character says a line to the camera: it is recorded in the chosen voice too. */
+  talking?: boolean;
   voiceChosen: boolean;
   producing: boolean;
 }
@@ -43,7 +45,7 @@ export function nextFilmStep(state: FilmState): string {
   if (state.scenes === 0) return "כתיבת סטוריבורד (workshop_storyboard)";
   if (state.withStill < state.scenes)
     return "יצירת התמונות לסצנות (workshop_make_stills)";
-  if (state.narrated && !state.voiceChosen)
+  if ((state.narrated || state.talking === true) && !state.voiceChosen)
     return "בחירת קול (workshop_choose_voice)";
   if (state.producing) return "ההפקה רצה; לעדכון workshop_get_state";
   return "הפקת הסרט (workshop_produce_video)";
@@ -114,7 +116,9 @@ export async function workshopTurnNote(
     if (payload.project_type === "video") {
       const scenes = await supabase
         .from("marketing_video_scenes")
-        .select("still_asset_id, clip_asset_id, clip_stale, voiceover_text")
+        .select(
+          "still_asset_id, clip_asset_id, clip_stale, voiceover_text, meta",
+        )
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId);
       const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Record<
@@ -131,6 +135,11 @@ export async function workshopTurnNote(
             (row.clip_asset_id && row.clip_stale !== true),
         ).length,
         narrated: rows.some((row) => String(row.voiceover_text ?? "").trim()),
+        talking: rows.some(
+          (row) =>
+            asRecord(row.meta).lipsync === true &&
+            String(asRecord(row.meta).dialogue ?? "").trim() !== "",
+        ),
         voiceChosen: Boolean(asRecord(payload.video).voice_id),
         producing: production.status === "running",
       };
@@ -139,7 +148,7 @@ export async function workshopTurnNote(
       );
       if (state.scenes > 0)
         lines.push(
-          "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו.",
+          "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו. שינוי בסצנה אחת: workshop_update_scene.",
         );
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
       if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום")))

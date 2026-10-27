@@ -10,7 +10,11 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { isTalkingScene, talkingLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  speaksInChosenVoice,
+  talkingLine,
+} from "../narration.mjs";
 import {
   getLipsyncProvider,
   lipsyncProviderNames,
@@ -124,7 +128,11 @@ export async function generateLipsync({
   const still = await asset(db, run, scene.still_asset_id, "video_still");
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
 
-  const names = lipsyncProviderNames(run, keys, env);
+  // OpenRouter Veo speaks the line in its own voice: never for a line in the chosen voice,
+  // which is assembled as it is (the chosen voice over the picture) when nothing else can.
+  const names = lipsyncProviderNames(run, keys, env).filter(
+    (name) => !(name === "openrouter" && speaksInChosenVoice(scene)),
+  );
   if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
   const durationS = Number(scene.duration_s) || 5;
   const aspect = run.input?.aspect || clip?.meta?.aspect || "9:16";

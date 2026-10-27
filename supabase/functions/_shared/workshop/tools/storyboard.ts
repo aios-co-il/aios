@@ -7,6 +7,7 @@ import {
 } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
 import { STORY_CHANGE, loadScenes } from "../scene-helpers.ts";
+import { storyboardText } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 export async function workshopStoryboard(ctx: ToolContext) {
@@ -114,14 +115,7 @@ export async function workshopStoryboard(ctx: ToolContext) {
     meta: {
       total_s: total,
       scenes: rows,
-      text: rows
-        .map(
-          (scene) =>
-            `${scene.position}. ${scene.title} (${scene.duration_s} ש׳)\n${scene.visual_prompt}${
-              scene.voiceover_text ? `\nקריינות: ${scene.voiceover_text}` : ""
-            }`,
-        )
-        .join("\n\n"),
+      text: storyboardText(rows, false),
     },
   });
   const ownReferences = rows.filter((scene) => scene.reference_url).length;

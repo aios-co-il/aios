@@ -105,6 +105,7 @@ export async function workshopMakeStills(ctx: ToolContext) {
       voiceover_text: String(scene.voiceover_text ?? ""),
       lipsync: asRecord(scene.meta).lipsync === true,
       dialogue: String(asRecord(scene.meta).dialogue ?? ""),
+      chosen_voice: asRecord(scene.meta).chosen_voice === true,
     })),
     {
       withVoice: scenes.some((scene) =>

@@ -15,6 +15,14 @@ export function joinNarration(texts) {
 export const isTalkingScene = (scene) => scene?.meta?.lipsync === true;
 
 /**
+ * A talking scene whose line is spoken in the project's chosen voice (scene meta.chosen_voice,
+ * set for the user's own pictures): the engine never speaks it, so its clip stays silent and the
+ * lip-sync pass mouths the chosen voice's line.
+ */
+export const speaksInChosenVoice = (scene) =>
+  isTalkingScene(scene) && scene?.meta?.chosen_voice === true;
+
+/**
  * What a talking scene's character says: meta.dialogue, else its voiceover text. Kept in step
  * with public.video_talking_line (supabase/migrations/20261026102300_video_lipsync.sql).
  */

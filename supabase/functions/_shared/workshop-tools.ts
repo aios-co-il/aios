@@ -28,6 +28,7 @@ import { workshopProduceVideo } from "./workshop/tools/produce-video.ts";
 import { workshopSaveCopy } from "./workshop/tools/save-copy.ts";
 import { workshopStartProject } from "./workshop/tools/start-project.ts";
 import { workshopStoryboard } from "./workshop/tools/storyboard.ts";
+import { workshopUpdateScene } from "./workshop/tools/update-scene.ts";
 
 export {
   WORKSHOP_SKIN,
@@ -50,6 +51,7 @@ const HANDLERS: Record<string, (ctx: ToolContext) => Promise<unknown>> = {
   workshop_choose_voice: workshopChooseVoice,
   workshop_edit_from_assets: workshopEditFromAssets,
   workshop_storyboard: workshopStoryboard,
+  workshop_update_scene: workshopUpdateScene,
   workshop_make_stills: workshopMakeStills,
   workshop_produce_video: workshopProduceVideo,
 };

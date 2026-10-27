@@ -67,6 +67,11 @@ export interface CostScene {
   /** A talking scene (meta.lipsync): the character says `dialogue`, else the voiceover. */
   lipsync?: boolean;
   dialogue?: string;
+  /**
+   * The line is spoken in the project's chosen voice (meta.chosen_voice, e.g. Yael): the engine
+   * never speaks it, so the scene always pays for its own voice line and a lip-sync pass.
+   */
+  chosen_voice?: boolean;
 }
 
 /**
@@ -94,48 +99,62 @@ const talkingLine = (scene: CostScene) =>
     : "";
 
 /**
- * Talking scenes. On an engine that speaks, the clip already carries the line (no extra).
- * Otherwise each talking scene pays for its own voice line plus a lip-sync pass.
+ * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
+ * chosen voice, and all of them on an engine that cannot speak.
  */
-export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
-  const talking = scenes.filter((scene) => talkingLine(scene));
-  // OpenRouter makes a talking scene on Veo 3.1 with audio instead of the Kling clip that
-  // clipEstimate already counted; only the difference is added here.
-  if (talking.length > 0 && engine === "openrouter") {
-    const extra = talking.reduce(
-      (sum, scene) =>
-        sum +
-        veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
-        openRouterBilledSeconds(sceneClipSeconds(engine, scene.duration_s)) *
-          OPENROUTER_USD_PER_SECOND,
-      0,
-    );
-    return {
-      usd: roundUsd(Math.max(0, extra)),
-      credits: 0,
-      scenes: talking.length,
-      native: true,
-    };
-  }
-  if (talking.length === 0 || speaksNatively(engine))
-    return {
-      usd: 0,
-      credits: 0,
-      scenes: talking.length,
-      native: talking.length > 0,
-    };
-  const seconds = talking.reduce(
+const lipsyncPassScenes = (engine: SceneEngine, scenes: CostScene[]) =>
+  scenes.filter(
+    (scene) =>
+      talkingLine(scene) &&
+      (scene.chosen_voice === true || !speaksNatively(engine)),
+  );
+
+/** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
+function lipsyncPassUsd(scenes: CostScene[]) {
+  if (scenes.length === 0) return 0;
+  const seconds = scenes.reduce(
     (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
     0,
   );
   const voice = voiceEstimate(
-    talking.map((scene) => ({ ...scene, voiceover_text: talkingLine(scene) })),
+    scenes.map((scene) => ({ ...scene, voiceover_text: talkingLine(scene) })),
   );
+  return roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd);
+}
+
+/**
+ * Talking scenes. On an engine that speaks, the clip already carries the line (no extra), unless
+ * the line is in the chosen voice. Otherwise each talking scene pays for its own voice line plus
+ * a lip-sync pass.
+ */
+export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
+  const talking = scenes.filter((scene) => talkingLine(scene));
+  const pass = lipsyncPassScenes(engine, scenes);
+  const spokenByEngine = talking.filter((scene) => !pass.includes(scene));
+  // OpenRouter makes a talking scene on Veo 3.1 with audio instead of the Kling clip that
+  // clipEstimate already counted; only the difference is added here.
+  const veoExtra =
+    engine === "openrouter" && spokenByEngine.length > 0
+      ? Math.max(
+          0,
+          spokenByEngine.reduce(
+            (sum, scene) =>
+              sum +
+              veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
+              openRouterBilledSeconds(
+                sceneClipSeconds(engine, scene.duration_s),
+              ) *
+                OPENROUTER_USD_PER_SECOND,
+            0,
+          ),
+        )
+      : 0;
   return {
-    usd: roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd),
+    usd: roundUsd(veoExtra + lipsyncPassUsd(pass)),
     credits: 0,
     scenes: talking.length,
-    native: false,
+    // Every talking scene is spoken by the engine itself: no lip-sync pass at all.
+    native: talking.length > 0 && pass.length === 0,
   };
 }
 
@@ -256,24 +275,27 @@ function withLipsyncFallback(
   scenes: CostScene[],
   connections: VideoConnections,
 ) {
-  const talking = lipsyncEstimate(engine, scenes);
-  if (!connections.openrouter || talking.native || talking.scenes === 0)
-    return estimate;
-  const veo = roundUsd(
-    scenes
-      .filter((scene) => talkingLine(scene))
-      .reduce(
-        (sum, scene) =>
-          sum +
-          veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
-        0,
-      ),
+  // A line in the chosen voice never goes to Veo, which would speak it in its own voice.
+  const pass = lipsyncPassScenes(engine, scenes).filter(
+    (scene) => scene.chosen_voice !== true,
   );
-  if (veo <= estimate.lipsync.usd) return estimate;
+  if (!connections.openrouter || pass.length === 0) return estimate;
+  const own = lipsyncPassUsd(pass);
+  const veo = roundUsd(
+    pass.reduce(
+      (sum, scene) =>
+        sum + veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
+      0,
+    ),
+  );
+  if (veo <= own) return estimate;
   return {
     ...estimate,
-    lipsync: { usd: veo, credits: estimate.lipsync.credits },
-    totalUsd: roundUsd(estimate.totalUsd - estimate.lipsync.usd + veo),
+    lipsync: {
+      usd: roundUsd(estimate.lipsync.usd - own + veo),
+      credits: estimate.lipsync.credits,
+    },
+    totalUsd: roundUsd(estimate.totalUsd - own + veo),
   };
 }
 
