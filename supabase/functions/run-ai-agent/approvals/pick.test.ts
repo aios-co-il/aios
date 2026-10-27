@@ -29,7 +29,7 @@ function pickWithRoles(roleRows: Array<{ role: string; tenant_id: string }>) {
 
 Deno.test("loadApprovalPick", async (t) => {
   await t.step(
-    "an owner role in another tenant does not approve a money row here",
+    "reads roles from this tenant and global roles only, so a campaigner here is refused a money row",
     async () => {
       const { pick, calls } = pickWithRoles([
         { role: "campaigner", tenant_id: TENANT },

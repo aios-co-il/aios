@@ -13,15 +13,34 @@ export interface PickCaller extends ConversationInput {
 
 /**
  * The pending row a chat reply or an approval tool refers to, from the tenant's
- * 25 newest pending rows. The caller's roles are those in this tenant, as
- * carmen-approval-execute checks them, so an owner elsewhere is not offered a
- * row the server would refuse. Throws when a query fails.
+ * 25 newest pending rows. The caller's roles are read from this tenant (plus
+ * global roles), as carmen-approval-execute reads them, so an owner elsewhere is
+ * not offered a row the server would refuse. Tenant membership is left to the
+ * server. Throws when a query fails.
  */
 export async function loadApprovalPick(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
   caller: PickCaller,
 ): Promise<ApprovalPick> {
+  const [rows, roles] = await Promise.all([
+    loadPendingRows(supabase, tenantId),
+    loadCallerRoles(supabase, tenantId, caller.userId),
+  ]);
+  return resolveApprovalConfirm(rows, {
+    userId: caller.userId,
+    roles,
+    conversationKey: approvalConversationKey(caller),
+    code: caller.code,
+    mode: caller.mode,
+  });
+}
+
+/** The tenant's 25 newest pending rows. */
+async function loadPendingRows(
+  supabase: Pick<DbClient, "from">,
+  tenantId: string,
+) {
   const { data, error } = await supabase
     .from("agent_approval_queue")
     .select(APPROVAL_PICK_COLUMNS)
@@ -33,16 +52,20 @@ export async function loadApprovalPick(
     throw error;
   }
 
-  const roles = caller.userId
-    ? (await loadApproverScope(supabase, tenantId, caller.userId)).roles
-    : [];
-  return resolveApprovalConfirm(data ?? [], {
-    userId: caller.userId,
-    roles,
-    conversationKey: approvalConversationKey(caller),
-    code: caller.code,
-    mode: caller.mode,
-  });
+  return data ?? [];
+}
+
+/** The caller's roles in this tenant (plus global roles); none without a user. */
+async function loadCallerRoles(
+  supabase: Pick<DbClient, "from">,
+  tenantId: string,
+  userId: string | null,
+): Promise<string[]> {
+  if (!userId) {
+    return [];
+  }
+
+  return (await loadApproverScope(supabase, tenantId, userId)).roles;
 }
 
 const APPROVAL_PICK_COLUMNS =
