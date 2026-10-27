@@ -311,7 +311,7 @@ export async function verifyReportVsMeta(input: {
             dates: r.not_yet_synced,
           })),
           not_yet_synced_note:
-            "לימים האלה עוד אין נתונים מסונכרנים ב-AIOS, אז אין מה להשוות — זה לא אומר שהדוח תואם",
+            "הסנכרון האחרון רץ לפני שהימים האלה הסתיימו, אז ייתכן שב-AIOS יש עליהם רק נתונים חלקיים. לא השוויתי אותם — זה לא אומר שהדוח תואם",
         }
       : {}),
     ...(notChecked.length

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   isReconciledIntegration,
+  pickTrustRun,
   reportDataTrust,
 } from "@/lib/reportDataTrust";
 
@@ -32,11 +33,11 @@ export function ReportDataTrust({
         )
         .eq("table_id", tableId as string)
         .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        // A few runs, so one a rate limit stopped does not hide the result before it.
+        .limit(10);
       // The line is optional: any read problem just hides it.
       if (error) return null;
-      return data;
+      return pickTrustRun(data);
     },
   });
 

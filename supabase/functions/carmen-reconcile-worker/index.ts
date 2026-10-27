@@ -5,20 +5,23 @@
  *
  * Service role only. The nightly cron (01:30 UTC) calls it with no body; each
  * call reconciles a chunk of tables and queues the next chunk through
- * kick_internal_function until every table is done, then checks for Meta ad
+ * kick_internal_function until every table is done, tries once more the tables
+ * a platform-wide rate limit made it pass over, then checks for Meta ad
  * accounts with spend that no client is mapped to.
  *
  * Body (all optional):
  *   cursor            continue after this crm_tables.id
- *   phase             "tables" (default) | "accounts"
+ *   phase             "tables" (default) | "retry" | "accounts"
+ *   deferred          table ids passed over for a rate limit (chained calls only)
  *   tenant_id, client_id, table_ids   on-demand scope (no chaining, no accounts phase)
  *   max_tables        tables per call (default 6, max 25)
  *   api_call_budget   platform requests per call (default 60, max 300)
  *   source: "fixture" + fixtures      canned platform data, non-production only;
  *                     needs table_ids, so it never overwrites other tables' results
  *
- * In the "tables" phase `cursor` is a crm_tables.id; in the "accounts" phase it
- * is the last tenant whose Meta connections were fully checked.
+ * In the "tables" and "retry" phases `cursor` is a crm_tables.id; in the
+ * "accounts" phase it is the last tenant whose Meta connections were fully
+ * checked.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
@@ -43,6 +46,8 @@ import {
   saveReconcileRun,
 } from "../_shared/reconcile-db.ts";
 import {
+  MAX_DEFERRED,
+  nextAfterChunk,
   type ReconcileStore,
   type ResyncTrigger,
   runReconcileChunk,
@@ -112,10 +117,16 @@ Deno.serve(async (req) => {
   const budget = new CallBudget(clampInt(body.api_call_budget, 60, 5, 300));
   const maxTables = clampInt(body.max_tables, 6, 1, 25);
   const hop = clampInt(body.hop, 0, 0, MAX_HOPS);
-  const phase = body.phase === "accounts" ? "accounts" : "tables";
+  const phase: "tables" | "retry" | "accounts" =
+    body.phase === "accounts" || body.phase === "retry" ? body.phase : "tables";
   const tableIds = Array.isArray(body.table_ids)
     ? body.table_ids.filter((id: unknown) => typeof id === "string")
     : null;
+  const deferred: string[] = Array.isArray(body.deferred)
+    ? body.deferred
+        .filter((id: unknown) => typeof id === "string")
+        .slice(0, MAX_DEFERRED)
+    : [];
   const scoped = !!(body.tenant_id || body.client_id || tableIds?.length);
   const useFixture = body.source === "fixture";
 
@@ -161,7 +172,7 @@ Deno.serve(async (req) => {
         limit,
         tenantIds: body.tenant_id ? [String(body.tenant_id)] : null,
         clientId: body.client_id ? String(body.client_id) : null,
-        tableIds,
+        tableIds: phase === "retry" ? deferred : tableIds,
       }),
     readAios: (table, start, end) =>
       readAiosCampaignRows(db, table.id, start, end),
@@ -219,7 +230,11 @@ Deno.serve(async (req) => {
     let next: Record<string, unknown> | null = null;
     let result: Record<string, unknown>;
 
-    if (phase === "tables") {
+    if (phase === "retry" && !deferred.length) {
+      // Nothing to retry (an empty id list would select every table).
+      result = { phase, done: true };
+      if (!scoped && !useFixture) next = { phase: "accounts", cursor: null };
+    } else if (phase !== "accounts") {
       const chunk = await runReconcileChunk(
         {
           store,
@@ -233,9 +248,9 @@ Deno.serve(async (req) => {
         { cursor: body.cursor ? String(body.cursor) : null, maxTables },
       );
       result = { phase, ...chunk };
-      if (!chunk.done) next = { phase: "tables", cursor: chunk.next_cursor };
-      else if (!scoped && !useFixture)
-        next = { phase: "accounts", cursor: null };
+      // Scoped and fixture calls do not chain into the retry or accounts phase.
+      if (!chunk.done || (!scoped && !useFixture))
+        next = nextAfterChunk(phase, deferred, chunk);
     } else {
       const mapped = await listMappedMetaAccounts(db);
       const check = await runUnmappedAccountsCheck({

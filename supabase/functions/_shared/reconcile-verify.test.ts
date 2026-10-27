@@ -1,7 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import type { TableReconcileResult } from "./reconcile-core.ts";
 import type { ListedTable } from "./reconcile-db.ts";
-import { memoryDb } from "./reconcile-memory-db.ts";
+import { memoryDb } from "./reconcile_test_helpers.ts";
 import {
   legacyMismatches,
   toVerifyResult,
@@ -245,6 +245,12 @@ Deno.test(
     );
     // Only the account (for its time zone) was read; nothing to compare.
     assertStrictEquals(requests.length, 1);
+    // AIOS may already hold part of the day (the sync ran before it ended), so
+    // the note must not tell Carmen there is no data.
+    const note = String(out.not_yet_synced_note);
+    assertStrictEquals(note.includes("לפני שהימים האלה הסתיימו"), true);
+    assertStrictEquals(note.includes("נתונים חלקיים"), true);
+    assertStrictEquals(note.includes("אין נתונים"), false);
   },
 );
 

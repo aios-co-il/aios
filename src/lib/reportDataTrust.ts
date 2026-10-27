@@ -37,6 +37,30 @@ function shortDate(ymd: string | null): string {
   return `${Number(day)}.${Number(month)}`;
 }
 
+/**
+ * A run a rate limit stopped compared nothing (mirrors isRateLimitRun in
+ * supabase/functions/_shared/reconcile-core.ts).
+ */
+function isRateLimitRun(run: ReconcileRunSnapshot): boolean {
+  const summary = (run.summary || {}) as Record<string, unknown>;
+  return (
+    (run.status === "skipped" &&
+      summary.skipped_reason === "platform_rate_limited") ||
+    (run.status === "failed" && summary.error_kind === "rate_limit")
+  );
+}
+
+/**
+ * The run the line describes: the newest one (runs come newest first), except
+ * that a run a rate limit stopped is passed over, so the previous result stays
+ * until it is too old to show.
+ */
+export function pickTrustRun(
+  runs: ReconcileRunSnapshot[] | null | undefined,
+): ReconcileRunSnapshot | null {
+  return (runs || []).find((run) => !isRateLimitRun(run)) || null;
+}
+
 export function isReconciledIntegration(type: string | null | undefined) {
   return (RECONCILED_INTEGRATION_TYPES as readonly string[]).includes(
     String(type || ""),

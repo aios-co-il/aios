@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.reconcile_runs (
 );
 
 COMMENT ON TABLE public.reconcile_runs IS
-  'One reconciliation of a report table (or, with table_id NULL, of a tenant''s org-level Meta ad accounts) against the ad platform. window_start/window_end are the days actually compared (days still waiting for a sync are in summary.pending_dates). summary holds counts, totals, the account time zone, pending dates, top_findings and a redacted error. Written by carmen-reconcile-worker only.';
+  'One reconciliation of a report table (or, with table_id NULL, of a tenant''s org-level Meta ad accounts) against the ad platform. window_start/window_end are the days actually compared (days still waiting for a sync are in summary.pending_dates). summary holds counts, totals, the account time zone, pending dates, top_findings and a redacted error. A run a rate limit stopped (skipped with skipped_reason platform_rate_limited, or failed with error_kind rate_limit) compared nothing, and readers look past it to the previous result. A tenant-level run with summary.unmapped_check = no_org_connections means the tenant has only private Meta connections, which the check never reads. Written by carmen-reconcile-worker only.';
 
 CREATE TABLE IF NOT EXISTS public.reconcile_findings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

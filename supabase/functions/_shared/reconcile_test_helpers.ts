@@ -1,10 +1,10 @@
 /**
- * Test-only, in-memory stand-in for the PostgREST builder the reconcile code
- * uses (AIO-238). It applies the filters for real (eq, neq, in, gt, gte, lt,
- * lte, `not is null`, simple `or` lists), ordering and paging over plain rows,
- * so scoping tests check which rows come back rather than which calls were made.
+ * Test helper (not a test file, not imported by any edge function): an
+ * in-memory stand-in for the PostgREST builder the reconcile code uses
+ * (AIO-238). It applies the filters for real (eq, neq, in, gt, gte, lt, lte,
+ * `not is null`, simple `or` lists), ordering and paging over plain rows, so
+ * scoping tests check which rows come back rather than which calls were made.
  * Embedded selects such as `clients(name)` are read from the row as stored.
- * Not used by any edge function.
  */
 
 type Row = Record<string, any>;

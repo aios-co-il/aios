@@ -5,12 +5,13 @@ import {
 } from "jsr:@std/assert@1";
 import {
   getReconciliationStatus,
+  latestRunForTable,
   nextMetaConnectionTenant,
   readAiosCampaignRows,
   resolveMetaToken,
   saveReconcileRun,
 } from "./reconcile-db.ts";
-import { memoryDb } from "./reconcile-memory-db.ts";
+import { memoryDb } from "./reconcile_test_helpers.ts";
 
 type Call = { method: string; args: unknown[] };
 
@@ -397,6 +398,9 @@ Deno.test(
     // More connections than any single page: all of tenant-4's are returned.
     for (let i = 0; i < 1005; i++)
       rows.push(conn(`d${String(i).padStart(4, "0")}`, "tenant-4"));
+    // Only a staff member's private token: listed with no connections, so the
+    // check can record that it had nothing it may read.
+    rows.push(conn("e1", "tenant-5", { connection_visibility: "private" }));
     const db = memoryDb({ tenant_integrations: rows });
 
     const first = await nextMetaConnectionTenant(db, null);
@@ -408,6 +412,98 @@ Deno.test(
     const second = await nextMetaConnectionTenant(db, "tenant-1");
     assertStrictEquals(second?.tenant_id, "tenant-4");
     assertStrictEquals(second?.connections.length, 1005);
-    assertStrictEquals(await nextMetaConnectionTenant(db, "tenant-4"), null);
+    assertEquals(await nextMetaConnectionTenant(db, "tenant-4"), {
+      tenant_id: "tenant-5",
+      connections: [],
+    });
+    assertStrictEquals(await nextMetaConnectionTenant(db, "tenant-5"), null);
+  },
+);
+
+const statusRun = (
+  id: string,
+  status: string,
+  started_at: string,
+  summary: Record<string, unknown>,
+) => ({
+  id,
+  tenant_id: "tenant-1",
+  client_id: "client-1",
+  table_id: "t1",
+  platform: "meta",
+  status,
+  started_at,
+  finished_at: started_at,
+  window_start: status === "ok" ? "2026-10-18" : null,
+  window_end: status === "ok" ? "2026-10-24" : null,
+  summary,
+  crm_tables: { name: "דוח לידים" },
+  clients: { name: "לקוח" },
+});
+
+Deno.test(
+  "a table a rate limit kept from being checked is listed as such, with its previous result",
+  async () => {
+    const db = memoryDb({
+      reconcile_runs: [
+        statusRun("3", "skipped", "2026-10-26T02:10:00Z", {
+          skipped_reason: "platform_rate_limited",
+        }),
+        statusRun("2", "failed", "2026-10-26T01:40:00Z", {
+          error_kind: "rate_limit",
+          error: "Meta 400: too many calls",
+        }),
+        statusRun("1", "ok", "2026-10-25T01:35:00Z", { findings_total: 0 }),
+      ],
+    });
+    const status = await getReconciliationStatus(db, {
+      tenantId: "tenant-1",
+      callerRole: "owner",
+      sinceIso: "2026-10-23T00:00:00Z",
+    });
+    assertEquals(status.rate_limited_tables, [
+      {
+        client: "לקוח",
+        table: "דוח לידים",
+        platform: "meta",
+        attempted_at: "2026-10-26T02:10:00Z",
+      },
+    ]);
+    assertStrictEquals(
+      String(status.rate_limited_note).includes("הגבילה את קצב הבקשות"),
+      true,
+    );
+    const item = status.items[0];
+    assertEquals(
+      [item.status, item.error, item.rate_limited],
+      ["skipped", "platform_rate_limited", true],
+    );
+    assertEquals(item.previous, {
+      status: "ok",
+      checked_at: "2026-10-25T01:35:00Z",
+      window: "2026-10-18 – 2026-10-24",
+      findings_total: 0,
+      top_findings: [],
+    });
+    // The persisting check also looks past both rate-limited runs.
+    assertEquals((await latestRunForTable(db, "t1"))?.status, "ok");
+  },
+);
+
+Deno.test(
+  "status without rate-limited tables carries no rate-limit fields",
+  async () => {
+    const db = memoryDb({
+      reconcile_runs: [
+        statusRun("1", "ok", "2026-10-26T01:35:00Z", { findings_total: 0 }),
+      ],
+    });
+    const status = await getReconciliationStatus(db, {
+      tenantId: "tenant-1",
+      callerRole: "owner",
+      sinceIso: "2026-10-23T00:00:00Z",
+    });
+    assertStrictEquals("rate_limited_tables" in status, false);
+    assertStrictEquals("rate_limited" in status.items[0], false);
   },
 );

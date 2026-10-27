@@ -16,7 +16,9 @@ import {
 } from "./reconcile-core.ts";
 import {
   insideRefreshWindow,
+  MAX_DEFERRED,
   type MetaAccountWithSpend,
+  nextAfterChunk,
   type ReconcileStore,
   resyncAllowedAt,
   runReconcileChunk,
@@ -179,18 +181,21 @@ Deno.test(
       { cursor: null, maxTables: 5 },
     );
     assertStrictEquals(calls, 1);
-    // b is passed over without a stored run, so its previous result stays the latest.
+    // b is passed over: its skipped run says why (the trust line and the
+    // persisting check look past it), and the worker retries it after the walk.
     assertEquals(
       saved.map((s) => [
         s.run.table_id,
         s.run.status,
-        s.run.summary.error_kind,
+        s.run.summary.error_kind ?? s.run.summary.skipped_reason,
       ]),
       [
         ["a", "failed", "rate_limit"],
+        ["b", "skipped", "platform_rate_limited"],
         ["c", "ok", undefined],
       ],
     );
+    assertEquals(r.rate_limited_tables, ["b"]);
     assertEquals(
       r.processed.map((p) => [p.table_id, p.status, p.skipped_reason]),
       [
@@ -202,6 +207,113 @@ Deno.test(
     assertStrictEquals(r.done, true);
   },
 );
+
+Deno.test(
+  "tables passed over for a rate limit get one more try after the walk",
+  async () => {
+    const tables = [table("a"), table("b"), table("c", "google_ads")];
+    const fixture = createFixtureSource(
+      {
+        a: { account, rows: [] },
+        b: { account, rows: [] },
+        c: { account, rows: [] },
+      },
+      "staging",
+    );
+    let metaCalls = 0;
+    // Meta refuses the first request of the night, then recovers.
+    const meta: PlatformSource = {
+      name: "meta",
+      account: (t) => {
+        metaCalls += 1;
+        return metaCalls === 1
+          ? Promise.reject(
+              new ReconcileSourceError(
+                "rate_limit",
+                "Meta 400: too many calls",
+              ),
+            )
+          : fixture.account(t);
+      },
+      campaignDays: fixture.campaignDays,
+    };
+    const { store, saved } = memoryStore(tables, {});
+    const chunkDeps = (s: ReconcileStore) => ({
+      ...deps(s, meta),
+      sourceFor: (t: ReconcileTable) =>
+        t.integration_type === "google_ads" ? fixture : meta,
+    });
+
+    const walk = await runReconcileChunk(chunkDeps(store), {
+      cursor: null,
+      maxTables: 5,
+    });
+    assertStrictEquals(walk.done, true);
+    const retry = nextAfterChunk("tables", [], walk);
+    assertEquals(retry, { phase: "retry", cursor: null, deferred: ["b"] });
+
+    // The retry pass lists only the deferred tables (the worker's table_ids filter).
+    const retryStore: ReconcileStore = {
+      ...store,
+      listTables: (o) =>
+        store
+          .listTables(o)
+          .then((ts) => ts.filter((t) => retry.deferred!.includes(t.id))),
+    };
+    const again = await runReconcileChunk(chunkDeps(retryStore), {
+      cursor: null,
+      maxTables: 5,
+    });
+    assertEquals(nextAfterChunk("retry", retry.deferred!, again), {
+      phase: "accounts",
+      cursor: null,
+    });
+    assertEquals(
+      saved
+        .filter((x) => x.run.table_id === "b")
+        .map((x) => [x.run.status, x.run.summary.skipped_reason]),
+      [
+        ["skipped", "platform_rate_limited"],
+        ["ok", undefined],
+      ],
+    );
+  },
+);
+
+Deno.test("the chain carries deferred tables until the retry pass", () => {
+  const chunk = (
+    done: boolean,
+    rate_limited_tables: string[],
+    next_cursor: string | null = done ? null : "c",
+  ) => ({ done, next_cursor, rate_limited_tables });
+  // Mid-walk: the cursor moves on, the passed-over tables ride along (once each).
+  assertEquals(nextAfterChunk("tables", ["x"], chunk(false, ["x", "y"])), {
+    phase: "tables",
+    cursor: "c",
+    deferred: ["x", "y"],
+  });
+  // Nothing passed over: straight on to the accounts check.
+  assertEquals(nextAfterChunk("tables", [], chunk(true, [])), {
+    phase: "accounts",
+    cursor: null,
+  });
+  // The retry pass keeps its list while it pages and never defers again.
+  assertEquals(nextAfterChunk("retry", ["x"], chunk(false, ["x"])), {
+    phase: "retry",
+    cursor: "c",
+    deferred: ["x"],
+  });
+  assertEquals(nextAfterChunk("retry", ["x"], chunk(true, ["x"])), {
+    phase: "accounts",
+    cursor: null,
+  });
+  // The carried list is capped; tables past the cap still have their skipped run.
+  const many = Array.from({ length: MAX_DEFERRED + 5 }, (_, i) => `t${i}`);
+  assertStrictEquals(
+    nextAfterChunk("tables", [], chunk(false, many)).deferred?.length,
+    MAX_DEFERRED,
+  );
+});
 
 Deno.test(
   "a per-ad-account throttle fails only that table, not the platform",
@@ -597,6 +709,40 @@ Deno.test(
     assertEquals(
       saved.map((s) => s.run.tenant_id),
       ["tenant-1", "tenant-2"],
+    );
+  },
+);
+
+Deno.test(
+  "unmapped accounts: a tenant with only private connections is recorded as not checked",
+  async () => {
+    const saved: Array<{ run: StoredRun; findings: ReconcileFinding[] }> = [];
+    const budget = new CallBudget(10);
+    const r = await runUnmappedAccountsCheck(
+      unmappedDeps(
+        [
+          { tenant_id: "tenant-1", connections: [] },
+          { tenant_id: "tenant-2", connections: [{ id: "c1", token: "t1" }] },
+        ],
+        { t1: [acct("act_1", 300)] },
+        budget,
+        saved,
+      ),
+    );
+    assertStrictEquals(r.done, true);
+    // No Meta call for tenant-1, and no "ok" that covered nothing.
+    assertStrictEquals(budget.used, 1);
+    assertEquals(
+      saved.map((s) => [
+        s.run.tenant_id,
+        s.run.status,
+        s.run.summary.unmapped_check,
+        s.run.summary.skipped_reason,
+      ]),
+      [
+        ["tenant-1", "skipped", "no_org_connections", "no_org_connections"],
+        ["tenant-2", "ok", undefined, undefined],
+      ],
     );
   },
 );

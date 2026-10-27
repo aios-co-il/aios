@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   isReconciledIntegration,
+  pickTrustRun,
   reportDataTrust,
   type ReconcileRunSnapshot,
 } from "./reportDataTrust.ts";
@@ -62,6 +63,29 @@ test("nothing is shown without a recent, completed comparison", () => {
       now,
     ),
   ).toBeNull();
+});
+
+test("a run a rate limit stopped never hides the result before it", () => {
+  const passedOver = run({
+    status: "skipped",
+    started_at: "2026-10-26T02:00:00Z",
+    finished_at: "2026-10-26T02:00:00Z",
+    summary: { skipped_reason: "platform_rate_limited" },
+  });
+  const refused = run({
+    status: "failed",
+    started_at: "2026-10-26T01:50:00Z",
+    finished_at: "2026-10-26T01:50:00Z",
+    summary: { error_kind: "rate_limit" },
+  });
+  const previous = run({ started_at: "2026-10-25T01:30:00Z" });
+  expect(pickTrustRun([passedOver, refused, previous])).toBe(previous);
+  // Any other failure or skip is the latest word: the line stays hidden.
+  const authFailed = run({ status: "failed", summary: { error_kind: "auth" } });
+  expect(pickTrustRun([authFailed, previous])).toBe(authFailed);
+  expect(reportDataTrust(pickTrustRun([authFailed, previous]), now)).toBeNull();
+  expect(pickTrustRun([passedOver])).toBeNull();
+  expect(pickTrustRun(null)).toBeNull();
 });
 
 test("only ad report tables are reconciled", () => {

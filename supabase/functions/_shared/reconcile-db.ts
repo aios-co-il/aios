@@ -8,6 +8,7 @@ import {
   type CampaignDayRow,
   CallBudget,
   isCampaignLevel,
+  isRateLimitRun,
   RECONCILE_INTEGRATION_TYPES,
   type ReconcileFinding,
   type ReconcileTable,
@@ -364,6 +365,7 @@ export async function saveReconcileRun(
   return runId;
 }
 
+/** The table's latest run that compared something (rate-limited runs are passed over). */
 export async function latestRunForTable(
   db: Db,
   tableId: string,
@@ -377,9 +379,8 @@ export async function latestRunForTable(
     .select("status, started_at, summary")
     .eq("table_id", tableId)
     .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data || null;
+    .limit(10);
+  return (data || []).find((run: any) => !isRateLimitRun(run)) || null;
 }
 
 /** Drop runs (and, by cascade, their findings) older than `beforeIso`. */
@@ -445,27 +446,32 @@ export type TenantMetaConnections = {
  */
 const ORG_CONNECTION_FILTER = "user_id.is.null,connection_visibility.eq.org";
 
-const metaConnectionQuery = (db: Db, columns: string) =>
+const activeMetaConnections = (db: Db, columns: string) =>
   db
     .from("tenant_integrations")
     .select(columns)
     .in("integration_type", META_TYPES)
     .eq("is_active", true)
-    .not("api_key", "is", null)
-    .or(ORG_CONNECTION_FILTER);
+    .not("api_key", "is", null);
+
+const metaConnectionQuery = (db: Db, columns: string) =>
+  activeMetaConnections(db, columns).or(ORG_CONNECTION_FILTER);
 
 /**
- * The next tenant (in tenant_id order, after `afterTenantId`) with org-level
- * Meta connections holding their own token, with all of those connections (one
- * per distinct token). The unmapped-accounts check walks tenants one at a time,
- * so a tenant's run always covers every one of its connections and there is no
- * page cap that silently ends the walk. Null once there are no more tenants.
+ * The next tenant (in tenant_id order, after `afterTenantId`) with active Meta
+ * connections holding their own token, with all of its org-level ones (one per
+ * distinct token). A tenant whose connections are all private comes back with
+ * no connections, so its run can say the check had nothing it may read. The
+ * unmapped-accounts check walks tenants one at a time, so a tenant's run always
+ * covers every one of its connections and there is no page cap that silently
+ * ends the walk. Null once there are no more tenants.
  */
 export async function nextMetaConnectionTenant(
   db: Db,
   afterTenantId: string | null,
 ): Promise<TenantMetaConnections | null> {
-  let q = metaConnectionQuery(db, "tenant_id");
+  // Only tenant ids are read here; private tokens are never selected.
+  let q = activeMetaConnections(db, "tenant_id");
   if (afterTenantId) q = q.gt("tenant_id", afterTenantId);
   const { data: next, error } = await q
     .order("tenant_id", { ascending: true })
@@ -577,6 +583,19 @@ async function clientInScope(
 const STATUS_RUN_LIMIT = 2000;
 const CLIENT_ID_CHUNK = 150;
 
+/** The last result that compared something, for a table a rate limit kept from being checked. */
+function previousResult(run: Record<string, any> | undefined) {
+  if (!run) return null;
+  const summary = run.summary || {};
+  return {
+    status: run.status,
+    checked_at: run.finished_at || run.started_at,
+    window: run.window_start ? `${run.window_start} – ${run.window_end}` : null,
+    findings_total: summary.findings_total ?? null,
+    top_findings: summary.top_findings || [],
+  };
+}
+
 /** Runs since `sinceIso` the scope allows, newest first. */
 async function scopedRuns(
   db: Db,
@@ -649,10 +668,21 @@ export async function getReconciliationStatus(
     opts.clientId || null,
     opts.sinceIso,
   );
+  const keyOf = (run: Record<string, any>) =>
+    run.table_id || `tenant:${run.tenant_id}:${run.platform}`;
   const latest = new Map<string, Record<string, any>>();
+  // When a rate limit stopped the latest run: the newest one that compared something.
+  const previous = new Map<string, Record<string, any>>();
   for (const run of runs) {
-    const key = run.table_id || `tenant:${run.tenant_id}:${run.platform}`;
-    if (!latest.has(key)) latest.set(key, run);
+    const key = keyOf(run);
+    const newest = latest.get(key);
+    if (!newest) latest.set(key, run);
+    else if (
+      isRateLimitRun(newest) &&
+      !previous.has(key) &&
+      !isRateLimitRun(run)
+    )
+      previous.set(key, run);
   }
   const kept = [...latest.values()];
   const rank = (s: string) =>
@@ -676,11 +706,18 @@ export async function getReconciliationStatus(
         persisting: summary.persisting || undefined,
         error: summary.error || summary.skipped_reason || null,
         top_findings: summary.top_findings || [],
+        ...(isRateLimitRun(run)
+          ? {
+              rate_limited: true,
+              previous: previousResult(previous.get(keyOf(run))),
+            }
+          : {}),
       };
     })
     .sort((a, b) => rank(a.status) - rank(b.status));
   const count = (status: string) =>
     items.filter((i) => i.status === status).length;
+  const rateLimited = items.filter((i) => i.rate_limited);
   return {
     since: opts.sinceIso,
     last_run_at: kept[0]?.started_at || null,
@@ -689,6 +726,18 @@ export async function getReconciliationStatus(
     with_gaps: count("mismatch"),
     failed: count("failed"),
     skipped: count("skipped"),
+    ...(rateLimited.length
+      ? {
+          rate_limited_tables: rateLimited.map((i) => ({
+            client: i.client,
+            table: i.table,
+            platform: i.platform,
+            attempted_at: i.checked_at,
+          })),
+          rate_limited_note:
+            "הדוחות האלה לא נבדקו בבדיקה האחרונה כי הפלטפורמה הגבילה את קצב הבקשות, אז אי אפשר לומר שהם תואמים. התוצאה של הבדיקה הקודמת שלהם, אם יש, מופיעה ב-previous",
+        }
+      : {}),
     items,
   };
 }

@@ -16,6 +16,7 @@ import {
   type AiosReader,
   type CallBudget,
   MAX_FINDINGS_PER_TABLE,
+  PLATFORM_RATE_LIMITED,
   type PlatformSource,
   platformFor,
   RECONCILE_TOLERANCE,
@@ -122,7 +123,7 @@ export type ProcessedTable = {
   status: RunStatus;
   findings: number;
   error_kind?: string;
-  /** Set when the table was passed over and its previous result kept. */
+  /** platform_rate_limited: passed over, so the previous result still stands. */
   skipped_reason?: string;
   run_id?: string;
   save_error?: string;
@@ -135,6 +136,8 @@ export type ChunkResult = {
   done: boolean;
   stopped: "budget" | "deadline" | "max_tables" | null;
   api_calls: number;
+  /** Tables passed over after a platform-wide rate limit, to try again later. */
+  rate_limited_tables: string[];
 };
 
 const compactFinding = (f: ReconcileFinding) => ({
@@ -190,6 +193,7 @@ export async function runReconcileChunk(
   });
   const processed: ProcessedTable[] = [];
   const rateLimited = new Set<ReconcilePlatform>();
+  const rateLimitedTables: string[] = [];
   let cursor = opts.cursor;
   let stopped: ChunkResult["stopped"] = null;
   let considered = 0;
@@ -221,50 +225,54 @@ export async function runReconcileChunk(
 
     const startedAt = deps.now();
     let result: TableReconcileResult;
-    if (platform && rateLimited.has(platform)) {
+    const passedOver = !!platform && rateLimited.has(platform);
+    if (passedOver) {
       // The platform already refused this call; asking again only burns quota.
-      // No run is stored, so the table keeps its previous result (and trust
-      // line) instead of a "skipped" row that hides it.
-      processed.push({
-        table_id: table.id,
-        status: "skipped",
-        findings: 0,
-        skipped_reason: "platform_rate_limited",
-      });
-      cursor = table.id;
-      considered += 1;
-      continue;
-    }
-    try {
-      result = await reconcileTable({
-        table,
-        source: deps.sourceFor(table),
-        readAios: store.readAios,
-        now: startedAt,
-        tolerance: RECONCILE_TOLERANCE,
-        maxFindings: MAX_FINDINGS_PER_TABLE,
-      });
-    } catch (err) {
-      const isBudget =
-        err instanceof ReconcileSourceError && err.kind === "budget";
-      if (isBudget && processed.length > 0) {
-        // Retry this table on the next call with a fresh budget.
-        stopped = "budget";
-        break;
-      }
+      // The skipped run lets get_reconciliation_status list the table as not
+      // checked, while the trust line and the persisting check look past it to
+      // the previous result. The worker tries these tables once more after the
+      // walk (rate_limited_tables).
       result = {
-        status: "failed",
+        status: "skipped",
         platform,
         window_start: null,
         window_end: null,
         findings: [],
-        error_kind: isBudget ? "budget" : "platform",
-        summary: {
-          platform,
-          error_kind: isBudget ? "budget" : "internal",
-          error: redactSecrets(err instanceof Error ? err.message : err),
-        },
+        summary: { platform, skipped_reason: PLATFORM_RATE_LIMITED },
       };
+      rateLimitedTables.push(table.id);
+    } else {
+      try {
+        result = await reconcileTable({
+          table,
+          source: deps.sourceFor(table),
+          readAios: store.readAios,
+          now: startedAt,
+          tolerance: RECONCILE_TOLERANCE,
+          maxFindings: MAX_FINDINGS_PER_TABLE,
+        });
+      } catch (err) {
+        const isBudget =
+          err instanceof ReconcileSourceError && err.kind === "budget";
+        if (isBudget && processed.length > 0) {
+          // Retry this table on the next call with a fresh budget.
+          stopped = "budget";
+          break;
+        }
+        result = {
+          status: "failed",
+          platform,
+          window_start: null,
+          window_end: null,
+          findings: [],
+          error_kind: isBudget ? "budget" : "platform",
+          summary: {
+            platform,
+            error_kind: isBudget ? "budget" : "internal",
+            error: redactSecrets(err instanceof Error ? err.message : err),
+          },
+        };
+      }
     }
     // A per-ad-account throttle fails only this table.
     if (
@@ -279,6 +287,7 @@ export async function runReconcileChunk(
       status: result.status,
       findings: result.findings.length,
       error_kind: result.error_kind,
+      ...(passedOver ? { skipped_reason: PLATFORM_RATE_LIMITED } : {}),
     };
 
     if (result.status === "mismatch") {
@@ -343,7 +352,47 @@ export async function runReconcileChunk(
     done: exhausted,
     stopped,
     api_calls: budget.used,
+    rate_limited_tables: rateLimitedTables,
   };
+}
+
+/**
+ * Passed-over tables the nightly chain carries to its retry pass (keeps the
+ * chained body and the id filter small). Any beyond it still have their
+ * skipped run, so get_reconciliation_status lists them as not checked.
+ */
+export const MAX_DEFERRED = 100;
+
+export type ChainStep = {
+  phase: "tables" | "retry" | "accounts";
+  cursor: string | null;
+  deferred?: string[];
+};
+
+/**
+ * Where the nightly chain goes after a "tables" or "retry" chunk. Tables a
+ * platform-wide rate limit passed over are not left behind by the cursor: they
+ * are carried along (`deferred`) and get one more try once the walk is done.
+ * The retry pass does not defer again; a table it still cannot reach keeps its
+ * skipped run, which get_reconciliation_status reports.
+ */
+export function nextAfterChunk(
+  phase: "tables" | "retry",
+  deferred: string[],
+  chunk: Pick<ChunkResult, "done" | "next_cursor" | "rate_limited_tables">,
+): ChainStep {
+  const carry =
+    phase === "retry"
+      ? deferred
+      : [...new Set([...deferred, ...chunk.rate_limited_tables])].slice(
+          0,
+          MAX_DEFERRED,
+        );
+  const withDeferred = carry.length ? { deferred: carry } : {};
+  if (!chunk.done) return { phase, cursor: chunk.next_cursor, ...withDeferred };
+  if (phase === "tables" && carry.length)
+    return { phase: "retry", cursor: null, ...withDeferred };
+  return { phase: "accounts", cursor: null };
 }
 
 // ── Unmapped Meta accounts ─────────────────────────────────────────────────
@@ -357,6 +406,7 @@ export type MetaAccountWithSpend = {
 
 export type TenantConnections = {
   tenant_id: string;
+  /** Org-level connections only; empty when the tenant has only private ones. */
   connections: Array<{ id: string; token: string }>;
 };
 
@@ -442,9 +492,12 @@ export async function runUnmappedAccountsCheck(deps: {
     if (!complete && tenants > 0)
       return { next_cursor: cursor, done: false, tenants };
 
+    // Only staff members' private connections, which this check never reads:
+    // say so rather than store an "ok" that covered nothing.
+    const noOrgConnections = group.connections.length === 0;
     const status: RunStatus = findings.length
       ? "mismatch"
-      : !complete
+      : !complete || noOrgConnections
         ? "skipped"
         : errors.length && !accountsSeen
           ? "failed"
@@ -469,8 +522,14 @@ export async function runUnmappedAccountsCheck(deps: {
           accounts_seen: accountsSeen,
           counts: { unmapped_account: findings.length },
           findings_total: findings.length,
+          unmapped_check: noOrgConnections ? "no_org_connections" : undefined,
           incomplete: complete ? undefined : true,
-          skipped_reason: status === "skipped" ? "incomplete" : undefined,
+          skipped_reason:
+            status !== "skipped"
+              ? undefined
+              : noOrgConnections
+                ? "no_org_connections"
+                : "incomplete",
           errors: errors.length ? errors.slice(0, 3) : undefined,
           top_findings: kept.slice(0, 5).map((f) => ({
             kind: f.kind,

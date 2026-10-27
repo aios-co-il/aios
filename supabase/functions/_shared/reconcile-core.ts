@@ -52,6 +52,25 @@ export type FindingKind = (typeof FINDING_KINDS)[number];
 
 export type RunStatus = "ok" | "mismatch" | "failed" | "skipped";
 
+/** skipped_reason of a table passed over because the platform refused an earlier one. */
+export const PLATFORM_RATE_LIMITED = "platform_rate_limited";
+
+/**
+ * A run a rate limit stopped (passed over, or its own request refused) compared
+ * nothing, so it says nothing about the report: the persisting check, the trust
+ * line (src/lib/reportDataTrust.ts) and the status's previous result look past it.
+ */
+export function isRateLimitRun(
+  run: { status?: string | null; summary?: unknown } | null | undefined,
+): boolean {
+  const summary = (run?.summary || {}) as Record<string, unknown>;
+  return (
+    (run?.status === "skipped" &&
+      summary.skipped_reason === PLATFORM_RATE_LIMITED) ||
+    (run?.status === "failed" && summary.error_kind === "rate_limit")
+  );
+}
+
 export type ReconcileTable = {
   id: string;
   tenant_id: string;
