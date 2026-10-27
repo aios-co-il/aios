@@ -15,7 +15,7 @@ const outcome = (fields: Partial<StaffAlertResult>): StaffAlertResult => ({
   ...fields,
 });
 
-const common = { provider: "manus_wa", integration_id: "manus-1" };
+const common = { provider: "manus_wa", integration_id: "manus-1" } as const;
 
 Deno.test("staffAlertToolResult", async (t) => {
   await t.step("a confirmed send carries the provider message id", () => {

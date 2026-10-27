@@ -3,8 +3,10 @@
  * Carmen's replies read in _shared/carmen.ts), used exactly or not at all. A
  * step that names no line resolves, in order, to the Carmen trigger's
  * carmen_integration_id, the line of the automation's session connection
- * user, then the tenant's oldest primary line of that provider. Lines that
- * are passed over are recorded in `skipped` with the reason.
+ * user, then the tenant's oldest primary line of that provider. Another
+ * tenant's line is used only when the senders would accept it
+ * (line-access.ts). Lines that are passed over are recorded in `skipped` with
+ * the reason.
  */
 
 import {
@@ -12,6 +14,11 @@ import {
   resolveCarmenConnectionRole,
   type CarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
+import {
+  stepMayUseLine,
+  type LineAccessInput,
+  type Provider,
+} from "./line-access.ts";
 import {
   compareCreatedAt,
   isGreenIntegration,
@@ -21,8 +28,7 @@ import {
   type NotifyStepRow,
 } from "./lines.ts";
 
-export type NotifyTransportInput = {
-  tenantId: string;
+export type NotifyTransportInput = LineAccessInput & {
   bridgeAutomationId?: string | null;
   /** Active Carmen automations of the tenant. The bridge automation is always eligible. */
   activeAutomationIds: string[];
@@ -39,7 +45,7 @@ export type NotifySkippedLine = {
   automationId: string;
   integrationId: string;
   role: CarmenConnectionRole | null;
-  reason: "not_primary" | "inactive" | "not_found";
+  reason: "not_primary" | "inactive" | "not_found" | "not_shared";
 };
 
 /** One transport selection: its input, lookups, and the lines skipped so far. */
@@ -49,8 +55,6 @@ export type TransportContext = {
   byId: Map<string, NotifyIntegrationRow>;
   skipped: NotifySkippedLine[];
 };
-
-export type Provider = "manus" | "green";
 
 /** The active, primary line of `provider` this step sends from, or null. */
 export function resolveStepLine(
@@ -64,6 +68,10 @@ export function resolveStepLine(
   }
   for (const row of candidateLines(ctx, step, provider)) {
     if (!row || !ofProvider(provider, row) || !row.is_active) {
+      continue;
+    }
+    if (!stepMayUseLine(ctx.input, step, row, provider)) {
+      skipLine(ctx, step.automation_id, row.id, row, "not_shared");
       continue;
     }
     if (isPrimaryCarmenLine(row, ctx.hasActiveManus)) {
@@ -84,6 +92,10 @@ function namedLine(
   const row = ctx.byId.get(integrationId);
   if (!row) {
     skipLine(ctx, step.automation_id, integrationId, row, "not_found");
+    return null;
+  }
+  if (!stepMayUseLine(ctx.input, step, row, provider)) {
+    skipLine(ctx, step.automation_id, integrationId, row, "not_shared");
     return null;
   }
   if (!ofProvider(provider, row) || !row.is_active) {

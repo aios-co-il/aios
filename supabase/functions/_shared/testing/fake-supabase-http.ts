@@ -2,8 +2,9 @@
  * A fetch that serves Supabase's REST, RPC and auth endpoints from memory, so
  * a test can run an edge function's real handler, supabase-js included.
  *
- * - GET /rest/v1/<table>: the rows matching its eq./neq./is./in. filters
- *   (other operators are ignored), limited.
+ * - GET /rest/v1/<table>: the rows matching its eq./neq./is./in./lt./lte./
+ *   gt./gte. filters, each optionally negated with not., limited. Any other
+ *   operator throws, so a test cannot pass on a filter the fake ignores.
  * - POST, PATCH, DELETE /rest/v1/<table>: recorded in `calls`, answered empty.
  * - POST /rest/v1/rpc/<fn>: rpc[fn](args).
  * - GET /auth/v1/user: the user `users` maps the bearer token to, else 401.
@@ -77,27 +78,45 @@ function selectRows(rows: Row[], params: URLSearchParams): Row[] {
   return limit > 0 ? out.slice(0, limit) : out;
 }
 
-/** Whether a value passes one PostgREST filter expression; unknown operators pass. */
-function matches(value: unknown, expr: string): boolean {
-  const dot = expr.indexOf(".");
-  const op = expr.slice(0, dot);
-  const arg = expr.slice(dot + 1);
-  if (op === "eq") {
-    return String(value) === arg;
-  }
-  if (op === "neq") {
-    return String(value) !== arg;
-  }
-  if (op === "is") {
-    return arg === "null" ? value == null : String(value) === arg;
-  }
-  if (op === "in") {
-    return arg
+/** The PostgREST operators the fake models, by name. */
+const OPERATORS: Record<string, (value: unknown, arg: string) => boolean> = {
+  eq: (value, arg) => String(value) === arg,
+  neq: (value, arg) => String(value) !== arg,
+  is: (value, arg) => (arg === "null" ? value == null : String(value) === arg),
+  in: (value, arg) =>
+    arg
       .replace(/^\(|\)$/g, "")
       .split(",")
-      .includes(String(value));
+      .includes(String(value)),
+  lt: (value, arg) => value != null && compare(value, arg) < 0,
+  lte: (value, arg) => value != null && compare(value, arg) <= 0,
+  gt: (value, arg) => value != null && compare(value, arg) > 0,
+  gte: (value, arg) => value != null && compare(value, arg) >= 0,
+};
+
+/** Whether a value passes one PostgREST filter expression; an operator the fake does not model throws. */
+function matches(value: unknown, expr: string): boolean {
+  if (expr.startsWith("not.")) {
+    return !matches(value, expr.slice(4));
   }
-  return true;
+  const dot = expr.indexOf(".");
+  const op = OPERATORS[expr.slice(0, dot)];
+  if (!op) {
+    throw new Error(`fake-supabase-http: unsupported filter "${expr}"`);
+  }
+  return op(value, expr.slice(dot + 1));
+}
+
+/** Orders a column value against a filter argument: as numbers when both are, else as text. */
+function compare(value: unknown, arg: string): number {
+  const x = String(value);
+  if (x !== "" && arg !== "" && !isNaN(Number(x)) && !isNaN(Number(arg))) {
+    return Number(x) - Number(arg);
+  }
+  if (x === arg) {
+    return 0;
+  }
+  return x < arg ? -1 : 1;
 }
 
 /** Whether a parsed body is a plain object. */

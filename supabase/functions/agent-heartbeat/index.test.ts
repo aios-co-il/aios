@@ -10,7 +10,7 @@ import {
 const SUPABASE_URL = "https://this-project.supabase.co";
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
-/** 09:00 Israel on a Wednesday: the hour the old anomaly digest went out. */
+/** 06:00 UTC on a Wednesday (08:00 in Israel after DST ends): the hour the removed digest fired (getUTCHours() === 6). */
 const DIGEST_HOUR = new Date("2026-10-28T06:00:00Z");
 
 /** A tenant with reminders on, an anomaly, an overdue task and a campaigner with a phone. */

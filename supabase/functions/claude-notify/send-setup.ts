@@ -1,7 +1,8 @@
 /**
  * The Carmen automations, send steps and WhatsApp lines a tenant's notify may
- * use: the tenant's own Manus and Green lines plus any line shared with it
- * that a step or Carmen trigger names. DB reads only; a failed read throws.
+ * use: the tenant's own Manus and Green lines plus the lines of other tenants
+ * a step or Carmen trigger names, with which of those are shared with it.
+ * DB reads only; a failed read throws.
  */
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -13,13 +14,15 @@ import {
   type NotifyIntegrationRow,
   type NotifyStepRow,
 } from "./lines.ts";
-import { loadLinesById, loadTenantLines } from "./load-lines.ts";
+import { loadNamedLines, loadTenantLines } from "./load-lines.ts";
 
 export type CarmenSendSetup = {
   activeAutomationIds: string[];
   steps: NotifyStepRow[];
   integrations: NotifyIntegrationRow[];
   triggerPins: Record<string, string | null>;
+  /** Lines of other tenants that a step or trigger names and that are shared with this tenant. */
+  sharedLineIds: string[];
 };
 
 /** Send steps and lines of the bridge automation and every Carmen-triggered automation of the tenant. */
@@ -45,12 +48,13 @@ export async function loadCarmenSendSetup(
     ...steps.map(stepIntegrationId),
     ...Object.values(triggerPins),
   ]).filter((id) => !known.has(id));
-  const referencedRows = await loadLinesById(sb, tenantId, referenced);
+  const named = await loadNamedLines(sb, tenantId, referenced);
   return {
     activeAutomationIds,
     steps,
-    integrations: [...tenantLines, ...referencedRows],
+    integrations: [...tenantLines, ...named.rows],
     triggerPins,
+    sharedLineIds: named.sharedIds,
   };
 }
 

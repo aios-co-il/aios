@@ -1,7 +1,7 @@
 import { assertRejects, assertStrictEquals } from "jsr:@std/assert@1";
 
-import { fakeSupabase } from "../testing/fake-supabase.ts";
-import { tenantOwnerUserId } from "./owner.ts";
+import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
+import { tenantOwnerUserId } from "./tenant-owner.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const OWNER = "55555555-5555-4555-8555-555555555555";

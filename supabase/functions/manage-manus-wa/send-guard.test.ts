@@ -1,6 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import type { GuardResult } from "../_shared/integration-guard.ts";
+import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
 import {
   anonRefusal,
   manusSendRefusal,
@@ -9,15 +10,20 @@ import {
 import { ANON_KEY, jwt, SERVICE_KEY } from "./test-fixtures.ts";
 
 const CORS = { "Access-Control-Allow-Origin": "*" };
-const USER_TOKEN = jwt({ role: "authenticated", sub: "u1" });
+const TENANT = "11111111-1111-4111-8111-111111111111";
+const USER = "33333333-3333-4333-8333-333333333333";
+const USER_TOKEN = jwt({ role: "authenticated", sub: USER });
+const LINE = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", tenant_id: TENANT };
 
-/** Lookups that find u1 but fail on the membership query. */
-const failingDeps = {
-  getUserId: () => Promise.resolve("u1"),
-  isTenantMember: () => Promise.reject(new Error("relation does not exist")),
-  isSuperAdmin: () => Promise.resolve(false),
-  tenantCanUseIntegration: () => Promise.resolve(false),
-};
+/** A client that knows USER_TOKEN but fails on the membership query. */
+const failingDb = () =>
+  fakeSupabase(
+    {},
+    {
+      users: { [USER_TOKEN]: USER },
+      failing: { tenant_users: "relation does not exist" },
+    },
+  );
 
 Deno.test("anonRefusal", async (t) => {
   await t.step("refuses the public anon key on every action", async () => {
@@ -47,8 +53,8 @@ Deno.test("manusSendRefusal", async (t) => {
         {
           authorization: "",
           serviceRoleKey: SERVICE_KEY,
-          integration: { id: "manus-a", tenant_id: "t1" },
-          deps: failingDeps,
+          integration: LINE,
+          supabase: failingDb(),
         },
         CORS,
       );
@@ -63,8 +69,8 @@ Deno.test("manusSendRefusal", async (t) => {
         {
           authorization: `Bearer ${USER_TOKEN}`,
           serviceRoleKey: SERVICE_KEY,
-          integration: { id: "manus-a", tenant_id: "t1" },
-          deps: failingDeps,
+          integration: LINE,
+          supabase: failingDb(),
         },
         CORS,
       );
@@ -79,7 +85,7 @@ Deno.test("manusSendRefusal", async (t) => {
         authorization: `Bearer ${SERVICE_KEY}`,
         serviceRoleKey: SERVICE_KEY,
         integration: null,
-        deps: failingDeps,
+        supabase: failingDb(),
       },
       CORS,
     );

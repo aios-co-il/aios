@@ -127,10 +127,10 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 - **Recurring task reminders** go out at 08:30 on the occurrence's own Israel date; one-off tasks keep the day-before reminder.
 - **Pulse instant alerts** run only when `instantPulseAlertsGate` (`campaign-pulse-snapshot/instant-alerts-gate.ts`) allows it. Send `skip_instant_alerts: true` to refresh pulse numbers without alerting the team.
 
-## Carmen's outbound lines (AIO-229)
+## Carmen's outbound lines
 
 - **Primary line only:** `claude-notify` and staff alerts send only from a Carmen connection whose role is primary (`settings.carmen_role`, `_shared/carmen-connection-role.ts`); a secondary line, such as the owner's personal phone, never sends them.
-- **`claude-notify`** uses the tenant's Carmen `send_manus_message` step on an active primary `manus_wa` line. A Green API step is used only when no Manus step resolves, and the response labels it `transport: "green_fallback"`. A line a step names is used only when it is the tenant's own or shared with it. It accepts only `CLAUDE_MCP_BEARER` or the service-role key; `{ "ping": true, "tenant_id"? }` reports the line each tenant would use and sends nothing.
+- **`claude-notify`** uses the tenant's Carmen `send_manus_message` step on an active primary `manus_wa` line. A Green API step is used only when no Manus step resolves, and the response labels it `transport: "green_fallback"`. A line a step names is used only when the senders below would accept it: the tenant's own, one shared with it, or any line when the step's sender is a super admin. It accepts only `CLAUDE_MCP_BEARER` or the service-role key; `{ "ping": true, "tenant_id"? }` reports the line each tenant would use and sends nothing.
 - **Staff alerts** (`send_whatsapp_to_staff`, `send_message_to_campaigner`) leave only through `send-manus-wa-message` on a primary `manus_wa` line (`run-ai-agent/staff-alert.ts`), so the Staging guard applies and the outcome lands in `agent_action_log`.
-- **Who may send from a line:** `send-manus-wa-message` and `manage-manus-wa` `send_message` apply one rule, `_shared/auth/tenant-access.ts`. `manage-manus-wa` also accepts the service-role key, refuses the anon key on every action (`manage-manus-wa/send-auth.ts`), and passes the Staging guard.
+- **Who may send from a line:** `send-manus-wa-message`, `manage-manus-wa` `send_message`, staff alerts and `claude-notify`'s line choice apply one rule, `_shared/auth/tenant-access.ts`. `manage-manus-wa` also accepts the service-role key, refuses the anon key on every action (`manage-manus-wa/send-auth.ts`), and passes the Staging guard.
 - **`agent-heartbeat`** sends no WhatsApp; its summary goes to `heartbeat_logs` only.

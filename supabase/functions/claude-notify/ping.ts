@@ -53,7 +53,12 @@ export function pingReport(plan: TenantNotifyPlan) {
   };
 }
 
-/** Tenants with a Carmen trigger or campaign pulse enabled, sorted, at most 200. */
+/**
+ * Tenants with a Carmen trigger or campaign pulse enabled, sorted, at most
+ * 200. It reads across tenants on purpose: ping without tenant_id is an
+ * operator diagnostic, and claude-notify admits only CLAUDE_MCP_BEARER or the
+ * service-role key (auth.ts), never a tenant user.
+ */
 async function listNotifyTenants(
   sb: Pick<DbClient, "from">,
 ): Promise<string[]> {

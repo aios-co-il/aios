@@ -22,9 +22,7 @@ export async function loadManusLines(
   if (error) {
     throw new Error(`load Manus lines failed: ${error.message}`);
   }
-  const manus = (data ?? []).filter((row) =>
-    MANUS_WA_TYPES.includes(row.integration_type),
-  );
+  const manus = data ?? [];
   // A Manus row is itself an active Manus connection of the tenant.
   return {
     manus,

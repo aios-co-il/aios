@@ -5,7 +5,8 @@
  * - A JWT with role "anon" (the public anon key): 401.
  * - A user JWT: the rule send-manus-wa-message applies
  *   (_shared/auth/tenant-access.ts) for the requested tenant, else the
- *   integration's tenant.
+ *   integration's tenant. Membership is checked first, so only a member or
+ *   super admin learns that an integration id does not exist (404).
  * - Anything else: 401.
  */
 
@@ -49,10 +50,7 @@ export async function authorizeManusSend(
     return { ok: false, status: 401, error: "Unauthorized" };
   }
   const integration = input.integration;
-  if (!integration) {
-    return { ok: false, status: 404, error: "Integration not found" };
-  }
-  const tenantId = input.requestedTenantId || integration.tenant_id;
+  const tenantId = input.requestedTenantId || integration?.tenant_id;
   if (!tenantId) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
@@ -91,11 +89,14 @@ async function authorizeTenantUser(
   supabase: ManusSendAuthInput["supabase"],
   tenantId: string,
   userId: string,
-  integration: { id: string; tenant_id: string | null },
+  integration: ManusSendAuthInput["integration"],
 ): Promise<ManusSendAuthResult> {
   const access = await tenantUserAccess(supabase, tenantId, userId);
   if (!access.member && !access.superAdmin) {
     return { ok: false, status: 403, error: "Forbidden" };
+  }
+  if (!integration) {
+    return { ok: false, status: 404, error: "Integration not found" };
   }
   if (!(await mayUseLine(supabase, tenantId, access, integration))) {
     return { ok: false, status: 403, error: "Forbidden" };

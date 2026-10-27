@@ -10,8 +10,10 @@ import { ANON_KEY, jwt, SERVICE_KEY } from "./test-fixtures.ts";
 const SUPABASE_URL = "https://this-project.supabase.co";
 const GATEWAY = "https://gateway.test";
 const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const MEMBER = jwt({ role: "authenticated", sub: "member" });
-const OUTSIDER = jwt({ role: "authenticated", sub: "outsider" });
+const MEMBER_ID = "33333333-3333-4333-8333-333333333333";
+const OUTSIDER_ID = "66666666-6666-4666-8666-666666666666";
+const MEMBER = jwt({ role: "authenticated", sub: MEMBER_ID });
+const OUTSIDER = jwt({ role: "authenticated", sub: OUTSIDER_ID });
 const ALLOWED_PHONE = "972501234567";
 
 /** Carmen's Manus line of TENANT. */
@@ -30,9 +32,9 @@ async function run(calls: Call[], failing: Record<string, string> = {}) {
     supabaseUrl: SUPABASE_URL,
     tables: {
       tenant_integrations: [LINE],
-      tenant_users: [{ tenant_id: TENANT, user_id: "member" }],
+      tenant_users: [{ tenant_id: TENANT, user_id: MEMBER_ID }],
     },
-    users: { [MEMBER]: "member", [OUTSIDER]: "outsider" },
+    users: { [MEMBER]: MEMBER_ID, [OUTSIDER]: OUTSIDER_ID },
     rpc: { is_super_admin: () => false },
     failing,
     other: () => Response.json({ success: true }),
@@ -81,14 +83,19 @@ Deno.test({
     await t.step(
       "the anon key gets 401 on every action, before any read or send",
       async () => {
-        const actions = ["create_instance", "get_qr_link", "get_status"];
+        const actions = [
+          "create_instance",
+          "get_qr_link",
+          "get_status",
+          "sync_groups",
+        ];
         const { replies, http } = await run([
           ...actions.map((action) => ({ token: ANON_KEY, body: { action } })),
           { token: ANON_KEY, body: send() },
         ]);
         assertEquals(
           replies.map((r) => r.status),
-          [401, 401, 401, 401],
+          [401, 401, 401, 401, 401],
         );
         assertStrictEquals(http.calls.length, 0);
       },

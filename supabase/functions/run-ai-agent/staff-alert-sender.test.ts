@@ -1,4 +1,8 @@
-import { assertRejects, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
 import { staffAlertSender } from "./staff-alert-sender.ts";
@@ -12,19 +16,26 @@ const OWNER = "55555555-5555-4555-8555-555555555555";
 
 const LINE = { id: "manus-1", user_id: LINE_USER };
 const LINE_WITHOUT_USER = { id: "manus-2", user_id: null };
+/** A line whose user (AGENCY_USER) is not a member of the tenant. */
+const LINE_OF_OUTSIDER = { id: "manus-3", user_id: AGENCY_USER };
 
-/** The sender for `line` when `requesterUserId` asks, over a tenant with one member and an owner. */
-async function senderOf(
-  requesterUserId: string | null,
-  line: { id: string; user_id: string | null } = LINE,
-) {
-  const supabase = fakeSupabase(
+/** A tenant whose members are MEMBER, LINE_USER and its owner OWNER; SUPER is a super admin. */
+function db(members = [MEMBER, LINE_USER, OWNER]) {
+  return fakeSupabase(
     {
-      tenant_users: [{ tenant_id: TENANT, user_id: MEMBER }],
+      tenant_users: members.map((user_id) => ({ tenant_id: TENANT, user_id })),
       user_roles: [{ tenant_id: TENANT, role: "owner", user_id: OWNER }],
     },
     { rpc: { is_super_admin: ({ _user_id }) => _user_id === SUPER } },
   );
+}
+
+/** The sender for `line` when `requesterUserId` asks. */
+async function senderOf(
+  requesterUserId: string | null,
+  line: { id: string; user_id: string | null } = LINE,
+  supabase = db(),
+) {
   const senderFor = await staffAlertSender({
     supabase,
     tenantId: TENANT,
@@ -57,6 +68,38 @@ Deno.test("staffAlertSender", async (t) => {
       assertStrictEquals(await senderOf(null, LINE_WITHOUT_USER), OWNER);
     },
   );
+
+  await t.step(
+    "a line user who is not a member gives way to the owner",
+    async () => {
+      assertStrictEquals(await senderOf(null, LINE_OF_OUTSIDER), OWNER);
+    },
+  );
+
+  await t.step(
+    "no one send-manus-wa-message would accept is no sender",
+    async () => {
+      assertStrictEquals(
+        await senderOf(AGENCY_USER, LINE_OF_OUTSIDER, db([])),
+        null,
+      );
+    },
+  );
+
+  await t.step("each user is looked up once across lines", async () => {
+    const supabase = db();
+    const senderFor = await staffAlertSender({
+      supabase,
+      tenantId: TENANT,
+      requesterUserId: AGENCY_USER,
+    });
+    assertEquals(
+      [await senderFor(LINE), await senderFor(LINE)],
+      [LINE_USER, LINE_USER],
+    );
+    const lookups = supabase.queries.filter((q) => q.table === "tenant_users");
+    assertStrictEquals(lookups.length, 2);
+  });
 
   await t.step("a failed membership lookup throws", async () => {
     const supabase = fakeSupabase({}, { failing: { tenant_users: "timeout" } });

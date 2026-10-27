@@ -2,6 +2,7 @@
 
 import { tenantCanUseIntegration } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { asUuidOrNull } from "../_shared/uuid.ts";
 import { MANUS_WA_TYPES } from "../_shared/whatsapp/send-result.ts";
 import { GREEN_INTEGRATION_TYPES, type NotifyIntegrationRow } from "./lines.ts";
 
@@ -27,25 +28,43 @@ export async function loadTenantLines(
   return data ?? [];
 }
 
+/** Lines a step or trigger names that are not the tenant's own, and which of them are shared with the tenant. */
+export type NamedLines = { rows: NotifyIntegrationRow[]; sharedIds: string[] };
+
 /**
- * Lines a step or trigger names that are not the tenant's own: only those
- * shared with the tenant (tenant_can_use_integration, the rule the senders
- * apply) are read. Any other id is dropped, so a step naming it resolves as
- * not_found and the next step or the tenant's own primary line is used.
+ * Lines a step or trigger names that are not the tenant's own, and which of
+ * them are shared with the tenant (tenant_can_use_integration). The ids come
+ * from the tenant's own steps, and a row read here is only a candidate: the
+ * transport sends from another tenant's line only when it is shared or the
+ * planned sender is a super admin, the rule the senders apply (mayUseLine,
+ * _shared/auth/tenant-access.ts). An id that is not a uuid names no line and
+ * is never queried.
  */
-export async function loadLinesById(
+export async function loadNamedLines(
   sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
   ids: string[],
-): Promise<NotifyIntegrationRow[]> {
-  const shared = await sharedLineIds(sb, tenantId, ids);
-  if (!shared.length) {
-    return [];
+): Promise<NamedLines> {
+  const uuids = ids.filter((id) => asUuidOrNull(id) === id);
+  if (!uuids.length) {
+    return { rows: [], sharedIds: [] };
   }
+  const [rows, sharedIds] = await Promise.all([
+    readLines(sb, uuids),
+    sharedLineIds(sb, tenantId, uuids),
+  ]);
+  return { rows, sharedIds };
+}
+
+/** The tenant_integrations rows with these ids. */
+async function readLines(
+  sb: Pick<DbClient, "from">,
+  ids: string[],
+): Promise<NotifyIntegrationRow[]> {
   const { data, error } = await sb
     .from("tenant_integrations")
     .select(INTEGRATION_COLS)
-    .in("id", shared);
+    .in("id", ids);
   if (error) {
     throw new Error(`claude-notify: load named lines failed: ${error.message}`);
   }

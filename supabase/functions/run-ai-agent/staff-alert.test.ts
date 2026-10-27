@@ -2,11 +2,12 @@ import {
   assertEquals,
   assertMatch,
   assertStrictEquals,
+  assertStringIncludes,
 } from "jsr:@std/assert@1";
 
+import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
 import { fakeFetch } from "../_shared/testing/fake-fetch.ts";
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
-import { MANUS_WA_TYPES } from "../_shared/whatsapp/send-result.ts";
 import {
   sendStaffAlert,
   STAFF_ALERT_NO_PRIMARY_LINE_HE,
@@ -15,6 +16,8 @@ import { staffAlertToolResult } from "./staff-alert-tool-result.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const REQUESTER = "33333333-3333-4333-8333-333333333333";
+const LINE_USER = "44444444-4444-4444-8444-444444444444";
+const AGENCY_USER = "66666666-6666-4666-8666-666666666666";
 
 type Row = Record<string, unknown>;
 
@@ -30,7 +33,7 @@ const line = (id: string, extra: Row = {}) => ({
 });
 const greenLine = line("green-1", { integration_type: "green_api" });
 
-/** sendStaffAlert to 050-123-4567 over a fake DB and fetch; REQUESTER is a member of TENANT. */
+/** sendStaffAlert to 050-123-4567 over a fake DB and fetch; REQUESTER and LINE_USER are members of TENANT. */
 function send({
   integrations,
   responses,
@@ -50,7 +53,10 @@ function send({
     {
       tenant_integrations: integrations,
       user_roles: roles,
-      tenant_users: [{ tenant_id: TENANT, user_id: REQUESTER }],
+      tenant_users: [REQUESTER, LINE_USER].map((user_id) => ({
+        tenant_id: TENANT,
+        user_id,
+      })),
     },
     { failing },
   );
@@ -76,7 +82,6 @@ Deno.test("sendStaffAlert", async (t) => {
         integrations: [greenLine, line("manus-1")],
       });
       const result = await run;
-      assertStrictEquals(result.sent, true);
       assertStrictEquals(result.status, "sent");
       assertStrictEquals(result.transport, "manus_wa");
       assertStrictEquals(result.integrationId, "manus-1");
@@ -104,8 +109,19 @@ Deno.test("sendStaffAlert", async (t) => {
       );
       // send-manus-wa-message only accepts manus_wa rows, so no alias.
       assertEquals(typeFilter?.[2], ["manus_wa"]);
-      assertEquals(MANUS_WA_TYPES, ["manus_wa"]);
       assertMatch(lineQuery?.columns ?? "", /\bsettings\b/);
+    },
+  );
+
+  await t.step(
+    "an agency requester who is not a member sends as the line's user",
+    async () => {
+      const { run, fetch } = send({
+        integrations: [line("manus-1", { user_id: LINE_USER })],
+        requesterUserId: AGENCY_USER,
+      });
+      assertStrictEquals((await run).status, "sent");
+      assertStrictEquals(fetch.calls[0].body.senderUserId, LINE_USER);
     },
   );
 
@@ -233,23 +249,23 @@ Deno.test("sendStaffAlert", async (t) => {
   });
 
   await t.step(
-    "a failed line, owner or membership lookup is a generic failure, not no_line / no_sender",
+    "a failed line, owner, membership or super-admin lookup is a generic failure that logs its cause",
     async () => {
-      for (const table of [
-        "tenant_integrations",
-        "user_roles",
-        "tenant_users",
-      ]) {
-        const { run, fetch } = send({
-          integrations: [line("manus-1")],
-          requesterUserId: table === "tenant_users" ? REQUESTER : null,
-          failing: { [table]: "permission denied for table" },
-        });
-        const result = await run;
-        assertStrictEquals(result.status, "failed", table);
-        assertStrictEquals(result.error, "שליחה נכשלה", table);
-        assertStrictEquals(fetch.calls.length, 0, table);
-      }
+      const lookups = ["tenant_integrations", "user_roles", "tenant_users"];
+      const { logged } = await withConsoleErrors(async () => {
+        for (const table of [...lookups, "is_super_admin"]) {
+          const { run, fetch } = send({
+            integrations: [line("manus-1")],
+            requesterUserId: table === "user_roles" ? null : REQUESTER,
+            failing: { [table]: "permission denied for table" },
+          });
+          const result = await run;
+          assertStrictEquals(result.status, "failed", table);
+          assertStrictEquals(result.error, "שליחה נכשלה", table);
+          assertStrictEquals(fetch.calls.length, 0, table);
+        }
+      });
+      assertStringIncludes(logged, "is_super_admin failed: permission");
     },
   );
 });

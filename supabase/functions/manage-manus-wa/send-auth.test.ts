@@ -1,14 +1,20 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
-import { authorizeManusSend, isAnonToken, jwtRole } from "./send-auth.ts";
+import {
+  authorizeManusSend,
+  isAnonToken,
+  jwtRole,
+  type ManusSendAuthResult,
+} from "./send-auth.ts";
 import { ANON_KEY, jwt, SERVICE_KEY } from "./test-fixtures.ts";
 
 const TENANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TENANT_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const USER_A = "user-of-a";
-const USER_B = "user-of-b";
-const SUPER = "super-admin";
+const USER_A = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
+const USER_B = "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1";
+const SUPER = "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e";
+const LINE_A = "ca11ca11-ca11-4a11-8a11-ca11ca11ca11";
 
 const FOREIGN_SERVICE = jwt({ role: "service_role", ref: "other" });
 const TOKENS: Record<string, string> = {
@@ -19,7 +25,7 @@ const TOKENS: Record<string, string> = {
 const tokenFor = (userId: string) =>
   Object.keys(TOKENS).find((t) => TOKENS[t] === userId);
 
-/** USER_A is a member of A and USER_B of B; manus-a is shared with B when `shared`. Counts user lookups. */
+/** USER_A is a member of A and USER_B of B; LINE_A is shared with B when `shared`. Counts user lookups. */
 function db({ shared = false } = {}) {
   const supabase = fakeSupabase(
     {
@@ -33,7 +39,7 @@ function db({ shared = false } = {}) {
       rpc: {
         is_super_admin: ({ _user_id }) => _user_id === SUPER,
         tenant_can_use_integration: ({ p_tenant_id, p_integration_id }) =>
-          shared && p_tenant_id === TENANT_B && p_integration_id === "manus-a",
+          shared && p_tenant_id === TENANT_B && p_integration_id === LINE_A,
       },
     },
   );
@@ -46,7 +52,7 @@ function db({ shared = false } = {}) {
   return { calls, supabase };
 }
 
-const integrationA = { id: "manus-a", tenant_id: TENANT_A };
+const integrationA = { id: LINE_A, tenant_id: TENANT_A };
 
 /** authorizeManusSend for a bearer token (none when null). */
 async function authorize(
@@ -147,23 +153,34 @@ Deno.test("authorizeManusSend", async (t) => {
     },
   );
 
+  await t.step("an invalid user token gets 401", async () => {
+    const bogus = await authorize(
+      jwt({ role: "authenticated", sub: "nobody" }),
+    );
+    assertEquals(bogus.result, {
+      ok: false,
+      status: 401,
+      error: "Unauthorized",
+    });
+  });
+
   await t.step(
-    "an invalid user token gets 401; a missing integration gets 404",
+    "only a member learns that an integration is missing (404); anyone else gets 403",
     async () => {
-      const bogus = await authorize(
-        jwt({ role: "authenticated", sub: "nobody" }),
-      );
-      assertEquals(bogus.result, {
-        ok: false,
-        status: 401,
-        error: "Unauthorized",
-      });
-      const missing = await authorize(tokenFor(USER_A), { integration: null });
-      assertEquals(missing.result, {
+      const ask = (userId: string, requestedTenantId: string | null) =>
+        authorize(tokenFor(userId), { integration: null, requestedTenantId });
+      assertEquals((await ask(USER_A, TENANT_A)).result, {
         ok: false,
         status: 404,
         error: "Integration not found",
       });
+      const forbidden: ManusSendAuthResult = {
+        ok: false,
+        status: 403,
+        error: "Forbidden",
+      };
+      assertEquals((await ask(USER_B, TENANT_A)).result, forbidden);
+      assertEquals((await ask(USER_A, null)).result, forbidden);
     },
   );
 });

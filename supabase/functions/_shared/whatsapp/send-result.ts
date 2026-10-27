@@ -77,7 +77,15 @@ export async function postWaSend(input: {
 export async function readWaSendResponse(
   res: Response,
 ): Promise<WaSendOutcome> {
-  const text = await res.text().catch(() => "");
+  const text = await res.text().catch((e) => {
+    // The status still decides the outcome; only the body is lost.
+    console.warn(
+      "[wa-send] response body unreadable",
+      res.status,
+      e instanceof Error ? e.message : e,
+    );
+    return "";
+  });
   let body: unknown = {};
   try {
     body = text ? JSON.parse(text) : {};

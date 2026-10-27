@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { mayUseLine, tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { lineAccess, senderAccess } from "./sender-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,7 +141,10 @@ Deno.serve(async (req) => {
       tenantId = data?.tenant_id;
     }
 
-    const access = await tenantUserAccess(admin, tenantId ?? "", userId);
+    const access = await senderAccess(admin, tenantId ?? "", userId);
+    if (access instanceof Response) {
+      return access;
+    }
     if (!access.member && !access.superAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
@@ -175,7 +178,12 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .maybeSingle();
       integ = data;
-      if (integ && !(await mayUseLine(admin, tenantId, access, integ))) {
+      const usable =
+        integ && (await lineAccess(admin, tenantId, access, integ));
+      if (usable instanceof Response) {
+        return usable;
+      }
+      if (!usable) {
         integ = null;
       }
     } else {

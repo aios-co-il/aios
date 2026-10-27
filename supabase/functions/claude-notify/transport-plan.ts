@@ -6,6 +6,7 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { SEND_MANUS_FN } from "../_shared/whatsapp/send-result.ts";
 import type { NotifyIntegrationRow, NotifyStepRow } from "./lines.ts";
+import { stepSender } from "./line-access.ts";
 import type { NotifySkippedLine, TransportContext } from "./step-line.ts";
 
 export type NotifyTransport = "manus" | "green_fallback" | "none";
@@ -17,6 +18,8 @@ export type NotifyTransportPlan = {
   automationId: string | null;
   integrationId: string | null;
   integrationUserId: string | null;
+  /** Who the send goes out as (send-manus-wa-message's senderUserId); null when there is no one. */
+  senderUserId: string | null;
   /** Carmen connection role of the chosen line; only "primary" lines are chosen. */
   integrationRole: CarmenConnectionRole | null;
   /** True when a Carmen Manus step resolves to an active, primary manus_wa line. */
@@ -41,6 +44,12 @@ export function transportPlan(
     automationId: step.automation_id,
     integrationId: line.id,
     integrationUserId: line.user_id ?? null,
+    senderUserId: stepSender(
+      ctx.input,
+      step,
+      line,
+      transport === "manus" ? "manus" : "green",
+    ),
     integrationRole: resolveCarmenConnectionRole(line, {
       tenantHasActiveManus: ctx.hasActiveManus,
     }),
@@ -62,6 +71,7 @@ export function noTransport(
     automationId: null,
     integrationId: null,
     integrationUserId: null,
+    senderUserId: null,
     integrationRole: null,
     manusIntegrationActive: false,
     skipped,
