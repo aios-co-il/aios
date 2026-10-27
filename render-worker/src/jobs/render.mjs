@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
 import { brandFromPayload } from "../compose/brand.mjs";
+import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
@@ -18,6 +19,7 @@ import {
   spokenLine,
   talkingLine,
 } from "../narration.mjs";
+import { filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
 
@@ -202,18 +204,45 @@ export async function loadFilmSources(db, run) {
   };
 }
 
-/** The brand kit on the run's work item (colors, font, logo, CTA), read for the run's tenant. */
-export async function loadFilmBrand(db, run) {
+/**
+ * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
+ * font, logo, CTA), whether the brief asked for trailer sound design (video.sound_design), and
+ * whether this run may pay for the effects: only the assembly of a running production
+ * (advance_video_production records its render_run_id) whose approved quote priced them
+ * (workshop_produce_video puts estimate.sound_effects on the production). Every other render,
+ * and a production quoted without them (the Video Studio's own plan), is free.
+ */
+export async function loadFilmSettings(db, run) {
   const [row] =
     (await db.select(
       "marketing_work_items",
       `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
     )) ?? [];
-  return brandFromPayload(row?.payload);
+  const production = row?.payload?.video?.production;
+  return {
+    brand: brandFromPayload(row?.payload),
+    soundDesign: row?.payload?.video?.sound_design === true,
+    effectsQuoted:
+      !!production &&
+      production.status === "running" &&
+      String(production.render_run_id ?? "") === String(run.id) &&
+      Number(production.estimate?.sound_effects?.usd) > 0,
+  };
+}
+
+/** The brand kit on the run's work item (colors, font, logo, CTA), read for the run's tenant. */
+export async function loadFilmBrand(db, run) {
+  return (await loadFilmSettings(db, run)).brand;
 }
 
 /** Builds the finished MP4 from each scene's current clip, its voiceover and the music bed. */
-export async function renderFilm({ db, run, log = console.log }) {
+export async function renderFilm({
+  db,
+  run,
+  resolveElevenLabsKey = async () => null,
+  makeEffects = filmSoundEffects,
+  log = console.log,
+}) {
   const item = await loadRunItem(db, run);
   const sources = await loadFilmSources(db, run);
   if (!sources.scenes.length) throw finalError("render: no approved clips");
@@ -264,7 +293,41 @@ export async function renderFilm({ db, run, log = console.log }) {
         )
       : null;
     const remotion = process.env.REMOTION_DISABLE !== "1";
-    const brand = remotion ? await loadFilmBrand(db, run) : null;
+    const settings = await loadFilmSettings(db, run);
+    // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
+    const brand = settings.brand;
+    // Trailer sound design: made once per film, in the production's own (quoted) render; a
+    // free render only reuses stored effects. Without them the film renders as before.
+    const effects = settings.soundDesign
+      ? await makeEffects({
+          db,
+          run,
+          item,
+          resolveKey: resolveElevenLabsKey,
+          mayGenerate: settings.effectsQuoted,
+          log,
+        }).catch((error) => ({
+          paths: {},
+          costUsd: 0,
+          error: `יצירת אפקטי הסאונד נכשלה: ${String(error?.message ?? error).slice(0, 120)}`,
+        }))
+      : null;
+    const effectFiles = {};
+    for (const name of ["whoosh", "impact"]) {
+      if (!effects?.paths?.[name]) continue;
+      try {
+        effectFiles[`${name}Path`] = await materialize(
+          db,
+          run.tenant_id,
+          effects.paths[name],
+          join(dir, `sfx-${name}`),
+        );
+      } catch (error) {
+        log(
+          `[render] ${run.id} sound effect ${name} skipped: ${error.message}`,
+        );
+      }
+    }
     let logoPath = null;
     if (brand?.logoUrl) {
       try {
@@ -285,11 +348,16 @@ export async function renderFilm({ db, run, log = console.log }) {
       narrationPath,
       narrationAlignment: sources.narrationAlignment,
       brand: brand ? { ...brand, logoPath } : null,
+      effects: effectFiles,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;
-    if (!remotion) await assembleFilm(timeline, output);
-    else
+    if (!remotion) {
+      await assembleFilm(timeline, output);
+      // The ffmpeg edit closes on the end card after the scenes.
+      if (hasEndCard(timeline.brand))
+        durationS += endCardSeconds(ctaLines(timeline.brand.ctaText));
+    } else
       durationS =
         (await assembleWithRemotion(timeline, output, dir)).durationS ||
         durationS;
@@ -328,10 +396,22 @@ export async function renderFilm({ db, run, log = console.log }) {
         path,
         duration_s: durationS,
         scene_count: timeline.scenes.length,
+        ...(effects
+          ? {
+              sound_effects: effects.paths ?? {},
+              // The production report tells the user once that effects are missing.
+              sound_effects_error:
+                timeline.effects?.whooshPath && timeline.effects?.impactPath
+                  ? null
+                  : effects.error || "אפקטי הסאונד לא נטענו",
+            }
+          : {}),
       },
       provider: process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",
       credits: 0,
-      costUsd: 0,
+      // What this run paid ElevenLabs for the film's sound effects, across its attempts
+      // (effects stored by another run cost nothing). Only a production's render pays.
+      costUsd: effects?.costUsd ?? 0,
     };
   } finally {
     await rm(dir, { recursive: true, force: true });

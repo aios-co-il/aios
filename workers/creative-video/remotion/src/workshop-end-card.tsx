@@ -10,6 +10,30 @@ import {
 } from "remotion";
 import type { WorkshopBrand } from "./manifest";
 
+/** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.mjs). */
+const GLYPH_EM = 0.56;
+
+/** The call to action's lines: wrapped by the render worker, else the text on one line. */
+const ctaLinesOf = (brand: WorkshopBrand): string[] =>
+  brand.ctaLines?.length
+    ? brand.ctaLines.slice(0, 3)
+    : brand.ctaText
+      ? [brand.ctaText]
+      : [];
+
+/**
+ * The call to action's size: large for a short line, smaller as its longest line grows, so a
+ * whole sentence still fits in its (up to three) lines (ctaFontPx in end-card.mjs).
+ */
+const ctaFontSize = (lines: string[], width: number, height: number) => {
+  const unit = Math.min(width, height);
+  const longest = Math.max(1, ...lines.map((line) => line.length));
+  return Math.max(
+    16,
+    Math.floor(Math.min(unit * 0.058, (width * 0.8) / (longest * GLYPH_EM))),
+  );
+};
+
 /** The closing card: the brand logo, the call to action and the website. */
 export const EndCard: React.FC<{
   brand: WorkshopBrand;
@@ -29,6 +53,8 @@ export const EndCard: React.FC<{
     extrapolateRight: "clamp",
   });
   const second = brand.secondaryColor || "#07111c";
+  const lines = ctaLinesOf(brand);
+  const fontSize = ctaFontSize(lines, width, height);
   return (
     <AbsoluteFill
       style={{
@@ -58,22 +84,29 @@ export const EndCard: React.FC<{
           }}
         />
       ) : null}
-      {brand.ctaText ? (
+      {lines.length ? (
         <div
           dir="rtl"
           style={{
             background: accent,
             color: "#05080f",
             fontWeight: 800,
-            fontSize: Math.round(unit * 0.055),
-            padding: `${Math.round(unit * 0.02)}px ${Math.round(unit * 0.05)}px`,
-            borderRadius: 999,
+            fontSize,
+            lineHeight: 1.22,
+            textAlign: "center",
+            maxWidth: "88%",
+            padding: `${Math.round(unit * 0.022)}px ${Math.round(unit * (lines.length > 1 ? 0.04 : 0.05))}px`,
+            borderRadius: lines.length > 1 ? Math.round(unit * 0.04) : 999,
             opacity: ctaIn,
             transform: `translateY(${(1 - ctaIn) * 30}px)`,
             boxShadow: `0 10px 40px ${accent}55`,
           }}
         >
-          {brand.ctaText}
+          {lines.map((line, index) => (
+            <div key={index} dir="rtl" style={{ whiteSpace: "nowrap" }}>
+              {line}
+            </div>
+          ))}
         </div>
       ) : null}
       {brand.ctaUrl ? (

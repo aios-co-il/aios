@@ -53,9 +53,21 @@ async function measured(timeline, probeFile) {
   const narration = timeline.narrationPath
     ? await read(timeline.narrationPath)
     : null;
+  const effects = timeline.effects
+    ? {
+        ...timeline.effects,
+        whooshDurationS: timeline.effects.whooshPath
+          ? (await read(timeline.effects.whooshPath))?.duration || 0
+          : 0,
+        impactDurationS: timeline.effects.impactPath
+          ? (await read(timeline.effects.impactPath))?.duration || 0
+          : 0,
+      }
+    : null;
   return {
     ...timeline,
     scenes,
+    effects,
     narrationDurationS: narration?.duration || timeline.narrationDurationS || 0,
   };
 }

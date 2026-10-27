@@ -780,6 +780,68 @@ Deno.test(
 );
 
 Deno.test(
+  "a trailer brief reaches the music prompt and turns on the render's sound design",
+  async () => {
+    const run = async (film: string, args: Record<string, unknown> = {}) => {
+      const db = fakeDb({
+        ...videoProject({
+          payload: {
+            format: "9:16",
+            project_type: "video",
+            video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
+            workshop_brief: { asked: true },
+            workshop_look: { film, bible: "warm editorial look" },
+          },
+        }),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      const result = (await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, ...args },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      )) as Record<string, any>;
+      const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
+        ?.value as Record<string, any>;
+      const payload = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map((c) => (c.value as Record<string, any>).payload)
+        .filter((saved) => saved?.video)
+        .pop();
+      return { result, rpc, saved: payload.video, payload };
+    };
+    const waitlist =
+      "הירשמו לרשימת ההמתנה — 1000 הנרשמים הראשונים יקבלו את חבילת הבסיס בחינם לכל החיים!";
+    const trailer = await run(
+      "סגנון: כרמן מציגה את המערכת. מוזיקה: מוזיקת טריילר אקשן, לא מוגזם.",
+      { cta_text: waitlist },
+    );
+    // The whole sentence reaches the end card, which wraps it into lines.
+    assertStrictEquals(trailer.payload.cta_text, waitlist);
+    assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
+    assertStrictEquals(trailer.saved.sound_design, true);
+    assertStrictEquals(trailer.result.sound_design, true);
+    // The effects are made in this production's render, so its quote includes them.
+    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.05);
+
+    const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
+    assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
+    assertStrictEquals(calm.saved.sound_design, false);
+    assertStrictEquals(calm.result.sound_design, undefined);
+    assertStrictEquals(calm.rpc.p_estimate.sound_effects.usd, 0);
+
+    const asked = await run("קצב: רגוע", { sound_design: true });
+    assertStrictEquals(asked.saved.sound_design, true);
+  },
+);
+
+Deno.test(
   "with no paid keys the film is produced on the free preview engine",
   async () => {
     const asked = (await executeWorkshopTool(
@@ -952,6 +1014,216 @@ Deno.test(
       "https://x/still-1.png",
     );
     assertEquals(saved[0].references, ["https://x/ref-1.png"]);
+  },
+);
+
+Deno.test(
+  "a scene with its own picture is made from that picture, never from the anchor",
+  async () => {
+    const skin = (n: number) => `https://cdn.example.com/skin-${n}.png`;
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1", { meta: { reference_url: skin(1) } }),
+        scene("s-2"),
+        scene("s-3", { meta: { reference_url: skin(3) } }),
+        scene("s-4"),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: { prompt: string; references?: string[] }[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      {
+        item_id: "item-1",
+        confirmed: true,
+        reference_urls: ["https://x/brand.png"],
+      },
+      async () => {},
+      null,
+      {
+        generateImage: async (
+          prompt: string,
+          _format: string,
+          refs?: string[],
+        ) => {
+          seen.push({ prompt, references: refs });
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(done.created, 4);
+    assertStrictEquals(done.own_reference_scenes, 2);
+    // The anchor is the first scene that follows the project's look (s-2), made first.
+    assertEquals(seen[0].references, ["https://x/brand.png"]);
+    const own = seen.filter((call) =>
+      call.references?.some((url) => url.includes("skin-")),
+    );
+    assertEquals(
+      own.map((call) => call.references),
+      [[skin(1)], [skin(3)]],
+    );
+    for (const call of own) {
+      assertMatch(call.prompt, /this scene's character reference/);
+      assertMatch(call.prompt, /warm editorial look/);
+      assertNotMatch(call.prompt, /approved first frame/);
+    }
+    const plain = seen.slice(1).filter((call) => !own.includes(call));
+    assertEquals(
+      plain.map((call) => call.references),
+      [["https://x/brand.png", "https://x/still-1.png"]],
+    );
+    const attached = db.calls
+      .filter((c) => c.table === "rpc:attach_video_scene_asset")
+      .map((c) => c.value as Record<string, any>);
+    assertEquals(
+      attached
+        .filter((call) => call.p_meta.reference_url)
+        .map((call) => call.p_scene_id)
+        .sort(),
+      ["s-1", "s-3"],
+    );
+    assertMatch(done.message, /2 מהן נוצרו לפי התמונה של הסצנה/);
+  },
+);
+
+Deno.test(
+  "when the anchor frame fails, scenes with their own picture are still made",
+  async () => {
+    const skin = (n: number) => `https://cdn.example.com/skin-${n}.png`;
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1"),
+        scene("s-2", { meta: { reference_url: skin(2) } }),
+        scene("s-3"),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: (string[] | undefined)[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1", confirmed: true },
+      async () => {},
+      null,
+      {
+        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+          seen.push(refs);
+          if (seen.length === 1) throw new Error("engine busy");
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    // The anchor (s-1) failed; s-2 has its own picture and is made; s-3 waits for the anchor.
+    assertStrictEquals(done.created, 1);
+    assertStrictEquals(done.own_reference_scenes, 1);
+    assertEquals(seen.slice(1), [[skin(2)]]);
+    assertStrictEquals(done.anchored, false);
+  },
+);
+
+Deno.test(
+  "when every scene has its own picture no anchor frame is made or saved",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1", {
+          meta: { reference_url: "https://cdn.example.com/a.png" },
+        }),
+        scene("s-2", {
+          meta: { reference_url: "https://cdn.example.com/b.png" },
+        }),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: (string[] | undefined)[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1", confirmed: true },
+      async () => {},
+      null,
+      {
+        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+          seen.push(refs);
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(done.created, 2);
+    assertStrictEquals(done.anchored, false);
+    assertEquals(seen.map((refs) => refs?.[0]).sort(), [
+      "https://cdn.example.com/a.png",
+      "https://cdn.example.com/b.png",
+    ]);
+    const looks = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as Record<string, any>).payload.workshop_look);
+    assertStrictEquals(
+      looks.some((look) => look?.anchor_url),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "the storyboard keeps each scene's own picture and refuses one it cannot fetch",
+  async () => {
+    const db = fakeDb(videoProject());
+    const saved = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [
+          {
+            visual_prompt: "Carmen presents the calendar",
+            reference_url: " https://cdn.example.com/skin-calendar.png ",
+          },
+          { visual_prompt: "Carmen at the desk" },
+        ],
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(saved.success, true);
+    assertStrictEquals(saved.scenes_with_own_reference, 1);
+    const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")
+      ?.value as Record<string, any>;
+    assertStrictEquals(
+      rpc.p_scenes[0].reference_url,
+      "https://cdn.example.com/skin-calendar.png",
+    );
+    assertStrictEquals("reference_url" in rpc.p_scenes[1], false);
+    // A scene's picture never becomes a project-wide reference.
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "workshop_assets" && c.op === "insert"),
+      false,
+    );
+
+    const bad = fakeDb(videoProject());
+    const refused = (await executeWorkshopTool(
+      bad,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [
+          { visual_prompt: "a" },
+          { visual_prompt: "b", reference_url: "http://localhost/skin.png" },
+        ],
+      },
+    )) as Record<string, any>;
+    assertMatch(String(refused.error), /סצנה 2: reference_url/);
+    assertStrictEquals(
+      bad.calls.some((c) => c.table === "rpc:save_video_storyboard"),
+      false,
+    );
   },
 );
 
@@ -1513,7 +1785,8 @@ Deno.test(
         }),
         "tenant-1",
         "workshop_produce_video",
-        { item_id: "item-1", music: false },
+        // The fixture's look is "cinematic"; these quotes are about the clips alone.
+        { item_id: "item-1", music: false, sound_design: false },
         async () => {},
         null,
         {
@@ -1579,7 +1852,8 @@ Deno.test(
         }),
         "tenant-1",
         "workshop_produce_video",
-        { item_id: "item-1", music: false },
+        // The fixture's look is "cinematic"; these quotes are about the clips alone.
+        { item_id: "item-1", music: false, sound_design: false },
         async () => {},
         null,
         { defaultEngine: async () => engine },
@@ -1614,6 +1888,23 @@ Deno.test(
       "marketing_assets:select": [{ id: "clip-s-1" }],
     });
     assertStrictEquals(free.needs_budget, undefined);
+    // Trailer effects are paid for even on the free preview, so they are quoted.
+    const effects = (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [clip("s-1")],
+        "marketing_assets:select": [{ id: "clip-s-1" }],
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", music: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "mock" as const },
+    )) as Record<string, any>;
+    assertStrictEquals(effects.needs_budget, true);
+    assertStrictEquals(effects.estimated_usd, 0.05);
+    assertStrictEquals(effects.with_sound_effects, true);
   },
 );
 

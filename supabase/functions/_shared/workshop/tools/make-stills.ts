@@ -1,7 +1,7 @@
 import { spendBudget } from "../budget.ts";
 import { estimateImages, imageFormatsFrom } from "../defaults.ts";
 import { gatePaid } from "../gate.ts";
-import { lookOf, stillPrompt, withLook } from "../look.ts";
+import { lookOf, sceneReferenceUrl, stillPrompt, withLook } from "../look.ts";
 import {
   ensureStillPage,
   failedPatch,
@@ -27,6 +27,11 @@ import {
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { quotedProductionEstimate } from "../video-cost.ts";
+import { wantsSoundDesign } from "../sound-design.ts";
+
+/** The scene's own character picture (saved by workshop_storyboard), if it has one. */
+const ownReference = (scene: Record<string, any>) =>
+  sceneReferenceUrl(asRecord(scene.meta).reference_url);
 
 export async function workshopMakeStills(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
@@ -106,6 +111,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
         String(scene.voiceover_text ?? "").trim(),
       ),
       withMusic: true,
+      withSoundEffects: wantsSoundDesign(project.payload, {
+        userText: deps.userText,
+      }),
     },
     deps.videoConnections ? await deps.videoConnections() : {},
   );
@@ -161,15 +169,21 @@ export async function workshopMakeStills(ctx: ToolContext) {
       return { scene: scene.id, ok: false, error };
     };
     try {
-      const references = anchorUrl
-        ? [...look.references, anchorUrl]
-        : look.references;
+      // A scene with its own picture (the skin worn in it) is made from that picture alone,
+      // with the style bible; the others follow the project's references and anchor frame.
+      const own = ownReference(scene);
+      const references = own
+        ? [own]
+        : anchorUrl
+          ? [...look.references, anchorUrl]
+          : look.references;
       const made = await deps.generateImage!(
         stillPrompt({
           visual: scene.visual_prompt,
           look,
-          userReferences: look.references.length,
-          hasAnchor: Boolean(anchorUrl),
+          userReferences: own ? 0 : look.references.length,
+          hasAnchor: !own && Boolean(anchorUrl),
+          sceneReference: Boolean(own),
           suffix:
             "Cinematic still frame for a video storyboard. No text on the image.",
         }),
@@ -182,7 +196,11 @@ export async function workshopMakeStills(ctx: ToolContext) {
         p_scene_id: scene.id,
         p_kind: "still",
         p_url: made.image_url,
-        p_meta: { prompt: scene.visual_prompt, source: "workshop" },
+        p_meta: {
+          prompt: scene.visual_prompt,
+          source: "workshop",
+          ...(own ? { reference_url: own } : {}),
+        },
       });
       if (attached.error) return await fail(attached.error.message);
       await ensureStillPage(
@@ -221,11 +239,18 @@ export async function workshopMakeStills(ctx: ToolContext) {
   const results: { scene: string; ok: boolean; error?: string }[] = [];
   const startedAt = Date.now();
   let todo = [...batch];
-  if (!anchorUrl) {
-    const first = todo.shift()!;
+  // The anchor frame is the first scene that follows the project's look; a scene with its own
+  // picture needs no anchor and never becomes one (it wears a different look).
+  const firstPlain = anchorUrl
+    ? -1
+    : todo.findIndex((scene) => !ownReference(scene));
+  if (firstPlain >= 0) {
+    const [first] = todo.splice(firstPlain, 1);
     const [done] = await renderGroup([first]);
     results.push({ scene: done.scene, ok: done.ok, error: done.error });
-    if (!done.ok) todo = [];
+    // Without the anchor the plain scenes wait for the next call; a scene with its own
+    // picture does not need the anchor, so it is still made now.
+    if (!done.ok) todo = todo.filter((scene) => ownReference(scene));
     else {
       anchorUrl = done.url ?? null;
       payload = withLook(payload, {}, { anchorUrl }).payload;
@@ -243,6 +268,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
   const redone = new Set(
     results.filter((result) => result.ok).map((result) => result.scene),
   );
+  const ownMade = batch.filter(
+    (scene) => redone.has(scene.id) && ownReference(scene),
+  ).length;
   const leftToRedo = stringList(payload[REDO_KEY]).filter(
     (id) => !redone.has(id),
   );
@@ -259,14 +287,21 @@ export async function workshopMakeStills(ctx: ToolContext) {
     failed,
     remaining,
     used_references: look.references.length,
+    ...(ownMade > 0 ? { own_reference_scenes: ownMade } : {}),
     anchored: Boolean(anchorUrl),
     message:
       created === 0
         ? `לא נוצרה אף תמונה. ${failed[0]?.error ?? ""}`.trim()
         : `${created} תמונות נוצרו והן כבר מופיעות בלוח, אין צורך לשלוח או לצרף אותן. ${
-            look.references.length > 0
-              ? `נוצרו לפי ${look.references.length} רפרנסים ותמונת עוגן אחת לאחידות. `
-              : "אין לפרויקט רפרנס: אם המשתמש צירף או הזכיר תמונה, העבירי אותה ב-reference_urls והציעי ליצור מחדש עם redo=true. "
+            ownMade > 0
+              ? `${ownMade} מהן נוצרו לפי התמונה של הסצנה עצמה (reference_url), עם אותה דמות ואותו לבוש. `
+              : ""
+          }${
+            ownMade === created
+              ? ""
+              : look.references.length > 0
+                ? `נוצרו לפי ${look.references.length} רפרנסים ותמונת עוגן אחת לאחידות. `
+                : "אין לפרויקט רפרנס: אם המשתמש צירף או הזכיר תמונה, העבירי אותה ב-reference_urls והציעי ליצור מחדש עם redo=true. "
           }${
             remaining > 0
               ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills להמשך, בלי redo. כל עוד זה בתקציב זה ירוץ בלי לשאול.`

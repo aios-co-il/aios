@@ -1,6 +1,7 @@
 /** The edit Remotion renders. A mock clip is a still with a zoom, so the
  * composition animates the still. A real video clip is placed on the timeline as-is. */
 import { brandColor, brandFont } from "./brand.mjs";
+import { MAX_CTA_CHARS, ctaLines, endCardSeconds } from "./end-card.mjs";
 import { lineFrames } from "./line-sync.mjs";
 import {
   captionChunks,
@@ -10,6 +11,7 @@ import {
 } from "./captions.mjs";
 import {
   MIX,
+  effectCues,
   fitScenes,
   musicEnvelope,
   sceneTransition,
@@ -20,7 +22,6 @@ import {
 
 export const WORKSHOP_FPS = 30;
 export const WORKSHOP_SCHEMA = 3;
-export const END_CARD_FRAMES = 75;
 const TAIL_FRAMES = 15;
 export const WORKSHOP_MOVES = [
   "push",
@@ -67,13 +68,15 @@ function brandOf(brand, files) {
     ctaText:
       String(brand.ctaText ?? "")
         .trim()
-        .slice(0, 60) || null,
+        .slice(0, MAX_CTA_CHARS) || null,
     ctaUrl:
       String(brand.ctaUrl ?? "")
         .trim()
         .slice(0, 120) || null,
   };
-  return Object.values(out).some(Boolean) ? out : null;
+  if (!Object.values(out).some(Boolean)) return null;
+  // A whole-sentence call to action is shown in up to three balanced lines (end-card.mjs).
+  return out.ctaText ? { ...out, ctaLines: ctaLines(out.ctaText) } : out;
 }
 
 /**
@@ -225,7 +228,10 @@ export function buildWorkshopManifest(timeline) {
   const brand = brandOf(timeline.brand, files);
   const endCard =
     brand && timeline.brand?.endCard !== false && (brand.logo || brand.ctaText)
-      ? { startFrame: scenesEnd, frameCount: END_CARD_FRAMES }
+      ? {
+          startFrame: scenesEnd,
+          frameCount: Math.round(endCardSeconds(brand.ctaLines ?? []) * fps),
+        }
       : null;
   const totalFrames = scenesEnd + (endCard?.frameCount ?? 0);
 
@@ -234,6 +240,29 @@ export function buildWorkshopManifest(timeline) {
     music = `music.${extension(timeline.musicPath)}`;
     files.push({ from: timeline.musicPath, to: music });
   }
+
+  // Trailer sound design, mixed under the voice: ducked like the music bed.
+  const fx = timeline.effects;
+  const stage = (path, name) => {
+    if (!path) return null;
+    const to = `${name}.${extension(path)}`;
+    files.push({ from: path, to });
+    return to;
+  };
+  const whoosh = fx ? stage(fx.whooshPath, "sfx-whoosh") : null;
+  const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;
+  const effects =
+    whoosh || impact
+      ? effectCues(scenes, {
+          fps,
+          totalFrames,
+          whoosh,
+          impact,
+          whooshFrames: Math.ceil(seconds(fx.whooshDurationS) * fps),
+          impactFrames: Math.ceil(seconds(fx.impactDurationS) * fps),
+          endCardStart: endCard?.startFrame ?? null,
+        })
+      : [];
   return {
     manifest: {
       schemaVersion: WORKSHOP_SCHEMA,
@@ -245,6 +274,15 @@ export function buildWorkshopManifest(timeline) {
       narration,
       music,
       musicEnvelope: musicEnvelope(speech, totalFrames),
+      ...(effects.length
+        ? {
+            effects,
+            effectsEnvelope: musicEnvelope(speech, totalFrames, {
+              base: MIX.effects,
+              ducked: MIX.effectsDucked,
+            }),
+          }
+        : {}),
       captions: captionChunks(framed, fps, scenesEnd),
       clipAudio,
       brand,

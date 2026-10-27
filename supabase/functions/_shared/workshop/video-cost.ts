@@ -75,6 +75,14 @@ export interface CostScene {
  */
 export const LIPSYNC_USD_PER_SECOND = 0.1;
 
+/**
+ * Trailer sound design: one whoosh (1.2 s) and one low impact (2.5 s) made once per film with
+ * ElevenLabs sound effects, in the production's own render (render-worker
+ * jobs/sound-effects-catalog.mjs): 3.7 s at 40 credits a second at $0.0003 a credit is $0.0444,
+ * rounded up to the cent. A render outside a production never pays for them.
+ */
+export const SOUND_EFFECTS_USD = 0.05;
+
 /** Engines whose clip speaks the line itself (Veo 3.1, Seedance 2.5), so no lip-sync pass. */
 export const speaksNatively = (engine: SceneEngine) =>
   engine === "elevenlabs" || engine === "higgsfield" || engine === "openrouter";
@@ -189,11 +197,18 @@ export function musicEstimate(scenes: CostScene[]): Estimate {
   return { usd: roundUsd((seconds / 60) * MUSIC_USD_PER_MINUTE), credits: 0 };
 }
 
+export interface ProductionOptions {
+  withVoice: boolean;
+  withMusic: boolean;
+  /** Trailer sound effects, made in the production's render (see SOUND_EFFECTS_USD). */
+  withSoundEffects?: boolean;
+}
+
 /** Everything produce_video will queue for scenes that have a still and no clip yet. */
 export function productionEstimate(
   engine: SceneEngine,
   scenes: CostScene[],
-  options: { withVoice: boolean; withMusic: boolean },
+  options: ProductionOptions,
 ) {
   const clips = clipEstimate(engine, scenes);
   // A talking scene is not narrated; its own line is priced with its lip sync.
@@ -209,13 +224,19 @@ export function productionEstimate(
     : { usd: 0, credits: 0 };
   const talking = lipsyncEstimate(engine, scenes);
   const lipsync = { usd: talking.usd, credits: talking.credits };
+  const soundEffects = options.withSoundEffects
+    ? { usd: SOUND_EFFECTS_USD, credits: 0 }
+    : { usd: 0, credits: 0 };
   return {
     clips: { usd: clips.usd, credits: clips.credits },
     voice,
     music,
     lipsync,
+    soundEffects,
     talkingScenes: talking.scenes,
-    totalUsd: roundUsd(clips.usd + voice.usd + music.usd + lipsync.usd),
+    totalUsd: roundUsd(
+      clips.usd + voice.usd + music.usd + lipsync.usd + soundEffects.usd,
+    ),
     clipSeconds: clips.seconds,
   };
 }
@@ -258,7 +279,7 @@ function withLipsyncFallback(
 export function quotedProductionEstimate(
   engine: SceneEngine,
   scenes: CostScene[],
-  options: { withVoice: boolean; withMusic: boolean },
+  options: ProductionOptions,
   connections: VideoConnections = {},
 ) {
   const own = withLipsyncFallback(
