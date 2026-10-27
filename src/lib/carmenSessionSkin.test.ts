@@ -4,7 +4,7 @@ import {
   setSessionSkin,
   setWorkshopSkin,
 } from "./carmenSessionSkin.ts";
-import { setWorkshopContext } from "./workshopBridge.ts";
+import { applyWorkshopSkin, setWorkshopContext } from "./workshopBridge.ts";
 
 const openWorkshop = () =>
   setWorkshopContext({
@@ -32,6 +32,16 @@ test("leaving the workshop goes back to the base skin when none was picked", () 
   setWorkshopSkin("t-2", "creative_direct");
   setWorkshopContext(null);
   expect(getSessionSkin("t-2")).toBe(null);
+});
+
+test("a role skin that streams in after the workshop closed does not switch Carmen", () => {
+  setSessionSkin("t-4", "sales_coach");
+  openWorkshop();
+  applyWorkshopSkin("t-4", "video_director");
+  setWorkshopContext(null);
+  // The turn the user left keeps streaming; its next tool's skin event arrives on /clients.
+  applyWorkshopSkin("t-4", "video_editor");
+  expect(getSessionSkin("t-4")).toBe("sales_coach");
 });
 
 test("a skin the user picks in the workshop stays after it", () => {

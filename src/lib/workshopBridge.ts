@@ -1,4 +1,4 @@
-import { releaseWorkshopSkins } from "./carmenSessionSkin";
+import { releaseWorkshopSkins, setWorkshopSkin } from "./carmenSessionSkin";
 
 /**
  * The link between the workshop board and Carmen's session chat. They sit in different parts
@@ -41,6 +41,18 @@ export function setWorkshopContext(next: WorkshopContext | null) {
     pendingPrefill = null;
     releaseWorkshopSkins();
   }
+}
+
+/**
+ * A workshop turn's `skin` event: the server switched Carmen to one of its role skins. It counts
+ * only while the workshop is open; a turn the user left keeps streaming, and a later tool's
+ * event must not switch the Carmen of the page they went to.
+ */
+export function applyWorkshopSkin(
+  tenantId: string | null | undefined,
+  slug: string,
+) {
+  if (context) setWorkshopSkin(tenantId, slug);
 }
 
 export function emitWorkshopEvent(event: WorkshopEvent) {
