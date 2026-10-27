@@ -315,7 +315,8 @@ export function ClientUpdatesTab({
       setNewUpdate("");
       toast.success("העדכון נוסף בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates insert failed:", error);
       toast.error("שגיאה בהוספת העדכון");
     },
   });
@@ -330,7 +331,8 @@ export function ClientUpdatesTab({
       setEditingUpdateContent("");
       toast.success("העדכון נערך בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates edit failed:", error);
       toast.error("שגיאה בעריכת העדכון");
     },
   });
@@ -342,7 +344,8 @@ export function ClientUpdatesTab({
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       toast.success("העדכון נמחק בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates delete failed:", error);
       toast.error("שגיאה במחיקת העדכון");
     },
   });

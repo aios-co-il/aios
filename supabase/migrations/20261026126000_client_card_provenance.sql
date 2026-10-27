@@ -43,7 +43,10 @@
 --    row. In the browser they can be edited or deleted only by tenant owners
 --    and agency owners of the org that wrote them (the row's tenant_id);
 --    campaigners keep editing and deleting their own human rows. The browser
---    may insert only human or system_send rows.
+--    may insert only human or system_send rows, as the signed-in user, in
+--    their own tenant. Because every reader of the client sees every entry,
+--    a browser insert or edit must also keep the row on a client the writer
+--    can see.
 
 ALTER TABLE public.client_updates
   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'human',
@@ -344,8 +347,8 @@ REVOKE ALL ON FUNCTION public.user_can_manage_client_card_entries(uuid)
 GRANT EXECUTE ON FUNCTION public.user_can_manage_client_card_entries(uuid)
   TO authenticated, service_role;
 
--- Browser inserts: own tenant, only human or system_send rows (super admins
--- keep the baseline bypass).
+-- Browser inserts: as yourself, in your own tenant, on a client you can see,
+-- only human or system_send rows (super admins keep the baseline bypass).
 DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
 CREATE POLICY "Users can create client updates in their tenant"
   ON public.client_updates
@@ -354,7 +357,13 @@ CREATE POLICY "Users can create client updates in their tenant"
     public.is_super_admin(auth.uid())
     OR (
       tenant_id = public.get_user_tenant_id(auth.uid())
+      AND user_id = auth.uid()
       AND source IN ('human', 'system_send')
+      AND EXISTS (
+        SELECT 1
+        FROM public.clients AS c
+        WHERE c.id = client_updates.client_id
+      )
     )
   );
 
@@ -375,7 +384,8 @@ CREATE POLICY "Users view card entries of clients they can see"
   );
 
 -- Updates: authors edit their own human rows; tenant and agency owners edit
--- rows no person wrote.
+-- rows no person wrote, which stay non-human. The edited row stays on a
+-- client the editor can see.
 DROP POLICY IF EXISTS "Users can update own client updates" ON public.client_updates;
 CREATE POLICY "Users can update own client updates"
   ON public.client_updates
@@ -388,8 +398,18 @@ CREATE POLICY "Users can update own client updates"
     )
   )
   WITH CHECK (
-    (source = 'human' AND user_id = auth.uid())
-    OR public.user_can_manage_client_card_entries(tenant_id)
+    (
+      (source = 'human' AND user_id = auth.uid())
+      OR (
+        source <> 'human'
+        AND public.user_can_manage_client_card_entries(tenant_id)
+      )
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.clients AS c
+      WHERE c.id = client_updates.client_id
+    )
   );
 
 -- Deletes: authors delete their own human rows; tenant and agency owners

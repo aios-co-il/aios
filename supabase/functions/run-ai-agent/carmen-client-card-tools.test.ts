@@ -228,33 +228,34 @@ Deno.test("recordHealthCardEntryAfterUpdate", async (t) => {
   });
 
   await t.step(
-    "a card refusal becomes card_entry_error, so the health update stands",
+    "a refused or failed card write becomes card_entry_error, so the health update stands",
     async () => {
-      const { supabase, calls } = fakeCardRpc({
-        error: {
-          code: "42501",
-          message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
-        },
-      });
-      const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
-      assertStrictEquals(calls.length, 1);
-      assertEquals(fields, {
-        card_entry_error: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
-      });
+      const refusal = {
+        code: "42501",
+        message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
+      };
+      // supabase-js reports a network failure as { error }, never a rejection.
+      const outage = { code: "", message: "FetchError: network down" };
+      for (const error of [refusal, outage]) {
+        const { supabase, calls } = fakeCardRpc({ error });
+        const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
+        assertStrictEquals(calls.length, 1);
+        assertEquals(fields, { card_entry_error: error.message });
+      }
     },
   );
 
   await t.step(
-    "any other failure is rethrown, so the tool reports it",
+    "an exception that is not a card error is rethrown, so the tool reports it",
     async () => {
-      const outage = new Error("network down");
+      const bug = new TypeError("not a function");
       const supabase = {
-        rpc: () => Promise.reject(outage),
+        rpc: () => Promise.reject(bug),
       };
       const thrown = await assertRejects(() =>
         recordHealthCardEntryAfterUpdate(supabase, input),
       );
-      assertStrictEquals(thrown, outage);
+      assertStrictEquals(thrown, bug);
     },
   );
 });
