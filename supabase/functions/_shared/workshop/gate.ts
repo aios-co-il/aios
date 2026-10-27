@@ -28,6 +28,8 @@ export interface WorkshopDeps {
   /** Image engines the tenant has keys for; more than one means the user chooses. */
   imageEngines?: () => Promise<ImageProvider[]>;
   defaultEngine?: () => Promise<SceneEngine>;
+  /** Scene engines the tenant can run; a pinned engine outside them is dropped. */
+  sceneEngines?: () => Promise<SceneEngine[]>;
   /** Video engines connected outside the LLM settings (an OpenRouter brain connection). */
   videoConnections?: () => Promise<VideoConnections>;
   envOpenAiKey?: string;

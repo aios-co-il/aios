@@ -85,6 +85,7 @@ import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
   connectedProviders,
@@ -5869,6 +5870,21 @@ async function executeTool(
           return sceneEngineFor(
             (data?.settings || {}) as Record<string, unknown>,
             fetch,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        sceneEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return connectedSceneEngines(
+            (data?.settings || {}) as Record<string, unknown>,
             await videoConnectionsFor(supabase, tenantId),
           );
         },

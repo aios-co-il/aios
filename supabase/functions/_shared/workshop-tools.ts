@@ -11,6 +11,7 @@
  */
 
 import type { Db } from "./workshop/db.ts";
+import { settleEngine } from "./workshop/engine-choice.ts";
 import { type WorkshopDeps } from "./workshop/gate.ts";
 import { isWorkshopTool } from "./workshop/tool-definitions.ts";
 import type { ToolContext } from "./workshop/tool-context.ts";
@@ -65,13 +66,18 @@ export async function executeWorkshopTool(
   if (!isWorkshopTool(name)) return { error: "כלי לא מוכר" };
   const handler = HANDLERS[name];
   if (!handler) return { error: "כלי לא מוכר" };
-  return await handler({
+  // An engine that is not connected is not an error to retry on: the server picks one.
+  const settled = await settleEngine(name, args, deps);
+  const result = await handler({
     supabase,
     tenantId,
     name,
-    args,
+    args: settled.args,
     assertClientAccess,
     userId,
     deps,
   });
+  return settled.note && result && typeof result === "object"
+    ? { ...(result as Record<string, unknown>), engine_note: settled.note }
+    : result;
 }

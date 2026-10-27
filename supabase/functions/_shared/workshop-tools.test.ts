@@ -1193,16 +1193,22 @@ Deno.test(
     assertStrictEquals(asked.needs_input, undefined);
     assertNotStrictEquals(asked.missing?.[0], "engine");
 
-    const unknown = (await executeWorkshopTool(
-      fakeDb(script),
-      "tenant-1",
-      "workshop_make_stills",
-      { item_id: "item-1", engine: "openai" },
-      async () => {},
-      null,
-      deps,
-    )) as Record<string, any>;
-    assertMatch(unknown.error, /אין מפתח ל-OpenAI/);
+    // An engine that is not connected is ignored with a note, never an error to retry on.
+    for (const engine of ["openai", "openrouter", "dall-e-9"]) {
+      const unknown = (await executeWorkshopTool(
+        fakeDb(script),
+        "tenant-1",
+        "workshop_make_stills",
+        { item_id: "item-1", engine },
+        async () => {},
+        null,
+        deps,
+      )) as Record<string, any>;
+      assertStrictEquals(unknown.error, undefined, engine);
+      assertStrictEquals(unknown.needs_budget, true, engine);
+      assertMatch(unknown.engine_note, /לא מחובר, אז השרת בחר מנוע מחובר/);
+      assertNotMatch(JSON.stringify(unknown), /רצה שוב|בלי לציין מנוע/);
+    }
 
     const db = fakeDb(script);
     await executeWorkshopTool(
