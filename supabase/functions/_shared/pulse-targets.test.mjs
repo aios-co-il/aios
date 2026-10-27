@@ -184,6 +184,54 @@ Deno.test(
 );
 
 Deno.test(
+  "a full tie between tables resolves the same whatever order the caller passes",
+  () => {
+    // Same source, same level, no set_at: legacy target_cpl on duplicate tables.
+    const tables = [
+      { tableId: "t-b", settings: { target_cpl: 80 } },
+      { tableId: "t-a", settings: { target_cpl: 60 } },
+      { tableId: "t-c", settings: { target_cpl: 70 } },
+    ];
+    const orders = [
+      [0, 1, 2],
+      [0, 2, 1],
+      [1, 0, 2],
+      [1, 2, 0],
+      [2, 0, 1],
+      [2, 1, 0],
+    ];
+    for (const order of orders) {
+      const target = resolvePulseTargetAcross(
+        order.map((i) => tables[i]),
+        "leads",
+      );
+      assertStrictEquals(target.value, 60, order.join());
+      assertStrictEquals(target.table_id, "t-a", order.join());
+      assertStrictEquals(target.scope, "table");
+    }
+
+    // One table read under two identities, both with a campaign target of the same
+    // date: the lower campaign id wins in either order.
+    const settings = {
+      pulse_targets: {
+        c2: { cpl: 90, set_at: "2026-10-01T08:00:00Z" },
+        c1: { cpl: 50, set_at: "2026-10-01T08:00:00Z" },
+      },
+    };
+    const byC1 = { tableId: "t-a", settings, campaignId: "c1" };
+    const byC2 = { tableId: "t-a", settings, campaignId: "c2" };
+    for (const places of [
+      [byC1, byC2],
+      [byC2, byC1],
+    ]) {
+      const target = resolvePulseTargetAcross(places, "leads");
+      assertStrictEquals(target.value, 50);
+      assertStrictEquals(target.campaign_id, "c1");
+    }
+  },
+);
+
+Deno.test(
   "precedence: campaign → platform → pulse_targets.default → table fields",
   () => {
     const settings = {

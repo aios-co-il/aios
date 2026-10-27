@@ -373,15 +373,9 @@ export function buildPulseAttentionRows({
       metrics.primaryGoal,
     );
     // The platform target as the pulse and the editor read it: from any of the
-    // platform's tables, the primary one first.
-    const platformTables = [
-      primaryTable,
-      ...platformTablesForClient(tables, clientId, platform).filter(
-        (table) => table !== primaryTable,
-      ),
-    ].filter(Boolean);
+    // platform's tables (the resolver breaks ties itself, whatever their order).
     const target = resolvePulseTargetAcross(
-      platformTables.map((table) => ({
+      platformTablesForClient(tables, clientId, platform).map((table) => ({
         tableId: table.id,
         settings: table.integration_settings || {},
       })),

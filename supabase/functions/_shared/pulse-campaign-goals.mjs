@@ -1292,15 +1292,8 @@ export function buildPulseCampaignRows({
       sample.record.data,
       tableSettings,
     );
-    const places = [
-      ...(placesByCampaign.get(campaignKey)?.values() || []),
-    ].sort(
-      (a, b) =>
-        tableTypeRank(a.table, classification.goal) -
-          tableTypeRank(b.table, classification.goal) ||
-        String(a.table.id).localeCompare(String(b.table.id)) ||
-        String(a.identity.id ?? "").localeCompare(String(b.identity.id ?? "")),
-    );
+    // The resolver breaks ties itself, so the order of the places does not matter.
+    const places = [...(placesByCampaign.get(campaignKey)?.values() || [])];
     const target = campaignTarget(places, classification.goal);
     const status = classifyStatus({
       goal: classification.goal,
@@ -1368,6 +1361,11 @@ export function buildPulseCampaignRows({
       target_table_id: target?.table_id ?? null,
       target_campaign_id: target?.campaign_id ?? null,
       target_rationale: target?.rationale ?? null,
+      // Every table the campaign is read from (its target is resolved over these),
+      // so Carmen's set_market_target checks the same tables.
+      read_table_ids: [
+        ...new Set(places.map(({ table }) => String(table.id))),
+      ].sort(),
       spend_3d: round(current3.spend),
       outcomes_3d: round(current3.outcomes),
       efficiency_3d: round(efficiency3),

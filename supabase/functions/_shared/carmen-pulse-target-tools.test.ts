@@ -554,6 +554,87 @@ Deno.test(
 );
 
 Deno.test(
+  "a campaign market target is checked only on the tables the pulse reads the campaign from",
+  async () => {
+    // Two Google Ads accounts; account B holds an approved legacy CPL. The pulse
+    // reads campaign g1 from account A only, so B's target never applies to it.
+    const db = fakeDb(seed());
+    db.tables.crm_tables.push({
+      id: "t-google-b",
+      client_id: "client-1",
+      tenant_id: "tenant-1",
+      integration_type: "google_ads",
+      integration_settings: { target_cpl: 90 },
+    });
+    addPulseRow(db, {
+      campaign_key: "kg1",
+      campaign_id: "g1",
+      campaign_name: "חיפוש לידים",
+      table_id: "t-google",
+      platform: "google",
+      goal: "leads",
+      read_table_ids: ["t-google"],
+    });
+    const market = {
+      client_id: "client-1",
+      platform: "google",
+      goal: "leads",
+      value: 60,
+      rationale: RATIONALE,
+    };
+    const campaign: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      { ...market, campaign_id: "g1" },
+    );
+    assertStrictEquals(campaign.success, true);
+    assertEquals(campaign.written, [
+      { table_id: "t-google", integration_type: "google_ads" },
+    ]);
+    const a = db.tables.crm_tables.find((t) => t.id === "t-google")!;
+    assertStrictEquals(a.integration_settings.pulse_targets.g1.cpl, 60);
+    const b = db.tables.crm_tables.find((t) => t.id === "t-google-b")!;
+    assertEquals(b.integration_settings, { target_cpl: 90 }, "B untouched");
+
+    // A platform target still needs every table of the client × platform free.
+    const writes = db.writes.length;
+    const platform: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      market,
+    );
+    assertStrictEquals(platform.error, "approved_target_exists");
+    assertStrictEquals(platform.table_id, "t-google-b");
+    assertStrictEquals(db.writes.length, writes);
+
+    // When the pulse reads the campaign from B too, B's approved target applies.
+    const row = db.tables.campaign_pulse_snapshots[0].campaign_breakdown.at(-1);
+    row.read_table_ids = ["t-google", "t-google-b"];
+    const both: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      { ...market, campaign_id: "g1" },
+    );
+    assertStrictEquals(both.error, "approved_target_exists");
+    assertStrictEquals(both.table_id, "t-google-b");
+
+    // A snapshot from before read_table_ids checks every table, as before.
+    delete row.read_table_ids;
+    const old: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      { ...market, campaign_id: "g1" },
+    );
+    assertStrictEquals(old.error, "approved_target_exists");
+    assertStrictEquals(db.writes.length, writes);
+  },
+);
+
+Deno.test(
   "a market target far from the client's own baseline is refused",
   async () => {
     const db = fakeDb(seed());

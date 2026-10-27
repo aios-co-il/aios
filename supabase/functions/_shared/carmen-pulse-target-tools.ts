@@ -238,6 +238,8 @@ type PulseCampaignMatch = {
   targetValue: number | null;
   targetKind: string | null;
   targetScope: string | null;
+  /** The tables the pulse reads the campaign from (null in an older snapshot). */
+  readTableIds: string[] | null;
 };
 
 /** The campaign as the latest pulse sees it (name, table, goal and its target). */
@@ -266,7 +268,25 @@ function matchCampaign(
         : null,
     targetKind: text(match.target_kind),
     targetScope: text(match.target_scope),
+    readTableIds: Array.isArray(match.read_table_ids)
+      ? match.read_table_ids.map(String).filter(Boolean)
+      : null,
   };
+}
+
+/**
+ * The tables a campaign target is checked against: the ones the pulse reads the
+ * campaign from and resolves its target over. A snapshot from before
+ * read_table_ids (or one naming no table still connected) falls back to every
+ * table of the client × platform, which can only refuse more.
+ */
+function campaignReadTables<T extends { id: string }>(
+  tables: T[],
+  campaign: PulseCampaignMatch,
+): T[] {
+  const ids = new Set(campaign.readTableIds ?? []);
+  const read = tables.filter((table) => ids.has(table.id));
+  return read.length ? read : tables;
 }
 
 const GOAL_LABELS: Record<string, string> = {
@@ -491,12 +511,16 @@ async function setMarketTarget(
       source: "approved",
       scope: campaign.targetScope,
     });
-  // An approved target on any table of this client × platform blocks the whole
-  // write: nothing is written unless every table allows it.
+  // An approved target on any table checked blocks the whole write: a campaign is
+  // checked on the tables the pulse reads it from, a platform target on every table
+  // of this client × platform. Nothing is written unless every one allows it.
   const ref = campaign
     ? { campaignId: campaign.campaignId, campaignName: campaign.campaignName }
     : null;
-  for (const table of tables) {
+  const checkedTables = campaign
+    ? campaignReadTables(tables, campaign)
+    : tables;
+  for (const table of checkedTables) {
     const allowed = canSetMarketTarget(
       table.integration_settings || {},
       parsed.goal,

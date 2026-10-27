@@ -60,6 +60,8 @@ export type PulseCampaignGoalRow = {
   target_campaign_id?: string | null;
   /** Carmen's reasoning for a market target. */
   target_rationale?: string | null;
+  /** Every report table the campaign is read from; its target is resolved over these. */
+  read_table_ids?: string[];
   spend_3d: number;
   outcomes_3d: number | null;
   efficiency_3d: number | null;

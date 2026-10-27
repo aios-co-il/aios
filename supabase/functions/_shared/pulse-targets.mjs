@@ -20,7 +20,8 @@
  * level wins whole (campaign → platform → pulse_targets.default → table fields). A
  * campaign merged from several report tables (duplicate Meta tables) is resolved over
  * all of them (resolvePulseTargetAcross); between tables at the same level the most
- * recently set target wins, then the first table.
+ * recently set target wins, then the lowest table id, so every caller gets the same
+ * target whatever order it passes the tables in.
  *
  * Plain ESM so the Deno functions and the Vite dashboard run the same rules.
  */
@@ -175,27 +176,45 @@ function setAtMs(target) {
   return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
 }
 
-/** Does `a` (from a later table) beat `b`? Same table: the earlier one always wins. */
+function textKey(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+/**
+ * Does candidate `a` beat `b`? One order for every caller: approved before market,
+ * then the most specific level, then the most recently set, then the lowest table
+ * id, campaign id and campaign name (plain code-unit order, the same in Deno and
+ * the browser). The order the tables come in never decides.
+ */
 function outranks(a, b) {
   const source =
-    Number(a.source !== "approved") - Number(b.source !== "approved");
+    Number(a.target.source !== "approved") -
+    Number(b.target.source !== "approved");
   if (source) return source < 0;
-  const scope = SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope];
+  const scope = SCOPE_RANK[a.target.scope] - SCOPE_RANK[b.target.scope];
   if (scope) return scope < 0;
-  return setAtMs(a) > setAtMs(b);
+  const aSetAt = setAtMs(a.target);
+  const bSetAt = setAtMs(b.target);
+  if (aSetAt !== bSetAt) return aSetAt > bSetAt;
+  for (const key of ["tableId", "campaignId", "campaignName"]) {
+    const x = textKey(a.place[key]);
+    const y = textKey(b.place[key]);
+    if (x !== y) return x < y;
+  }
+  return false;
 }
 
 /**
  * The target that applies to one campaign merged from several tables (or, without
  * a campaign, to the platform goal of several tables). Every table is read with its
- * own campaign id and name; see the header for the order.
+ * own campaign id and name; see the header and outranks() for the order.
  *
  * @param {Array<{
  *   tableId?: string | null,
  *   settings: Record<string, unknown> | null | undefined,
  *   campaignId?: string | null,
  *   campaignName?: string | null,
- * }>} places tables in a stable order (the first one wins a full tie)
+ * }>} places tables in any order (the result does not depend on it)
  * @param {string} goal leads | ecommerce | engagement
  */
 export function resolvePulseTargetAcross(places, goal) {
@@ -211,16 +230,17 @@ export function resolvePulseTargetAcross(places, goal) {
     const own =
       found.find((target) => target.source === "approved") || found[0] || null;
     if (!own) continue;
-    if (!best || outranks(own, best))
-      best = {
-        ...own,
-        table_id: place.tableId ?? null,
-        // The campaign id this table stores it under (duplicate tables differ).
-        campaign_id:
-          own.scope === "campaign" ? (place.campaignId ?? null) : null,
-      };
+    const candidate = { target: own, place };
+    if (!best || outranks(candidate, best)) best = candidate;
   }
-  return best;
+  if (!best) return null;
+  return {
+    ...best.target,
+    table_id: best.place.tableId ?? null,
+    // The campaign id this table stores it under (duplicate tables differ).
+    campaign_id:
+      best.target.scope === "campaign" ? (best.place.campaignId ?? null) : null,
+  };
 }
 
 /**

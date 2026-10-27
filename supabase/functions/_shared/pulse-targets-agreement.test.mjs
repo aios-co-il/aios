@@ -13,7 +13,10 @@ import {
 import { buildPulseCampaignRows } from "./pulse-campaign-goals.mjs";
 import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
 import { evaluatePulseInstantAlerts } from "./pulse-instant-alerts.ts";
-import { listCampaignsWithoutTarget } from "./pulse-targets.mjs";
+import {
+  listCampaignsWithoutTarget,
+  resolvePulseTargetAcross,
+} from "./pulse-targets.mjs";
 import { buildPulseCategoryDigestLines } from "./campaign-pulse.ts";
 
 const NOW = "2026-09-18"; // current 7d: 09-11..09-17; baseline: 08-14..09-10
@@ -471,6 +474,76 @@ Deno.test(
       seen.push([row.table_id, row.campaign_id, row.status_reason]);
     }
     assertEquals(seen[0], seen[1]);
+  },
+);
+
+Deno.test(
+  "duplicate tables with tied targets: pulse row, attention matrix and editor show the same one",
+  () => {
+    const records = [
+      ...campaignDays({
+        tableId: "t-b",
+        campaignId: "c1",
+        name: "Leads",
+        extra: LEAD,
+        baseline: { spend: 100, leads: 2 },
+        current: { spend: 150, leads: 2 }, // CPL 75
+      }),
+      ...campaignDays({
+        tableId: "t-a",
+        campaignId: "c2",
+        name: "Leads",
+        extra: LEAD,
+        baseline: { spend: 100, leads: 2 },
+        current: { spend: 150, leads: 2 },
+      }),
+    ];
+    // Legacy table CPL on both tables: same source, same level, no set_at.
+    const tb = leadsTable("t-b", "a", { target_cpl: 80 });
+    const ta = leadsTable("t-a", "a", { target_cpl: 60 });
+    const clients = [
+      {
+        clientId: "a",
+        clientName: "a",
+        campaignerName: "דנה",
+        moodStatus: "happy",
+        lastClientCallAt: null,
+        daysSinceLastCommunication: 1,
+        recentCommunicationStatus: null,
+        hasRecentComplaintUpdate: false,
+      },
+    ];
+    for (const tables of [
+      [tb, ta],
+      [ta, tb],
+    ]) {
+      const row = onlyRow(records, tables, ALERTS_ON);
+      assertStrictEquals(row.target_value, 60);
+      assertStrictEquals(row.target_table_id, "t-a");
+      assertEquals(row.read_table_ids, ["t-a", "t-b"]);
+
+      const [attention] = buildPulseAttentionRows({
+        campaignRows: [row],
+        tables,
+        clients,
+      });
+      assertStrictEquals(attention.target.value, 60);
+      assertStrictEquals(attention.target.table_id, "t-a");
+
+      // The editor reads the platform target from its own list of table ids.
+      const byId = new Map(tables.map((t) => [t.id, t.integration_settings]));
+      for (const tableIds of [
+        ["t-b", "t-a"],
+        ["t-a", "t-b"],
+      ]) {
+        const editor = resolvePulseTargetAcross(
+          tableIds.map((tableId) => ({ tableId, settings: byId.get(tableId) })),
+          "leads",
+        );
+        assertStrictEquals(editor.value, 60);
+        assertStrictEquals(editor.table_id, "t-a");
+      }
+    }
   },
 );
 
