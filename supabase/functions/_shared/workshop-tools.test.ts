@@ -12,6 +12,7 @@ import {
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
 import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
+import { importWebImage } from "./workshop/tools/add-assets.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
 
@@ -2143,6 +2144,79 @@ Deno.test(
       "https://garden.example.com/hero.jpg",
       "https://garden.example.com/broken.jpg",
     ]);
+  },
+);
+
+/** Storage that records uploads and answers public links as Supabase does. */
+function fakeStorage() {
+  const uploads: { bucket: string; path: string; contentType?: string }[] = [];
+  return {
+    uploads,
+    storage: {
+      from: (bucket: string) => ({
+        upload: (
+          path: string,
+          _bytes: Uint8Array,
+          options?: { contentType?: string },
+        ) => {
+          uploads.push({ bucket, path, contentType: options?.contentType });
+          return Promise.resolve({ error: null });
+        },
+        getPublicUrl: (path: string) => ({
+          data: {
+            publicUrl: `https://p.supabase.co/storage/v1/object/public/${bucket}/${path}`,
+          },
+        }),
+      }),
+    },
+  };
+}
+
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+Deno.test(
+  "a picture copied from the web is kept where every reader can fetch it, not in the private bucket",
+  async () => {
+    const { storage, uploads } = fakeStorage();
+    const imported = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "image/png",
+        bytes: PNG_BYTES,
+      }),
+      "https://garden.example.com/logo.png",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertStrictEquals(uploads.length, 1);
+    assertStrictEquals(uploads[0].bucket, "social-media");
+    assertMatch(
+      uploads[0].path,
+      /^workshop-imports\/tenant-1\/item-1\/[^/]+\.png$/,
+    );
+    assertStrictEquals(uploads[0].contentType, "image/png");
+    // A public link: image references, the film's end card and the board read it as it is.
+    assertStrictEquals(
+      imported.url,
+      `https://p.supabase.co/storage/v1/object/public/social-media/${uploads[0].path}`,
+    );
+
+    const refused = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode("<html></html>"),
+      }),
+      "https://garden.example.com/",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertMatch(String(refused.error), /אינו תמונה נתמכת/);
+    assertStrictEquals(uploads.length, 1);
   },
 );
 

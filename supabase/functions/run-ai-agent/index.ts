@@ -92,9 +92,8 @@ import {
   connectedProviders,
   imageProvidersFor,
 } from "../_shared/workshop/capabilities.ts";
-import { sniffMime } from "../_shared/workshop/image-providers.ts";
 import { fetchPublic } from "../_shared/public-fetch.ts";
-import { ASSET_BUCKET } from "../_shared/workshop/assets.ts";
+import { importWebImage } from "../_shared/workshop/tools/add-assets.ts";
 import {
   SILENT_TURN_NUDGE,
   fallbackReply,
@@ -5920,31 +5919,8 @@ async function executeTool(
         fetchPublic: (url, options) => fetchPublic(url, options),
         voiceSample: (voiceId) =>
           workshopVoiceSample(supabase, tenantId, voiceId),
-        importImage: async (url, scope) => {
-          const fetched = await fetchPublic(url, {
-            accept: "image/*,*/*",
-            maxBytes: 8_000_000,
-          });
-          if (!fetched.ok) return { error: fetched.error ?? "התמונה לא נגישה" };
-          const mime = sniffMime(fetched.bytes);
-          if (!mime)
-            return { error: "הקובץ אינו תמונה נתמכת (JPG, PNG או WebP)" };
-          const extension =
-            mime === "image/png"
-              ? "png"
-              : mime === "image/webp"
-                ? "webp"
-                : "jpg";
-          const path = `${scope.tenantId}/workshop/${scope.itemId}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${extension}`;
-          const { error: uploadError } = await supabase.storage
-            .from(ASSET_BUCKET)
-            .upload(path, fetched.bytes, { contentType: mime });
-          if (uploadError) return { error: uploadError.message };
-          const { data } = supabase.storage
-            .from(ASSET_BUCKET)
-            .getPublicUrl(path);
-          return { url: data.publicUrl, path };
-        },
+        importImage: (url, scope) =>
+          importWebImage(supabase, fetchPublic, url, scope),
         defaultEngine: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
