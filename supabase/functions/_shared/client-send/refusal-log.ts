@@ -3,6 +3,7 @@
 // what the address resolved to.
 import type { Database } from "../database.types.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import { asUuidOrNull } from "../uuid.ts";
 import {
   type ClientSendRefusal,
   type ClientSendRequest,
@@ -44,7 +45,11 @@ export async function recordClientSendRefusal(
   }
 }
 
-/** The row: the subject client when it was matched, else the first match. */
+/**
+ * The row: the subject client when it was matched, else the first match.
+ * send_ref is kept only as a uuid, the shape of every proof today: a free
+ * text ref (AIO-248's Carmen message ids) could carry a chat id, a phone.
+ */
 function refusalRow(
   request: ClientSendRequest,
   recipient: SendRecipient | null,
@@ -63,7 +68,7 @@ function refusalRow(
     lead_id: recipient?.leadId ?? null,
     group_id: recipient?.groupId ?? null,
     send_kind: request.sendKind,
-    send_ref: request.sendRef,
+    send_ref: asUuidOrNull(request.sendRef),
     subject_client_id: subject,
     reason,
     enforced,

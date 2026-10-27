@@ -6,14 +6,32 @@ import { ClientAutoSendTab } from "./ClientAutoSendTab";
 
 type Row = Record<string, unknown>;
 
-const backend = vi.hoisted(() => ({
-  canManage: true,
-  card: {} as Row,
-  optIns: [] as Row[],
-  refusals: [] as Row[],
-  upsertError: null as { message: string } | null,
+type Targets = {
+  whatsapp_group: boolean;
+  whatsapp_direct: boolean;
+  email: boolean;
+};
+
+type Backend = {
+  canManage: boolean;
+  card: Row;
+  targets: Targets;
+  optIns: Row[];
+  refusals: Row[];
+  upsertError: { message: string } | null;
   /** Holds the save until released, to look at the switch meanwhile. */
-  upsertGate: null as Promise<void> | null,
+  upsertGate: Promise<void> | null;
+  upsert: ReturnType<typeof vi.fn>;
+};
+
+const backend = vi.hoisted((): Backend => ({
+  canManage: true,
+  card: {},
+  targets: { whatsapp_group: false, whatsapp_direct: false, email: false },
+  optIns: [],
+  refusals: [],
+  upsertError: null,
+  upsertGate: null,
   upsert: vi.fn(),
 }));
 
@@ -22,13 +40,24 @@ vi.mock("sonner", () => ({ toast }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: async (name: string) => ({
-      data: name === "can_manage_client_auto_sends" ? backend.canManage : null,
-      error: null,
-    }),
+    rpc: (name: string) => fakeRpc(name),
     from: (table: string) => fakeTable(table),
   },
 }));
+
+/** An RPC answer, awaited directly or through maybeSingle. */
+function fakeRpc(name: string) {
+  const answers: Record<string, unknown> = {
+    can_manage_client_auto_sends: backend.canManage,
+    client_auto_send_targets: backend.targets,
+  };
+  const answer = { data: answers[name] ?? null, error: null };
+  return {
+    maybeSingle: async () => answer,
+    then: (resolve: (value: typeof answer) => unknown) =>
+      Promise.resolve(answer).then(resolve),
+  };
+}
 
 /** A PostgREST builder that answers each table from `backend`. */
 function fakeTable(table: string) {
@@ -68,6 +97,11 @@ const LEADS_TO_PHONE =
   "התראות על לידים חדשים: וואטסאפ אישי (הטלפון בכרטיס ואנשי הקשר)";
 const AUTOMATION_BY_EMAIL = "אוטומציות אחרות של הארגון: אימייל";
 
+/** A refusal-log row of 27 October. */
+function refusalRow(id: string, reason: string, enforced: boolean) {
+  return { id, reason, enforced, created_at: "2026-10-27T10:00:00Z" };
+}
+
 function renderTab() {
   const { wrapper } = withTestQuery();
   return render(<ClientAutoSendTab clientId="client-1" />, { wrapper });
@@ -75,12 +109,11 @@ function renderTab() {
 
 beforeEach(() => {
   backend.canManage = true;
-  backend.card = {
-    tenant_id: "client-tenant",
-    phone: null,
-    email: "",
-    whatsapp_group_id: "group-1",
-    client_contacts: [{ phone: "0501234567", email: null }],
+  backend.card = { tenant_id: "client-tenant" };
+  backend.targets = {
+    whatsapp_group: true,
+    whatsapp_direct: true,
+    email: false,
   };
   backend.optIns = [];
   backend.refusals = [];
@@ -197,8 +230,8 @@ describe("ClientAutoSendTab", () => {
     }
   });
 
-  it("puts a target the card lacks off limits and says why", async () => {
-    backend.card = { ...backend.card, whatsapp_group_id: null };
+  it("puts a target the client lacks off limits and says why", async () => {
+    backend.targets = { ...backend.targets, whatsapp_group: false };
     renderTab();
     expect(
       await screen.findByText("אין קבוצה מקושרת בכרטיס"),
@@ -208,34 +241,27 @@ describe("ClientAutoSendTab", () => {
     expect(
       screen.getByRole("switch", { name: AUTOMATION_BY_EMAIL }),
     ).toBeDisabled();
-    // A contact's phone is enough for personal WhatsApp.
     expect(screen.queryByText("אין טלפון בכרטיס")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: LEADS_TO_PHONE })).toBeEnabled();
   });
 
-  it("lists blocked and observed refusals with their reasons", async () => {
+  it("lists blocked and observed refusals, one line per reason", async () => {
     backend.refusals = [
-      {
-        id: "r1",
-        created_at: "2026-10-27T10:00:00Z",
-        reason: "staff_only",
-        enforced: true,
-      },
-      {
-        id: "r2",
-        created_at: "2026-10-26T10:00:00Z",
-        reason: "unclassified_service_send",
-        enforced: false,
-      },
+      refusalRow("r1", "staff_only", true),
+      refusalRow("r2", "carmen_unverified", false),
+      refusalRow("r3", "carmen_unverified", false),
     ];
     renderTab();
     expect(
       await screen.findByText("שליחות אוטומטיות שנחסמו (30 יום)"),
     ).toBeInTheDocument();
-    expect(screen.getByText("הודעה פנימית לצוות")).toBeInTheDocument();
-    expect(screen.getByText("נחסם")).toBeInTheDocument();
-    expect(screen.getByText("שליחה אוטומטית לא מסווגת")).toBeInTheDocument();
-    expect(screen.getByText("ייחסם כשההגנה תופעל")).toBeInTheDocument();
+    const lines = screen.getAllByRole("listitem");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent("הודעה פנימית לצוות");
+    expect(lines[0]).toHaveTextContent("נחסם");
+    expect(lines[0]).not.toHaveTextContent("פעמים");
+    expect(lines[1]).toHaveTextContent("הודעה של כרמן שלא אומתה · 2 פעמים");
+    expect(lines[1]).toHaveTextContent("ייחסם כשההגנה תופעל");
   });
 
   it("hides the refusal list while there are none", async () => {

@@ -10,32 +10,31 @@ import {
   type SendRecipient,
 } from "./types.ts";
 
-export const UNKNOWN_RECIPIENT: SendRecipient = {
-  kind: "unknown",
-  clientIds: [],
-  leadId: null,
-  groupId: null,
-  ambiguous: false,
-};
-
 /**
- * The recipient behind an address, in the sending tenant's scope. An address
- * nothing can match is unknown without a lookup. Throws when the resolver
- * fails, so the guard fails closed.
+ * The recipient behind an address, in the sending tenant's scope; null,
+ * without a lookup, for an address nothing can match. Throws when the
+ * resolver fails, so the guard fails closed.
  */
 export async function resolveRecipient(
   db: Pick<DbClient, "rpc">,
-  input: { tenantId: string; channel: SendChannel; address: string },
-): Promise<SendRecipient> {
+  input: {
+    tenantId: string;
+    channel: SendChannel;
+    address: string;
+    groupId: string | null;
+  },
+): Promise<SendRecipient | null> {
   const shape = addressShape(input.channel, input.address);
   if (shape.shape === "unusable") {
-    return UNKNOWN_RECIPIENT;
+    return null;
   }
   const { data, error } = await db
     .rpc("resolve_send_recipient", {
       p_tenant_id: input.tenantId,
       p_shape: shape.shape,
       p_address: shape.address,
+      // Left out when the send names no group row: the SQL default.
+      ...(input.groupId ? { p_group_id: input.groupId } : {}),
     })
     .single();
   if (error) {
@@ -51,6 +50,7 @@ export async function resolveRecipient(
     leadId: data.lead_id ?? null,
     groupId: data.group_id ?? null,
     ambiguous: data.ambiguous === true,
+    senderStaff: data.sender_staff === true,
   };
 }
 

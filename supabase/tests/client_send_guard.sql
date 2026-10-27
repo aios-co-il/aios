@@ -5,27 +5,44 @@
 -- lead triggers queue are rolled back with everything else.
 BEGIN;
 
--- One resolver answer as kind:clients:lead:group:ambiguous (NULL as empty).
-CREATE FUNCTION pg_temp.qa_resolve(p_tenant uuid, p_shape text, p_address text)
+-- One resolver answer as kind:clients:lead:group:ambiguous:sender_staff
+-- (NULL as empty), asked as the service role, the resolver's only grantee.
+CREATE FUNCTION pg_temp.qa_resolve(
+  p_tenant uuid,
+  p_shape text,
+  p_address text,
+  p_group uuid DEFAULT NULL
+)
 RETURNS text
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $fn$
+DECLARE
+  v_answer text;
+BEGIN
+  SET LOCAL ROLE service_role;
   SELECT concat(
     r.recipient_kind, ':',
     (SELECT string_agg(id::text, ',' ORDER BY id) FROM unnest(r.client_ids) AS id), ':',
     r.lead_id, ':',
     r.group_id, ':',
-    r.ambiguous)
-  FROM public.resolve_send_recipient(p_tenant, p_shape, p_address) AS r
+    r.ambiguous, ':',
+    r.sender_staff)
+  INTO v_answer
+  FROM public.resolve_send_recipient(p_tenant, p_shape, p_address, p_group) AS r;
+  RESET ROLE;
+  RETURN v_answer;
+END;
 $fn$;
 
--- The expected answer in qa_resolve's format.
+-- The expected answer in qa_resolve's format; sender_staff is false unless
+-- the address is also staff of the sending tenant.
 CREATE FUNCTION pg_temp.qa_want(
   p_kind text,
   p_clients uuid[],
   p_lead uuid,
   p_group uuid,
-  p_ambiguous boolean
+  p_ambiguous boolean,
+  p_sender_staff boolean DEFAULT false
 )
 RETURNS text
 LANGUAGE sql
@@ -35,7 +52,8 @@ AS $fn$
     (SELECT string_agg(id::text, ',' ORDER BY id) FROM unnest(p_clients) AS id), ':',
     p_lead, ':',
     p_group, ':',
-    p_ambiguous)
+    p_ambiguous, ':',
+    p_sender_staff)
 $fn$;
 
 -- Raises with both values when an answer differs from the expected one.
@@ -84,7 +102,10 @@ DECLARE
   v_c2 uuid;
   v_c3 uuid;
   v_cx uuid;
+  v_c4 uuid;
+  v_c5 uuid;
   v_contact_c2 uuid;
+  v_contact_c4 uuid;
   v_campaigner uuid;
   v_lead uuid;
   v_channel uuid;
@@ -92,6 +113,7 @@ DECLARE
   v_g2 uuid;
   v_g3 uuid;
   v_gx uuid;
+  v_g4 uuid;
   v_g1_chat text := 'qa-g1-' || gen_random_uuid() || '@g.us';
   v_g2_chat text := 'qa-g2-' || gen_random_uuid() || '@g.us';
   v_g3_chat text := 'qa-g3-' || gen_random_uuid() || '@g.us';
@@ -182,21 +204,34 @@ BEGIN
   INSERT INTO public.clients (name, tenant_id, agency_id, phone)
   VALUES (v_tag || ' CX', v_unrelated, v_agency_b, '0509990009')
   RETURNING id INTO v_cx;
+  -- C4 has only an identity's phone and a Carmen group; C5 has nothing.
+  INSERT INTO public.clients (name, tenant_id, agency_id)
+  VALUES (v_tag || ' C4', v_tenant, v_agency)
+  RETURNING id INTO v_c4;
+  INSERT INTO public.clients (name, tenant_id, agency_id)
+  VALUES (v_tag || ' C5', v_tenant, v_agency)
+  RETURNING id INTO v_c5;
 
   INSERT INTO public.client_contacts (client_id, tenant_id, contact_name, phone, email) VALUES
     (v_c1, v_tenant, 'QA contact', '+972 50-999-0002', 'qa-contact@example.invalid'),
     (v_c1, v_tenant, 'QA client org owner', '0509990007', NULL),
     (v_c2, v_tenant, 'QA staff as contact', '0509990005', NULL),
-    (v_c3, v_tenant, 'QA campaigner as contact', '0509990006', upper(v_owner_email));
+    (v_c3, v_tenant, 'QA campaigner as contact', '0509990006', upper(v_owner_email)),
+    (v_c1, v_tenant, 'QA agency tenant campaigner', '0509990011', NULL);
   INSERT INTO public.client_contacts (client_id, tenant_id, contact_name)
   VALUES (v_c2, v_tenant, 'QA identity contact')
   RETURNING id INTO v_contact_c2;
+  INSERT INTO public.client_contacts (client_id, tenant_id, contact_name)
+  VALUES (v_c4, v_tenant, 'QA identity only')
+  RETURNING id INTO v_contact_c4;
   INSERT INTO public.carmen_whatsapp_identities (tenant_id, phone, entity_type, entity_id, client_id, status) VALUES
     (v_tenant, '972509990003', 'client_contact', v_contact_c2, NULL, 'approved'),
-    (v_tenant, '972509990004', 'client_contact', v_contact_c2, v_c2, 'pending');
+    (v_tenant, '972509990004', 'client_contact', v_contact_c2, v_c2, 'pending'),
+    (v_tenant, '972509990012', 'client_contact', v_contact_c4, NULL, 'approved');
 
   -- The home tenant's owner and a campaigner use phones that are also on
-  -- cards; the client org's owner is a contact of the home tenant's client.
+  -- cards; the client org's owner and the agency tenant's campaigner are
+  -- contacts of the home tenant's client.
   UPDATE public.profiles SET phone = '0509990005' WHERE id = v_owner;
   UPDATE public.profiles SET phone = '0509990007' WHERE id = v_child_owner;
   INSERT INTO public.campaigners (full_name, tenant_id, phone, whatsapp_group_id)
@@ -204,6 +239,8 @@ BEGIN
   RETURNING id INTO v_campaigner;
   UPDATE public.profiles SET campaigner_id = v_campaigner WHERE id = v_campaigner_user;
   INSERT INTO public.client_team (client_id, campaigner_id) VALUES (v_c1, v_campaigner);
+  INSERT INTO public.campaigners (full_name, tenant_id, phone)
+  VALUES (v_tag || ' agency tenant campaigner', v_agency_tenant, '0509990011');
 
   INSERT INTO public.leads (company_name, tenant_id, agency_id, phone, email)
   VALUES (v_tag || ' lead', v_tenant, v_agency, '0509990008', 'qa-lead@example.invalid')
@@ -221,6 +258,10 @@ BEGIN
   VALUES (v_tenant, v_g3_chat, v_tag || ' G3') RETURNING id INTO v_g3;
   INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
   VALUES (v_unrelated, v_gx_chat, v_tag || ' GX') RETURNING id INTO v_gx;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_tenant, 'qa-g4-' || gen_random_uuid() || '@g.us', v_tag || ' G4') RETURNING id INTO v_g4;
+  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id)
+  VALUES (v_tenant, v_c4, v_g4);
   UPDATE public.clients SET whatsapp_group_id = v_g1 WHERE id = v_c1;
   UPDATE public.clients SET whatsapp_group_id = v_g2 WHERE id = v_c2;
   UPDATE public.clients SET whatsapp_group_id = v_gx WHERE id = v_cx;
@@ -242,7 +283,7 @@ BEGIN
 
   FOREACH v_fn IN ARRAY ARRAY[
     'public.send_scope_tenant_ids(uuid)',
-    'public.resolve_send_recipient(uuid, text, text)',
+    'public.resolve_send_recipient(uuid, text, text, uuid)',
     'public.client_auto_send_allowed(uuid, uuid, public.client_auto_send_kind, public.client_auto_send_target)',
     'public.client_auto_send_opt_in_stamp()'
   ] LOOP
@@ -253,18 +294,24 @@ BEGIN
   END LOOP;
   FOREACH v_fn IN ARRAY ARRAY[
     'public.send_scope_tenant_ids(uuid)',
-    'public.resolve_send_recipient(uuid, text, text)',
+    'public.resolve_send_recipient(uuid, text, text, uuid)',
     'public.client_auto_send_allowed(uuid, uuid, public.client_auto_send_kind, public.client_auto_send_target)',
-    'public.can_manage_client_auto_sends(uuid)'
+    'public.can_manage_client_auto_sends(uuid)',
+    'public.client_auto_send_targets(uuid)'
   ] LOOP
     IF NOT has_function_privilege('service_role', v_fn, 'EXECUTE') THEN
       RAISE EXCEPTION '% is not executable by service_role', v_fn;
     END IF;
   END LOOP;
-  IF has_function_privilege('anon', 'public.can_manage_client_auto_sends(uuid)', 'EXECUTE')
-    OR NOT has_function_privilege('authenticated', 'public.can_manage_client_auto_sends(uuid)', 'EXECUTE') THEN
-    RAISE EXCEPTION 'can_manage_client_auto_sends must be callable by authenticated only';
-  END IF;
+  FOREACH v_fn IN ARRAY ARRAY[
+    'public.can_manage_client_auto_sends(uuid)',
+    'public.client_auto_send_targets(uuid)'
+  ] LOOP
+    IF has_function_privilege('anon', v_fn, 'EXECUTE')
+      OR NOT has_function_privilege('authenticated', v_fn, 'EXECUTE') THEN
+      RAISE EXCEPTION '% must be callable by authenticated, not anon', v_fn;
+    END IF;
+  END LOOP;
   IF has_table_privilege('anon', 'public.client_auto_send_opt_ins', 'SELECT')
     OR has_table_privilege('anon', 'public.client_send_refusals', 'SELECT')
     OR has_table_privilege('authenticated', 'public.client_auto_send_opt_ins', 'DELETE')
@@ -299,15 +346,22 @@ BEGIN
     pg_temp.qa_want('unknown', ARRAY[]::uuid[], NULL, NULL, false));
   PERFORM pg_temp.qa_expect('member phone on a card and a lead stays staff',
     pg_temp.qa_resolve(v_tenant, 'phone', '0509990005'),
-    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false));
+    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false, true));
   PERFORM pg_temp.qa_expect('campaigner phone on a card stays staff',
     pg_temp.qa_resolve(v_tenant, 'phone', '0509990006'),
-    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false));
+    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false, true));
   PERFORM pg_temp.qa_expect('client org owner (V09) is a client of the parent',
     pg_temp.qa_resolve(v_tenant, 'phone', '0509990007'),
     pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false));
+  -- The client org's own sends see a client who is also their own owner.
   PERFORM pg_temp.qa_expect('client org owner (V09), sent from the client org',
     pg_temp.qa_resolve(v_child, 'phone', '0509990007'),
+    pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false, true));
+  PERFORM pg_temp.qa_expect('agency tenant''s own campaigner on the shared card',
+    pg_temp.qa_resolve(v_agency_tenant, 'phone', '0509990011'),
+    pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false, true));
+  PERFORM pg_temp.qa_expect('that campaigner, seen from the card''s tenant',
+    pg_temp.qa_resolve(v_tenant, 'phone', '0509990011'),
     pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false));
   PERFORM pg_temp.qa_expect('lead phone',
     pg_temp.qa_resolve(v_tenant, 'phone', '0509990008'),
@@ -338,7 +392,7 @@ BEGIN
     pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false));
   PERFORM pg_temp.qa_expect('member email on a card stays staff',
     pg_temp.qa_resolve(v_tenant, 'email', v_owner_email),
-    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false));
+    pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false, true));
   PERFORM pg_temp.qa_expect('lead email',
     pg_temp.qa_resolve(v_tenant, 'email', 'QA-LEAD@example.invalid'),
     pg_temp.qa_want('lead', ARRAY[]::uuid[], v_lead, NULL, false));
@@ -369,6 +423,13 @@ BEGIN
   PERFORM pg_temp.qa_expect('group of an unrelated tenant is out of scope',
     pg_temp.qa_resolve(v_tenant, 'group', v_gx_chat),
     pg_temp.qa_want('unknown', ARRAY[]::uuid[], NULL, NULL, false));
+  -- The row the sender read the chat id from counts outside the scope.
+  PERFORM pg_temp.qa_expect('the sender''s group row, outside the scope',
+    pg_temp.qa_resolve(v_tenant, 'group', v_gx_chat, v_gx),
+    pg_temp.qa_want('client_group', ARRAY[v_cx], NULL, v_gx, false));
+  PERFORM pg_temp.qa_expect('a group row of another chat id is ignored',
+    pg_temp.qa_resolve(v_tenant, 'group', v_g3_chat, v_gx),
+    pg_temp.qa_want('unknown', ARRAY[]::uuid[], NULL, v_g3, false));
 
   -- ─── Resolver: Telegram, bad input ────────────────────────────────────────
 
@@ -503,6 +564,13 @@ BEGIN
     RAISE EXCEPTION 'The client org owner added a switch';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  -- The wrong tenant fails the same way, so it does not tell the client's.
+  BEGIN
+    INSERT INTO public.client_auto_send_opt_ins (tenant_id, client_id, send_kind, target, enabled)
+    VALUES (v_child, v_c1, 'automation', 'email', true);
+    RAISE EXCEPTION 'The client org owner added a switch in its own tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   RESET ROLE;
 
   -- Super admin: only while the tenant allows super admin access.
@@ -537,6 +605,31 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   RESET ROLE;
+
+  -- ─── Card targets, counted as the resolver counts them ─────────────────────
+
+  PERFORM pg_temp.qa_sign_in(v_owner, v_tenant);
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.qa_expect('targets: card group, phone and email',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c1) AS t),
+    'ttt');
+  PERFORM pg_temp.qa_expect('targets: team-channel group, contact phone and email',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c3) AS t),
+    'ttt');
+  PERFORM pg_temp.qa_expect('targets: Carmen group access, identity phone',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c4) AS t),
+    'ttf');
+  PERFORM pg_temp.qa_expect('targets: none',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c5) AS t),
+    'fff');
+  RESET ROLE;
+  PERFORM pg_temp.qa_sign_in(v_child_owner, v_child);
+  SET LOCAL ROLE authenticated;
+  IF EXISTS (SELECT 1 FROM public.client_auto_send_targets(v_c1)) THEN
+    RAISE EXCEPTION 'targets: a user who cannot see the client got its targets';
+  END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', '', true);
 
   -- ─── client_auto_send_allowed ─────────────────────────────────────────────
 
@@ -586,5 +679,5 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 END;
 $test$;
-SELECT 'Grants, scope, resolver (phone, email, group, Telegram), opt-in trigger, switch RLS, allowed and refusal log passed' AS result;
+SELECT 'Grants, scope, resolver (phone, email, group, Telegram), opt-in trigger, switch RLS, card targets, allowed and refusal log passed' AS result;
 ROLLBACK;

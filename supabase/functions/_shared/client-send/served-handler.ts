@@ -98,6 +98,7 @@ function restAnswer(call: Request, answer: unknown): Response {
   );
 }
 
+/** A 200 JSON response, as PostgREST and the providers answer. */
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
@@ -133,6 +134,7 @@ function setEnv(values: Record<string, string>): () => void {
   };
 }
 
+/** The function argument of Deno.serve, whichever overload the module uses. */
 function isHandler(value: unknown): value is Handler {
   return typeof value === "function";
 }

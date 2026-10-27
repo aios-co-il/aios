@@ -18,6 +18,8 @@
 --    and super admins where the tenant allows them. Campaigners, sales and SEO
 --    staff who see the client, and agency read_write tenants, only read; the
 --    client's own org (a child tenant) sees nothing.
+--    client_auto_send_targets tells the card which targets the client has an
+--    address for, the way the resolver below matches them.
 -- 3. client_send_refusals: each send the guard refused (enforced) or would
 --    have refused (enforced = false while a rule is observed). No phone or
 --    email is stored. Only the service role writes it.
@@ -34,11 +36,18 @@
 --               of any tenant in scope.
 --      email    the same order on lower(email); identities have no email.
 --      group    whatsapp_group_client_ids (AIO-242) of the scope's groups with
---               that chat id, plus team-channel links by chat id; ambiguous
---               when several clients. Then a lead link, then a campaigner's
---               group.
+--               that chat id, and of the group row the sender read it from
+--               (p_group_id, even outside the scope: a line shared from
+--               another tenant), plus team-channel links by chat id;
+--               ambiguous when several clients. Then a lead link, then a
+--               campaigner's group.
 --      telegram the newest message of the sender's chat naming a client or a
 --               lead.
+--    sender_staff says whether a phone or email is also staff of the sending
+--    tenant itself: a client of a related tenant who works for the sender
+--    (a client org's owner seen from that org, an agency tenant's own
+--    campaigner) stays a client, and the guard lets the sender's staff
+--    alerts and reports reach them.
 --    It raises on a missing tenant or an unknown shape, so callers fail
 --    closed. client_auto_send_allowed: is a card's switch on, for a sender in
 --    scope. Both are service role only.
@@ -95,6 +104,15 @@ RETURNS trigger
   SET search_path TO ''
 AS $$
 BEGIN
+  -- A signed-in writer who may not manage the client gets the RLS refusal
+  -- before the tenant check below, which would tell whether a client id
+  -- belongs to a tenant. The service role (no auth.uid()) skips it.
+  IF auth.uid() IS NOT NULL
+    AND NOT public.can_manage_client_auto_sends(NEW.client_id) THEN
+    RAISE EXCEPTION 'new row violates row-level security policy for table "client_auto_send_opt_ins"'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   IF TG_OP = 'INSERT' THEN
     NEW.created_at := now();
   ELSIF TG_OP = 'UPDATE' THEN
@@ -175,6 +193,65 @@ $$;
 REVOKE ALL ON FUNCTION public.can_manage_client_auto_sends(uuid)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.can_manage_client_auto_sends(uuid)
+  TO authenticated, service_role;
+
+-- Which switch targets the client has an address for, counted as
+-- resolve_send_recipient counts them, for a user who can see the client.
+CREATE OR REPLACE FUNCTION public.client_auto_send_targets(p_client_id uuid)
+RETURNS TABLE (
+  whatsapp_group boolean,
+  whatsapp_direct boolean,
+  email boolean
+)
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+  SELECT
+    c.whatsapp_group_id IS NOT NULL
+      OR EXISTS (
+        SELECT 1
+        FROM public.team_channel_whatsapp_links AS l
+        WHERE l.client_id = c.id
+          AND (l.whatsapp_group_id IS NOT NULL OR l.whatsapp_chat_id IS NOT NULL)
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.carmen_client_group_access AS a
+        WHERE a.client_id = c.id
+      ),
+    public.phone_match_key(c.phone) IS NOT NULL
+      OR EXISTS (
+        SELECT 1
+        FROM public.client_contacts AS cc
+        WHERE cc.client_id = c.id
+          AND public.phone_match_key(cc.phone) IS NOT NULL
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.carmen_whatsapp_identities AS i
+        LEFT JOIN public.client_contacts AS cc ON cc.id = i.entity_id
+        WHERE coalesce(i.client_id, cc.client_id) = c.id
+          AND i.entity_type = 'client_contact'
+          AND i.status = 'approved'
+          AND public.phone_match_key(i.phone) IS NOT NULL
+      ),
+    nullif(btrim(c.email), '') IS NOT NULL
+      OR EXISTS (
+        SELECT 1
+        FROM public.client_contacts AS cc
+        WHERE cc.client_id = c.id
+          AND nullif(btrim(cc.email), '') IS NOT NULL
+      )
+  FROM public.clients AS c
+  WHERE c.id = p_client_id
+    AND public.user_can_access_client(auth.uid(), c.id)
+$$;
+
+REVOKE ALL ON FUNCTION public.client_auto_send_targets(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.client_auto_send_targets(uuid)
   TO authenticated, service_role;
 
 ALTER TABLE public.client_auto_send_opt_ins ENABLE ROW LEVEL SECURITY;
@@ -306,14 +383,16 @@ GRANT EXECUTE ON FUNCTION public.send_scope_tenant_ids(uuid)
 CREATE OR REPLACE FUNCTION public.resolve_send_recipient(
   p_tenant_id uuid,
   p_shape text,
-  p_address text
+  p_address text,
+  p_group_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
   recipient_kind text,
   client_ids uuid[],
   lead_id uuid,
   group_id uuid,
-  ambiguous boolean
+  ambiguous boolean,
+  sender_staff boolean
 )
   LANGUAGE plpgsql
   STABLE
@@ -329,6 +408,7 @@ DECLARE
   v_group uuid;
   v_telegram_client uuid;
   v_is_staff boolean := false;
+  v_sender_staff boolean := false;
   v_kind text;
 BEGIN
   IF p_tenant_id IS NULL THEN
@@ -406,8 +486,11 @@ BEGIN
         AND NOT (l.tenant_id = ANY (v_staff_tenants))
       ORDER BY (l.tenant_id = p_tenant_id) DESC, l.created_at DESC, l.id
       LIMIT 1;
+    ELSE
+      RAISE NOTICE 'resolve_send_recipient: no phone match key in the address; unknown';
     END IF;
     v_is_staff := cardinality(v_staff_tenants) > 0;
+    v_sender_staff := p_tenant_id = ANY (v_staff_tenants);
 
   ELSIF p_shape = 'email' THEN
     v_key := nullif(lower(btrim(coalesce(p_address, ''))), '');
@@ -461,16 +544,20 @@ BEGIN
         AND NOT (l.tenant_id = ANY (v_staff_tenants))
       ORDER BY (l.tenant_id = p_tenant_id) DESC, l.created_at DESC, l.id
       LIMIT 1;
+    ELSE
+      RAISE NOTICE 'resolve_send_recipient: empty email address; unknown';
     END IF;
     v_is_staff := cardinality(v_staff_tenants) > 0;
+    v_sender_staff := p_tenant_id = ANY (v_staff_tenants);
 
   ELSIF p_shape = 'group' THEN
     SELECT g.id
     INTO v_group
     FROM public.whatsapp_groups AS g
     WHERE g.group_chat_id = p_address
-      AND g.tenant_id = ANY (v_scope)
-    ORDER BY (g.tenant_id = p_tenant_id) DESC, g.created_at, g.id
+      AND (g.tenant_id = ANY (v_scope) OR g.id = p_group_id)
+    ORDER BY (g.id = p_group_id) DESC NULLS LAST,
+      (g.tenant_id = p_tenant_id) DESC, g.created_at, g.id
     LIMIT 1;
 
     SELECT coalesce(array_agg(DISTINCT x.client_id), ARRAY[]::uuid[])
@@ -480,7 +567,7 @@ BEGIN
       FROM public.whatsapp_groups AS g
       CROSS JOIN LATERAL public.whatsapp_group_client_ids(g.id) AS ids (client_id)
       WHERE g.group_chat_id = p_address
-        AND g.tenant_id = ANY (v_scope)
+        AND (g.tenant_id = ANY (v_scope) OR g.id = p_group_id)
       UNION ALL
       SELECT l.client_id
       FROM public.team_channel_whatsapp_links AS l
@@ -521,6 +608,8 @@ BEGIN
       IF v_telegram_client IS NOT NULL THEN
         v_client_ids := ARRAY[v_telegram_client];
       END IF;
+    ELSE
+      RAISE NOTICE 'resolve_send_recipient: Telegram chat id is not numeric; unknown';
     END IF;
 
   ELSE
@@ -548,13 +637,14 @@ BEGIN
     v_client_ids,
     v_lead,
     v_group,
-    v_kind = 'client_group' AND cardinality(v_client_ids) > 1;
+    v_kind = 'client_group' AND cardinality(v_client_ids) > 1,
+    v_sender_staff;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.resolve_send_recipient(uuid, text, text)
+REVOKE ALL ON FUNCTION public.resolve_send_recipient(uuid, text, text, uuid)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.resolve_send_recipient(uuid, text, text)
+GRANT EXECUTE ON FUNCTION public.resolve_send_recipient(uuid, text, text, uuid)
   TO service_role;
 
 -- True when the client is in the sender's scope and this switch is on.

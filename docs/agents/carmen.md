@@ -81,9 +81,9 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 ## Client sends
 
 - A client gets no automatic message unless something the tenant set up asked for it (AIO-261). Send functions call `authorizeClientSend` (`supabase/functions/_shared/client-send/authorize.ts`) after their tenant, membership and recipient checks and before the provider call.
-- A signed-in person's send always passes. A service-role send names its `sendKind`, plus the `sendRef` its rule asks for; `resolve_send_recipient` decides whether the address is a client, a client's contact or a client's group. The rule per kind, Carmen's `carmen` included, and the refusals that are only logged for now are in `_shared/client-send/rules.ts`.
+- A signed-in person's send always passes. A service-role send names its `sendKind`, plus the `sendRef` its rule asks for; `resolve_send_recipient` decides whether the address is a client, a client's contact or a client's group, and whether it is also the sending tenant's own staff (`sender_staff`, who still get that tenant's staff alerts and reports). The rule per kind, Carmen's `carmen` included, and the refusals that are only logged for now are in `_shared/client-send/rules.ts`.
 - Every refusal is a `client_send_refusals` row (`enforced = false` while observed). A card's switches are `client_auto_send_opt_ins`, set in the client card's automatic-send tab (`src/components/clients/ClientAutoSendTab/`) by whoever `can_manage_client_auto_sends` allows; the tab also lists the client's refusals of the last 30 days.
-- A function that calls a provider directly calls the guard or is listed in `_shared/client-send/call-site-allowlist.ts`; `call-sites.test.ts` fails otherwise.
+- A function that calls a provider directly calls the guard or is listed in `_shared/client-send/call-site-allowlist.ts`, and each call of a guarded sender names its `sendKind` or its file is listed there; `call-sites.test.ts` fails otherwise.
 
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 

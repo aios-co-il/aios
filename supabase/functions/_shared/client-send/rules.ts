@@ -12,13 +12,18 @@ export type ClientAutoSendKind =
 export type ClientAutoSendTarget =
   Database["public"]["Enums"]["client_auto_send_target"];
 
+type AutomationTrigger = Database["public"]["Enums"]["automation_trigger"];
+
 /**
- * `never`: refused whatever it carries. `report_schedule`, `broadcast_sending`
- * and `automation`: the send_ref must prove what asked for it (proofs.ts).
- * `opt_in`: the client card's switch for that kind and target.
+ * `never`: refused whatever it carries. `sender_staff`: refused unless the
+ * address is also the sending tenant's own staff (types.ts senderStaff).
+ * `report_schedule`, `broadcast_sending` and `automation`: the send_ref must
+ * prove what asked for it (proofs.ts). `opt_in`: the client card's switch
+ * for that kind and target.
  */
 export type ClientRule =
   | { proof: "never"; refusal: ClientSendRefusal }
+  | { proof: "sender_staff"; refusal: ClientSendRefusal }
   | { proof: "report_schedule" }
   | { proof: "broadcast_sending" }
   | { proof: "automation" }
@@ -28,7 +33,9 @@ export const CLIENT_RULES: Record<SendKind, ClientRule> = {
   chat: { proof: "never", refusal: "person_only_kind" },
   dashboard_share: { proof: "never", refusal: "person_only_kind" },
   meeting_summary: { proof: "never", refusal: "person_only_kind" },
-  staff_alert: { proof: "never", refusal: "staff_only" },
+  // A client of a related tenant who works for the sender still gets the
+  // sender's own staff alerts.
+  staff_alert: { proof: "sender_staff", refusal: "staff_only" },
   report: { proof: "report_schedule" },
   broadcast: { proof: "broadcast_sending" },
   automation: { proof: "automation" },
@@ -54,7 +61,11 @@ export const OBSERVED_REFUSALS: Readonly<
   unclassified_service_send:
     "AIO-248 and AIO-267 stamp the remaining service-role callers",
   automation_without_ref: "AIO-267 passes the automation id as send_ref",
+  automation_broadcast_unverified:
+    "AIO-267 enforces the automation rule on its template streams",
   carmen_unverified: "AIO-248 adds Carmen's proofs",
+  unresolvable_address:
+    "AIO-261(b) decides whether an address nothing can match fails closed",
 };
 
 /** Whether a refusal is only logged for now. */
@@ -71,25 +82,28 @@ export function isClientSide(recipient: SendRecipient): boolean {
   );
 }
 
-const LEAD_ALERT_TRIGGERS = new Set([
+const LEAD_ALERT_TRIGGERS: readonly AutomationTrigger[] = [
   "lead_created",
   "lead_status_changed",
   "inbound_webhook_lead",
-]);
+];
 
-const CAMPAIGN_ALERT_TRIGGERS = new Set([
+const CAMPAIGN_ALERT_TRIGGERS: readonly AutomationTrigger[] = [
   "ad_account_blocked",
   "ad_account_billing_issue",
   "account_stopped_spending",
   "integration_disconnected",
-]);
+];
 
-/** The card switch an automation's trigger falls under. */
+/**
+ * The card switch an automation's trigger falls under. A flow's trigger step
+ * stores its trigger as plain text, so this takes any string.
+ */
 export function optInKindForAutomation(trigger: string): ClientAutoSendKind {
-  if (LEAD_ALERT_TRIGGERS.has(trigger)) {
+  if (LEAD_ALERT_TRIGGERS.some((known) => known === trigger)) {
     return "lead_alert";
   }
-  if (CAMPAIGN_ALERT_TRIGGERS.has(trigger)) {
+  if (CAMPAIGN_ALERT_TRIGGERS.some((known) => known === trigger)) {
     return "campaign_alert";
   }
   return "automation";

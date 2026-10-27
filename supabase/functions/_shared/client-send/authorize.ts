@@ -20,8 +20,9 @@ import type {
 /**
  * A person's send passes without a lookup. A system send to a client, a
  * client's contact or a client's group must pass its kind's rule; an observed
- * refusal is logged and let through, any other is logged and refused. A
- * failed lookup refuses (guard_error): the guard fails closed.
+ * refusal is logged and let through, any other is logged and refused. An
+ * address nothing can match is logged as observed. A failed lookup refuses
+ * (guard_error): the guard fails closed.
  */
 export async function authorizeClientSend(
   db: ClientSendDb,
@@ -34,9 +35,7 @@ export async function authorizeClientSend(
   let reason: ClientSendRefusal | null;
   try {
     recipient = await resolveRecipient(db, request);
-    reason = isClientSide(recipient)
-      ? await clientRefusal(db, request, recipient)
-      : null;
+    reason = await recipientRefusal(db, request, recipient);
   } catch (error) {
     console.error("[client-send] guard lookup failed; refusing", {
       functionName: request.functionName,
@@ -55,12 +54,27 @@ export async function authorizeClientSend(
     : { allowed: true, recipient, observed: reason };
 }
 
+/** Why the recipient may not get this send, or null when nothing refuses. */
+async function recipientRefusal(
+  db: ClientSendDb,
+  request: ClientSendRequest,
+  recipient: SendRecipient | null,
+): Promise<ClientSendRefusal | null> {
+  if (!recipient) {
+    return "unresolvable_address";
+  }
+  return isClientSide(recipient)
+    ? await clientRefusal(db, request, recipient)
+    : null;
+}
+
 /** The guard's request from a sender's checked tenant and raw body fields. */
 export function clientSendRequest(input: {
   functionName: string;
   tenantId: string;
   channel: SendChannel;
   address: string;
+  groupId: unknown;
   isServiceRole: boolean;
   sendKind: unknown;
   sendRef: unknown;
@@ -71,6 +85,7 @@ export function clientSendRequest(input: {
     tenantId: input.tenantId,
     channel: input.channel,
     address: input.address,
+    groupId: asUuidOrNull(input.groupId),
     origin: input.isServiceRole ? "system" : "person",
     sendKind: resolveSendKind({
       requested: input.sendKind,

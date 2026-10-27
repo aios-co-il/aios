@@ -46,7 +46,9 @@ export const REFUSAL_LABELS: Record<ClientSendRefusal, string> = {
   no_subject: "לא צוין על איזה לקוח התוכן",
   subject_mismatch: "התוכן על לקוח אחר",
   ambiguous_group: "הקבוצה מקושרת לכמה לקוחות",
+  automation_broadcast_unverified: "תבנית מאוטומציה שלא אושרה בכרטיס",
   carmen_unverified: "הודעה של כרמן שלא אומתה",
+  unresolvable_address: "כתובת שלא ניתן לזהות",
   guard_error: "בדיקת הנמען נכשלה",
 };
 

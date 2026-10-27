@@ -35,6 +35,12 @@ export type SendRecipient = {
   groupId: string | null;
   /** A WhatsApp group linked to more than one client. */
   ambiguous: boolean;
+  /**
+   * The phone or email is also staff of the sending tenant itself (a member,
+   * an active campaigner or sales person, an approved campaigner identity),
+   * such as a client org's owner seen from that org.
+   */
+  senderStaff: boolean;
 };
 
 /** Why the guard refused a send; client_send_refusals.reason holds these. */
@@ -49,7 +55,9 @@ export const CLIENT_SEND_REFUSALS = [
   "no_subject",
   "subject_mismatch",
   "ambiguous_group",
+  "automation_broadcast_unverified",
   "carmen_unverified",
+  "unresolvable_address",
   "guard_error",
 ] as const;
 
@@ -64,6 +72,12 @@ export type ClientSendRequest = {
   channel: SendChannel;
   /** What the provider gets: a chat id, phone, email or Telegram chat id. */
   address: string;
+  /**
+   * The whatsapp_groups row the sender read a group chat id from. The
+   * resolver trusts it even outside the sender's scope (a line shared from
+   * another tenant), when its chat id is the address.
+   */
+  groupId: string | null;
   origin: SendOrigin;
   /** The stored send_kind: null when a service-role caller named none. */
   sendKind: SendKind | null;

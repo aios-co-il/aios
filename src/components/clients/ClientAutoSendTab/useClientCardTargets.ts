@@ -6,15 +6,16 @@ import { clientAutoSendKey } from "./useClientAutoSendOptIns";
 export type ClientCardTargets = {
   /** The client's own tenant, which every switch row must carry. */
   tenant_id: string | null;
-  /** Whether the card has an address of each target to send to. */
+  /** Whether the client has an address of each target to send to. */
   targets: Record<ClientAutoSendTarget, boolean>;
 };
 
 /**
- * Which targets the card has: the linked WhatsApp group, a phone on the card
- * or a contact, an email on the card or a contact. A group linked only through
- * a team channel or Carmen's group access is not on the card, so its switch
- * stays off limits until someone links the group on the card.
+ * Which targets the client has an address for, counted by the database the
+ * way the send guard's resolver matches them (client_auto_send_targets): a
+ * group linked on the card, by a team channel or by Carmen's group access; a
+ * phone on the card, a contact or an approved client-contact identity; an
+ * email on the card or a contact.
  */
 export function useClientCardTargets(clientId: string | null | undefined) {
   return useQuery({
@@ -23,32 +24,26 @@ export function useClientCardTargets(clientId: string | null | undefined) {
   });
 }
 
-/** Reads the card's addresses and its contacts' in one request. */
+/** Reads the client's tenant and its targets side by side. */
 async function fetchCardTargets(clientId: string): Promise<ClientCardTargets> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select(
-      "tenant_id, phone, email, whatsapp_group_id, client_contacts(phone, email)",
-    )
-    .eq("id", clientId)
-    .single();
-  if (error) {
-    throw error;
+  const [client, targets] = await Promise.all([
+    supabase.from("clients").select("tenant_id").eq("id", clientId).single(),
+    supabase
+      .rpc("client_auto_send_targets", { p_client_id: clientId })
+      .maybeSingle(),
+  ]);
+  if (client.error) {
+    throw client.error;
   }
-  const contacts = data.client_contacts ?? [];
+  if (targets.error) {
+    throw targets.error;
+  }
   return {
-    tenant_id: data.tenant_id,
+    tenant_id: client.data.tenant_id,
     targets: {
-      whatsapp_group: !!data.whatsapp_group_id,
-      whatsapp_direct:
-        filled(data.phone) || contacts.some((contact) => filled(contact.phone)),
-      email:
-        filled(data.email) || contacts.some((contact) => filled(contact.email)),
+      whatsapp_group: targets.data?.whatsapp_group === true,
+      whatsapp_direct: targets.data?.whatsapp_direct === true,
+      email: targets.data?.email === true,
     },
   };
-}
-
-/** A non-blank address. */
-function filled(value: string | null): boolean {
-  return !!value?.trim();
 }

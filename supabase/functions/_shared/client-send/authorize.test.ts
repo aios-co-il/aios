@@ -17,6 +17,7 @@ const systemSend = (
   tenantId: TENANT,
   channel: "whatsapp",
   address: "972501234567",
+  groupId: null,
   origin: "system",
   sendKind: "staff_alert",
   sendRef: null,
@@ -79,6 +80,35 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "authorizeClientSend lets a staff alert reach the sender's own staff",
+  async () => {
+    // A client org's owner, or an agency tenant's own campaigner, whose
+    // phone is also on a related tenant's client card.
+    const { decision, refusals } = await decide(
+      systemSend(),
+      resolved("client_contact", [CLIENT], { sender_staff: true }),
+    );
+    assertEquals(decision.allowed, true);
+    assertEquals(refusals, []);
+  },
+);
+
+Deno.test("authorizeClientSend logs an address nothing can match", async () => {
+  const { decision, refusals, rpcs } = await decide(
+    systemSend({ address: "123456789012@lid" }),
+    resolved("client", [CLIENT]),
+  );
+  assertEquals(decision, {
+    allowed: true,
+    recipient: null,
+    observed: "unresolvable_address",
+  });
+  assertEquals(rpcs, []);
+  assertEquals(refusals[0].recipient_kind, "unresolved");
+  assertEquals(refusals[0].enforced, false);
+});
+
 Deno.test("authorizeClientSend only logs an observed refusal", async () => {
   const { decision, refusals } = await decide(
     systemSend({ sendKind: null }),
@@ -92,6 +122,7 @@ Deno.test("authorizeClientSend only logs an observed refusal", async () => {
       leadId: null,
       groupId: "group-1",
       ambiguous: false,
+      senderStaff: false,
     },
     observed: "unclassified_service_send",
   });
@@ -124,11 +155,13 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
     channel: "whatsapp" as const,
     address: "972501234567",
   };
+  const GROUP = "99999999-9999-4999-8999-999999999999";
 
   await t.step("a service-role call is a system send", () => {
     assertEquals(
       clientSendRequest({
         ...base,
+        groupId: GROUP,
         isServiceRole: true,
         sendKind: "report",
         sendRef: "  schedule-1  ",
@@ -136,6 +169,7 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
       }),
       {
         ...base,
+        groupId: GROUP,
         origin: "system",
         sendKind: "report",
         sendRef: "schedule-1",
@@ -144,9 +178,10 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
     );
   });
 
-  await t.step("an unknown kind or a non-uuid client is dropped", () => {
+  await t.step("an unknown kind or a non-uuid id is dropped", () => {
     const request = clientSendRequest({
       ...base,
+      groupId: "group-1",
       isServiceRole: true,
       sendKind: "pulse",
       sendRef: undefined,
@@ -154,11 +189,13 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
     });
     assertEquals(request.sendKind, null);
     assertEquals(request.subjectClientId, null);
+    assertEquals(request.groupId, null);
   });
 
   await t.step("a browser call is a person's chat", () => {
     const request = clientSendRequest({
       ...base,
+      groupId: null,
       isServiceRole: false,
       sendKind: "staff_alert",
       sendRef: null,

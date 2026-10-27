@@ -3,8 +3,8 @@ import { fakeDb } from "../broadcast/fake-db.ts";
 import { CLIENT, OTHER_CLIENT, OTHER_TENANT, TENANT } from "./fake-guard-db.ts";
 import {
   automationTarget,
-  broadcastIsSending,
   reportScheduleClient,
+  sendingBroadcast,
 } from "./proofs.ts";
 
 const SCHEDULE = "55555555-5555-4555-8555-555555555555";
@@ -12,12 +12,28 @@ const BROADCAST = "66666666-6666-4666-8666-666666666666";
 const OWN = "77777777-7777-4777-8777-777777777777";
 const SHARED = "88888888-8888-4888-8888-888888888888";
 const FLOW = "99999999-9999-4999-8999-999999999999";
+const STREAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const { db, writes } = fakeDb({
   report_schedules: [
     { id: SCHEDULE, tenant_id: TENANT, enabled: true, client_id: CLIENT },
   ],
-  broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "sending" }],
+  broadcasts: [
+    {
+      id: BROADCAST,
+      tenant_id: TENANT,
+      status: "sending",
+      origin: "manual",
+      automation_id: null,
+    },
+    {
+      id: STREAM,
+      tenant_id: TENANT,
+      status: "sending",
+      origin: "automation",
+      automation_id: OWN,
+    },
+  ],
   automations: [
     {
       id: OWN,
@@ -51,8 +67,17 @@ const { db, writes } = fakeDb({
   automation_flow_steps: [
     {
       automation_id: FLOW,
+      tenant_id: OTHER_TENANT,
       step_type: "trigger",
       sort_order: 0,
+      action_type: "task_overdue",
+      configuration: { client_id: OTHER_CLIENT },
+    },
+    {
+      automation_id: FLOW,
+      tenant_id: TENANT,
+      step_type: "trigger",
+      sort_order: 1,
       action_type: "inbound_webhook_lead",
       configuration: { client_id: CLIENT },
     },
@@ -67,26 +92,27 @@ Deno.test("reportScheduleClient proves an enabled schedule here", async () => {
   assertEquals(await ask(TENANT, "not-a-uuid"), null);
 });
 
-Deno.test(
-  "broadcastIsSending proves a broadcast being dispatched",
-  async () => {
-    const ask = (tenantId: string, broadcastId: string) =>
-      broadcastIsSending(db, { tenantId, broadcastId });
-    assertEquals(await ask(TENANT, BROADCAST), true);
-    assertEquals(await ask(OTHER_TENANT, BROADCAST), false);
-    assertEquals(await ask(TENANT, "draft"), false);
-    const paused = fakeDb({
-      broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "paused" }],
-    });
-    assertEquals(
-      await broadcastIsSending(paused.db, {
-        tenantId: TENANT,
-        broadcastId: BROADCAST,
-      }),
-      false,
-    );
-  },
-);
+Deno.test("sendingBroadcast proves a broadcast being dispatched", async () => {
+  const ask = (tenantId: string, broadcastId: string) =>
+    sendingBroadcast(db, { tenantId, broadcastId });
+  assertEquals(await ask(TENANT, BROADCAST), { automationStream: false });
+  assertEquals(await ask(TENANT, STREAM), {
+    automationStream: true,
+    automationId: OWN,
+  });
+  assertEquals(await ask(OTHER_TENANT, BROADCAST), null);
+  assertEquals(await ask(TENANT, "draft"), null);
+  const paused = fakeDb({
+    broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "paused" }],
+  });
+  assertEquals(
+    await sendingBroadcast(paused.db, {
+      tenantId: TENANT,
+      broadcastId: BROADCAST,
+    }),
+    null,
+  );
+});
 
 Deno.test(
   "automationTarget proves an automation the tenant runs",
@@ -108,7 +134,7 @@ Deno.test(
       });
     });
 
-    await t.step("a flow, by its trigger step", async () => {
+    await t.step("a flow, by its trigger step in its tenant", async () => {
       assertEquals(await ask(TENANT, FLOW), {
         clientId: CLIENT,
         triggerType: "inbound_webhook_lead",

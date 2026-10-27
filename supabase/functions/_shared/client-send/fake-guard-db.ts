@@ -17,6 +17,7 @@ export type ResolverRow = {
   lead_id: string | null;
   group_id: string | null;
   ambiguous: boolean;
+  sender_staff: boolean;
 };
 
 /** The resolver's row for a recipient of this kind and these clients. */
@@ -31,6 +32,7 @@ export function resolved(
     lead_id: null,
     group_id: null,
     ambiguous: false,
+    sender_staff: false,
     ...extra,
   };
 }
@@ -61,12 +63,20 @@ export function guardDb(
     client_auto_send_allowed: (args) =>
       (input.optIns ?? []).includes(
         optInKey(
-          String(args.p_client_id),
-          String(args.p_kind),
-          String(args.p_target),
+          text(args.p_client_id),
+          text(args.p_kind),
+          text(args.p_target),
         ),
       ),
   });
+}
+
+/** An RPC argument the guard always passes as a string. */
+function text(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error(`expected a string argument, got ${typeof value}`);
+  }
+  return value;
 }
 
 /** The refusal rows a fake database received. */

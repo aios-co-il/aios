@@ -14,6 +14,7 @@ const request: ClientSendRequest = {
   tenantId: TENANT,
   channel: "whatsapp",
   address: "972501234567@c.us",
+  groupId: null,
   origin: "system",
   sendKind: "staff_alert",
   sendRef: null,
@@ -26,6 +27,7 @@ const contact: SendRecipient = {
   leadId: null,
   groupId: null,
   ambiguous: false,
+  senderStaff: false,
 };
 
 Deno.test(
@@ -76,6 +78,24 @@ Deno.test(
       const [row] = refusalRows(writes);
       assertEquals(JSON.stringify(row).includes("972501234567"), false);
       assertEquals(row.recipient_kind, "unresolved");
+    });
+
+    await t.step("a uuid send_ref, never free text", async () => {
+      const { db, writes } = guardDb();
+      const refs = [CLIENT, "972501234567@c.us:msg-1"];
+      for (const sendRef of refs) {
+        await recordClientSendRefusal(
+          db,
+          { ...request, sendRef },
+          contact,
+          "proof_invalid",
+          true,
+        );
+      }
+      assertEquals(
+        refusalRows(writes).map((row) => row.send_ref),
+        [CLIENT, null],
+      );
     });
   },
 );

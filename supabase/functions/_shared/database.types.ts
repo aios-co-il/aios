@@ -15576,6 +15576,14 @@ export type Database = {
         };
         Returns: boolean;
       };
+      client_auto_send_targets: {
+        Args: { p_client_id: string };
+        Returns: {
+          email: boolean;
+          whatsapp_direct: boolean;
+          whatsapp_group: boolean;
+        }[];
+      };
       client_update_documents_phone_call: {
         Args: { p_content: string };
         Returns: boolean;
@@ -16299,13 +16307,19 @@ export type Database = {
         Returns: boolean;
       };
       resolve_send_recipient: {
-        Args: { p_address: string; p_shape: string; p_tenant_id: string };
+        Args: {
+          p_address: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
         Returns: {
           ambiguous: boolean;
           client_ids: string[];
           group_id: string;
           lead_id: string;
           recipient_kind: string;
+          sender_staff: boolean;
         }[];
       };
       restore_archived_leads: {

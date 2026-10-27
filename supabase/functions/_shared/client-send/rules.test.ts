@@ -17,6 +17,7 @@ const recipient = (kind: (typeof RECIPIENT_KINDS)[number]) => ({
   leadId: null,
   groupId: null,
   ambiguous: false,
+  senderStaff: false,
 });
 
 Deno.test("every send kind has exactly one client rule", () => {
@@ -35,6 +36,8 @@ Deno.test("observed refusals are refusals and name their issue", () => {
     assertMatch(issue ?? "", /AIO-\d+/, reason);
   }
   assertEquals(isObservedRefusal("unclassified_service_send"), true);
+  assertEquals(isObservedRefusal("automation_broadcast_unverified"), true);
+  assertEquals(isObservedRefusal("unresolvable_address"), true);
   assertEquals(isObservedRefusal("staff_only"), false);
   assertEquals(isObservedRefusal("guard_error"), false);
 });

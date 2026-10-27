@@ -26,6 +26,7 @@ export async function clientSendBlock(
       tenantId: send.tenantId,
       channel: "whatsapp",
       address: send.target.to,
+      groupId: send.request.groupId,
       isServiceRole: send.isServiceRole,
       sendKind: send.request.sendKind,
       sendRef: send.request.sendRef,

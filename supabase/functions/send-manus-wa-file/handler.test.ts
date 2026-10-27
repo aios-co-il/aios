@@ -235,6 +235,7 @@ Deno.test("handleFileSend asks the client send guard first", async (t) => {
         tenantId: TENANT,
         channel: "whatsapp",
         address: "972501234567",
+        groupId: null,
         origin: "system",
         sendKind: "staff_alert",
         sendRef: null,

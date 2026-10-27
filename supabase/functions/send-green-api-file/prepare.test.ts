@@ -63,6 +63,7 @@ const send: GreenFileSendInput = {
   groupChatId: undefined,
   phoneNumber: "0501234567",
   clientId: CLIENT,
+  isServiceRole: false,
   sendKind: "report",
   sendRef: null,
 };
@@ -166,6 +167,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
         tenantId: TENANT,
         channel: "whatsapp",
         address: "972501234567@c.us",
+        groupId: null,
         origin: "person",
         sendKind: "report",
         sendRef: null,
@@ -173,6 +175,23 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
       },
     ]);
     assertEquals(guard.rpcCalls, []);
+  });
+
+  await t.step("a service-role send, as the auth step says", async () => {
+    const requests: ClientSendRequest[] = [];
+    await prepareGreenFileSend(
+      deps({
+        authorizeClientSend: (request) => {
+          requests.push(request);
+          return authorizeClientSend(guardDb().db, request);
+        },
+      }),
+      { ...send, isServiceRole: true },
+    );
+    assertEquals(
+      requests.map((request) => request.origin),
+      ["system"],
+    );
   });
 
   await t.step("a refusal stops the send before Green API", async () => {

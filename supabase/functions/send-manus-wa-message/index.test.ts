@@ -17,6 +17,10 @@ const SENDER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const handler = await loadServedHandler(new URL("./index.ts", import.meta.url));
 
+const GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+const GROUP_CHAT = "120363416882903532@g.us";
+
 /** A service-role send to a phone, with the resolver's answer for it. */
 function send(body: Record<string, unknown>, recipient: ResolverRow) {
   const request = new Request("http://functions.test/send-manus-wa-message", {
@@ -47,6 +51,9 @@ function send(body: Record<string, unknown>, recipient: ResolverRow) {
           api_key: "key",
           settings: { instance_id: "inst-1" },
         },
+      ],
+      "GET /whatsapp_groups": [
+        { tenant_id: TENANT, group_chat_id: GROUP_CHAT },
       ],
       "POST /rpc/resolve_send_recipient": [recipient],
     },
@@ -110,6 +117,27 @@ Deno.test("send-manus-wa-message still sends an observed send", async () => {
     enforced: false,
   });
 });
+
+Deno.test(
+  "send-manus-wa-message names the group row it read to the resolver",
+  async () => {
+    const { response, provider, rest } = await send(
+      { sendKind: "staff_alert", groupId: GROUP, phoneNumber: undefined },
+      resolved("client_group", [CLIENT], { group_id: GROUP }),
+    );
+    assertEquals(response.status, 403);
+    assertEquals(provider, []);
+    const resolverCall = rest.find(
+      (call) => call.path === "/rpc/resolve_send_recipient",
+    );
+    assertEquals(resolverCall?.body, {
+      p_tenant_id: TENANT,
+      p_shape: "group",
+      p_address: GROUP_CHAT,
+      p_group_id: GROUP,
+    });
+  },
+);
 
 Deno.test("send-manus-wa-message sends a staff alert to staff", async () => {
   const { response, provider, rest } = await send(

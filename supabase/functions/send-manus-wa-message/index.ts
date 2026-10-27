@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
         tenantId,
         channel: "whatsapp",
         address: to,
+        groupId,
         isServiceRole,
         sendKind,
         sendRef,

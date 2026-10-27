@@ -1,6 +1,8 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { CLIENT, guardDb, resolved, TENANT } from "./fake-guard-db.ts";
-import { resolveRecipient, UNKNOWN_RECIPIENT } from "./recipient.ts";
+import { resolveRecipient } from "./recipient.ts";
+
+const GROUP = "99999999-9999-4999-8999-999999999999";
 
 /** An rpc that answers one result, for the resolver's failure modes. */
 function answering(result: { data: unknown; error: unknown }) {
@@ -18,6 +20,7 @@ Deno.test("resolveRecipient asks the database", async (t) => {
       tenantId: TENANT,
       channel: "whatsapp",
       address: "120363416882903532@g.us",
+      groupId: GROUP,
     });
     assertEquals(rpcCalls, [
       {
@@ -26,6 +29,7 @@ Deno.test("resolveRecipient asks the database", async (t) => {
           p_tenant_id: TENANT,
           p_shape: "group",
           p_address: "120363416882903532@g.us",
+          p_group_id: GROUP,
         },
       },
     ]);
@@ -35,7 +39,21 @@ Deno.test("resolveRecipient asks the database", async (t) => {
       leadId: null,
       groupId: "group-1",
       ambiguous: false,
+      senderStaff: false,
     });
+  });
+
+  await t.step("with whether it is the sender's own staff", async () => {
+    const { db } = guardDb({
+      recipient: resolved("client_contact", [CLIENT], { sender_staff: true }),
+    });
+    const recipient = await resolveRecipient(db, {
+      tenantId: TENANT,
+      channel: "whatsapp",
+      address: "972501234567@c.us",
+      groupId: null,
+    });
+    assertEquals(recipient?.senderStaff, true);
   });
 
   await t.step("not for an address nothing can match", async () => {
@@ -44,8 +62,9 @@ Deno.test("resolveRecipient asks the database", async (t) => {
       tenantId: TENANT,
       channel: "whatsapp",
       address: "123456789012@lid",
+      groupId: null,
     });
-    assertEquals(recipient, UNKNOWN_RECIPIENT);
+    assertEquals(recipient, null);
     assertEquals(rpcCalls, []);
   });
 });
@@ -55,6 +74,7 @@ Deno.test("resolveRecipient throws so the guard fails closed", async (t) => {
     tenantId: TENANT,
     channel: "whatsapp" as const,
     address: "972501234567",
+    groupId: null,
   };
 
   await t.step("on a database error", async () => {

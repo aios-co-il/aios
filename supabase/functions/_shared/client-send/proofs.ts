@@ -30,18 +30,27 @@ export async function reportScheduleClient(
   return data?.client_id ?? null;
 }
 
-/** Whether the broadcast is the tenant's and is being dispatched now. */
-export async function broadcastIsSending(
+/**
+ * A broadcast being dispatched. `automationStream`: an automation's template
+ * stream (origin automation), which stays 'sending' for good, so its status
+ * proves nothing and its automation's rule decides.
+ */
+export type SendingBroadcast =
+  | { automationStream: false }
+  | { automationStream: true; automationId: string | null };
+
+/** The tenant's broadcast when it is being dispatched now, else null. */
+export async function sendingBroadcast(
   db: ProofDb,
   input: { tenantId: string; broadcastId: string },
-): Promise<boolean> {
+): Promise<SendingBroadcast | null> {
   const broadcastId = asUuidOrNull(input.broadcastId);
   if (!broadcastId) {
-    return false;
+    return null;
   }
   const { data, error } = await db
     .from("broadcasts")
-    .select("id")
+    .select("origin, automation_id")
     .eq("id", broadcastId)
     .eq("tenant_id", input.tenantId)
     .eq("status", "sending")
@@ -49,7 +58,12 @@ export async function broadcastIsSending(
   if (error) {
     throw error;
   }
-  return data !== null;
+  if (!data) {
+    return null;
+  }
+  return data.origin === "automation"
+    ? { automationStream: true, automationId: data.automation_id }
+    : { automationStream: false };
 }
 
 export type AutomationTarget = {
@@ -75,7 +89,7 @@ export async function automationTarget(
   const shared = await isSharedInto(db, automationId, input.tenantId);
   let query = db
     .from("automations")
-    .select("id, is_flow, trigger_type, configuration, conditions")
+    .select("id, tenant_id, is_flow, trigger_type, configuration, conditions")
     .eq("id", automationId)
     .eq("active", true);
   if (!shared) {
@@ -96,7 +110,7 @@ export async function automationTarget(
       triggerType: automation.trigger_type,
     };
   }
-  const trigger = await flowTriggerStep(db, automationId);
+  const trigger = await flowTriggerStep(db, automationId, automation.tenant_id);
   return {
     clientId: configuredClient(trigger?.configuration),
     triggerType: trigger?.action_type ?? automation.trigger_type,
@@ -121,13 +135,24 @@ async function isSharedInto(
   return data !== null;
 }
 
-/** A flow's trigger step, which holds its client and its trigger. */
-async function flowTriggerStep(db: ProofDb, automationId: string) {
-  const { data, error } = await db
+/**
+ * A flow's trigger step, which holds its client and its trigger; keyed by
+ * the automation's own tenant, which a shared automation keeps.
+ */
+async function flowTriggerStep(
+  db: ProofDb,
+  automationId: string,
+  automationTenantId: string | null,
+) {
+  let query = db
     .from("automation_flow_steps")
     .select("action_type, configuration")
     .eq("automation_id", automationId)
-    .eq("step_type", "trigger")
+    .eq("step_type", "trigger");
+  if (automationTenantId) {
+    query = query.eq("tenant_id", automationTenantId);
+  }
+  const { data, error } = await query
     .order("sort_order")
     .limit(1)
     .maybeSingle();

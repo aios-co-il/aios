@@ -5,8 +5,8 @@ import type { DbClient } from "../supabase-clients.ts";
 import { isOptedIn } from "./opt-in.ts";
 import {
   automationTarget,
-  broadcastIsSending,
   reportScheduleClient,
+  sendingBroadcast,
 } from "./proofs.ts";
 import {
   CLIENT_RULES,
@@ -35,10 +35,12 @@ export async function clientRefusal(
   switch (rule.proof) {
     case "never":
       return rule.refusal;
+    case "sender_staff":
+      return recipient.senderStaff ? null : rule.refusal;
     case "report_schedule":
       return await reportRefusal(db, request, recipient);
     case "broadcast_sending":
-      return await broadcastRefusal(db, request);
+      return await broadcastRefusal(db, request, recipient);
     case "automation":
       return await automationRefusal(db, request, recipient);
     case "opt_in":
@@ -46,7 +48,11 @@ export async function clientRefusal(
   }
 }
 
-/** The schedule in send_ref is enabled here and reports on this recipient. */
+/**
+ * The schedule in send_ref is enabled here and reports on this recipient,
+ * or the recipient is the sending tenant's own staff, who may get a report
+ * on any of its clients.
+ */
 async function reportRefusal(
   db: ClientSendDb,
   request: ClientSendRequest,
@@ -62,28 +68,46 @@ async function reportRefusal(
   if (!clientId) {
     return "proof_invalid";
   }
-  return recipient.clientIds.includes(clientId) ? null : "subject_mismatch";
+  return recipient.clientIds.includes(clientId) || recipient.senderStaff
+    ? null
+    : "subject_mismatch";
 }
 
-/** The broadcast in send_ref is this tenant's and is being dispatched. */
+/**
+ * The broadcast in send_ref is this tenant's and is being dispatched. An
+ * automation's template stream is always dispatching, so its automation's
+ * rule decides, and is only observed until AIO-267.
+ */
 async function broadcastRefusal(
   db: ClientSendDb,
   request: ClientSendRequest,
+  recipient: SendRecipient,
 ): Promise<ClientSendRefusal | null> {
   if (!request.sendRef) {
     return "proof_missing";
   }
-  const sending = await broadcastIsSending(db, {
+  const broadcast = await sendingBroadcast(db, {
     tenantId: request.tenantId,
     broadcastId: request.sendRef,
   });
-  return sending ? null : "proof_invalid";
+  if (!broadcast) {
+    return "proof_invalid";
+  }
+  if (!broadcast.automationStream) {
+    return null;
+  }
+  const refusal = broadcast.automationId
+    ? await automationRuleRefusal(
+        db,
+        request,
+        recipient,
+        broadcast.automationId,
+      )
+    : "proof_invalid";
+  return refusal ? "automation_broadcast_unverified" : null;
 }
 
-/**
- * The automation in send_ref runs here. Set for one client that this
- * recipient belongs to, it passes; otherwise the card's switch decides.
- */
+/** An automation send names its automation in send_ref. */
 async function automationRefusal(
   db: ClientSendDb,
   request: ClientSendRequest,
@@ -92,9 +116,22 @@ async function automationRefusal(
   if (!request.sendRef) {
     return "automation_without_ref";
   }
+  return await automationRuleRefusal(db, request, recipient, request.sendRef);
+}
+
+/**
+ * The automation runs here. Set for one client that this recipient belongs
+ * to, it passes; otherwise the card's switch decides.
+ */
+async function automationRuleRefusal(
+  db: ClientSendDb,
+  request: ClientSendRequest,
+  recipient: SendRecipient,
+  automationId: string,
+): Promise<ClientSendRefusal | null> {
   const automation = await automationTarget(db, {
     tenantId: request.tenantId,
-    automationId: request.sendRef,
+    automationId,
   });
   if (!automation) {
     return "proof_invalid";

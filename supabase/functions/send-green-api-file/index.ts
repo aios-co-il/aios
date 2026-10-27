@@ -112,11 +112,13 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
-    // This function only serves signed-in users, so an unnamed kind is "chat".
+    // getUser above admits signed-in users only: every send here is a
+    // person's, so an unnamed kind is "chat" and the client guard passes it.
+    const isServiceRole = false;
     const sendColumns = sendKindColumns({
       sendKind: formData.get("sendKind"),
       sendRef: formData.get("sendRef"),
-      isServiceRole: false,
+      isServiceRole,
     });
 
     if (!rawFile) {
@@ -219,6 +221,7 @@ Deno.serve(async (req) => {
         groupChatId,
         phoneNumber,
         clientId,
+        isServiceRole,
         sendKind: formData.get("sendKind"),
         sendRef: formData.get("sendRef"),
       },

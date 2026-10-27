@@ -15,6 +15,7 @@ Deno.test(
           leadId: null,
           groupId: null,
           ambiguous: false,
+          senderStaff: false,
         },
       },
       corsHeaders,

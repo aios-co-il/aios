@@ -43,6 +43,7 @@ const send = (fields: Partial<ClientSendRequest>): ClientSendRequest => ({
   tenantId: TENANT,
   channel: "whatsapp",
   address: "120363416882903532@g.us",
+  groupId: null,
   origin: "system",
   sendKind: null,
   sendRef: null,
@@ -56,6 +57,16 @@ const group = (clientIds: string[]): SendRecipient => ({
   leadId: null,
   groupId: "group-1",
   ambiguous: clientIds.length > 1,
+  senderStaff: false,
+});
+
+/** A client's contact who is also staff of the sending tenant. */
+const ownStaffContact = (clientIds: string[]): SendRecipient => ({
+  ...group(clientIds),
+  kind: "client_contact",
+  groupId: null,
+  ambiguous: false,
+  senderStaff: true,
 });
 
 /** The refusal for this send to this recipient, over the fixture tables. */
@@ -81,6 +92,17 @@ Deno.test("kinds a client never gets automatically", async () => {
   assertEquals(await refusal({ sendKind: "carmen" }), "carmen_unverified");
 });
 
+Deno.test("a staff alert reaches only the sender's own staff", async () => {
+  assertEquals(
+    await refusal({ sendKind: "staff_alert" }, ownStaffContact([CLIENT])),
+    null,
+  );
+  assertEquals(
+    await refusal({ sendKind: "chat" }, ownStaffContact([CLIENT])),
+    "person_only_kind",
+  );
+});
+
 Deno.test("a report needs its schedule, for this client", async () => {
   const report = { sendKind: "report" as const, sendRef: SCHEDULE };
   assertEquals(await refusal(report), null);
@@ -93,9 +115,21 @@ Deno.test("a report needs its schedule, for this client", async () => {
     await refusal(report, group([OTHER_CLIENT])),
     "subject_mismatch",
   );
+  assertEquals(
+    await refusal(report, ownStaffContact([OTHER_CLIENT])),
+    null,
+    "the sender's own staff may get a report on any of its clients",
+  );
   assertEquals(await refusal({ ...report, sendRef: null }), "proof_missing");
   assertEquals(
     await refusal({ ...report, tenantId: OTHER_TENANT }),
+    "proof_invalid",
+  );
+  assertEquals(
+    await refusal(
+      { ...report, tenantId: OTHER_TENANT },
+      ownStaffContact([CLIENT]),
+    ),
     "proof_invalid",
   );
 });
@@ -106,11 +140,63 @@ Deno.test("a broadcast needs to be dispatching", async () => {
   assertEquals(await refusal({ ...broadcast, sendRef: null }), "proof_missing");
   const { db } = guardDb({
     tables: {
-      broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "sending" }],
+      broadcasts: [
+        {
+          id: BROADCAST,
+          tenant_id: TENANT,
+          status: "sending",
+          origin: "manual",
+          automation_id: null,
+        },
+      ],
     },
   });
   assertEquals(await clientRefusal(db, send(broadcast), group([CLIENT])), null);
 });
+
+Deno.test(
+  "an automation's template stream answers to its automation",
+  async () => {
+    // The stream stays 'sending' for good, so its automation's rule
+    // decides; its refusal is observed until AIO-267.
+    const stream = (
+      automationId: string | null,
+      fields: Partial<ClientSendRequest> = {},
+      recipient = group([CLIENT]),
+    ) => {
+      const { db } = guardDb({
+        tables: {
+          ...tables,
+          broadcasts: [
+            {
+              id: BROADCAST,
+              tenant_id: TENANT,
+              status: "sending",
+              origin: "automation",
+              automation_id: automationId,
+            },
+          ],
+        },
+        optIns: [optInKey(CLIENT, "lead_alert", "whatsapp_group")],
+      });
+      const broadcast = { sendKind: "broadcast" as const, sendRef: BROADCAST };
+      return clientRefusal(db, send({ ...broadcast, ...fields }), recipient);
+    };
+    const unverified = "automation_broadcast_unverified";
+    assertEquals(await stream(FOR_CLIENT), null, "set for this client");
+    assertEquals(await stream(TENANT_WIDE), null, "with the card's switch");
+    assertEquals(
+      await stream(TENANT_WIDE, { subjectClientId: null }),
+      unverified,
+    );
+    assertEquals(
+      await stream(TENANT_WIDE, {}, group([OTHER_CLIENT])),
+      unverified,
+    );
+    assertEquals(await stream(null), unverified, "its automation is gone");
+    assertEquals(await stream(SCHEDULE), unverified, "not an automation here");
+  },
+);
 
 Deno.test(
   "an automation passes for its client or by the card's switch",

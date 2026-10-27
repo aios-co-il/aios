@@ -37,6 +37,8 @@ export type GreenFileSendInput = {
   phoneNumber: string | null;
   /** The body's clientId, sendKind and sendRef, as sent. */
   clientId: string | null;
+  /** From index.ts's auth step: a service-role call is a system send. */
+  isServiceRole: boolean;
   sendKind: unknown;
   sendRef: unknown;
 };
@@ -95,10 +97,7 @@ export async function prepareGreenFileSend(
   return { line: sender.line, chatId: target.chatId, usedGroupChat };
 }
 
-/**
- * The client send guard's refusal, else null. index.ts serves signed-in
- * users only, so the recipient is always a person's pick.
- */
+/** The client send guard's refusal, else null. */
 async function clientSendBlock(
   deps: GreenFileSendDeps,
   input: GreenFileSendInput,
@@ -110,7 +109,8 @@ async function clientSendBlock(
       tenantId: input.tenantId,
       channel: "whatsapp",
       address: chatId,
-      isServiceRole: false,
+      groupId: input.groupId,
+      isServiceRole: input.isServiceRole,
       sendKind: input.sendKind,
       sendRef: input.sendRef,
       clientId: input.clientId,
