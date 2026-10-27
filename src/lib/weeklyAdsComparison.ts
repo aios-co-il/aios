@@ -1,10 +1,13 @@
-import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import {
   addFacebookGoalRecord,
   emptyFacebookGoalInputs,
   facebookCampaignGoal,
   type FacebookGoalInputs,
 } from "@/lib/facebookCampaignGoal";
+import {
+  groupWeeklyRowsByGoal,
+  type WeeklyGoalGroup,
+} from "@/lib/weeklyCampaignGoals";
 
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
@@ -31,18 +34,6 @@ export type WeeklyCampaignRow = {
   roas: number;
 };
 
-export type WeeklyGoalTotals = Omit<
-  WeeklyCampaignRow,
-  "key" | "source" | "campaignId" | "campaign" | "kind"
->;
-
-/** One goal's campaigns in a week, with totals of that goal only. */
-export type WeeklyGoalGroup = {
-  kind: WeeklyCampaignKind;
-  rows: WeeklyCampaignRow[];
-  totals: WeeklyGoalTotals;
-};
-
 export type WeeklyCampaignSection = {
   key: string;
   index: number;
@@ -57,36 +48,10 @@ export type WeeklyCampaignSection = {
   totals: { impressions: number; clicks: number; spend: number };
 };
 
+/** Per-source goal of the report's tables; Google uses it for unknown goals. */
 export type WeeklySourceModes = Partial<
   Record<WeeklyAdsSource, "leads" | "ecommerce">
 >;
-
-/**
- * The report table's goal settings for the weekly tab, same as its main tables:
- * Facebook Insights is leads-only only when set to leads (otherwise each campaign
- * by its own goal), and Google falls back to the table's type for unknown goals.
- */
-export function weeklySourceModesForTable(
-  integrationSettings?: Record<string, unknown> | null,
-): WeeklySourceModes {
-  const campaignType = String(
-    integrationSettings?.campaign_type || "",
-  ).toLowerCase();
-  return {
-    facebook_insights: isFacebookLeadsOnlyTable(integrationSettings)
-      ? "leads"
-      : undefined,
-    facebook_ecommerce: "ecommerce",
-    google_ads: campaignType === "ecommerce" ? "ecommerce" : "leads",
-  };
-}
-
-/** Fixed order of the goal groups in a week. */
-export const WEEKLY_GOAL_ORDER: readonly WeeklyCampaignKind[] = [
-  "ecommerce",
-  "leads",
-  "traffic",
-];
 
 const ADS_SOURCES = new Set<WeeklyAdsSource>([
   "facebook_insights",
@@ -162,7 +127,7 @@ export function getSundayStart(date: Date): Date {
 function campaignKind(
   source: WeeklyAdsSource,
   goal: FacebookGoalInputs,
-  sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
+  sourceModes: WeeklySourceModes,
   googleGoal?: "leads" | "ecommerce",
 ): WeeklyCampaignKind {
   // Google: each campaign by its own goal; the report's type only when unknown.
@@ -177,33 +142,6 @@ function campaignKind(
   });
 }
 
-const emptyTotals = (): WeeklyGoalTotals => ({
-  impressions: 0,
-  clicks: 0,
-  results: 0,
-  spend: 0,
-  costPerResult: 0,
-  revenue: 0,
-  addToCart: 0,
-  roas: 0,
-});
-
-/** Totals of one goal: its own results, cost per result and (sales only) ROAS. */
-function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
-  const totals = rows.reduce((sum, row) => {
-    sum.impressions += row.impressions;
-    sum.clicks += row.clicks;
-    sum.results += row.results;
-    sum.spend += row.spend;
-    sum.revenue += row.revenue;
-    sum.addToCart += row.addToCart;
-    return sum;
-  }, emptyTotals());
-  totals.costPerResult = totals.results > 0 ? totals.spend / totals.results : 0;
-  totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
-  return totals;
-}
-
 /**
  * Builds calendar-week campaign tables, newest first. Week boundaries are always
  * Sunday–Saturday; the first section may be the current partial week.
@@ -214,7 +152,7 @@ export function buildWeeklyCampaignSections(
     now?: Date;
     maxWeeks?: number;
     defaultSource?: WeeklyAdsSource;
-    sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+    sourceModes?: WeeklySourceModes;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
     googleCampaignGoals?: Map<string, "leads" | "ecommerce">;
   } = {},
@@ -342,10 +280,7 @@ export function buildWeeklyCampaignSections(
         })
         .sort((a, b) => b.spend - a.spend);
 
-      const groups = WEEKLY_GOAL_ORDER.map((kind) => {
-        const goalRows = rows.filter((row) => row.kind === kind);
-        return { kind, rows: goalRows, totals: goalTotals(goalRows) };
-      }).filter((group) => group.rows.length > 0);
+      const groups = groupWeeklyRowsByGoal(rows);
       const totals = rows.reduce(
         (sum, row) => ({
           impressions: sum.impressions + row.impressions,

@@ -81,7 +81,8 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable";
-import { googleLeadCampaignRecords } from "@/lib/googleAdsReport";
+import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
+import { googleLeadCampaignRecords } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SearchConsoleDashboard } from "@/components/dynamic-tables/SearchConsoleDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
@@ -131,7 +132,7 @@ import {
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
-import { weeklySourceModesForTable } from "@/lib/weeklyAdsComparison";
+import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   ADS_ENTITY_SEARCH_PLACEHOLDERS,
@@ -4141,17 +4142,10 @@ export default function DynamicTableView({
                   const isEcommerce = groupList.length
                     ? hasEcommerceGroups && !hasLeadGroups
                     : tableIsEcommerce;
-                  const goalSections = (["ecommerce", "leads"] as const)
-                    .map((goal) => ({
-                      goal,
-                      rows: groupList.filter((group) => group.goal === goal),
-                    }))
-                    .filter((section) => section.rows.length > 0);
-                  if (goalSections.length === 0)
-                    goalSections.push({
-                      goal: tableIsEcommerce ? "ecommerce" : "leads",
-                      rows: [],
-                    });
+                  const goalSections = googleGoalSections(
+                    groupList,
+                    tableIsEcommerce ? "ecommerce" : "leads",
+                  );
                   const ecommerceTotals = groupList
                     .filter((group) => group.goal === "ecommerce")
                     .reduce(

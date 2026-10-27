@@ -1,3 +1,7 @@
+import {
+  CAMPAIGN_GOAL_TITLES,
+  CAMPAIGN_GOAL_TOTAL_LABELS,
+} from "@/lib/campaignGoals";
 import type { GoogleReportCampaignGoal } from "@/lib/pulseCampaignGoals";
 
 type Metrics = {
@@ -24,14 +28,84 @@ type Props = {
   wooTotals?: { conversions: number; revenue: number } | null;
 };
 
-const goalTitle: Record<GoogleReportCampaignGoal, string> = {
-  ecommerce: "קמפייני מכירות",
-  leads: "קמפייני לידים",
-};
+/**
+ * One goal of a Google Ads report table: sales campaigns with conversion value
+ * and ROAS, lead campaigns with cost per lead. Totals are of this goal only.
+ */
+export function GoogleAdsGoalTable({
+  goal,
+  rows,
+  entityColumnLabel,
+  currency,
+  showTitle = false,
+  wooTotals,
+}: Props) {
+  const isEcommerce = goal === "ecommerce";
+  const woo = isEcommerce ? wooTotals : null;
+  const sum = (key: keyof Metrics) =>
+    rows.reduce((total, row) => total + row[key], 0);
+  const totals: Metrics = {
+    impressions: sum("impressions"),
+    clicks: sum("clicks"),
+    conversions: woo ? woo.conversions : sum("conversions"),
+    cost: sum("cost"),
+    conversions_value: woo ? woo.revenue : sum("conversions_value"),
+  };
+  const totalLabel = showTitle ? CAMPAIGN_GOAL_TOTAL_LABELS[goal] : "סה״כ";
+  const header = (label: string) => (
+    <th className="p-2 text-center font-medium">{label}</th>
+  );
 
-const fmt = (value: number, digits = 0) =>
-  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
-const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);
+  return (
+    <section aria-label={CAMPAIGN_GOAL_TITLES[goal]}>
+      {showTitle && (
+        <h4
+          className="border-b bg-muted/30 px-3 py-2 text-sm font-semibold"
+          dir="rtl"
+        >
+          {CAMPAIGN_GOAL_TITLES[goal]}
+        </h4>
+      )}
+      <table className="w-full text-sm" dir="rtl">
+        <thead className="bg-muted/50 border-b">
+          <tr>
+            <th className="p-2 text-right font-medium">{entityColumnLabel}</th>
+            {header("חשיפות")}
+            {header("קליקים")}
+            {header(woo ? "המרות (GA)" : isEcommerce ? "המרות" : "לידים")}
+            {header("עלות")}
+            {isEcommerce && header(woo ? "ערך (GA)" : "ערך המרות")}
+            {header(isEcommerce ? "ROAS" : "עלות לליד")}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key} className="border-b hover:bg-muted/30">
+              <td className="p-2 text-right font-medium">{row.name}</td>
+              <MetricCells
+                m={row}
+                isEcommerce={isEcommerce}
+                currency={currency}
+                emphasis=" font-medium"
+              />
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="bg-primary/10 font-bold">
+          <tr>
+            <td className="p-2 text-right">{totalLabel}</td>
+            <MetricCells
+              m={totals}
+              isEcommerce={isEcommerce}
+              currency={currency}
+              emphasis=""
+            />
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  );
+}
 
 /** Metric cells of a row or of the total row; sales and leads differ. */
 function MetricCells({
@@ -76,85 +150,9 @@ function MetricCells({
   );
 }
 
-/**
- * One goal of a Google Ads report table: sales campaigns with conversion value
- * and ROAS, lead campaigns with cost per lead. Totals are of this goal only.
- */
-export function GoogleAdsGoalTable({
-  goal,
-  rows,
-  entityColumnLabel,
-  currency,
-  showTitle = false,
-  wooTotals,
-}: Props) {
-  const isEcommerce = goal === "ecommerce";
-  const woo = isEcommerce ? wooTotals : null;
-  const sum = (key: keyof Metrics) =>
-    rows.reduce((total, row) => total + row[key], 0);
-  const totals: Metrics = {
-    impressions: sum("impressions"),
-    clicks: sum("clicks"),
-    conversions: woo ? woo.conversions : sum("conversions"),
-    cost: sum("cost"),
-    conversions_value: woo ? woo.revenue : sum("conversions_value"),
-  };
-  const totalLabel = !showTitle
-    ? "סה״כ"
-    : isEcommerce
-      ? "סה״כ מכירות"
-      : "סה״כ לידים";
-  const header = (label: string) => (
-    <th className="p-2 text-center font-medium">{label}</th>
-  );
+/** A table number in Hebrew locale, rounded to `digits`. */
+const fmt = (value: number, digits = 0) =>
+  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
 
-  return (
-    <section aria-label={goalTitle[goal]}>
-      {showTitle && (
-        <h4
-          className="border-b bg-muted/30 px-3 py-2 text-sm font-semibold"
-          dir="rtl"
-        >
-          {goalTitle[goal]}
-        </h4>
-      )}
-      <table className="w-full text-sm" dir="rtl">
-        <thead className="bg-muted/50 border-b">
-          <tr>
-            <th className="p-2 text-right font-medium">{entityColumnLabel}</th>
-            {header("חשיפות")}
-            {header("קליקים")}
-            {header(woo ? "המרות (GA)" : isEcommerce ? "המרות" : "לידים")}
-            {header("עלות")}
-            {isEcommerce && header(woo ? "ערך (GA)" : "ערך המרות")}
-            {header(isEcommerce ? "ROAS" : "עלות לליד")}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} className="border-b hover:bg-muted/30">
-              <td className="p-2 text-right font-medium">{row.name}</td>
-              <MetricCells
-                m={row}
-                isEcommerce={isEcommerce}
-                currency={currency}
-                emphasis=" font-medium"
-              />
-            </tr>
-          ))}
-        </tbody>
-        <tfoot className="bg-primary/10 font-bold">
-          <tr>
-            <td className="p-2 text-right">{totalLabel}</td>
-            <MetricCells
-              m={totals}
-              isEcommerce={isEcommerce}
-              currency={currency}
-              emphasis=""
-            />
-          </tr>
-        </tfoot>
-      </table>
-    </section>
-  );
-}
+/** a ÷ b, or 0 when there is nothing to divide by. */
+const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);

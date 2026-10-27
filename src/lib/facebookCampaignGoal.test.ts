@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
-import {
-  groupSharedFacebookRows,
-  summarizeSharedTableRecords,
-} from "./sharedTableSummary";
+import { groupSharedFacebookRows } from "@/components/SharedTable/sharedFacebookGroups";
+import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
 import type { CampaignGoal } from "./campaignGoals";
 import {
   addFacebookGoalRecord,
@@ -11,10 +9,8 @@ import {
   facebookCampaignGoal,
   facebookCampaignGoals,
 } from "./facebookCampaignGoal";
-import {
-  buildWeeklyCampaignSections,
-  weeklySourceModesForTable,
-} from "./weeklyAdsComparison";
+import { buildWeeklyCampaignSections } from "./weeklyAdsComparison";
+import { weeklySourceModesForTable } from "./weeklyCampaignGoals";
 
 const NOW = new Date("2026-09-18T12:00:00Z");
 const GOALS: CampaignGoal[] = ["ecommerce", "leads", "traffic"];

@@ -72,17 +72,20 @@ import {
   isFacebookLeadsOnlyTable,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
-import {
-  groupSharedFacebookRows,
-  summarizeSharedTableRecords,
-} from "@/lib/sharedTableSummary";
-import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
+import { groupSharedFacebookRows } from "@/components/SharedTable/sharedFacebookGroups";
+import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
 import { sharedManualRoiFigures } from "@/components/SharedTable/sharedManualRoi";
+import {
+  SharedTrafficTable,
+  type SharedCampaignRow,
+} from "@/components/SharedTable/SharedTrafficTable";
+import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
+import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
-import { weeklySourceModesForTable } from "@/lib/weeklyAdsComparison";
+import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import { getCurrencySymbol } from "@/lib/currency";
 import {
   ADS_ENTITY_LEVEL_LABELS,
@@ -357,17 +360,23 @@ export default function SharedTable() {
   // Facebook Insights: sales, lead and traffic campaigns each in their own table,
   // like the internal report. Only campaign_type leads keeps everything in leads.
   const facebookLeadsOnly = isFacebookLeadsOnlyTable(
-    data?.table?.integration_settings as Record<string, unknown> | undefined,
+    data?.table?.integration_settings,
   );
   const facebookGroups = useMemo(() => {
-    if (integrationType !== "facebook_insights") return null;
+    if (integrationType !== "facebook_insights") {
+      return null;
+    }
     return groupSharedFacebookRows(filteredRecords, adsEntityLevel, {
       leadsOnly: facebookLeadsOnly,
     });
   }, [filteredRecords, integrationType, adsEntityLevel, facebookLeadsOnly]);
   const campaignGoals = useMemo(() => {
-    if (googleGoals) return googleGoals;
-    if (!facebookGroups) return null;
+    if (googleGoals) {
+      return googleGoals;
+    }
+    if (!facebookGroups) {
+      return null;
+    }
     return {
       ecommerce: facebookGroups.ecommerce.length > 0,
       leads: facebookGroups.leads.length > 0,
@@ -382,7 +391,9 @@ export default function SharedTable() {
 
   // Summary for integration tables
   const summary = useMemo(() => {
-    if (!isIntegrationTable) return null;
+    if (!isIntegrationTable) {
+      return null;
+    }
     return summarizeSharedTableRecords(filteredRecords, {
       integrationType: integrationType || "",
       goalOf: googleGoalOf ?? facebookGroups?.goalOf ?? null,
@@ -402,14 +413,15 @@ export default function SharedTable() {
   ]);
 
   // Campaign/adset/ad aggregation for Facebook / Google Ads
-  const campaignSummary = useMemo(() => {
+  const campaignSummary = useMemo((): {
+    ecommerce: SharedCampaignRow[];
+    leads: SharedCampaignRow[];
+    traffic: SharedCampaignRow[];
+    all: SharedCampaignRow[];
+    entityColumnLabel?: string;
+  } => {
     if (!isAdsPlatform(integrationType || ""))
-      return {
-        ecommerce: [] as any[],
-        leads: [] as any[],
-        traffic: [] as any[],
-        all: [] as any[],
-      };
+      return { ecommerce: [], leads: [], traffic: [], all: [] };
 
     const entityColumnLabel =
       adsEntityLevel === "ad"
@@ -477,7 +489,7 @@ export default function SharedTable() {
     return {
       ecommerce,
       leads,
-      traffic: [] as any[],
+      traffic: [],
       all: [...ecommerce, ...leads],
       entityColumnLabel,
     };
@@ -841,8 +853,7 @@ export default function SharedTable() {
             isLoading={weeklyPending}
             tables={data?.table ? [data.table] : undefined}
             sourceModes={weeklySourceModesForTable(
-              data?.table?.integration_settings as
-                Record<string, unknown> | undefined,
+              data?.table?.integration_settings,
             )}
           />
         )}
@@ -1009,7 +1020,7 @@ export default function SharedTable() {
           campaignSummary.ecommerce?.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>קמפייני מכירות</CardTitle>
+                <CardTitle>{CAMPAIGN_GOAL_TITLES.ecommerce}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -1144,7 +1155,7 @@ export default function SharedTable() {
           campaignSummary.leads?.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>קמפייני לידים</CardTitle>
+                <CardTitle>{CAMPAIGN_GOAL_TITLES.leads}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -1241,81 +1252,14 @@ export default function SharedTable() {
         {/* Campaign Breakdown for Ads platforms - Traffic (clicks are the result) */}
         {isAdsPlatform(integrationType || "") &&
           adsReportView === "summary" &&
-          campaignSummary.traffic?.length > 0 &&
-          (() => {
-            const totals = campaignSummary.traffic.reduce(
-              (
-                sum: { spend: number; impressions: number; clicks: number },
-                c: any,
-              ) => ({
-                spend: sum.spend + c.spend,
-                impressions: sum.impressions + c.impressions,
-                clicks: sum.clicks + c.clicks,
-              }),
-              { spend: 0, impressions: 0, clicks: 0 },
-            );
-            const ctr = (clicks: number, impressions: number) =>
-              `${(impressions > 0 ? (clicks / impressions) * 100 : 0).toFixed(2)}%`;
-            const cpc = (spend: number, clicks: number) =>
-              formatCurrency(clicks > 0 ? spend / clicks : 0);
-            return (
-              <Card>
-                <CardHeader>
-                  <CardTitle>קמפייני תנועה</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-right">
-                            {campaignSummary.entityColumnLabel || "קמפיין"}
-                          </TableHead>
-                          <TableHead className="text-right">הוצאה</TableHead>
-                          <TableHead className="text-right">חשיפות</TableHead>
-                          <TableHead className="text-right">קליקים</TableHead>
-                          <TableHead className="text-right">CTR</TableHead>
-                          <TableHead className="text-right">
-                            עלות לקליק
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {campaignSummary.traffic.map((c: any) => (
-                          <TableRow key={c.name}>
-                            <TableCell className="font-medium max-w-[200px] truncate">
-                              {c.name}
-                            </TableCell>
-                            <TableCell>{formatCurrency(c.spend)}</TableCell>
-                            <TableCell>{formatNumber(c.impressions)}</TableCell>
-                            <TableCell>{formatNumber(c.clicks)}</TableCell>
-                            <TableCell>
-                              {ctr(c.clicks, c.impressions)}
-                            </TableCell>
-                            <TableCell>{cpc(c.spend, c.clicks)}</TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="bg-primary/10 font-bold border-t-2">
-                          <TableCell>סה"כ</TableCell>
-                          <TableCell>{formatCurrency(totals.spend)}</TableCell>
-                          <TableCell>
-                            {formatNumber(totals.impressions)}
-                          </TableCell>
-                          <TableCell>{formatNumber(totals.clicks)}</TableCell>
-                          <TableCell>
-                            {ctr(totals.clicks, totals.impressions)}
-                          </TableCell>
-                          <TableCell>
-                            {cpc(totals.spend, totals.clicks)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
+          campaignSummary.traffic.length > 0 && (
+            <SharedTrafficTable
+              rows={campaignSummary.traffic}
+              entityColumnLabel={campaignSummary.entityColumnLabel || "קמפיין"}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+            />
+          )}
 
         {/* Manual ROI summary — viewers can fill in closures & revenue */}
         {isAdsPlatform(integrationType || "") &&

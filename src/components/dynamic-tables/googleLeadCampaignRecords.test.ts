@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { googleLeadCampaignRecords } from "./googleAdsReport";
+import { googleLeadCampaignRecords } from "./googleLeadCampaignRecords";
 
 const table = {
   id: "g",
@@ -17,7 +17,7 @@ const record = (campaign: string, goal?: string) => ({
   },
 });
 
-describe("Google lead campaign records", () => {
+describe("googleLeadCampaignRecords", () => {
   it("leaves sales campaigns out of lead-only figures", () => {
     const records = [
       record("shop", "ecommerce"),

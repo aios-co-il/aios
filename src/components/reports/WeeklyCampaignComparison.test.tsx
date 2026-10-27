@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WeeklySourceModes } from "@/lib/weeklyAdsComparison";
 import { WeeklyCampaignComparison } from "./WeeklyCampaignComparison";
 
 const fb = (campaign: string, data: Record<string, unknown>) => ({
@@ -173,10 +174,11 @@ describe("weekly comparison by campaign goal", () => {
   });
 
   it("a legacy CONVERSIONS lead campaign keeps its leads and gets no sales columns", () => {
-    for (const sourceModes of [
+    const modes: Array<WeeklySourceModes | undefined> = [
       undefined,
-      { facebook_insights: "ecommerce" as const },
-    ]) {
+      { facebook_insights: "ecommerce" },
+    ];
+    for (const sourceModes of modes) {
       const { unmount } = render(
         <WeeklyCampaignComparison
           records={[

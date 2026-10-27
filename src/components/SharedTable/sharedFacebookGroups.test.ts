@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  groupSharedFacebookRows,
-  summarizeSharedTableRecords,
-} from "./sharedTableSummary";
-
-const google = (
-  goal: "ecommerce" | "leads",
-  data: Record<string, unknown>,
-) => ({
-  data: { goal, impressions: 1000, clicks: 50, ...data },
-});
-const goalOf = (data: Record<string, unknown>) =>
-  data.goal === "ecommerce" ? ("ecommerce" as const) : ("leads" as const);
+import { groupSharedFacebookRows } from "./sharedFacebookGroups";
+import { summarizeSharedTableRecords } from "./sharedTableSummary";
 
 const fb = (campaign: string, data: Record<string, unknown>) => ({
   data: {
@@ -37,63 +26,24 @@ const mixedFacebook = [
   fb("Traffic", { campaign_type: "traffic", spend: 100, clicks: 400 }),
 ];
 const names = (rows: Array<{ name: string }>) => rows.map((row) => row.name);
-
-describe("shared table summary", () => {
-  it("keeps ROAS and cost per conversion on each Google goal's own spend", () => {
-    const summary = summarizeSharedTableRecords(
-      [
-        google("ecommerce", {
-          cost: 200,
-          conversions: 4,
-          conversions_value: 800,
-        }),
-        google("leads", { cost: 300, conversions: 10, conversions_value: 10 }),
-      ],
-      {
-        integrationType: "google_ads",
-        goalOf,
-        goals: { ecommerce: true, leads: true },
-        forceLeadsOnly: false,
-        forceEcommerceOnly: false,
-      },
-    );
-    expect(summary.spend).toBe(500);
-    expect(summary.revenue).toBe(800);
-    // Not 800 / 500 or 500 / 10: lead spend earns no revenue, sales are not leads.
-    expect(summary.roas).toBe(4);
-    expect(summary.leads).toBe(10);
-    expect(summary.cpl).toBe(30);
-    expect(summary.hasEcommerce && summary.hasLeads).toBe(true);
+const summarize = (
+  records: Array<{ data: Record<string, unknown> }>,
+  leadsOnly: boolean,
+) => {
+  const groups = groupSharedFacebookRows(records, "campaign", { leadsOnly });
+  return summarizeSharedTableRecords(records, {
+    integrationType: "facebook_insights",
+    goalOf: groups.goalOf,
+    goals: {
+      ecommerce: groups.ecommerce.length > 0,
+      leads: groups.leads.length > 0,
+    },
+    forceLeadsOnly: groups.ecommerce.length === 0,
+    forceEcommerceOnly: groups.leads.length === 0,
   });
+};
 
-  it("a single-goal report uses its whole spend", () => {
-    const summary = summarizeSharedTableRecords(
-      [
-        { data: { spend: 100, leads: 5 } },
-        { data: { spend: 60, leads: 3, purchases: 1, purchase_value: 90 } },
-      ],
-      {
-        integrationType: "facebook_ecommerce",
-        goalOf: null,
-        goals: null,
-        forceLeadsOnly: true,
-        forceEcommerceOnly: false,
-      },
-    );
-    expect(summary).toMatchObject({
-      spend: 160,
-      leads: 8,
-      cpl: 20,
-      purchases: 0,
-      revenue: 0,
-      roas: 0,
-      hasEcommerce: false,
-      hasLeads: true,
-    });
-  });
-});
-
-describe("shared facebook insights table", () => {
+describe("groupSharedFacebookRows", () => {
   it("a mixed table splits sales, leads and traffic like the internal report", () => {
     const groups = groupSharedFacebookRows(mixedFacebook, "campaign", {
       leadsOnly: false,
@@ -102,13 +52,7 @@ describe("shared facebook insights table", () => {
     expect(names(groups.leads)).toStrictEqual(["Leads"]);
     expect(names(groups.traffic)).toStrictEqual(["Traffic"]);
 
-    const summary = summarizeSharedTableRecords(mixedFacebook, {
-      integrationType: "facebook_insights",
-      goalOf: groups.goalOf,
-      goals: { ecommerce: true, leads: true },
-      forceLeadsOnly: false,
-      forceEcommerceOnly: false,
-    });
+    const summary = summarize(mixedFacebook, false);
     expect(summary.spend).toBe(600);
     expect(summary.revenue).toBe(800);
     expect(summary.purchases).toBe(4);
@@ -138,14 +82,13 @@ describe("shared facebook insights table", () => {
     });
     expect(names(groups.leads)).toStrictEqual(["LegacyLead"]);
     expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
-    const summary = summarizeSharedTableRecords(records, {
-      integrationType: "facebook_insights",
-      goalOf: groups.goalOf,
-      goals: { ecommerce: true, leads: true },
-      forceLeadsOnly: false,
-      forceEcommerceOnly: false,
+    expect(summarize(records, false)).toMatchObject({
+      leads: 5,
+      cpl: 20,
+      roas: 4,
+      hasLeads: true,
+      hasEcommerce: true,
     });
-    expect(summary).toMatchObject({ leads: 5, cpl: 20, roas: 4 });
   });
 
   it("a sales campaign with pixel leads stays in sales and adds no leads", () => {
@@ -163,16 +106,11 @@ describe("shared facebook insights table", () => {
       leadsOnly: false,
     });
     expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
-    const summary = summarizeSharedTableRecords(records, {
-      integrationType: "facebook_insights",
-      goalOf: groups.goalOf,
-      goals: { ecommerce: true, leads: true },
-      forceLeadsOnly: false,
-      forceEcommerceOnly: false,
+    expect(summarize(records, false)).toMatchObject({
+      leads: 5,
+      cpl: 20,
+      roas: 2,
     });
-    expect(summary.leads).toBe(5);
-    expect(summary.cpl).toBe(20);
-    expect(summary.roas).toBe(2);
   });
 
   it("a leads-only table keeps sales-looking campaigns in leads, traffic apart", () => {
@@ -182,15 +120,7 @@ describe("shared facebook insights table", () => {
     expect(groups.ecommerce).toStrictEqual([]);
     expect(names(groups.leads)).toStrictEqual(["Leads", "Shop"]);
     expect(names(groups.traffic)).toStrictEqual(["Traffic"]);
-
-    const summary = summarizeSharedTableRecords(mixedFacebook, {
-      integrationType: "facebook_insights",
-      goalOf: groups.goalOf,
-      goals: { ecommerce: false, leads: true },
-      forceLeadsOnly: true,
-      forceEcommerceOnly: false,
-    });
-    expect(summary).toMatchObject({
+    expect(summarize(mixedFacebook, true)).toMatchObject({
       spend: 600,
       leads: 10,
       // Traffic spend does not raise the cost per lead.
