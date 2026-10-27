@@ -1,0 +1,116 @@
+/**
+ * The team-mode escalation ladder, one level per routing: level 0 when a
+ * finding is new, level 1 after escalation_hours[0] business hours, level 2
+ * after escalation_hours[1]; a critical finding also reaches the brief
+ * recipients at once.
+ */
+import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
+import type {
+  FindingRow,
+  Level,
+  PlannedDelivery,
+  RouteDecision,
+} from "../findings/types.ts";
+import { decide } from "./decision.ts";
+import {
+  action,
+  briefTime,
+  deliveriesFor,
+  escalationTimes,
+  isUrgent,
+  type LadderContext,
+  levelRecipients,
+  listTime,
+  sendTime,
+} from "./ladder.ts";
+
+/** Level 0 for a new finding: at once when urgent, else in the next daily list. */
+export function startLadder(
+  finding: FindingRow,
+  kind: FindingKind,
+  ctx: LadderContext,
+): RouteDecision {
+  const urgent = isUrgent(finding, kind);
+  const start = urgent ? sendTime(finding, ctx) : listTime(ctx);
+  const recipients = levelRecipients(0, kind, ctx);
+  return decide(finding, ctx, {
+    level: 0,
+    start,
+    next: escalationTimes(start, ctx.settings)[0],
+    deliveries: [
+      ...deliveriesFor(0, recipients, urgent ? "now" : "list", start),
+      ...criticalCopy(finding, kind, ctx),
+    ],
+    actions: [action(0, "notify", recipients, start)],
+  });
+}
+
+/** Moves an already routed finding up one level when its time has come. */
+export function climbLadder(
+  finding: FindingRow,
+  kind: FindingKind,
+  ctx: LadderContext,
+  level: Level,
+): RouteDecision {
+  const start = new Date(finding.ladder_started_at ?? ctx.now);
+  const [toManagerAt, toOwnerAt] = escalationTimes(start, ctx.settings);
+  const next: Level =
+    level === 0 && ctx.now >= toManagerAt
+      ? 1
+      : level === 1 && ctx.now >= toOwnerAt
+        ? 2
+        : level;
+  const climbed =
+    next > level ? climb(next === 1 ? 1 : 2, finding, kind, ctx) : null;
+  return decide(finding, ctx, {
+    level: next,
+    next: next === 0 ? toManagerAt : next === 1 ? toOwnerAt : null,
+    deliveries: [
+      ...(climbed?.deliveries ?? []),
+      ...criticalCopy(finding, kind, ctx),
+    ],
+    actions: climbed?.actions ?? null,
+  });
+}
+
+/** Level 1 goes at once; level 2 waits for the 08:00 brief unless urgent. */
+function climb(
+  level: 1 | 2,
+  finding: FindingRow,
+  kind: FindingKind,
+  ctx: LadderContext,
+) {
+  const recipients = levelRecipients(level, kind, ctx);
+  if (level === 2 && !isUrgent(finding, kind)) {
+    return {
+      deliveries: [],
+      actions: [action(2, "brief", recipients, briefTime(ctx))],
+    };
+  }
+  const at = sendTime(finding, ctx);
+  return {
+    deliveries: deliveriesFor(level, recipients, "now", at),
+    actions: [action(level, "notify", recipients, at)],
+  };
+}
+
+/** A critical finding also reaches the brief recipients at once (once per person). */
+function criticalCopy(
+  finding: FindingRow,
+  kind: FindingKind,
+  ctx: LadderContext,
+): PlannedDelivery[] {
+  return finding.severity === "critical"
+    ? deliveriesFor(
+        2,
+        levelRecipients(2, kind, ctx),
+        "now",
+        sendTime(finding, ctx),
+      )
+    : [];
+}
+
+/** An escalation_level as a ladder level. */
+export function asLevel(level: number): Level {
+  return level >= 2 ? 2 : level === 1 ? 1 : 0;
+}

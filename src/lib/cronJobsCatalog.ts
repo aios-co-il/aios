@@ -37,6 +37,13 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
     category: "sync",
     icon: "📊",
   },
+  "carmen-manager-round-15m": {
+    label: "סבב כרמן מנהלת שיווק",
+    description:
+      "כל 15 דקות: כרמן מריצה את הבדיקות שלה ומעדכנת ממצאים. במצב 'רק לבעלים' או 'צוות מלא' היא שולחת מהקו שלה סיכום בוקר והתראות; במצב צפייה לא נשלח דבר.",
+    category: "carmen",
+    icon: "🧭",
+  },
   "campaign-pulse-sunday-0730": {
     label: "בדיקת דופק שבועית",
     description:
