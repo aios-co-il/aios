@@ -100,7 +100,7 @@ import {
   fallbackReply,
   shouldNudgeSilentTurn,
 } from "../_shared/workshop/reply.ts";
-import { CONNECTIONS_STANDING } from "../_shared/workshop/connections-standing.ts";
+import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
 import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
@@ -15421,7 +15421,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
-      systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${CONNECTIONS_STANDING}`;
+      // Only the workshop has workshop_check_connections; other chats get no such rule.
+      const connections = connectionsStanding(inWorkshop);
+      if (connections)
+        systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${connections}`;
       systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
         {
           tier: devEscalationTier,
@@ -16181,6 +16184,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             // A workshop tap is never an approval, and nothing leaves the board from here,
             // whatever is called (even a tool that was never offered).
             result = workshopBlockedResult(toolName);
+          } else if (!inWorkshop && isWorkshopTool(toolName)) {
+            // Workshop tools are not offered outside the workshop; one called by name has no
+            // board to work on and does not run.
+            result = {
+              error: "workshop_only",
+              message:
+                "הכלי הזה עובד רק בסדנה של כרמן, עם פרויקט פתוח. כאן עני בלעדיו, ואם צריך, הציעי למשתמש לעבוד על זה בסדנה.",
+            };
           } else if (toolName === "search_agent_tools") {
             const discovered = (
               await searchToolsFromIndex(
