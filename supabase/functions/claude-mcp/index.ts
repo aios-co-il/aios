@@ -345,10 +345,11 @@ function teachingBlock(
     `${tenantLine}\n` +
     `A) TEACH (only if genuinely reusable, not a trivial one-off):\n` +
     `   1. Make Carmen independent: insert a concise skin row into public.ai_skills via the Supabase connector with ` +
-    `scope='global' and tenant_id NULL for conduct every org's Carmen needs, or scope='tenant' and tenant_id=<above> ` +
-    `when it names that org's people, phones or clients; is_active=true, created_by_agent=true, a short name + description, ` +
+    `scope='tenant', tenant_id=<above>, is_active=true, created_by_agent=true, a short name + description, ` +
     `clear operational \`steps\`, a snake_case \`slug\`, a \`system_prompt\` with the exact procedure (which tools, in what order), ` +
-    `and \`triggers\` (Hebrew + English phrases). Keep it tight and actionable.\n` +
+    `and \`triggers\` (Hebrew + English phrases). Keep it tight and actionable. ` +
+    `Conduct every org's Carmen needs goes in a scope='global' row (tenant_id NULL, naming no org's people, phones or clients) ` +
+    `that you add only as a migration in your PR, so it runs on Staging before Production.\n` +
     `   2. Remember it for your future sessions: append a short dated entry to docs/carmen-learned-skills.md and include it in your PR.\n` +
     `B) UPDATE DAVID: when you finish, make sure David is updated with the result. ${callbackLine}\n` +
     `C) FIX-ON-FAIL: if this request says a capability you previously taught Carmen FAILED in practice, that is the priority — ` +

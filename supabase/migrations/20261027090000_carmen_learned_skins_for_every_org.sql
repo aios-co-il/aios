@@ -7,6 +7,12 @@
 -- tools.
 -- MarketingCaptain's tenant rows are left as they are and still win for its
 -- Carmen. A slug that already has a global row keeps it (NOTICE).
+-- A global row reaches every tenant's agents whose run loads skills, not only
+-- Carmen, and a matched diagnose_campaign_pulse_status adds
+-- get_latest_campaign_pulse to that agent's tools.
+-- identity-guard gets no global row: its text is not in the repo, so writing
+-- an org-neutral version waits on reading the Production row (PR body names
+-- the follow-up issue).
 --
 -- Fires ai_skills_search_vector_trg (BEFORE INSERT). Sends no message.
 -- Test: supabase/tests/carmen_learned_skins_global.sql.
@@ -109,7 +115,7 @@ BEGIN
 3. ללקוח איקומרס הציגי רכישות ו-ROAS.$$,
         $$כשאומרים שבדיקת הדופק של לקוח מראה "אין נתונים" למרות שהדוחות מחוברים:
 1. status=no_data פירושו שאין ללקוח טבלת קמפיין מחוברת (הדגל "אין טבלת קמפיין מחוברת").
-2. status=warning עם דגל שמתחיל ב"סנכרון ישן או חסר" פירושו שהטבלה מחוברת והסנכרון ישן. אמרי שהסנכרון ישן וציני את הפלטפורמה.
+2. status=warning או critical עם דגל שמתחיל ב"סנכרון ישן או חסר" פירושו שהטבלה מחוברת והסנכרון ישן. אמרי שהסנכרון ישן וציני את הפלטפורמה.
 3. כש-is_ecommerce=true, הציגי רכישות ו-ROAS (purchases_7d, roas_7d) במקום CPL.$$,
         'כשהטבלה מחוברת והסנכרון ישן, אל תאמרי "אין נתונים". אל תמציאי מדדים שהכלי לא החזיר.',
         ARRAY['get_latest_campaign_pulse']::text[]
