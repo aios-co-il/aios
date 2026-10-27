@@ -13,7 +13,7 @@ import {
 } from "./evidence.ts";
 import { noContactFindings } from "./no-contact.ts";
 import { notLoggedFindings } from "./not-logged.ts";
-import { type ContactRules, loadContactRules } from "./rules.ts";
+import { type ContactRules, contactRules } from "./rules.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -30,7 +30,7 @@ export const contactCollector: Collector = {
 
 /** Rules, evidence, then both rules over every client in scope. */
 async function collectContact(ctx: CollectorContext): Promise<CollectorResult> {
-  const rules = await loadContactRules(ctx.db, ctx.tenantId);
+  const rules = contactRules(await ctx.loadRules());
   const evidence = await contactEvidence(ctx, rules);
   return {
     candidates: [

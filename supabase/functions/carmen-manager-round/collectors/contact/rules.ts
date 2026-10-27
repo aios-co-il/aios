@@ -7,8 +7,6 @@
 import { positive, record } from "../../../_shared/manager-round/settings.ts";
 import { CLIENT_CALL_STALE_DAYS } from "../../../_shared/pulse/client-call.ts";
 import { parsePulseAlertRules } from "../../../_shared/pulse-instant-alerts.ts";
-import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
 
 export type ContactRules = {
   /** Hours after a call or meeting before an unlogged one is a finding. */
@@ -22,22 +20,6 @@ export type ContactRules = {
 };
 
 export const CONTACT_DEFAULTS = { logGraceHours: 24, minCallSeconds: 60 };
-
-/** The tenant's contact rules, from its newest heartbeat settings row. */
-export async function loadContactRules(
-  db: DbClient,
-  tenantId: string,
-): Promise<ContactRules> {
-  const { data, error } = await db
-    .from("tenant_heartbeat_settings")
-    .select("pulse_alert_rules")
-    .eq("tenant_id", tenantId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  throwIf(error, "tenant_heartbeat_settings");
-  return contactRules(data?.pulse_alert_rules ?? null);
-}
 
 /** Contact rules from stored pulse_alert_rules (any shape), with defaults. */
 export function contactRules(pulseAlertRules: unknown): ContactRules {

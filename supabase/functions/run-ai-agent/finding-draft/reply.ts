@@ -3,6 +3,7 @@
  * person's own words, and whether they wrote it in a WhatsApp group, where
  * Carmen's answer (with the drafted entry) would reach the client.
  */
+import { isGroupChatId } from "../../_shared/carmen-session-identity.ts";
 import { parseConfirmDraftReply } from "../../_shared/manager-round/contact-draft.ts";
 
 export type FindingDraftReply = {
@@ -25,7 +26,7 @@ export function findingDraftReplyOf(
   };
 }
 
-/** wa_notify of a group chat: is_group, or a chat id ending in @g.us. */
+/** wa_notify of a group chat: is_group, or a group chat id. */
 function isGroupChat(waNotify: unknown): boolean {
   if (!waNotify || typeof waNotify !== "object") {
     return false;
@@ -33,6 +34,6 @@ function isGroupChat(waNotify: unknown): boolean {
   const chatId = "chat_id" in waNotify ? waNotify.chat_id : null;
   const isGroup = "is_group" in waNotify ? waNotify.is_group : null;
   return (
-    isGroup === true || (typeof chatId === "string" && /@g\.us/i.test(chatId))
+    isGroup === true || (typeof chatId === "string" && isGroupChatId(chatId))
   );
 }

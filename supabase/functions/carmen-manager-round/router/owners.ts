@@ -99,5 +99,10 @@ function knownPerson(
     return campaigner;
   }
   const member = input.staff.find((staff) => staff.user_id === userId);
-  return member ? staffRecipient(member, "manager") : null;
+  return member
+    ? staffRecipient(
+        member,
+        member.roles.includes("owner") ? "owner" : "manager",
+      )
+    : null;
 }

@@ -1,5 +1,6 @@
 // Writes an incoming PBX event to call_logs.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
 import { callerUpgrade, loadFirstTenantUser, resolveCaller } from "./caller.ts";
 import type { CallLogRow, Owner } from "./match.ts";
@@ -11,6 +12,7 @@ export type SavedCall = Owner & { callLogId: string };
 
 export async function updateCall(
   sb: SupabaseClient,
+  tenantId: string,
   existing: CallLogRow,
   event: PbxEvent,
   owner: Owner,
@@ -20,7 +22,8 @@ export async function updateCall(
   const { error } = await sb
     .from("call_logs")
     .update(callUpdate(existing, event, owner, recording, settings))
-    .eq("id", existing.id);
+    .eq("id", existing.id)
+    .eq("tenant_id", tenantId);
   if (error) throw error;
   return {
     callLogId: existing.id,
@@ -40,23 +43,24 @@ export async function insertCall(
   const caller = await resolveCaller(settings, event.extension, () =>
     loadFirstTenantUser(sb, tenantId),
   );
+  const row: TablesInsert<"call_logs"> = {
+    tenant_id: tenantId,
+    lead_id: owner.leadId,
+    client_id: owner.clientId,
+    caller_user_id: caller.userId,
+    caller_resolution: caller.resolution,
+    from_number: event.caller,
+    to_number: event.called || event.caller || "unknown",
+    status: resolveStatus(event, recording, null),
+    duration: event.duration ?? 0,
+    provider: "pbx",
+    provider_call_id: event.callId,
+    notes: buildNotes(event, settings),
+    ...recordingColumns(event, recording),
+  };
   const { data, error } = await sb
     .from("call_logs")
-    .insert({
-      tenant_id: tenantId,
-      lead_id: owner.leadId,
-      client_id: owner.clientId,
-      caller_user_id: caller.userId,
-      caller_resolution: caller.resolution,
-      from_number: event.caller,
-      to_number: event.called || event.caller || "unknown",
-      status: resolveStatus(event, recording, null),
-      duration: event.duration ?? 0,
-      provider: "pbx",
-      provider_call_id: event.callId,
-      notes: buildNotes(event, settings),
-      ...recordingColumns(event, recording),
-    })
+    .insert(row)
     .select("id")
     .single();
   if (error) throw error;
@@ -73,8 +77,8 @@ export function callUpdate(
   owner: Owner,
   recording: Recording,
   settings: PbxSettings,
-): Record<string, unknown> {
-  const update: Record<string, unknown> = {
+): TablesUpdate<"call_logs"> {
+  const update: TablesUpdate<"call_logs"> = {
     status: resolveStatus(event, recording, existing),
     ...recordingColumns(event, recording),
     ...callerUpgrade(settings, event.extension, existing.caller_resolution),

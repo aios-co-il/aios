@@ -10,6 +10,7 @@
  */
 import { HUMAN_REQUESTER_REQUIRED_HE } from "../client-card-contact-policy.ts";
 import {
+  CONFIRM_DRAFT_WORD_HE,
   type ContactDraft,
   contactDraftOf,
 } from "../../_shared/manager-round/contact-draft.ts";
@@ -30,8 +31,7 @@ type ToolResult = Record<string, unknown>;
 type FoundDraft = { finding: DraftFinding; draft: ContactDraft };
 
 const PRIVATE_ONLY_HE = "אפשר לתעד פריט רק בשיחה פרטית איתי, לא בקבוצה.";
-const REPLY_REQUIRED_HE =
-  'כדי לתעד, כתבו לי "תעדי" ואת מספר הפריט מההודעה שלי.';
+const REPLY_REQUIRED_HE = `כדי לתעד, כתבו לי "${CONFIRM_DRAFT_WORD_HE}" ואת מספר הפריט מההודעה שלי.`;
 const READ_ONLY_HE =
   "כרטיס הלקוח משותף איתנו לקריאה בלבד, ולכן אי אפשר לתעד בו מכאן.";
 

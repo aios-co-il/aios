@@ -36,16 +36,8 @@ const EVIDENCE_BODY = {
   p_min_call_seconds: 60,
 };
 
-/** Answers the settings read with these rules and the evidence RPC with these rows. */
-function responder(
-  rows: unknown[],
-  pulseAlertRules: Json = { no_contact_days: 10 },
-) {
-  return (call: Call): unknown =>
-    call.path === "tenant_heartbeat_settings"
-      ? { pulse_alert_rules: pulseAlertRules }
-      : rows;
-}
+/** Answers the evidence RPC with these rows. */
+const responder = (rows: unknown[]) => (): unknown => rows;
 
 function context(
   db: CollectorContext["db"],
@@ -54,6 +46,7 @@ function context(
   return {
     tenantId: T,
     settings: resolveManagerSettings(null),
+    loadRules: () => Promise.resolve({ no_contact_days: 10 }),
     now: NOW,
     since: NOW,
     watermark: null,
@@ -71,14 +64,10 @@ const evidenceCalls = (calls: Call[]) =>
 
 Deno.test("contactCollector", async (t) => {
   await t.step(
-    "reads the tenant's rules and evidence, and reports both kinds",
+    "reads the evidence over the tenant's no_contact_days, and reports both kinds",
     async () => {
       const { db, calls } = recordingClient(responder([ROW]));
       const result = await contactCollector.collect(context(db));
-      const settings = calls.find(
-        (c) => c.path === "tenant_heartbeat_settings",
-      );
-      assertEquals(settings?.query.get("tenant_id"), `eq.${T}`);
       assertEquals(evidenceCalls(calls)[0]?.body, EVIDENCE_BODY);
       assertEquals(
         result.candidates.map((c) => `${c.kind}:${c.owner_user_id}`),
@@ -133,10 +122,13 @@ Deno.test("contactCollector", async (t) => {
     "pulse_alert_rules.no_contact_enabled off: no no_contact",
     async () => {
       const silent = { ...ROW, last_log_at: null, last_contact_at: null };
-      const { db } = recordingClient(
-        responder([silent], { no_contact_days: 10, no_contact_enabled: false }),
+      const { db } = recordingClient(responder([silent]));
+      const result = await contactCollector.collect(
+        context(db, {
+          loadRules: () =>
+            Promise.resolve({ no_contact_days: 10, no_contact_enabled: false }),
+        }),
       );
-      const result = await contactCollector.collect(context(db));
       assertEquals(
         result.candidates.map((c) => c.kind),
         ["contact_not_logged"],
@@ -151,11 +143,7 @@ Deno.test("contactCollector", async (t) => {
       unlogged_call_id: null,
     }));
     const { db, calls } = recordingClient((call) =>
-      call.path === "tenant_heartbeat_settings"
-        ? { pulse_alert_rules: { no_contact_days: 10 } }
-        : call.query.get("offset") === "1000"
-          ? [ROW]
-          : page,
+      call.query.get("offset") === "1000" ? [ROW] : page,
     );
     const result = await contactCollector.collect(context(db));
     assertEquals(

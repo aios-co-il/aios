@@ -11,6 +11,7 @@ const manager = {
   roles: ["team_manager"],
   managed_agency_ids: ["a1"],
 };
+const owner = { ...manager, user_id: "david", roles: ["owner"] };
 const people = new Map([["c1", { client, campaigners: [dana], managers: [] }]]);
 const call = (owner: string | null, kind = "contact_not_logged") =>
   finding({
@@ -23,7 +24,7 @@ const call = (owner: string | null, kind = "contact_not_logged") =>
 
 Deno.test("resolveOwners", async (t) => {
   const w = world({
-    staff: [manager],
+    staff: [manager, owner],
     contacts: { "user:noa": { name: "נועה", phone: "050-444-4444" } },
   });
   const owners = await resolveOwners(fakeDirectory(w), {
@@ -31,6 +32,7 @@ Deno.test("resolveOwners", async (t) => {
     findings: [
       call("dana"),
       call("avi"),
+      call("david"),
       call("noa"),
       call("gone"),
       call(null),
@@ -43,7 +45,10 @@ Deno.test("resolveOwners", async (t) => {
 
   await t.step("a campaigner of the client, staff, then another login", () => {
     assertEquals(owners.get("f-dana"), dana);
-    assertEquals(owners.get("f-avi")?.key, "user:avi");
+    assertEquals(
+      ["f-avi", "f-david"].map((id) => owners.get(id)?.role),
+      ["manager", "owner"],
+    );
     assertEquals(owners.get("f-noa"), {
       key: "user:noa",
       user_id: "noa",

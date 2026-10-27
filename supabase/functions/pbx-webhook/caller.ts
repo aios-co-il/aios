@@ -3,11 +3,12 @@
 // which one it was, so nobody is held responsible for a call they did not
 // make (AIO-253: the manager round names only 'extension' and click-to-call
 // callers).
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { PbxSettings } from "../_shared/telephony/types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import type {
+  CallerResolution,
+  PbxSettings,
+} from "../_shared/telephony/types.ts";
 import { WebhookError } from "./errors.ts";
-
-export type CallerResolution = "extension" | "fallback";
 
 export type ResolvedCaller = { userId: string; resolution: CallerResolution };
 
@@ -38,7 +39,7 @@ export function callerUpgrade(
   settings: PbxSettings,
   extension: string | null,
   current: string | null,
-): { caller_user_id: string; caller_resolution: "extension" } | null {
+): { caller_user_id: string; caller_resolution: CallerResolution } | null {
   const mapped = extensionUser(settings, extension);
   return mapped && (current === null || current === "fallback")
     ? { caller_user_id: mapped, caller_resolution: "extension" }
@@ -47,7 +48,7 @@ export function callerUpgrade(
 
 /** The tenant's first user, the owner of calls no extension explains. */
 export async function loadFirstTenantUser(
-  sb: SupabaseClient,
+  sb: DbClient,
   tenantId: string,
 ): Promise<string | null> {
   const { data, error } = await sb

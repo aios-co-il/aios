@@ -355,6 +355,8 @@ BEGIN
     p_tenant_id, v_finding.client_id, v_finding.agency_id, v_finding.owner_user_id,
     coalesce(v_finding.evidence ->> 'attributed' = 'true', false), p_user_id
   ) THEN
+    RAISE NOTICE 'carmen_finding_confirm_contact: tenant %, finding %, user %: not_found',
+      p_tenant_id, p_finding_id, p_user_id;
     RETURN QUERY SELECT 'not_found'::text, NULL::uuid, NULL::boolean;
     RETURN;
   END IF;
@@ -368,6 +370,8 @@ BEGIN
       AND ata.agency_id = v_finding.agency_id
       AND ata.access_level = 'read_write'
   ) THEN
+    RAISE NOTICE 'carmen_finding_confirm_contact: tenant %, finding %, user %: read_only',
+      p_tenant_id, p_finding_id, p_user_id;
     RETURN QUERY SELECT 'read_only'::text, NULL::uuid, NULL::boolean;
     RETURN;
   END IF;

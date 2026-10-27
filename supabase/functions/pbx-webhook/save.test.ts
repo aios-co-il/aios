@@ -1,7 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { PbxEvent } from "../_shared/telephony/types.ts";
+import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import type { CallLogRow } from "./match.ts";
-import { callUpdate } from "./save.ts";
+import { callUpdate, updateCall } from "./save.ts";
 
 const settings = { extensions: [{ extension: "101", user_id: "dana" }] };
 const NO_RECORDING = { url: null, path: null };
@@ -63,5 +65,23 @@ Deno.test("callUpdate", async (t) => {
     );
     assertEquals("caller_user_id" in update, false);
     assertEquals(update.status, "completed");
+  });
+});
+
+Deno.test("updateCall", async (t) => {
+  await t.step("writes only the call of the webhook's tenant", async () => {
+    const http = fakeSupabaseHttp({ supabaseUrl: "http://db.test" });
+    const sb = createClient("http://db.test", "key", {
+      global: { fetch: http.fetch },
+    });
+    await updateCall(sb, "t1", row(), event(), NO_OWNER, NO_RECORDING, {});
+    const patch = http.calls.find((call) => call.method === "PATCH");
+    assertEquals(
+      [
+        patch?.url.searchParams.get("id"),
+        patch?.url.searchParams.get("tenant_id"),
+      ],
+      ["eq.call-1", "eq.t1"],
+    );
   });
 });

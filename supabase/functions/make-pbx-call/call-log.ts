@@ -1,5 +1,7 @@
 // call_logs writes for calls started from the CRM.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesInsert } from "../_shared/database.types.ts";
+import type { CallerResolution } from "../_shared/telephony/types.ts";
 
 export interface NewOutboundCall {
   tenantId: string;
@@ -27,13 +29,13 @@ export async function createCallLog(sb: SupabaseClient, call: NewOutboundCall) {
  * it, so it is attributed to them (caller_resolution click_to_call), and
  * pbx-webhook's later events never replace them.
  */
-export function newCallRow(call: NewOutboundCall) {
+export function newCallRow(call: NewOutboundCall): TablesInsert<"call_logs"> {
   return {
     tenant_id: call.tenantId,
     lead_id: call.leadId,
     client_id: call.clientId,
     caller_user_id: call.userId,
-    caller_resolution: "click_to_call",
+    caller_resolution: "click_to_call" satisfies CallerResolution,
     from_number: call.callerNumber,
     to_number: call.toNumber,
     status: "initiated",
