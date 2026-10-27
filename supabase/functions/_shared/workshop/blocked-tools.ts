@@ -73,6 +73,9 @@ const OUTSIDE_TOOLS = [
   "delegate_parallel",
   "delegate_to_manus",
   "send_message_to_manus",
+  // Starts a goal loop that a background worker runs later.
+  "create_autonomous_goal",
+  "create_execution_goal",
   // Sends a CRM task to Cursor at once; in the workshop a dev task waits for the user's yes.
   "assign_task_to_cursor",
 ];

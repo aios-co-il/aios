@@ -58,6 +58,8 @@ Deno.test(
       "propose_automation",
       "delegate_to_subagent",
       "delegate_parallel",
+      "create_autonomous_goal",
+      "create_execution_goal",
     ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
       assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
