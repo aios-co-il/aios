@@ -73,18 +73,43 @@ export async function addClientUpdateFromCarmen(
   }
 }
 
+type HealthCardEntryInput = {
+  tenantId: string;
+  clientId: string;
+  note: string;
+  moodStatus: string;
+  requesterUserId?: string | null;
+  tool: "update_client_health" | "batch_update_client_health";
+  now?: Date;
+};
+
+/**
+ * The card entry of a health update that is already written. A card refusal
+ * (no person to attribute it to, a read-only shared agency) is logged and
+ * returned as text, so the health update still reports success.
+ */
+export async function recordHealthCardEntryAfterUpdate(
+  supabase: Pick<DbClient, "rpc">,
+  input: HealthCardEntryInput,
+): Promise<string | null> {
+  try {
+    await recordCarmenHealthCardEntry(supabase, input);
+    return null;
+  } catch (error) {
+    if (!(error instanceof ClientCardEntryError)) {
+      throw error;
+    }
+    console.error(
+      `[${input.tool}] card entry for client ${input.clientId} not written: ${error.code} ${error.message}`,
+    );
+    return error.message;
+  }
+}
+
 /** Card entry for update_client_health / batch_update_client_health. */
 export function recordCarmenHealthCardEntry(
   supabase: Pick<DbClient, "rpc">,
-  input: {
-    tenantId: string;
-    clientId: string;
-    note: string;
-    moodStatus: string;
-    requesterUserId?: string | null;
-    tool: "update_client_health" | "batch_update_client_health";
-    now?: Date;
-  },
+  input: HealthCardEntryInput,
 ): Promise<ClientCardEntryResult> {
   const requester = asUuidOrNull(input.requesterUserId);
   return recordClientCardEntry(supabase, {

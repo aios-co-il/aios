@@ -50,7 +50,7 @@ import {
 } from "../_shared/client-card/sources.ts";
 import {
   addClientUpdateFromCarmen,
-  recordCarmenHealthCardEntry,
+  recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
 import { listUpdates } from "./list-updates.ts";
@@ -8045,7 +8045,7 @@ async function executeTool(
       if (logErr) throw logErr;
 
       // 3. Card entry as source carmen, so it never counts as client contact.
-      await recordCarmenHealthCardEntry(supabase, {
+      const cardEntryError = await recordHealthCardEntryAfterUpdate(supabase, {
         tenantId,
         clientId: args.client_id,
         note: args.note,
@@ -8060,6 +8060,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
       };
     }
     case "get_client_retention_scan": {
@@ -8228,18 +8229,22 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          await recordCarmenHealthCardEntry(supabase, {
-            tenantId,
-            clientId,
-            note,
-            moodStatus: mood,
-            requesterUserId: humanRequesterUserId,
-            tool: "batch_update_client_health",
-          });
+          const cardEntryError = await recordHealthCardEntryAfterUpdate(
+            supabase,
+            {
+              tenantId,
+              clientId,
+              note,
+              moodStatus: mood,
+              requesterUserId: humanRequesterUserId,
+              tool: "batch_update_client_health",
+            },
+          );
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
           });
         } catch (err: any) {
           results.push({

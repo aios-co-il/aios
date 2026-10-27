@@ -3,6 +3,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   addClientUpdateFromCarmen,
   recordCarmenHealthCardEntry,
+  recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
 import { fakeCardRpc } from "./fake-card-rpc.ts";
 
@@ -202,5 +203,27 @@ Deno.test(
     );
     assertStrictEquals(calls[0].args.p_counts_as_contact, undefined);
     assertStrictEquals(rows.length, 2);
+  },
+);
+
+Deno.test(
+  "health card entry: a card refusal is returned, not thrown, so the health update stands",
+  async () => {
+    const { supabase, calls } = fakeCardRpc({
+      error: {
+        code: "42501",
+        message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
+      },
+    });
+    const error = await recordHealthCardEntryAfterUpdate(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      note: "עלייה בעלות לליד",
+      moodStatus: "wavering",
+      tool: "batch_update_client_health",
+      now: NOW,
+    });
+    assertStrictEquals(calls.length, 1);
+    assertStrictEquals(error?.includes("is not in tenant"), true);
   },
 );
