@@ -21,9 +21,12 @@ const line = (id: string, integration_type: string) => ({
   created_at: "2026-01-01",
 });
 
-/** The staff tool over a fake DB holding these lines. */
+/** The staff tool over a fake DB holding these lines; REQUESTER is a member of TENANT. */
 async function runTool(integrations: Record<string, unknown>[]) {
-  const sb = fakeSupabase({ tenant_integrations: integrations });
+  const sb = fakeSupabase({
+    tenant_integrations: integrations,
+    tenant_users: [{ tenant_id: TENANT, user_id: REQUESTER }],
+  });
   const fetch = fakeFetch();
   const result = await sendStaffWhatsappMessage({
     supabase: sb,

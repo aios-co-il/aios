@@ -1,11 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
-import {
-  authorizeManusSend,
-  isAnonToken,
-  jwtRole,
-  type ManusSendAuthDeps,
-} from "./send-auth.ts";
+import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
+import { authorizeManusSend, isAnonToken, jwtRole } from "./send-auth.ts";
 import { ANON_KEY, jwt, SERVICE_KEY } from "./test-fixtures.ts";
 
 const TENANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -23,30 +19,31 @@ const TOKENS: Record<string, string> = {
 const tokenFor = (userId: string) =>
   Object.keys(TOKENS).find((t) => TOKENS[t] === userId);
 
-/** Membership of USER_A in A and USER_B in B; manus-a is shared with B when `shared`. */
-function deps({ shared = false } = {}) {
+/** USER_A is a member of A and USER_B of B; manus-a is shared with B when `shared`. Counts user lookups. */
+function db({ shared = false } = {}) {
+  const supabase = fakeSupabase(
+    {
+      tenant_users: [
+        { tenant_id: TENANT_A, user_id: USER_A },
+        { tenant_id: TENANT_B, user_id: USER_B },
+      ],
+    },
+    {
+      users: TOKENS,
+      rpc: {
+        is_super_admin: ({ _user_id }) => _user_id === SUPER,
+        tenant_can_use_integration: ({ p_tenant_id, p_integration_id }) =>
+          shared && p_tenant_id === TENANT_B && p_integration_id === "manus-a",
+      },
+    },
+  );
   const calls = { getUserId: 0 };
-  const lookups: ManusSendAuthDeps = {
-    getUserId(token) {
-      calls.getUserId += 1;
-      return Promise.resolve(TOKENS[token] ?? null);
-    },
-    isTenantMember(tenantId, userId) {
-      return Promise.resolve(
-        (tenantId === TENANT_A && userId === USER_A) ||
-          (tenantId === TENANT_B && userId === USER_B),
-      );
-    },
-    isSuperAdmin(userId) {
-      return Promise.resolve(userId === SUPER);
-    },
-    tenantCanUseIntegration(tenantId, integrationId) {
-      return Promise.resolve(
-        shared && tenantId === TENANT_B && integrationId === "manus-a",
-      );
-    },
+  const getUser = supabase.auth.getUser;
+  supabase.auth.getUser = (token: string) => {
+    calls.getUserId += 1;
+    return getUser(token);
   };
-  return { calls, deps: lookups };
+  return { calls, supabase };
 }
 
 const integrationA = { id: "manus-a", tenant_id: TENANT_A };
@@ -64,13 +61,13 @@ async function authorize(
     shared?: boolean;
   } = {},
 ) {
-  const d = deps({ shared });
+  const d = db({ shared });
   const result = await authorizeManusSend({
     authorization: token ? `Bearer ${token}` : null,
     serviceRoleKey: SERVICE_KEY,
     integration,
     requestedTenantId,
-    deps: d.deps,
+    supabase: d.supabase,
   });
   return { result, calls: d.calls };
 }

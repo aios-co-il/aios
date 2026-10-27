@@ -19,14 +19,13 @@
 
 import { normalizeStaffPhone } from "../_shared/staff-whatsapp.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { tenantOwnerUserId } from "../_shared/tenants/owner.ts";
-import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   postWaSend,
   SEND_MANUS_FN,
   type WaSendStatus,
 } from "../_shared/whatsapp/send-result.ts";
 import { loadManusLines, type ManusLine } from "./staff-alert-lines.ts";
+import { staffAlertSender } from "./staff-alert-sender.ts";
 
 export type StaffAlertStatus =
   WaSendStatus | "no_phone" | "no_line" | "no_sender";
@@ -48,13 +47,13 @@ export const STAFF_ALERT_NO_PRIMARY_LINE_HE =
   "אף חיבור WhatsApp של Manus בטננט לא מסומן כראשי, והתראות לצוות יוצאות רק מהחיבור הראשי של כרמן. אפשר לסמן את הטלפון של כרמן כראשי בכרמן ← חיבורי ווטסאפ.";
 
 export type StaffAlertInput = {
-  supabase: Pick<DbClient, "from">;
+  supabase: Pick<DbClient, "auth" | "from" | "rpc">;
   supabaseUrl: string;
   serviceRoleKey: string;
   tenantId: string;
   phone: string;
   message: string;
-  /** The person Carmen acts for; recorded as sent_by_user_id. */
+  /** The person Carmen acts for; who actually sends: staff-alert-sender.ts. */
   requesterUserId?: string | null;
   fetchImpl?: typeof fetch;
 };
@@ -95,15 +94,10 @@ async function sendFromLines(
   phone: string,
   lines: ManusLine[],
 ): Promise<StaffAlertResult> {
-  let owner: Promise<string | null> | undefined;
-  const ownerOnce = () =>
-    (owner ??= tenantOwnerUserId(input.supabase, input.tenantId));
+  const senderFor = await staffAlertSender(input);
   let last: StaffAlertResult | null = null;
   for (const line of lines) {
-    const senderUserId =
-      asUuidOrNull(input.requesterUserId) ||
-      asUuidOrNull(line.user_id) ||
-      asUuidOrNull(await ownerOnce());
+    const senderUserId = await senderFor(line);
     if (!senderUserId) {
       last = staffAlertResult("no_sender", {
         phone,
@@ -132,8 +126,9 @@ async function sendFromLines(
       error: outcome.error,
       phone,
     });
-    // A send that may have left (delivery_unknown), a Staging block or a
-    // duplicate skip must not be repeated on another line.
+    // A send that may have left (delivery_unknown: a 202, a network error or
+    // an edge timeout), a Staging block or a duplicate skip must not be
+    // repeated on another line.
     if (outcome.status !== "failed") {
       return last;
     }

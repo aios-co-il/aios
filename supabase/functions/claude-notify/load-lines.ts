@@ -1,5 +1,6 @@
 /** The WhatsApp lines claude-notify may send from, as tenant_integrations rows. */
 
+import { tenantCanUseIntegration } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { MANUS_WA_TYPES } from "../_shared/whatsapp/send-result.ts";
 import { GREEN_INTEGRATION_TYPES, type NotifyIntegrationRow } from "./lines.ts";
@@ -26,22 +27,39 @@ export async function loadTenantLines(
   return data ?? [];
 }
 
-/** Lines a step or trigger names by id. */
+/**
+ * Lines a step or trigger names that are not the tenant's own: only those
+ * shared with the tenant (tenant_can_use_integration, the rule the senders
+ * apply) are read. Any other id is dropped, so a step naming it resolves as
+ * not_found and the next step or the tenant's own primary line is used.
+ */
 export async function loadLinesById(
-  sb: Pick<DbClient, "from">,
+  sb: Pick<DbClient, "from" | "rpc">,
+  tenantId: string,
   ids: string[],
 ): Promise<NotifyIntegrationRow[]> {
-  if (!ids.length) {
+  const shared = await sharedLineIds(sb, tenantId, ids);
+  if (!shared.length) {
     return [];
   }
-  // No tenant filter: a step may name a line shared from another tenant, and
-  // that line must still resolve.
   const { data, error } = await sb
     .from("tenant_integrations")
     .select(INTEGRATION_COLS)
-    .in("id", ids);
+    .in("id", shared);
   if (error) {
     throw new Error(`claude-notify: load named lines failed: ${error.message}`);
   }
   return data ?? [];
+}
+
+/** The ids the tenant may use, in the order given. */
+async function sharedLineIds(
+  sb: Pick<DbClient, "rpc">,
+  tenantId: string,
+  ids: string[],
+): Promise<string[]> {
+  const usable = await Promise.all(
+    ids.map((id) => tenantCanUseIntegration(sb, tenantId, id)),
+  );
+  return ids.filter((_, i) => usable[i]);
 }

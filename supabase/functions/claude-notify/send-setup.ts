@@ -1,7 +1,7 @@
 /**
  * The Carmen automations, send steps and WhatsApp lines a tenant's notify may
- * use: the tenant's own Manus and Green lines plus any line a step or Carmen
- * trigger names. DB reads only; a failed read throws.
+ * use: the tenant's own Manus and Green lines plus any line shared with it
+ * that a step or Carmen trigger names. DB reads only; a failed read throws.
  */
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -24,7 +24,7 @@ export type CarmenSendSetup = {
 
 /** Send steps and lines of the bridge automation and every Carmen-triggered automation of the tenant. */
 export async function loadCarmenSendSetup(
-  sb: Pick<DbClient, "from">,
+  sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
   bridgeAutomationId: string | null,
 ): Promise<CarmenSendSetup> {
@@ -45,7 +45,7 @@ export async function loadCarmenSendSetup(
     ...steps.map(stepIntegrationId),
     ...Object.values(triggerPins),
   ]).filter((id) => !known.has(id));
-  const referencedRows = await loadLinesById(sb, referenced);
+  const referencedRows = await loadLinesById(sb, tenantId, referenced);
   return {
     activeAutomationIds,
     steps,

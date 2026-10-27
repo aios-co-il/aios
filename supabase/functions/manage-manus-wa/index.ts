@@ -12,15 +12,15 @@
  *
  * Auth: requires a Supabase Bearer token; the public anon key gets 401.
  * send_message accepts this project's service-role key (run-ai-agent) or a
- * user JWT whose user belongs to the integration's tenant (send-auth.ts),
- * and passes the Staging outbound guard (send-guard.ts).
+ * user JWT that send-auth.ts accepts, and passes the Staging outbound guard
+ * (send-guard.ts). A failed integration lookup is a logged 500.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
-import { manusSendAuthDeps } from "./send-auth-deps.ts";
 import {
   anonRefusal,
+  integrationLookupFailure,
   manusSendRefusal,
   stagingBlockResponse,
 } from "./send-guard.ts";
@@ -153,11 +153,14 @@ Deno.serve(async (req) => {
     let resolvedApiKey: string | null = null;
 
     if (integrationId) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, tenant_id, api_key, settings")
         .eq("id", integrationId)
         .maybeSingle();
+      if (error) {
+        return integrationLookupFailure(integrationId, error, corsHeaders);
+      }
       if (data) {
         integration = data;
         resolvedApiKey = data.api_key;
@@ -338,7 +341,7 @@ Deno.serve(async (req) => {
           serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
           integration,
           requestedTenantId: tenantId ?? null,
-          deps: manusSendAuthDeps(supabase),
+          supabase,
         },
         corsHeaders,
       );

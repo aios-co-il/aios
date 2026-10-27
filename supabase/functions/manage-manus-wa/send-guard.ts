@@ -1,6 +1,6 @@
 /**
- * The refusals manage-manus-wa returns before a send reaches the Manus
- * gateway. Each answers null when the request may go on.
+ * The refusals manage-manus-wa returns before a request reaches the Manus
+ * gateway. Each check answers null when the request may go on.
  */
 
 import { bearerToken } from "../_shared/automation-run-auth.ts";
@@ -20,6 +20,20 @@ export function anonRefusal(
   return isAnonToken(bearerToken(authHeader), serviceRoleKey)
     ? json({ error: "Unauthorized" }, 401, headers)
     : null;
+}
+
+/** 500 for a failed integration lookup: logged, and never read as "not found". */
+export function integrationLookupFailure(
+  integrationId: string,
+  error: { message: string },
+  headers: Record<string, string>,
+): Response {
+  console.error(
+    "[manage-manus-wa] integration lookup failed",
+    integrationId,
+    error.message,
+  );
+  return json({ error: "Internal error" }, 500, headers);
 }
 
 /** 401/403/404 when this caller may not send from the integration (send-auth.ts). */

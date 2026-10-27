@@ -13,7 +13,7 @@ const PING_CONCURRENCY = 8;
 
 /** Ping reports for one tenant, or for every Carmen or pulse tenant (up to 200) in batches of 8. */
 export async function pingTenants(
-  sb: Pick<DbClient, "from">,
+  sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
 ): Promise<ReturnType<typeof pingReport>[]> {
   const tenantIds = tenantId ? [tenantId] : await listNotifyTenants(sb);

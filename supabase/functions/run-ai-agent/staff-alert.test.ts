@@ -15,8 +15,6 @@ import { staffAlertToolResult } from "./staff-alert-tool-result.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const REQUESTER = "33333333-3333-4333-8333-333333333333";
-const LINE_USER = "44444444-4444-4444-8444-444444444444";
-const OWNER = "55555555-5555-4555-8555-555555555555";
 
 type Row = Record<string, unknown>;
 
@@ -32,22 +30,28 @@ const line = (id: string, extra: Row = {}) => ({
 });
 const greenLine = line("green-1", { integration_type: "green_api" });
 
-/** sendStaffAlert to 050-123-4567 over a fake DB and fetch. */
+/** sendStaffAlert to 050-123-4567 over a fake DB and fetch; REQUESTER is a member of TENANT. */
 function send({
   integrations,
   responses,
   requesterUserId = REQUESTER,
   roles = [],
   failing,
+  fetchImpl,
 }: {
   integrations: Row[];
   responses?: { status?: number; body?: unknown }[];
   requesterUserId?: string | null;
   roles?: Row[];
   failing?: Record<string, string>;
+  fetchImpl?: typeof fetch;
 }) {
   const sb = fakeSupabase(
-    { tenant_integrations: integrations, user_roles: roles },
+    {
+      tenant_integrations: integrations,
+      user_roles: roles,
+      tenant_users: [{ tenant_id: TENANT, user_id: REQUESTER }],
+    },
     { failing },
   );
   const fetch = fakeFetch(responses);
@@ -59,7 +63,7 @@ function send({
     phone: "050-123-4567",
     message: "תזכורת",
     requesterUserId,
-    fetchImpl: fetch.impl,
+    fetchImpl: fetchImpl ?? fetch.impl,
   });
   return { run, sb, fetch };
 }
@@ -177,6 +181,21 @@ Deno.test("sendStaffAlert", async (t) => {
       assertStrictEquals(staffAlertToolResult(r1).success, true);
       assertMatch(staffAlertToolResult(r1).warning ?? "", /אל תשלחי/);
 
+      // A broken connection may come after the message left: not retried either.
+      const posted: string[] = [];
+      const broken = send({
+        integrations: [
+          line("manus-1", { created_at: "2026-02-01" }),
+          line("manus-2"),
+        ],
+        fetchImpl: (_url, init) => {
+          posted.push(String(init?.body));
+          return Promise.reject(new Error("connection reset"));
+        },
+      });
+      assertStrictEquals((await broken.run).status, "delivery_unknown");
+      assertStrictEquals(posted.length, 1);
+
       const failed = send({
         integrations: [
           line("manus-1", { created_at: "2026-02-01" }),
@@ -214,32 +233,16 @@ Deno.test("sendStaffAlert", async (t) => {
   });
 
   await t.step(
-    "sender falls back from a 'system' requester to the line user, then the tenant owner",
+    "a failed line, owner or membership lookup is a generic failure, not no_line / no_sender",
     async () => {
-      const viaLine = send({
-        integrations: [line("manus-1", { user_id: LINE_USER })],
-        requesterUserId: "system",
-      });
-      await viaLine.run;
-      assertStrictEquals(viaLine.fetch.calls[0].body.senderUserId, LINE_USER);
-
-      const viaOwner = send({
-        integrations: [line("manus-1")],
-        requesterUserId: null,
-        roles: [{ tenant_id: TENANT, role: "owner", user_id: OWNER }],
-      });
-      await viaOwner.run;
-      assertStrictEquals(viaOwner.fetch.calls[0].body.senderUserId, OWNER);
-    },
-  );
-
-  await t.step(
-    "a failed line or owner lookup is a generic failure, not no_line / no_sender",
-    async () => {
-      for (const table of ["tenant_integrations", "user_roles"]) {
+      for (const table of [
+        "tenant_integrations",
+        "user_roles",
+        "tenant_users",
+      ]) {
         const { run, fetch } = send({
           integrations: [line("manus-1")],
-          requesterUserId: null,
+          requesterUserId: table === "tenant_users" ? REQUESTER : null,
           failing: { [table]: "permission denied for table" },
         });
         const result = await run;

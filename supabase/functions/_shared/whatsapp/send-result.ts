@@ -6,9 +6,12 @@
  * - 200 + success            → sent
  * - 202 (Manus timed out)    → delivery_unknown: the message may have left;
  *                              never retry it, or the recipient gets it twice
+ * - no response (network     → delivery_unknown too: the sender may already
+ *   error), 504 or 546         have posted to the gateway before the call broke
+ *                              or the edge runtime timed it out
  * - 403 staging guard        → blocked_staging
  * - 200 duplicate skip       → duplicate_skipped (Green API's identical-send claim)
- * - anything else            → failed
+ * - anything else            → failed: nothing left
  */
 
 /** The only integration type send-manus-wa-message accepts with an integrationId. */
@@ -16,6 +19,12 @@ export const MANUS_WA_TYPES = ["manus_wa"];
 
 /** Sends from a Manus line behind the Staging guard and records chat_messages. */
 export const SEND_MANUS_FN = "send-manus-wa-message";
+
+/**
+ * HTTP statuses after which the message may already have left: Manus' own
+ * 202, the edge gateway's 504 timeout and the runtime's 546 worker limit.
+ */
+const MAY_HAVE_LEFT_STATUSES = [202, 504, 546];
 
 export type WaSendStatus =
   | "sent"
@@ -32,7 +41,7 @@ export type WaSendOutcome = {
   httpStatus: number | null;
 };
 
-/** POSTs one send to a sender edge function as the service role and returns its real outcome; a network error is a failed send. */
+/** POSTs one send to a sender edge function as the service role and returns its real outcome; a network error is delivery_unknown. */
 export async function postWaSend(input: {
   fetchImpl: typeof fetch;
   supabaseUrl: string;
@@ -56,7 +65,7 @@ export async function postWaSend(input: {
   } catch (e) {
     return {
       sent: false,
-      status: "failed",
+      status: "delivery_unknown",
       error: e instanceof Error ? e.message : String(e),
       providerMessageId: null,
       httpStatus: null,
@@ -96,7 +105,10 @@ export function interpretWaSendResponse(
       error: reason ? `${error}: ${reason}` : error,
     };
   }
-  if (httpStatus === 202 || b.delivered === "unknown") {
+  if (
+    MAY_HAVE_LEFT_STATUSES.includes(httpStatus) ||
+    b.delivered === "unknown"
+  ) {
     return {
       ...base,
       sent: false,

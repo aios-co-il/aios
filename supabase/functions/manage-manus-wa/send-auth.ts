@@ -3,39 +3,31 @@
  *
  * - This project's service-role key: accepted (run-ai-agent's gateway tool).
  * - A JWT with role "anon" (the public anon key): 401.
- * - A user JWT: the user must be a member of the integration's tenant (or of
- *   the requested tenant that may use a shared integration), or a super
- *   admin. Same rule as send-manus-wa-message.
+ * - A user JWT: the rule send-manus-wa-message applies
+ *   (_shared/auth/tenant-access.ts) for the requested tenant, else the
+ *   integration's tenant.
  * - Anything else: 401.
  */
 
-import { bearerToken } from "../_shared/automation-run-auth.ts";
+import { bearerToken, callerUserId } from "../_shared/automation-run-auth.ts";
+import { mayUseLine, tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
-
-export type ManusSendAuthDeps = {
-  /** Verified user id for a user JWT, or null when the token is not a valid user session. */
-  getUserId(token: string): Promise<string | null>;
-  isTenantMember(tenantId: string, userId: string): Promise<boolean>;
-  isSuperAdmin(userId: string): Promise<boolean>;
-  tenantCanUseIntegration(
-    tenantId: string,
-    integrationId: string,
-  ): Promise<boolean>;
-};
 
 export type ManusSendAuthInput = {
   authorization: string | null | undefined;
   serviceRoleKey: string;
   integration: { id: string; tenant_id: string | null } | null;
   requestedTenantId?: string | null;
-  deps: ManusSendAuthDeps;
+  /** Service-role client for the caller, membership and sharing lookups. */
+  supabase: Pick<DbClient, "auth" | "from" | "rpc">;
 };
 
 export type ManusSendAuthResult =
   | { ok: true; caller: "service_role" | "user"; userId: string | null }
   | { ok: false; status: 401 | 403 | 404; error: string };
 
-/** Whether this caller may send from this integration; a DB failure in `deps` throws. */
+/** Whether this caller may send from this integration; a failed lookup throws. */
 export async function authorizeManusSend(
   input: ManusSendAuthInput,
 ): Promise<ManusSendAuthResult> {
@@ -52,7 +44,7 @@ export async function authorizeManusSend(
     return { ok: false, status: 401, error: "Unauthorized" };
   }
 
-  const userId = await input.deps.getUserId(token);
+  const userId = await callerUserId(input.supabase, token);
   if (!userId) {
     return { ok: false, status: 401, error: "Unauthorized" };
   }
@@ -64,13 +56,7 @@ export async function authorizeManusSend(
   if (!tenantId) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
-  return authorizeTenantUser(
-    input.deps,
-    tenantId,
-    userId,
-    integration.id,
-    integration.tenant_id,
-  );
+  return authorizeTenantUser(input.supabase, tenantId, userId, integration);
 }
 
 /** True for the public anon key (or any other anon-role JWT). */
@@ -100,26 +86,18 @@ export function jwtRole(token: string | null | undefined): string | null {
   }
 }
 
-/** A signed-in user: a member or super admin, and a foreign integration only when shared. */
+/** A signed-in user: a member or super admin, and another tenant's integration only when shared. */
 async function authorizeTenantUser(
-  deps: ManusSendAuthDeps,
+  supabase: ManusSendAuthInput["supabase"],
   tenantId: string,
   userId: string,
-  integrationId: string,
-  integrationTenantId: string | null,
+  integration: { id: string; tenant_id: string | null },
 ): Promise<ManusSendAuthResult> {
-  const [member, superAdmin] = await Promise.all([
-    deps.isTenantMember(tenantId, userId),
-    deps.isSuperAdmin(userId),
-  ]);
-  if (!member && !superAdmin) {
+  const access = await tenantUserAccess(supabase, tenantId, userId);
+  if (!access.member && !access.superAdmin) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
-  if (
-    integrationTenantId !== tenantId &&
-    !superAdmin &&
-    !(await deps.tenantCanUseIntegration(tenantId, integrationId))
-  ) {
+  if (!(await mayUseLine(supabase, tenantId, access, integration))) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
   return { ok: true, caller: "user", userId };

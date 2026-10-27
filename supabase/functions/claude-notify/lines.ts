@@ -32,14 +32,29 @@ export type NotifyIntegrationRow = Pick<
   | "settings"
 >;
 
-/** Same field order as Carmen's reply path (_shared/carmen.ts) and the step UI. */
+/**
+ * The line a Manus or Green send step names: green_api_integration_id, then
+ * integration_id (the field the step UI writes). Same fields and order as
+ * Carmen's reply path for these steps (sendCarmenReplyViaActionStep in
+ * _shared/carmen.ts).
+ */
 export function stepIntegrationId(step: NotifyStepRow): string | null {
   const cfg = configRecord(step.configuration);
-  const id =
-    cfg.green_api_integration_id ||
-    cfg.integration_id ||
-    cfg.manus_integration_id;
+  const id = cfg.green_api_integration_id || cfg.integration_id;
   return id ? String(id) : null;
+}
+
+/** Oldest first by created_at; a missing timestamp sorts first. */
+export function compareCreatedAt(
+  a: { created_at: string | null },
+  b: { created_at: string | null },
+): number {
+  const x = a.created_at || "";
+  const y = b.created_at || "";
+  if (x === y) {
+    return 0;
+  }
+  return x < y ? -1 : 1;
 }
 
 /** True for a line send-manus-wa-message can send from. */

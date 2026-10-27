@@ -26,7 +26,7 @@ export type ClaudeNotifyDeps = {
   supabaseUrl: string;
   serviceRoleKey: string;
   bearerSecret?: string | null;
-  createSupabase: () => Pick<DbClient, "from">;
+  createSupabase: () => Pick<DbClient, "from" | "rpc">;
   fetchImpl?: typeof fetch;
   logger?: Pick<Console, "warn" | "error">;
 };

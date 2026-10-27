@@ -100,3 +100,7 @@ export async function authorizeTenantCaller(
     error: "Not a member of this tenant",
   };
 }
+
+// The same caller and super-admin lookups gate the Manus senders
+// (_shared/auth/tenant-access.ts, manage-manus-wa/send-auth.ts).
+export { callerUserId, isSuperAdmin };

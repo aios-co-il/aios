@@ -61,6 +61,18 @@ Deno.test("interpretWaSendResponse", async (t) => {
       assertStrictEquals(dup.sent, false);
     },
   );
+
+  await t.step(
+    "an edge timeout (504) or worker limit (546) may have sent: delivery_unknown",
+    () => {
+      for (const status of [504, 546]) {
+        assertStrictEquals(
+          interpretWaSendResponse(status, { error: "timeout" }).status,
+          "delivery_unknown",
+        );
+      }
+    },
+  );
 });
 
 Deno.test("readWaSendResponse", async (t) => {
@@ -102,20 +114,23 @@ Deno.test("postWaSend", async (t) => {
     },
   );
 
-  await t.step("a network error is a failed send, not a throw", async () => {
-    const out = await postWaSend({
-      fetchImpl: () => Promise.reject(new Error("connection reset")),
-      supabaseUrl: "https://this-project.supabase.co",
-      serviceRoleKey: "service-key",
-      functionName: "send-manus-wa-message",
-      body: {},
-    });
-    assertEquals(out, {
-      sent: false,
-      status: "failed",
-      error: "connection reset",
-      providerMessageId: null,
-      httpStatus: null,
-    });
-  });
+  await t.step(
+    "a network error is delivery_unknown, not a throw: the send may have left",
+    async () => {
+      const out = await postWaSend({
+        fetchImpl: () => Promise.reject(new Error("connection reset")),
+        supabaseUrl: "https://this-project.supabase.co",
+        serviceRoleKey: "service-key",
+        functionName: "send-manus-wa-message",
+        body: {},
+      });
+      assertEquals(out, {
+        sent: false,
+        status: "delivery_unknown",
+        error: "connection reset",
+        providerMessageId: null,
+        httpStatus: null,
+      });
+    },
+  );
 });

@@ -12,7 +12,7 @@ import {
  * agent_action_log and return the tool-facing result.
  */
 export async function sendStaffWhatsappMessage(args: {
-  supabase: Pick<DbClient, "from">;
+  supabase: Pick<DbClient, "auth" | "from" | "rpc">;
   supabaseUrl: string;
   serviceRoleKey: string;
   tenantId: string;

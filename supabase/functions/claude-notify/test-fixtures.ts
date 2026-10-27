@@ -123,22 +123,24 @@ export function tenantTables({
   };
 }
 
-/** The handler over a fake DB, recording sends, warnings and errors. */
+/** The handler over a fake DB, recording sends, warnings and errors. Lines of other tenants are shared only through `rpc`. */
 export function handler({
   tables = tenantTables(),
   responses,
   bearerSecret = null,
   failing,
+  rpc,
 }: {
   tables?: Record<string, Row[]>;
   responses?: { status?: number; body?: unknown }[];
   bearerSecret?: string | null;
   failing?: Record<string, string>;
+  rpc?: Record<string, (args: Row) => unknown>;
 } = {}) {
   const fetch = fakeFetch(responses);
   const warnings: unknown[][] = [];
   const errors: unknown[][] = [];
-  const db = fakeSupabase(tables, { failing });
+  const db = fakeSupabase(tables, { failing, rpc });
   const handle = createClaudeNotifyHandler({
     supabaseUrl: "https://this-project.supabase.co",
     serviceRoleKey: SERVICE_KEY,

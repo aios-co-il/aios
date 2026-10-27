@@ -8,8 +8,11 @@
  */
 
 type Row = Record<string, unknown>;
+
 type Filter = ["eq" | "neq" | "in", string, unknown];
+
 type FakeError = { message: string };
+
 type Result = { data: unknown; error: FakeError | null };
 
 /** One recorded from(table) call and what it asked for. */

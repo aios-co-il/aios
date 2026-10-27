@@ -13,6 +13,7 @@ import {
   type CarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
 import {
+  compareCreatedAt,
   isGreenIntegration,
   isManusIntegration,
   stepIntegrationId,
@@ -112,7 +113,7 @@ function candidateLines(
         r.is_active &&
         ofProvider(provider, r),
     )
-    .sort((a, b) => ((a.created_at || "") < (b.created_at || "") ? -1 : 1));
+    .sort(compareCreatedAt);
   return [
     pin ? ctx.byId.get(pin) : undefined,
     ...(connectionUser

@@ -37,7 +37,7 @@ export type TenantNotifyPlan = {
 
 /** Recipient, delivery chat, transport line and sender for one tenant's notify. */
 export async function planTenantNotify(
-  sb: Pick<DbClient, "from">,
+  sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
   explicitChatId: string | null,
 ): Promise<TenantNotifyPlan> {

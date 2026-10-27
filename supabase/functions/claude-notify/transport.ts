@@ -15,6 +15,7 @@
  */
 
 import {
+  compareCreatedAt,
   GREEN_SEND_ACTIONS,
   MANUS_SEND_ACTION,
   tenantHasActiveManus,
@@ -103,12 +104,7 @@ function orderSteps(input: NotifyTransportInput): NotifyStepRow[] {
       if (ab !== bb) {
         return ab - bb;
       }
-      const at = a.s.created_at || "";
-      const bt = b.s.created_at || "";
-      if (at !== bt) {
-        return at < bt ? -1 : 1;
-      }
-      return a.i - b.i;
+      return compareCreatedAt(a.s, b.s) || a.i - b.i;
     })
     .map(({ s }) => s);
 }
