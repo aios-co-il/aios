@@ -14,7 +14,22 @@
 // provider directly and write no row, so recordAutomationClientSend writes the
 // stamped row after a send that reached a client. It does so only while the
 // tenant has card logging on, so a tenant that never turns it on sees no
-// change, and it never throws: the message has already gone out.
+// change, and it never throws: the message has already gone out. Carmen's
+// webhook-fallback replies (sent straight to the provider when her automation
+// has no send step, or that send failed) are recorded the same way, as
+// send_kind "carmen", and only in a group that belongs to one client, like a
+// reply through the action step.
+//
+// Green API echoes every API send back to green-api-webhook
+// (outgoingAPIMessageReceived). Before this row existed the echo stored the
+// message and mirrored it to linked team channels. The echo now finds this
+// row and skips it, so a Green API row starts with
+// raw_provider_data.team_forward "pending" and the echo claims the mirror
+// once (claimStoredSendTeamForward). When the two writes cross, the
+// merge_green_api_send_echo trigger
+// (supabase/migrations/20261026136000_client_card_system_send_log.sql) keeps
+// one row: the echo is dropped, or this row's kind is stamped on the echo's
+// row, which has already been mirrored.
 import { phoneMatchKey } from "./telephony/phone.ts";
 
 type QueryResult = { data: unknown; error: unknown };
@@ -151,7 +166,13 @@ export type AutomationClientSend = {
   providerResponse: unknown;
   /** Client ids from the trigger payload and the resolved contact. */
   candidateClientIds: unknown[];
+  /** "automation" (the default) or "carmen" for Carmen's fallback replies. */
+  sendKind?: "automation" | "carmen";
 };
+
+/** raw_provider_data.team_forward of a Green API row the echo still mirrors. */
+export const TEAM_FORWARD_PENDING = "pending";
+export const TEAM_FORWARD_DONE = "done";
 
 /** The chat_messages row for an automation send that reached a client. */
 export function automationChatRow(
@@ -162,6 +183,7 @@ export function automationChatRow(
     send.providerResponse && typeof send.providerResponse === "object"
       ? (send.providerResponse as Record<string, unknown>)
       : {};
+  const kind = send.sendKind ?? "automation";
   return {
     tenant_id: send.tenantId,
     client_id: target.groupId ? null : target.clientId,
@@ -177,9 +199,16 @@ export function automationChatRow(
       ? null
       : send.chatId.replace(/@.*$/, "").replace(/\D/g, "") || null,
     // The provider response stays top level (Green API's idMessage), so the
-    // webhook's echo of this send is recognised as a duplicate.
-    raw_provider_data: { ...response, automation: true },
-    send_kind: "automation",
+    // webhook's echo of this send is recognised as a duplicate. The echo
+    // still owes the team-channel mirror it used to do (Green API only).
+    raw_provider_data: {
+      ...response,
+      [kind]: true,
+      ...(send.provider === "green_api"
+        ? { team_forward: TEAM_FORWARD_PENDING }
+        : {}),
+    },
+    send_kind: kind,
   };
 }
 
@@ -226,5 +255,86 @@ export async function recordAutomationClientSend(
   } catch (err) {
     console.error("[automation-client-send] not recorded", String(err));
     return "failed";
+  }
+}
+
+/**
+ * Carmen's reply that went straight to the provider (the webhook fallback).
+ * Recorded like a reply through her automation's send step: only in a group
+ * that belongs to one client, and only while the tenant has logging on.
+ */
+export function recordCarmenFallbackGroupReply(
+  db: AutomationSendDb,
+  send: Omit<AutomationClientSend, "candidateClientIds" | "sendKind">,
+): Promise<AutomationClientSendOutcome> {
+  if (!isGroupChatId(send.chatId)) return Promise.resolve("not_client");
+  return recordAutomationClientSend(db, {
+    ...send,
+    candidateClientIds: [],
+    sendKind: "carmen",
+  });
+}
+
+export type StoredSendTeamForward = {
+  id: string;
+  groupId: string | null;
+  messageText: string;
+};
+
+/**
+ * Claims the team-channel mirror of a Green API send stored before its echo
+ * (team_forward "pending"): flips it to "done" and returns the row only for
+ * the call that flipped it, so a redelivered echo never mirrors it twice.
+ * Null when nothing is owed. Never throws.
+ */
+export async function claimStoredSendTeamForward(
+  db: AutomationSendDb,
+  key: {
+    tenantId: string;
+    connectionUserId: string | null | undefined;
+    idMessage: unknown;
+  },
+): Promise<StoredSendTeamForward | null> {
+  const idMessage =
+    typeof key.idMessage === "string" ? key.idMessage.trim() : "";
+  if (!key.tenantId || !key.connectionUserId || !idMessage) return null;
+  try {
+    const { data: row, error } = await db
+      .from("chat_messages")
+      .select("id, group_id, message_text, raw_provider_data")
+      .eq("tenant_id", key.tenantId)
+      .eq("connection_user_id", key.connectionUserId)
+      .eq("raw_provider_data->>idMessage", idMessage)
+      .eq("raw_provider_data->>team_forward", TEAM_FORWARD_PENDING)
+      .limit(1)
+      .maybeSingle();
+    const stored = row as Record<string, unknown> | null;
+    if (error || typeof stored?.id !== "string") return null;
+    const raw =
+      stored.raw_provider_data && typeof stored.raw_provider_data === "object"
+        ? (stored.raw_provider_data as Record<string, unknown>)
+        : {};
+    const { data: claimed, error: claimError } = await db
+      .from("chat_messages")
+      .update({
+        raw_provider_data: { ...raw, team_forward: TEAM_FORWARD_DONE },
+      })
+      .eq("id", stored.id)
+      .eq("raw_provider_data->>team_forward", TEAM_FORWARD_PENDING)
+      .select("id");
+    if (claimError || !Array.isArray(claimed) || claimed.length === 0)
+      return null;
+    return {
+      id: stored.id,
+      groupId: typeof stored.group_id === "string" ? stored.group_id : null,
+      messageText:
+        typeof stored.message_text === "string" ? stored.message_text : "",
+    };
+  } catch (err) {
+    console.error(
+      "[automation-client-send] team forward claim failed",
+      String(err),
+    );
+    return null;
   }
 }

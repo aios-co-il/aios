@@ -5979,22 +5979,28 @@ async function executeMetaWhatsappMessage(
   const phoneField = String(config.phone_field || "phone");
   const sendingToClient =
     phoneField === "client_phone" || phoneField === "recipient_phone";
+  const leadId = sendingToClient
+    ? data?.lead_id || null
+    : data?.lead_id || data?.id || null;
   // Logged on the client card only when the message went to the client's own
-  // phone, never to a lead, a team member or a manual number (AIO-242).
+  // phone, never to a lead, a team member or a manual number (AIO-242). Like
+  // the Green API / Manus step, data.id is a candidate when the payload is the
+  // client row, unless it is already sent as the lead id.
   const clientRecipientId = await findAutomationClientRecipient(supabase, {
     tenantId,
     destination: phoneNumber,
-    candidateClientIds: [data?.client_id],
+    candidateClientIds: [
+      data?.client_id,
+      leadId === data?.id ? null : data?.id,
+    ],
   });
   const payload: Record<string, unknown> = {
     tenantId,
     integrationId: integration.id,
     senderUserId,
     phoneNumber,
-    clientId: data?.client_id || null,
-    leadId: sendingToClient
-      ? data?.lead_id || null
-      : data?.lead_id || data?.id || null,
+    clientId: clientRecipientId || data?.client_id || null,
+    leadId,
     ...(clientRecipientId ? { sendKind: "automation" } : {}),
   };
 

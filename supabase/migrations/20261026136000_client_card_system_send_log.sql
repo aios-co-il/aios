@@ -54,16 +54,18 @@
 --                 (100 recipients of one client => still one entry)
 --      carmen     one entry per message, up to 300 characters of its text,
 --      automation source_ref 'carmen:<message id>' / 'automation:<message id>'
---      chat       one entry per client thread per Israel day, with the count
---                 and the last send time and NO message text,
---                 source_ref 'chat:<client>:<group id or dm>:<YYYY-MM-DD>'.
+--      chat       one entry per sending tenant per client thread per Israel
+--                 day, with the count and the last send time and NO message
+--                 text, source_ref
+--                 'chat:<tenant>:<client>:<group id or dm>:<YYYY-MM-DD>'.
 --                 Three replies typed in AIOS to the client's group on
 --                 26.10.2026 (Israel time) leave one entry:
 --                   נשלחו ללקוח 3 הודעות וואטסאפ בקבוצה "<group>" ב-26.10.2026,
 --                   האחרונה בשעה 14:32
 --                 with metadata.count = 3; the first send inserts it and each
 --                 later send updates the count (insert-or-update on
---                 (client_id, source, source_ref)).
+--                 (client_id, source, source_ref), the tenant being part of
+--                 source_ref).
 --    Inbound rows, service-role rows without a kind, rows with no
 --    resolvable client and rows in a group linked to several clients
 --    (ambiguous) write nothing. Nor does a row whose tenant may not write the
@@ -71,9 +73,12 @@
 --    A row written with a signed-in person's token (the browser, or a sender
 --    acting for that person) logs only chat, attributed to that person
 --    (auth.uid()), never to the sent_by_user_id it names: broadcast, carmen
---    and automation entries come only from the server. Several tenants
---    sending to one client thread on one day share one entry and one count.
---    The group name is read only from the sending tenant or the client's.
+--    and automation entries come only from the server. Like every other
+--    entry, a chat entry is written in the sending tenant (client_updates
+--    is readable only in its own tenant): the client's tenant sees its own
+--    sends on the card, an agency read_write tenant sees its own, and
+--    neither sees the other's count. The group name is read only from the
+--    sending tenant or the client's.
 --
 -- 4. client_whatsapp_group_links (C4): which client owns a WhatsApp group,
 --    the union of clients.whatsapp_group_id, team_channel_whatsapp_links and
@@ -88,6 +93,19 @@
 --    which now record a report_deliveries row instead). Every system_send
 --    entry is written by these triggers, so nobody can forge one or claim
 --    its dedupe key ahead of the trigger.
+--
+-- 6. One chat row per Green API message. A Green API send stored by its
+--    sender with send_kind carmen or automation (trigger-automation, Carmen's
+--    webhook fallback, send-green-api-message) is echoed back to
+--    green-api-webhook as outgoingAPIMessageReceived. The webhook skips an
+--    echo whose idMessage is stored, but the two writes can cross. A BEFORE
+--    INSERT trigger serialises them on (tenant, connection, idMessage):
+--      the echo second  -> dropped; the webhook then mirrors the stored send
+--                          to linked team channels once (team_forward);
+--      the send second  -> no second row: its kind is stamped on the echo's
+--                          row, and an AFTER UPDATE OF send_kind trigger logs
+--                          it on the card like an insert would.
+--    Browser rows are never touched, and any error stores the row as before.
 
 -- ─── 1. chat_messages columns ───────────────────────────────────────────────
 
@@ -580,11 +598,13 @@ BEGIN
       RETURN NULL;
     END IF;
 
-    -- chat: one entry per client thread per Israel day, no message text. The
-    -- entry is the client's: an agency tenant sending to the same thread that
-    -- day counts on it too (access was checked above).
+    -- chat: one entry per sending tenant per client thread per Israel day,
+    -- no message text. The entry lives in the sending tenant, like every
+    -- other entry: client_updates is readable only in its own tenant, so the
+    -- client's tenant and an agency tenant each count their own sends on an
+    -- entry they can see, and neither sees the other's.
     v_day := (v_sent_at AT TIME ZONE 'Asia/Jerusalem')::date;
-    v_ref := 'chat:' || v_client::text || ':'
+    v_ref := 'chat:' || NEW.tenant_id::text || ':' || v_client::text || ':'
       || coalesce(NEW.group_id::text, 'dm') || ':'
       || to_char(v_day, 'YYYY-MM-DD');
 
@@ -592,6 +612,7 @@ BEGIN
     INTO v_entry_id, v_meta
     FROM public.client_updates AS u
     WHERE u.client_id = v_client
+      AND u.tenant_id = NEW.tenant_id
       AND u.source = 'system_send'
       AND u.source_ref = v_ref
     FOR UPDATE;
@@ -630,6 +651,7 @@ BEGIN
       INTO v_entry_id, v_meta
       FROM public.client_updates AS u
       WHERE u.client_id = v_client
+        AND u.tenant_id = NEW.tenant_id
         AND u.source = 'system_send'
         AND u.source_ref = v_ref
       FOR UPDATE;
@@ -679,7 +701,108 @@ CREATE TRIGGER chat_messages_log_system_send
   )
   EXECUTE FUNCTION public.log_system_send_on_client_card();
 
--- ─── 6. Browser inserts: human rows only ────────────────────────────────────
+-- A send whose kind is stamped on the row its Green API echo stored first
+-- (merge_green_api_send_echo below) is logged like an insert. A browser
+-- token may set send_kind on its tenant's rows, but the function logs only
+-- server kinds from the server, and chat is not in this clause.
+DROP TRIGGER IF EXISTS chat_messages_log_stamped_send ON public.chat_messages;
+CREATE TRIGGER chat_messages_log_stamped_send
+  AFTER UPDATE OF send_kind ON public.chat_messages
+  FOR EACH ROW
+  WHEN (
+    OLD.send_kind IS NULL
+    AND NEW.direction = 'outbound'
+    AND NEW.send_kind IN ('carmen', 'automation')
+  )
+  EXECUTE FUNCTION public.log_system_send_on_client_card();
+
+-- ─── 6. One chat row per Green API message ──────────────────────────────────
+
+-- Both writes of one Green API message (the sender's stamped row and the
+-- webhook's outgoingAPIMessageReceived echo) take the same transaction lock
+-- on (tenant, connection, idMessage), so whichever comes second sees the
+-- first. The echo second is dropped (the webhook already skips an echo it
+-- finds stored; this closes the gap between its check and its insert). The
+-- send second stamps its kind on the echo's row instead of adding a second
+-- row; that row was mirrored to team channels by the webhook, so it carries
+-- no team_forward. Browser rows are never touched, and any error (a lock
+-- wait over 2 seconds included) stores the row as before.
+CREATE OR REPLACE FUNCTION public.merge_green_api_send_echo()
+RETURNS trigger
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO 'public'
+  SET lock_timeout TO '2s'
+AS $$
+DECLARE
+  v_message_id text := nullif(btrim(NEW.raw_provider_data ->> 'idMessage'), '');
+  v_existing public.chat_messages%ROWTYPE;
+BEGIN
+  IF v_message_id IS NULL
+    OR coalesce(auth.jwt() ->> 'role', auth.role(), '') IN ('authenticated', 'anon') THEN
+    RETURN NEW;
+  END IF;
+  BEGIN
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+      'chat_messages:green_api:' || NEW.tenant_id::text || ':'
+        || coalesce(NEW.connection_user_id::text, '') || ':' || v_message_id,
+      0
+    ));
+    SELECT m.* INTO v_existing
+    FROM public.chat_messages AS m
+    WHERE m.tenant_id = NEW.tenant_id
+      AND m.connection_user_id IS NOT DISTINCT FROM NEW.connection_user_id
+      AND m.raw_provider_data ->> 'idMessage' = v_message_id
+    ORDER BY m.created_at, m.id
+    LIMIT 1;
+    IF NOT FOUND THEN
+      RETURN NEW;
+    END IF;
+    IF NEW.send_kind IN ('carmen', 'automation') AND v_existing.send_kind IS NULL THEN
+      UPDATE public.chat_messages AS m
+      SET
+        send_kind = NEW.send_kind,
+        send_ref = NEW.send_ref,
+        client_id = CASE
+            WHEN m.client_id IS NULL AND m.lead_id IS NULL AND m.group_id IS NULL
+              THEN NEW.client_id
+            ELSE m.client_id
+          END,
+        sent_by_user_id = coalesce(m.sent_by_user_id, NEW.sent_by_user_id),
+        integration_id = coalesce(m.integration_id, NEW.integration_id),
+        raw_provider_data = coalesce(m.raw_provider_data, '{}'::jsonb)
+          || jsonb_build_object(NEW.send_kind, true)
+      WHERE m.id = v_existing.id;
+    END IF;
+    RETURN NULL;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'merge_green_api_send_echo: message % stored without merging: % (%)',
+      v_message_id, SQLERRM, SQLSTATE;
+    RETURN NEW;
+  END;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.merge_green_api_send_echo()
+  FROM PUBLIC, anon, authenticated;
+
+-- Only Green API echoes and the stamped sends they can duplicate enter the
+-- function; every other insert skips it.
+DROP TRIGGER IF EXISTS chat_messages_merge_green_api_send_echo ON public.chat_messages;
+CREATE TRIGGER chat_messages_merge_green_api_send_echo
+  BEFORE INSERT ON public.chat_messages
+  FOR EACH ROW
+  WHEN (
+    NEW.provider = 'green_api'
+    AND NEW.direction = 'outbound'
+    AND (
+      NEW.raw_provider_data ->> 'typeWebhook' = 'outgoingAPIMessageReceived'
+      OR NEW.send_kind IN ('carmen', 'automation')
+    )
+  )
+  EXECUTE FUNCTION public.merge_green_api_send_echo();
+
+-- ─── 7. Browser inserts: human rows only ────────────────────────────────────
 
 -- AIO-232 let the browser insert system_send rows for the report panel and
 -- the meeting summary dialog; both now record a report_deliveries row and the

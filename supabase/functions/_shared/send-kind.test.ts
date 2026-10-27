@@ -320,14 +320,15 @@ Deno.test("the chat trigger writes the agreed entry per kind", () => {
   assertMatch(body, /p_source_ref => v_kind \|\| ':' \|\| NEW\.id::text/);
   assertMatch(body, /char_length\(v_text\) > 300/);
   assertMatch(body, /left\(v_text, 300\)/);
-  // chat: one entry per client thread per Israel day, counted, no text.
+  // chat: one entry per sending tenant per client thread per Israel day,
+  // counted, no text.
   assertMatch(body, /AT TIME ZONE 'Asia\/Jerusalem'\)::date/);
   assertMatch(
     body,
-    /'chat:' \|\| v_client::text \|\| ':'\s+\|\| coalesce\(NEW\.group_id::text, 'dm'\) \|\| ':'\s+\|\| to_char\(v_day, 'YYYY-MM-DD'\)/,
+    /'chat:' \|\| NEW\.tenant_id::text \|\| ':' \|\| v_client::text \|\| ':'\s+\|\| coalesce\(NEW\.group_id::text, 'dm'\) \|\| ':'\s+\|\| to_char\(v_day, 'YYYY-MM-DD'\)/,
   );
   const chatPart = body.slice(
-    body.indexOf("-- chat: one entry per client thread"),
+    body.indexOf("-- chat: one entry per sending tenant per client thread"),
   );
   assertNotMatch(
     chatPart,
@@ -553,9 +554,20 @@ Deno.test(
     const access = chat.indexOf("ata.access_level = 'read_write'");
     assert(access > 0);
     assert(access < chat.indexOf("FOR UPDATE"));
-    // ... so the daily entry is the client's, whichever tenant wrote it first:
-    // an agency tenant's sends count on it instead of being dropped.
-    assertNotMatch(chat, /u\.tenant_id = NEW\.tenant_id/);
+    // ... and each sending tenant counts on its own entry, in its own tenant,
+    // where client_updates RLS lets it read it: the client's tenant never
+    // counts on an agency's entry it cannot see, nor the agency on the
+    // client's.
+    const chatPart = chat.slice(
+      chat.indexOf("-- chat: one entry per sending tenant per client thread"),
+    );
+    assertStrictEquals(
+      chatPart.match(
+        /WHERE u\.client_id = v_client\s+AND u\.tenant_id = NEW\.tenant_id\s+AND u\.source = 'system_send'\s+AND u\.source_ref = v_ref\s+FOR UPDATE;/g,
+      )?.length,
+      2,
+    );
+    assertMatch(chatPart, /p_tenant => NEW\.tenant_id,/);
     assertStrictEquals(chat.match(/FOR UPDATE;/g)?.length, 2);
     // A damaged count restarts instead of stopping the day's counting.
     assertMatch(
@@ -664,6 +676,77 @@ Deno.test(
     assertMatch(
       MIGRATION,
       /CREATE OR REPLACE VIEW public\.client_whatsapp_group_links\s+WITH \(security_invoker = true\)/,
+    );
+  },
+);
+
+// ─── One chat row per Green API message ─────────────────────────────────────
+
+Deno.test(
+  "a Green API send and its echo leave one chat row, whichever lands first",
+  () => {
+    const merge = functionBody("merge_green_api_send_echo");
+    // Both writes take the same lock on (tenant, connection, idMessage) and
+    // then look for the other one with the webhook's duplicate key.
+    assertMatch(
+      merge,
+      /pg_advisory_xact_lock\(hashtextextended\(\s+'chat_messages:green_api:' \|\| NEW\.tenant_id::text \|\| ':'\s+\|\| coalesce\(NEW\.connection_user_id::text, ''\) \|\| ':' \|\| v_message_id,/,
+    );
+    assertMatch(
+      merge,
+      /WHERE m\.tenant_id = NEW\.tenant_id\s+AND m\.connection_user_id IS NOT DISTINCT FROM NEW\.connection_user_id\s+AND m\.raw_provider_data ->> 'idMessage' = v_message_id/,
+    );
+    // The lock comes before the look-up.
+    assert(
+      merge.indexOf("pg_advisory_xact_lock") < merge.indexOf("SELECT m.*"),
+    );
+    // Order 1 (send first): the echo is dropped. Order 2 (echo first): the
+    // send's kind is stamped on the echo's row and no second row is added.
+    assertMatch(
+      merge,
+      /IF NOT FOUND THEN\s+RETURN NEW;\s+END IF;\s+IF NEW\.send_kind IN \('carmen', 'automation'\) AND v_existing\.send_kind IS NULL THEN\s+UPDATE public\.chat_messages AS m\s+SET\s+send_kind = NEW\.send_kind,/,
+    );
+    assertMatch(
+      merge,
+      /WHERE m\.id = v_existing\.id;\s+END IF;\s+RETURN NULL;/,
+    );
+    // The merged row was mirrored by the webhook: no team_forward is copied.
+    assertNotMatch(merge, /team_forward/);
+    assertMatch(
+      merge,
+      /raw_provider_data = coalesce\(m\.raw_provider_data, '\{\}'::jsonb\)\s+\|\| jsonb_build_object\(NEW\.send_kind, true\)/,
+    );
+    // A lead's or another client's row never gains a client.
+    assertMatch(
+      merge,
+      /WHEN m\.client_id IS NULL AND m\.lead_id IS NULL AND m\.group_id IS NULL\s+THEN NEW\.client_id\s+ELSE m\.client_id/,
+    );
+    // Browser rows are untouched; any error stores the row as before.
+    assertMatch(
+      merge,
+      /IF v_message_id IS NULL\s+OR coalesce\(auth\.jwt\(\) ->> 'role', auth\.role\(\), ''\) IN \('authenticated', 'anon'\) THEN\s+RETURN NEW;/,
+    );
+    assertMatch(
+      merge,
+      /EXCEPTION WHEN OTHERS THEN\s+RAISE WARNING 'merge_green_api_send_echo: [^']*',\s+v_message_id, SQLERRM, SQLSTATE;\s+RETURN NEW;/,
+    );
+    assertMatch(
+      MIGRATION,
+      /FUNCTION public\.merge_green_api_send_echo\(\)\s+RETURNS trigger\s+LANGUAGE plpgsql\s+SECURITY DEFINER\s+SET search_path TO 'public'\s+SET lock_timeout TO '2s'/,
+    );
+    assertMatch(
+      MIGRATION,
+      /REVOKE ALL ON FUNCTION public\.merge_green_api_send_echo\(\)\s+FROM PUBLIC, anon, authenticated;/,
+    );
+    // Only Green API echoes and the stamped sends they can duplicate enter it.
+    assertMatch(
+      MIGRATION,
+      /CREATE TRIGGER chat_messages_merge_green_api_send_echo\s+BEFORE INSERT ON public\.chat_messages\s+FOR EACH ROW\s+WHEN \(\s+NEW\.provider = 'green_api'\s+AND NEW\.direction = 'outbound'\s+AND \(\s+NEW\.raw_provider_data ->> 'typeWebhook' = 'outgoingAPIMessageReceived'\s+OR NEW\.send_kind IN \('carmen', 'automation'\)\s+\)\s+\)\s+EXECUTE FUNCTION public\.merge_green_api_send_echo\(\);/,
+    );
+    // A stamped echo row is logged like an insert, by the same function.
+    assertMatch(
+      MIGRATION,
+      /CREATE TRIGGER chat_messages_log_stamped_send\s+AFTER UPDATE OF send_kind ON public\.chat_messages\s+FOR EACH ROW\s+WHEN \(\s+OLD\.send_kind IS NULL\s+AND NEW\.direction = 'outbound'\s+AND NEW\.send_kind IN \('carmen', 'automation'\)\s+\)\s+EXECUTE FUNCTION public\.log_system_send_on_client_card\(\);/,
     );
   },
 );

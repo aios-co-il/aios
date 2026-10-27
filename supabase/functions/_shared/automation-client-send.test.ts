@@ -9,12 +9,14 @@ import {
 import {
   automationCandidateClientIds,
   automationChatRow,
+  claimStoredSendTeamForward,
   findAutomationClientGroup,
   findAutomationClientRecipient,
   isGroupChatId,
   matchClientByPhone,
   recipientClientIds,
   recordAutomationClientSend,
+  recordCarmenFallbackGroupReply,
 } from "./automation-client-send.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -181,8 +183,13 @@ Deno.test(
       channel: "whatsapp",
       provider: "green_api",
       sender_phone: "972501234567",
-      // idMessage stays top level, so the webhook echo is a duplicate.
-      raw_provider_data: { idMessage: "BAE5F1", automation: true },
+      // idMessage stays top level, so the webhook echo is a duplicate; the
+      // echo still owes the team-channel mirror.
+      raw_provider_data: {
+        idMessage: "BAE5F1",
+        automation: true,
+        team_forward: "pending",
+      },
       send_kind: "automation",
     });
     const groupRow = automationChatRow(
@@ -199,7 +206,23 @@ Deno.test(
     assertStrictEquals(groupRow.group_id, GROUP);
     assertStrictEquals(groupRow.sender_phone, null);
     assertStrictEquals(groupRow.provider, "manus_wa");
+    // No Green API echo comes back for Manus, so no mirror is owed.
     assertEquals(groupRow.raw_provider_data, { automation: true });
+    const carmenRow = automationChatRow(
+      {
+        ...baseSend,
+        chatId: "120363@g.us",
+        candidateClientIds: [],
+        sendKind: "carmen",
+      },
+      { clientId: null, groupId: GROUP },
+    );
+    assertStrictEquals(carmenRow.send_kind, "carmen");
+    assertEquals(carmenRow.raw_provider_data, {
+      idMessage: "BAE5F1",
+      carmen: true,
+      team_forward: "pending",
+    });
   },
 );
 
@@ -418,10 +441,22 @@ Deno.test(
   "the Meta step stamps automation only for a send to the client's own phone",
   () => {
     const meta = functionSource("executeMetaWhatsappMessage");
+    // Like the Green API / Manus step: data.client_id, then data.id when the
+    // payload is the client row (never the id already sent as the lead).
     assertMatch(
       meta,
-      /findAutomationClientRecipient\(supabase, \{\s+tenantId,\s+destination: phoneNumber,\s+candidateClientIds: \[data\?\.client_id\],\s+\}\)/,
+      /findAutomationClientRecipient\(supabase, \{\s+tenantId,\s+destination: phoneNumber,\s+candidateClientIds: \[\s+data\?\.client_id,\s+leadId === data\?\.id \? null : data\?\.id,\s+\],\s+\}\)/,
     );
+    assertMatch(
+      meta,
+      /const leadId = sendingToClient\s+\? data\?\.lead_id \|\| null\s+: data\?\.lead_id \|\| data\?\.id \|\| null;/,
+    );
+    // The row is attached to the client the message reached.
+    assertMatch(
+      meta,
+      /clientId: clientRecipientId \|\| data\?\.client_id \|\| null,/,
+    );
+    assertMatch(meta, /^\s+leadId,$/m);
     assertMatch(
       meta,
       /\.\.\.\(clientRecipientId \? \{ sendKind: "automation" \} : \{\}\)/,
@@ -455,5 +490,403 @@ Deno.test(
     const resolve = functionSource("resolveWaIntegration");
     assertMatch(resolve, /connectionUserId: \(integration\.user_id/);
     assertMatch(resolve, /connectionUserId: null,\s+integrationId: null,/);
+  },
+);
+
+Deno.test(
+  "a Meta send for a client-row payload resolves the client through data.id",
+  async () => {
+    // client_status_changed and similar payloads are the client row itself.
+    const db = fakeDb({ clients: [clientRow] });
+    assertStrictEquals(
+      await findAutomationClientRecipient(db, {
+        tenantId: TENANT,
+        destination: "972501234567",
+        candidateClientIds: [undefined, CLIENT],
+      }),
+      CLIENT,
+    );
+    // A lead payload's data.id is a lead: never a client.
+    assertStrictEquals(
+      await findAutomationClientRecipient(db, {
+        tenantId: TENANT,
+        destination: "972501234567",
+        candidateClientIds: [undefined, LEAD],
+      }),
+      null,
+    );
+  },
+);
+
+// ─── Carmen's webhook-fallback replies ──────────────────────────────────────
+
+Deno.test(
+  "a Carmen fallback reply is recorded only in a group of one client",
+  async () => {
+    const groups = [
+      { id: GROUP, tenant_id: TENANT, group_chat_id: "120363@g.us" },
+      { id: "staff-group", tenant_id: TENANT, group_chat_id: "777@g.us" },
+    ];
+    const db = fakeDb({
+      clients: [clientRow],
+      whatsapp_groups: groups,
+      groupClient: { [GROUP]: CLIENT, "staff-group": null },
+    });
+    const reply = { ...baseSend, message: "כרמן: הקמפיין עודכן" };
+    assertStrictEquals(
+      await recordCarmenFallbackGroupReply(db, {
+        ...reply,
+        chatId: "120363@g.us",
+      }),
+      "recorded",
+    );
+    assertStrictEquals(db.inserts.length, 1);
+    assertStrictEquals(db.inserts[0].row.send_kind, "carmen");
+    assertStrictEquals(db.inserts[0].row.group_id, GROUP);
+    assertEquals(db.inserts[0].row.raw_provider_data, {
+      idMessage: "BAE5F1",
+      carmen: true,
+      team_forward: "pending",
+    });
+    // A staff group, and a private chat (even the client's own phone), are
+    // never logged, like a reply through the action step.
+    assertStrictEquals(
+      await recordCarmenFallbackGroupReply(db, {
+        ...reply,
+        chatId: "777@g.us",
+      }),
+      "not_client",
+    );
+    const rpcsBefore = db.rpcs.length;
+    assertStrictEquals(
+      await recordCarmenFallbackGroupReply(db, {
+        ...reply,
+        chatId: "972501234567@c.us",
+      }),
+      "not_client",
+    );
+    assertStrictEquals(db.rpcs.length, rpcsBefore, "no lookup for a DM");
+    assertStrictEquals(db.inserts.length, 1);
+    // The same opt-in switch as every other card entry.
+    const off = fakeDb({
+      whatsapp_groups: groups,
+      groupClient: { [GROUP]: CLIENT },
+      loggingOn: false,
+    });
+    assertStrictEquals(
+      await recordCarmenFallbackGroupReply(off, {
+        ...reply,
+        chatId: "120363@g.us",
+      }),
+      "logging_off",
+    );
+    assertEquals(off.inserts, []);
+    // Manus: no Green API echo, so no mirror is owed.
+    const manus = fakeDb({
+      whatsapp_groups: groups,
+      groupClient: { [GROUP]: CLIENT },
+    });
+    await recordCarmenFallbackGroupReply(manus, {
+      ...reply,
+      provider: "manus_wa",
+      providerResponse: { success: true, messageId: "m-1" },
+      chatId: "120363@g.us",
+    });
+    assertEquals(manus.inserts[0].row.raw_provider_data, {
+      success: true,
+      messageId: "m-1",
+      carmen: true,
+    });
+  },
+);
+
+// ─── The Green API echo and the team-channel mirror ─────────────────────────
+
+/**
+ * chat_messages as PostgREST sees it: eq filters on columns and on
+ * raw_provider_data->>key paths, and a conditional update that returns the
+ * rows it changed. Each call resolves on a later microtask, so concurrent
+ * claims interleave like two webhook deliveries.
+ */
+function fakeChatMessages(
+  seed: Row[],
+  opts: { selectError?: unknown; updateError?: unknown } = {},
+) {
+  const rows = seed.map((row) => structuredClone(row));
+  const updates: Row[] = [];
+  const value = (row: Row, column: string) => {
+    const path = column.match(/^raw_provider_data->>(.+)$/);
+    if (!path) return row[column];
+    const raw = row.raw_provider_data as Record<string, unknown> | null;
+    const v = raw?.[path[1]];
+    return v === undefined || v === null ? null : String(v);
+  };
+  const later = <T>(fn: () => T) =>
+    new Promise<T>((resolve) => queueMicrotask(() => resolve(fn())));
+  return {
+    rows,
+    updates,
+    rpc: () => Promise.resolve({ data: null, error: null }),
+    from(table: string) {
+      assertStrictEquals(table, "chat_messages");
+      const filters: Array<[string, unknown]> = [];
+      const matching = () =>
+        rows.filter((row) => filters.every(([c, v]) => value(row, c) === v));
+      let patch: Row | null = null;
+      const b = {
+        select: () => b,
+        update: (next: Row) => {
+          patch = next;
+          return b;
+        },
+        eq: (column: string, v: unknown) => {
+          filters.push([column, v]);
+          return b;
+        },
+        limit: () => b,
+        maybeSingle: () =>
+          later(() =>
+            opts.selectError
+              ? { data: null, error: opts.selectError }
+              : { data: structuredClone(matching()[0] ?? null), error: null },
+          ),
+        then: (
+          resolve: (value: unknown) => unknown,
+          reject?: (reason: unknown) => unknown,
+        ) =>
+          later(() => {
+            if (!patch) return { data: matching(), error: null };
+            if (opts.updateError)
+              return { data: null, error: opts.updateError };
+            const hit = matching();
+            for (const row of hit) Object.assign(row, patch);
+            updates.push(patch);
+            return { data: hit.map((row) => ({ id: row.id })), error: null };
+          }).then(resolve, reject),
+      };
+      return b;
+    },
+  };
+}
+
+const ECHO_KEY = {
+  tenantId: TENANT,
+  connectionUserId: OWNER,
+  idMessage: "BAE5F1",
+};
+
+Deno.test(
+  "race order 1: the send is stored first; its echo mirrors it to team channels once",
+  async () => {
+    // recordAutomationClientSend's row, as automationChatRow builds it.
+    const stored = {
+      id: "msg-1",
+      tenant_id: TENANT,
+      connection_user_id: OWNER,
+      ...automationChatRow(
+        { ...baseSend, chatId: "120363@g.us", candidateClientIds: [] },
+        { clientId: null, groupId: GROUP },
+      ),
+    };
+    const db = fakeChatMessages([stored]);
+    assertEquals(await claimStoredSendTeamForward(db, ECHO_KEY), {
+      id: "msg-1",
+      groupId: GROUP,
+      messageText: "שלום, הדוח החודשי מוכן",
+    });
+    // Marked done, the provider response and the stamp kept.
+    assertEquals(db.rows[0].raw_provider_data, {
+      idMessage: "BAE5F1",
+      automation: true,
+      team_forward: "done",
+    });
+    // A redelivered echo finds nothing left to mirror.
+    assertStrictEquals(await claimStoredSendTeamForward(db, ECHO_KEY), null);
+    assertStrictEquals(db.updates.length, 1);
+  },
+);
+
+Deno.test(
+  "two deliveries of one echo at once mirror it only once",
+  async () => {
+    const db = fakeChatMessages([
+      {
+        id: "msg-1",
+        tenant_id: TENANT,
+        connection_user_id: OWNER,
+        group_id: null,
+        message_text: "תזכורת לפגישה מחר",
+        raw_provider_data: {
+          idMessage: "BAE5F1",
+          automation: true,
+          team_forward: "pending",
+        },
+      },
+    ]);
+    const claims = await Promise.all([
+      claimStoredSendTeamForward(db, ECHO_KEY),
+      claimStoredSendTeamForward(db, ECHO_KEY),
+    ]);
+    assertStrictEquals(claims.filter(Boolean).length, 1);
+    assertStrictEquals(claims.find(Boolean)?.groupId, null);
+  },
+);
+
+Deno.test(
+  "race order 2: the echo is stored first; the merged row owes no second mirror",
+  async () => {
+    // The webhook stored and mirrored the echo; merge_green_api_send_echo then
+    // stamped the send's kind on that row instead of a second row (no
+    // team_forward), so a later delivery of the echo mirrors nothing.
+    const db = fakeChatMessages([
+      {
+        id: "echo-1",
+        tenant_id: TENANT,
+        connection_user_id: OWNER,
+        group_id: GROUP,
+        message_text: "שלום, הדוח החודשי מוכן",
+        send_kind: "automation",
+        raw_provider_data: {
+          typeWebhook: "outgoingAPIMessageReceived",
+          idMessage: "BAE5F1",
+          automation: true,
+        },
+      },
+    ]);
+    assertStrictEquals(await claimStoredSendTeamForward(db, ECHO_KEY), null);
+    assertEquals(db.updates, []);
+    // A send stored by send-green-api-message (a UI send, or Carmen's action
+    // step) owes no mirror either, as before.
+    const uiSend = fakeChatMessages([
+      {
+        id: "ui-1",
+        tenant_id: TENANT,
+        connection_user_id: OWNER,
+        raw_provider_data: { idMessage: "BAE5F1" },
+      },
+    ]);
+    assertStrictEquals(
+      await claimStoredSendTeamForward(uiSend, ECHO_KEY),
+      null,
+    );
+  },
+);
+
+Deno.test(
+  "the mirror claim is scoped to the echo's tenant and connection and never throws",
+  async () => {
+    const pending = {
+      id: "msg-1",
+      tenant_id: TENANT,
+      connection_user_id: OWNER,
+      raw_provider_data: { idMessage: "BAE5F1", team_forward: "pending" },
+    };
+    for (const key of [
+      { ...ECHO_KEY, tenantId: OTHER_TENANT },
+      { ...ECHO_KEY, connectionUserId: "someone-else" },
+      { ...ECHO_KEY, idMessage: "OTHER" },
+      { ...ECHO_KEY, idMessage: "" },
+      { ...ECHO_KEY, idMessage: undefined },
+      { ...ECHO_KEY, connectionUserId: null },
+    ])
+      assertStrictEquals(
+        await claimStoredSendTeamForward(fakeChatMessages([pending]), key),
+        null,
+        JSON.stringify(key),
+      );
+    for (const opts of [
+      { selectError: { code: "57014" } },
+      { updateError: { code: "40001" } },
+    ]) {
+      const db = fakeChatMessages([pending], opts);
+      assertStrictEquals(await claimStoredSendTeamForward(db, ECHO_KEY), null);
+    }
+    const throwing = {
+      rpc: () => Promise.resolve({ data: null, error: null }),
+      from: () => {
+        throw new Error("boom");
+      },
+    };
+    assertStrictEquals(
+      await claimStoredSendTeamForward(throwing, ECHO_KEY),
+      null,
+    );
+  },
+);
+
+// ─── Webhook wiring ─────────────────────────────────────────────────────────
+
+const GREEN_WEBHOOK = Deno.readTextFileSync(
+  new URL("../green-api-webhook/index.ts", import.meta.url),
+);
+const MANUS_WEBHOOK = Deno.readTextFileSync(
+  new URL("../manus-wa-webhook/index.ts", import.meta.url),
+);
+
+Deno.test(
+  "green-api-webhook mirrors a stored send once, whichever write lands first",
+  () => {
+    // The duplicate check claims the mirror for an API echo before skipping it.
+    const dedupe = GREEN_WEBHOOK.slice(
+      GREEN_WEBHOOK.indexOf("const incomingIdMessage = webhookData.idMessage;"),
+      GREEN_WEBHOOK.indexOf("const messageData = webhookData.messageData;"),
+    );
+    assertMatch(
+      dedupe,
+      /const isApiEcho = typeWebhook === "outgoingAPIMessageReceived";/,
+    );
+    assertMatch(
+      dedupe,
+      /\.select\("id, team_forward:raw_provider_data->>team_forward"\)/,
+    );
+    assertMatch(
+      dedupe,
+      /if \(dupMsg\) \{\s+if \(isApiEcho && dupMsg\.team_forward === "pending"\)\s+await forwardStoredSend\(\);\s+return new Response\(/,
+    );
+    assertMatch(
+      dedupe,
+      /claimStoredSendTeamForward\(supabaseClient, \{\s+tenantId,\s+connectionUserId,\s+idMessage: incomingIdMessage,\s+\}\)/,
+    );
+    assertMatch(
+      dedupe,
+      /if \(!stored\) return;\s+await forwardToTeamChannels\(/,
+    );
+    // Both inserts learn whether merge_green_api_send_echo dropped the echo,
+    // and then claim the stored send's mirror instead of mirroring the echo.
+    assertStrictEquals(
+      GREEN_WEBHOOK.match(
+        /raw_provider_data: (?:webhookData|rawDataWithAvatar),\s+\}\)\s+\.select\("id"\);/g,
+      )?.length,
+      2,
+    );
+    assertMatch(
+      GREEN_WEBHOOK,
+      /const groupEchoMerged =\s+isApiEcho &&\s+Array\.isArray\(savedGroupRows\) &&\s+savedGroupRows\.length === 0;/,
+    );
+    assertMatch(
+      GREEN_WEBHOOK,
+      /if \(groupEchoMerged\) \{\s+await forwardStoredSend\(\);\s+\} else \{\s+await forwardToTeamChannels\(/,
+    );
+    assertMatch(
+      GREEN_WEBHOOK,
+      /if \(isApiEcho && Array\.isArray\(savedRows\) && savedRows\.length === 0\) \{\s+await forwardStoredSend\(\);\s+\} else \{\s+await forwardToTeamChannels\(/,
+    );
+  },
+);
+
+Deno.test(
+  "Carmen's webhook-fallback group replies are recorded after a successful send",
+  () => {
+    // Green API: the provider response (idMessage) is kept for the echo.
+    assertMatch(
+      GREEN_WEBHOOK,
+      /const response = await sendGreenApiMessage\(\s+instanceId,\s+apiToken,\s+chatId,\s+message,\s+\);\s+if \(!response\) return false;[\s\S]{0,200}?await recordCarmenFallbackGroupReply\(supabaseClient, \{\s+tenantId,\s+chatId,\s+message,\s+provider: "green_api",\s+connectionUserId,\s+integrationId: integration\.id,\s+providerResponse: response,\s+\}\);\s+return true;/,
+    );
+    assertMatch(GREEN_WEBHOOK, /if \(!res\.ok\) return null;/);
+    // Manus: only a group send the gateway accepted.
+    assertMatch(
+      MANUS_WEBHOOK,
+      /if \(res\.ok\) \{[\s\S]{0,700}?if \(response\?\.success !== false\)\s+await recordCarmenFallbackGroupReply\(supabase, \{\s+tenantId: groupTenantId,\s+chatId: groupChatId,\s+message,\s+provider: "manus_wa",\s+connectionUserId,\s+integrationId: integ\.id,\s+providerResponse: response,\s+\}\);\s+\}\s+return res\.ok;/,
+    );
   },
 );
