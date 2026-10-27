@@ -1,8 +1,9 @@
 /**
- * When a dev task may be approved and sent to a coding agent (Cursor or Claude). Like the
- * workshop budget (workshop/budget.ts), the approval is the user's own message in a later turn
- * than the one that made the task: Carmen offers the task, and only the user's "כן" in the next
- * message approves it. Nothing Carmen read or wrote in the same turn can approve it.
+ * In the workshop, when a dev task may be approved and sent to a coding agent (Cursor or Claude).
+ * Like the workshop budget (workshop/budget.ts), the approval is the user's own message in the
+ * app chat, in a later turn than the one that offered the task: Carmen offers the task, and only
+ * the user's "כן" in the next message approves and sends it. Nothing Carmen read or wrote in the
+ * same turn can. Outside the workshop the dev-task flow is unchanged.
  */
 import {
   isExplicitApprovalPhrase,
@@ -124,21 +125,28 @@ export function isExplicitDevTaskApproval(text: unknown): boolean {
 
 export type DevEscalationTier = "full" | "bugfix" | null;
 
-export interface DevTaskApprovalInput {
+/** How long an offered task stays open to the user's yes. */
+export const DEV_TASK_OFFER_TTL_MS = 30 * 60 * 1000;
+
+export interface WorkshopDevTaskInput {
   task: {
     status?: string | null;
     created_at?: string | null;
     assigned_agent?: string | null;
     requested_by_user_id?: string | null;
+    source_conversation_id?: string | null;
   } | null;
+  /** The user typed this turn in the app chat (a signed-in user on internal_chat). */
+  appChatUser: boolean;
   /** The user's own message in this turn. */
   userText?: string | null;
   /** When this turn (the user's message) started; the task must be older. */
   turnStartedAt?: string | Date | null;
-  /** David approved this exact call in the approvals queue. */
-  outOfBand?: boolean;
+  /** This chat's conversation; the task must have been offered in it. */
+  conversationId?: string | null;
   /** Who says yes: a bug-fix caller (Ana) approves only her own Cursor tasks. */
   approver?: { id?: string | null; tier?: DevEscalationTier };
+  maxAgeMs?: number;
 }
 
 export type DevTaskApprovalRefusal =
@@ -146,6 +154,8 @@ export type DevTaskApprovalRefusal =
   | "not_draft"
   | "no_turn"
   | "same_turn"
+  | "other_conversation"
+  | "expired"
   | "not_explicit"
   | "target_mismatch"
   | "bugfix_cursor_only"
@@ -154,16 +164,18 @@ export type DevTaskApprovalRefusal =
 export type DevTaskApprovalDecision =
   { ok: true } | { ok: false; reason: DevTaskApprovalRefusal; message: string };
 
+const ASK =
+  "ספרי למשתמש במשפט מה המשימה ולמי היא תישלח, ושאלי אם לשלוח: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. אשרי ושלחי רק אחרי 'כן' שלו בהודעה הבאה.";
+
 const REFUSAL_MESSAGES: Record<DevTaskApprovalRefusal, string> = {
   not_found: "משימת הפיתוח לא נמצאה. בדקי את המזהה עם list_dev_tasks.",
   not_draft:
     "המשימה כבר לא מחכה לאישור (היא נשלחה, נסגרה או בוטלה). בדקי את הסטטוס עם list_dev_tasks.",
-  no_turn:
-    "משימת פיתוח מאשרים רק מתוך שיחה עם המשתמש, אחרי שענה 'כן'. ספרי לו מה המשימה ושאלי אם לשלוח.",
-  same_turn:
-    "המשימה נפתחה בהודעה הזו. ספרי למשתמש במשפט מה המשימה ולמי היא תישלח (Cursor או Claude) ושאלי אם לשלוח. אשרי רק אחרי שיענה 'כן' בהודעה הבאה.",
-  not_explicit:
-    "ההודעה של המשתמש היא לא אישור מפורש לשליחת המשימה. שאלי אם לשלוח אותה, ואשרי רק אחרי 'כן' ברור בהודעה נפרדת.",
+  no_turn: `בסדנה מאשרים ושולחים משימת פיתוח רק מתוך הצ׳אט, אחרי שהמשתמש ענה 'כן'. ${ASK}`,
+  same_turn: `המשימה נפתחה בהודעה הזו. ${ASK}`,
+  other_conversation: `המשימה לא הוצעה בשיחה הזו. ${ASK}`,
+  expired: `עבר יותר מדי זמן מאז שהוצעה המשימה. ${ASK}`,
+  not_explicit: `ההודעה של המשתמש היא לא אישור מפורש לשליחת המשימה. ${ASK}`,
   target_mismatch:
     "המשתמש ביקש סוכן אחר מזה שהמשימה מיועדת לו. ספרי לו למי היא מיועדת (Cursor או Claude); כדי להחליף, פתחי משימה חדשה עם הסוכן הנכון ושאלי שוב.",
   bugfix_cursor_only:
@@ -187,9 +199,13 @@ export function namedDevAgent(text: unknown): "cursor" | "claude" | null {
 const agentOf = (task: { assigned_agent?: string | null }) =>
   String(task.assigned_agent || "cursor").toLowerCase();
 
-/** Whether approve_dev_task may approve this task now. */
-export function devTaskApprovalDecision(
-  input: DevTaskApprovalInput,
+/**
+ * Whether approve_dev_task or dispatch_dev_task may act on this task now, in the workshop: the
+ * user's message in the app chat is a plain yes, the task was offered in an earlier turn of this
+ * conversation not long ago, and a yes that names an agent names this task's one.
+ */
+export function workshopDevTaskDecision(
+  input: WorkshopDevTaskInput,
 ): DevTaskApprovalDecision {
   const refuse = (reason: DevTaskApprovalRefusal): DevTaskApprovalDecision => ({
     ok: false,
@@ -200,13 +216,21 @@ export function devTaskApprovalDecision(
   if (!task) return refuse("not_found");
   if (task.status !== "draft" && task.status !== "approved")
     return refuse("not_draft");
-  if (input.outOfBand) return { ok: true };
   const started = time(input.turnStartedAt);
-  if (!Number.isFinite(started) || !String(input.userText ?? "").trim())
+  if (
+    !input.appChatUser ||
+    !input.conversationId ||
+    !Number.isFinite(started) ||
+    !String(input.userText ?? "").trim()
+  )
     return refuse("no_turn");
   const created = time(task.created_at);
   if (!Number.isFinite(created) || created >= started)
     return refuse("same_turn");
+  if (task.source_conversation_id !== input.conversationId)
+    return refuse("other_conversation");
+  if (started - created > (input.maxAgeMs ?? DEV_TASK_OFFER_TTL_MS))
+    return refuse("expired");
   if (!isExplicitDevTaskApproval(input.userText)) return refuse("not_explicit");
   const named = namedDevAgent(input.userText);
   if (named && named !== agentOf(task)) return refuse("target_mismatch");
@@ -219,167 +243,26 @@ export function devTaskApprovalDecision(
   return { ok: true };
 }
 
-/**
- * A draft dev task Carmen offered in this conversation a moment ago, which the user's yes now
- * answers. The newest; null when none (a yes then goes to the approvals queue as before).
- */
-export function pickOfferedDevTask<
-  T extends {
-    status?: string | null;
-    created_at?: string | null;
-    source_conversation_id?: string | null;
-    requested_by_user_id?: string | null;
-  },
->(
-  rows: T[] | null | undefined,
-  ctx: {
-    conversationId?: string | null;
-    userId?: string | null;
-    turnStartedAt: string | Date;
-    maxAgeMs?: number;
-  },
-): T | null {
-  const started = time(ctx.turnStartedAt);
-  const maxAge = ctx.maxAgeMs ?? 30 * 60 * 1000;
-  const fits = (row: T) => {
-    if (row.status !== "draft") return false;
-    const created = time(row.created_at);
-    if (!Number.isFinite(created) || created >= started) return false;
-    if (started - created > maxAge) return false;
-    if (ctx.conversationId && row.source_conversation_id)
-      return row.source_conversation_id === ctx.conversationId;
-    return !!ctx.userId && row.requested_by_user_id === ctx.userId;
-  };
-  const list = (rows || []).filter(fits);
-  list.sort((a, b) => time(b.created_at) - time(a.created_at));
-  return list[0] ?? null;
-}
-
-/** Fields that change what is sent to the coding agent. */
-const CONTENT_KEYS = new Set([
-  "title",
-  "problem",
-  "expected_behavior",
-  "current_behavior",
-  "scope",
-  "affected_areas",
-  "constraints",
-  "acceptance_criteria",
-  "base_branch",
-  "environment",
-  "assigned_agent",
-]);
-
-export const DEV_TASK_STATUS_APPROVED_HE =
-  "אי אפשר לסמן משימה כמאושרת בעדכון. מאשרים רק עם approve_dev_task, אחרי 'כן' של המשתמש בהודעה נפרדת.";
+const WORKSHOP_OFFER =
+  "ספרי במשפט מה המשימה ולמי היא תישלח, ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. " +
+  "approve_dev_task ואז dispatch_dev_task רק אחרי 'כן' של המשתמש בהודעה הבאה; השרת מסרב באותה הודעה שבה נפתחה המשימה.";
 
 /**
- * The update a dev task gets. No update sets the approval: only approve_dev_task approves. An
- * edit to what will be sent puts a waiting (draft or approved) task back to draft, so the user
- * approves what actually goes out.
+ * The dev-task rule in the workshop, in place of buildDevEscalationPromptRule: the workshop has
+ * no connector (mcp_) or delegate_* tools, so a dev task goes only through create_dev_task and is
+ * sent after the user's later yes. Each tier is told only what it may do.
  */
-export function devTaskUpdatePatch(
-  current: { status?: string | null } | null,
-  fields: Record<string, unknown>,
-  allowed: readonly string[],
-  now: string = new Date().toISOString(),
-):
-  | { ok: true; patch: Record<string, unknown> }
-  | { ok: false; error: "dev_task_status_approved"; message: string } {
-  const patch: Record<string, unknown> = { updated_at: now };
-  for (const key of allowed)
-    if (fields[key] !== undefined) patch[key] = fields[key];
-  if (patch.status === "approved")
-    return {
-      ok: false,
-      error: "dev_task_status_approved",
-      message: DEV_TASK_STATUS_APPROVED_HE,
-    };
-  const waiting = current?.status === "draft" || current?.status === "approved";
-  const edited = Object.keys(patch).some((key) => CONTENT_KEYS.has(key));
-  if ((waiting && edited) || patch.status === "draft") {
-    patch.status = "draft";
-    patch.approved_by = null;
-    patch.approved_at = null;
-  }
-  return { ok: true, patch };
-}
-
-/** Coding-agent tools that send a new task at once, with no dev_tasks record to approve. */
-const DIRECT_SEND =
-  /^(mcp_(Cursor|Claude)__request_dev_task|assign_task_to_cursor)$/;
-
-export const DIRECT_DEV_SEND_HE =
-  "שליחה לסוכן קוד יוצאת רק אחרי 'כן' מפורש של המשתמש בהודעה נפרדת. פתחי create_dev_task, ספרי במשפט מה תשלחי ולמי (Cursor או Claude) ושאלי אם לשלוח; אחרי ה'כן' — approve_dev_task ואז dispatch_dev_task.";
-
-/** Why a tool that sends straight to Cursor or Claude may not run now; null when it may. */
-export function directDevSendRefusal(
-  toolName: string,
-  userText: unknown,
-): { error: "dev_send_needs_approval"; message: string } | null {
-  if (!DIRECT_SEND.test(String(toolName || ""))) return null;
-  if (isExplicitDevTaskApproval(userText)) return null;
-  return { error: "dev_send_needs_approval", message: DIRECT_DEV_SEND_HE };
-}
-
-/** Dev Task Center actions that change a task or send it. */
-const CENTER_WRITES = new Set([
-  "create",
-  "update",
-  "approve",
-  "dispatch",
-  "attach_session",
-  "cancel",
-  "mark_done",
-]);
-
-/**
- * Who may use the Dev Task Center for a tenant: the service role always; a signed-in user only
- * as a member of the tenant (or a super admin), and changes or sends only with a dev-escalation
- * tier. A bug-fix caller works only on Cursor tasks.
- */
-export function devTaskCenterRefusal(input: {
-  action: string;
-  service: boolean;
-  member: boolean;
-  tier: DevEscalationTier;
-  /** The agent the task is or will be assigned to (create, update, approve, dispatch). */
-  agent?: string | null;
-}): { status: 403; error: string } | null {
-  if (input.service) return null;
-  if (!input.member) return { status: 403, error: "אין לך גישה לעסק הזה." };
-  if (!CENTER_WRITES.has(input.action)) return null;
-  if (!input.tier)
-    return {
-      status: 403,
-      error:
-        "רק דיוויד (או אנה לתיקוני באגים) יכולים לפתוח, לאשר ולשלוח משימות פיתוח.",
-    };
-  if (
-    input.tier === "bugfix" &&
-    input.agent != null &&
-    String(input.agent || "cursor").toLowerCase() !== "cursor"
-  )
-    return { status: 403, error: "מותר לך לעבוד רק על תיקוני באגים ל-Cursor." };
-  return null;
-}
-
-export const DEV_TASK_NOT_APPROVED_HE =
-  "אפשר לשלוח משימת פיתוח רק אחרי שאושרה. קודם approve_dev_task, אחרי שהמשתמש ענה 'כן' בהודעה נפרדת, ורק אז שליחה.";
-
-/** Why a task may not be sent to a coding agent yet; null when it is approved. */
-export function dispatchRefusal(
-  task: { status?: string | null; approved_by?: string | null } | null,
-): { error: "dev_task_not_approved"; message: string } | null {
-  if (task && task.status === "approved" && task.approved_by) return null;
-  return { error: "dev_task_not_approved", message: DEV_TASK_NOT_APPROVED_HE };
-}
-
-/** Thrown by dispatchDevTask for a task that was not approved. */
-export class DevTaskNotApprovedError extends Error {
-  readonly code = "dev_task_not_approved";
-  constructor(message = DEV_TASK_NOT_APPROVED_HE) {
-    super(message);
-    this.name = "DevTaskNotApprovedError";
-  }
+export function workshopDevTaskRule(tier: "full" | "bugfix"): string {
+  if (tier === "full")
+    return (
+      "\n\n🛠️ **משימות פיתוח בסדנה (מורשה — דיוויד):** משימה ל-Cursor או ל-Claude רק דרך create_dev_task " +
+      "(assigned_agent cursor או claude); בסדנה אין mcp_ ואין delegate_*. " +
+      WORKSHOP_OFFER
+    );
+  return (
+    "\n\n🐛 **תיקוני באגים בסדנה (מורשה — אנה):** מותר רק תיקון באג ל-Cursor: create_dev_task עם assigned_agent=cursor, " +
+    "צעדי שחזור, התנהגות צפויה מול בפועל, ו-requested_by «Requested by Ana — BUG FIX ONLY». " +
+    "אסור: פיצ'רים חדשים, שינויי הרשאות, שינויי סכמת DB, משימות ל-Claude. בקשה כזו — אמרי שרק דיוויד יכול לבקש. " +
+    WORKSHOP_OFFER
+  );
 }

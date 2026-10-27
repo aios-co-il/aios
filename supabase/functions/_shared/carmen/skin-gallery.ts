@@ -1,8 +1,9 @@
 /**
  * What get_carmen_skins returns: Carmen's public personas (skin-roles.ts), each with its
- * portrait. A built-in portrait is a path the web app serves; an image the tenant uploaded for
- * a skin (ai_agents.metadata.visual_identity.skins[slug].avatarPath) is signed by the caller
- * and replaces it.
+ * portrait as a full link. A built-in portrait is a file the web app serves (linked on the
+ * app's origin); an image the tenant uploaded for a skin
+ * (ai_agents.metadata.visual_identity.skins[slug].avatarPath) is signed by the caller and
+ * replaces it.
  */
 import { CARMEN_ROLES } from "./skin-roles.ts";
 
@@ -105,12 +106,63 @@ export function pathsToSign(paths: Record<string, string>): string[] {
   return [...out];
 }
 
-/** The tool result: the personas and how to show them. */
-export function carmenSkinsResult(entries: CarmenSkinEntry[]) {
+/** Production's address: the fallback, as for other app links (APP_URL elsewhere). */
+export const DEFAULT_APP_ORIGIN = "https://aios.co.il";
+
+/** Hosts the AIOS web app runs on: production, staging, Vercel previews and local dev. */
+const APP_HOST =
+  /^(?:aios\.co\.il|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.aios\.co\.il|[a-z0-9-]+\.vercel\.app)$/i;
+
+const originOf = (value: string | null | undefined): URL | null => {
+  try {
+    return value ? new URL(value) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * The web app's origin for full portrait links: the chat's own origin when it is the AIOS app
+ * (so Staging and previews show their own images), else APP_URL, else production.
+ */
+export function appOrigin(
+  requestOrigin?: string | null,
+  appUrl?: string | null,
+): string {
+  const request = originOf(requestOrigin);
+  if (
+    request &&
+    ((request.protocol === "https:" && APP_HOST.test(request.hostname)) ||
+      (request.protocol === "http:" &&
+        /^(localhost|127\.0\.0\.1)$/.test(request.hostname)))
+  )
+    return request.origin;
+  const configured = originOf(appUrl);
+  if (configured && /^https?:$/.test(configured.protocol))
+    return configured.origin;
+  return DEFAULT_APP_ORIGIN;
+}
+
+/** A full link: the app origin before a path the web app serves; a full URL stays as is. */
+export function absolutePortraitUrl(
+  url: string,
+  origin: string = DEFAULT_APP_ORIGIN,
+) {
+  return url.startsWith("/") ? `${origin.replace(/\/+$/, "")}${url}` : url;
+}
+
+/** The tool result: the personas, each portrait as a full link, and how to show them. */
+export function carmenSkinsResult(
+  entries: CarmenSkinEntry[],
+  origin: string = DEFAULT_APP_ORIGIN,
+) {
   return {
     count: entries.length,
-    skins: entries,
+    skins: entries.map((entry) => ({
+      ...entry,
+      portrait_url: absolutePortraitUrl(entry.portrait_url, origin),
+    })),
     how_to_show:
-      "portrait_url נפתח בצ׳אט כתמונת Markdown: ![שם](portrait_url). source=custom היא תמונה שהעסק העלה (קישור זמני לשעה), builtin היא התמונה המובנית, default היא התמונה הכללית של כרמן לפרסונה בלי דיוקן משלה.",
+      "בצ׳אט של AIOS שמציג Markdown: ![שם](portrait_url). בוואטסאפ ובצ׳אט סטודיו הווידאו (טקסט בלבד): שם הפרסונה והקישור portrait_url, בלי Markdown. source=custom היא תמונה שהעסק העלה (קישור זמני לשעה), builtin היא התמונה המובנית, default היא התמונה הכללית של כרמן לפרסונה בלי דיוקן משלה.",
   };
 }

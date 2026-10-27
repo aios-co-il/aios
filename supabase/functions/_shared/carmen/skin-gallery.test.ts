@@ -4,7 +4,9 @@ import {
   assertMatch,
 } from "jsr:@std/assert@1";
 import {
+  appOrigin,
   CARMEN_DEFAULT_PORTRAIT,
+  DEFAULT_APP_ORIGIN,
   carmenSkinEntries,
   carmenSkinsResult,
   customSkinPaths,
@@ -122,3 +124,54 @@ Deno.test(
     assertMatch(result.how_to_show, /!\[/);
   },
 );
+
+Deno.test(
+  "every portrait is a full link the chat can open, on the chat's own app",
+  () => {
+    const result = carmenSkinsResult(
+      carmenSkinEntries(
+        { creative_direct: `${TENANT}/agent-avatars/designer.png` },
+        { [`${TENANT}/agent-avatars/designer.png`]: "https://cdn.test/signed" },
+      ),
+      "https://staging.aios.co.il",
+    );
+    const designer = result.skins.find((s) => s.slug === "creative_direct");
+    assertStrictEquals(designer?.portrait_url, "https://cdn.test/signed");
+    const analyst = result.skins.find((s) => s.slug === "analyst");
+    assertStrictEquals(
+      analyst?.portrait_url,
+      "https://staging.aios.co.il/brand/carmen/skins/analyst.webp",
+    );
+    for (const skin of carmenSkinsResult(carmenSkinEntries()).skins)
+      assertMatch(
+        skin.portrait_url,
+        /^https:\/\/aios\.co\.il\/brand\/carmen\//,
+      );
+    assertMatch(result.how_to_show, /בוואטסאפ/);
+  },
+);
+
+Deno.test("the app origin is the chat's own AIOS app, else APP_URL", () => {
+  for (const origin of [
+    "https://aios.co.il",
+    "https://staging.aios.co.il",
+    "https://aios-git-feature-x-aios.vercel.app",
+    "http://localhost:8080",
+  ])
+    assertStrictEquals(appOrigin(origin, "https://env.test"), origin);
+  for (const origin of [
+    null,
+    "",
+    "https://evil.test",
+    "https://aios.co.il.evil.test",
+    "http://aios.co.il",
+    "not a url",
+  ])
+    assertStrictEquals(
+      appOrigin(origin, "https://env.test/"),
+      "https://env.test",
+      String(origin),
+    );
+  assertStrictEquals(appOrigin(null, undefined), DEFAULT_APP_ORIGIN);
+  assertStrictEquals(appOrigin(null, "nonsense"), DEFAULT_APP_ORIGIN);
+});

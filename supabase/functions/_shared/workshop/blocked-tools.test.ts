@@ -173,7 +173,11 @@ Deno.test(
       "delegate_parallel",
       "delegate_to_manus",
       "delegate_to_github_agent",
-    ])
+      "assign_task_to_cursor",
+    ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
+      // Outside the workshop nothing changes.
+      assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
+    }
   },
 );

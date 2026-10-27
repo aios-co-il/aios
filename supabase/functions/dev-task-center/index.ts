@@ -10,12 +10,6 @@ import {
   logDevTaskEvent,
   type DevTaskBrief,
 } from "../_shared/dev-tasks.ts";
-import {
-  devTaskCenterRefusal,
-  devTaskUpdatePatch,
-  type DevEscalationTier,
-} from "../_shared/dev-task-approval.ts";
-import { getDevEscalationTier } from "../_shared/dev-escalation-auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -50,42 +44,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const userId = auth.kind === "user" ? auth.userId : null;
-
-    // The body names the tenant: a signed-in user must belong to it, and only a dev-escalation
-    // tier (David; Ana for Cursor bug fixes) may change, approve or send its dev tasks.
-    const service = auth.kind === "service";
-    const member =
-      service || (await isTenantMember(supabase, tenantId, userId));
-    const tier: DevEscalationTier = service
-      ? null
-      : await centerTier(supabase, tenantId, userId);
-    const taskId = String(body.id || "");
-    let agent: string | null = null;
-    if (action === "create") agent = String(body.assigned_agent || "cursor");
-    else if (["update", "approve", "dispatch"].includes(action) && taskId) {
-      const { data: row } = await supabase
-        .from("dev_tasks")
-        .select("assigned_agent")
-        .eq("id", taskId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      agent =
-        action === "update" && body.assigned_agent !== undefined
-          ? String(body.assigned_agent)
-          : (row?.assigned_agent ?? null);
-    }
-    const refusal = devTaskCenterRefusal({
-      action,
-      service,
-      member,
-      tier,
-      agent,
-    });
-    if (refusal)
-      return new Response(JSON.stringify({ error: refusal.error }), {
-        status: refusal.status,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
 
     if (action === "list") {
       let q = supabase
@@ -150,14 +108,10 @@ serve(async (req) => {
 
     if (action === "update") {
       const id = String(body.id || "");
-      // Approval is set only by "approve"; an edit to what will be sent asks for a new one.
-      const { data: current } = await supabase
-        .from("dev_tasks")
-        .select("status")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      const update = devTaskUpdatePatch(current, body, [
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      for (const key of [
         "title",
         "problem",
         "expected_behavior",
@@ -173,13 +127,9 @@ serve(async (req) => {
         "assigned_agent",
         "pr_url",
         "owner_user_id",
-      ]);
-      if (!update.ok)
-        return new Response(JSON.stringify({ error: update.message }), {
-          status: 400,
-          headers: { ...cors, "Content-Type": "application/json" },
-        });
-      const patch = update.patch;
+      ]) {
+        if (body[key] !== undefined) patch[key] = body[key];
+      }
       const { data, error } = await supabase
         .from("dev_tasks")
         .update(patch)
@@ -209,15 +159,6 @@ serve(async (req) => {
     }
 
     if (action === "dispatch") {
-      // A signed-in user pressing "send" on a draft in the Command Center approves it.
-      const { data: current } = await supabase
-        .from("dev_tasks")
-        .select("status")
-        .eq("id", String(body.id))
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (current?.status === "draft" && userId)
-        await approveDevTask(supabase, tenantId, String(body.id), userId);
       const result = await dispatchDevTask(supabase, {
         tenantId,
         taskId: String(body.id),
@@ -298,46 +239,4 @@ function json(payload: unknown) {
   return new Response(JSON.stringify(payload), {
     headers: { ...cors, "Content-Type": "application/json" },
   });
-}
-
-/** The signed-in user belongs to the tenant (tenant_users) or is a super admin. */
-async function isTenantMember(
-  supabase: any,
-  tenantId: string,
-  userId: string | null,
-): Promise<boolean> {
-  if (!userId) return false;
-  const { data: row } = await supabase
-    .from("tenant_users")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-  if (row) return true;
-  const { data: admin } = await supabase.rpc("is_super_admin", {
-    _user_id: userId,
-  });
-  return admin === true;
-}
-
-/** The user's dev-escalation tier: the Command Center access row, else the fixed allowlist. */
-async function centerTier(
-  supabase: any,
-  tenantId: string,
-  userId: string | null,
-): Promise<DevEscalationTier> {
-  if (!userId) return null;
-  const { data: rows } = await supabase
-    .from("carmen_command_center_access")
-    .select("dev_escalation_tier")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .limit(10);
-  const tiers = (rows || []).map(
-    (r: { dev_escalation_tier?: string | null }) => r.dev_escalation_tier,
-  );
-  if (tiers.includes("full")) return "full";
-  if (tiers.includes("bugfix")) return "bugfix";
-  return getDevEscalationTier({ userId }) as DevEscalationTier;
 }

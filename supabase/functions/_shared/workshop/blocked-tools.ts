@@ -70,6 +70,8 @@ const OUTSIDE_TOOLS = [
   "delegate_parallel",
   "delegate_to_manus",
   "send_message_to_manus",
+  // Sends a CRM task to Cursor at once; in the workshop a dev task waits for the user's yes.
+  "assign_task_to_cursor",
 ];
 
 const WORKSHOP_BLOCKED_TOOLS = new Set([...APPROVAL_TOOLS, ...OUTSIDE_TOOLS]);

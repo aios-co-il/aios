@@ -195,14 +195,13 @@ import {
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
 import {
-  devTaskApprovalDecision,
-  DevTaskNotApprovedError,
-  devTaskUpdatePatch,
-  directDevSendRefusal,
+  DEV_TASK_OFFER_TTL_MS,
   isExplicitDevTaskApproval,
-  pickOfferedDevTask,
+  workshopDevTaskDecision,
+  workshopDevTaskRule,
 } from "../_shared/dev-task-approval.ts";
 import {
+  appOrigin,
   carmenSkinEntries,
   carmenSkinsResult,
   customSkinPaths,
@@ -3690,7 +3689,7 @@ const ALL_TOOLS = [
   {
     name: "get_carmen_skins",
     description:
-      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url נפתח בצ׳אט כתמונת Markdown: ![שם](portrait_url). לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
+      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url הוא קישור מלא: בצ׳אט שמציג Markdown כתמונה ![שם](portrait_url), בוואטסאפ כקישור. לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
     parameters: { type: "object", properties: {} },
   },
   {
@@ -5701,6 +5700,45 @@ async function tryCreateCalendarEventForTask(
   }
 }
 
+/**
+ * In the workshop, why approve_dev_task / dispatch_dev_task may not act on this task now (the
+ * user's yes in the app chat must answer a task offered earlier in this conversation); null
+ * outside the workshop, where the dev-task flow is unchanged, or when it may.
+ */
+async function workshopDevTaskRefusal(
+  supabase: any,
+  tenantId: string,
+  taskId: string,
+  conversationId: string | null,
+  gate: { turnStartedAt: string; appChatUser: boolean } | null | undefined,
+  userText: string | null,
+  approver: { id: string | null; tier: "full" | "bugfix" | null },
+): Promise<{ error: string; message: string } | null> {
+  if (!gate) return null;
+  const { data: task } = await supabase
+    .from("dev_tasks")
+    .select(
+      "id, status, created_at, assigned_agent, requested_by_user_id, source_conversation_id",
+    )
+    .eq("id", taskId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const decision = workshopDevTaskDecision({
+    task: task ?? null,
+    appChatUser: gate.appChatUser,
+    userText,
+    turnStartedAt: gate.turnStartedAt,
+    conversationId,
+    approver,
+  });
+  return decision.ok
+    ? null
+    : {
+        error: `dev_task_approval_${decision.reason}`,
+        message: decision.message,
+      };
+}
+
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -5717,11 +5755,18 @@ async function executeTool(
   conversationId?: string | null,
   approval: {
     turnId?: string | null;
-    /** When the user's message of this turn arrived; a dev task must be older to be approved. */
-    turnStartedAt?: string | null;
     userText?: string | null;
     outOfBand?: boolean;
+    /** In the workshop, approve_dev_task and dispatch_dev_task wait for the user's later yes. */
+    workshopDevTasks?: {
+      /** When the user's message of this turn arrived; the offered task must be older. */
+      turnStartedAt: string;
+      /** A signed-in user typed this turn in the app chat (internal_chat). */
+      appChatUser: boolean;
+    } | null;
   } = {},
+  /** The chat's app origin (request Origin), for full links to files the app serves. */
+  appLinkOrigin?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -10704,15 +10749,6 @@ async function executeTool(
         requested_by: args.requested_by,
       };
       if (!brief.title) throw new Error("title required");
-      // A bug-fix caller (Ana) opens Cursor bug fixes only.
-      if (
-        devEscalationTier === "bugfix" &&
-        String(args.assigned_agent || "cursor").toLowerCase() !== "cursor"
-      )
-        return {
-          error: "dev_escalation_forbidden",
-          message: DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE,
-        };
       const devActorId =
         actorUserId ||
         (await resolveDevTaskActorUserId(supabase, {
@@ -10733,8 +10769,10 @@ async function executeTool(
         priority: args.priority,
         assignedAgent: args.assigned_agent || "cursor",
         requestedByUserId: devActorId,
-        sourceConversationId:
-          args.source_conversation_id || conversationId || null,
+        // In the workshop a task belongs to this chat: only a yes here may approve it.
+        sourceConversationId: approval.workshopDevTasks
+          ? conversationId || null
+          : args.source_conversation_id || conversationId || null,
         sourceMessage: args.source_message,
         dedupOf: args.dedup_of || null,
         actorUserId: devActorId,
@@ -10743,13 +10781,6 @@ async function executeTool(
       return { task, possible_duplicates: duplicates.slice(0, 5) };
     }
     case "approve_dev_task": {
-      // The user's own yes, in a later message than the one that made the task, approves it.
-      const { data: pending } = await supabase
-        .from("dev_tasks")
-        .select("id, status, created_at, assigned_agent, requested_by_user_id")
-        .eq("id", String(args.dev_task_id))
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
       const approverId =
         actorUserId ||
         (await resolveDevTaskActorUserId(supabase, {
@@ -10759,18 +10790,16 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
-      const decision = devTaskApprovalDecision({
-        task: pending,
-        userText: approval.userText ?? null,
-        turnStartedAt: approval.turnStartedAt ?? null,
-        outOfBand: approval.outOfBand === true,
-        approver: { id: approverId, tier: devEscalationTier },
-      });
-      if (!decision.ok)
-        return {
-          error: `dev_task_approval_${decision.reason}`,
-          message: decision.message,
-        };
+      const workshopRefusal = await workshopDevTaskRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.workshopDevTasks,
+        approval.userText ?? null,
+        { id: approverId, tier: devEscalationTier },
+      );
+      if (workshopRefusal) return workshopRefusal;
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10781,18 +10810,22 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
-      // dispatchDevTask refuses a task that is not approved (status and approver).
-      try {
-        return await dispatchDevTask(supabase, {
-          tenantId,
-          taskId: String(args.dev_task_id),
-          actorUserId,
-        });
-      } catch (e) {
-        if (e instanceof DevTaskNotApprovedError)
-          return { error: e.code, message: e.message };
-        throw e;
-      }
+      const workshopRefusal = await workshopDevTaskRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.workshopDevTasks,
+        approval.userText ?? null,
+        { id: actorUserId, tier: devEscalationTier },
+      );
+      if (workshopRefusal) return workshopRefusal;
+      const result = await dispatchDevTask(supabase, {
+        tenantId,
+        taskId: String(args.dev_task_id),
+        actorUserId,
+      });
+      return result;
     }
     case "list_dev_tasks": {
       let q = supabase
@@ -10809,23 +10842,19 @@ async function executeTool(
     }
     case "update_dev_task": {
       const id = String(args.dev_task_id || "");
-      // Approval is never set here, and an edit to what will be sent asks for a new yes.
-      const { data: current } = await supabase
-        .from("dev_tasks")
-        .select("status")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      const update = devTaskUpdatePatch(current, args, [
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      for (const key of [
         "pr_url",
         "status",
         "priority",
         "problem",
         "acceptance_criteria",
         "title",
-      ]);
-      if (!update.ok) return { error: update.error, message: update.message };
-      const patch = update.patch;
+      ]) {
+        if (args[key] !== undefined) patch[key] = args[key];
+      }
       const { data, error } = await supabase
         .from("dev_tasks")
         .update(patch)
@@ -11668,7 +11697,10 @@ async function executeTool(
           if (!error && data?.signedUrl) signed[path] = data.signedUrl;
         }),
       );
-      return carmenSkinsResult(carmenSkinEntries(paths, signed));
+      return carmenSkinsResult(
+        carmenSkinEntries(paths, signed),
+        appOrigin(appLinkOrigin, Deno.env.get("APP_URL")),
+      );
     }
     case "recall_skills": {
       const limit = Math.min(args.limit || 5, 20);
@@ -13714,6 +13746,12 @@ async function handleRunAgent(
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
+  request: {
+    /** How the request was authenticated (requireAuth): a signed-in user, or a service call. */
+    authKind?: string;
+    /** The browser's Origin header, for full links back to the app the chat runs on. */
+    origin?: string | null;
+  } = {},
 ): Promise<Response> {
   try {
     const {
@@ -13945,14 +13983,8 @@ async function handleRunAgent(
     let serverConversationId: string | null = null;
     // A paid workshop confirm must arrive in a later user message than the quote it confirms.
     const turnId = crypto.randomUUID();
+    // A workshop dev task is approved only in a later user message than the one that offered it.
     const turnStartedAt = new Date().toISOString();
-    // What the user typed this turn. WhatsApp appends group, identity and isolation notes to
-    // command_text and sends the raw message as user_text (service calls only), so a "כן" stays
-    // a "כן" for the dev-task approval gate.
-    const approvalUserText =
-      typeof bodyJson.user_text === "string" && bodyJson.user_text.trim()
-        ? bodyJson.user_text
-        : String(command_text ?? "");
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -14912,25 +14944,30 @@ async function handleRunAgent(
         "David is chatting from the persistent sidecar while viewing a live AIOS screen.\n" +
         "Use the screen context in system_prompt_addon / context_metadata to understand what he sees.\n" +
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
-        "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask to send it → 4) only after his explicit yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses an approval in the turn that created the task).\n" +
+        '1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) ask David for approval unless he said "תעבירי לפיתוח"/"שלחי לפיתוח" explicitly → 4) approve_dev_task + dispatch_dev_task.\n' +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
-        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his explicit yes in a later message (the server refuses it otherwise).\n" +
+        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
         "Always include path + entity context in any dev task you create.\n" +
         `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
-    systemPrompt += buildDevEscalationPromptRule(devEscalationTier);
+    // The workshop has no connector or delegate tools: there a dev task goes only through
+    // create_dev_task, sent after the user's yes in a later message (dev-task-approval.ts).
+    systemPrompt +=
+      inWorkshopRequest && devEscalationTier
+        ? workshopDevTaskRule(devEscalationTier)
+        : buildDevEscalationPromptRule(devEscalationTier);
 
     if (isCarmen && surface === "whatsapp" && canEscalateDevFixes) {
       systemPrompt +=
         "\n\n📱 === משימות פיתוח מ-WhatsApp (מורשה) ===\n" +
         'כשמבקשים "תעבירי לפיתוח" / "שלחי לקרסר" / תיקון מערכת:\n' +
-        "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי היא תישלח, ושאלי אם לשלוח → 4) אחרי 'כן' מפורש בהודעה הבאה — approve_dev_task + dispatch_dev_task. השרת לא מאשר באותה הודעה שבה נפתחה המשימה.\n" +
-        "5) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
-        '6) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
-        "אחרי ה'כן' אל תבקשי אישור נוסף.";
+        '1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אם הבקשה מפורשת ("שלחי"/"תעבירי") — approve_dev_task + dispatch_dev_task מיד.\n' +
+        "4) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
+        '5) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
+        "אל תבקשי אישור נוסף כשהמשתמש כבר אמר לשלוח.";
     }
 
     // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
@@ -15337,7 +15374,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
       systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${CONNECTIONS_STANDING}`;
-      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(canEscalateDevFixes)}`;
+      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
+        {
+          tier: devEscalationTier,
+          // WhatsApp and the video studio chat show assistant text as plain text.
+          markdownImages:
+            surface !== "whatsapp" &&
+            !(
+              Array.isArray(requestedTaskSkills) &&
+              requestedTaskSkills.includes("creative_studio")
+            ),
+          inWorkshop,
+        },
+      )}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===
@@ -15451,48 +15500,42 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
-    // A yes to the dev task Carmen offered in this conversation a moment ago approves that
-    // task; it is not a yes to the newest row of the approvals queue below.
-    let offeredDevTask: {
-      id: string;
-      title?: string | null;
-      assigned_agent?: string | null;
-    } | null = null;
+    // In the workshop a yes answers the dev task Carmen offered earlier in this chat: name it,
+    // so she approves and sends that one (workshopDevTaskRefusal checks it again).
     if (
       isCarmen &&
-      !pinSkillsOnly &&
-      !inWorkshopRequest &&
+      inWorkshopRequest &&
       canEscalateDevFixes &&
-      isExplicitDevTaskApproval(approvalUserText)
+      serverConversationId &&
+      isExplicitDevTaskApproval(String(command_text ?? ""))
     ) {
-      const since = new Date(
-        Date.parse(turnStartedAt) - 30 * 60 * 1000,
-      ).toISOString();
-      const { data: drafts } = await supabase
+      const { data: offeredTask } = await supabase
         .from("dev_tasks")
-        .select(
-          "id, title, status, assigned_agent, created_at, source_conversation_id, requested_by_user_id",
-        )
+        .select("id, title, assigned_agent")
         .eq("tenant_id", resolvedTenantId)
+        .eq("source_conversation_id", serverConversationId)
         .eq("status", "draft")
-        .gte("created_at", since)
+        .lt("created_at", turnStartedAt)
+        .gte(
+          "created_at",
+          new Date(
+            Date.parse(turnStartedAt) - DEV_TASK_OFFER_TTL_MS,
+          ).toISOString(),
+        )
         .order("created_at", { ascending: false })
-        .limit(10);
-      offeredDevTask = pickOfferedDevTask(drafts || [], {
-        conversationId: serverConversationId,
-        userId: callerUserId || asUuidOrNull(resolvedUserId),
-        turnStartedAt,
-      });
-      if (offeredDevTask)
-        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת: "${String(offeredDevTask.title || "").slice(0, 120)}" (dev_task_id=${offeredDevTask.id}, ל-${offeredDevTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח. זה לא אישור לפעולה אחרת שמחכה בתור.`;
+        .limit(1)
+        .maybeSingle();
+      if (offeredTask?.id)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בשיחה הזו: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
     }
 
     // ─── WhatsApp Meta approval flow (smooth confirm → execute) ───
     // When the user explicitly confirms ("כן" / "מאשר" / …), resolve the latest
     // pending approval and either (a) execute it deterministically for short
     // confirms, or (b) inject a hard prompt so the model must call execute_pending_approval.
-    const userSaidApprove =
-      !offeredDevTask && isExplicitApprovalPhrase(String(command_text || ""));
+    const userSaidApprove = isExplicitApprovalPhrase(
+      String(command_text || ""),
+    );
     const userSaidReject = isExplicitRejectionPhrase(
       String(command_text || ""),
     );
@@ -16110,9 +16153,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
-          } else if (directDevSendRefusal(toolName, approvalUserText)) {
-            // Straight to Cursor or Claude only after the user's own yes in this message.
-            result = directDevSendRefusal(toolName, approvalUserText);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
@@ -16131,7 +16171,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId, turnStartedAt, userText: approvalUserText },
+              {
+                turnId,
+                userText: String(command_text ?? ""),
+                workshopDevTasks: inWorkshop
+                  ? {
+                      turnStartedAt,
+                      // The user's own message in the app chat, not a service call.
+                      appChatUser:
+                        request.authKind === "user" &&
+                        surface === "internal_chat",
+                    }
+                  : null,
+              },
+              request.origin ?? null,
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
@@ -16624,8 +16677,6 @@ Deno.serve(async (req) => {
     delete bodyJson.model_override;
     // Per-automation Carmen instructions are admin config: service-to-service only.
     delete bodyJson.carmen_automation;
-    // The user's own words apart from the notes a webhook adds (approvals read them).
-    delete bodyJson.user_text;
   }
 
   if (bodyJson.direct_tool) {
@@ -16672,7 +16723,10 @@ Deno.serve(async (req) => {
   const brainEngine = engine.kind === "connections" ? engine : undefined;
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
+    return await handleRunAgent(bodyJson, surface, undefined, brainEngine, {
+      authKind: auth.kind,
+      origin: req.headers.get("origin"),
+    });
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16688,7 +16742,16 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
+        const resp = await handleRunAgent(
+          bodyJson,
+          surface,
+          emit,
+          brainEngine,
+          {
+            authKind: auth.kind,
+            origin: req.headers.get("origin"),
+          },
+        );
         let final: any = {};
         try {
           final = await resp.json();
