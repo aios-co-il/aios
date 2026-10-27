@@ -248,7 +248,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
     const [first] = todo.splice(firstPlain, 1);
     const [done] = await renderGroup([first]);
     results.push({ scene: done.scene, ok: done.ok, error: done.error });
-    if (!done.ok) todo = [];
+    // Without the anchor the plain scenes wait for the next call; a scene with its own
+    // picture does not need the anchor, so it is still made now.
+    if (!done.ok) todo = todo.filter((scene) => ownReference(scene));
     else {
       anchorUrl = done.url ?? null;
       payload = withLook(payload, {}, { anchorUrl }).payload;

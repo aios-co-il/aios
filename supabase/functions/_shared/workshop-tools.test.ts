@@ -1009,6 +1009,43 @@ Deno.test(
 );
 
 Deno.test(
+  "when the anchor frame fails, scenes with their own picture are still made",
+  async () => {
+    const skin = (n: number) => `https://cdn.example.com/skin-${n}.png`;
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1"),
+        scene("s-2", { meta: { reference_url: skin(2) } }),
+        scene("s-3"),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: (string[] | undefined)[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1", confirmed: true },
+      async () => {},
+      null,
+      {
+        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+          seen.push(refs);
+          if (seen.length === 1) throw new Error("engine busy");
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    // The anchor (s-1) failed; s-2 has its own picture and is made; s-3 waits for the anchor.
+    assertStrictEquals(done.created, 1);
+    assertStrictEquals(done.own_reference_scenes, 1);
+    assertEquals(seen.slice(1), [[skin(2)]]);
+    assertStrictEquals(done.anchored, false);
+  },
+);
+
+Deno.test(
   "when every scene has its own picture no anchor frame is made or saved",
   async () => {
     const db = fakeDb({
