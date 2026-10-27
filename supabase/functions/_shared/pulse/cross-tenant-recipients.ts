@@ -11,6 +11,7 @@ import {
   decideInstantAlertDelivery,
   recentAlertDeliveries,
 } from "./instant-alert-dedupe.ts";
+import { splitRecipientPhones } from "./instant-alert-send.ts";
 
 /**
  * `recipients` minus the phones an org sharing the client's agency with this
@@ -28,6 +29,9 @@ export async function withoutPhonesAlertedElsewhere<
   throttleHours: number,
   now: Date,
 ): Promise<Recipient[]> {
+  if (!recipients.length) {
+    return recipients;
+  }
   const peerTenantIds = await tenantsSharingAgency(input, agencyId);
   if (!peerTenantIds.length) {
     return recipients;
@@ -51,10 +55,8 @@ export async function withoutPhonesAlertedElsewhere<
     if (decideInstantAlertDelivery(candidate, [row]).send) {
       continue;
     }
-    for (const phone of (row.recipient_phone || "").split(",")) {
-      if (phone.trim()) {
-        alerted.add(phone.trim());
-      }
+    for (const phone of splitRecipientPhones(row.recipient_phone)) {
+      alerted.add(phone);
     }
   }
   return recipients.filter((recipient) => !alerted.has(recipient.phone));
@@ -64,7 +66,8 @@ export async function withoutPhonesAlertedElsewhere<
  * The other orgs on this org's own grants of the agency (agency_tenant_access,
  * this org on either side), so the cross-org log read stays inside orgs this
  * org shares the client with (TENANT_ISOLATION.md). An unshared agency has
- * none, and then no log read runs.
+ * none, and then no log read runs. Two orgs that each hold a grant from a
+ * third org are not peers of each other, so they do not dedupe each other.
  */
 async function tenantsSharingAgency(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },

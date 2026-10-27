@@ -46,6 +46,7 @@ const logRow = (tenantId: string, row: Record<string, unknown>) => ({
   ...row,
 });
 
+/** The phones of queued sends or recipients, in order. */
 const phones = (sends: Array<{ phone: string | null }>) =>
   sends.map((send) => send.phone);
 

@@ -1,5 +1,8 @@
-// In-memory stand-in for the Supabase client, for the Deno tests of pulse
-// instant alerts: pulse_instant_alert_log and agency_tenant_access, no staff.
+/**
+ * In-memory stand-in for the Supabase client, for the Deno tests of pulse
+ * instant alerts: pulse_instant_alert_log, agency_tenant_access and, when a
+ * test seeds them, user_roles and profiles.
+ */
 import {
   DEFAULT_PULSE_ALERT_RULES,
   deliverInstantPulseAlerts,
@@ -7,6 +10,7 @@ import {
 } from "../pulse-instant-alerts.ts";
 
 type Row = Record<string, unknown>;
+
 type Result =
   { data: Row[]; error: null } | { data: null; error: { message: string } };
 
@@ -19,7 +23,7 @@ type FakeQuery = {
   gte: (col: string, val: string) => FakeQuery;
   order: (col: string, opts?: { ascending?: boolean }) => FakeQuery;
   limit: (n: number) => FakeQuery;
-  insert: (row: Row) => Promise<{ error: null }>;
+  insert: (row: Row) => Promise<{ error: { message: string } | null }>;
   then: (resolve: (value: Result) => void) => void;
 };
 
@@ -51,17 +55,26 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
 });
 
 /**
- * pulse_instant_alert_log and agency_tenant_access `grants` in memory;
- * inserts are stamped with `clock`, and every read of a `failing` table
- * returns an error.
+ * pulse_instant_alert_log, agency_tenant_access `grants` and the staff tables
+ * (user_roles `roles`, profiles) in memory; inserts are stamped with `clock`.
+ * Every read of a `failing` table and every insert into a `failingInserts`
+ * table returns an error.
  */
 export function fakeSupabase(
   log: Row[] = [],
-  options: { grants?: Row[]; failing?: string[] } = {},
+  options: {
+    grants?: Row[];
+    roles?: Row[];
+    profiles?: Row[];
+    failing?: string[];
+    failingInserts?: string[];
+  } = {},
 ) {
   const db: Record<string, Row[]> = {
     pulse_instant_alert_log: log,
     agency_tenant_access: options.grants ?? [],
+    user_roles: options.roles ?? [],
+    profiles: options.profiles ?? [],
   };
   const fake = { from, log, clock: "" };
   function from(table: string): FakeQuery {
@@ -94,6 +107,9 @@ export function fakeSupabase(
       ),
       limit: (n) => ((limit = n), builder),
       insert: async (row) => {
+        if (options.failingInserts?.includes(table)) {
+          return { error: { message: "connection reset" } };
+        }
         (db[table] ||= []).push({ sent_at: fake.clock, ...row });
         return { error: null };
       },

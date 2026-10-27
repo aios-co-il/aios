@@ -6,6 +6,7 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import type { Json } from "./database.types.ts";
 import {
   isLostConnectionFlag,
   isNoDataWithoutTable,
@@ -18,6 +19,7 @@ import {
   cplSpikeFingerprint,
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
+import { queueAndLogInstantAlert } from "./pulse/instant-alert-send.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 
 export type PulseAlertRuleType =
@@ -49,7 +51,7 @@ export type PulseInstantAlertCandidate = {
   campaign_key?: string | null;
   fingerprint?: string | null;
   severity_score?: number | null;
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, Json>;
   /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
 };
@@ -89,7 +91,7 @@ type CriticalIssueLike = {
   campaignName?: string | null;
 };
 
-type QueueWhatsApp = (
+export type QueueWhatsApp = (
   message: string,
   chatId: string | null,
 ) => Promise<boolean>;
@@ -480,34 +482,8 @@ export async function deliverInstantPulseAlerts(input: {
       candidate.evidence = confirmed.evidence;
     }
 
-    // Only phones whose send was queued: the other org's dedupe reads them.
-    const deliveredPhones: string[] = [];
-    for (const recipient of recipients) {
-      if (await input.queueWhatsApp(candidate.message, recipient.phone)) {
-        deliveredPhones.push(recipient.phone);
-      }
-    }
-    if (deliveredPhones.length) {
+    if (await queueAndLogInstantAlert(input, candidate, recipients)) {
       sent += 1;
-      const { error } = await input.supabase
-        .from("pulse_instant_alert_log")
-        .insert({
-          tenant_id: input.tenantId,
-          client_id: candidate.client_id,
-          rule_type: candidate.rule_type,
-          message: candidate.message,
-          recipient_phone: deliveredPhones.join(","),
-          campaign_key: candidate.campaign_key || null,
-          fingerprint: candidate.fingerprint || null,
-          severity_score: candidate.severity_score || null,
-          evidence: candidate.evidence || {},
-        });
-      if (error) {
-        console.error(
-          "[pulse-instant-alerts] alert log insert failed; the next run resends",
-          error.message,
-        );
-      }
     } else {
       skipped += 1;
     }
