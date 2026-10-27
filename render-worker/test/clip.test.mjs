@@ -1,7 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { expect, test } from "vitest";
-import { generateClip, failClip } from "../src/jobs/clip.mjs";
+import {
+  generateClip,
+  failClip,
+  withinApprovedPrice,
+} from "../src/jobs/clip.mjs";
 import {
   klingDuration,
   klingProvider,
@@ -135,7 +139,7 @@ test.skipIf(!hasFfmpeg)(
 );
 
 /** In-memory stand-in for supabaseRest: records uploads, attaches and updates. */
-function fakeDb({ still, stillUrl = "t1/c1/i1/still.png" }) {
+function fakeDb({ still, stillUrl = "t1/c1/i1/still.png", scene = {} }) {
   const calls = { uploads: [], rpcs: [], updates: [], downloads: [] };
   return {
     calls,
@@ -150,7 +154,7 @@ function fakeDb({ still, stillUrl = "t1/c1/i1/still.png" }) {
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
       if (table === "marketing_video_scenes") {
         const id = /id=eq\.([^&]+)/.exec(query)?.[1];
-        return [{ id, still_asset_id: "still-1" }];
+        return [{ id, still_asset_id: "still-1", ...scene }];
       }
       if (table === "marketing_assets" && query.includes("id=eq.still-1"))
         return [{ id: "still-1", url: stillUrl }];
@@ -237,6 +241,30 @@ test.skipIf(!hasFfmpeg)(
     });
   },
 );
+
+test("a fallback engine is priced as it would make this scene: a talking clip at its talking price", async () => {
+  const talking = fakeDb({
+    still: new Uint8Array([1]),
+    scene: {
+      voiceover_text: "",
+      meta: { lipsync: true, dialogue: "שלום, אני כרמן", speaker: "Carmen" },
+    },
+  });
+  const silent = fakeDb({ still: new Uint8Array([1]) });
+  const run = clipRun("s1", {
+    input: { ...clipRun("s1").input, duration_s: 4 },
+  });
+  // ElevenLabs Veo was approved; OpenRouter's talking model (Veo 3.1 with audio) costs more.
+  const approved = getVideoProvider("elevenlabs", { elevenLabsKey: "xi" });
+  const replacement = getVideoProvider("openrouter", { openRouterKey: "or" });
+  expect(
+    await withinApprovedPrice({ db: talking, run, approved, replacement }),
+  ).toBe(false);
+  // A silent scene on OpenRouter's default model stays under the approved price.
+  expect(
+    await withinApprovedPrice({ db: silent, run, approved, replacement }),
+  ).toBe(true);
+});
 
 test("a retried run resumes its provider job instead of paying twice", async () => {
   const db = fakeDb({ still: new Uint8Array([1]) });

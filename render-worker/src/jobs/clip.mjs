@@ -22,6 +22,34 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * The line an engine says in the clip itself: a talking scene on an engine that speaks (Veo 3.1,
+ * Seedance 2.5). A line in the chosen voice is never spoken by the engine (its voice would not be
+ * the chosen one); LIPSYNC_NATIVE=0 turns this off.
+ */
+const nativeLine = (provider, scene) =>
+  provider.nativeSpeech &&
+  process.env.LIPSYNC_NATIVE !== "0" &&
+  !speaksInChosenVoice(scene)
+    ? talkingLine(scene)
+    : "";
+
+/**
+ * Whether a replacement engine stays within the price approved for the chosen one, for this
+ * scene: each is priced as it would make it, so a talking clip on an engine that speaks costs
+ * its talking price. The scene is read for the run's tenant.
+ */
+export async function withinApprovedPrice({ db, run, approved, replacement }) {
+  const scene = await loadRunScene(db, run, "id,voiceover_text,meta");
+  const durationS = Number(run.input?.duration_s) || 5;
+  const price = (provider) =>
+    provider.estimate({
+      durationS,
+      talking: Boolean(nativeLine(provider, scene)),
+    }).usd;
+  return price(replacement) <= price(approved) + 0.005;
+}
+
 /** <item folder>/<scene>/clip-v<n>.mp4, n = the next clip version of the scene. */
 export async function clipPath(db, run, folder) {
   const rows = await db.select(
@@ -59,16 +87,10 @@ export async function generateClip({
     run,
     "id,still_asset_id,voiceover_text,meta",
   );
-  // A talking scene on an engine that speaks (Veo 3.1, Seedance 2.5) is made in one pass:
-  // the line goes in the prompt and the clip carries the speech. Otherwise the clip is silent
-  // and advance_video_production queues a separate lip-sync run for the scene. A line in the
-  // chosen voice is never spoken by the engine (its voice would not be the chosen one).
-  const line =
-    provider.nativeSpeech &&
-    process.env.LIPSYNC_NATIVE !== "0" &&
-    !speaksInChosenVoice(scene)
-      ? talkingLine(scene)
-      : "";
+  // A talking scene on an engine that speaks is made in one pass: the line goes in the prompt
+  // and the clip carries the speech. Otherwise the clip is silent and advance_video_production
+  // queues a separate lip-sync run for the scene.
+  const line = nativeLine(provider, scene);
   const talking = line
     ? { line, speaker: String(scene.meta?.speaker ?? "").trim() || null }
     : null;

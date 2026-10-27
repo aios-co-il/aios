@@ -57,7 +57,7 @@ async function openRouterReady(keys, resolveOpenRouterKey, log) {
  *   savedProvider?: string | null,
  *   savedJobId?: string | null,
  *   run: (provider: string, fallbackFrom: string | null) => Promise<any>,
- *   affordable?: (provider: string) => boolean,
+ *   affordable?: (provider: string) => boolean | Promise<boolean>,
  *   log?: (line: string) => void,
  * }} options
  */
@@ -98,7 +98,7 @@ export async function runClipWithFallback({
     )
       chain.push(FALLBACK_VIDEO_PROVIDER);
     for (const next of chain) {
-      if (!affordable(next)) {
+      if (!(await affordable(next))) {
         log(`${next} costs more than the approved ${name} price, skipped`);
         continue;
       }

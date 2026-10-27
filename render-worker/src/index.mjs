@@ -2,7 +2,7 @@
 // them at once, so one slow or failed clip never holds up the others.
 import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
-import { failClip, generateClip } from "./jobs/clip.mjs";
+import { failClip, generateClip, withinApprovedPrice } from "./jobs/clip.mjs";
 import { generateLipsync } from "./jobs/lipsync.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
@@ -45,16 +45,14 @@ const HANDLERS = {
           )),
         savedProvider: ctx.run.provider ?? null,
         savedJobId: ctx.run.provider_job_id ?? null,
-        affordable: (next) => {
+        affordable: async (next) => {
           try {
-            const durationS = Number(ctx.run.input?.duration_s) || 5;
-            const approved = getVideoProvider(name, keys).estimate({
-              durationS,
+            return await withinApprovedPrice({
+              db: ctx.db,
+              run: ctx.run,
+              approved: getVideoProvider(name, keys),
+              replacement: getVideoProvider(next, keys),
             });
-            const replacement = getVideoProvider(next, keys).estimate({
-              durationS,
-            });
-            return replacement.usd <= approved.usd + 0.005;
           } catch {
             return false;
           }
