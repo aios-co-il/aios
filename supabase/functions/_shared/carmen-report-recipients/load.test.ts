@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { fakeSupabase } from "../testing/fake-supabase.ts";
-import { loadCarmenReportRecipients } from "./load.ts";
+import { loadCarmenReportRecipients, warnListUnreachable } from "./load.ts";
 
 const TENANT = "tenant-a";
 
@@ -38,7 +38,7 @@ function db(rows: unknown[], clientPhones: string[] = []) {
 }
 
 /** Runs `fn` with console.warn recorded instead of printed. */
-async function withWarnings<T>(fn: () => Promise<T>) {
+async function withWarnings<T>(fn: () => Promise<T> | T) {
   const warnings: unknown[][] = [];
   const warn = console.warn;
   console.warn = (...args: unknown[]) => warnings.push(args);
@@ -48,6 +48,21 @@ async function withWarnings<T>(fn: () => Promise<T>) {
     console.warn = warn;
   }
 }
+
+/** One extra phone on TENANT's list that became a client's. */
+const CLIENT_PHONE_LIST = () =>
+  db(
+    [
+      {
+        tenant_id: TENANT,
+        user_id: null,
+        phone: "+972500000009",
+        label: "Partner",
+        created_at: "2026-10-27T10:00:00Z",
+      },
+    ],
+    ["+972500000009"],
+  );
 
 Deno.test("loadCarmenReportRecipients", async (t) => {
   await t.step("reads this tenant's list, oldest first", async () => {
@@ -84,63 +99,28 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
   });
 
   await t.step(
-    "a list whose only phone became a client's reports to the owners, with a warning naming the tenant",
+    "a list whose only phone became a client's reports to the owners, silently",
     async () => {
-      const { client } = db(
-        [
-          {
-            tenant_id: TENANT,
-            user_id: null,
-            phone: "+972500000009",
-            label: "Partner",
-            created_at: "2026-10-27T10:00:00Z",
-          },
-        ],
-        ["+972500000009"],
-      );
-
       const { result, warnings } = await withWarnings(() =>
-        loadCarmenReportRecipients(client, TENANT),
+        loadCarmenReportRecipients(CLIENT_PHONE_LIST().client, TENANT),
       );
 
       assertEquals(
         result.recipients.map((r) => [r.user_id, r.source]),
         [["u-owner", "owner_fallback"]],
       );
+      assertEquals(result.listUnreachable, true);
       assertEquals(result.skipped, [
         {
           name: "Partner",
           extra_phone: "+972500000009",
+          source: "configured",
           reason: "client_phone",
         },
       ]);
-      assertEquals(warnings.length, 1);
-      assertEquals(warnings[0][1], {
-        tenantId: TENANT,
-        skipped: ["client_phone"],
-        owners: 1,
-      });
+      assertEquals(warnings, []);
     },
   );
-
-  await t.step("a reachable list logs no warning", async () => {
-    const { warnings } = await withWarnings(() =>
-      loadCarmenReportRecipients(
-        db([
-          {
-            tenant_id: TENANT,
-            user_id: "u-member",
-            phone: null,
-            label: null,
-            created_at: "2026-10-27T10:00:00Z",
-          },
-        ]).client,
-        TENANT,
-      ),
-    );
-
-    assertEquals(warnings, []);
-  });
 
   await t.step("an empty list resolves to the owners", async () => {
     const result = await loadCarmenReportRecipients(db([]).client, TENANT);
@@ -172,4 +152,52 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
       });
     },
   );
+});
+
+Deno.test("warnListUnreachable", async (t) => {
+  await t.step(
+    "names the sender, the tenant and why each entry was skipped",
+    async () => {
+      const loaded = await loadCarmenReportRecipients(
+        CLIENT_PHONE_LIST().client,
+        TENANT,
+      );
+
+      const { warnings } = await withWarnings(() =>
+        warnListUnreachable("campaign-pulse", TENANT, loaded),
+      );
+
+      assertEquals(warnings.length, 1);
+      assertEquals(
+        warnings[0][0],
+        "[campaign-pulse] no listed report recipient is reachable; reporting to the owners",
+      );
+      assertEquals(warnings[0][1], {
+        tenantId: TENANT,
+        skipped: ["configured:client_phone"],
+        owners: 1,
+      });
+    },
+  );
+
+  await t.step("a reachable list logs nothing", async () => {
+    const loaded = await loadCarmenReportRecipients(
+      db([
+        {
+          tenant_id: TENANT,
+          user_id: "u-member",
+          phone: null,
+          label: null,
+          created_at: "2026-10-27T10:00:00Z",
+        },
+      ]).client,
+      TENANT,
+    );
+
+    const { warnings } = await withWarnings(() =>
+      warnListUnreachable("campaign-pulse", TENANT, loaded),
+    );
+
+    assertEquals(warnings, []);
+  });
 });

@@ -4,8 +4,9 @@ import type { DbClient } from "../_shared/supabase-clients.ts";
 
 /**
  * Whom the tenant's Carmen reports to, recent Carmen sessions (newest first)
- * and active campaigners with a phone. A failed report-list read is logged and
- * leaves the staff chain to decide; any other failed read throws.
+ * and active campaigners with a phone. A failed report-list read is logged,
+ * returned as reportRecipientsError and leaves the staff chain to decide; any
+ * other failed read throws.
  */
 export async function loadNotifyRecipients(
   sb: Pick<DbClient, "from" | "rpc">,
@@ -41,6 +42,7 @@ export async function loadNotifyRecipients(
   }
   return {
     reportRecipients: report.recipients,
+    reportRecipientsError: report.error,
     sessions: sessions.data ?? [],
     staff: (campaigners.data ?? [])
       .filter((c) => !!normalizeNotifyPhone(c.phone))

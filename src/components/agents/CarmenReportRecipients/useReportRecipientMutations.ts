@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { recipientSaveError } from "./recipientSaveError";
 import { reportRecipientsKey } from "./useReportRecipients";
 
 /** Add a team member, add an extra phone, or remove a recipient. */
@@ -58,15 +59,4 @@ export function useReportRecipientMutations(tenantId: string) {
   });
 
   return { addMember, addPhone, remove };
-}
-
-/** Hebrew text for a refused write; the DB guard names client phones. */
-function recipientSaveError(error: Error): string {
-  if (error.message.includes("client phone")) {
-    return "המספר שייך ללקוח — כרמן לא מדווחת ללקוחות";
-  }
-  if (error.message.includes("not staff")) {
-    return "המשתמש אינו בצוות הארגון";
-  }
-  return "שגיאה בשמירת נמען הדיווח";
 }

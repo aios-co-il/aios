@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveCarmenReportRecipients } from "../../../../supabase/functions/_shared/carmen-report-recipients/resolve.ts";
 
 /**
- * The organization's report list, its staff, and what the server will do with
- * them (the same resolver the edge functions use).
+ * The organization's report list, its staff, the listed phones that now
+ * belong to a client, and what the server will do with them (the same
+ * resolver and inputs the edge functions use).
  */
 export function useReportRecipients(tenantId: string) {
   const list = useQuery({
@@ -15,6 +16,11 @@ export function useReportRecipients(tenantId: string) {
     queryKey: [...reportRecipientsKey(tenantId), "staff"],
     queryFn: tenantId ? () => fetchReportStaff(tenantId) : skipToken,
   });
+  const clientPhones = useQuery({
+    queryKey: [...reportRecipientsKey(tenantId), "client_phones"],
+    queryFn: tenantId ? () => fetchReportClientPhones(tenantId) : skipToken,
+  });
+  const queries = [list, staff, clientPhones];
   const rows = list.data ?? [];
   const members = staff.data ?? [];
   return {
@@ -23,9 +29,10 @@ export function useReportRecipients(tenantId: string) {
     resolved: resolveCarmenReportRecipients({
       configured: rows,
       staff: members,
+      clientPhones: clientPhones.data ?? [],
     }),
-    isLoading: list.isPending || staff.isPending,
-    isError: list.isError || staff.isError,
+    isLoading: queries.some((query) => query.isPending),
+    isError: queries.some((query) => query.isError),
   };
 }
 
@@ -49,6 +56,17 @@ async function fetchReportRecipients(tenantId: string) {
 /** Staff of the tenant with the phone Carmen would use (owners only). */
 async function fetchReportStaff(tenantId: string) {
   const { data, error } = await supabase.rpc("carmen_report_staff", {
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+/** Listed extra phones that now belong to a client (owners only). */
+async function fetchReportClientPhones(tenantId: string) {
+  const { data, error } = await supabase.rpc("carmen_report_client_phones", {
     p_tenant_id: tenantId,
   });
   if (error) {

@@ -5,7 +5,10 @@
  */
 
 import { queueToReportRecipients } from "../_shared/carmen-report-recipients/deliver.ts";
-import { loadCarmenReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
+import {
+  loadCarmenReportRecipients,
+  warnListUnreachable,
+} from "../_shared/carmen-report-recipients/load.ts";
 import type { CarmenReportRecipient } from "../_shared/carmen-report-recipients/resolve.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
@@ -19,6 +22,7 @@ export async function deliverHealthDigest(
   if (report.error) {
     return { sent: false, error: report.error };
   }
+  warnListUnreachable("carmen-health-probe", tenantId, report);
   const queued = report.recipients.length
     ? await queueToEveryRecipient(supabase, tenantId, report.recipients, digest)
     : await queueHealthDigest(supabase, tenantId, digest, null);

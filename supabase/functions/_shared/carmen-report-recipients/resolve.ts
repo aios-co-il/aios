@@ -7,8 +7,9 @@
  * phones an owner typed in are ever returned, never a client: the DB trigger
  * carmen_report_recipients_guard refuses a client phone on write, and
  * clientPhones skips one that became a client's later. Each normalised phone
- * appears once. The browser imports this module too, so the settings screen
- * shows what the server will do.
+ * appears once. The browser imports this module too and reads clientPhones
+ * through the same owner-checked RPC, so the settings screen shows what the
+ * server will do.
  */
 
 import {
@@ -93,6 +94,8 @@ export type SkippedReportRecipient = {
   /** The stored phone of a skipped extra-phone row (unique in the list). */
   extra_phone?: string | null;
   name: string;
+  /** A listed entry ("configured") or an owner of the fallback. */
+  source: CarmenReportRecipientSource;
   reason: ReportRecipientSkipReason;
 };
 

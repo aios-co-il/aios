@@ -31,6 +31,17 @@ function db(
   return { client, notifies };
 }
 
+/** Runs `fn` with console.warn silenced (the unreachable-list warning). */
+async function withoutWarnings<T>(fn: () => Promise<T>): Promise<T> {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.warn = warn;
+  }
+}
+
 Deno.test("deliverHealthDigest", async (t) => {
   await t.step("queues the digest to every configured recipient", async () => {
     const { client, notifies } = db([
@@ -46,6 +57,24 @@ Deno.test("deliverHealthDigest", async (t) => {
       { p_message: "health", p_tenant: TENANT, p_chat_id: "972500000012" },
     ]);
   });
+
+  await t.step(
+    "a list nobody on it can be reached on sends to the owners",
+    async () => {
+      const { client, notifies } = db([
+        { tenant_id: TENANT, user_id: "u-gone", phone: null, label: null },
+      ]);
+
+      const result = await withoutWarnings(() =>
+        deliverHealthDigest(client, TENANT, "health"),
+      );
+
+      assertEquals(result, { sent: true });
+      assertEquals(notifies, [
+        { p_message: "health", p_tenant: TENANT, p_chat_id: "972500000001" },
+      ]);
+    },
+  );
 
   await t.step("an empty list sends to the owners", async () => {
     const { client, notifies } = db([]);

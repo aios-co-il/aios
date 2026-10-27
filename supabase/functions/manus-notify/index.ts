@@ -175,8 +175,9 @@ Deno.serve(async (req) => {
     ],
   );
 
+  // A failed list read leaves the staff chain below to decide; each response
+  // names the bypass (JSON drops the field when there is no error).
   if (report.error) {
-    // The staff fallback below still finds a tenant campaigner.
     console.warn("[manus-notify] report recipients unavailable", {
       tenantId,
       error: report.error,
@@ -211,6 +212,7 @@ Deno.serve(async (req) => {
         target.reason ||
         "no resolvable Carmen WhatsApp recipient for this tenant",
       source: target.source,
+      report_recipients_error: report.error ?? undefined,
     });
   }
 
@@ -224,6 +226,7 @@ Deno.serve(async (req) => {
       reason: "no Carmen WhatsApp automation/session bridge for this tenant",
       source: target.source,
       chat_id: delivery.chatId,
+      report_recipients_error: report.error ?? undefined,
     });
   }
 
@@ -244,5 +247,6 @@ Deno.serve(async (req) => {
     phone: delivery.phoneNumber,
     contact_name: target.contactName,
     source: target.source,
+    report_recipients_error: report.error ?? undefined,
   });
 });

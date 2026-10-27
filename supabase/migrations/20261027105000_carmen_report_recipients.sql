@@ -7,7 +7,7 @@
 -- supabase/functions/_shared/carmen-report-recipients/. An empty list means
 -- the organization's owners. Clients are never recipients: the guard refuses
 -- a client's phone on write, and carmen_report_client_phones lets each send
--- skip one that became a client's later.
+-- skip one that became a client's later and the settings screen flag it.
 --
 -- tenant_heartbeat_settings.campaign_pulse_phone is carried into the list once
 -- and stays readable (never cleared here); nothing reads it any more.
@@ -134,23 +134,34 @@ revoke all on function public.carmen_is_client_phone(uuid, text) from public, an
 grant execute on function public.carmen_is_client_phone(uuid, text) to service_role;
 
 -- Extra phones on the organization's list that now belong to a client or
--- client contact. Each send skips them: the guard only sees the client that
--- existed when the phone was added.
+-- client contact, for the service role and the organization's owners. Each
+-- send skips them and the settings screen flags them: the guard only sees the
+-- client that existed when the phone was added.
 create or replace function public.carmen_report_client_phones(p_tenant_id uuid)
 returns setof text
-language sql
+language plpgsql
 stable
+security definer
 set search_path = ''
 as $$
+begin
+  if coalesce(auth.role(), '') <> 'service_role'
+     and not public.carmen_is_tenant_owner(p_tenant_id) then
+    raise exception 'carmen_report_client_phones: only owners of this organization may check its list'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  return query
   select r.phone
   from public.carmen_report_recipients r
   where r.tenant_id = p_tenant_id
     and r.phone is not null
     and public.carmen_is_client_phone(p_tenant_id, r.phone);
+end;
 $$;
 
 revoke all on function public.carmen_report_client_phones(uuid) from public, anon, authenticated;
-grant execute on function public.carmen_report_client_phones(uuid) to service_role;
+grant execute on function public.carmen_report_client_phones(uuid) to authenticated, service_role;
 
 -- Rejects a write by anyone signed in who is not an owner of the organization,
 -- before saying anything about it; then an extra phone that belongs to a
@@ -200,7 +211,8 @@ create trigger carmen_report_recipients_guard
 
 alter table public.carmen_report_recipients enable row level security;
 
--- Staff and owners of the organization read whom its Carmen reports to.
+-- Staff and owners of the organization, and super admins (who view every
+-- organization, TENANT_ISOLATION.md), read whom its Carmen reports to.
 drop policy if exists "Staff read carmen_report_recipients" on public.carmen_report_recipients;
 create policy "Staff read carmen_report_recipients" on public.carmen_report_recipients
   for select to authenticated
@@ -211,6 +223,7 @@ create policy "Staff read carmen_report_recipients" on public.carmen_report_reci
         and ur.tenant_id = carmen_report_recipients.tenant_id
     )
     or public.carmen_is_tenant_owner(tenant_id)
+    or public.is_super_admin((select auth.uid()))
   );
 
 -- Only owners and agency owners of the organization add recipients.

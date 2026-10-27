@@ -12,8 +12,7 @@ import {
 
 /**
  * Service-role read of carmen_report_recipients, carmen_report_staff and the
- * listed phones that now belong to a client, for one tenant. A list nobody on
- * it can receive is logged as a warning naming the tenant.
+ * listed phones that now belong to a client, for one tenant.
  */
 export async function loadCarmenReportRecipients(
   db: Pick<DbClient, "from" | "rpc">,
@@ -42,22 +41,27 @@ export async function loadCarmenReportRecipients(
     staff: staff.data ?? [],
     clientPhones: clientPhones.data ?? [],
   });
-  if (resolved.listUnreachable) {
-    warnListUnreachable(tenantId, resolved);
-  }
   return { ...resolved, error: null };
 }
 
-/** Names the tenant and why each listed entry was skipped; phones stay out of the log. */
-function warnListUnreachable(
+/**
+ * Warns when nobody on the tenant's list is reachable. Only the senders that
+ * then report to the owners call it (the Sunday digests and instant alerts);
+ * a notify keeps the staff chain instead. Phones stay out of the log.
+ */
+export function warnListUnreachable(
+  sender: string,
   tenantId: string,
   resolved: CarmenReportRecipients,
 ): void {
+  if (!resolved.listUnreachable) {
+    return;
+  }
   console.warn(
-    "[carmen-report-recipients] no listed recipient is reachable; reporting to the owners",
+    `[${sender}] no listed report recipient is reachable; reporting to the owners`,
     {
       tenantId,
-      skipped: resolved.skipped.map((row) => row.reason),
+      skipped: resolved.skipped.map((row) => `${row.source}:${row.reason}`),
       owners: resolved.recipients.length,
     },
   );

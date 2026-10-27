@@ -112,19 +112,22 @@ BEGIN
   IF has_table_privilege('anon', 'public.carmen_report_recipients', 'SELECT')
      OR has_table_privilege('authenticated', 'public.carmen_report_recipients', 'UPDATE')
      OR has_function_privilege('anon', 'public.carmen_report_staff(uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.carmen_report_client_phones(uuid)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.carmen_report_staff_rows(uuid)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_is_client_phone(uuid, text)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_report_client_phones(uuid)', 'EXECUTE') THEN
+     OR has_function_privilege('authenticated', 'public.carmen_is_client_phone(uuid, text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'grants: anon must not read, members must not update, internal checks stay server-side';
   END IF;
   IF NOT has_table_privilege('authenticated', 'public.carmen_report_recipients', 'INSERT')
-     OR NOT has_function_privilege('authenticated', 'public.carmen_report_staff(uuid)', 'EXECUTE') THEN
-    RAISE EXCEPTION 'grants: owners must be able to add recipients and list staff';
+     OR NOT has_function_privilege('authenticated', 'public.carmen_report_staff(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.carmen_report_client_phones(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'grants: owners must be able to add recipients, list staff and see client phones on the list';
   END IF;
 
-  -- The service role (no signed-in user) lists the staff; a stranger may not.
+  -- The service role (no signed-in user) lists the staff and the client
+  -- phones on the list; a stranger may not.
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
   PERFORM * FROM public.carmen_report_staff(v_tenant);
+  PERFORM * FROM public.carmen_report_client_phones(v_tenant);
   PERFORM set_config(
     'request.jwt.claims',
     json_build_object('role', 'authenticated', 'sub', gen_random_uuid())::text,
@@ -133,6 +136,11 @@ BEGIN
   BEGIN
     PERFORM * FROM public.carmen_report_staff(v_tenant);
     RAISE EXCEPTION 'staff: a non-owner must not list the staff';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM * FROM public.carmen_report_client_phones(v_tenant);
+    RAISE EXCEPTION 'client phones: a non-owner must not check the list';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   PERFORM set_config('request.jwt.claims', '', true);
@@ -187,6 +195,11 @@ BEGIN
   SELECT count(*) INTO v_rows FROM public.carmen_report_recipients
   WHERE tenant_id = v_tenant;
   IF v_rows <> 0 THEN RAISE EXCEPTION 'rls: another owner read % rows', v_rows; END IF;
+  BEGIN
+    PERFORM * FROM public.carmen_report_client_phones(v_tenant);
+    RAISE EXCEPTION 'client phones: another owner must not check the list';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   RESET ROLE;
 
   -- A team manager of the organization reads the list but cannot change it.
@@ -210,14 +223,20 @@ BEGIN
   IF v_rows <> 0 THEN RAISE EXCEPTION 'rls: a team manager deleted % rows', v_rows; END IF;
   RESET ROLE;
 
-  -- The organization's owner adds and removes recipients, and is told when a
-  -- phone belongs to a client.
+  -- The organization's owner adds and removes recipients, is told when a
+  -- phone belongs to a client, and sees a listed phone that became one.
   PERFORM set_config(
     'request.jwt.claims',
     json_build_object('role', 'authenticated', 'sub', v_owner)::text,
     true
   );
   SET LOCAL ROLE authenticated;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.carmen_report_client_phones(v_tenant) p
+    WHERE p = '+972599999901'
+  ) THEN
+    RAISE EXCEPTION 'client phones: the owner must see a listed phone that became a client';
+  END IF;
   BEGIN
     INSERT INTO public.carmen_report_recipients (tenant_id, phone, label)
     VALUES (v_tenant, '+972599999904', 'QA owner');
@@ -233,8 +252,29 @@ BEGIN
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN RAISE EXCEPTION 'rls: the owner must remove a recipient'; END IF;
   RESET ROLE;
+
+  -- A super admin reads every organization's list (TENANT_ISOLATION.md) but
+  -- writes none of it.
+  INSERT INTO public.user_roles (user_id, tenant_id, role)
+  VALUES (v_other_owner, NULL, 'super_admin');
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object('role', 'authenticated', 'sub', v_other_owner)::text,
+    true
+  );
+  SET LOCAL ROLE authenticated;
+  SELECT count(*) INTO v_rows FROM public.carmen_report_recipients
+  WHERE tenant_id = v_tenant AND phone = '+972599999901';
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'rls: a super admin must read the list'; END IF;
+  BEGIN
+    INSERT INTO public.carmen_report_recipients (tenant_id, phone, label)
+    VALUES (v_tenant, '+972599999907', 'QA super admin');
+    RAISE EXCEPTION 'rls: a super admin must not add recipients';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RESET ROLE;
   PERFORM set_config('request.jwt.claims', '', true);
 END
 $test$;
-SELECT 'Report recipients: guard, send check, grants and RLS passed' AS result;
+SELECT 'Report recipients: guard, send check, client phones, grants and RLS passed' AS result;
 ROLLBACK;

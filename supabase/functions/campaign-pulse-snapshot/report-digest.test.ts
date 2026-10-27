@@ -32,6 +32,7 @@ Deno.test("deliverReportDigest", async (t) => {
       recipients: RECIPIENTS,
       digest: "full digest",
       queue,
+      partialRun: false,
     });
 
     assertEquals(sends, [
@@ -55,6 +56,7 @@ Deno.test("deliverReportDigest", async (t) => {
       recipients: RECIPIENTS,
       digest: "full digest",
       queue,
+      partialRun: false,
     });
 
     assertStrictEquals(result.sent, true);
@@ -67,11 +69,45 @@ Deno.test("deliverReportDigest", async (t) => {
       recipients: [],
       digest: "full digest",
       queue,
+      partialRun: false,
     });
 
     assertEquals(sends, []);
-    assertEquals(result, { sent: false, entries: [] });
+    assertEquals(result, { sent: false, entries: [], reached: new Set() });
   });
+
+  await t.step(
+    "reached holds only the phones the digest was queued to",
+    async () => {
+      const { queue } = recordingQueue("972500000011");
+
+      const result = await deliverReportDigest({
+        recipients: RECIPIENTS,
+        digest: "full digest",
+        queue,
+        partialRun: false,
+      });
+
+      assertEquals(result.reached, new Set(["972500000012"]));
+    },
+  );
+
+  await t.step(
+    "a preview or one-campaigner run sends no digest and skips nobody",
+    async () => {
+      const { sends, queue } = recordingQueue();
+
+      const result = await deliverReportDigest({
+        recipients: RECIPIENTS,
+        digest: "full digest",
+        queue,
+        partialRun: true,
+      });
+
+      assertEquals(sends, []);
+      assertEquals(result, { sent: false, entries: [], reached: new Set() });
+    },
+  );
 });
 
 Deno.test("deliverMissingPhoneAlert", async (t) => {
@@ -127,7 +163,7 @@ Deno.test("deliverMissingPhoneAlert", async (t) => {
 });
 
 Deno.test(
-  "campaign-pulse-snapshot sends the digest and instant alerts to the report recipients",
+  "campaign-pulse-snapshot sends the digest and instant alerts to the report recipients, and skips in the scoped step only the phones the digest reached",
   async () => {
     const source = await Deno.readTextFile(
       new URL("./index.ts", import.meta.url),
@@ -140,8 +176,15 @@ Deno.test(
       /deliverReportDigest\(\{\s*recipients: report\.recipients/,
     );
     assert(
-      source.includes("new Set(report.recipients.map((row) => row.phone))"),
+      source.includes(
+        "const partialRun = previewOnlyDelivery || !!campaignerNameFilter;",
+      ),
     );
+    assertMatch(
+      source,
+      /mergedPlans,\s*setting\.campaign_pulse_preview_phone \|\| null,\s*reportDigest\.reached,/,
+    );
+    assertNotMatch(source, /new Set\(report\.recipients/);
     assertNotMatch(source, /campaign_pulse_phone/);
   },
 );

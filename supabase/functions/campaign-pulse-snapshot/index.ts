@@ -21,7 +21,10 @@ import {
   fetchLastMetaCampaignActivity,
 } from "../_shared/fbInsights.ts";
 import { normalizeNotifyPhone } from "../_shared/carmen-notify-target.ts";
-import { loadCarmenReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
+import {
+  loadCarmenReportRecipients,
+  warnListUnreachable,
+} from "../_shared/carmen-report-recipients/load.ts";
 import {
   deliverMissingPhoneAlert,
   deliverReportDigest,
@@ -909,6 +912,7 @@ Deno.serve(async (req) => {
         report.error,
       );
     }
+    warnListUnreachable("campaign-pulse", tenantId, report);
     const queueToPhone = (message: string, phone: string) =>
       queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, phone);
     let instantAlerts = noInstantAlerts();
@@ -976,23 +980,21 @@ Deno.serve(async (req) => {
       }
     }
     if (deliveryClaimed) {
-      const skipPhones = new Set(report.recipients.map((row) => row.phone));
-
       // Full-tenant digest to everyone the organization's Carmen reports to.
-      if (!previewOnlyDelivery && !campaignerNameFilter) {
-        const reportDigest = await deliverReportDigest({
-          recipients: report.recipients,
-          digest,
-          queue: queueToPhone,
-        });
-        scopedDeliveries.push(...reportDigest.entries);
-        sent = reportDigest.sent;
-        if (!sent) {
-          console.error(
-            "[campaign-pulse] full digest reached no report recipient",
-            tenantId,
-          );
-        }
+      const partialRun = previewOnlyDelivery || !!campaignerNameFilter;
+      const reportDigest = await deliverReportDigest({
+        recipients: report.recipients,
+        digest,
+        queue: queueToPhone,
+        partialRun,
+      });
+      scopedDeliveries.push(...reportDigest.entries);
+      sent = reportDigest.sent;
+      if (!partialRun && !sent) {
+        console.error(
+          "[campaign-pulse] full digest reached no report recipient",
+          tenantId,
+        );
       }
 
       const deliverToCampaigners =
@@ -1075,7 +1077,7 @@ Deno.serve(async (req) => {
           dashboardUrl,
           mergedPlans,
           setting.campaign_pulse_preview_phone || null,
-          skipPhones,
+          reportDigest.reached,
           previewOnlyDelivery,
         );
         scopedDeliveries.push(...recipientDeliveries);
@@ -1109,6 +1111,7 @@ Deno.serve(async (req) => {
           dashboard_url: dashboardUrl,
           clients_checked: snapshots.length,
           report_recipients_skipped: report.skipped,
+          report_recipients_list_unreachable: report.listUnreachable,
           report_recipients_error: report.error,
           scoped_deliveries: scopedDeliveries,
           instant_alerts: instantAlerts,

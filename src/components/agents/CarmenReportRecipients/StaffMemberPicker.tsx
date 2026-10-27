@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { memberName } from "../../../../supabase/functions/_shared/carmen-report-recipients/names.ts";
 import type { ReportStaffMember } from "../../../../supabase/functions/_shared/carmen-report-recipients/resolve.ts";
 import { RecipientWarning } from "./RecipientWarning";
 import { SKIP_WARNINGS } from "./skipWarnings";
@@ -31,7 +32,7 @@ export function StaffMemberPicker({
         aria-label="חברי צוות"
       >
         {matches.map((member) => {
-          const name = member.full_name || "חבר צוות";
+          const name = memberName(member);
           return (
             <li
               key={member.user_id}

@@ -12,6 +12,7 @@
  *    notify never follows the freshest live session.
  */
 
+import { notifyReportRecipient } from "./carmen-report-recipients/notify-recipient.ts";
 import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
 import { isGroupChatId } from "./carmen-session-identity.ts";
 
@@ -188,6 +189,7 @@ export function resolveCarmenNotifyTarget(
   const tryPhone = (
     phoneRaw: string | null | undefined,
     source: ResolveCarmenNotifyTargetResult["source"],
+    fallbackName: string | null = null,
   ): ResolveCarmenNotifyTargetResult | null => {
     const phone = normalizeNotifyPhone(phoneRaw);
     if (!phone) return null;
@@ -200,7 +202,7 @@ export function resolveCarmenNotifyTarget(
     return {
       chatId,
       phone: normalizeNotifyPhone(session?.phone) ?? phone,
-      contactName: contactNameFor(session, staff, phone),
+      contactName: contactNameFor(session, staff, phone) ?? fallbackName,
       source,
     };
   };
@@ -208,18 +210,10 @@ export function resolveCarmenNotifyTarget(
   const preferred = tryPhone(input.preferredPhone, "preferred_phone");
   if (preferred) return preferred;
 
-  // A single-recipient notify goes to the first configured report recipient,
-  // which replaces campaign_pulse_phone. The owner fallback does not apply
-  // here: without a configured list the staff session chain below decides.
-  const reportRecipient = input.reportRecipients?.find(
-    (recipient) => recipient.source === "configured",
-  );
-  const report = tryPhone(reportRecipient?.phone, "report_recipient");
+  const listed = notifyReportRecipient(input.reportRecipients);
+  const report = tryPhone(listed?.phone, "report_recipient", listed?.name);
   if (report) {
-    return {
-      ...report,
-      contactName: report.contactName ?? reportRecipient?.name ?? null,
-    };
+    return report;
   }
 
   // Prefer a session whose chat belongs to a tenant campaigner.

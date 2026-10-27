@@ -14,20 +14,31 @@ import {
   type PulseCampaignerMissingPhone,
 } from "../_shared/pulse-delivery.ts";
 
-/** Full-tenant digest to each report recipient; sent when any was queued. */
+/**
+ * Full-tenant digest to each report recipient; sent when any was queued.
+ * `reached` holds the phones it was queued to, so the per-campaigner step
+ * skips only people who already have the full digest.
+ */
 export async function deliverReportDigest(input: {
   recipients: CarmenReportRecipient[];
   digest: string;
   queue: Queue;
-}): Promise<{ sent: boolean; entries: ReportDigestEntry[] }> {
+  /** A preview run, or a run for one campaigner: no full digest goes out. */
+  partialRun: boolean;
+}): Promise<ReportDigestResult> {
+  if (input.partialRun) {
+    return { sent: false, entries: [], reached: new Set() };
+  }
   const deliveries = await queueToReportRecipients(
     input.recipients,
     input.digest,
     input.queue,
   );
+  const queued = deliveries.filter((row) => row.queued);
   return {
-    sent: deliveries.some((row) => row.queued),
+    sent: queued.length > 0,
     entries: deliveries.map((row) => ({ type: "report_digest", ...row })),
+    reached: new Set(queued.map((row) => row.phone)),
   };
 }
 
@@ -62,6 +73,13 @@ export async function deliverMissingPhoneAlert(input: {
 type Queue = (message: string, phone: string) => Promise<boolean>;
 
 export type ReportDigestEntry = ReportDelivery & { type: "report_digest" };
+
+export type ReportDigestResult = {
+  sent: boolean;
+  entries: ReportDigestEntry[];
+  /** Normalised phones the full digest was queued to. */
+  reached: Set<string>;
+};
 
 export type MissingPhoneAlertEntry = {
   type: "missing_phone_alert";

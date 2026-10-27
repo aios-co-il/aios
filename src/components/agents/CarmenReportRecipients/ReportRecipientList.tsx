@@ -1,5 +1,9 @@
 import { Phone, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  extraPhoneName,
+  memberName,
+} from "../../../../supabase/functions/_shared/carmen-report-recipients/names.ts";
 import type {
   CarmenReportRecipients,
   ReportStaffMember,
@@ -60,12 +64,12 @@ function RecipientItem({
   removing: boolean;
   onRemove: (id: string) => void;
 }) {
-  const name = row.user_id
-    ? member?.full_name || "חבר צוות"
-    : row.label || "מספר נוסף";
+  const name = row.user_id ? memberName(member) : extraPhoneName(row.label);
   const phone = row.user_id ? member?.phone : row.phone;
-  const skip = resolved.skipped.find((s) =>
-    row.user_id ? s.user_id === row.user_id : s.extra_phone === row.phone,
+  const skip = resolved.skipped.find(
+    (s) =>
+      s.source === "configured" &&
+      (row.user_id ? s.user_id === row.user_id : s.extra_phone === row.phone),
   );
   return (
     <li className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">

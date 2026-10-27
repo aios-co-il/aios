@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   role: { isOwner: true, isAgencyOwner: false },
   rows: [] as Row[],
   staff: [] as StaffRow[],
+  clientPhones: [] as string[],
   writeError: null as { message: string } | null,
   upserts: [] as Array<{ row: unknown; options: unknown }>,
   deletes: [] as Array<Array<[string, string]>>,
@@ -60,9 +61,15 @@ vi.mock("@/integrations/supabase/client", () => ({
         }),
       }),
     }),
-    rpc: (...args: unknown[]) => {
-      state.rpc(...args);
-      return Promise.resolve({ data: state.staff, error: null });
+    rpc: (name: string, args: unknown) => {
+      state.rpc(name, args);
+      return Promise.resolve({
+        data:
+          name === "carmen_report_client_phones"
+            ? state.clientPhones
+            : state.staff,
+        error: null,
+      });
     },
   },
 }));
@@ -90,6 +97,7 @@ beforeEach(() => {
   state.role = { isOwner: true, isAgencyOwner: false };
   state.rows = [];
   state.staff = [FELIX, NOPHONE];
+  state.clientPhones = [];
   state.writeError = null;
   state.upserts = [];
   state.deletes = [];
@@ -155,21 +163,26 @@ describe("CarmenReportRecipientsSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("warns only on the duplicate of two extra phones with one label", async () => {
+  it("flags a listed phone that became a client's, as the server skips it", async () => {
     state.rows = [
-      { id: "r1", user_id: "u-felix", phone: null, label: null },
-      { id: "r2", user_id: null, phone: "+972500000011", label: "משרד" },
-      { id: "r3", user_id: null, phone: "+972500000012", label: "משרד" },
+      { id: "r1", user_id: null, phone: "+972500000099", label: "שותף" },
     ];
+    state.clientPhones = ["+972500000099"];
 
     mount();
 
     const list = await screen.findByRole("list", { name: "נמעני הדיווח" });
-    const [duplicate, other] = within(list)
-      .getAllByText("משרד")
-      .map((label) => label.closest("li"));
-    expect(duplicate).toHaveTextContent("אותו טלפון כבר ברשימה");
-    expect(other).not.toHaveTextContent("אותו טלפון כבר ברשימה");
+    expect(within(list).getByText("שותף").closest("li")).toHaveTextContent(
+      "המספר שייך ללקוח",
+    );
+    expect(
+      screen.getByText(
+        "אף נמען ברשימה לא זמין — כרמן מדווחת לבעלי הארגון: פליקס",
+      ),
+    ).toBeInTheDocument();
+    expect(state.rpc).toHaveBeenCalledWith("carmen_report_client_phones", {
+      p_tenant_id: "tenant-a",
+    });
   });
 
   it("adds a team member found by search", async () => {

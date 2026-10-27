@@ -5,6 +5,7 @@
  */
 
 import { normalizeNotifyPhone } from "../carmen-notify-target.ts";
+import { extraPhoneName, memberName, ownerName } from "./names.ts";
 import type {
   CarmenReportRecipient,
   CarmenReportRecipients,
@@ -15,21 +16,6 @@ import type {
   SkippedReportRecipient,
 } from "./resolve.ts";
 
-const MEMBER_NAME = "חבר צוות";
-const OWNER_NAME = "בעלים";
-const EXTRA_PHONE_NAME = "מספר נוסף";
-
-type Candidate = {
-  user_id?: string;
-  name: string;
-  rawPhone: string | null;
-  source: CarmenReportRecipientSource;
-  /** Why the candidate is skipped when it has no phone at all. */
-  noPhoneReason: ReportRecipientSkipReason;
-  /** Set when the candidate is skipped whatever its phone. */
-  refused?: ReportRecipientSkipReason;
-};
-
 /** A configured row as a candidate: an extra phone, or a member with their staff phone. */
 export function configuredCandidate(
   row: ConfiguredReportRecipient,
@@ -39,7 +25,7 @@ export function configuredCandidate(
   if (!row.user_id) {
     const isClient = row.phone !== null && clientPhones.has(row.phone);
     return {
-      name: row.label?.trim() || EXTRA_PHONE_NAME,
+      name: extraPhoneName(row.label),
       rawPhone: row.phone,
       source: "configured",
       noPhoneReason: "invalid_phone",
@@ -50,7 +36,7 @@ export function configuredCandidate(
   if (!member) {
     return {
       user_id: row.user_id,
-      name: MEMBER_NAME,
+      name: memberName(undefined),
       rawPhone: null,
       source: "configured",
       noPhoneReason: "not_staff",
@@ -58,7 +44,7 @@ export function configuredCandidate(
   }
   return {
     user_id: member.user_id,
-    name: member.full_name?.trim() || MEMBER_NAME,
+    name: memberName(member),
     rawPhone: member.phone,
     source: "configured",
     noPhoneReason: "member_without_phone",
@@ -69,7 +55,7 @@ export function configuredCandidate(
 export function ownerCandidate(member: ReportStaffMember): Candidate {
   return {
     user_id: member.user_id,
-    name: member.full_name?.trim() || OWNER_NAME,
+    name: ownerName(member),
     rawPhone: member.phone,
     source: "owner_fallback",
     noPhoneReason: "member_without_phone",
@@ -111,14 +97,18 @@ export function dedupeByPhone(
   return { recipients, skipped };
 }
 
-/** A skipped member keeps its user_id; a skipped extra phone keeps its stored phone. */
+/**
+ * A skipped member keeps its user_id; a skipped extra phone keeps its stored
+ * phone. The source tells a listed entry from an owner the fallback skipped.
+ */
 function skippedEntry(
   candidate: Candidate,
   reason: ReportRecipientSkipReason,
 ): SkippedReportRecipient {
+  const { name, source } = candidate;
   return candidate.user_id
-    ? { user_id: candidate.user_id, name: candidate.name, reason }
-    : { name: candidate.name, extra_phone: candidate.rawPhone, reason };
+    ? { user_id: candidate.user_id, name, source, reason }
+    : { name, extra_phone: candidate.rawPhone, source, reason };
 }
 
 /** Normalised digits, or null when the stored phone cannot be a WhatsApp number. */
@@ -126,3 +116,14 @@ function dialablePhone(raw: string | null): string | null {
   const phone = normalizeNotifyPhone(raw);
   return phone && phone.length >= 9 && phone.length <= 15 ? phone : null;
 }
+
+type Candidate = {
+  user_id?: string;
+  name: string;
+  rawPhone: string | null;
+  source: CarmenReportRecipientSource;
+  /** Why the candidate is skipped when it has no phone at all. */
+  noPhoneReason: ReportRecipientSkipReason;
+  /** Set when the candidate is skipped whatever its phone. */
+  refused?: ReportRecipientSkipReason;
+};

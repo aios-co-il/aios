@@ -46,12 +46,13 @@ Deno.test("loadNotifyRecipients", async (t) => {
       const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
       assertStrictEquals(out.sent, true);
       assertStrictEquals(out.source, "tenant_staff_session");
+      assertStrictEquals(out.report_recipients_error, undefined);
       assertStrictEquals(fetch.calls[0].body.phoneNumber, PHONE);
     },
   );
 
   await t.step(
-    "a failed report-list read leaves the staff session to decide",
+    "a failed report-list read leaves the staff session to decide and says so",
     async () => {
       const { handle, fetch } = handler({
         tables: staffTables(),
@@ -62,6 +63,10 @@ Deno.test("loadNotifyRecipients", async (t) => {
       const out = await res.json();
       assertStrictEquals(out.sent, true);
       assertStrictEquals(out.source, "tenant_staff_session");
+      assertStrictEquals(
+        out.report_recipients_error,
+        "permission denied for table",
+      );
       assertStrictEquals(fetch.calls[0].body.phoneNumber, PHONE);
     },
   );

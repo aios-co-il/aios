@@ -1,6 +1,7 @@
 /**
  * Who a tenant's notify goes to and which Carmen line it leaves from. DB reads
- * only; a failed read throws.
+ * only; a failed read throws, except the report list: its failure is kept in
+ * reportRecipientsError and the staff chain decides (recipients.ts).
  *
  * Recipient: explicit chat_id / first configured Carmen report recipient /
  * tenant campaigner, never a cross-tenant owner who merely has the newest session, never a group
@@ -33,6 +34,8 @@ export type TenantNotifyPlan = {
   senderUserId: string | null;
   activeManusIntegrations: number;
   primaryManusIntegrations: number;
+  /** Why the report list could not be read, so the response shows it was bypassed. */
+  reportRecipientsError: string | null;
 };
 
 /** Recipient, delivery chat, transport line and sender for one tenant's notify. */
@@ -41,10 +44,8 @@ export async function planTenantNotify(
   tenantId: string,
   explicitChatId: string | null,
 ): Promise<TenantNotifyPlan> {
-  const { reportRecipients, sessions, staff } = await loadNotifyRecipients(
-    sb,
-    tenantId,
-  );
+  const { reportRecipients, reportRecipientsError, sessions, staff } =
+    await loadNotifyRecipients(sb, tenantId);
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
     reportRecipients,
@@ -92,6 +93,7 @@ export async function planTenantNotify(
     transport,
     senderUserId: transport.senderUserId,
     ...manusLineCounts(tenantId, setup.integrations),
+    reportRecipientsError,
   };
 }
 

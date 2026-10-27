@@ -70,7 +70,11 @@ async function ownerAndManagerPhones(
   return staffPhones(supabase, [...new Set([...ownerIds, ...managerIds])]);
 }
 
-/** The team managers who manage this agency; all of them when it is unknown. */
+/**
+ * The team managers who manage this agency; all of them when it is unknown.
+ * user_managed_agencies has no tenant_id: managerIds come from this tenant's
+ * user_roles and agencyId from this tenant's client, which scopes the read.
+ */
 async function managersOfAgency(
   supabase: Pick<DbClient, "from">,
   agencyId: string | null | undefined,
@@ -95,7 +99,11 @@ async function managersOfAgency(
   return managerIds.filter((id) => allowed.has(id));
 }
 
-/** Campaigner phone and name of each user, in the order of userIds. */
+/**
+ * Campaigner phone and name of each user, in the order of userIds. userIds
+ * come from this tenant's user_roles; profiles.tenant_id is a user's home
+ * organization, so filtering on it would drop staff of several organizations.
+ */
 async function staffPhones(
   supabase: Pick<DbClient, "from">,
   userIds: string[],

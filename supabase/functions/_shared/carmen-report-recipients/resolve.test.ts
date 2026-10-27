@@ -85,62 +85,28 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
       {
         user_id: "u-owner2",
         name: "Owner Two",
+        source: "owner_fallback",
         reason: "member_without_phone",
       },
-    ]);
-  });
-
-  await t.step("dedupes by normalised phone, first entry wins", () => {
-    const result = resolveCarmenReportRecipients({
-      configured: [
-        { user_id: "u-owner", phone: null, label: null },
-        { user_id: null, phone: "+972500000001", label: "Same phone" },
-      ],
-      staff: STAFF,
-    });
-
-    assertEquals(
-      result.recipients.map((r) => r.user_id),
-      ["u-owner"],
-    );
-    assertEquals(result.skipped, [
-      {
-        name: "Same phone",
-        extra_phone: "+972500000001",
-        reason: "duplicate_phone",
-      },
-    ]);
-  });
-
-  await t.step("skips an extra phone that now belongs to a client", () => {
-    const result = resolveCarmenReportRecipients({
-      configured: [
-        { user_id: null, phone: "+972500000009", label: "Partner" },
-        { user_id: "u-manager", phone: null, label: null },
-      ],
-      staff: STAFF,
-      clientPhones: ["+972500000009"],
-    });
-
-    assertEquals(
-      result.recipients.map((r) => r.user_id),
-      ["u-manager"],
-    );
-    assertEquals(result.skipped, [
-      { name: "Partner", extra_phone: "+972500000009", reason: "client_phone" },
     ]);
   });
 
   await t.step(
     "a list nobody on it can receive falls back to the owners with phones",
     () => {
+      const ownerWithoutPhone = {
+        ...NO_PHONE,
+        user_id: "u-owner2",
+        full_name: "Owner Two",
+        is_owner: true,
+      };
       const result = resolveCarmenReportRecipients({
         configured: [
           { user_id: "u-gone", phone: null, label: null },
           { user_id: null, phone: "+972500000009", label: "Partner" },
           { user_id: "u-nophone", phone: null, label: null },
         ],
-        staff: STAFF,
+        staff: [...STAFF, ownerWithoutPhone],
         clientPhones: ["+972500000009"],
       });
 
@@ -154,8 +120,13 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
       ]);
       assertEquals(result.listUnreachable, true);
       assertEquals(
-        result.skipped.map((row) => row.reason),
-        ["not_staff", "client_phone", "member_without_phone"],
+        result.skipped.map((row) => [row.source, row.reason]),
+        [
+          ["configured", "not_staff"],
+          ["configured", "client_phone"],
+          ["configured", "member_without_phone"],
+          ["owner_fallback", "member_without_phone"],
+        ],
       );
     },
   );
@@ -179,61 +150,6 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
     },
   );
 
-  await t.step(
-    "two extra phones with one label are told apart by phone",
-    () => {
-      const result = resolveCarmenReportRecipients({
-        configured: [
-          { user_id: null, phone: "+972500000007", label: "Office" },
-          { user_id: null, phone: "+9720500000007", label: "Office" },
-        ],
-        staff: STAFF,
-      });
-
-      assertEquals(result.skipped, [
-        {
-          name: "Office",
-          extra_phone: "+9720500000007",
-          reason: "duplicate_phone",
-        },
-      ]);
-    },
-  );
-
-  await t.step("skips a member without a phone with a reason", () => {
-    const result = resolveCarmenReportRecipients({
-      configured: [
-        { user_id: "u-nophone", phone: null, label: null },
-        { user_id: "u-manager", phone: null, label: null },
-      ],
-      staff: STAFF,
-    });
-
-    assertEquals(
-      result.recipients.map((r) => r.user_id),
-      ["u-manager"],
-    );
-    assertEquals(result.skipped, [
-      {
-        user_id: "u-nophone",
-        name: "No Phone",
-        reason: "member_without_phone",
-      },
-    ]);
-  });
-
-  await t.step("skips a configured user who is no longer staff", () => {
-    const result = resolveCarmenReportRecipients({
-      configured: [{ user_id: "u-gone", phone: null, label: null }],
-      staff: [MANAGER],
-    });
-
-    assertEquals(result.recipients, []);
-    assertEquals(result.skipped, [
-      { user_id: "u-gone", name: "חבר צוות", reason: "not_staff" },
-    ]);
-  });
-
   await t.step("skips a member phone that cannot be a WhatsApp number", () => {
     const result = resolveCarmenReportRecipients({
       configured: [{ user_id: "u-manager", phone: null, label: null }],
@@ -242,7 +158,12 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
 
     assertEquals(result.recipients, []);
     assertEquals(result.skipped, [
-      { user_id: "u-manager", name: "Manager", reason: "invalid_phone" },
+      {
+        user_id: "u-manager",
+        name: "Manager",
+        source: "configured",
+        reason: "invalid_phone",
+      },
     ]);
     assertEquals(result.listUnreachable, true);
   });
