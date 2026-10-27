@@ -93,7 +93,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Carmen talks to Claude over MCP via the `claude-mcp` edge function (an MCP server). It exposes `request_dev_task` + `ask_claude`, and each call fires a real Claude Code on the web session via the Routines `/fire` API. See `supabase/functions/claude-mcp/README.md`.
 - When Carmen can't do something herself, she can escalate to Claude (always-on instruction in `ai_memory` + the `claude_escalation` skin) or to Cursor (`cursor_escalation`). The request also asks the coding agent to **teach Carmen**: write a reusable skin into `ai_skills` (`scope='tenant'`, `created_by_agent=true`) so she's independent next time.
 - The request carries two loop rules (mirrored in Carmen's instruction/skin): **keep David updated** — Carmen tells David at hand-off (with the session link) and again with a summary when the result/PR lands; and **fix-on-fail** — if a capability Carmen already learned fails in practice, she reports the exact error back (`request_dev_task`), the coding agent fixes the skin/code, and she retries.
-- **Guaranteed update channel:** when a coding-agent session finishes a Carmen-delegated task, it pushes a WhatsApp update straight to David by running `select public.claude_notify_david('<message>', '<tenant_id>'::uuid);` via its Supabase connector. That SECURITY DEFINER function reads the shared bearer from Vault and calls the `claude-notify` edge function, which sends through the tenant's Carmen WhatsApp automation — independent of any live Carmen session.
+- **Guaranteed update channel:** when a coding-agent session finishes a Carmen-delegated task, it pushes a WhatsApp update straight to David by running `select public.claude_notify_david('<message>', '<tenant_id>'::uuid);` via its Supabase connector. That SECURITY DEFINER function reads the shared bearer from Vault and calls the `claude-notify` edge function, which sends from the tenant's primary Carmen line (see Carmen's outbound lines below), independent of any live Carmen session.
 
 ## Safety rules for autonomous fixes (Carmen → Claude)
 
@@ -123,6 +123,14 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 
 - **Shabbat** is the whole Saturday, 00:00–23:59 Asia/Jerusalem (`_shared/shabbat/quiet-window.ts`).
 - **Held until Sunday 08:30:** `task-notification-worker`, `client-follow-up-worker` and task notifications sent through `trigger-automation`. Peer task notifications wait in `task_notification_holds`; the worker replays each once, and a hold still unreleased 24h after its release time expires unsent.
-- **Held for Saturday only:** pulse instant alerts and `fb-campaign-monitor` WhatsApp, for every alert type not in `_shared/shabbat/critical-alerts.ts` (add a new critical kind there); a pulse `connection_lost` goes out only for a real connection loss. `agent-heartbeat` skips the Saturday anomaly digest. No other sender is gated.
+- **Held for Saturday only:** pulse instant alerts and `fb-campaign-monitor` WhatsApp, for every alert type not in `_shared/shabbat/critical-alerts.ts` (add a new critical kind there); a pulse `connection_lost` goes out only for a real connection loss. No other sender is gated.
 - **Recurring task reminders** go out at 08:30 on the occurrence's own Israel date; one-off tasks keep the day-before reminder.
 - **Pulse instant alerts** run only when `instantPulseAlertsGate` (`campaign-pulse-snapshot/instant-alerts-gate.ts`) allows it. Send `skip_instant_alerts: true` to refresh pulse numbers without alerting the team.
+
+## Carmen's outbound lines (AIO-229)
+
+- **Primary line only:** `claude-notify` and staff alerts send only from a Carmen connection whose role is primary (`settings.carmen_role`, `_shared/carmen-connection-role.ts`); a secondary line, such as the owner's personal phone, never sends them.
+- **`claude-notify`** uses the tenant's Carmen `send_manus_message` step on an active primary `manus_wa` line. A Green API step is used only when no Manus step resolves, and the response labels it `transport: "green_fallback"`. It accepts only `CLAUDE_MCP_BEARER` or the service-role key; `{ "ping": true, "tenant_id"? }` reports the line each tenant would use and sends nothing.
+- **Staff alerts** (`send_whatsapp_to_staff`, `send_message_to_campaigner`) leave only through `send-manus-wa-message` on a primary `manus_wa` line (`run-ai-agent/staff-alert.ts`), so the Staging guard applies and the outcome lands in `agent_action_log`.
+- **`manage-manus-wa` `send_message`** requires the service-role key or a JWT of a member of the integration's tenant, and passes the Staging guard.
+- **`agent-heartbeat`** sends no WhatsApp; its summary goes to `heartbeat_logs` only.

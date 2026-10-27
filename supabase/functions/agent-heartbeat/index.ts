@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { jerusalemHour, jerusalemYmd } from "../_shared/calendarTimeZone.ts";
+import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
+import { jerusalemHour } from "./jerusalem-hour.ts";
+import {
+  staleReleaseAuditUser,
+  writeStaleReleaseAudit,
+} from "./stale-release-audit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -128,37 +133,14 @@ Deno.serve(async (req) => {
         staleTasks &&
         staleTasks.length > 0
       ) {
-        // task_updates.user_id is a profiles uuid and the table has no
-        // tenant_id: write the audit row as the tenant owner.
-        const { data: ownerRole } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("tenant_id", tenantId)
-          .eq("role", "owner")
-          .limit(1)
-          .maybeSingle();
-        const auditUserId: string | null = ownerRole?.user_id ?? null;
+        const auditUserId = await staleReleaseAuditUser(supabase, tenantId);
         for (const task of staleTasks) {
           await supabase
             .from("tasks")
             .update({ assigned_agent: null })
             .eq("id", task.id);
           if (auditUserId) {
-            const { error: auditError } = await supabase
-              .from("task_updates")
-              .insert({
-                task_id: task.id,
-                user_id: auditUserId,
-                content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
-                update_type: "agent_action",
-              });
-            if (auditError) {
-              console.warn(
-                "[agent-heartbeat] stale-release audit insert failed",
-                task.id,
-                auditError.message,
-              );
-            }
+            await writeStaleReleaseAudit(supabase, auditUserId, task);
           }
           actionsLog.push({
             type: "stale_task_released",
@@ -199,10 +181,7 @@ Deno.serve(async (req) => {
       }
       const summary = summaryLines.join("\n");
 
-      // The summary is only logged. Heartbeat sends no WhatsApp: the old daily
-      // anomaly digest went out through David's Green line with a body the
-      // sender rejected (400), yet was logged as sent. Carmen's planned
-      // morning brief takes over that job.
+      // Heartbeat sends no WhatsApp; Carmen's morning brief owns digests.
 
       // 7. Log heartbeat
       await supabase.from("heartbeat_logs").insert({

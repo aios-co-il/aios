@@ -12,19 +12,18 @@
  *
  * Auth: requires a Supabase Bearer token; the public anon key gets 401.
  * send_message accepts this project's service-role key (run-ai-agent) or a
- * user JWT whose user belongs to the integration's tenant
- * (_shared/manus-send-auth.ts), and passes the Staging outbound guard.
+ * user JWT whose user belongs to the integration's tenant (send-auth.ts),
+ * and passes the Staging outbound guard (send-guard.ts).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
-import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { manusSendAuthDeps } from "./send-auth-deps.ts";
 import {
-  authorizeManusSend,
-  bearerToken,
-  isAnonToken,
-  type ManusSendAuthDeps,
-} from "../_shared/manus-send-auth.ts";
+  anonRefusal,
+  manusSendRefusal,
+  stagingBlockResponse,
+} from "./send-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,38 +97,6 @@ function normalizePhone(input: string, defaultCc = "972"): string {
   return defaultCc + d;
 }
 
-function manusSendAuthDeps(supabase: any): ManusSendAuthDeps {
-  return {
-    async getUserId(token) {
-      const { data, error } = await supabase.auth.getUser(token);
-      return error ? null : (data?.user?.id ?? null);
-    },
-    async isTenantMember(tenantId, userId) {
-      const { data } = await supabase
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      return !!data;
-    },
-    async isSuperAdmin(userId) {
-      const { data } = await supabase.rpc("is_super_admin", {
-        _user_id: userId,
-      });
-      return data === true;
-    },
-    async tenantCanUseIntegration(tenantId, integrationId) {
-      const { data, error } = await supabase.rpc("tenant_can_use_integration", {
-        p_tenant_id: tenantId,
-        p_integration_id: integrationId,
-      });
-      if (error) throw error;
-      return data === true;
-    },
-  };
-}
-
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -148,11 +115,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (isAnonToken(bearerToken(authHeader), SUPABASE_SERVICE_ROLE_KEY)) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const anon = anonRefusal(
+      authHeader,
+      SUPABASE_SERVICE_ROLE_KEY,
+      corsHeaders,
+    );
+    if (anon) {
+      return anon;
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -174,13 +143,12 @@ Deno.serve(async (req) => {
     }
 
     // ── Fetch integration record from DB (if integrationId provided) ──────────
-    type IntegrationRow = {
+    let integration: {
       id: string;
       tenant_id: string | null;
       api_key: string | null;
       settings: Record<string, unknown>;
-    };
-    let integration: IntegrationRow | null = null;
+    } | null = null;
     let resolvedInstanceId = instanceId;
     let resolvedApiKey: string | null = null;
 
@@ -191,7 +159,7 @@ Deno.serve(async (req) => {
         .eq("id", integrationId)
         .maybeSingle();
       if (data) {
-        integration = data as IntegrationRow;
+        integration = data;
         resolvedApiKey = data.api_key;
         resolvedInstanceId =
           resolvedInstanceId ||
@@ -364,20 +332,18 @@ Deno.serve(async (req) => {
 
     // ── send_message ──────────────────────────────────────────────────────────
     if (action === "send_message") {
-      const auth = await authorizeManusSend({
-        authorization: authHeader,
-        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-        integration: integration
-          ? { id: integration.id, tenant_id: integration.tenant_id }
-          : null,
-        requestedTenantId: tenantId ?? null,
-        deps: manusSendAuthDeps(supabase),
-      });
-      if (!auth.ok) {
-        return new Response(JSON.stringify({ error: auth.error }), {
-          status: auth.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const refused = await manusSendRefusal(
+        {
+          authorization: authHeader,
+          serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+          integration,
+          requestedTenantId: tenantId ?? null,
+          deps: manusSendAuthDeps(supabase),
+        },
+        corsHeaders,
+      );
+      if (refused) {
+        return refused;
       }
 
       const { phone, message, countryCode } = rest as {
@@ -409,20 +375,9 @@ Deno.serve(async (req) => {
         "972";
       const normalizedPhone = normalizePhone(phone, cc);
 
-      const guard = checkWhatsAppSend(normalizedPhone);
-      if (guard.decision === "BLOCK") {
-        console.warn("[manage-manus-wa] blocked by integration-guard", guard);
-        return new Response(
-          JSON.stringify({
-            error: "blocked_by_staging_safe_mode",
-            reason: guard.reason,
-            environment: guard.environment,
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+      const blocked = stagingBlockResponse(normalizedPhone, corsHeaders);
+      if (blocked) {
+        return blocked;
       }
 
       const result = await gatewayRest(
