@@ -8841,32 +8841,28 @@ async function executeTool(
       };
     }
     case "update_marketing_work_item": {
-      const { data: item } = await supabase
-        .from("marketing_work_items")
-        .select("id, payload, title, status")
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (!item) return { error: "עבודה לא נמצאה" };
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (args.title != null) patch.title = String(args.title);
-      if (args.status != null) patch.status = args.status;
       // The workshop's budget and project state are written only by its own server code.
       let droppedKeys: string[] = [];
+      let payloadPatch: Record<string, unknown> | null = null;
       if (args.payload_patch && typeof args.payload_patch === "object") {
         const safe = stripServerOnlyPayloadKeys(args.payload_patch);
         droppedKeys = safe.dropped;
-        patch.payload = { ...(item.payload || {}), ...safe.patch };
+        payloadPatch = safe.patch;
       }
-      const { data: updated, error } = await supabase
-        .from("marketing_work_items")
-        .update(patch)
-        .eq("id", args.item_id)
-        .select("id, title, status")
-        .single();
+      // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
+      const { data: rows, error } = await supabase.rpc(
+        "patch_marketing_work_item",
+        {
+          p_item_id: args.item_id,
+          p_tenant_id: tenantId,
+          p_title: args.title != null ? String(args.title) : null,
+          p_status: args.status != null ? String(args.status) : null,
+          p_payload_patch: payloadPatch,
+        },
+      );
       if (error) throw error;
+      const updated = Array.isArray(rows) ? rows[0] : rows;
+      if (!updated) return { error: "עבודה לא נמצאה" };
       if (droppedKeys.length === 0) return { success: true, item: updated };
       return {
         success: true,

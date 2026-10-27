@@ -38,6 +38,8 @@ Deno.test(
       "send_broadcast_now",
       "send_calendar_invite",
       "join_meeting_for_client",
+      "add_task_update",
+      "manage_task_collaborators",
       // ads and budgets
       "toggle_facebook_campaign",
       "update_facebook_budget",
@@ -56,6 +58,8 @@ Deno.test(
       "propose_automation",
       "delegate_to_subagent",
       "delegate_parallel",
+      "create_autonomous_goal",
+      "create_execution_goal",
     ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
       assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
