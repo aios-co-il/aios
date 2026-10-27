@@ -511,15 +511,23 @@ async function setMarketTarget(
       source: "approved",
       scope: campaign.targetScope,
     });
+  // A campaign target goes to the table the pulse reads that campaign from (to every
+  // table when that one is no longer connected); a platform target to every table.
+  const targetTables =
+    campaign?.tableId && tables.some((t) => t.id === campaign.tableId)
+      ? tables.filter((t) => t.id === campaign.tableId)
+      : tables;
   // An approved target on any table checked blocks the whole write: a campaign is
-  // checked on the tables the pulse reads it from, a platform target on every table
-  // of this client × platform. Nothing is written unless every one allows it.
+  // checked on the tables the pulse reads it from and on every table it is written
+  // to, a platform target on every table of this client × platform. Nothing is
+  // written unless every one allows it.
   const ref = campaign
     ? { campaignId: campaign.campaignId, campaignName: campaign.campaignName }
     : null;
-  const checkedTables = campaign
-    ? campaignReadTables(tables, campaign)
-    : tables;
+  const readTables = campaign ? campaignReadTables(tables, campaign) : tables;
+  const checkedTables = tables.filter(
+    (table) => readTables.includes(table) || targetTables.includes(table),
+  );
   for (const table of checkedTables) {
     const allowed = canSetMarketTarget(
       table.integration_settings || {},
@@ -557,11 +565,6 @@ async function setMarketTarget(
     };
   }
 
-  // A campaign target goes to the table the pulse reads that campaign from.
-  const targetTables =
-    campaign?.tableId && tables.some((t) => t.id === campaign.tableId)
-      ? tables.filter((t) => t.id === campaign.tableId)
-      : tables;
   const setAt = (ctx.now?.() ?? new Date()).toISOString();
   const written: Array<Record<string, unknown>> = [];
   for (const table of targetTables) {

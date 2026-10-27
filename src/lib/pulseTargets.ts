@@ -79,6 +79,8 @@ export const resolvePulseTarget = resolveTarget as (
 export const resolvePulseTargetAcross = resolveTargetAcross as (
   places: Array<{
     tableId?: string | null;
+    /** crm_tables.integration_type: a tie goes to the table built for the goal. */
+    integrationType?: string | null;
     settings: Record<string, unknown> | null | undefined;
     campaignId?: string | null;
     campaignName?: string | null;

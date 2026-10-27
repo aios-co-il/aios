@@ -3,6 +3,7 @@ import {
   resolvePulseCostRules,
 } from "./pulse-cost-rules.mjs";
 import {
+  pulseTableTypeRank,
   pulseTargetSourceLabel,
   resolvePulseTargetAcross,
 } from "./pulse-targets.mjs";
@@ -723,11 +724,7 @@ function platformForIntegration(type) {
 
 /** Duplicate Meta tables: the one built for the goal reads it best. */
 function tableTypeRank(table, goal) {
-  if (table?.integration_type === "facebook_ecommerce")
-    return goal === "ecommerce" ? 0 : 1;
-  if (table?.integration_type === "facebook_insights")
-    return goal === "ecommerce" ? 1 : 0;
-  return 0;
+  return pulseTableTypeRank(table?.integration_type, goal);
 }
 
 /**
@@ -756,6 +753,7 @@ function campaignTarget(places, goal) {
   return resolvePulseTargetAcross(
     places.map(({ table, identity }) => ({
       tableId: table.id,
+      integrationType: table.integration_type ?? null,
       settings: table.integration_settings || {},
       campaignId: identity.id,
       campaignName: identity.name === "ללא שם" ? null : identity.name,

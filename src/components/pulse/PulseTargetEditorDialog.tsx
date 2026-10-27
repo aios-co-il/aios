@@ -57,6 +57,8 @@ type PulseTargetEditorDialogProps = {
   /** Campaigns of this client × platform with spend in the last 7 days. */
   campaigns: PulseCampaignGoalRow[];
   tableSettingsById: Map<string, Record<string, unknown>>;
+  /** integration_type of each report table, so a tie between duplicate Meta tables breaks as in the pulse. */
+  tableTypeById?: Map<string, string | null>;
   /** pulseTargetSaveKey of the row being saved, while a save runs. */
   savingKey: string | null;
   onSave: (input: PulseTargetSaveInput) => Promise<void>;
@@ -223,6 +225,7 @@ export function PulseTargetEditorDialog({
   context,
   campaigns,
   tableSettingsById,
+  tableTypeById,
   savingKey,
   onSave,
 }: PulseTargetEditorDialogProps) {
@@ -243,11 +246,12 @@ export function PulseTargetEditorDialog({
       resolvePulseTargetAcross(
         platformTableIds.map((tableId) => ({
           tableId,
+          integrationType: tableTypeById?.get(tableId) ?? null,
           settings: tableSettingsById.get(tableId) ?? {},
         })),
         platformGoal,
       ),
-    [platformTableIds, platformGoal, tableSettingsById],
+    [platformTableIds, platformGoal, tableSettingsById, tableTypeById],
   );
 
   const campaignRows = useMemo(

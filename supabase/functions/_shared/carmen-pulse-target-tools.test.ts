@@ -635,6 +635,54 @@ Deno.test(
 );
 
 Deno.test(
+  "a campaign market target whose sampled table is gone checks every table it writes to",
+  async () => {
+    // The pulse sampled g1 from a table that has since been disconnected, so the
+    // target would go to every Google table, and B holds an approved target for g1.
+    const db = fakeDb(seed());
+    db.tables.crm_tables.push({
+      id: "t-google-b",
+      client_id: "client-1",
+      tenant_id: "tenant-1",
+      integration_type: "google_ads",
+      integration_settings: {
+        pulse_targets: { g1: { cpl: 45, source: "approved" } },
+      },
+    });
+    addPulseRow(db, {
+      campaign_key: "kg1",
+      campaign_id: "g1",
+      campaign_name: "חיפוש לידים",
+      table_id: "t-google-gone",
+      platform: "google",
+      goal: "leads",
+      read_table_ids: ["t-google-gone", "t-google"],
+    });
+    const result: any = await executePulseTargetTool(
+      db,
+      ctx(),
+      "set_market_target",
+      {
+        client_id: "client-1",
+        platform: "google",
+        goal: "leads",
+        value: 60,
+        rationale: RATIONALE,
+        campaign_id: "g1",
+      },
+    );
+    assertStrictEquals(result.error, "approved_target_exists");
+    assertStrictEquals(result.table_id, "t-google-b");
+    assertStrictEquals(db.writes.length, 0);
+    const b = db.tables.crm_tables.find((t) => t.id === "t-google-b")!;
+    assertEquals(b.integration_settings.pulse_targets.g1, {
+      cpl: 45,
+      source: "approved",
+    });
+  },
+);
+
+Deno.test(
   "a market target far from the client's own baseline is refused",
   async () => {
     const db = fakeDb(seed());

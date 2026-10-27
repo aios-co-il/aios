@@ -806,6 +806,17 @@ export function CampaignPulseDashboard({
     return map;
   }, [pulseCampaignTables]);
 
+  const tableTypeById = useMemo(
+    () =>
+      new Map(
+        pulseCampaignTables.map((table) => [
+          table.id,
+          table.integration_type ?? null,
+        ]),
+      ),
+    [pulseCampaignTables],
+  );
+
   const missingTargetGroups = useMemo(
     () =>
       listCampaignsWithoutTarget({
@@ -1398,6 +1409,7 @@ export function CampaignPulseDashboard({
         context={targetEditor}
         campaigns={targetEditorCampaigns}
         tableSettingsById={tableSettingsById}
+        tableTypeById={tableTypeById}
         savingKey={savingTargetKey}
         onSave={savePulseTarget}
       />

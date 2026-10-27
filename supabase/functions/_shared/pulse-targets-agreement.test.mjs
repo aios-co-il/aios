@@ -548,6 +548,84 @@ Deno.test(
 );
 
 Deno.test(
+  "duplicate Meta tables of both types with tied targets: every caller prefers the goal's table",
+  () => {
+    const records = [
+      ...campaignDays({
+        tableId: "t-a",
+        campaignId: "c1",
+        name: "Leads",
+        extra: LEAD,
+        baseline: { spend: 100, leads: 2 },
+        current: { spend: 200, leads: 2 }, // CPL 100, above both targets
+      }),
+      ...campaignDays({
+        tableId: "t-b",
+        campaignId: "c1",
+        name: "Leads",
+        extra: LEAD,
+        baseline: { spend: 100, leads: 2 },
+        current: { spend: 200, leads: 2 },
+      }),
+    ];
+    // The lower table id is the ecommerce table; a lead campaign reads best from
+    // the insights table, so its legacy CPL applies.
+    const ta = {
+      ...leadsTable("t-a", "a", { target_cpl: 60 }),
+      integration_type: "facebook_ecommerce",
+    };
+    const tb = leadsTable("t-b", "a", { target_cpl: 80 });
+    const clients = [
+      {
+        clientId: "a",
+        clientName: "a",
+        campaignerName: "דנה",
+        moodStatus: "happy",
+        lastClientCallAt: null,
+        daysSinceLastCommunication: 1,
+        recentCommunicationStatus: null,
+        hasRecentComplaintUpdate: false,
+      },
+    ];
+    for (const tables of [
+      [ta, tb],
+      [tb, ta],
+    ]) {
+      const row = onlyRow(records, tables, ALERTS_ON);
+      assertStrictEquals(row.goal, "leads");
+      assertStrictEquals(row.table_id, "t-b");
+      assertStrictEquals(row.target_value, 80);
+      assertStrictEquals(row.target_table_id, "t-b");
+
+      const [attention] = buildPulseAttentionRows({
+        campaignRows: [row],
+        tables,
+        clients,
+      });
+      assertStrictEquals(attention.target.value, 80);
+      assertStrictEquals(attention.target.table_id, "t-b");
+
+      const byId = new Map(tables.map((t) => [t.id, t]));
+      for (const tableIds of [
+        ["t-a", "t-b"],
+        ["t-b", "t-a"],
+      ]) {
+        const editor = resolvePulseTargetAcross(
+          tableIds.map((tableId) => ({
+            tableId,
+            integrationType: byId.get(tableId).integration_type,
+            settings: byId.get(tableId).integration_settings,
+          })),
+          "leads",
+        );
+        assertStrictEquals(editor.value, 80);
+        assertStrictEquals(editor.table_id, "t-b");
+      }
+    }
+  },
+);
+
+Deno.test(
   "no target: spend with no leads in the last 3 days counts past the threshold",
   () => {
     const records = campaignDays({

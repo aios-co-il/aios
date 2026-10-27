@@ -9,6 +9,7 @@ import {
   buildPulseTargetPatch,
   canSetMarketTarget,
   listCampaignsWithoutTarget,
+  pulseTableTypeRank,
   pulseTargetSourceLabel,
   resolvePulseTarget,
   resolvePulseTargetAcross,
@@ -228,6 +229,41 @@ Deno.test(
       assertStrictEquals(target.value, 50);
       assertStrictEquals(target.campaign_id, "c1");
     }
+  },
+);
+
+Deno.test(
+  "a full tie between duplicate Meta tables goes to the table built for the goal, in any order",
+  () => {
+    // Legacy target_roas on both tables. The lower table id is the insights table,
+    // so only the type rank can pick the ecommerce one.
+    const insights = {
+      tableId: "t-a",
+      integrationType: "facebook_insights",
+      settings: { target_roas: 2, target_cpl: 60 },
+    };
+    const ecommerce = {
+      tableId: "t-z",
+      integrationType: "facebook_ecommerce",
+      settings: { target_roas: 4, target_cpl: 80 },
+    };
+    for (const places of [
+      [insights, ecommerce],
+      [ecommerce, insights],
+    ]) {
+      const shop = resolvePulseTargetAcross(places, "ecommerce");
+      assertStrictEquals(shop.value, 4);
+      assertStrictEquals(shop.table_id, "t-z");
+      const leads = resolvePulseTargetAcross(places, "leads");
+      assertStrictEquals(leads.value, 60);
+      assertStrictEquals(leads.table_id, "t-a");
+    }
+    assertStrictEquals(
+      pulseTableTypeRank("facebook_ecommerce", "ecommerce"),
+      0,
+    );
+    assertStrictEquals(pulseTableTypeRank("facebook_insights", "ecommerce"), 1);
+    assertStrictEquals(pulseTableTypeRank("google_ads", "leads"), 0);
   },
 );
 

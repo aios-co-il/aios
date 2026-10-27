@@ -20,8 +20,9 @@
  * level wins whole (campaign → platform → pulse_targets.default → table fields). A
  * campaign merged from several report tables (duplicate Meta tables) is resolved over
  * all of them (resolvePulseTargetAcross); between tables at the same level the most
- * recently set target wins, then the lowest table id, so every caller gets the same
- * target whatever order it passes the tables in.
+ * recently set target wins, then the table built for the goal (pulseTableTypeRank),
+ * then the lowest table id, so every caller gets the same target whatever order it
+ * passes the tables in.
  *
  * Plain ESM so the Deno functions and the Vite dashboard run the same rules.
  */
@@ -181,12 +182,28 @@ function textKey(value) {
 }
 
 /**
- * Does candidate `a` beat `b`? One order for every caller: approved before market,
- * then the most specific level, then the most recently set, then the lowest table
- * id, campaign id and campaign name (plain code-unit order, the same in Deno and
- * the browser). The order the tables come in never decides.
+ * Duplicate Meta tables: the one built for the goal reads it best (lower first).
+ * The pulse picks a campaign's sample row and breaks target ties by this rank.
+ *
+ * @param {string | null | undefined} integrationType crm_tables.integration_type
+ * @param {string} goal leads | ecommerce | engagement
  */
-function outranks(a, b) {
+export function pulseTableTypeRank(integrationType, goal) {
+  if (integrationType === "facebook_ecommerce")
+    return goal === "ecommerce" ? 0 : 1;
+  if (integrationType === "facebook_insights")
+    return goal === "ecommerce" ? 1 : 0;
+  return 0;
+}
+
+/**
+ * Does candidate `a` beat `b`? One order for every caller: approved before market,
+ * then the most specific level, then the most recently set, then the table built
+ * for the goal, then the lowest table id, campaign id and campaign name (plain
+ * code-unit order, the same in Deno and the browser). The order the tables come in
+ * never decides.
+ */
+function outranks(a, b, goal) {
   const source =
     Number(a.target.source !== "approved") -
     Number(b.target.source !== "approved");
@@ -196,6 +213,10 @@ function outranks(a, b) {
   const aSetAt = setAtMs(a.target);
   const bSetAt = setAtMs(b.target);
   if (aSetAt !== bSetAt) return aSetAt > bSetAt;
+  const type =
+    pulseTableTypeRank(a.place.integrationType, goal) -
+    pulseTableTypeRank(b.place.integrationType, goal);
+  if (type) return type < 0;
   for (const key of ["tableId", "campaignId", "campaignName"]) {
     const x = textKey(a.place[key]);
     const y = textKey(b.place[key]);
@@ -211,6 +232,7 @@ function outranks(a, b) {
  *
  * @param {Array<{
  *   tableId?: string | null,
+ *   integrationType?: string | null,
  *   settings: Record<string, unknown> | null | undefined,
  *   campaignId?: string | null,
  *   campaignName?: string | null,
@@ -231,7 +253,7 @@ export function resolvePulseTargetAcross(places, goal) {
       found.find((target) => target.source === "approved") || found[0] || null;
     if (!own) continue;
     const candidate = { target: own, place };
-    if (!best || outranks(candidate, best)) best = candidate;
+    if (!best || outranks(candidate, best, goal)) best = candidate;
   }
   if (!best) return null;
   return {

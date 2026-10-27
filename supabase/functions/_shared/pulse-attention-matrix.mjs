@@ -377,6 +377,7 @@ export function buildPulseAttentionRows({
     const target = resolvePulseTargetAcross(
       platformTablesForClient(tables, clientId, platform).map((table) => ({
         tableId: table.id,
+        integrationType: table.integration_type ?? null,
         settings: table.integration_settings || {},
       })),
       metrics.primaryGoal,

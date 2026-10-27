@@ -203,6 +203,41 @@ describe("PulseTargetEditorDialog", () => {
       campaignName: "לידים שיפוץ",
     });
   });
+
+  it("breaks a platform target tie between duplicate Meta tables like the pulse", () => {
+    // Legacy CPL on both tables; a lead goal reads best from the insights table,
+    // even though the ecommerce table has the lower id and comes first.
+    render(
+      <PulseTargetEditorDialog
+        open
+        onOpenChange={() => {}}
+        context={{
+          clientId: "client-1",
+          clientName: "שיפוצי אבי",
+          platform: "meta",
+          primaryGoal: "leads",
+          platformTableIds: ["t-a", "t-b"],
+        }}
+        campaigns={[]}
+        tableSettingsById={
+          new Map([
+            ["t-a", { target_cpl: 60 }],
+            ["t-b", { target_cpl: 80 }],
+          ])
+        }
+        tableTypeById={
+          new Map([
+            ["t-a", "facebook_ecommerce"],
+            ["t-b", "facebook_insights"],
+          ])
+        }
+        savingKey={null}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/₪80 \(מהגדרות הדוח\)/)).toBeTruthy();
+    expect(screen.queryByText(/₪60/)).toBeNull();
+  });
 });
 
 describe("PulseMissingTargetsList", () => {
