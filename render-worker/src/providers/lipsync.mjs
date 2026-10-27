@@ -3,7 +3,8 @@
 // providers). Same shape as the video providers:
 //   estimate({ durationS })  -> { credits, usd }
 //   submit(input)            -> { jobId }
-//   poll(jobId)              -> { status: "pending" | "succeeded" | "failed", url?, error? }
+//   poll(jobId)              -> { status: "pending" | "succeeded" | "failed", url?, bytes?,
+//                                 costUsd?, error? }  (costUsd: what the provider charged)
 // input: { imageBytes, imageUrl, audioBytes, audioUrl, videoUrl, prompt, durationS, aspect }
 // `needs` says which picture the provider animates: "image" (the still) or "video" (the clip).
 //
@@ -203,6 +204,8 @@ export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
   };
 }
 
+export const HEYGEN_LIPSYNC_MODEL = "heygen/avatar-iv";
+
 /**
  * HeyGen Avatar IV on OpenRouter: one portrait + the scene's own voice line -> a lip-synced
  * talking video whose length follows the audio, at $0.05 a second. OpenRouter's model page:
@@ -211,8 +214,6 @@ export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
  * https://openrouter.ai/heygen/avatar-iv · https://openrouter.ai/api/v1/videos/models
  * Same key, job API and poll as the OpenRouter scene engine. Verify with one paid call.
  */
-export const HEYGEN_LIPSYNC_MODEL = "heygen/avatar-iv";
-
 export function heygenLipsyncBody({ imageUrl, audioUrl, prompt, aspect }) {
   if (!imageUrl) throw new Error("heygen lipsync needs a public image url");
   if (!audioUrl) throw new Error("heygen lipsync needs the voice line");

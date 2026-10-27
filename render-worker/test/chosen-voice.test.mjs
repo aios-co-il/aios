@@ -159,7 +159,7 @@ test("the lip sync of a chosen-voice scene animates the user's picture with that
   expect(attach.args.p_meta.dialogue).toBe(LINE);
 });
 
-test("a chosen-voice line goes to HeyGen with its own audio, never to OpenRouter Veo, which speaks in its own voice", async () => {
+test("a chosen-voice line is tried on HeyGen, never on OpenRouter Veo, which speaks in its own voice", async () => {
   const tried = [];
   const providerFor = (name) => {
     tried.push(name);
@@ -171,7 +171,7 @@ test("a chosen-voice line goes to HeyGen with its own audio, never to OpenRouter
       },
     };
   };
-  // HeyGen refuses before any job starts: the run fails instead of falling back to Veo.
+  // HeyGen refuses before any job starts and nothing is left to try: Veo is not a candidate.
   await expect(
     generateLipsync({
       db: fakeDb(),

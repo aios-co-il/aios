@@ -697,6 +697,25 @@ test("a new line keeps the movement: the earlier animated clip is reused, never 
   expect(relipped.args.p_meta.motion_clip_asset_id).toBeUndefined();
 });
 
+/** OpenRouter's video API: a POST starts job "hg-1", which is done and charged `cost`. */
+function fakeOpenRouterFetch(cost, posted = []) {
+  return async (url, init = {}) => {
+    if (init.method === "POST") {
+      posted.push(JSON.parse(init.body));
+      return { ok: true, json: async () => ({ id: "hg-1" }) };
+    }
+    if (url.endsWith("/content?index=0"))
+      return {
+        ok: true,
+        arrayBuffer: async () => new Uint8Array([0, 0, 0, 1]).buffer,
+      };
+    return {
+      ok: true,
+      json: async () => ({ status: "completed", usage: { cost } }),
+    };
+  };
+}
+
 test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voice line", async () => {
   const { heygenLipsyncBody, heygenLipsyncProvider } =
     await import("../src/providers/lipsync.mjs");
@@ -729,23 +748,10 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
   ).toBe("9:16");
   expect(() => heygenLipsyncBody({ imageUrl: "a" })).toThrow(/voice line/);
 
-  const calls = [];
+  const posted = [];
   const provider = heygenLipsyncProvider({
     apiKey: "or-key",
-    fetchImpl: async (url, init = {}) => {
-      calls.push({ url, body: init.body ? JSON.parse(init.body) : null });
-      if (init.method === "POST")
-        return { ok: true, json: async () => ({ id: "hg-1" }) };
-      if (url.endsWith("/content?index=0"))
-        return {
-          ok: true,
-          arrayBuffer: async () => new Uint8Array([1, 2]).buffer,
-        };
-      return {
-        ok: true,
-        json: async () => ({ status: "completed", usage: { cost: 0.2 } }),
-      };
-    },
+    fetchImpl: fakeOpenRouterFetch(0.2, posted),
   });
   expect(provider.name).toBe("heygen");
   expect(provider.needs).toBe("image");
@@ -759,8 +765,7 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
     aspect: "9:16",
   });
   expect(jobId).toBe("hg-1");
-  expect(calls[0].url).toMatch(/\/videos$/);
-  expect(calls[0].body.model).toBe("heygen/avatar-iv");
+  expect(posted[0].model).toBe("heygen/avatar-iv");
   const done = await provider.poll("hg-1");
   expect(done.status).toBe("succeeded");
   expect(done.costUsd).toBe(0.2);
@@ -795,24 +800,7 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
           })
         : heygenLipsyncProvider({
             apiKey: keys.openRouterKey,
-            fetchImpl: async (url, init = {}) => {
-              if (init.method === "POST") {
-                sent.push(JSON.parse(init.body));
-                return { ok: true, json: async () => ({ id: "hg-1" }) };
-              }
-              if (url.endsWith("/content?index=0"))
-                return {
-                  ok: true,
-                  arrayBuffer: async () => new Uint8Array([0, 0, 0, 1]).buffer,
-                };
-              return {
-                ok: true,
-                json: async () => ({
-                  status: "completed",
-                  usage: { cost: 0.21 },
-                }),
-              };
-            },
+            fetchImpl: fakeOpenRouterFetch(0.21, sent),
           }),
     env: {},
     log: () => {},

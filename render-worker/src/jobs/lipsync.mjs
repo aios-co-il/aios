@@ -332,7 +332,7 @@ async function finishLipsync({
   }
   const seconds = (await videoSeconds(bytes)) ?? durationS;
   // What the provider charged when it says (OpenRouter), else the planning price.
-  const estimate = Number.isFinite(result.costUsd)
+  const cost = Number.isFinite(result.costUsd)
     ? { usd: result.costUsd, credits: 0 }
     : provider.estimate({ durationS: seconds });
   const path = await lipsyncPath(db, run, item.folder);
@@ -356,7 +356,7 @@ async function finishLipsync({
       ...(motionClipId ? { motion_clip_asset_id: motionClipId } : {}),
       duration_s: seconds,
       aspect,
-      generation_cost: { usd: estimate.usd, credits: estimate.credits },
+      generation_cost: { usd: cost.usd, credits: cost.credits },
     },
     p_run_id: run.id,
   });
@@ -369,8 +369,8 @@ async function finishLipsync({
       job_id: jobId,
       lipsync: true,
     },
-    costUsd: estimate.usd,
-    credits: estimate.credits,
+    costUsd: cost.usd,
+    credits: cost.credits,
     provider: provider.name,
   };
 }
