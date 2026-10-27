@@ -2,6 +2,13 @@
 import type { StaffAlertResult } from "../../_shared/staff-notify.ts";
 import type { SendOutcome } from "./store.ts";
 
+/**
+ * Time a send must have left before it starts: send-manus-wa-message may wait
+ * its full 60 s fetch timeout, and a send cut off by the wall clock leaves
+ * its rows claimed (delivery_unknown, never retried).
+ */
+export const SEND_RESERVE_MS = 65_000;
+
 export type SendStaffMessage = (input: {
   tenantId: string;
   phone: string;

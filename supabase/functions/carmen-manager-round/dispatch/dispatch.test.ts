@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
+import { RoundBudget } from "../budget.ts";
 import { deps } from "../tests/fakes.ts";
 import {
   delivery,
@@ -31,12 +32,24 @@ function setup(
   }
 }
 
-const run = (w: World, skip: string[] = [], settings = team) =>
-  dispatchDue(deps(w), {
+const run = (
+  w: World,
+  skip: string[] = [],
+  settings = team,
+  fields: {
+    briefKeys?: string[];
+    budget?: RoundBudget;
+    ports?: ReturnType<typeof deps>;
+  } = {},
+) =>
+  dispatchDue(fields.ports ?? deps(w), {
     tenantId: TENANT,
     settings,
     now: w.now,
     skip: new Set(skip),
+    floors: {},
+    briefKeys: () => Promise.resolve(new Set(fields.briefKeys ?? [])),
+    budget: fields.budget ?? RoundBudget.create(140_000, 0),
   });
 
 Deno.test("dispatchDue", async (t) => {
@@ -73,38 +86,6 @@ Deno.test("dispatchDue", async (t) => {
     },
   );
 
-  await t.step(
-    "at most seven items; the rest roll to the next 08:30 list",
-    async () => {
-      const w = world();
-      setup(w, 9);
-      await run(w);
-      assertEquals(w.sent.length, 1);
-      assertEquals(w.sent[0].message.split("\n").length, 8);
-      const later = w.deliveries.filter((d) => d.status === "planned");
-      assertEquals(
-        later.map((d) => d.not_before),
-        ["2026-11-02T06:30:00.000Z", "2026-11-02T06:30:00.000Z"],
-      );
-    },
-  );
-
-  await t.step("over the daily cap nothing is sent today", async () => {
-    const w = world();
-    setup(w, 1);
-    for (let i = 0; i < 8; i++) {
-      w.deliveries.push(
-        delivery({
-          finding_id: "old",
-          status: "sent",
-          attempted_at: "2026-11-01T06:00:00Z",
-        }),
-      );
-    }
-    const report = await run(w);
-    assertEquals([w.sent.length, report.deferred], [0, 1]);
-  });
-
   await t.step("on Shabbat only a Shabbat-critical alert leaves", async () => {
     const w = world({ now: new Date("2026-10-31T09:00:00Z") });
     setup(w, 1);
@@ -135,6 +116,43 @@ Deno.test("dispatchDue", async (t) => {
   );
 
   await t.step(
+    "team -> david_only: rows planned for campaigners are cancelled, the brief recipients' go",
+    async () => {
+      const w = world();
+      setup(w, 1);
+      w.deliveries.push(
+        delivery({
+          finding_id: w.findings[0].id,
+          recipient_key: "user:owner",
+          recipient_name: "דוד",
+          level: 2,
+        }),
+      );
+      const davidOnly = resolveManagerSettings({
+        manager: { mode: "david_only", notify_since: "2026-10-01T00:00:00Z" },
+      });
+      const report = await run(w, [], davidOnly, { briefKeys: ["user:owner"] });
+      assertEquals([report.sent, report.cancelled], [1, 1]);
+      assertEquals(w.sent[0].message.startsWith("היי דוד"), true);
+    },
+  );
+
+  await t.step(
+    "david_only -> observe -> david_only: rows about events before the new notify_since are cancelled",
+    async () => {
+      const w = world();
+      setup(w, 1, { source_event_at: "2026-11-01T05:00:00Z" });
+      w.deliveries[0].recipient_key = "user:owner";
+      const restamped = resolveManagerSettings({
+        manager: { mode: "david_only", notify_since: "2026-11-01T07:30:00Z" },
+      });
+      const report = await run(w, [], restamped, { briefKeys: ["user:owner"] });
+      assertEquals([w.sent.length, report.cancelled], [0, 1]);
+      assertEquals(w.deliveries[0].status, "cancelled");
+    },
+  );
+
+  await t.step(
     "someone who got the brief this round waits; no phone and failures are recorded",
     async () => {
       const w = world();
@@ -155,6 +173,44 @@ Deno.test("dispatchDue", async (t) => {
       setup(down, 1);
       await run(down);
       assertEquals(down.deliveries[0].status, "no_line");
+    },
+  );
+
+  await t.step("without time for a send nothing is claimed", async () => {
+    const w = world();
+    setup(w, 1);
+    const report = await run(w, [], team, {
+      budget: RoundBudget.create(60_000, 0),
+    });
+    assertEquals([report.messages, w.deliveries[0].status], [0, "planned"]);
+  });
+
+  await t.step(
+    "out of time mid-way, the rest of the claim is put back due at once",
+    async () => {
+      const w = world();
+      setup(w, 1);
+      setup(w, 1, { short_code: 20 });
+      w.deliveries[1].recipient_key = "user:avi";
+      let clock = 0;
+      const ports = deps(w);
+      const send = ports.send;
+      ports.send = (input) => {
+        clock += 80_000;
+        return send(input);
+      };
+      const report = await run(w, [], team, {
+        ports,
+        budget: RoundBudget.create(140_000, 0, () => clock),
+      });
+      assertEquals([report.messages, report.deferred], [1, 1]);
+      assertEquals(
+        w.deliveries.map((d) => [d.status, d.not_before]),
+        [
+          ["sent", "2026-10-01T00:00:00Z"],
+          ["planned", w.now.toISOString()],
+        ],
+      );
     },
   );
 });

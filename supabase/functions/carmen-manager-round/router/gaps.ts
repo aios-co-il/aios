@@ -1,7 +1,8 @@
 /**
  * Routing gaps as findings for the owner: clients without an active
- * campaigner and people without a usable phone among those the router
- * resolved this run; a gap checked again and found fixed is cleared at once.
+ * campaigner and people without a usable phone, among those the router
+ * resolved or re-checked this run; a gap checked again and found fixed (or
+ * no longer reachable) is cleared at once.
  */
 import type { FindingCandidate } from "../collectors/types.ts";
 import type { FindingsStore } from "../findings/store.ts";
@@ -19,23 +20,28 @@ export type Gaps = {
   checkedPeople: string[];
 };
 
-/** Clients without a campaigner and people without a phone among those resolved. */
-export function routingGaps(
-  people: ClientRecipients[],
-  brief: Recipient[],
-  now: Date,
-): Gaps {
+export type GapInput = {
+  /** Each client resolved this run by id; a null client is no longer the tenant's. */
+  clients: Map<string, ClientRecipients>;
+  /** Brief recipients and the people of open missing_phone gaps. */
+  people: Recipient[];
+  /** Keys of people of open missing_phone gaps the router can no longer reach. */
+  gone: string[];
+};
+
+/** Clients without a campaigner and people without a phone among those checked. */
+export function routingGaps(input: GapInput, now: Date): Gaps {
   const candidates: FindingCandidate[] = [];
   const checkedClients: string[] = [];
   const everyone = new Map<string, Recipient>(
-    brief.map((recipient) => [recipient.key, recipient]),
+    input.people.map((recipient) => [recipient.key, recipient]),
   );
-  for (const { client, campaigners, managers } of people) {
-    if (!client) {
+  for (const [clientId, { client, campaigners, managers }] of input.clients) {
+    if (!clientId) {
       continue;
     }
-    checkedClients.push(`client:${client.id}`);
-    if (!campaigners.length) {
+    checkedClients.push(`client:${clientId}`);
+    if (client && !campaigners.length) {
       candidates.push(noCampaignerFinding(client, now));
     }
     for (const recipient of [...campaigners, ...managers]) {
@@ -50,7 +56,9 @@ export function routingGaps(
   return {
     candidates,
     checkedClients,
-    checkedPeople: [...everyone.keys()].map((key) => `person:${key}`),
+    checkedPeople: [...everyone.keys(), ...input.gone].map(
+      (key) => `person:${key}`,
+    ),
   };
 }
 

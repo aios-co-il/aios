@@ -97,6 +97,20 @@ Deno.test("routeFinding at owner level (david_only, ops kinds)", async (t) => {
     },
   );
 
+  await t.step(
+    "a finding left at level 0 by team mode moves up to the brief recipients",
+    () => {
+      const decision = routeFinding(
+        finding({ escalation_level: 0, status: "notified" }),
+        ctx(davidOnly),
+      );
+      assertEquals(
+        [decision.escalation_level, decision.planned_actions?.[0]?.to],
+        [2, ["דוד"]],
+      );
+    },
+  );
+
   await t.step("team mode sends data gaps to the owner level", () => {
     const decision = routeFinding(finding({ kind: "data_gap" }), ctx(team));
     assertEquals(

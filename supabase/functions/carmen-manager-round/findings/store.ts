@@ -40,8 +40,12 @@ export type FindingsStore = {
     now: Date,
     limit: number,
   ): Promise<FindingRow[]>;
-  /** Live findings, newest first (for the brief). */
-  listLive(tenantId: string, limit: number): Promise<FindingRow[]>;
+  /** Live findings, newest first (for the brief), optionally of some kinds only. */
+  listLive(
+    tenantId: string,
+    limit: number,
+    kinds?: readonly string[],
+  ): Promise<FindingRow[]>;
   byIds(tenantId: string, ids: string[]): Promise<FindingRow[]>;
   applyRoute(
     tenantId: string,
@@ -95,12 +99,13 @@ export function createFindingsStore(db: DbClient): FindingsStore {
       return data ?? [];
     },
 
-    async listLive(tenantId, limit) {
-      const { data, error } = await db
+    async listLive(tenantId, limit, kinds) {
+      const live = db
         .from("carmen_findings")
         .select(FINDING_COLUMNS)
         .eq("tenant_id", tenantId)
-        .in("status", [...FINDING_LIVE_STATUSES])
+        .in("status", [...FINDING_LIVE_STATUSES]);
+      const { data, error } = await (kinds ? live.in("kind", [...kinds]) : live)
         .order("last_seen_at", { ascending: false })
         .limit(limit);
       throwIf(error, "carmen_findings live");

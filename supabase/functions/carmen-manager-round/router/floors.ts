@@ -9,7 +9,13 @@ import { ROUTER_KINDS } from "../recipients/data-findings.ts";
 import { ROUND_STATE_KEY, type RoundStateRow } from "../state/store.ts";
 import type { NotifyFloors } from "./route.ts";
 
-/** The notify floor of every kind for one tenant, from its round state. */
+/**
+ * The notify floor of every kind for one tenant, from its round state. The
+ * state is read before the collectors run, so a collector without a state row
+ * is on its first run and floors its kinds at `now` (fail closed). The
+ * fixtures-only self-test collector declares every kind and never writes, so
+ * it sets no floor.
+ */
 export function notifyFloors(
   collectors: readonly Collector[],
   state: RoundStateRow[],
@@ -24,15 +30,14 @@ export function notifyFloors(
       }
     }
   };
+  const firstRun = (key: string) =>
+    state.find((entry) => entry.collector === key)?.first_run_at ??
+    now.toISOString();
   for (const collector of collectors) {
-    const row = state.find((entry) => entry.collector === collector.id);
-    if (row) {
-      raise(collector.kinds, row.first_run_at);
+    if (!collector.fixturesOnly) {
+      raise(collector.kinds, firstRun(collector.id));
     }
   }
-  const firstRound = state.find(
-    (entry) => entry.collector === ROUND_STATE_KEY,
-  )?.first_run_at;
-  raise(ROUTER_KINDS, firstRound ?? now.toISOString());
+  raise(ROUTER_KINDS, firstRun(ROUND_STATE_KEY));
   return floors;
 }

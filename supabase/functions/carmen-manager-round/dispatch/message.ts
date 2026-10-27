@@ -1,4 +1,5 @@
 /** The text of one alert message to one person (deterministic, Hebrew). */
+import type { DeliveryRow, FindingRow } from "../findings/types.ts";
 
 /** A daily list or an alert never carries more than this many items. */
 export const MAX_ITEMS_PER_MESSAGE = 7;
@@ -28,6 +29,31 @@ export function composeAlertMessage(
         `${index + 1}) #${item.short_code} ${item.summary_he}${note(item)}`,
     ),
   ].join("\n");
+}
+
+/** One item per finding of `rows`, marked escalated when it reached this person above level 0. */
+export function messageItems(
+  rows: DeliveryRow[],
+  findings: Map<string, FindingRow>,
+): MessageItem[] {
+  return [...new Set(rows.map((row) => row.finding_id))].flatMap((id) => {
+    const finding = findings.get(id);
+    if (!finding) {
+      return [];
+    }
+    const level = Math.max(
+      ...rows.filter((row) => row.finding_id === id).map((row) => row.level),
+    );
+    const critical = finding.severity === "critical";
+    return [
+      {
+        short_code: finding.short_code,
+        summary_he: finding.summary_he,
+        escalated: level > 0 && !critical,
+        critical,
+      },
+    ];
+  });
 }
 
 /** The first word of a display name, or "" when there is none. */

@@ -24,7 +24,8 @@
 --    override) starts sending and cleared when it stops; a writer's own value
 --    is ignored, so nothing can be backdated and no stale save can replay old
 --    findings. A save without a 'manager' key keeps the stored one. Only
---    owners may change mode, kinds and brief_recipients from the browser.
+--    owners may change the manager block from the browser, and a mode change
+--    cancels the messages planned under the old mode.
 -- 6. Cron 'carmen-manager-round-15m' from the Vault template (skips with a
 --    NOTICE when pg_cron, Vault or its secrets are missing).
 
@@ -434,8 +435,10 @@ GRANT EXECUTE ON FUNCTION public.carmen_finding_set_status(uuid, text, text, tex
 -- Upsert collector candidates. A live finding with the same
 -- (tenant, kind, fingerprint) is only bumped (last_seen_at, occurrence_count,
 -- latest evidence and summary; severity only rises, and a rise re-routes it).
--- A fingerprint dismissed in the last 14 days is not reopened. A client the
--- tenant cannot reach (not its own, no agency access) is rejected.
+-- A fingerprint dismissed in the last 14 days is not reopened. A client or
+-- agency the tenant cannot reach (not its own, no agency access) is
+-- rejected; a client's own agency always wins; an owner_user_id outside the
+-- tenant is dropped (the router then picks the client's campaigner).
 -- Candidate keys: kind, fingerprint, severity, client_id, agency_id,
 -- source_event_at, summary_he, evidence, owner_user_id.
 CREATE OR REPLACE FUNCTION public.carmen_finding_upsert(
@@ -456,6 +459,7 @@ DECLARE
   v_rank_new integer;
   v_existing record;
   v_agency uuid;
+  v_owner uuid;
   v_code integer;
   v_id uuid;
 BEGIN
@@ -479,7 +483,7 @@ BEGIN
 
     v_agency := c.agency_id;
     IF c.client_id IS NOT NULL THEN
-      SELECT coalesce(c.agency_id, cl.agency_id) INTO v_agency
+      SELECT cl.agency_id INTO v_agency
       FROM public.clients AS cl
       WHERE cl.id = c.client_id
         AND (cl.tenant_id = p_tenant_id OR EXISTS (
@@ -490,6 +494,27 @@ BEGIN
         RETURN NEXT;
         CONTINUE;
       END IF;
+    ELSIF c.agency_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.agencies AS a
+      WHERE a.id = c.agency_id
+        AND (a.tenant_id = p_tenant_id OR EXISTS (
+          SELECT 1 FROM public.agency_tenant_access AS ata
+          WHERE ata.agency_id = a.id AND ata.accessing_tenant_id = p_tenant_id))
+    ) THEN
+      outcome := 'rejected_agency';
+      RETURN NEXT;
+      CONTINUE;
+    END IF;
+
+    v_owner := c.owner_user_id;
+    IF v_owner IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.user_roles AS ur
+      WHERE ur.user_id = v_owner AND ur.tenant_id = p_tenant_id
+      UNION ALL
+      SELECT 1 FROM public.tenant_users AS tu
+      WHERE tu.user_id = v_owner AND tu.tenant_id = p_tenant_id
+    ) THEN
+      v_owner := NULL;
     END IF;
 
     IF EXISTS (
@@ -551,7 +576,7 @@ BEGIN
         detector_version, round_id)
       VALUES (
         p_tenant_id, c.client_id, v_agency, c.kind,
-        coalesce(c.severity, 'warning'), c.fingerprint, v_code, c.owner_user_id,
+        coalesce(c.severity, 'warning'), c.fingerprint, v_code, v_owner,
         coalesce(c.source_event_at, now()), coalesce(c.evidence, '{}'::jsonb),
         c.summary_he, p_collector, coalesce(p_detector_version, '1'), p_round_id)
       RETURNING id INTO v_id;
@@ -632,8 +657,8 @@ $$;
 
 -- Apply the router's decisions in one statement: routing state on each live
 -- finding of the tenant, planned delivery rows (the first plan per finding,
--- level and recipient wins) and an 'escalated' event when a finding moves
--- above its previous level. Decisions for findings that stopped being live
+-- level and recipient wins) and an 'escalated' event when a routed finding
+-- moves above its previous level (a first routing is not an escalation). Decisions for findings that stopped being live
 -- meanwhile (acknowledged, resolved) are ignored.
 -- Decision keys: finding_id, status, escalation_level, ladder_started_at,
 -- next_action_at, owner_user_id, planned_actions, deliveries[] (level,
@@ -690,7 +715,8 @@ AS $$
     INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, level)
     SELECT p_tenant_id, d.finding_id, 'escalated', d.escalation_level
     FROM decision AS d
-    WHERE d.escalation_level > coalesce(d.previous_level, 0)
+    WHERE d.previous_level IS NOT NULL
+      AND d.escalation_level > d.previous_level
     RETURNING 1
   )
   SELECT count(*)::integer FROM routed
@@ -961,6 +987,41 @@ AS $$
   ) END
 $$;
 
+-- The manager block without its notify_since stamps: what a writer chose.
+CREATE OR REPLACE FUNCTION public.carmen_manager_without_stamps(p_manager jsonb)
+RETURNS jsonb
+  LANGUAGE sql
+  IMMUTABLE
+  SET search_path TO ''
+AS $$
+  SELECT CASE WHEN jsonb_typeof(p_manager) = 'object' THEN
+    (p_manager - 'notify_since')
+    || CASE WHEN jsonb_typeof(p_manager -> 'kinds') = 'object'
+      THEN jsonb_build_object('kinds',
+        public.carmen_manager_kinds_without_stamps(p_manager -> 'kinds'))
+      ELSE '{}'::jsonb END
+  ELSE '{}'::jsonb END
+$$;
+
+-- Kinds whose own switch (enabled) or mode differs between two manager blocks.
+CREATE OR REPLACE FUNCTION public.carmen_manager_changed_kinds(p_old jsonb, p_new jsonb)
+RETURNS text[]
+  LANGUAGE sql
+  IMMUTABLE
+  SET search_path TO ''
+AS $$
+  SELECT coalesce(array_agg(k.key), '{}'::text[])
+  FROM (
+    SELECT jsonb_object_keys(CASE WHEN jsonb_typeof(p_old -> 'kinds') = 'object'
+      THEN p_old -> 'kinds' ELSE '{}'::jsonb END) AS key
+    UNION
+    SELECT jsonb_object_keys(CASE WHEN jsonb_typeof(p_new -> 'kinds') = 'object'
+      THEN p_new -> 'kinds' ELSE '{}'::jsonb END)
+  ) AS k
+  WHERE p_old -> 'kinds' -> k.key -> 'enabled' IS DISTINCT FROM p_new -> 'kinds' -> k.key -> 'enabled'
+     OR p_old -> 'kinds' -> k.key -> 'mode' IS DISTINCT FROM p_new -> 'kinds' -> k.key -> 'mode'
+$$;
+
 CREATE OR REPLACE FUNCTION public.carmen_manager_settings_guard()
 RETURNS trigger
   LANGUAGE plpgsql
@@ -976,6 +1037,8 @@ DECLARE
   k record;
   v_old_kind jsonb;
   v_kind jsonb;
+  v_mode_changed boolean;
+  v_changed_kinds text[];
 BEGIN
   IF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.pulse_alert_rules -> 'manager') = 'object' THEN
     v_old := OLD.pulse_alert_rules -> 'manager';
@@ -994,14 +1057,30 @@ BEGIN
   v_new := CASE WHEN jsonb_typeof(NEW.pulse_alert_rules -> 'manager') = 'object'
     THEN NEW.pulse_alert_rules -> 'manager' ELSE '{}'::jsonb END;
 
-  -- Rollout and recipients are owner-only from the browser.
+  -- The whole manager block (rollout, recipients, caps, hours, holidays) is
+  -- owner-only from the browser; tenant_heartbeat_settings lets any member
+  -- update the row.
   IF auth.uid() IS NOT NULL
-     AND (v_new -> 'mode' IS DISTINCT FROM v_old -> 'mode'
-       OR v_new -> 'brief_recipients' IS DISTINCT FROM v_old -> 'brief_recipients'
-       OR public.carmen_manager_kinds_without_stamps(v_new -> 'kinds')
-          IS DISTINCT FROM public.carmen_manager_kinds_without_stamps(v_old -> 'kinds'))
+     AND public.carmen_manager_without_stamps(v_new)
+       IS DISTINCT FROM public.carmen_manager_without_stamps(v_old)
      AND NOT public.carmen_manager_is_owner(NEW.tenant_id) THEN
     RAISE EXCEPTION 'carmen_manager_settings_owner_only' USING ERRCODE = '42501';
+  END IF;
+
+  -- Messages planned under the old rollout never go out under the new one:
+  -- a tenant mode change cancels every planned message of the tenant, a
+  -- kind's own change those of that kind.
+  IF TG_OP = 'UPDATE' THEN
+    v_mode_changed := v_new -> 'mode' IS DISTINCT FROM v_old -> 'mode';
+    v_changed_kinds := public.carmen_manager_changed_kinds(v_old, v_new);
+    IF v_mode_changed OR cardinality(v_changed_kinds) > 0 THEN
+      UPDATE public.carmen_finding_deliveries AS d
+      SET status = 'cancelled'
+      FROM public.carmen_findings AS f
+      WHERE d.tenant_id = NEW.tenant_id AND d.status = 'planned'
+        AND f.id = d.finding_id
+        AND (v_mode_changed OR f.kind = ANY (v_changed_kinds));
+    END IF;
   END IF;
 
   -- notify_since: kept while the mode keeps sending, stamped now() when it
@@ -1042,9 +1121,13 @@ REVOKE ALL ON FUNCTION public.carmen_manager_settings_guard() FROM PUBLIC, anon,
 REVOKE ALL ON FUNCTION public.carmen_manager_mode_sends(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_manager_kind_sends(jsonb, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_manager_kinds_without_stamps(jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.carmen_manager_without_stamps(jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.carmen_manager_changed_kinds(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_mode_sends(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_kind_sends(jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_kinds_without_stamps(jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.carmen_manager_without_stamps(jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.carmen_manager_changed_kinds(jsonb, jsonb) TO service_role;
 
 DROP TRIGGER IF EXISTS carmen_manager_settings_guard ON public.tenant_heartbeat_settings;
 CREATE TRIGGER carmen_manager_settings_guard

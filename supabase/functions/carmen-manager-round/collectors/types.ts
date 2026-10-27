@@ -8,6 +8,19 @@
  * (carmen_finding_upsert), auto-clears the findings it no longer reports
  * (carmen_finding_mark_missing over `coverage`) and stores `watermark` only
  * after a successful run. Routing and sending are never a collector's job.
+ *
+ * Rules for every collector (R4 chat SLA, R5 contact, R6 group updates):
+ * - summary_he goes to staff word for word, and campaigners read summary_he
+ *   and evidence through RLS: no direct-message text in either, and a group
+ *   quote of at most 200 characters.
+ * - Rows stored from Green API (David's phone) are read only through
+ *   service-role SQL functions; nothing is ever sent through Green API.
+ * - Only the tenant's own clients and clients of agencies shared with it; a
+ *   group shared by several tenants is read once per group_chat_id.
+ * - LLM use (chat intent only) is metered against the tenant's monthly
+ *   budget (plan C7: monthly_budget_usd and round_llm_share_pct over
+ *   ai_usage_log month to date), cached, with a deterministic fallback. The
+ *   budget is not in ManagerSettings or CollectorContext yet; R4 adds it.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Json } from "../../_shared/database.types.ts";

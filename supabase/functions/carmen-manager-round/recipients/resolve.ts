@@ -53,18 +53,24 @@ export async function resolveClientRecipients(
   };
 }
 
-/** The morning brief's recipients: the chosen staff, else the tenant owners. */
+/**
+ * The morning brief's recipients: the chosen staff (owners, agency owners or
+ * team managers of the tenant), else the tenant owners, else its agency
+ * owners. A choice that matches no staff member falls back the same way, so
+ * david_only always has someone to reach when the tenant has an owner.
+ */
 export function resolveBriefRecipients(
   staff: StaffMember[],
   settings: Pick<ManagerSettings, "brief_recipients">,
 ): Recipient[] {
-  if (!settings.brief_recipients.length) {
-    return staffWith(staff, ["owner"], "owner");
-  }
   const chosen = staff.filter((member) =>
     settings.brief_recipients.includes(member.user_id),
   );
-  return chosen.map((member) => staffRecipient(member, "owner"));
+  if (chosen.length) {
+    return chosen.map((member) => staffRecipient(member, "owner"));
+  }
+  const owners = staffWith(staff, ["owner"], "owner");
+  return owners.length ? owners : staffWith(staff, ["agency_owner"], "owner");
 }
 
 /** Staff holding one of `roles`, as recipients of `as`. */

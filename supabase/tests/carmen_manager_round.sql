@@ -6,6 +6,9 @@ DECLARE
   v_tenant uuid;
   v_client uuid;
   v_other_client uuid;
+  v_other_agency uuid;
+  v_member uuid;
+  v_planned uuid;
   v_stranger uuid := gen_random_uuid();
   v_round uuid := gen_random_uuid();
   v_finding uuid;
@@ -57,6 +60,21 @@ BEGIN
     IF v_outcome <> 'rejected_client' THEN RAISE EXCEPTION 'upsert: foreign client must be rejected'; END IF;
   END IF;
 
+  -- Nor another tenant's agency, when the candidate names no client.
+  SELECT a.id INTO v_other_agency FROM public.agencies AS a
+  WHERE a.tenant_id IS DISTINCT FROM v_tenant
+    AND NOT EXISTS (
+      SELECT 1 FROM public.agency_tenant_access AS ata
+      WHERE ata.agency_id = a.id AND ata.accessing_tenant_id = v_tenant)
+  LIMIT 1;
+  IF v_other_agency IS NOT NULL THEN
+    SELECT u.outcome INTO v_outcome
+    FROM public.carmen_finding_upsert(v_tenant, v_round, 'qa', '1',
+      jsonb_build_array(cand || jsonb_build_object('client_id', NULL,
+        'agency_id', v_other_agency, 'fingerprint', 'qa-agency'))) AS u;
+    IF v_outcome <> 'rejected_agency' THEN RAISE EXCEPTION 'upsert: foreign agency must be rejected'; END IF;
+  END IF;
+
   -- A stranger cannot see, probe or change the finding.
   PERFORM set_config('request.jwt.claim.sub', v_stranger::text, true);
   BEGIN
@@ -68,14 +86,15 @@ BEGIN
   END;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 
-  -- Routing: first plan per (finding, level, recipient) wins; claims are single.
+  -- Routing: first plan per (finding, level, recipient) wins; claims are
+  -- single; a first routing is not an escalation, moving up a level is.
   PERFORM public.carmen_finding_apply_route(v_tenant, v_round, jsonb_build_array(
-    jsonb_build_object('finding_id', v_finding, 'status', 'notified', 'escalation_level', 1,
-      'deliveries', jsonb_build_array(jsonb_build_object('level', 1, 'recipient_key', 'qa:one',
+    jsonb_build_object('finding_id', v_finding, 'status', 'notified', 'escalation_level', 0,
+      'deliveries', jsonb_build_array(jsonb_build_object('level', 0, 'recipient_key', 'qa:one',
         'channel', 'manus_wa', 'slot', 'now', 'status', 'planned', 'not_before', now() - interval '1 minute')))));
   PERFORM public.carmen_finding_apply_route(v_tenant, v_round, jsonb_build_array(
     jsonb_build_object('finding_id', v_finding, 'status', 'notified', 'escalation_level', 1,
-      'deliveries', jsonb_build_array(jsonb_build_object('level', 1, 'recipient_key', 'qa:one',
+      'deliveries', jsonb_build_array(jsonb_build_object('level', 0, 'recipient_key', 'qa:one',
         'channel', 'manus_wa', 'slot', 'now', 'status', 'planned')))));
   IF (SELECT count(*) FROM public.carmen_finding_deliveries WHERE finding_id = v_finding) <> 1
      OR (SELECT count(*) FROM public.carmen_finding_events WHERE finding_id = v_finding AND event = 'escalated') <> 1 THEN
@@ -129,12 +148,49 @@ BEGIN
   IF v_rules #>> '{manager,notify_since}' IS DISTINCT FROM v_stamp THEN
     RAISE EXCEPTION 'guard: a save without manager must keep the stored settings';
   END IF;
+
+  -- The whole manager block is owner-only from the browser: a member who is
+  -- not an owner may save other settings, never caps or hours.
+  SELECT ur.user_id INTO v_member FROM public.user_roles AS ur
+  WHERE ur.tenant_id = v_tenant AND ur.role::text NOT IN ('owner', 'agency_owner', 'super_admin')
+  LIMIT 1;
+  PERFORM set_config('request.jwt.claim.sub', coalesce(v_member, v_stranger)::text, true);
+  IF public.carmen_manager_is_owner(v_tenant) THEN
+    PERFORM set_config('request.jwt.claim.sub', v_stranger::text, true);
+  END IF;
+  UPDATE public.tenant_heartbeat_settings
+  SET pulse_alert_rules = pulse_alert_rules || '{"cpl_spike_pct": 61}'
+  WHERE tenant_id = v_tenant;
+  BEGIN
+    UPDATE public.tenant_heartbeat_settings
+    SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,max_alerts_per_recipient_per_day}', '500')
+    WHERE tenant_id = v_tenant;
+    RAISE EXCEPTION 'Expected rejection';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message <> 'carmen_manager_settings_owner_only' THEN
+      RAISE EXCEPTION 'guard: a non-owner changed the manager block (%)', v_message;
+    END IF;
+  END;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+
+  -- A mode change cancels the messages planned under the old mode.
+  SELECT u.finding_id INTO v_planned
+  FROM public.carmen_finding_upsert(v_tenant, v_round, 'qa', '1',
+    jsonb_build_array(cand || '{"fingerprint": "qa-rollback-planned"}')) AS u;
+  PERFORM public.carmen_finding_apply_route(v_tenant, v_round, jsonb_build_array(
+    jsonb_build_object('finding_id', v_planned, 'status', 'notified', 'escalation_level', 0,
+      'deliveries', jsonb_build_array(jsonb_build_object('level', 0, 'recipient_key', 'qa:two',
+        'channel', 'manus_wa', 'slot', 'list', 'status', 'planned', 'not_before', now() + interval '1 hour')))));
   UPDATE public.tenant_heartbeat_settings
   SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,mode}', '"observe"')
   WHERE tenant_id = v_tenant;
   IF (SELECT pulse_alert_rules #> '{manager,notify_since}' FROM public.tenant_heartbeat_settings
       WHERE tenant_id = v_tenant) IS NOT NULL THEN
     RAISE EXCEPTION 'guard: observe must drop notify_since';
+  END IF;
+  IF (SELECT status FROM public.carmen_finding_deliveries WHERE finding_id = v_planned) <> 'cancelled' THEN
+    RAISE EXCEPTION 'guard: a mode change must cancel planned messages';
   END IF;
 
   -- Browsers read through RLS and write only through carmen_finding_set_status.

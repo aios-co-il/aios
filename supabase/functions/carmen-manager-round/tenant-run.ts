@@ -37,7 +37,10 @@ export type TenantReport = {
 
 export type TenantRun = {
   roundId: string;
+  /** This tenant's slice of the call's work budget. */
   budget: RoundBudget;
+  /** The call's send window, shared by every tenant (round.ts). */
+  sendBudget: RoundBudget;
   request: RoundRequest;
 };
 

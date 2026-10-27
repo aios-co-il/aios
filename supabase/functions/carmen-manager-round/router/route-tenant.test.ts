@@ -104,6 +104,61 @@ Deno.test("routeTenant", async (t) => {
     },
   );
 
+  await t.step(
+    "a fixed gap clears on a later round with nothing else to route",
+    async () => {
+      const w = setup();
+      await route(w);
+      await route(w);
+      const live = () =>
+        w.findings
+          .filter(
+            (f) =>
+              f.status !== "resolved" &&
+              ["no_campaigner", "missing_phone"].includes(f.kind),
+          )
+          .map((f) => `${f.kind}:${f.fingerprint}`);
+      assertEquals(live(), [
+        "no_campaigner:client:c2",
+        "missing_phone:person:user:owner",
+      ]);
+      w.assignments.c2 = w.assignments.c1;
+      w.staff = [{ ...owner, phone: "0503333333" }];
+      assertEquals((await route(w)).decisions, []);
+      assertEquals(live(), []);
+    },
+  );
+
+  await t.step(
+    "a campaigner's phone gap is re-checked through the directory; one no longer reachable clears",
+    async () => {
+      const w = world({ staff: [{ ...owner, phone: "0503333333" }] });
+      const gap = (key: string) =>
+        finding({
+          kind: "missing_phone",
+          fingerprint: `person:${key}`,
+          status: "notified",
+          escalation_level: 2,
+          routed: true,
+          evidence: { recipient_key: key, role: "campaigner" },
+        });
+      w.findings.push(gap("user:dana"), gap("campaigner:k9"), gap("user:rina"));
+      w.contacts = {
+        "user:dana": { name: "דנה", phone: "0501111111" },
+        "user:rina": { name: "רינה", phone: null },
+      };
+      const result = await route(w);
+      assertEquals(
+        result.gaps.map((g) => g.fingerprint),
+        ["person:user:rina"],
+      );
+      assertEquals(
+        w.findings.map((f) => f.status),
+        ["resolved", "resolved", "notified"],
+      );
+    },
+  );
+
   await t.step("nothing to route loads nobody", async () => {
     const w = world({ failOn: "staff" });
     assertEquals((await route(w)).decisions, []);

@@ -28,28 +28,49 @@ const row = (collector: string, first_run_at: string) => ({
   watermark: null,
 });
 
-Deno.test(
-  "notifyFloors: a kind starts at its collector's first run; the router's kinds at the first round",
-  () => {
-    const now = new Date("2026-11-01T08:00:00Z");
-    const floors = notifyFloors(
-      [contact, later],
-      [
-        row("contact", "2026-10-20T00:00:00Z"),
-        row("contact_v2", "2026-10-25T00:00:00Z"),
-        row("_round", "2026-10-10T00:00:00Z"),
-      ],
-      now,
-    );
-    assertEquals(floors, {
-      no_contact: "2026-10-25T00:00:00Z",
-      contact_not_logged: "2026-10-20T00:00:00Z",
-      no_campaigner: "2026-10-10T00:00:00Z",
-      missing_phone: "2026-10-10T00:00:00Z",
-    });
+const now = new Date("2026-11-01T08:00:00Z");
+
+Deno.test("notifyFloors", async (t) => {
+  await t.step(
+    "a kind starts at its collector's first run; the router's kinds at the first round",
+    () => {
+      const floors = notifyFloors(
+        [contact, later],
+        [
+          row("contact", "2026-10-20T00:00:00Z"),
+          row("contact_v2", "2026-10-25T00:00:00Z"),
+          row("_round", "2026-10-10T00:00:00Z"),
+        ],
+        now,
+      );
+      assertEquals(floors, {
+        no_contact: "2026-10-25T00:00:00Z",
+        contact_not_logged: "2026-10-20T00:00:00Z",
+        no_campaigner: "2026-10-10T00:00:00Z",
+        missing_phone: "2026-10-10T00:00:00Z",
+      });
+    },
+  );
+
+  await t.step("a collector on its first run floors its kinds at now", () => {
+    const at = now.toISOString();
     assertEquals(notifyFloors([contact], [], now), {
-      no_campaigner: now.toISOString(),
-      missing_phone: now.toISOString(),
+      no_contact: at,
+      contact_not_logged: at,
+      no_campaigner: at,
+      missing_phone: at,
     });
-  },
-);
+  });
+
+  await t.step("the fixtures-only self-test collector sets no floor", () => {
+    const fixture: Collector = {
+      ...contact,
+      id: "self_test",
+      fixturesOnly: true,
+    };
+    assertEquals(
+      Object.keys(notifyFloors([fixture], [row("_round", "2026-10-10")], now)),
+      ["no_campaigner", "missing_phone"],
+    );
+  });
+});

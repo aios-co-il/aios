@@ -7,6 +7,7 @@ import type {
   RouteDecision,
 } from "../findings/types.ts";
 import type { MissingScope } from "../findings/store.ts";
+import type { Contact } from "../recipients/contacts.ts";
 import type {
   CampaignerAssignment,
   ClientInfo,
@@ -30,6 +31,8 @@ export type World = {
   /** Assignments by client id. */
   assignments: Record<string, CampaignerAssignment[]>;
   staff: StaffMember[];
+  /** Campaigner contacts by recipient key (PeopleDirectory.contacts). */
+  contacts: Record<string, Contact>;
   heartbeats: TablesInsert<"heartbeat_logs">[];
   sent: { phone: string; message: string }[];
   decisions: RouteDecision[];
@@ -54,6 +57,7 @@ export function world(fields: Partial<World> = {}): World {
     clients: [],
     assignments: {},
     staff: [],
+    contacts: {},
     heartbeats: [],
     sent: [],
     decisions: [],

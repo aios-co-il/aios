@@ -1,7 +1,8 @@
 /**
  * Routing gaps as findings for the owner: a client with no active campaigner
  * (no_campaigner) and a person Carmen cannot message (missing_phone). Raised
- * and cleared by the router itself, from what it resolved this run.
+ * by the router from what it resolved, and re-checked every round until
+ * fixed (router/gap-recheck.ts).
  */
 import type { FindingCandidate } from "../collectors/types.ts";
 import type { Recipient } from "../findings/types.ts";
@@ -43,7 +44,7 @@ export function missingPhoneFinding(
     client_id: null,
     agency_id: null,
     source_event_at: now.toISOString(),
-    summary_he: `אין מספר WhatsApp תקין עבור ${recipient.name || "איש צוות"}, ולכן ההודעות של כרמן מוצגות רק במערכת`,
+    summary_he: `כרמן לא יכולה לשלוח הודעות ל־${recipient.name || "איש צוות"}: אין מספר WhatsApp תקין`,
     evidence: { recipient_key: recipient.key, role: recipient.role },
     owner_user_id: recipient.user_id,
   };

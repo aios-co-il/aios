@@ -6,7 +6,7 @@
 import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 import { sendsAnything } from "../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../_shared/manager-round/settings.ts";
-import { sendBriefIfDue } from "./brief/send.ts";
+import { type BriefRun, briefed, sendBriefIfDue } from "./brief/send.ts";
 import { dueCollectors } from "./collectors/registry.ts";
 import { runCollectors } from "./collectors/run.ts";
 import type { RoundDeps } from "./deps.ts";
@@ -52,22 +52,17 @@ export async function runSteps(
     dryRun,
     virtual: dryRun ? virtualFindings(collected.candidates) : undefined,
   });
-  const sends = sendsAnything(settings);
-  const brief = sends
-    ? await sendBriefIfDue(deps, {
-        tenantId,
-        settings,
-        now,
-        recipients: async () => resolveBriefRecipients(await staff(), settings),
-        floors,
-        dryRun,
-      })
-    : null;
-  const skip = new Set(brief?.sent.map((entry) => entry.key) ?? []);
-  const dispatch =
-    sends && !dryRun
-      ? await dispatchDue(deps, { tenantId, settings, now, skip })
-      : null;
+  const { brief, dispatch } = await deliver(deps, {
+    tenantId,
+    settings,
+    now,
+    recipients: once(async () =>
+      resolveBriefRecipients(await staff(), settings),
+    ),
+    floors,
+    budget: run.sendBudget,
+    dryRun,
+  });
   const preview = dryRun
     ? {
         candidates: collected.candidates,
@@ -83,6 +78,29 @@ export async function runSteps(
     dispatch,
     preview,
   };
+}
+
+/**
+ * The morning brief, then the due messages, when the tenant sends at all; a
+ * dry run only previews the brief.
+ */
+async function deliver(
+  deps: RoundDeps,
+  run: BriefRun,
+): Promise<Pick<TenantReport, "brief" | "dispatch">> {
+  if (!sendsAnything(run.settings)) {
+    return { brief: null, dispatch: null };
+  }
+  const brief = await sendBriefIfDue(deps, run);
+  const dispatch = run.dryRun
+    ? null
+    : await dispatchDue(deps, {
+        ...run,
+        skip: briefed(brief),
+        briefKeys: async () =>
+          new Set((await run.recipients()).map((recipient) => recipient.key)),
+      });
+  return { brief, dispatch };
 }
 
 /** Calls `load` at most once and shares its promise. */

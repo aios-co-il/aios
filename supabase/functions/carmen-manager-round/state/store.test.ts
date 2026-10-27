@@ -14,6 +14,7 @@ Deno.test("createRoundStateStore", async (t) => {
         }
         if (call.path === "tenant_heartbeat_settings") {
           return [
+            { tenant_id: T, pulse_alert_rules: { manager: { mode: "off" } } },
             { tenant_id: T, pulse_alert_rules: { manager: { mode: "team" } } },
           ];
         }
@@ -32,6 +33,8 @@ Deno.test("createRoundStateStore", async (t) => {
         },
       ]);
       assertEquals(calls[0].query.get("status"), "in.(active,trial)");
+      // Duplicate settings rows: the newest (last in updated_at order) wins.
+      assertEquals(calls[1].query.get("order"), "updated_at.asc");
       assertEquals(calls[2].query.get("collector"), "eq._round");
     },
   );

@@ -44,6 +44,7 @@ function directory(
     campaigners: () => Promise.resolve(assignments),
     staff: () => Promise.resolve([]),
     names: () => Promise.resolve(new Map()),
+    contacts: () => Promise.resolve(new Map()),
   };
 }
 
@@ -143,18 +144,23 @@ Deno.test("resolveClientRecipients", async (t) => {
   });
 });
 
-Deno.test(
-  "resolveBriefRecipients: chosen staff, else the tenant owners",
-  () => {
-    assertEquals(
-      resolveBriefRecipients(staff, { brief_recipients: [] }).map((r) => r.key),
-      ["user:owner"],
+Deno.test("resolveBriefRecipients", async (t) => {
+  const keys = (members: StaffMember[], chosen: string[]) =>
+    resolveBriefRecipients(members, { brief_recipients: chosen }).map(
+      (r) => r.key,
     );
-    assertEquals(
-      resolveBriefRecipients(staff, {
-        brief_recipients: ["tm", "stranger"],
-      }).map((r) => r.key),
-      ["user:tm"],
-    );
-  },
-);
+
+  await t.step("chosen staff, else the tenant owners", () => {
+    assertEquals(keys(staff, []), ["user:owner"]);
+    assertEquals(keys(staff, ["tm", "stranger"]), ["user:tm"]);
+  });
+
+  await t.step(
+    "a choice matching no staff falls back to the owners, then the agency owners",
+    () => {
+      assertEquals(keys(staff, ["stranger"]), ["user:owner"]);
+      const agencyOnly = staff.filter((m) => !m.roles.includes("owner"));
+      assertEquals(keys(agencyOnly, []), ["user:ao"]);
+    },
+  );
+});

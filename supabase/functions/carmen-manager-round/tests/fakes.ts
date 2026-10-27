@@ -5,8 +5,8 @@ import type { Collector } from "../collectors/types.ts";
 import type { RoundDeps } from "../deps.ts";
 import type { DeliveriesStore } from "../dispatch/store.ts";
 import type { FindingsStore } from "../findings/store.ts";
-import type { PeopleDirectory } from "../recipients/directory.ts";
 import type { RoundStateStore } from "../state/store.ts";
+import { fakeDirectory } from "./fake-directory.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
 
 export function deps(
@@ -18,7 +18,7 @@ export function deps(
     state: stateStore(w),
     findings: findingsStore(w),
     deliveries: deliveriesStore(w),
-    directory: directory(w),
+    directory: fakeDirectory(w),
     send: ({ phone, message }) => {
       w.sent.push({ phone, message });
       const sent = w.sendStatus === "sent";
@@ -76,7 +76,17 @@ function findingsStore(w: World): FindingsStore {
       ),
     markMissing: (_tenant, _round, scope) => {
       w.marks.push(scope);
-      return Promise.resolve(0);
+      const missed = w.findings.filter(
+        (f) =>
+          f.kind === scope.kind &&
+          LIVE.includes(f.status) &&
+          !scope.seen.includes(f.fingerprint) &&
+          (!scope.fingerprints || scope.fingerprints.includes(f.fingerprint)) &&
+          (!scope.clientIds || scope.clientIds.includes(f.client_id ?? "")),
+      );
+      const cleared = missed.filter((f) => ++f.missed >= scope.afterMisses);
+      cleared.forEach((f) => (f.status = "resolved"));
+      return Promise.resolve(cleared.length);
     },
     listRoutable: (_tenant, now) =>
       w.failOn === "findings"
@@ -90,8 +100,12 @@ function findingsStore(w: World): FindingsStore {
                     Date.parse(f.next_action_at) <= now.getTime())),
             ),
           ),
-    listLive: () =>
-      Promise.resolve(w.findings.filter((f) => LIVE.includes(f.status))),
+    listLive: (_tenant, _limit, kinds) =>
+      Promise.resolve(
+        w.findings.filter(
+          (f) => LIVE.includes(f.status) && (!kinds || kinds.includes(f.kind)),
+        ),
+      ),
     byIds: (_tenant, ids) =>
       Promise.resolve(w.findings.filter((f) => ids.includes(f.id))),
     applyRoute: (tenantId, _round, decisions) => {
@@ -220,18 +234,5 @@ function stateStore(w: World): RoundStateStore {
       w.heartbeats.push(row);
       return Promise.resolve();
     },
-  };
-}
-
-function directory(w: World): PeopleDirectory {
-  return {
-    client: (_tenant, id) =>
-      Promise.resolve(w.clients.find((c) => c.id === id) ?? null),
-    campaigners: (_tenant, id) => Promise.resolve(w.assignments[id] ?? []),
-    staff: () =>
-      w.failOn === "staff"
-        ? Promise.reject(new Error("db down"))
-        : Promise.resolve(w.staff),
-    names: (ids) => Promise.resolve(new Map(ids.map((id) => [id, `שם ${id}`]))),
   };
 }

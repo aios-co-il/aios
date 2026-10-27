@@ -93,18 +93,31 @@ Deno.test(
                 full_name: "דוד",
                 phone: "0503",
                 campaigner_id: null,
+                campaigners: null,
+              },
+              {
+                id: "u2",
+                full_name: "אבי",
+                phone: null,
+                campaigner_id: "k2",
+                campaigners: { phone: "0504", tenant_id: T, active: true },
               },
             ];
           }
           return [{ user_id: "u2", agency_id: "a1" }];
         });
         const staff = await createPeopleDirectory(db).staff(T);
+        // u2's number is only on the campaigner record the profile links to.
         assertEquals(
           staff.map((s) => [s.user_id, s.roles, s.managed_agency_ids, s.phone]),
           [
             ["u1", ["owner"], [], "0503"],
-            ["u2", ["team_manager"], ["a1"], null],
+            ["u2", ["team_manager"], ["a1"], "0504"],
           ],
+        );
+        assertEquals(
+          calls.find((c) => c.path === "profiles")?.query.get("select"),
+          "id,full_name,phone,campaigner_id,campaigners(phone,tenant_id,active)",
         );
         assertEquals(
           [calls[0].query.get("tenant_id"), calls[0].query.get("role")],

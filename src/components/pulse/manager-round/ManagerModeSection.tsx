@@ -37,7 +37,7 @@ export function ManagerModeSection({
       <div>
         <Label className="text-sm">כרמן כמנהלת שיווק</Label>
         <p className="text-xs text-muted-foreground">
-          שום דבר לא נשלח על מה שקרה לפני שהמצב שולח הופעל.
+          שום דבר לא נשלח על מה שקרה לפני שהופעל מצב שליחה.
         </p>
       </div>
       <RadioGroup

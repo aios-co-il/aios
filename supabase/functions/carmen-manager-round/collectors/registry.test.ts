@@ -1,6 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import type { RoundStateRow } from "../state/store.ts";
-import { dueCollectors } from "./registry.ts";
+import { BRIEF_STATE_PREFIX } from "../brief/send.ts";
+import { ROUTER_COLLECTOR, ROUTER_KINDS } from "../recipients/data-findings.ts";
+import { ROUND_STATE_KEY, type RoundStateRow } from "../state/store.ts";
+import { COLLECTORS, dueCollectors } from "./registry.ts";
 import type { Collector } from "./types.ts";
 
 const collect: Collector["collect"] = () =>
@@ -91,4 +93,30 @@ Deno.test("dueCollectors", async (t) => {
       );
     },
   );
+});
+
+Deno.test("COLLECTORS", async (t) => {
+  const real = COLLECTORS.filter((collector) => !collector.fixturesOnly);
+
+  await t.step("no collector id takes a key the round itself stores", () => {
+    const clashes = COLLECTORS.filter(
+      (collector) =>
+        [ROUND_STATE_KEY, ROUTER_COLLECTOR.id].includes(collector.id) ||
+        collector.id.startsWith(BRIEF_STATE_PREFIX),
+    );
+    assertEquals(clashes, []);
+  });
+
+  // Auto-clear is scoped by kind: two collectors sharing a kind would clear
+  // each other's findings and re-alert every cycle.
+  await t.step("each kind has one collector, and none the router's", () => {
+    const kinds = real.flatMap((collector) => [...collector.kinds]);
+    assertEquals(kinds.length, new Set(kinds).size);
+    assertEquals(
+      kinds.filter((kind) =>
+        ROUTER_KINDS.some((routerKind) => routerKind === kind),
+      ),
+      [],
+    );
+  });
 });

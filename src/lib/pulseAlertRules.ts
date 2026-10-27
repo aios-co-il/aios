@@ -56,24 +56,27 @@ function asRecord(raw: unknown): Record<string, unknown> {
 
 /**
  * The pulse_alert_rules value to save: the stored JSON with the edited alert
- * rules and manager settings laid over it. Keys this screen does not know
- * (other manager settings, future rules) are kept as they are.
+ * rules laid over it; keys this screen does not know are kept. The manager
+ * block is sent only when a manager setting actually changes: without it the
+ * database keeps the stored block (carmen_manager_settings_guard), so a stale
+ * page never reverts it and a non-owner's save never touches it.
  */
 export function mergePulseAlertRules(
   stored: unknown,
   rules: PulseAlertRules,
   manager: PulseManagerSettings = {},
 ): Record<string, unknown> {
-  const current = asRecord(stored);
+  const { manager: storedManager, ...current } = asRecord(stored);
   const merged: Record<string, unknown> = {
     ...current,
     ...parsePulseAlertRules({ ...current, ...rules }),
   };
-  const managerPatch = Object.fromEntries(
-    Object.entries(manager).filter(([, value]) => value !== undefined),
+  const block = asRecord(storedManager);
+  const changes = Object.entries(manager).filter(
+    ([key, value]) => value !== undefined && block[key] !== value,
   );
-  if (Object.keys(managerPatch).length > 0 || "manager" in current) {
-    merged.manager = { ...asRecord(current.manager), ...managerPatch };
+  if (changes.length > 0) {
+    merged.manager = { ...block, ...Object.fromEntries(changes) };
   }
   return merged;
 }

@@ -54,9 +54,11 @@ export function createRoundStateStore(db: DbClient): RoundStateStore {
           .from("tenants")
           .select("id")
           .in("status", [...RUNNING_TENANT_STATUSES]),
+        // No unique key on tenant_id: oldest first, so the newest row wins below.
         db
           .from("tenant_heartbeat_settings")
-          .select("tenant_id, pulse_alert_rules"),
+          .select("tenant_id, pulse_alert_rules")
+          .order("updated_at", { ascending: true }),
         db
           .from("carmen_round_state")
           .select("tenant_id, last_run_at")

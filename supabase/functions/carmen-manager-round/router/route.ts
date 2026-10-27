@@ -69,7 +69,11 @@ export function routeFinding(
     : climbLadder(finding, kind, ctx, asLevel(finding.escalation_level));
 }
 
-/** An event at or after the kind's notify_since and its collector's first run. */
+/**
+ * An event at or after the kind's notify_since and its collector's first run.
+ * A finding that worsens keeps its first event time, so one first seen before
+ * notify_since stays silent even when it turns critical (the safe direction).
+ */
 export function isDeliverable(
   finding: FindingRow,
   kind: FindingKind,
@@ -86,13 +90,17 @@ export function isDeliverable(
   );
 }
 
-/** Owner level only: urgent items at once, the rest in the next morning brief. */
+/**
+ * Owner level only: urgent items at once, the rest in the next morning brief.
+ * A finding still at level 0 or 1 (routed in team mode before a switch to
+ * david_only) moves up to the brief recipients instead of being left behind.
+ */
 function toBriefRecipients(
   finding: FindingRow,
   kind: FindingKind,
   ctx: RouteContext,
 ): RouteDecision {
-  if (finding.escalation_level !== null && finding.severity !== "critical") {
+  if (finding.escalation_level === 2 && finding.severity !== "critical") {
     return decide(finding, ctx, {
       level: finding.escalation_level,
       next: null,

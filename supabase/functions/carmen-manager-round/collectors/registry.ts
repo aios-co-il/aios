@@ -1,7 +1,9 @@
 /**
  * The collector registry. A new detector (R4 unanswered requests, R5 contact,
  * R6 group updates, KPI, platform alerts, reconciliation) is one file in this
- * folder implementing `Collector` (types.ts) and one entry here.
+ * folder implementing `Collector` (types.ts) and one entry here. Ids share
+ * carmen_round_state with the round's own keys ('_round', 'router',
+ * 'brief:*'), and each kind belongs to one collector (registry.test.ts).
  */
 import type { Json } from "../../_shared/database.types.ts";
 import { latestSlot } from "../calendar/slots.ts";

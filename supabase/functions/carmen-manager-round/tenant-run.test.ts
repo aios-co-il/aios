@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "./budget.ts";
 import { selfTestCollector } from "./collectors/self-test.ts";
+import type { Collector } from "./collectors/types.ts";
 import type { RoundRequest } from "./request.ts";
 import { runTenant } from "./tenant-run.ts";
 import { deps } from "./tests/fakes.ts";
@@ -32,18 +33,46 @@ function run(
   w: World,
   manager: Parameters<typeof rules>[0] | null,
   fields: Partial<RoundRequest> = {},
+  collectors: Collector[] = [selfTestCollector],
 ) {
   const tenant = {
     tenant_id: TENANT,
     pulse_alert_rules: manager ? rules(manager) : null,
     last_run_at: null,
   };
-  return runTenant(deps(w, [selfTestCollector]), tenant, {
+  return runTenant(deps(w, collectors), tenant, {
     roundId: "r1",
     budget: RoundBudget.create(60_000, 10),
+    sendBudget: RoundBudget.create(140_000, 0),
     request: { ...request, ...fields },
   });
 }
+
+/** A collector shipping today that reports an event from 4 days ago. */
+const newCollector: Collector = {
+  id: "chat_sla",
+  kinds: ["unanswered_request"],
+  detectorVersion: "1",
+  schedule: { trigger: () => Promise.resolve(true) },
+  collect: () =>
+    Promise.resolve({
+      candidates: [
+        {
+          kind: "unanswered_request",
+          fingerprint: "chat:1",
+          severity: "warning",
+          client_id: "c1",
+          agency_id: null,
+          source_event_at: "2026-10-30T10:00:00Z",
+          summary_he: "לקוח א ביקש דוח ולא קיבל תשובה",
+          evidence: {},
+          owner_user_id: null,
+        },
+      ],
+      watermark: null,
+      coverage: { complete: false, clientIds: null },
+    }),
+};
 
 Deno.test("runTenant", async (t) => {
   await t.step("a tenant switched off is skipped without a lease", async () => {
@@ -94,6 +123,43 @@ Deno.test("runTenant", async (t) => {
         w.sent[0].message.includes("#1 לקוח א: אין קשר 14 יום"),
         true,
       );
+    },
+  );
+
+  await t.step(
+    "a collector's first run never alerts on an event before it",
+    async () => {
+      // Tuesday 2026-11-03 12:00 Israel time, team mode since October.
+      const w = world({
+        now: new Date("2026-11-03T10:00:00Z"),
+        staff: [owner],
+        clients: [{ id: "c1", agency_id: "a1", name: "לקוח א" }],
+        assignments: {
+          c1: [
+            {
+              campaigner_id: "k1",
+              user_id: "dana",
+              name: "דנה",
+              phone: "0501111111",
+              campaign_role: true,
+              start_date: null,
+              end_date: null,
+            },
+          ],
+        },
+      });
+      await run(w, { mode: "team", notify_since: "2026-10-01T00:00:00Z" }, {}, [
+        newCollector,
+      ]);
+      assertEquals(
+        w.findings.map((f) => f.kind),
+        ["unanswered_request"],
+      );
+      assertEquals(
+        w.decisions[0].planned_actions?.[0]?.reason,
+        "before_notify_since",
+      );
+      assertEquals([w.deliveries.length, w.sent.length], [0, 0]);
     },
   );
 

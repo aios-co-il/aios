@@ -5,6 +5,8 @@
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { throwIf } from "../db-error.ts";
+import { type Contact, loadContacts } from "./contacts.ts";
+import { profilePhone, profilesBy } from "./profiles.ts";
 
 export type ClientInfo = { id: string; agency_id: string; name: string };
 
@@ -23,6 +25,7 @@ export type CampaignerAssignment = {
 export type StaffMember = {
   user_id: string;
   name: string;
+  /** Raw phone: the login profile's, else its linked campaigner record's. */
   phone: string | null;
   roles: string[];
   managed_agency_ids: string[];
@@ -40,6 +43,8 @@ export type PeopleDirectory = {
   staff(tenantId: string): Promise<StaffMember[]>;
   /** Display names of people the tenant's findings are assigned to. */
   names(userIds: string[]): Promise<Map<string, string>>;
+  /** Campaigners by recipient key, as the router reaches them now (contacts.ts). */
+  contacts(tenantId: string, keys: string[]): Promise<Map<string, Contact>>;
 };
 
 const STAFF_ROLES = ["owner", "agency_owner", "team_manager"] as const;
@@ -121,7 +126,7 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
         return {
           user_id: userId,
           name: profile?.full_name || "",
-          phone: profile?.phone ?? null,
+          phone: profile ? profilePhone(profile) : null,
           roles: (data ?? [])
             .filter((row) => row.user_id === userId)
             .map((row) => row.role),
@@ -138,22 +143,7 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
         profiles.map((profile) => [profile.id, profile.full_name || ""]),
       );
     },
-  };
-}
 
-/** Profiles (name, phone, campaigner link) by id or campaigner id. */
-async function profilesBy(
-  db: DbClient,
-  column: "id" | "campaigner_id",
-  values: string[],
-) {
-  if (!values.length) {
-    return [];
-  }
-  const { data, error } = await db
-    .from("profiles")
-    .select("id, full_name, phone, campaigner_id")
-    .in(column, values);
-  throwIf(error, "profiles");
-  return data ?? [];
+    contacts: (tenantId, keys) => loadContacts(db, tenantId, keys),
+  };
 }

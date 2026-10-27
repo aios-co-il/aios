@@ -10,8 +10,10 @@ import type { RoundRequest } from "./request.ts";
 import type { TenantRow } from "./state/store.ts";
 import { runTenant, type TenantReport } from "./tenant-run.ts";
 
-/** Stays under the edge-function wall clock (the cron allows 150 s). */
+/** New work (tenants, collectors) stops here, under the cron's 150 s timeout. */
 export const ROUND_BUDGET_MS = 110_000;
+/** Sends end by then; one starts only with SEND_RESERVE_MS of it left. */
+export const SEND_WINDOW_MS = 140_000;
 const ROUND_API_CALLS = 200;
 const TENANT_SLICE_MS = 45_000;
 const MIN_TENANT_MS = 8_000;
@@ -29,6 +31,7 @@ export async function runRound(
 ): Promise<RoundReport> {
   const roundId = crypto.randomUUID();
   const budget = RoundBudget.create(ROUND_BUDGET_MS, ROUND_API_CALLS);
+  const sendBudget = RoundBudget.create(SEND_WINDOW_MS, 0);
   const tenants = tenantsToRun(await deps.state.listTenants(), request);
   const reports: TenantReport[] = [];
   for (const tenant of tenants) {
@@ -42,6 +45,7 @@ export async function runRound(
         await runTenant(deps, tenant, {
           roundId,
           budget: budget.slice(TENANT_SLICE_MS),
+          sendBudget,
           request,
         }),
       );
