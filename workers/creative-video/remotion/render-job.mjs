@@ -97,7 +97,10 @@ const envelopeOf = (env) => {
   return { frames, volumes };
 };
 
-/** Copies of the music track that cover the film: each inside it, fades within its length. */
+/**
+ * Copies of the music track that cover the film: each inside it, fades within its length. At
+ * most 50 (render-worker music-bed.mjs MAX_MUSIC_LOOPS).
+ */
 const musicLoopsOf = (list) => {
   if (list === undefined || list === null) return null;
   assert(Array.isArray(list) && list.length <= 50, "Invalid music loops");
@@ -288,8 +291,9 @@ if (manifest.schemaVersion === 1) {
       ...(v3
         ? {
             voice: scene.voice || null,
-            // The scene's short title over karaoke captions (workshop-edit.mjs kickerTitle).
-            kicker: scene.kicker ? text(scene.kicker, 40) : null,
+            // The scene's short title over karaoke captions: at most 32 characters
+            // (render-worker kicker.mjs KICKER_MAX_CHARS).
+            kicker: scene.kicker ? text(scene.kicker, 32) : null,
             transition: scene.transition || "crossfade",
             transitionFrames: scene.transitionFrames ?? 0,
             lipsync: scene.lipsync === true,

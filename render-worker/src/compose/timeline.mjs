@@ -77,7 +77,7 @@ export function buildTimeline(
             impactPath: effects.impactPath || null,
           }
         : null,
-    // The brief asked for trailer sound design: the film gets the trailer mix (workshop-edit.mjs),
+    // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
     // also when its effects could not be made.
     soundDesign: soundDesign === true,
     totalS: Math.round(totalS * 100) / 100,

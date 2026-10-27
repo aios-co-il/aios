@@ -22,22 +22,11 @@ import {
   soundEffectsCostUsd,
   soundEffectsError,
 } from "./sound-effects-catalog.mjs";
+import { metaOf } from "./rows.mjs";
 
 export { SOUND_EFFECTS, soundEffectsCostUsd, soundEffectsError };
 
 const BUCKET = "creative-video";
-
-const metaOf = (row) => {
-  const meta = row?.meta;
-  if (typeof meta === "string") {
-    try {
-      return JSON.parse(meta);
-    } catch {
-      return {};
-    }
-  }
-  return meta && typeof meta === "object" ? meta : {};
-};
 
 /** Why a free render has no effects to reuse. */
 export const NOT_IN_PRODUCTION =

@@ -8,7 +8,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { measureLoudness, normalizeAudio } from "../ffmpeg.mjs";
-import { EFFECT_LUFS, MUSIC_LUFS } from "./workshop-edit.mjs";
+import { EFFECT_LUFS, MUSIC_LUFS, isTrailer } from "./music-bed.mjs";
 
 /** Peaks stay under this (dBTP); the limiter takes at most LIMITER_DB above it. */
 const CEILING_DB = -1;
@@ -109,7 +109,7 @@ export async function prepareSound(
   }
 
   // Only the trailer mix sets the bed by the voice; an ordinary film's levels are fixed.
-  const trailer = timeline.soundDesign === true || Boolean(timeline.effects);
+  const trailer = isTrailer(timeline);
   const voices = !trailer
     ? []
     : timeline.narrationPath

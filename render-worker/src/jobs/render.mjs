@@ -19,24 +19,10 @@ import {
   spokenLine,
   talkingLine,
 } from "../narration.mjs";
+import { inList, metaOf } from "./rows.mjs";
 import { filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
-
-const inList = (ids) => `(${ids.map(encodeURIComponent).join(",")})`;
-
-const metaOf = (asset) => {
-  const meta = asset?.meta;
-  if (!meta) return {};
-  if (typeof meta === "string") {
-    try {
-      return JSON.parse(meta);
-    } catch {
-      return {};
-    }
-  }
-  return meta;
-};
 
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";

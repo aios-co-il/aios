@@ -1,105 +1,22 @@
-import { readFileSync } from "node:fs";
-import { expect, test, vi } from "vitest";
-import {
-  MAX_CTA_LINES,
-  endCardSeconds,
-  ctaLines,
-} from "../src/compose/end-card.mjs";
+import { expect, test } from "vitest";
+import { endCardSeconds, ctaLines } from "../src/compose/end-card.mjs";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 import {
   MUSIC_TAIL_S,
-  MUSIC_USD_PER_MINUTE,
   PLANNED_HEADROOM,
   filmSeconds,
-  musicCostUsd,
   musicLengthMs,
-  quotedMusicMs,
 } from "../src/jobs/music-length.mjs";
-import { generateMusic } from "../src/jobs/sound.mjs";
-
-const TENANT = "t1";
-const ITEM = "item1";
-const CTA =
-  "הירשמו לרשימת ההמתנה — 1000 הנרשמים הראשונים יקבלו את חבילת הבסיס בחינם לכל החיים!";
-
-const LINES = ["שלום לכולם", "זאת כרמן", "הירשמו עכשיו"];
-const SCRIPT = LINES.join(" ");
-
-/** The take's character alignment: each line spoken across [from, to] seconds. */
-function take(spans) {
-  const alignment = {
-    characters: [],
-    character_start_times_seconds: [],
-    character_end_times_seconds: [],
-  };
-  spans.forEach(([from, to], index) => {
-    const chars = [...(index ? ` ${LINES[index]}` : LINES[index])];
-    const step = (to - from) / chars.length;
-    chars.forEach((ch, i) => {
-      alignment.characters.push(ch);
-      alignment.character_start_times_seconds.push(from + i * step);
-      alignment.character_end_times_seconds.push(from + (i + 1) * step);
-    });
-  });
-  return alignment;
-}
-// Three 3.5 s scenes (10.5 s planned); the narration runs 14 s.
-const ALIGNMENT = take([
-  [0, 3],
-  [4.5, 9],
-  [10, 14],
-]);
-
-const scenes = () =>
-  LINES.map((line, index) => ({
-    id: `s${index + 1}`,
-    position: index + 1,
-    duration_s: 3.5,
-    voiceover_text: line,
-    voice_asset_id: null,
-    meta: {},
-  }));
-
-function filmDb({
-  narration = null,
-  pending = [],
-  payload = { cta_text: CTA },
-  rows = scenes(),
-} = {}) {
-  const queries = [];
-  return {
-    queries,
-    async select(table, query) {
-      queries.push([table, query]);
-      if (table === "marketing_video_scenes") return rows;
-      if (table === "marketing_work_items")
-        return query.includes("select=payload")
-          ? [{ payload }]
-          : [{ id: ITEM, tenant_id: TENANT, client_id: null }];
-      if (table === "marketing_runs")
-        return typeof pending === "function" ? pending() : pending;
-      if (table === "marketing_assets" && query.includes("type=eq.narration"))
-        return typeof narration === "function" ? narration() : narration;
-      return [];
-    },
-  };
-}
-
-const run = (input = {}) => ({
-  id: "music-1",
-  tenant_id: TENANT,
-  item_id: ITEM,
-  stage_id: "st",
-  input: { prompt: "restrained trailer", music_length_ms: 10_500, ...input },
-  output: {},
-});
-
-const narrationRow = (text = SCRIPT) => [
-  {
-    url: `${TENANT}/general/${ITEM}/narration/voice-1.audio`,
-    meta: { text, alignment: ALIGNMENT },
-  },
-];
+import {
+  ALIGNMENT,
+  CTA,
+  LINES,
+  filmDb,
+  narrationRow,
+  run,
+  scenes,
+  take,
+} from "./music-fixtures.mjs";
 
 test("the bed covers the film the edit cuts from the narration, its end card and a tail", async () => {
   const sized = await musicLengthMs({
@@ -206,140 +123,6 @@ test("filmSeconds counts each scene's own voice in a talking film", () => {
   expect(seconds).toBeCloseTo(3.5 + 6.5 + 3.5, 5);
 });
 
-/** A music run's database: the film above, and the writes generateMusic makes. */
-function musicDb(r, extra = {}) {
-  const inserts = [];
-  return {
-    inserts,
-    ...filmDb({ narration: narrationRow(), ...extra }),
-    async upload() {},
-    async update(_table, _filter, patch) {
-      r.output = patch.output;
-    },
-    async insert(table, row) {
-      inserts.push([table, row]);
-    },
-  };
-}
-
-const stubMusic = () => {
-  const bodies = [];
-  vi.stubGlobal("fetch", async (_url, init) => {
-    bodies.push(JSON.parse(init.body));
-    return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
-  });
-  return bodies;
-};
-
-test("the music run asks ElevenLabs for the film's length and pays once", async () => {
-  const bodies = stubMusic();
-  try {
-    // A quote of $0.50 buys a minute: more than this film needs.
-    const r = run({ estimate: { usd: 0.5, credits: 0 } });
-    const db = musicDb(r);
-    const { inserts } = db;
-    const done = await generateMusic({
-      db,
-      run: r,
-      apiKey: "xi",
-      log: () => {},
-    });
-    expect(bodies.length).toBe(1);
-    const asked = bodies[0].music_length_ms;
-    expect(asked).toBeGreaterThan(20_000);
-    // The run records what this length costs, not the quote.
-    expect(done.costUsd).toBe(musicCostUsd(asked));
-    expect(done.costUsd).toBeCloseTo((asked / 60_000) * 0.5, 4);
-    expect(done.costUsd).toBeLessThan(0.5);
-    expect(r.output.audio_meta).toStrictEqual({
-      music_length_ms: asked,
-      music_basis: "narration",
-    });
-    expect(inserts[0][1].meta.music_length_ms).toBe(asked);
-    // A retry after the payment keeps the stored bed and its length; nothing is sized again.
-    let sized = 0;
-    await generateMusic({
-      db,
-      run: r,
-      apiKey: "xi",
-      sizeMusic: async () => {
-        sized += 1;
-        return { ms: 1, basis: "x", filmS: 0 };
-      },
-      log: () => {},
-    });
-    expect(sized).toBe(0);
-    expect(bodies.length).toBe(1);
-    // When the film cannot be read, the run's planned length is used as before.
-    const fallback = run({ estimate: { usd: 0.5, credits: 0 } });
-    await generateMusic({
-      db: { ...db, update: async () => {} },
-      run: fallback,
-      apiKey: "xi",
-      sizeMusic: async () => {
-        throw new Error("db down");
-      },
-      log: () => {},
-    });
-    expect(bodies[1].music_length_ms).toBe(10_500);
-  } finally {
-    vi.unstubAllGlobals();
-  }
-});
-
-test("the bed never costs more than its quote; the render loops the rest", async () => {
-  const bodies = stubMusic();
-  try {
-    // The narration stretches the planned 10.5 s by a third; the quote priced 15% headroom,
-    // the longest end card and the tail: 20.575 s, $0.17 after rounding, so 20.4 s.
-    const quoted = run({ estimate: { usd: 0.17, credits: 0 } });
-    expect(quotedMusicMs(quoted)).toBe(20_400);
-    const done = await generateMusic({
-      db: musicDb(quoted),
-      run: quoted,
-      apiKey: "xi",
-      log: () => {},
-    });
-    expect(bodies[0].music_length_ms).toBe(20_400);
-    expect(quoted.output.audio_meta.music_basis).toBe("quote");
-    expect(done.costUsd).toBe(0.17);
-    // A run without a quote (queued before the bed was sized) asks for its planned length.
-    const old = run();
-    expect(quotedMusicMs(old)).toBe(10_500);
-    const plain = await generateMusic({
-      db: musicDb(old),
-      run: old,
-      apiKey: "xi",
-      log: () => {},
-    });
-    expect(bodies[1].music_length_ms).toBe(10_500);
-    expect(plain.costUsd).toBe(0.0875);
-    // The planned length is the floor, and ElevenLabs' 5 minutes the ceiling.
-    expect(quotedMusicMs(run({ estimate: { usd: 0.01 } }))).toBe(10_500);
-    expect(quotedMusicMs(run({ estimate: { usd: 99 } }))).toBe(300_000);
-  } finally {
-    vi.unstubAllGlobals();
-  }
-});
-
-test("without an ElevenLabs key the music run fails at once, without waiting for the narration", async () => {
-  const r = run({ estimate: { usd: 0.5 } });
-  let sized = 0;
-  await expect(
-    generateMusic({
-      db: musicDb(r, { pending: [{ id: "voice-run" }] }),
-      run: r,
-      apiKey: null,
-      sizeMusic: async () => {
-        sized += 1;
-        return { ms: 20_000, basis: "narration", filmS: 16 };
-      },
-      log: () => {},
-    }),
-  ).rejects.toMatchObject({ final: true });
-  expect(sized).toBe(0);
-});
-
 test("a talking film is timed by each scene's own voice of its current line only", async () => {
   const rows = scenes().map((scene, index) => ({
     ...scene,
@@ -373,22 +156,4 @@ test("a talking film is timed by each scene's own voice of its current line only
   expect(db.queries.length).toBeGreaterThan(3);
   for (const [, query] of db.queries)
     expect(query).toContain("tenant_id=eq.t1");
-});
-
-test("the quote prices what the worker may ask for, at the same rate", () => {
-  const prices = readFileSync(
-    new URL(
-      "../../supabase/functions/_shared/workshop/clip-prices.ts",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const constant = (name) =>
-    Number(new RegExp(`export const ${name} = ([0-9.]+);`).exec(prices)?.[1]);
-  expect(constant("MUSIC_USD_PER_MINUTE")).toBe(MUSIC_USD_PER_MINUTE);
-  expect(constant("MUSIC_HEADROOM")).toBe(PLANNED_HEADROOM);
-  // The longest end card (a three-line call to action) and the tail.
-  expect(constant("MUSIC_EXTRA_S")).toBe(
-    endCardSeconds(Array(MAX_CTA_LINES).fill("x")) + MUSIC_TAIL_S,
-  );
 });

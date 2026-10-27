@@ -9,14 +9,13 @@ import {
   wordsFromAlignment,
   wordsToFrames,
 } from "./captions.mjs";
+import { kickerTitle } from "./kicker.mjs";
+import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
 import {
   MIX,
   effectCues,
   fitScenes,
-  kickerTitle,
-  mixProfile,
   musicEnvelope,
-  musicLoops,
   sceneTransition,
   speaks,
   speechSpans,
@@ -293,7 +292,7 @@ export function buildWorkshopManifest(timeline) {
   }
   // A film with trailer sound design gets the trailer mix; every other film keeps MIX.
   const mix = mixProfile({
-    trailer: timeline.soundDesign === true || Boolean(timeline.effects),
+    trailer: isTrailer(timeline),
     voiceLufs: timeline.voiceLufs ?? null,
   });
 
@@ -330,13 +329,7 @@ export function buildWorkshopManifest(timeline) {
       narration,
       music,
       ...(loops.length ? { musicLoops: loops } : {}),
-      musicEnvelope: musicEnvelope(speech, totalFrames, {
-        base: mix.music,
-        ducked: mix.musicDucked,
-        attack: mix.attack,
-        release: mix.release,
-        hold: mix.hold,
-      }),
+      musicEnvelope: musicEnvelope(speech, totalFrames, mix.bed),
       ...(effects.length
         ? {
             effects,
