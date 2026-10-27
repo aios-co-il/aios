@@ -11,6 +11,7 @@ import {
   resolvePruneStart,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 
 const corsHeaders = {
@@ -55,7 +56,7 @@ interface GoogleAdsRecord {
   campaign_channel_type?: string;
   bidding_strategy_type?: string;
   /** What the campaign converts on, from its conversion goals: drives the pulse goal. */
-  conversion_goal?: "ecommerce" | "leads";
+  conversion_goal?: GoogleCampaignGoal;
   // Verified leads from connected WordPress site (Elementor submissions with matching gad_campaignid)
   verified_leads?: number;
   verified_source?: string; // site URL we verified against, for transparency

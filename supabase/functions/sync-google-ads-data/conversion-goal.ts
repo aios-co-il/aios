@@ -1,4 +1,4 @@
-export type ConversionGoal = "ecommerce" | "leads";
+import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
 
 export type ConversionGoalInput = {
   /** The conversion goal categories the campaign bids on (campaign_conversion_goal). */
@@ -18,11 +18,11 @@ export function googleCampaignConversionGoal({
   biddableCategories = [],
   purchaseConversions = 0,
   leadConversions = 0,
-}: ConversionGoalInput = {}): ConversionGoal | null {
+}: ConversionGoalInput = {}): GoogleCampaignGoal | null {
   const sides = new Set(
     biddableCategories
       .map((category) => conversionCategorySide(category))
-      .filter((side): side is ConversionGoal => side !== null),
+      .filter((side): side is GoogleCampaignGoal => side !== null),
   );
   // What the campaign is set to bid on is stable even on days with no conversions.
   if (sides.size === 1) {
@@ -58,7 +58,7 @@ const LEAD_CATEGORIES = new Set([
 /** The goal a Google conversion action category counts toward; null when it is neither a sale nor a lead. */
 export function conversionCategorySide(
   category?: string,
-): ConversionGoal | null {
+): GoogleCampaignGoal | null {
   const value = (category ?? "").toUpperCase();
   if (PURCHASE_CATEGORIES.has(value)) {
     return "ecommerce";

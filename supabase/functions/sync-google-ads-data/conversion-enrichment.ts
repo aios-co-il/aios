@@ -1,7 +1,5 @@
-import {
-  type ConversionGoal,
-  googleCampaignConversionGoal,
-} from "./conversion-goal.ts";
+import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
+import { googleCampaignConversionGoal } from "./conversion-goal.ts";
 import {
   type CampaignConversions,
   fetchBiddableCategories,
@@ -15,7 +13,7 @@ export type ConversionEnrichedRecord = {
   entity_level?: "campaign" | "adset" | "ad";
   campaign_id: string;
   add_to_cart?: number;
-  conversion_goal?: ConversionGoal;
+  conversion_goal?: GoogleCampaignGoal;
 };
 
 export type ConversionEnrichmentContext = {
@@ -76,7 +74,7 @@ function stampConversionGoals(
   conversionsByCampaign: Map<string, CampaignConversions>,
   biddableByCampaign: Map<string, string[]>,
 ): number {
-  const goalByCampaign = new Map<string, ConversionGoal>();
+  const goalByCampaign = new Map<string, GoogleCampaignGoal>();
   const campaignIds = new Set([
     ...conversionsByCampaign.keys(),
     ...biddableByCampaign.keys(),
