@@ -167,7 +167,8 @@ export async function generateVoice({
             },
           };
         } catch (error) {
-          if (!googleKey) throw error;
+          // A failure after OpenRouter charged is final; only a refused request moves on.
+          if (error?.final || !googleKey) throw error;
           log(
             `[voice] ${run.id} OpenRouter speech failed (${error instanceof Error ? error.message : error}); using Gemini`,
           );

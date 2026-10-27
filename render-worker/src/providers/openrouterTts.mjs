@@ -4,6 +4,8 @@
 // record (GET /api/v1/generation) and falls back to the per-character list price. No word
 // timestamps come back. Docs: https://openrouter.ai/docs/guides/overview/multimodal/tts and
 // https://openrouter.ai/blog/announcements/elevenlabs-on-openrouter/
+import { finalError } from "../guard.mjs";
+
 const BASE = () =>
   (process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1").replace(
     /\/$/,
@@ -77,9 +79,20 @@ export async function synthesizeOpenRouterSpeech({
       body: JSON.stringify(openRouterSpeechBody(text, voice, model)),
     });
     if (response.ok) {
-      const bytes = Buffer.from(await response.arrayBuffer());
+      // OpenRouter charged on the 200, so a failure from here on is final: neither the worker's
+      // retry nor another provider may pay for this narration again.
+      let bytes;
+      try {
+        bytes = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        throw finalError(
+          `openrouter speech was charged but its audio could not be read (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+        );
+      }
       if (bytes.length === 0)
-        throw new Error("openrouter speech returned no audio");
+        throw finalError(
+          "openrouter speech was charged but returned no audio; not retried to avoid paying again",
+        );
       const generationId = response.headers.get("x-generation-id");
       const reported = generationId
         ? await openRouterGenerationCost({

@@ -182,6 +182,43 @@ test("an OpenRouter refusal with no Gemini key fails before anything is stored",
   expect(db.calls).toStrictEqual([]);
 });
 
+test("empty audio after OpenRouter charged is final and never reaches Gemini", async () => {
+  const urls = [];
+  vi.stubGlobal("fetch", async (url) => {
+    urls.push(String(url));
+    if (String(url).endsWith("/audio/speech"))
+      return new Response(new Uint8Array([]), { status: 200 });
+    throw new Error(`unexpected ${url}`);
+  });
+  const run = voiceRun();
+  const db = fakeDb(run);
+  const error = await generateVoice({
+    db,
+    run,
+    apiKey: null,
+    googleKey: "g",
+    resolveOpenRouterKey: async () => "sk-or",
+    log: () => {},
+  }).catch((caught) => caught);
+  expect(error.final).toBe(true);
+  expect(error.message).toContain("returned no audio");
+  expect(urls).toStrictEqual(["https://openrouter.ai/api/v1/audio/speech"]);
+  expect(db.calls).toStrictEqual([]);
+});
+
+test("audio that cannot be read after a 200 is final", async () => {
+  const broken = new Response(new Uint8Array([1]), { status: 200 });
+  broken.arrayBuffer = () => Promise.reject(new Error("socket hang up"));
+  const error = await synthesizeOpenRouterSpeech({
+    apiKey: "k",
+    voiceId: null,
+    text: "שלום",
+    fetchImpl: async () => broken,
+  }).catch((caught) => caught);
+  expect(error.final).toBe(true);
+  expect(error.message).toContain("socket hang up");
+});
+
 test("music without a working ElevenLabs key fails once, so the film is assembled without it", async () => {
   vi.stubGlobal(
     "fetch",
