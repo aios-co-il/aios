@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { groupSharedFacebookRows } from "./sharedFacebookGroups";
-import { summarizeSharedTableRecords } from "./sharedTableSummary";
+import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
+import { groupFacebookRowsByGoal } from "./facebookGoalGroups";
 
 const fb = (campaign: string, data: Record<string, unknown>) => ({
   data: {
@@ -30,7 +30,7 @@ const summarize = (
   records: Array<{ data: Record<string, unknown> }>,
   leadsOnly: boolean,
 ) => {
-  const groups = groupSharedFacebookRows(records, "campaign", { leadsOnly });
+  const groups = groupFacebookRowsByGoal(records, "campaign", { leadsOnly });
   return summarizeSharedTableRecords(records, {
     integrationType: "facebook_insights",
     goalOf: groups.goalOf,
@@ -41,9 +41,9 @@ const summarize = (
   });
 };
 
-describe("groupSharedFacebookRows", () => {
+describe("groupFacebookRowsByGoal", () => {
   it("a mixed table splits sales, leads and traffic like the internal report", () => {
-    const groups = groupSharedFacebookRows(mixedFacebook, "campaign", {
+    const groups = groupFacebookRowsByGoal(mixedFacebook, "campaign", {
       leadsOnly: false,
     });
     expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
@@ -75,7 +75,7 @@ describe("groupSharedFacebookRows", () => {
         purchase_value: 400,
       }),
     ];
-    const groups = groupSharedFacebookRows(records, "campaign", {
+    const groups = groupFacebookRowsByGoal(records, "campaign", {
       leadsOnly: false,
     });
     expect(names(groups.leads)).toStrictEqual(["LegacyLead"]);
@@ -100,7 +100,7 @@ describe("groupSharedFacebookRows", () => {
       }),
       fb("Leads", { campaign_type: "lead", spend: 100, leads: 5 }),
     ];
-    const groups = groupSharedFacebookRows(records, "campaign", {
+    const groups = groupFacebookRowsByGoal(records, "campaign", {
       leadsOnly: false,
     });
     expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
@@ -111,8 +111,17 @@ describe("groupSharedFacebookRows", () => {
     });
   });
 
+  it("a campaign without a stored type or results lands in leads", () => {
+    const groups = groupFacebookRowsByGoal(
+      [fb("Opening", { campaign_type: "other", spend: 280 })],
+      "campaign",
+      { leadsOnly: false },
+    );
+    expect(names(groups.leads)).toStrictEqual(["Opening"]);
+  });
+
   it("a leads-only table keeps sales-looking campaigns in leads, traffic apart", () => {
-    const groups = groupSharedFacebookRows(mixedFacebook, "campaign", {
+    const groups = groupFacebookRowsByGoal(mixedFacebook, "campaign", {
       leadsOnly: true,
     });
     expect(groups.ecommerce).toStrictEqual([]);
@@ -161,7 +170,7 @@ describe("groupSharedFacebookRows", () => {
         leads: 4,
       }),
     ];
-    const groups = groupSharedFacebookRows(records, "adset", {
+    const groups = groupFacebookRowsByGoal(records, "adset", {
       leadsOnly: false,
     });
     expect(names(groups.ecommerce)).toStrictEqual(["Shop set · Shop"]);

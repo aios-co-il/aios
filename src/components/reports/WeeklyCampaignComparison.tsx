@@ -9,9 +9,9 @@ import {
   type WeeklySourceModes,
 } from "@/lib/weeklyAdsComparison";
 import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
+import { AllGoalsSpendRow } from "./AllGoalsSpendRow";
 import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
-import { formatReportNumber } from "@/lib/reportNumber";
 
 type Props = {
   records: WeeklyAdsRecord[];
@@ -102,13 +102,12 @@ export function WeeklyCampaignComparison({
             </div>
 
             {multipleGoals && (
-              <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2 text-sm font-semibold">
-                <span>הוצאה כוללת בשבוע (כל היעדים)</span>
-                <span>
-                  {currency}
-                  {formatReportNumber(week.totals.spend)}
-                </span>
-              </div>
+              <AllGoalsSpendRow
+                label="הוצאה כוללת בשבוע (כל היעדים)"
+                currency={currency}
+                spend={week.totals.spend}
+                className="px-4"
+              />
             )}
           </Card>
         );

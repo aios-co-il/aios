@@ -3,6 +3,7 @@ import {
   getLeadsFromData,
   isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
+  type FacebookCampaignType,
 } from "@/lib/adsMetrics";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 
@@ -11,7 +12,7 @@ type RecordData = Record<string, unknown>;
 /** What decides a Facebook campaign's goal, gathered over its stored rows. */
 export type FacebookGoalInputs = {
   /** Strongest stored type across the rows: sales, then leads, then traffic. */
-  campaignType: "lead" | "ecommerce" | "traffic" | "other";
+  campaignType: FacebookCampaignType;
   objective: string | null;
   resultKind: string | null;
   leads: number;
@@ -21,7 +22,8 @@ export type FacebookGoalInputs = {
 
 /**
  * Goal of one Facebook campaign in every campaign report: the internal report,
- * the shared report and its KPIs, and the weekly tab. Traffic stays traffic, a
+ * the shared report and its KPIs, the weekly tab, and the dashboards' mixed
+ * tables and KPIs (groupFacebookRowsByGoal). Traffic stays traffic, a
  * leads-only table keeps everything else in leads, and otherwise the stored
  * type, the Meta objective, the configured result and the results decide.
  */

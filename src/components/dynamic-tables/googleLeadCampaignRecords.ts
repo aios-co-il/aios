@@ -4,7 +4,7 @@ import {
   type GoogleReportTable,
 } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
-import { hasManualRoiData } from "./manualRoi";
+import { hasManualRoiData } from "@/lib/manualRoi";
 
 /**
  * Spend and leads behind a Google Ads report's manual ROI card, or null to

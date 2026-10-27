@@ -1,5 +1,6 @@
 import type { AdsEntityLevel } from "@/lib/adsEntityLevel";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { groupFacebookRowsByGoal } from "@/lib/facebookGoalGroups";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import {
@@ -7,7 +8,6 @@ import {
   type SharedCampaignTables,
   type SharedReportRecord,
 } from "./sharedCampaignTables";
-import { groupSharedFacebookRows } from "./sharedFacebookGroups";
 import { sharedManualRoiFigures } from "./sharedManualRoi";
 import {
   summarizeSharedTableRecords,
@@ -45,7 +45,7 @@ export function sharedIntegrationReport(
   const { integrationType, integrationSettings, tableGoals } = options;
   const facebookGroups =
     integrationType === "facebook_insights"
-      ? groupSharedFacebookRows(records, options.level, {
+      ? groupFacebookRowsByGoal(records, options.level, {
           leadsOnly: isFacebookLeadsOnlyTable(integrationSettings),
         })
       : null;

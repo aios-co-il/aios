@@ -1,4 +1,4 @@
-import { hasManualRoiData } from "@/components/dynamic-tables/manualRoi";
+import { hasManualRoiData } from "@/lib/manualRoi";
 
 type Figures = { spend: number; leads: number };
 

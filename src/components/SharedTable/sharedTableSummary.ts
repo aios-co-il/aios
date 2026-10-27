@@ -84,7 +84,6 @@ export function summarizeSharedTableRecords(
   // Round leads (Google Ads conversions can be fractional)
   leads = Math.round(leads);
 
-  // Honor table-level overrides
   if (!goals.hasEcommerce) {
     purchases = 0;
     revenue = 0;

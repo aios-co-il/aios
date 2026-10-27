@@ -130,6 +130,8 @@ import {
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
+import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
+import { formatReportNumber } from "@/lib/reportNumber";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import {
   ADS_ENTITY_LEVEL_LABELS,
@@ -4185,10 +4187,7 @@ export default function DynamicTableView({
                             {salesTotalLabel} מבוססת על WooCommerce (Google
                             Ads): {Math.round(googleWooPaid.paidOrders)} רכישות,{" "}
                             {gaCurrency}
-                            {Math.round(
-                              googleWooPaid.paidRevenue,
-                            ).toLocaleString("he-IL")}
-                            .
+                            {formatReportNumber(googleWooPaid.paidRevenue)}.
                             {gaDiffersFromWoo && (
                               <>
                                 {" "}
@@ -4196,9 +4195,9 @@ export default function DynamicTableView({
                                 {Math.round(
                                   ecommerceTotals.conversions,
                                 )} המרות, {gaCurrency}
-                                {Math.round(
+                                {formatReportNumber(
                                   ecommerceTotals.conversions_value,
-                                ).toLocaleString("he-IL")}
+                                )}
                                 .
                               </>
                             )}
@@ -4207,9 +4206,9 @@ export default function DynamicTableView({
                                 {" "}
                                 בנוסף {googleWooPaid.organicOrders} רכישות
                                 Google אורגני ({gaCurrency}
-                                {Math.round(
+                                {formatReportNumber(
                                   googleWooPaid.organicRevenue,
-                                ).toLocaleString("he-IL")}
+                                )}
                                 ).
                               </>
                             )}
@@ -4271,18 +4270,12 @@ export default function DynamicTableView({
                         />
                       ))}
                       {mixedGoals && (
-                        <div
-                          className="flex items-center justify-between border-t bg-muted/40 px-3 py-2 text-sm font-semibold"
-                          dir="rtl"
-                        >
-                          <span>הוצאה כוללת (כל היעדים)</span>
-                          <span>
-                            {gaCurrency}
-                            {totals.cost.toLocaleString("he-IL", {
-                              maximumFractionDigits: 0,
-                            })}
-                          </span>
-                        </div>
+                        <AllGoalsSpendRow
+                          label="הוצאה כוללת (כל היעדים)"
+                          currency={gaCurrency}
+                          spend={totals.cost}
+                          className="px-3"
+                        />
                       )}
                       {useGoogleWooOverlay && (
                         <p className="border-t px-3 py-2 text-xs text-muted-foreground">

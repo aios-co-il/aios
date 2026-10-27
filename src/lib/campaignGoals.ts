@@ -1,6 +1,7 @@
 /**
  * Campaign goals of the reports in display order: sales, leads, traffic. Each
- * goal gets its own table and metrics; adding a goal here adds it everywhere.
+ * goal gets its own table and metrics. A new goal also needs classifier rules
+ * and the per-goal tables that each report and page lists by hand.
  */
 export const REPORT_CAMPAIGN_GOALS = ["ecommerce", "leads", "traffic"] as const;
 
