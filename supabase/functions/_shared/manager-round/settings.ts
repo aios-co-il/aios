@@ -3,8 +3,8 @@
  *
  * Keys owned here (the mode rules live in ./modes.ts): mode, kinds,
  * notify_since (database-stamped, read only), brief_recipients,
- * business_hours, holidays, sla_business_hours, escalation_hours and
- * max_alerts_per_recipient_per_day. Other keys under
+ * business_hours, holidays, sla_business_hours, escalation_hours,
+ * max_alerts_per_recipient_per_day and round_llm_share_pct. Other keys under
  * manager (cost from AIO-236, card_log_system_sends from AIO-242, future
  * collectors' keys) are read by their own modules and never rewritten here.
  */
@@ -40,6 +40,11 @@ export type ManagerSettings = {
   /** Business hours after the first send: [to the manager, to the owner]. */
   escalation_hours: [number, number];
   max_alerts_per_recipient_per_day: number;
+  /**
+   * Percent of the tenant's monthly LLM budget the round may spend, spread
+   * evenly over 30 days (plan C7).
+   */
+  round_llm_share_pct: number;
 };
 
 export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
@@ -57,6 +62,7 @@ export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
   sla_business_hours: 4,
   escalation_hours: [4, 24],
   max_alerts_per_recipient_per_day: 8,
+  round_llm_share_pct: 10,
 };
 
 /** Resolves stored pulse_alert_rules (any shape) to complete manager settings. */
@@ -84,6 +90,10 @@ export function resolveManagerSettings(
     max_alerts_per_recipient_per_day: positive(
       manager.max_alerts_per_recipient_per_day,
       d.max_alerts_per_recipient_per_day,
+    ),
+    round_llm_share_pct: Math.min(
+      100,
+      positive(manager.round_llm_share_pct, d.round_llm_share_pct),
     ),
   };
 }

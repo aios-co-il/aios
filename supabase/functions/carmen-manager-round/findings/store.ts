@@ -1,7 +1,10 @@
 /** Findings persistence of the round: thin, tenant-scoped calls to the RPCs. */
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import type { FindingCandidate } from "../collectors/types.ts";
+import type {
+  FindingCandidate,
+  FindingResolution,
+} from "../collectors/types.ts";
 import { throwIf } from "../db-error.ts";
 import {
   FINDING_COLUMNS,
@@ -28,6 +31,13 @@ export type FindingsStore = {
     collector: { id: string; detectorVersion: string },
     candidates: FindingCandidate[],
   ): Promise<UpsertOutcome[]>;
+  /** Closes the collector's live findings named in `items`; returns how many. */
+  resolve(
+    tenantId: string,
+    roundId: string,
+    collectorId: string,
+    items: FindingResolution[],
+  ): Promise<number>;
   /** Counts a miss for live findings in scope; returns how many were auto-cleared. */
   markMissing(
     tenantId: string,
@@ -70,6 +80,20 @@ export function createFindingsStore(db: DbClient): FindingsStore {
       });
       throwIf(error, "carmen_finding_upsert");
       return data ?? [];
+    },
+
+    async resolve(tenantId, roundId, collectorId, items) {
+      if (!items.length) {
+        return 0;
+      }
+      const { data, error } = await db.rpc("carmen_finding_resolve", {
+        p_tenant_id: tenantId,
+        p_round_id: roundId,
+        p_collector: collectorId,
+        p_items: items,
+      });
+      throwIf(error, "carmen_finding_resolve");
+      return data?.length ?? 0;
     },
 
     async markMissing(tenantId, roundId, scope) {

@@ -193,7 +193,15 @@ export function logAiUsage(row: {
 
 export async function aiChat(
   prompt: string,
-  opts?: { model?: string; jsonMode?: boolean },
+  opts?: {
+    model?: string;
+    jsonMode?: boolean;
+    /** Logged on the ai_usage_log row and its source (default "aiChat"). */
+    tenantId?: string;
+    source?: string;
+    /** The call's cost, known before the asynchronous log insert lands. */
+    onUsage?: (usage: { costUsd: number }) => void;
+  },
 ): Promise<string | null> {
   const key = await resolveOpenAIKey();
   if (!key) return null;
@@ -214,17 +222,20 @@ export async function aiChat(
     if (!r.ok) return null;
     const j = await r.json();
     const model = opts?.model || AI_CHAT_MODEL;
+    const costUsd = estimateOpenAICostUSD(
+      model,
+      j?.usage?.prompt_tokens ?? 0,
+      j?.usage?.completion_tokens ?? 0,
+    );
     logAiUsage({
-      source: "aiChat",
+      source: opts?.source ?? "aiChat",
       model,
       tokens_in: j?.usage?.prompt_tokens ?? null,
       tokens_out: j?.usage?.completion_tokens ?? null,
-      cost_usd: estimateOpenAICostUSD(
-        model,
-        j?.usage?.prompt_tokens ?? 0,
-        j?.usage?.completion_tokens ?? 0,
-      ),
+      cost_usd: costUsd,
+      tenant_id: opts?.tenantId,
     });
+    opts?.onUsage?.({ costUsd: costUsd ?? 0 });
     return j?.choices?.[0]?.message?.content ?? null;
   } catch {
     return null;

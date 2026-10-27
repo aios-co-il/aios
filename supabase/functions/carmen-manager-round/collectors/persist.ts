@@ -1,7 +1,8 @@
 /**
- * Stores a successful collector run: upsert its candidates, auto-clear what a
- * complete run no longer reports, then save its watermark (only now, so a
- * failed run is retried from the same point).
+ * Stores a successful collector run: upsert its candidates, close the
+ * findings it saw end (with their resolution), auto-clear what a complete run
+ * no longer reports, then save its watermark (only now, so a failed run is
+ * retried from the same point). `cleared` counts both kinds of closing.
  */
 import type { CollectorRunDeps, CollectorRunInput } from "./run.ts";
 import type { Collector, CollectorResult, FindingCandidate } from "./types.ts";
@@ -20,6 +21,12 @@ export async function persistRun(
     collector,
     candidates,
   );
+  const resolved = await deps.findings.resolve(
+    input.tenantId,
+    input.roundId,
+    collector.id,
+    (result.resolved ?? []).filter((r) => collector.kinds.includes(r.kind)),
+  );
   const cleared = result.coverage.complete
     ? await clearMissing(deps, input, collector, candidates, result)
     : 0;
@@ -29,7 +36,7 @@ export async function persistRun(
     at: input.now,
   });
   const inserted = outcomes.filter((o) => o.outcome === "inserted").length;
-  return { inserted, cleared };
+  return { inserted, cleared: cleared + resolved };
 }
 
 /** Counts a miss for each kind's live findings the run covered and did not report. */

@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
 import { RoundBudget } from "../budget.ts";
 import { deps } from "../tests/fakes.ts";
-import { TENANT, type World, world } from "../tests/fake-world.ts";
+import { finding, TENANT, type World, world } from "../tests/fake-world.ts";
 import type { DueCollector } from "./registry.ts";
 import { runCollectors } from "./run.ts";
 import type { Collector, CollectorContext } from "./types.ts";
@@ -91,6 +91,51 @@ Deno.test("runCollectors", async (t) => {
       ]);
       assertEquals(w.state[0].watermark, { cursor: 5 });
       assertEquals(contexts[0]?.since.toISOString(), w.now.toISOString());
+    },
+  );
+
+  await t.step(
+    "closes the findings its run saw end, only of its own kinds",
+    async () => {
+      const w = world({
+        findings: [
+          finding({ fingerprint: "answered" }),
+          finding({ fingerprint: "other", kind: "data_gap" }),
+        ],
+      });
+      const contexts: CollectorContext[] = [];
+      const contact = collector((ctx) => {
+        contexts.push(ctx);
+        return Promise.resolve({
+          candidates: [],
+          watermark: null,
+          coverage: { complete: false, clientIds: null },
+          resolved: [
+            {
+              kind: "no_contact",
+              fingerprint: "answered",
+              resolution: "answered",
+              details: { response_minutes: 42 },
+            },
+            {
+              kind: "data_gap",
+              fingerprint: "other",
+              resolution: "answered",
+              details: {},
+            },
+          ],
+        });
+      });
+      const { reports } = await run(w, [{ collector: contact, slot }]);
+      assertEquals(reports[0].cleared, 1);
+      assertEquals(
+        w.findings.map((f) => [f.fingerprint, f.status]),
+        [
+          ["answered", "resolved"],
+          ["other", "open"],
+        ],
+      );
+      assertEquals(contexts[0]?.dryRun, false);
     },
   );
 

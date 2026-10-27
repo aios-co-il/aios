@@ -62,6 +62,27 @@ export function addBusinessHours(
   return cursor;
 }
 
+/** Business hours elapsed in [start, end), e.g. how long a client has waited. */
+export function businessHoursBetween(
+  start: Date,
+  end: Date,
+  calendar: BusinessCalendar,
+): number {
+  let total = 0;
+  let day = jerusalemYmd(start);
+  const last = jerusalemYmd(end);
+  for (let i = 0; i < MAX_DAYS && day <= last; i++) {
+    const window = businessWindow(day, calendar);
+    if (window) {
+      const from = Math.max(window.start.getTime(), start.getTime());
+      const to = Math.min(window.end.getTime(), end.getTime());
+      total += Math.max(0, to - from);
+    }
+    day = shiftYmd(day, 1);
+  }
+  return total / 3_600_000;
+}
+
 /** The business window [start, end) of an Israel calendar day, or null. */
 export function businessWindow(
   day: string,

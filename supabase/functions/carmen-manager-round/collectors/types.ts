@@ -18,9 +18,8 @@
  * - Only the tenant's own clients and clients of agencies shared with it; a
  *   group shared by several tenants is read once per group_chat_id.
  * - LLM use (chat intent only) is metered against the tenant's monthly
- *   budget (plan C7: monthly_budget_usd and round_llm_share_pct over
- *   ai_usage_log month to date), cached, with a deterministic fallback. The
- *   budget is not in ManagerSettings or CollectorContext yet; R4 adds it.
+ *   budget (plan C7: monthly_budget_usd and settings.round_llm_share_pct
+ *   over ai_usage_log), cached, with a deterministic fallback.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Json } from "../../_shared/database.types.ts";
@@ -65,6 +64,17 @@ export type CollectorContext = {
   db: DbClient;
   /** Request fixtures (non-production only); null in every scheduled run. */
   fixtures: Json | null;
+  /** A preview: the collector writes nothing, not even its own caches. */
+  dryRun: boolean;
+};
+
+/** A live finding of the collector that its run saw end, closed with why. */
+export type FindingResolution = {
+  kind: FindingKind;
+  fingerprint: string;
+  resolution: "answered";
+  /** Logged on the 'resolved' event, e.g. the response time. */
+  details: { [key: string]: Json | undefined };
 };
 
 export type CollectorResult = {
@@ -75,6 +85,8 @@ export type CollectorResult = {
    * out) clears nothing; clientIds limits clearing to those clients.
    */
   coverage: { complete: boolean; clientIds: string[] | null };
+  /** Findings to close now (e.g. a client wait staff answered), whatever `coverage` says. */
+  resolved?: FindingResolution[];
   /** LLM use of this run, summed into the round's heartbeat_logs row. */
   llm?: { calls: number; costUsd: number };
 };

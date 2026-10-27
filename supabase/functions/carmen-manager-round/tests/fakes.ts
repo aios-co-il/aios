@@ -8,6 +8,7 @@ import type { FindingsStore } from "../findings/store.ts";
 import type { RoundStateStore } from "../state/store.ts";
 import { fakeDirectory } from "./fake-directory.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
+import { resolveLive } from "./fake-resolve.ts";
 
 export function deps(
   w: World,
@@ -74,6 +75,7 @@ function findingsStore(w: World): FindingsStore {
           };
         }),
       ),
+    resolve: (_tenant, _round, _collector, items) => resolveLive(w, items),
     markMissing: (_tenant, _round, scope) => {
       w.marks.push(scope);
       const missed = w.findings.filter(
