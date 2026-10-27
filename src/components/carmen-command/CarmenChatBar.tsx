@@ -37,7 +37,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
-import { getSessionSkin, setSessionSkin } from "@/lib/carmenSessionSkin";
+import { getSessionSkin, setWorkshopSkin } from "@/lib/carmenSessionSkin";
 import {
   emitWorkshopEvent,
   getWorkshopContext,
@@ -557,7 +557,7 @@ export const CarmenChatBar = forwardRef<
               typeof parsed.slug === "string" &&
               workshop
             ) {
-              setSessionSkin(tenantId, parsed.slug);
+              setWorkshopSkin(tenantId, parsed.slug);
             } else if (parsed.type === "conversation_id" && parsed.id) {
               boundId = parsed.id;
               if (

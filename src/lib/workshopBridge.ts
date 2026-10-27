@@ -1,3 +1,5 @@
+import { releaseWorkshopSkins } from "./carmenSessionSkin";
+
 /**
  * The link between the workshop board and Carmen's session chat. They sit in different parts
  * of the page, so they share this small store: the board says which project and page is open,
@@ -34,8 +36,12 @@ export const getWorkshopContext = () => context;
 
 export function setWorkshopContext(next: WorkshopContext | null) {
   context = next;
-  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat.
-  if (next === null) pendingPrefill = null;
+  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat,
+  // and a role skin it switched Carmen to must not answer the next page's questions.
+  if (next === null) {
+    pendingPrefill = null;
+    releaseWorkshopSkins();
+  }
   contextListeners.forEach((listener) => listener());
 }
 
