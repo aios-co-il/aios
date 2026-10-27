@@ -79,6 +79,7 @@ import {
 import {
   workshopItemIdFrom,
   workshopProjectKind,
+  workshopSceneIdFrom,
 } from "../_shared/workshop/role-project.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
@@ -13853,6 +13854,7 @@ async function handleRunAgent(
             supabase,
             tenant_id,
             workshopItemIdFrom(bodyJson),
+            workshopSceneIdFrom(bodyJson),
           ),
         )
       : null;
