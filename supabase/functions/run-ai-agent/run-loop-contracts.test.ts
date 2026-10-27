@@ -3,7 +3,11 @@ import {
   assertStrictEquals,
   assertThrows,
 } from "jsr:@std/assert@1";
-import { readWaChatScope, readWaNotifyTarget } from "./wa-notify.ts";
+import {
+  readWaChatScope,
+  readWaNotifyTarget,
+  type WaNotifyTarget,
+} from "./wa-notify.ts";
 import {
   firstChoiceMessage,
   isChatCompletionMessage,
@@ -215,7 +219,7 @@ Deno.test(
 Deno.test(
   "readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones",
   () => {
-    const target = {
+    const target: WaNotifyTarget = {
       surface: "whatsapp",
       tenant_id: "t1",
       automation_id: null,
@@ -316,13 +320,28 @@ Deno.test("tool args narrow arrays, objects and enums", () => {
   assertThrows(() => argEnum({ s: "x" }, "s", statuses), Error, "open, done");
 });
 
-test("argBoolean accepts booleans and quoted booleans and rejects other values", () => {
-  assert.equal(argBoolean({ on: true }, "on"), true);
-  assert.equal(argBoolean({ on: false }, "on"), false);
-  assert.equal(argBoolean({ on: "true" }, "on"), true);
-  assert.equal(argBoolean({ on: "false" }, "on"), false);
-  assert.equal(argBoolean({}, "on"), undefined);
-  assert.throws(() => argBoolean({ on: "yes" }, "on"), /on must be boolean/);
-  assert.throws(() => argBoolean({ on: 1 }, "on"), /on must be boolean/);
-  assert.throws(() => argBoolean({ on: null }, "on"), /on must be boolean/);
-});
+Deno.test(
+  "argBoolean accepts booleans and quoted booleans and rejects other values",
+  () => {
+    assertStrictEquals(argBoolean({ on: true }, "on"), true);
+    assertStrictEquals(argBoolean({ on: false }, "on"), false);
+    assertStrictEquals(argBoolean({ on: "true" }, "on"), true);
+    assertStrictEquals(argBoolean({ on: "false" }, "on"), false);
+    assertStrictEquals(argBoolean({}, "on"), undefined);
+    assertThrows(
+      () => argBoolean({ on: "yes" }, "on"),
+      Error,
+      "on must be boolean",
+    );
+    assertThrows(
+      () => argBoolean({ on: 1 }, "on"),
+      Error,
+      "on must be boolean",
+    );
+    assertThrows(
+      () => argBoolean({ on: null }, "on"),
+      Error,
+      "on must be boolean",
+    );
+  },
+);
