@@ -907,6 +907,8 @@ Deno.serve(async (req) => {
     let instantAlerts: InstantPulseAlertResult = {
       sent: 0,
       skipped: 0,
+      summarized: 0,
+      summary_messages: 0,
       candidates: 0,
       wording_calls: 0,
       worded: 0,

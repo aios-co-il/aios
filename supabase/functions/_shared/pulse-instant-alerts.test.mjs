@@ -10,11 +10,13 @@ import {
   DEFAULT_PULSE_ALERT_RULES,
   PULSE_WORDING_MAX_CHARS,
   applyPulseExceptionWording,
+  buildExceptionSummaryMessage,
   decideInstantAlertDelivery,
   deliverInstantPulseAlerts,
   evaluatePulseInstantAlerts,
   instantPulseAlertsGate,
   isSameInstantAlertFinding,
+  maxExceptionMessagesPerRun,
   parsePulseAlertRules,
   runGatedInstantPulseAlerts,
   sanitizePulseWordingLine,
@@ -138,9 +140,12 @@ Deno.test(
 
 // ── AIO-226: dedupe, gating and Shabbat ──────────────────────────────────────
 
-/** Minimal Supabase stand-in: pulse_instant_alert_log in memory, no staff. */
-function fakeSupabase(log = []) {
-  const db = { pulse_instant_alert_log: log };
+/**
+ * Minimal Supabase stand-in: pulse_instant_alert_log in memory, no staff
+ * unless `tables` adds user_roles / user_managed_agencies / profiles rows.
+ */
+function fakeSupabase(log = [], tables = {}) {
+  const db = { ...tables, pulse_instant_alert_log: log };
   const query = (table) => {
     const filters = [];
     let limit = Infinity;
@@ -928,25 +933,123 @@ Deno.test("wording rejects other numerals and bare domains", () => {
   });
 });
 
-Deno.test("a leading minus sign is kept; only a bullet dash is dropped", () => {
-  const allowed = new Set(["30"]);
-  assertEquals(sanitizePulseWordingLine("-30% בהמרות", allowed), {
+Deno.test("a minus sign is never dropped; only a bullet dash is", () => {
+  const allowed = new Set(["30", "52"]);
+  // A signed number is rejected whole, never shown without its sign.
+  for (const text of [
+    "-52 לליד",
+    "סיכום כרמן: -52 לליד",
+    "- -52 לליד",
+    "−52 לליד",
+    "-30% בהמרות",
+  ]) {
+    assertEquals(
+      sanitizePulseWordingLine(text, allowed),
+      { ok: false, reason: "invented_number" },
+      text,
+    );
+  }
+  assertEquals(sanitizePulseWordingLine("- 52 לליד", allowed), {
     ok: true,
-    text: "-30% בהמרות",
-  });
-  assertEquals(sanitizePulseWordingLine("סיכום כרמן: -30% בהמרות", allowed), {
-    ok: true,
-    text: "-30% בהמרות",
-  });
-  assertEquals(sanitizePulseWordingLine("- -30% בהמרות", allowed), {
-    ok: true,
-    text: "-30% בהמרות",
+    text: "52 לליד",
   });
   assertEquals(
     sanitizePulseWordingLine("• בדיקה מומלצת: - לבדוק את הפיקסל", allowed),
     { ok: true, text: "לבדוק את הפיקסל" },
   );
+  // "ב-52" is a Hebrew prefix, not a minus sign.
+  assertEquals(sanitizePulseWordingLine("העלות לליד עלתה ב-52", allowed), {
+    ok: true,
+    text: "העלות לליד עלתה ב-52",
+  });
 });
+
+Deno.test("a repeated label right after a bare dash is dropped", () => {
+  const allowed = new Set(["30"]);
+  for (const [text, expected] of [
+    ["-בדיקה מומלצת: לבדוק את הפיקסל", "לבדוק את הפיקסל"],
+    ["—סיכום כרמן: הקמפיין מעל היעד", "הקמפיין מעל היעד"],
+    ["–סיכום: הקמפיין מעל יעד 30", "הקמפיין מעל יעד 30"],
+    ["בדיקה מומלצת: -לבדוק את הפיקסל", "לבדוק את הפיקסל"],
+  ]) {
+    assertEquals(
+      sanitizePulseWordingLine(text, allowed),
+      { ok: true, text: expected },
+      text,
+    );
+  }
+  const worded = applyPulseExceptionWording(
+    {
+      client_id: "c1",
+      client_name: "Acme",
+      rule_type: "campaign_exception",
+      message: deterministicExceptionMessage(),
+      evidence: { target_value: 30 },
+    },
+    { recommended_check: "-בדיקה מומלצת: לבדוק את אירוע ההמרה" },
+  );
+  assertEquals(worded.ai_wording, { applied: true });
+  assertMatch(worded.message, /\nבדיקה מומלצת: לבדוק את אירוע ההמרה\n/);
+  assertNotMatch(worded.message, /-בדיקה/);
+});
+
+Deno.test(
+  "a percentage never passes, whatever its sign, direction or value",
+  () => {
+    // Trends are signed "worse than baseline" and flipped for ROAS, so code
+    // cannot check a direction; no percentage in model text is accepted.
+    const candidateWith = (trend) => ({
+      client_id: "c1",
+      client_name: "Acme",
+      rule_type: "campaign_exception",
+      message: deterministicExceptionMessage(),
+      evidence: {
+        goal: "leads",
+        target_kind: "cpl",
+        target_value: 30,
+        efficiency_3d: 52,
+        efficiency_7d: 48,
+        trend_3d_pct: trend,
+        trend_7d_pct: null,
+      },
+    });
+    const cases = [
+      [-12.5, "עלייה של 12.5% בעלות לליד"],
+      [12.5, "ירידה של 12.5% בעלות לליד"],
+      [-12.5, "שינוי של 12.5% בעלות לליד"],
+      [12.5, "העלות לליד השתנתה ב-12.5%"],
+      [-12.5, "-12.5% בעלות לליד"],
+      [12.5, "+12.5% בעלות לליד"],
+      [12.5, "עלייה של 12.5 אחוז"],
+      [12.5, "עלייה של %12.5"],
+      // 30 is the target CPL, not a change.
+      [40, "ירידה של 30% בלידים"],
+    ];
+    for (const [trend, summary] of cases) {
+      const candidate = candidateWith(trend);
+      const worded = applyPulseExceptionWording(candidate, { summary });
+      assertStrictEquals(worded.message, candidate.message, summary);
+      assertEquals(
+        worded.ai_wording,
+        { applied: false, error: "invented_number" },
+        summary,
+      );
+    }
+    // A trend magnitude licenses no bare number either (wrong role).
+    const roleSwap = applyPulseExceptionWording(candidateWith(40), {
+      summary: "העלות לליד הגיעה ל־40",
+    });
+    assertEquals(roleSwap.ai_wording, {
+      applied: false,
+      error: "invented_number",
+    });
+    // Values the message shows still pass.
+    const plain = applyPulseExceptionWording(candidateWith(40), {
+      summary: "CPL 52 מעל יעד 30",
+    });
+    assertEquals(plain.ai_wording, { applied: true });
+  },
+);
 
 Deno.test(
   "a failed wording call does not stop the next alert of the same run",
@@ -1036,5 +1139,332 @@ Deno.test(
     );
     assertMatch(manual, /skip_instant_alerts: true/);
     assertMatch(manual, /source: "approved_manual_trigger"/);
+  },
+);
+
+// ── AIO-243: per-run flood guard for campaign_exception messages ────────────
+
+const SUMMARY_HEADER = "🔴 *התראת דופק — סיכום חריגות קמפיין*";
+/** n eligible exceptions; campaign i has trend 10*i, so the last is worst. */
+const exceptionCampaigns = (n, prefix = "c") =>
+  Array.from({ length: n }, (_, i) => ({
+    ...EXCEPTION_CAMPAIGN,
+    campaign_key: `meta:id:${prefix}${i + 1}`,
+    campaign_name: `Campaign ${prefix}${i + 1}`,
+    status_reason: `סיבה ${prefix}${i + 1}`,
+    trend_3d_pct: 10 * (i + 1),
+    trend_7d_pct: 0,
+  }));
+const isSummary = (message) => message.startsWith(SUMMARY_HEADER);
+
+Deno.test(
+  "7 eligible exceptions → 3 messages and one summary; all 7 logged; the next run sends nothing",
+  async () => {
+    const supabase = fakeSupabase();
+    let wordingCalls = 0;
+    const extra = {
+      rules: NO_CONTACT_OFF,
+      phraseException: async () => {
+        wordingCalls += 1;
+        return null;
+      },
+    };
+    const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
+    const first = await run(supabase, WEDNESDAY, [snapshot], extra);
+    assertStrictEquals(first.sends.length, 4);
+    assert(first.sends.every((send) => send.phone === "972501234567"));
+    const individual = first.sends.filter((send) => !isSummary(send.message));
+    const summaries = first.sends.filter((send) => isSummary(send.message));
+    assertStrictEquals(individual.length, 3);
+    assertStrictEquals(summaries.length, 1);
+    // The three most severe go out on their own, in evaluation order.
+    assertEquals(
+      individual.map((send) => send.message.match(/קמפיין: (.*)/)[1]),
+      ["Campaign c5", "Campaign c6", "Campaign c7"],
+    );
+    assertStrictEquals(
+      summaries[0].message,
+      [
+        SUMMARY_HEADER,
+        "עוד 4 חריגות קמפיין:",
+        "• Acme · Campaign c4 · סיבה c4",
+        "• Acme · Campaign c3 · סיבה c3",
+        "• Acme · Campaign c2 · סיבה c2",
+        "• Acme · Campaign c1 · סיבה c1",
+        "",
+        "AIOS → דשבורד דופק",
+      ].join("\n"),
+    );
+    assertEquals(
+      {
+        sent: first.result.sent,
+        summarized: first.result.summarized,
+        summary_messages: first.result.summary_messages,
+        skipped: first.result.skipped,
+        wording_calls: first.result.wording_calls,
+      },
+      {
+        sent: 3,
+        summarized: 4,
+        summary_messages: 1,
+        skipped: 0,
+        wording_calls: 3,
+      },
+    );
+    // No model call for alerts that went out only in the summary.
+    assertStrictEquals(wordingCalls, 3);
+
+    assertStrictEquals(supabase.log.length, 7);
+    const byKey = Object.fromEntries(
+      supabase.log.map((row) => [row.campaign_key, row]),
+    );
+    for (let i = 1; i <= 7; i++) {
+      const row = byKey[`meta:id:c${i}`];
+      assert(row, `c${i} logged`);
+      assertStrictEquals(row.rule_type, "campaign_exception");
+      assertStrictEquals(row.fingerprint, `meta:id:c${i}:סיבה c${i}:cpl:30`);
+      assertStrictEquals(row.severity_score, 10 * i);
+      assertStrictEquals(row.recipient_phone, "972501234567");
+      assertStrictEquals(row.evidence.delivery, i <= 4 ? "summary" : undefined);
+    }
+
+    const second = await run(
+      supabase,
+      new Date(WEDNESDAY.getTime() + 3600e3),
+      [snapshot],
+      extra,
+    );
+    assertStrictEquals(second.sends.length, 0);
+    assertStrictEquals(second.result.sent, 0);
+    assertStrictEquals(second.result.summarized, 0);
+    assertStrictEquals(second.result.skipped, 7);
+    assertStrictEquals(supabase.log.length, 7);
+    assertStrictEquals(wordingCalls, 3);
+  },
+);
+
+Deno.test("the cap counts per recipient phone", async () => {
+  // The owner sees both clients; the manager only client c1 (agency a1).
+  const supabase = fakeSupabase([], {
+    user_roles: [{ tenant_id: "t1", user_id: "m1", role: "team_manager" }],
+    user_managed_agencies: [{ user_id: "m1", agency_id: "a1" }],
+    profiles: [
+      { id: "m1", full_name: "Manager", campaigners: { phone: "0529999999" } },
+    ],
+  });
+  const c1 = {
+    ...exceptionSnapshot(...exceptionCampaigns(5, "a")),
+    agency_id: "a1",
+  };
+  const c2 = {
+    ...exceptionSnapshot(
+      ...exceptionCampaigns(2, "b").map((campaign, i) => ({
+        ...campaign,
+        trend_3d_pct: 100 + i, // the two worst of the run
+      })),
+    ),
+    client_id: "c2",
+    client_name: "Beta",
+    agency_id: "a2",
+  };
+  const { result, sends } = await run(supabase, WEDNESDAY, [c1, c2], {
+    rules: NO_CONTACT_OFF,
+  });
+  const to = (phone) => sends.filter((send) => send.phone === phone);
+  const owner = to("972501234567");
+  const manager = to("972529999999");
+  assertStrictEquals(owner.length, 4);
+  assertStrictEquals(manager.length, 4);
+  const names = (list) =>
+    list
+      .filter((send) => !isSummary(send.message))
+      .map((send) => send.message.match(/קמפיין: (.*)/)[1])
+      .sort();
+  assertEquals(names(owner), ["Campaign a5", "Campaign b1", "Campaign b2"]);
+  assertEquals(names(manager), ["Campaign a3", "Campaign a4", "Campaign a5"]);
+  const summaryOf = (list) => list.find((send) => isSummary(send.message));
+  assertMatch(summaryOf(owner).message, /\nעוד 4 חריגות קמפיין:\n/);
+  assertMatch(summaryOf(manager).message, /\nעוד 2 חריגות קמפיין:\n/);
+  assertNotMatch(summaryOf(manager).message, /Beta/);
+  // a3 and a4 went out on their own to the manager; only a1 and a2 went out
+  // only inside summaries.
+  assertEquals(
+    {
+      sent: result.sent,
+      summarized: result.summarized,
+      summary_messages: result.summary_messages,
+      skipped: result.skipped,
+    },
+    { sent: 5, summarized: 2, summary_messages: 2, skipped: 0 },
+  );
+  assertStrictEquals(supabase.log.length, 7);
+});
+
+Deno.test(
+  "max_exception_messages_per_run overrides the cap, clamped to 1..10",
+  async () => {
+    assertStrictEquals(maxExceptionMessagesPerRun(null), 3);
+    assertStrictEquals(
+      maxExceptionMessagesPerRun(DEFAULT_PULSE_ALERT_RULES),
+      3,
+    );
+    const cap = (value) =>
+      maxExceptionMessagesPerRun({
+        ...DEFAULT_PULSE_ALERT_RULES,
+        instant: { max_exception_messages_per_run: value },
+      });
+    assertStrictEquals(cap(5), 5);
+    assertStrictEquals(cap("6"), 6);
+    assertStrictEquals(cap(0), 1);
+    assertStrictEquals(cap(-4), 1);
+    assertStrictEquals(cap(50), 10);
+    assertStrictEquals(cap(2.9), 2);
+    assertStrictEquals(cap("many"), 3);
+    assertStrictEquals(cap(null), 3);
+    assertStrictEquals(cap(true), 3);
+
+    const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
+    const five = await run(fakeSupabase(), WEDNESDAY, [snapshot], {
+      rules: {
+        ...NO_CONTACT_OFF,
+        instant: { max_exception_messages_per_run: 5 },
+      },
+    });
+    assertStrictEquals(five.sends.length, 6);
+    assertStrictEquals(five.result.sent, 5);
+    assertStrictEquals(five.result.summarized, 2);
+    assertMatch(
+      five.sends.find((send) => isSummary(send.message)).message,
+      /\nעוד 2 חריגות קמפיין:\n/,
+    );
+
+    const one = await run(fakeSupabase(), WEDNESDAY, [snapshot], {
+      rules: {
+        ...NO_CONTACT_OFF,
+        instant: { max_exception_messages_per_run: 0 },
+      },
+    });
+    assertStrictEquals(one.sends.length, 2);
+    assertStrictEquals(one.result.sent, 1);
+    assertStrictEquals(one.result.summarized, 6);
+
+    const ten = await run(fakeSupabase(), WEDNESDAY, [snapshot], {
+      rules: {
+        ...NO_CONTACT_OFF,
+        instant: { max_exception_messages_per_run: 10 },
+      },
+    });
+    assertStrictEquals(ten.sends.length, 7);
+    assertStrictEquals(ten.result.summary_messages, 0);
+  },
+);
+
+Deno.test(
+  "other rule types are not capped and do not use the cap",
+  async () => {
+    // Five clients, each with no contact and a stale sync (10 alerts), plus
+    // seven exceptions on the first client.
+    const clients = Array.from({ length: 5 }, (_, i) => ({
+      client_id: `c${i + 1}`,
+      client_name: `Client ${i + 1}`,
+      status: "warning",
+      flags: ["סנכרון ישן: Meta"],
+      last_client_call_at: null,
+    }));
+    clients[0] = {
+      ...clients[0],
+      campaign_breakdown: exceptionCampaigns(7),
+    };
+    const supabase = fakeSupabase();
+    const { result, sends } = await run(supabase, WEDNESDAY, clients);
+    const byHeader = (pattern) =>
+      sends.filter((send) => pattern.test(send.message)).length;
+    assertStrictEquals(byHeader(/אין עדכון קשר/), 5);
+    assertStrictEquals(byHeader(/חיבור\/קמפיין/), 5);
+    assertStrictEquals(byHeader(/חריגת קמפיין מאומתת/), 3);
+    assertStrictEquals(byHeader(/סיכום חריגות קמפיין/), 1);
+    assertStrictEquals(sends.length, 14);
+    assertStrictEquals(result.sent, 13);
+    assertStrictEquals(result.summarized, 4);
+    assertStrictEquals(supabase.log.length, 17);
+    assertStrictEquals(
+      supabase.log.filter((row) => row.evidence?.delivery === "summary").length,
+      4,
+    );
+  },
+);
+
+Deno.test(
+  "alerts in a summary that is not queued are not logged and go out next run",
+  async () => {
+    const supabase = fakeSupabase();
+    const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
+    fakeSupabase.clock = WEDNESDAY.toISOString();
+    const sends = [];
+    const result = await deliverInstantPulseAlerts({
+      supabase,
+      tenantId: "t1",
+      tenantSlug: "test-tenant",
+      pulsePhone: "0501234567",
+      snapshots: [snapshot],
+      criticalIssues: [],
+      rules: NO_CONTACT_OFF,
+      queueWhatsApp: async (message, phone) => {
+        if (isSummary(message)) return false;
+        sends.push({ message, phone });
+        return true;
+      },
+      now: WEDNESDAY,
+    });
+    assertStrictEquals(sends.length, 3);
+    assertStrictEquals(result.sent, 3);
+    assertStrictEquals(result.summarized, 0);
+    assertStrictEquals(result.summary_messages, 0);
+    assertStrictEquals(result.skipped, 4);
+    assertStrictEquals(supabase.log.length, 3);
+
+    const next = await run(
+      supabase,
+      new Date(WEDNESDAY.getTime() + 3600e3),
+      [snapshot],
+      { rules: NO_CONTACT_OFF },
+    );
+    assertStrictEquals(next.result.sent, 3);
+    assertStrictEquals(next.result.summarized, 1);
+    assertStrictEquals(next.result.skipped, 3);
+    assertStrictEquals(supabase.log.length, 7);
+  },
+);
+
+Deno.test(
+  "the summary message caps its lines and says how many are left",
+  () => {
+    const items = (n) =>
+      Array.from({ length: n }, (_, i) => ({
+        client_name: "Acme",
+        campaign_name: `Campaign\n${i + 1}`,
+        status_reason: "חריגה מתמשכת",
+      }));
+    assertStrictEquals(
+      buildExceptionSummaryMessage(items(1)),
+      [
+        SUMMARY_HEADER,
+        "עוד חריגת קמפיין אחת:",
+        "• Acme · Campaign 1 · חריגה מתמשכת",
+        "",
+        "AIOS → דשבורד דופק",
+      ].join("\n"),
+    );
+    const seventeen = buildExceptionSummaryMessage(items(17)).split("\n");
+    assertStrictEquals(seventeen[1], "עוד 17 חריגות קמפיין:");
+    assertStrictEquals(
+      seventeen.filter((line) => line.startsWith("• ")).length,
+      15,
+    );
+    assertStrictEquals(seventeen[17], "ועוד 2 בדשבורד הדופק");
+    const sixteen = buildExceptionSummaryMessage(items(16)).split("\n");
+    assertStrictEquals(sixteen[17], "ועוד אחת בדשבורד הדופק");
+    const fifteen = buildExceptionSummaryMessage(items(15));
+    assertNotMatch(fifteen, /ועוד/);
   },
 );

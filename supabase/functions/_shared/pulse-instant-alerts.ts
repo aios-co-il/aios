@@ -40,6 +40,12 @@ export type PulseInstantAlertCandidate = {
   severity_score?: number | null;
   evidence?: Record<string, unknown>;
   /**
+   * campaign_exception only: the labels a per-run summary line shows. They
+   * stay out of evidence, so digits in a name never license a model number.
+   */
+  campaign_name?: string | null;
+  status_reason?: string | null;
+  /**
    * connection_lost only: true when the cause is a real connection loss
    * (stale or missing sync, no connected campaign table, an account-level
    * stop/disable). Only these may go out on Shabbat; a connection_lost made
@@ -157,15 +163,19 @@ function evidenceValueTokens(value: unknown, out: string[]): void {
   } else if (Array.isArray(value)) {
     for (const item of value) evidenceValueTokens(item, out);
   } else if (value && typeof value === "object") {
-    for (const item of Object.values(value)) evidenceValueTokens(item, out);
+    for (const [key, item] of Object.entries(value)) {
+      // Trends are percentages, which model text may not state (see
+      // SIGNED_OR_PERCENT); as a bare number they would only fit a wrong role.
+      if (!key.endsWith("_pct")) evidenceValueTokens(item, out);
+    }
   }
 }
 
 /**
  * Numbers the model may repeat: the values code computed for this alert
- * (evidence: target, efficiency, trends, dates) and the window lengths the
- * message names ("3 ימים", "ב־7 הימים"). Other digits in the message, such
- * as a window label or a client or campaign name, license nothing.
+ * (evidence: target, efficiency, dates) and the window lengths the message
+ * names ("3 ימים", "ב־7 הימים"). Other digits in the message, such as a
+ * window label or a client or campaign name, license nothing.
  */
 function deterministicNumbers(
   candidate: PulseInstantAlertCandidate,
@@ -181,9 +191,18 @@ type WordingLine =
   | { ok: true; text: string }
   | { ok: false; reason: "missing" | "invented_number" | "invalid_text" };
 
-// Leading bullets and colons the model may add; a dash counts as a bullet
-// only before a space, so "-30%" keeps its minus sign.
-const LEADING_MARKS = String.raw`(?:[•:\s]|[-–—](?=\s))*`;
+// Leading bullets and colons the model may add. A dash counts as a bullet
+// unless a digit follows it, so "-בדיקה מומלצת:" loses its dash and label
+// while "-30" keeps its minus sign (and is then rejected as a signed number).
+const LEADING_MARKS = String.raw`(?:[•:\s]|[-–—](?![\d.]))*`;
+// A signed number ("-12.5", "+40") or a percentage ("12.5%", "40 אחוז").
+// Model text may state neither: the evidence trends are signed "worse than
+// the baseline" and flipped for ROAS (pulse-campaign-goals.mjs pct()), so
+// code cannot tell whether "עלייה"/"ירידה" or a sign matches the metric the
+// sentence names, and the message itself shows no percentage to check
+// against. "ב-30" is a Hebrew prefix, not a sign.
+const SIGNED_OR_PERCENT =
+  /(?:^|[\s(])[-−–—+]\d|\d\s*(?:[%٪％﹪]|אחוז)|[%٪％﹪]\s*\d/u;
 const REPEATED_LABEL = new RegExp(
   `^${LEADING_MARKS}(?:(?:סיכום כרמן|סיכום|בדיקה מומלצת)\\s*:)?${LEADING_MARKS}`,
 );
@@ -194,9 +213,10 @@ const LINK_LIKE = /https?:\/\/|www\.|[\p{L}\p{N}-]+\.[a-z]{2,}(?![a-z0-9])/iu;
 
 /**
  * One model line, made safe for WhatsApp: a single line without markdown or
- * direction-control characters, at most PULSE_WORDING_MAX_CHARS long, and
- * without any number the deterministic evidence does not already contain.
- * The checks run on the text as it will be shown, after any shortening.
+ * direction-control characters, at most PULSE_WORDING_MAX_CHARS long,
+ * without a signed number or a percentage, and without any number the
+ * deterministic evidence does not already contain. The checks run on the
+ * text as it will be shown, after any shortening.
  */
 export function sanitizePulseWordingLine(
   raw: unknown,
@@ -226,6 +246,8 @@ export function sanitizePulseWordingLine(
   // Numerals outside ASCII digits (Arabic-Indic, superscript, circled, Roman)
   // cannot be checked against the evidence.
   if (/(?![0-9])\p{N}/u.test(text))
+    return { ok: false, reason: "invented_number" };
+  if (SIGNED_OR_PERCENT.test(text))
     return { ok: false, reason: "invented_number" };
   if (numberTokens(text).some((token) => !allowedNumbers.has(token))) {
     return { ok: false, reason: "invented_number" };
@@ -526,6 +548,8 @@ export function evaluatePulseInstantAlerts(
         client_name: clientName,
         rule_type: "campaign_exception",
         campaign_key: campaign.campaign_key,
+        campaign_name: campaign.campaign_name || campaign.campaign_key,
+        status_reason: campaign.status_reason || "חריגה מתמשכת",
         fingerprint,
         severity_score: severity,
         evidence,
@@ -774,6 +798,104 @@ export function isPulseAlertHeldForShabbat(
   );
 }
 
+/** Per recipient phone and run, at most this many campaign_exception messages. */
+export const DEFAULT_MAX_EXCEPTION_MESSAGES_PER_RUN = 3;
+const MAX_EXCEPTION_MESSAGES_PER_RUN_LIMIT = 10;
+const EXCEPTION_SUMMARY_MAX_LINES = 15;
+
+/**
+ * pulse_alert_rules.instant.max_exception_messages_per_run, clamped to
+ * 1..10. Missing or not a number → DEFAULT_MAX_EXCEPTION_MESSAGES_PER_RUN.
+ */
+export function maxExceptionMessagesPerRun(rules: unknown): number {
+  const instant =
+    rules && typeof rules === "object"
+      ? (rules as Record<string, unknown>).instant
+      : null;
+  const raw =
+    instant && typeof instant === "object"
+      ? (instant as Record<string, unknown>).max_exception_messages_per_run
+      : undefined;
+  const value =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw)
+        : Number.NaN;
+  if (!Number.isFinite(value)) return DEFAULT_MAX_EXCEPTION_MESSAGES_PER_RUN;
+  return Math.min(
+    MAX_EXCEPTION_MESSAGES_PER_RUN_LIMIT,
+    Math.max(1, Math.floor(value)),
+  );
+}
+
+/**
+ * One message built by code (no model call) for the campaign_exception
+ * alerts above a recipient's per-run cap: one line per alert in the order
+ * given, and a count of the rest when they do not fit.
+ */
+export function buildExceptionSummaryMessage(
+  candidates: Array<
+    Pick<
+      PulseInstantAlertCandidate,
+      "client_name" | "campaign_name" | "campaign_key" | "status_reason"
+    >
+  >,
+): string {
+  const oneLine = (value: unknown, fallback: string) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim() || fallback;
+  const shown = candidates.slice(0, EXCEPTION_SUMMARY_MAX_LINES);
+  const rest = candidates.length - shown.length;
+  return [
+    "🔴 *התראת דופק — סיכום חריגות קמפיין*",
+    candidates.length === 1
+      ? "עוד חריגת קמפיין אחת:"
+      : `עוד ${candidates.length} חריגות קמפיין:`,
+    ...shown.map(
+      (candidate) =>
+        `• ${oneLine(candidate.client_name, "לקוח")} · ${oneLine(
+          candidate.campaign_name ?? candidate.campaign_key,
+          "קמפיין",
+        )} · ${oneLine(candidate.status_reason, "חריגה מתמשכת")}`,
+    ),
+    ...(rest > 0
+      ? [rest === 1 ? "ועוד אחת בדשבורד הדופק" : `ועוד ${rest} בדשבורד הדופק`]
+      : []),
+    "",
+    "AIOS → דשבורד דופק",
+  ].join("\n");
+}
+
+type PlannedInstantAlert = {
+  candidate: PulseInstantAlertCandidate;
+  recipients: string[];
+  /** Phones that get this alert as its own message (the rest: a summary). */
+  individual: string[];
+  logged: boolean;
+};
+
+async function logInstantAlert(
+  supabase: any,
+  tenantId: string,
+  item: PlannedInstantAlert,
+): Promise<void> {
+  const { candidate } = item;
+  await supabase.from("pulse_instant_alert_log").insert({
+    tenant_id: tenantId,
+    client_id: candidate.client_id,
+    rule_type: candidate.rule_type,
+    message: candidate.message,
+    recipient_phone: item.recipients.join(","),
+    campaign_key: candidate.campaign_key || null,
+    fingerprint: candidate.fingerprint || null,
+    severity_score: candidate.severity_score || null,
+    evidence: candidate.evidence || {},
+  });
+  item.logged = true;
+}
+
 export async function deliverInstantPulseAlerts(input: {
   supabase: any;
   tenantId: string;
@@ -810,6 +932,8 @@ export async function deliverInstantPulseAlerts(input: {
     return {
       sent: 0,
       skipped: 0,
+      summarized: 0,
+      summary_messages: 0,
       candidates: evaluated.length,
       wording_calls: 0,
       worded: 0,
@@ -818,9 +942,16 @@ export async function deliverInstantPulseAlerts(input: {
 
   let sent = 0;
   let skipped = 0;
+  let summarized = 0;
+  let summaryMessages = 0;
   let wordingCalls = 0;
   let worded = 0;
 
+  // 1. Code decides what goes out: dedupe/throttle, then recipients.
+  const planned: PlannedInstantAlert[] = [];
+  // Alerts accepted earlier in this run count like log rows (newest first),
+  // since logging now happens after the whole plan is made.
+  const acceptedThisRun = new Map<string, InstantAlertLogRow[]>();
   for (const candidate of candidates) {
     const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
     const recent = await recentAlertDeliveries(
@@ -832,10 +963,16 @@ export async function deliverInstantPulseAlerts(input: {
       now.getTime(),
       candidate.campaign_key,
     );
+    const runKey = [
+      candidate.rule_type,
+      candidate.client_id,
+      candidate.campaign_key || "",
+    ].join("|");
+    const earlier = acceptedThisRun.get(runKey) || [];
     // A failed dedupe lookup must not turn into a resend.
     if (
       recent === null ||
-      !decideInstantAlertDelivery(candidate, recent).send
+      !decideInstantAlertDelivery(candidate, [...earlier, ...recent]).send
     ) {
       skipped += 1;
       continue;
@@ -855,7 +992,53 @@ export async function deliverInstantPulseAlerts(input: {
       skipped += 1;
       continue;
     }
+    acceptedThisRun.set(runKey, [
+      {
+        fingerprint: candidate.fingerprint,
+        severity_score: candidate.severity_score,
+      },
+      ...earlier,
+    ]);
+    const phones = recipients.map((row) => row.phone);
+    planned.push({
+      candidate,
+      recipients: phones,
+      individual: phones,
+      logged: false,
+    });
+  }
 
+  // 2. Flood guard (a deploy or a bad sync must not burst alerts): per phone
+  // and run, at most `cap` campaign_exception messages, most severe first.
+  // The rest for that phone go into one summary message.
+  const cap = maxExceptionMessagesPerRun(input.rules);
+  const exceptionMessagesByPhone = new Map<string, number>();
+  const summaryByPhone = new Map<string, PlannedInstantAlert[]>();
+  const exceptions = planned
+    .filter((item) => item.candidate.rule_type === "campaign_exception")
+    // A stable sort: equal severity keeps the evaluation order.
+    .sort(
+      (a, b) =>
+        Number(b.candidate.severity_score || 0) -
+        Number(a.candidate.severity_score || 0),
+    );
+  for (const item of exceptions) {
+    item.individual = [];
+    for (const phone of item.recipients) {
+      const used = exceptionMessagesByPhone.get(phone) || 0;
+      if (used < cap) {
+        exceptionMessagesByPhone.set(phone, used + 1);
+        item.individual.push(phone);
+      } else {
+        summaryByPhone.set(phone, [...(summaryByPhone.get(phone) || []), item]);
+      }
+    }
+  }
+
+  // 3. Individual messages, in evaluation order.
+  for (const item of planned) {
+    if (!item.individual.length) continue; // summary only
+    const { candidate } = item;
     let wordingApplied = false;
     if (candidate.rule_type === "campaign_exception") {
       // The deterministic checks above decide delivery (AIO-243). The model
@@ -876,35 +1059,45 @@ export async function deliverInstantPulseAlerts(input: {
     }
 
     let delivered = false;
-    for (const recipient of recipients) {
-      const queued = await input.queueWhatsApp(
-        candidate.message,
-        recipient.phone,
-      );
+    for (const phone of item.individual) {
+      const queued = await input.queueWhatsApp(candidate.message, phone);
       if (queued) delivered = true;
     }
     if (delivered) {
       sent += 1;
       if (wordingApplied) worded += 1;
-      await input.supabase.from("pulse_instant_alert_log").insert({
-        tenant_id: input.tenantId,
-        client_id: candidate.client_id,
-        rule_type: candidate.rule_type,
-        message: candidate.message,
-        recipient_phone: recipients.map((row) => row.phone).join(","),
-        campaign_key: candidate.campaign_key || null,
-        fingerprint: candidate.fingerprint || null,
-        severity_score: candidate.severity_score || null,
-        evidence: candidate.evidence || {},
-      });
-    } else {
-      skipped += 1;
+      await logInstantAlert(input.supabase, input.tenantId, item);
     }
   }
+
+  // 4. One summary per phone over the cap, built by code. Each alert in it
+  // is logged like a sent one, so the next run's dedupe treats it as
+  // delivered; if no summary with it is queued, it is not logged and the
+  // next run sends it.
+  for (const [phone, items] of summaryByPhone) {
+    const queued = await input.queueWhatsApp(
+      buildExceptionSummaryMessage(items.map((item) => item.candidate)),
+      phone,
+    );
+    if (!queued) continue;
+    summaryMessages += 1;
+    for (const item of items) {
+      if (item.logged) continue;
+      item.candidate.evidence = {
+        ...(item.candidate.evidence || {}),
+        delivery: "summary",
+      };
+      await logInstantAlert(input.supabase, input.tenantId, item);
+      summarized += 1;
+    }
+  }
+  skipped += planned.filter((item) => !item.logged).length;
 
   return {
     sent,
     skipped,
+    summarized,
+    summary_messages: summaryMessages,
     candidates: evaluated.length,
     wording_calls: wordingCalls,
     worded,
@@ -913,8 +1106,16 @@ export async function deliverInstantPulseAlerts(input: {
 }
 
 export type InstantPulseAlertResult = {
+  /** Alerts sent as their own message. */
   sent: number;
   skipped: number;
+  /**
+   * campaign_exception alerts over a recipient's per-run cap that went out
+   * only inside a summary message; logged like sent ones.
+   */
+  summarized: number;
+  /** Summary messages queued: at most one per recipient phone per run. */
+  summary_messages: number;
   candidates: number;
   /** Model wording calls made for campaign_exception alerts. */
   wording_calls: number;
@@ -935,6 +1136,8 @@ export async function runGatedInstantPulseAlerts(
     return {
       sent: 0,
       skipped: 0,
+      summarized: 0,
+      summary_messages: 0,
       candidates: 0,
       wording_calls: 0,
       worded: 0,
