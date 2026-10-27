@@ -1,6 +1,6 @@
 import { spendBudget } from "../budget.ts";
 import { imageFormatsFrom } from "../defaults.ts";
-import { gatePaid } from "../gate.ts";
+import { gatePaid, refundMissing } from "../gate.ts";
 import { productionRunning } from "../production.ts";
 import { loadProject, savePayload, voiceHelpers } from "../project-io.ts";
 import { asRecord, creativeStageFor, recordArtifact } from "../record.ts";
@@ -271,6 +271,11 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       : "";
   const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
+  // The quote is charged before the RPC (the payload's video settings must be saved first); a
+  // production that never started gives it back.
+  const units = costScenes.length + relip.length || 1;
+  const refund = () =>
+    refundMissing(supabase, tenantId, itemId, "workshop_produce_video", units);
   try {
     await savePayload(
       supabase,
@@ -289,7 +294,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           },
         },
         "workshop_produce_video",
-        costScenes.length + relip.length || 1,
+        units,
       ),
     );
   } catch (error) {
@@ -317,7 +322,8 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     p_music_prompt: musicPrompt,
     p_generate_audio: false,
   });
-  if (produced.error)
+  if (produced.error) {
+    await refund();
     return {
       error: [
         produced.error.message,
@@ -327,18 +333,24 @@ export async function workshopProduceVideo(ctx: ToolContext) {
         .filter(Boolean)
         .join(" | "),
     };
+  }
   const state = asRecord(produced.data);
-  // A production that failed at once gets no pending film page (it would spin forever).
-  if (state.status === "failed")
+  // A production that failed at once queued nothing paid, and gets no pending film page (it
+  // would spin forever).
+  if (state.status === "failed") {
+    await refund();
     return {
       success: false,
       status: "failed",
       error: String(state.error ?? "ההפקה נכשלה"),
     };
+  }
+  // produce_video's lock: another production runs, and this call queued nothing.
   const alreadyRunning =
     state.status === "running" &&
     Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&
     Number(state.music ?? 0) === 0;
+  if (alreadyRunning) await refund();
   const open = alreadyRunning ? await pendingFilm() : null;
   if (alreadyRunning && open?.data)
     return runningReply(engine, clientId, open.data);
