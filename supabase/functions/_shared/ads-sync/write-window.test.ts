@@ -4,30 +4,33 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 
-import { buildAllLevelInsightRecords } from "./fbInsights.ts";
-import { replacedRecordsFilter } from "./report-sync-window.ts";
-import { scheduledMarkerPatch } from "./sync-outcome.ts";
-import { syncOutcomeProblem } from "./sync-freshness.ts";
+import { isSyncStale } from "../campaign-pulse.ts";
+import { buildAllLevelInsightRecords } from "../fbInsights.ts";
+import { replacedRecordsFilter } from "../report-sync-window.ts";
+import { resolveSyncOutcome, syncOutcomeProblem } from "./freshness.ts";
+import { isRecord } from "./is-record.ts";
+import { scheduledMarkerPatch } from "./outcome.ts";
+import { saveSyncRun } from "./save-run.ts";
 import {
   replacedLevelRecordsFilter,
-  saveSyncRun,
   syncAdsWindow,
   writeAdsWindow,
-  type SyncDbClient,
-} from "./ads-sync-write.ts";
-import { isSyncStale, type CampaignTableLike } from "./campaign-pulse.ts";
-import { fakeClient, type FakeDb, type Row } from "./tests/fake-postgrest.ts";
+} from "./write-window.ts";
+import { fakeClient, type FakeDb } from "./tests/fake-postgrest.ts";
 import {
   NOW,
   PREVIOUS_SYNC,
   RUN_AT,
+  TABLE,
   WINDOW,
   insight,
   storedTable,
+  storedTableRow,
   stubGraph,
 } from "./tests/meta-graph-fixtures.ts";
 
 const realFetch = globalThis.fetch;
+
 /** Deno.test that puts the real fetch back afterwards (stubGraph replaces it). */
 function test(name: string, fn: () => void | Promise<void>) {
   Deno.test(name, async () => {
@@ -38,54 +41,6 @@ function test(name: string, fn: () => void | Promise<void>) {
     }
   });
 }
-
-/** The manual / scheduled Meta sync path: fetch, replace, record. */
-async function runMetaSync(db: FakeDb, catchup = false, window = WINDOW) {
-  const client = fakeClient(db) as unknown as SyncDbClient;
-  const fetched = await buildAllLevelInsightRecords(
-    "act_1",
-    window.startDate,
-    window.endDate,
-    "token",
-    {},
-  );
-  const outcome = await syncAdsWindow(
-    { deleteClient: client },
-    {
-      tableId: "t1",
-      tenantId: "tenant-1",
-      window,
-      records: fetched.records,
-      levelCounts: fetched.levelCounts,
-      levelErrors: fetched.levelErrors,
-      source: "test",
-      at: RUN_AT,
-    },
-  );
-  await saveSyncRun(client, "t1", {
-    outcome,
-    catchup,
-    settingsPatch: scheduledMarkerPatch(outcome.status, {
-      scheduled_synced_through: "2026-10-26",
-    }),
-    log: () => {},
-  });
-  const table = db.tables.crm_tables[0] as Row & CampaignTableLike;
-  return { outcome, table };
-}
-
-/** Every stored row as `date:level=spend`, sorted: a duplicate row shows up twice. */
-const storedRows = (db: FakeDb) =>
-  db.tables.crm_records
-    .map((row) => {
-      const data = row.data as {
-        date: string;
-        entity_level?: string;
-        spend: number;
-      };
-      return `${data.date}:${data.entity_level || "none"}=${data.spend}`;
-    })
-    .sort();
 
 test("a failed campaign-level fetch keeps every stored row and is recorded as failed", async () => {
   stubGraph({
@@ -105,15 +60,12 @@ test("a failed campaign-level fetch keeps every stored row and is recorded as fa
   );
   assertEquals(storedRows(db), before);
   assertStrictEquals(table.last_sync_at, PREVIOUS_SYNC);
-  const settings = table.integration_settings as Record<string, unknown>;
+  const settings = table.integration_settings;
   assertStrictEquals(settings.last_sync_at, PREVIOUS_SYNC);
   assertStrictEquals(settings.scheduled_synced_through, "2026-10-25");
   assertStrictEquals(settings.currency, "USD");
   assertStrictEquals(table.last_sync_attempt_at, RUN_AT);
-  assertStrictEquals(
-    (table.last_sync_outcome as { status: string }).status,
-    "failed",
-  );
+  assertStrictEquals(columnStatus(table), "failed");
   assertStrictEquals(isSyncStale(table, NOW), true);
 });
 
@@ -144,8 +96,7 @@ test("a failed ad-level fetch replaces campaign and ad set rows but keeps stored
   assertStrictEquals(table.last_sync_at, RUN_AT);
   assertStrictEquals(syncOutcomeProblem(table), null);
   assertStrictEquals(
-    (table.integration_settings as Record<string, unknown>)
-      .scheduled_synced_through,
+    table.integration_settings.scheduled_synced_through,
     "2026-10-26",
   );
 });
@@ -160,8 +111,7 @@ test("an empty fetch keeps stored rows, marks the run empty and leaves last_sync
   assertEquals(storedRows(db), before);
   assertStrictEquals(table.last_sync_at, PREVIOUS_SYNC);
   assertStrictEquals(
-    (table.integration_settings as Record<string, unknown>)
-      .scheduled_synced_through,
+    table.integration_settings.scheduled_synced_through,
     "2026-10-25",
   );
   assertStrictEquals(syncOutcomeProblem(table), "empty");
@@ -192,7 +142,7 @@ test("a failed delete inserts nothing; a failed insert chunk is a failed run", a
   const records = [{ date: "2026-10-25", entity_level: "campaign", spend: 1 }];
   const db = storedTable();
   db.failures["crm_records:delete"] = "statement timeout";
-  const client = fakeClient(db) as unknown as SyncDbClient;
+  const client = fakeClient(db);
   const input = {
     tableId: "t1",
     tenantId: "tenant-1",
@@ -234,10 +184,7 @@ test("catch-up chunks never stamp last_sync_at and record only failures", async 
   const failed = storedTable();
   const failedRun = await runMetaSync(failed, true);
   assertStrictEquals(failedRun.table.last_sync_at, PREVIOUS_SYNC);
-  assertStrictEquals(
-    (failedRun.table.last_sync_outcome as { status: string }).status,
-    "failed",
-  );
+  assertStrictEquals(columnStatus(failedRun.table), "failed");
 });
 
 test("replacedLevelRecordsFilter: all levels is the plain window filter", () => {
@@ -250,3 +197,52 @@ test("replacedLevelRecordsFilter: all levels is the plain window filter", () => 
     "and(or(data->>entity_level.is.null,data->>entity_level.in.(campaign)),or(data->>date.gte.2026-10-24,data->>date.is.null,data->>date.lt.1900-01-01))",
   );
 });
+
+/** The manual / scheduled Meta sync path: fetch, replace, record. */
+async function runMetaSync(db: FakeDb, catchup = false, window = WINDOW) {
+  const client = fakeClient(db);
+  const fetched = await buildAllLevelInsightRecords(
+    "act_1",
+    window.startDate,
+    window.endDate,
+    "token",
+    {},
+  );
+  const outcome = await syncAdsWindow(
+    { deleteClient: client },
+    {
+      ...TABLE,
+      window,
+      records: fetched.records,
+      levelCounts: fetched.levelCounts,
+      levelErrors: fetched.levelErrors,
+      source: "test",
+      at: RUN_AT,
+    },
+  );
+  await saveSyncRun(client, TABLE, {
+    outcome,
+    catchup,
+    settingsPatch: scheduledMarkerPatch(outcome.status, {
+      scheduled_synced_through: "2026-10-26",
+    }),
+    log: () => {},
+  });
+  return { outcome, table: storedTableRow(db) };
+}
+
+/** Status of the outcome on the last_sync_outcome column (not the settings mirror). */
+function columnStatus(table: { last_sync_outcome?: unknown }) {
+  return resolveSyncOutcome({ last_sync_outcome: table.last_sync_outcome })
+    ?.status;
+}
+
+/** Every stored row as `date:level=spend`, sorted: a duplicate row shows up twice. */
+function storedRows(db: FakeDb) {
+  return db.tables.crm_records
+    .map((row) => {
+      const data = isRecord(row.data) ? row.data : {};
+      return `${data.date}:${data.entity_level || "none"}=${data.spend}`;
+    })
+    .sort();
+}

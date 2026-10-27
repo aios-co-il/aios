@@ -191,7 +191,7 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
-import { fetchCampaignLevelRecords } from "../_shared/pulse-inputs.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -11242,12 +11242,10 @@ async function executeTool(
       if (tableIds.length > 0) {
         // Campaign-level rows of the last 7 days, paged: one unfiltered request
         // stopped at 1000 rows of any level/date and missed real spend.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows as the untyped client returned them
-        const recs: any[] = await fetchCampaignLevelRecords(supabase, {
+        const recs = await fetchCampaignLevelRecords(supabase, {
           tableIds,
           sinceYmd: d7Str,
           tenantIds: accessibleTenantIds,
-          columns: "id, table_id, data",
         });
         for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);

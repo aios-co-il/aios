@@ -20,11 +20,15 @@ import {
   type SyncWindow,
 } from "../_shared/report-sync-window.ts";
 import {
-  buildSyncOutcome,
   isWriteSuccess,
   scheduledMarkerPatch,
-} from "../_shared/sync-outcome.ts";
-import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+} from "../_shared/ads-sync/outcome.ts";
+import {
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import { runCatchup } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";
 
@@ -93,6 +97,7 @@ Deno.serve(async (req) => {
     };
 
     for (const table of tables || []) {
+      const run = { tableId: table.id, tenantId: table.tenant_id };
       // True once this table's run was recorded, so the catch below does not overwrite it.
       let runRecorded = false;
       try {
@@ -315,26 +320,18 @@ Deno.serve(async (req) => {
         };
 
         let historyFrom = plan.historyFrom;
-        if (plan.catchup) {
-          let catchupError: string | null = null;
-          try {
-            const { outcome: catchupOutcome } = await writeWindow(plan.catchup);
-            if (catchupOutcome.status === "failed")
-              catchupError = catchupOutcome.error || "failed";
-          } catch (error) {
-            catchupError =
-              error instanceof Error ? error.message : String(error);
-          }
-          if (catchupError) {
-            historyFrom =
-              typeof settings.scheduled_history_from === "string"
-                ? settings.scheduled_history_from
-                : plan.refresh.startDate;
-            console.error(
-              `[cron-sync-facebook-insights] ${table.name}: catch-up failed:`,
-              catchupError,
-            );
-          }
+        const catchupError = plan.catchup
+          ? await runCatchup(writeWindow, plan.catchup)
+          : null;
+        if (catchupError) {
+          historyFrom =
+            typeof settings.scheduled_history_from === "string"
+              ? settings.scheduled_history_from
+              : plan.refresh.startDate;
+          console.error(
+            `[cron-sync-facebook-insights] ${table.name}: catch-up failed:`,
+            catchupError,
+          );
         }
         const { insights, outcome } = await writeWindow(plan.refresh);
         const campaignInsights = insights.filter(
@@ -351,7 +348,7 @@ Deno.serve(async (req) => {
 
         // last_sync_at (column + settings) and the scheduled markers move only after
         // a successful write; the attempt and its outcome are always recorded.
-        await saveSyncRun(supabase, table.id, {
+        await saveSyncRun(supabase, run, {
           outcome,
           fallbackSettings: settings,
           settingsPatch: {
@@ -825,17 +822,15 @@ Deno.serve(async (req) => {
           tableError.message,
         );
         if (!runRecorded) {
-          await saveSyncRun(supabase, table.id, {
-            outcome: buildSyncOutcome({
-              status: "failed",
-              error:
-                tableError instanceof Error
-                  ? tableError.message
-                  : String(tableError),
-              source: SOURCE,
-            }),
+          await failedRunRecorder(supabase, {
+            ...run,
+            source: SOURCE,
             fallbackSettings: table.integration_settings || {},
-          }).catch(() => {});
+          })(
+            tableError instanceof Error
+              ? tableError.message
+              : String(tableError),
+          );
         }
         results.failed++;
         results.errors.push(`${table.name}: ${tableError.message}`);

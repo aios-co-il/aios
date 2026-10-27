@@ -3,7 +3,7 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
-import { syncOutcomeProblem } from "./sync-freshness.ts";
+import { syncOutcomeProblem } from "./ads-sync/freshness.ts";
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
@@ -39,7 +39,7 @@ export type CampaignTableLike = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
-  /** Latest run's outcome (also mirrored in integration_settings), see sync-outcome.ts. */
+  /** Latest run's outcome (also mirrored in integration_settings), see ads-sync/outcome.ts. */
   last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
@@ -65,7 +65,9 @@ export function isSyncStale(
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
-  if (syncOutcomeProblem(table)) return true;
+  if (syncOutcomeProblem(table)) {
+    return true;
+  }
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
