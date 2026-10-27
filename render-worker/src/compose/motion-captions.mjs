@@ -15,8 +15,6 @@ import {
 
 export { displayWord, isLtrWord, keyScore, wordsOf } from "./motion-words.mjs";
 
-export const CAPTION_STYLES = ["motion", "karaoke"];
-
 /** The film's caption style: karaoke only when asked for (payload.video.caption_style). */
 export const captionStyleOf = (value) =>
   value === "karaoke" ? "karaoke" : "motion";

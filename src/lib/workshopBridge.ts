@@ -9,22 +9,24 @@ export interface WorkshopContext {
   title: string | null;
   selectedArtifactId: string | null;
   /** The storyboard scene the user picked on the board (marketing_video_scenes.id). */
-  selectedSceneId?: string | null;
+  selectedSceneId: string | null;
   /** Its number in the film, as the board shows it. */
-  selectedSceneNumber?: number | null;
+  selectedSceneNumber: number | null;
 }
 
 export interface WorkshopEvent {
-  /** "scenes": storyboard scenes changed (e.g. workshop_update_scene); the grid reloads. */
-  event: "project" | "artifacts" | "scenes";
+  event: "project" | "artifacts";
   item_id: string;
   artifact_id?: string;
+  /** The scene a tool changed (workshop_update_scene); the grid reloads on any event. */
   scene_id?: string;
 }
 
-const EVENTS = new Set<string>(["project", "artifacts", "scenes"]);
+const EVENTS = new Set<string>(["project", "artifacts"]);
 
 let context: WorkshopContext | null = null;
+/** A composer line the board asked for before any composer listened (prefillComposer). */
+let pendingPrefill: string | null = null;
 const contextListeners = new Set<() => void>();
 const eventListeners = new Set<(event: WorkshopEvent) => void>();
 
@@ -32,6 +34,8 @@ export const getWorkshopContext = () => context;
 
 export function setWorkshopContext(next: WorkshopContext | null) {
   context = next;
+  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat.
+  if (next === null) pendingPrefill = null;
   contextListeners.forEach((listener) => listener());
 }
 
@@ -125,7 +129,6 @@ export const workshopToolLabel = (tool: string | undefined) =>
  * chat may mount after the board asks (the session column opens on the same click), so a
  * request nobody heard waits for the first composer that subscribes.
  */
-let pendingPrefill: string | null = null;
 const prefillListeners = new Set<(text: string) => void>();
 
 export function prefillComposer(text: string) {

@@ -6,6 +6,13 @@ import type { SceneTextPatch, StoryboardScene } from "./storyboardScenes";
 
 export type SceneDraft = Required<SceneTextPatch>;
 
+/** The lengths workshop_edit_scene_text keeps (and Carmen's workshop_update_scene). */
+export const SCENE_TEXT_LIMITS: Record<keyof SceneDraft, number> = {
+  overlay_text: 300,
+  voiceover_text: 2000,
+  dialogue: 1000,
+};
+
 /**
  * The scene's texts in place: what is written on screen and what is heard (the narration, or
  * on a talking scene the line the character says). Escape cancels, Ctrl/⌘+Enter saves.
@@ -48,6 +55,7 @@ export function SceneEditForm({
         id={`${id}-${key}`}
         rows={rows}
         value={draft[key]}
+        maxLength={SCENE_TEXT_LIMITS[key]}
         aria-describedby={hint ? `${id}-${key}-hint` : undefined}
         onChange={(event) => onChange({ ...draft, [key]: event.target.value })}
         onKeyDown={onKeyDown}

@@ -45,7 +45,10 @@ export interface SceneUpdate {
   stillRedo: boolean;
 }
 
-/** Text limits, as save_video_storyboard and the scene columns keep them. */
+/**
+ * Text limits. The board's own edit (workshop_edit_scene_text) keeps the same ones for the texts
+ * it changes, and save_video_storyboard caps speaker and dialogue alike.
+ */
 const LIMITS = {
   title: 120,
   overlay_text: 300,
