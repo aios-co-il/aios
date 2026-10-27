@@ -185,7 +185,8 @@ import {
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   normalizePulseRowClientCall,
-} from "../_shared/pulse-client-call.ts";
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
 import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
@@ -7370,7 +7371,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7419,6 +7419,7 @@ async function executeTool(
         }
       }
       // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
       let normalizedRows = Array.from(freshestByClient.values())
         .map((row: any) =>
           normalizePulseRowClientCall({
@@ -7429,7 +7430,7 @@ async function executeTool(
             agencies: undefined,
           }),
         )
-        .filter((row: any) => !args.status || row.status === args.status);
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7544,7 +7545,7 @@ async function executeTool(
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
       const noRecentClientCallCount = normalizedRows.filter(
-        (row: any) => row.no_recent_client_call === true,
+        pulseRowHasNoRecentClientCall,
       ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,

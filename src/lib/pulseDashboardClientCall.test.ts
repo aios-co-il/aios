@@ -3,14 +3,12 @@ import {
   applyClientCallToPulseSnapshot,
   expandPulseToPlatformGoalRows,
   getPulsePeriodBounds,
-  pulseHasNoRecentClientCall,
   type PulseSnapshotRow,
 } from "./pulseDashboard";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 const LEGACY_FLAG = "לא תועדה שיחה טלפונית עם הלקוח";
-const NOW = Date.parse("2026-10-26T09:00:00.000Z");
 
 function snapshot(overrides: Partial<PulseSnapshotRow>): PulseSnapshotRow {
   return {
@@ -42,24 +40,9 @@ function snapshot(overrides: Partial<PulseSnapshotRow>): PulseSnapshotRow {
   };
 }
 
-describe("pulse dashboard client-call indicator (AIO-227)", () => {
-  it("is separate from status and follows the 14-day rule", () => {
-    expect(pulseHasNoRecentClientCall(snapshot({}), NOW)).toBe(true);
-    expect(
-      pulseHasNoRecentClientCall(
-        snapshot({ last_client_call_at: "2026-10-01T09:00:00.000Z" }),
-        NOW,
-      ),
-    ).toBe(true);
-    expect(
-      pulseHasNoRecentClientCall(
-        snapshot({ last_client_call_at: "2026-10-24T09:00:00.000Z" }),
-        NOW,
-      ),
-    ).toBe(false);
-    expect(pulseHasNoRecentClientCall(null, NOW)).toBe(false);
-  });
+// AIO-227: the client-call gap is a separate indicator, never a status.
 
+describe("applyClientCallToPulseSnapshot", () => {
   it("logging a call never changes a current status", () => {
     const critical = snapshot({
       status: "critical",
@@ -75,7 +58,6 @@ describe("pulse dashboard client-call indicator (AIO-227)", () => {
     expect(next.lead_goal_status).toBe("critical");
     expect(next.flags).toEqual(["לידים חורף: הוצאה בלי תוצאות"]);
     expect(next.last_client_call_by).toBe("דוד");
-    expect(next).not.toHaveProperty("no_recent_client_call");
   });
 
   it("logging a call clears a legacy call-only warning", () => {
@@ -92,7 +74,9 @@ describe("pulse dashboard client-call indicator (AIO-227)", () => {
     expect(next.lead_goal_status).toBe("healthy");
     expect(next.flags).toEqual([]);
   });
+});
 
+describe("expandPulseToPlatformGoalRows", () => {
   it("a legacy call flag does not turn a platform row yellow", () => {
     const rows = expandPulseToPlatformGoalRows({
       snapshot: snapshot({ status: "warning", flags: [LEGACY_FLAG] }),
