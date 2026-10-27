@@ -10,6 +10,7 @@ DECLARE
   v_other_client uuid;
   v_client uuid;
   v_agency uuid;
+  v_unshared_agency uuid;
   v_owner uuid;
   v_member uuid;
   v_member_campaigner uuid;
@@ -124,10 +125,38 @@ BEGIN
     RAISE EXCEPTION 'Requires an owner tenant with an unassigned agency client and a non-owner campaigner, a second tenant with its own owner and client, and an active campaigner';
   END IF;
 
-  -- Grants: only the service role may call the writer.
+  -- Grants: only the service role may call the writer; the write predicate is
+  -- for the service role and RLS (authenticated), never anon.
   IF has_function_privilege('authenticated', 'public.record_client_card_entry(uuid, uuid, text, text, text, text, uuid, boolean, jsonb)', 'EXECUTE')
     OR has_function_privilege('anon', 'public.record_client_card_entry(uuid, uuid, text, text, text, text, uuid, boolean, jsonb)', 'EXECUTE') THEN
     RAISE EXCEPTION 'record_client_card_entry is executable by anon or authenticated';
+  END IF;
+  IF has_function_privilege('anon', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE')
+    OR NOT has_function_privilege('authenticated', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE')
+    OR NOT has_function_privilege('service_role', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'tenant_can_write_client grants are not service_role and authenticated only';
+  END IF;
+
+  -- Write predicate: the tenant's own client is writable; a foreign tenant's,
+  -- an unknown client or a NULL tenant is not.
+  IF public.tenant_can_write_client(v_tenant, v_client) IS NOT TRUE THEN
+    RAISE EXCEPTION 'tenant_can_write_client refused the tenant''s own client';
+  END IF;
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE
+    OR public.tenant_can_write_client(v_tenant, gen_random_uuid()) IS NOT FALSE
+    OR public.tenant_can_write_client(NULL, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a foreign tenant, an unknown client or a NULL tenant';
+  END IF;
+
+  -- A read_write share of another agency of the client's tenant does not
+  -- cover the client.
+  INSERT INTO public.agencies (name, tenant_id)
+  VALUES ('QA ROLLBACK unshared agency', v_tenant)
+  RETURNING id INTO v_unshared_agency;
+  INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
+  VALUES (v_tenant, v_unshared_agency, v_other_tenant, 'read_write');
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a share of another agency';
   END IF;
 
   -- Tenant check: a client outside p_tenant is refused with 42501 ...
@@ -139,9 +168,29 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 
-  -- ... and allowed once that tenant has agency read_write access.
+  -- ... and so is one of an agency shared with p_tenant read_only ...
   INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
-  VALUES (v_tenant, v_agency, v_other_tenant, 'read_write');
+  VALUES (v_tenant, v_agency, v_other_tenant, 'read_only');
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a read_only share';
+  END IF;
+  BEGIN
+    PERFORM public.record_client_card_entry(
+      v_other_tenant, v_client, 'QA ROLLBACK read_only share',
+      p_source => 'automation', p_attributed_user => v_owner);
+    RAISE EXCEPTION 'A read_only share wrote the card';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  -- ... and allowed once that share is read_write.
+  UPDATE public.agency_tenant_access
+  SET access_level = 'read_write'
+  WHERE source_tenant_id = v_tenant
+    AND agency_id = v_agency
+    AND accessing_tenant_id = v_other_tenant;
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT TRUE THEN
+    RAISE EXCEPTION 'tenant_can_write_client refused a read_write share';
+  END IF;
   SELECT * INTO r1 FROM public.record_client_card_entry(
     v_other_tenant, v_client, 'QA ROLLBACK agency tenant',
     p_source => 'automation', p_attributed_user => v_owner);
@@ -331,5 +380,5 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub', '', true);
 END;
 $test$;
-SELECT 'Tenant check, dedupe, attribution, refusals, pulse filter, RLS, shared card, write scope and grants passed' AS result;
+SELECT 'Write predicate, tenant check, dedupe, attribution, refusals, pulse filter, RLS, shared card, write scope and grants passed' AS result;
 ROLLBACK;
