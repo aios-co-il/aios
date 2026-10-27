@@ -13,6 +13,8 @@ import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { Button } from "@/components/ui/button";
 import { WorkshopFeed } from "@/components/workshop/WorkshopFeed";
 import { useWorkshopArtifacts } from "@/components/workshop/useWorkshopArtifacts";
+import { useStoryboardBoard } from "@/components/workshop/useStoryboardBoard";
+import { filmAspect } from "@/components/workshop/storyboardScenes";
 import {
   setWorkshopContext,
   subscribeWorkshopEvents,
@@ -145,6 +147,15 @@ export default function CarmenWorkshop() {
   const clientName = selected?.client_id ? (client.data ?? null) : null;
 
   const artifacts = useWorkshopArtifacts(tenantId, selected?.id ?? null);
+  const board = useStoryboardBoard({
+    tenantId,
+    projectId: selected?.id ?? null,
+    aspect: filmAspect(selected?.payload),
+    onPickScene: () => setArtifactId(null),
+    openChat: () => setOpen(true),
+  });
+  const sceneId = board.selectedScene?.id ?? null;
+  const sceneNumber = board.selectedScene?.number ?? null;
 
   useEffect(() => {
     setArtifactId(null);
@@ -155,8 +166,10 @@ export default function CarmenWorkshop() {
       projectId: selected?.id ?? null,
       title: selected?.title ?? null,
       selectedArtifactId: artifactId,
+      selectedSceneId: sceneId,
+      selectedSceneNumber: sceneNumber,
     });
-  }, [selected?.id, selected?.title, artifactId]);
+  }, [selected?.id, selected?.title, artifactId, sceneId, sceneNumber]);
 
   useEffect(() => () => setWorkshopContext(null), []);
 
@@ -235,10 +248,14 @@ export default function CarmenWorkshop() {
             loading={artifacts.isLoading || (projects.isLoading && !blank)}
             hasProject={!!selected}
             selectedId={artifactId}
-            onSelect={setArtifactId}
+            onSelect={(id) => {
+              setArtifactId(id);
+              if (id) board.clearScene();
+            }}
             tenantId={tenantId}
             projectId={selected?.id ?? null}
             clientName={clientName}
+            storyboard={board.storyboard}
           />
         </main>
       </div>
