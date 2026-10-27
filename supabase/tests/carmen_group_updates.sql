@@ -1,152 +1,201 @@
 -- Group updates to the client card (20261027103000_carmen_group_updates):
--- synthetic groups, messages and findings inside one transaction that is
--- rolled back. Run on a Preview branch or Staging (needs a client with a
--- tenant and a person with a role in that tenant).
+-- get_client_group_digest_messages over synthetic tenants, lines and group
+-- rows stored the way the webhooks store them (digits-only sender_phone, the
+-- raw sender in raw_provider_data), inside one transaction that is rolled
+-- back. Tenants: the reader, an owner tenant with one agency shared
+-- read_write and one read_only with the reader, and nothing else.
+-- carmen_group_updates_resolve.sql covers the other two functions.
 BEGIN;
 DO $test$
 DECLARE
-  v_tenant uuid;
-  v_client uuid;
-  v_client2 uuid;
-  v_person uuid;
+  v_tag text := replace(gen_random_uuid()::text, '-', '');
+  v_reader uuid := gen_random_uuid();
+  v_owner uuid := gen_random_uuid();
+  v_agency uuid := gen_random_uuid();
+  v_shared_agency uuid := gen_random_uuid();
+  v_ro_agency uuid := gen_random_uuid();
+  v_private_agency uuid := gen_random_uuid();
+  v_client uuid := gen_random_uuid();
+  v_client2 uuid := gen_random_uuid();
+  v_ended uuid := gen_random_uuid();
+  v_shared_client uuid := gen_random_uuid();
+  v_ro_client uuid := gen_random_uuid();
+  v_owner_client uuid := gen_random_uuid();
+  v_line uuid := gen_random_uuid();
+  v_org_line uuid := gen_random_uuid();
+  v_private_line uuid := gen_random_uuid();
+  v_manus_line uuid := gen_random_uuid();
+  v_owner_line uuid := gen_random_uuid();
+  v_lid text := '9' || lpad((floor(random() * 1e14))::bigint::text, 14, '0');
+  v_lid_unmapped text := '8' || lpad((floor(random() * 1e14))::bigint::text, 14, '0');
+  v_phone text := '9725' || lpad((floor(random() * 1e8))::bigint::text, 8, '0');
   v_group uuid;
+  v_group2 uuid;
+  v_owner_copy uuid;
+  v_blocked uuid;
+  v_ended_group uuid;
+  v_ro_group uuid;
   v_shared uuid;
-  v_dm uuid;
-  v_round uuid := gen_random_uuid();
-  v_finding uuid;
-  v_entry uuid;
+  v_owner_shared uuid;
   v_row record;
-  v_count integer;
-  v_ok boolean;
-  v_failed boolean;
+  v_texts text;
+  v_rows integer;
 BEGIN
-  SELECT c.tenant_id, c.id INTO v_tenant, v_client
-  FROM public.clients AS c WHERE c.tenant_id IS NOT NULL ORDER BY c.id LIMIT 1;
-  IF v_client IS NULL THEN RAISE EXCEPTION 'Requires a client with a tenant'; END IF;
-  SELECT c.id INTO v_client2 FROM public.clients AS c
-  WHERE c.tenant_id = v_tenant AND c.id <> v_client ORDER BY c.id LIMIT 1;
-  SELECT ur.user_id INTO v_person FROM public.user_roles AS ur
-  JOIN public.profiles AS p ON p.id = ur.user_id
-  WHERE ur.tenant_id = v_tenant LIMIT 1;
-  IF v_person IS NULL THEN RAISE EXCEPTION 'Requires a person with a role in the tenant'; END IF;
+  INSERT INTO public.tenants (id, name, slug) VALUES
+    (v_reader, 'QA reader', 'qa-r6-reader-' || v_tag), (v_owner, 'QA owner', 'qa-r6-owner-' || v_tag);
+  INSERT INTO public.agencies (id, tenant_id, name) VALUES
+    (v_agency, v_reader, 'QA'), (v_shared_agency, v_owner, 'QA'),
+    (v_ro_agency, v_owner, 'QA'), (v_private_agency, v_owner, 'QA');
+  INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
+  VALUES (v_owner, v_shared_agency, v_reader, 'read_write'), (v_owner, v_ro_agency, v_reader, 'read_only');
+  INSERT INTO public.clients (id, tenant_id, agency_id, name, status) VALUES
+    (v_client, v_reader, v_agency, 'QA client', 'active'),
+    (v_client2, v_reader, v_agency, 'QA client 2', 'active'),
+    (v_ended, v_reader, v_agency, 'QA ended', 'ended'),
+    (v_shared_client, v_owner, v_shared_agency, 'QA shared', 'active'),
+    (v_ro_client, v_owner, v_ro_agency, 'QA read only', 'active'),
+    (v_owner_client, v_owner, v_private_agency, 'QA owner only', 'active');
+  INSERT INTO public.wa_lid_map (lid, phone, source) VALUES (v_lid, v_phone, 'qa');
 
   INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
-  VALUES (v_tenant, 'qa-r6-linked@g.us', 'QA R6 linked') RETURNING id INTO v_group;
-  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id)
-  VALUES (v_tenant, v_client, v_group);
-  INSERT INTO public.wa_lid_map (lid, phone) VALUES ('77712345678901', '972501234567');
+  VALUES (v_reader, 'qa-r6-g-' || v_tag || '@g.us', 'QA group') RETURNING id INTO v_group;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_owner, 'qa-r6-g-' || v_tag || '@g.us', 'QA group') RETURNING id INTO v_owner_copy;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-r6-two-' || v_tag || '@g.us', 'QA two') RETURNING id INTO v_group2;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-r6-b-' || v_tag || '@g.us', 'QA blocked') RETURNING id INTO v_blocked;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-r6-e-' || v_tag || '@g.us', 'QA ended') RETURNING id INTO v_ended_group;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-r6-ro-' || v_tag || '@g.us', 'QA read only') RETURNING id INTO v_ro_group;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-r6-s-' || v_tag || '@g.us', 'QA shared') RETURNING id INTO v_shared;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_owner, 'qa-r6-s-' || v_tag || '@g.us', 'QA shared') RETURNING id INTO v_owner_shared;
+  -- The owner tenant links its own copy of the reader's group to a client the
+  -- reader cannot see: that must not make the reader's group ambiguous.
+  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id) VALUES
+    (v_reader, v_client, v_group), (v_owner, v_owner_client, v_owner_copy),
+    (v_reader, v_client, v_group2), (v_reader, v_client2, v_group2),
+    (v_reader, v_client, v_blocked), (v_reader, v_ended, v_ended_group),
+    (v_reader, v_ro_client, v_ro_group), (v_reader, v_shared_client, v_shared),
+    (v_owner, v_shared_client, v_owner_shared);
+  INSERT INTO public.blocked_contacts (tenant_id, connection_user_id, group_id)
+  VALUES (v_reader, v_line, v_blocked);
 
-  INSERT INTO public.chat_messages
-    (tenant_id, group_id, direction, provider, sender_phone, message_text, created_at)
+  INSERT INTO public.chat_messages (tenant_id, provider, connection_user_id, direction,
+    message_text, sender_phone, group_id, client_id, created_at, raw_provider_data)
   VALUES
-    (v_tenant, v_group, 'inbound', 'green_api', '972521111111@c.us', 'QA first', now() - interval '3 hours'),
-    (v_tenant, v_group, 'inbound', 'green_api', '77712345678901@lid', 'QA lid', now() - interval '2 hours'),
-    (v_tenant, v_group, 'outbound', 'green_api', NULL, 'QA reply', now() - interval '1 hour'),
-    (v_tenant, v_group, 'inbound', 'green_api', '972521111111@c.us', 'QA old', now() - interval '9 days');
-  -- A direct chat of the same client never leaves the function.
-  INSERT INTO public.chat_messages
-    (tenant_id, client_id, direction, provider, sender_phone, message_text)
-  VALUES (v_tenant, v_client, 'inbound', 'green_api', '972521111111@c.us', 'QA DM')
-  RETURNING id INTO v_dm;
+    (v_reader, 'green_api', v_line, 'inbound', 'QA first', '972521111111', v_group, NULL,
+      now() - interval '5 hours', jsonb_build_object('idMessage', 'qa1-' || v_tag,
+        'senderData', jsonb_build_object('sender', '972521111111@c.us'))),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA lid', v_lid, v_group, NULL,
+      now() - interval '4 hours', jsonb_build_object('idMessage', 'qa2-' || v_tag,
+        'senderData', jsonb_build_object('sender', v_lid || '@lid'))),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA unmapped', v_lid_unmapped, v_group, NULL,
+      now() - interval '3 hours', jsonb_build_object('idMessage', 'qa3-' || v_tag,
+        'senderData', jsonb_build_object('sender', v_lid_unmapped || '@lid'))),
+    -- One message on two monitored lines: the sender's (outbound) copy wins.
+    (v_reader, 'green_api', v_line, 'inbound', 'QA org reply (copy)', '972509990000', v_group, NULL,
+      now() - interval '2 hours', jsonb_build_object('idMessage', 'qa4-' || v_tag,
+        'senderData', jsonb_build_object('sender', '972509990000@c.us'))),
+    (v_reader, 'green_api', v_org_line, 'outbound', 'QA org reply', '972509990000', v_group, NULL,
+      now() - interval '2 hours', jsonb_build_object('idMessage', 'qa4-' || v_tag,
+        'senderData', jsonb_build_object('sender', '972509990000@c.us'))),
+    -- Never returned: a private line, too old, a direct chat, Carmen's Manus line.
+    (v_reader, 'green_api', v_private_line, 'inbound', 'QA PRIVATE', '972521111111', v_group, NULL,
+      now() - interval '1 hour', jsonb_build_object('idMessage', 'qa5-' || v_tag)),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA TOO OLD', '972521111111', v_group, NULL,
+      now() - interval '9 days', jsonb_build_object('idMessage', 'qa6-' || v_tag)),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA DM', '972521111111', NULL, v_client,
+      now() - interval '1 hour', '{}'::jsonb),
+    (v_reader, 'manus_wa', v_manus_line, 'inbound', 'QA manus resolved', '972531234567', v_group, NULL,
+      now() - interval '1 hour', jsonb_build_object('_group_author_raw', v_lid_unmapped || '@lid')),
+    (v_reader, 'manus_wa', v_manus_line, 'inbound', 'QA manus lid', v_lid, v_group, NULL,
+      now() - interval '50 minutes', jsonb_build_object('_group_author_raw', v_lid || '@lid')),
+    -- Traffic in groups that must stay out, and in the shared group (both copies).
+    (v_reader, 'green_api', v_line, 'inbound', 'QA AMBIGUOUS', '972521111111', v_group2, NULL, now() - interval '1 hour', '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA BLOCKED', '972521111111', v_blocked, NULL, now() - interval '1 hour', '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA ENDED', '972521111111', v_ended_group, NULL, now() - interval '1 hour', '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA READ ONLY', '972521111111', v_ro_group, NULL, now() - interval '1 hour', '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA shared', '972521111111', v_shared, NULL, now() - interval '1 hour', '{}'::jsonb),
+    (v_owner, 'green_api', v_owner_line, 'inbound', 'QA shared (owner)', '972521111111', v_owner_shared, NULL, now() - interval '1 hour', '{}'::jsonb);
 
-  -- One row per linked group, oldest first, groups only, senders as match keys.
+  -- The linked group: monitored lines only, oldest first, senders as keys.
   SELECT * INTO v_row
-  FROM public.get_client_group_digest_messages(v_tenant, now() - interval '1 day')
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line, v_org_line], now() - interval '30 days', 'qa_group')
   WHERE group_id = v_group;
   IF v_row.client_id IS DISTINCT FROM v_client THEN
-    RAISE EXCEPTION 'digest: the linked group must belong to its client';
+    RAISE EXCEPTION 'digest: the group belongs to its one client in scope, got %', v_row.client_id;
   END IF;
-  IF jsonb_array_length(v_row.messages) <> 3
-     OR v_row.messages -> 0 ->> 'text' <> 'QA first'
-     OR v_row.messages -> 2 ->> 'out' <> 'true' THEN
-    RAISE EXCEPTION 'digest: expected the 3 window messages oldest first, got %', v_row.messages;
+  SELECT string_agg(m ->> 'text', ',' ORDER BY ord) INTO v_texts
+  FROM jsonb_array_elements(v_row.messages) WITH ORDINALITY AS x(m, ord);
+  IF v_texts IS DISTINCT FROM 'QA first,QA lid,QA unmapped,QA org reply' THEN
+    RAISE EXCEPTION 'digest: monitored lines only, one copy per message, got %', v_texts;
   END IF;
-  IF v_row.messages -> 1 ->> 'key' <> '501234567'
-     OR v_row.messages -> 0 ->> 'key' <> '521111111' THEN
-    RAISE EXCEPTION 'digest: senders must be match keys, an @lid one mapped';
+  IF v_row.messages -> 0 ->> 'key' IS DISTINCT FROM '521111111'
+     OR v_row.messages -> 1 ->> 'key' IS DISTINCT FROM public.phone_match_key(v_phone)
+     OR v_row.messages -> 2 ->> 'key' IS NOT NULL
+     OR (v_row.messages -> 2 ->> 'lid_unmapped')::boolean IS NOT TRUE
+     OR (v_row.messages -> 1 ->> 'lid_unmapped')::boolean IS NOT FALSE
+     OR (v_row.messages -> 3 ->> 'out')::boolean IS NOT TRUE THEN
+    RAISE EXCEPTION 'digest: an @lid sender is mapped or flagged unmapped, got %', v_row.messages;
   END IF;
-  IF v_row.messages::text LIKE '%QA DM%' OR v_row.messages::text LIKE '%972%' THEN
-    RAISE EXCEPTION 'digest: no direct chat and no raw phone may leave the function';
-  END IF;
-  SELECT count(*) INTO v_count
-  FROM public.get_client_group_digest_messages(v_tenant, now() - interval '1 day', ARRAY[gen_random_uuid()]);
-  IF v_count <> 0 THEN RAISE EXCEPTION 'digest: p_client_ids must scope the groups'; END IF;
-
-  -- A group linked to two clients is ambiguous and skipped.
-  IF v_client2 IS NOT NULL THEN
-    INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
-    VALUES (v_tenant, 'qa-r6-shared@g.us', 'QA R6 shared') RETURNING id INTO v_shared;
-    INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id)
-    VALUES (v_tenant, v_client, v_shared), (v_tenant, v_client2, v_shared);
-    INSERT INTO public.chat_messages (tenant_id, group_id, direction, provider, message_text)
-    VALUES (v_tenant, v_shared, 'inbound', 'green_api', 'QA shared');
-    SELECT count(*) INTO v_count
-    FROM public.get_client_group_digest_messages(v_tenant, now() - interval '1 day')
-    WHERE group_id = v_shared;
-    IF v_count <> 0 THEN RAISE EXCEPTION 'digest: an ambiguous group must be skipped'; END IF;
-  ELSE
-    RAISE NOTICE 'skipped the ambiguous-group check: the tenant has one client';
+  IF v_row.messages::text LIKE '%' || v_lid || '%' OR v_row.messages::text LIKE '%972521111111%' THEN
+    RAISE EXCEPTION 'digest: no raw phone or LID may leave the function';
   END IF;
 
-  -- Closing a finding needs its entry on the finding's client.
-  SELECT u.finding_id INTO v_finding
-  FROM public.carmen_finding_upsert(v_tenant, v_round, 'group_updates', '1',
-    jsonb_build_array(jsonb_build_object('kind', 'card_stale_group',
-      'fingerprint', 'qa-r6-fp', 'severity', 'info', 'client_id', v_client,
-      'summary_he', 'QA ROLLBACK', 'source_event_at', now(),
-      'evidence', '{}'::jsonb))) AS u;
-  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, update_type, source, source_ref)
-  VALUES (v_client, v_tenant, v_person, 'QA ROLLBACK', 'group_summary', 'group_digest', 'qa-r6')
-  RETURNING id INTO v_entry;
-
-  v_failed := false;
-  BEGIN
-    PERFORM public.carmen_finding_resolve_card_written(v_tenant, v_finding, gen_random_uuid(), NULL);
-  EXCEPTION WHEN invalid_parameter_value THEN v_failed := true;
-  END;
-  IF NOT v_failed THEN RAISE EXCEPTION 'resolve: an entry of another client must be refused'; END IF;
-
-  v_failed := false;
-  BEGIN
-    PERFORM public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, gen_random_uuid());
-  EXCEPTION WHEN insufficient_privilege THEN v_failed := true;
-  END;
-  IF NOT v_failed THEN RAISE EXCEPTION 'resolve: an actor outside the tenant must be refused'; END IF;
-
-  v_ok := public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, v_person);
-  IF NOT v_ok OR (SELECT status FROM public.carmen_findings WHERE id = v_finding) <> 'resolved'
-     OR (SELECT resolution FROM public.carmen_findings WHERE id = v_finding) <> 'fixed' THEN
-    RAISE EXCEPTION 'resolve: the approved finding must be resolved as fixed';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.carmen_finding_events
-    WHERE finding_id = v_finding AND event = 'resolved'
-      AND details ->> 'via' = 'card_approved' AND details ->> 'entry_id' = v_entry::text
-  ) THEN
-    RAISE EXCEPTION 'resolve: the event must name the entry and the approval';
-  END IF;
-  IF public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, NULL) THEN
-    RAISE EXCEPTION 'resolve: a finding no longer live must answer false';
+  -- Manus stores a resolved author as the phone and an unresolved one as the LID.
+  SELECT * INTO v_row
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_manus_line], now() - interval '1 day', 'qa_group', 'manus_wa')
+  WHERE group_id = v_group;
+  IF v_row.messages -> 0 ->> 'key' IS DISTINCT FROM '531234567'
+     OR v_row.messages -> 1 ->> 'key' IS DISTINCT FROM public.phone_match_key(v_phone) THEN
+    RAISE EXCEPTION 'digest: Manus authors must resolve, got %', v_row.messages;
   END IF;
 
-  -- The LLM allowance reads the month and the round's own day.
-  INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd, created_at) VALUES
-    (v_tenant, 'manager_round:group_updates', 0.25, now()),
-    (v_tenant, 'aiChat', 1.00, now()),
-    (v_tenant, 'manager_round:group_updates', 9.00, now() - interval '40 days');
-  SELECT * INTO v_row FROM public.carmen_round_llm_spend(
-    v_tenant, now() - interval '1 hour', now() - interval '1 hour', 'manager_round:');
-  IF v_row.month_usd < 1.25 OR v_row.month_usd >= 9 OR v_row.day_usd < 0.25 OR v_row.day_usd >= 1 THEN
-    RAISE EXCEPTION 'llm spend: unexpected month % / day %', v_row.month_usd, v_row.day_usd;
+  SELECT string_agg(r.messages::text, ' ') INTO v_texts
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line, v_org_line], now() - interval '1 day', 'qa_group') AS r;
+  IF v_texts LIKE '%QA DM%' OR v_texts LIKE '%QA AMBIGUOUS%' OR v_texts LIKE '%QA BLOCKED%'
+     OR v_texts LIKE '%QA ENDED%' OR v_texts LIKE '%QA READ ONLY%' THEN
+    RAISE EXCEPTION 'digest: direct, ambiguous, blocked, ended or read-only groups leaked: %', v_texts;
+  END IF;
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_group', 'green_api', ARRAY[gen_random_uuid()]);
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'digest: p_client_ids must scope the groups'; END IF;
+  IF EXISTS (SELECT 1 FROM public.get_client_group_digest_messages(v_reader, ARRAY[gen_random_uuid()], now() - interval '1 day', 'qa_group')) THEN
+    RAISE EXCEPTION 'digest: a line not passed must read nothing';
   END IF;
 
-  -- Service role only.
-  IF has_function_privilege('anon', 'public.get_client_group_digest_messages(uuid, timestamptz, uuid[], integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.get_client_group_digest_messages(uuid, timestamptz, uuid[], integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)', 'EXECUTE')
-     OR NOT has_function_privilege('service_role', 'public.get_client_group_digest_messages(uuid, timestamptz, uuid[], integer)', 'EXECUTE') THEN
-    RAISE EXCEPTION 'grants: the group digest functions must be service role only';
+  -- One reader per group_chat_id: the shared client's own tenant reads it.
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_group') AS r
+  WHERE r.group_id = v_shared;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'shared group: the reader reads it while its owner does not'; END IF;
+  INSERT INTO public.carmen_round_state (tenant_id, collector, last_run_at, watermark)
+  VALUES (v_owner, 'qa_group', now() - interval '1 hour', jsonb_build_object('read_lines', jsonb_build_array(v_owner_line)));
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_group') AS r
+  WHERE r.group_id = v_shared;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'shared group: the owner tenant reads it, the reader must not'; END IF;
+  UPDATE public.carmen_round_state SET last_run_at = now() - interval '3 days'
+  WHERE tenant_id = v_owner AND collector = 'qa_group';
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_group') AS r
+  WHERE r.group_id = v_shared;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'shared group: a stale owner run must not hide it'; END IF;
+
+  -- The owner tenant never sees the reader's own client.
+  IF EXISTS (SELECT 1 FROM public.get_client_group_digest_messages(v_owner, ARRAY[v_owner_line, v_line], now() - interval '1 day', 'qa_group') AS r
+             WHERE r.client_id IN (v_client, v_client2)) THEN
+    RAISE EXCEPTION 'isolation: another tenant''s client leaked';
+  END IF;
+
+  IF has_function_privilege('anon', 'public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer)', 'EXECUTE')
+     OR NOT has_function_privilege('service_role', 'public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'grants: get_client_group_digest_messages is service role only';
   END IF;
 
   RAISE NOTICE 'carmen_group_updates: all checks passed';

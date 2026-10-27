@@ -28,6 +28,16 @@ Deno.test("markerDigest", async (t) => {
     },
   );
 
+  await t.step(
+    "a sender with no known phone is not quoted as the client",
+    () => {
+      const [item] = markerDigest(
+        window([{ text: "מאשר את הבאנר", speaker: "unknown", key: null }]),
+      ).items;
+      assertEquals(item.text, 'משתתף לא מזוהה: "מאשר את הבאנר"');
+    },
+  );
+
   await t.step("no marker: not material", () => {
     assertEquals(
       markerDigest(window([{ text: "מה שלומכם?" }, { text: "הכל טוב" }]))

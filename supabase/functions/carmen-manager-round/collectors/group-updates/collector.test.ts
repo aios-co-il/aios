@@ -14,10 +14,12 @@ import type { CollectorContext } from "../types.ts";
 import { collectGroupUpdates, groupUpdatesCollector } from "./collector.ts";
 import type { CardEntry } from "./card-entries.ts";
 import { createLlmMeter } from "./llm-meter.ts";
+import type { LiveDraft } from "./live-drafts.ts";
 import type { GroupHistory } from "./messages.ts";
 import type { GroupUpdateSources } from "./sources.ts";
 
 const now = new Date("2026-11-01T17:37:00Z");
+const LINES = ["owner-line"];
 const floor = "2026-10-30T17:37:00Z";
 const busy = history([
   message("m1", "2026-11-01T08:00:00Z", "מאשר את התקציב של 4000 שח"),
@@ -40,19 +42,25 @@ function ctx(
     clientIds: null,
     db: createClient<Database>("http://localhost:54321", "test-key"),
     fixtures,
+    dryRun: false,
   };
 }
 
-function sources(histories: GroupHistory[], entries: CardEntry[] = []) {
-  const asked: Date[] = [];
+function sources(
+  histories: GroupHistory[],
+  entries: CardEntry[] = [],
+  drafts: LiveDraft[] = [],
+) {
+  const asked: { since: Date; lines: string[] }[] = [];
   const fake: GroupUpdateSources = {
-    histories: (since) => {
-      asked.push(since);
+    lines: () => Promise.resolve(LINES),
+    histories: (since, lines) => {
+      asked.push({ since, lines });
       return Promise.resolve(histories);
     },
     staffKeys: () => Promise.resolve(new Set([STAFF_KEY])),
     cardEntries: () => Promise.resolve(entries),
-    liveDrafts: () => Promise.resolve([]),
+    liveDrafts: () => Promise.resolve(drafts),
     summarize: {
       ask: () => Promise.resolve({ text: null, costUsd: 0.001 }),
       meter: () =>
@@ -82,10 +90,12 @@ Deno.test("groupUpdatesCollector", async (t) => {
   await t.step("a first run reads nothing before itself", async () => {
     const { fake, asked } = sources([]);
     const result = await collectGroupUpdates(ctx(null), fake);
-    assertEquals(asked[0].toISOString(), "2026-10-31T17:37:00.000Z");
+    assertEquals(asked[0].since.toISOString(), "2026-10-31T17:37:00.000Z");
+    assertEquals(asked[0].lines, LINES);
     assertEquals(result.watermark, {
       floor: "2026-10-31T17:37:00.000Z",
       groups: {},
+      read_lines: LINES,
     });
   });
 
@@ -104,6 +114,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
       assertEquals(result.watermark, {
         floor,
         groups: { [GROUP]: { at: "2026-11-01T09:30:00Z", id: "m4" } },
+        read_lines: LINES,
       });
       assertEquals(result.coverage, { complete: true, clientIds: null });
       assertEquals(result.llm, { calls: 1, costUsd: 0.001 });
@@ -125,6 +136,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
       assertEquals(result.watermark, {
         floor,
         groups: { [GROUP]: { at: "2026-11-01T09:30:00Z", id: "m4" } },
+        read_lines: LINES,
       });
     },
   );
@@ -138,9 +150,32 @@ Deno.test("groupUpdatesCollector", async (t) => {
     const result = await collectGroupUpdates(ctx({ floor, groups: {} }), fake);
     assertEquals(
       [result.candidates, result.watermark],
-      [[], { floor, groups: {} }],
+      [[], { floor, groups: {}, read_lines: LINES }],
     );
   });
+
+  await t.step(
+    "a window digested again replaces its live draft, never adds one",
+    async () => {
+      const first = await collectGroupUpdates(
+        ctx({ floor, groups: {} }),
+        sources([busy]).fake,
+      );
+      const [old] = first.candidates;
+      const draft: LiveDraft = {
+        candidate: { ...old, summary_he: "ישן" },
+        from: "2026-11-01T08:00:00Z",
+        to: "2026-11-01T09:00:00Z",
+      };
+      const again = await collectGroupUpdates(
+        ctx({ floor, groups: {} }),
+        sources([busy], [], [draft]).fake,
+      );
+      assertEquals(again.candidates.length, 1);
+      assertEquals(again.candidates[0].fingerprint, old.fingerprint);
+      assertEquals(again.candidates[0].summary_he, old.summary_he);
+    },
+  );
 
   await t.step("fixtures run on the markers with no model call", async () => {
     const fixture = {

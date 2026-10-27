@@ -1,29 +1,31 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { type ApproveCaller, approveRight } from "./authorize.ts";
+import { type Approver, approveRight } from "./authorize.ts";
 
 const finding = { owner_user_id: "dana", agency_id: "a1" };
-const caller = (fields: Partial<ApproveCaller>): ApproveCaller => ({
+const approver = (fields: Partial<Approver>): Approver => ({
   userId: "x",
-  campaignerId: null,
-  isManagerRole: false,
-  isTeamManager: false,
+  roles: ["campaigner"],
   managedAgencyIds: [],
+  campaignerId: null,
   ...fields,
 });
 
 Deno.test("approveRight", async (t) => {
   await t.step(
-    "the finding's person, an owner-level manager and the agency's team manager may",
+    "the finding's person, an owner level and the agency's team manager may",
     () => {
-      assertEquals(approveRight(finding, caller({ userId: "dana" })), "yes");
-      assertEquals(
-        approveRight(finding, caller({ isManagerRole: true })),
-        "yes",
-      );
+      assertEquals(approveRight(finding, approver({ userId: "dana" })), "yes");
+      for (const role of ["owner", "agency_owner"]) {
+        assertEquals(
+          approveRight(finding, approver({ roles: [role] })),
+          "yes",
+          role,
+        );
+      }
       assertEquals(
         approveRight(
           finding,
-          caller({ isTeamManager: true, managedAgencyIds: ["a1"] }),
+          approver({ roles: ["team_manager"], managedAgencyIds: ["a1"] }),
         ),
         "yes",
       );
@@ -32,22 +34,39 @@ Deno.test("approveRight", async (t) => {
 
   await t.step("a campaigner only when assigned to the client", () => {
     assertEquals(
-      approveRight(finding, caller({ campaignerId: "camp2" })),
+      approveRight(finding, approver({ campaignerId: "camp2" })),
       "if_assigned",
     );
   });
 
   await t.step(
-    "a team manager of another agency, or anyone else, may not",
+    "an agency manager role, another agency's team manager or anyone else may not",
+    () => {
+      assertEquals(
+        approveRight(finding, approver({ roles: ["agency_manager"] })),
+        "no",
+      );
+      assertEquals(
+        approveRight(
+          finding,
+          approver({ roles: ["team_manager"], managedAgencyIds: ["a2"] }),
+        ),
+        "no",
+      );
+      assertEquals(approveRight(finding, approver({})), "no");
+    },
+  );
+
+  await t.step(
+    "no role in the run's tenant: not even the finding's person may",
     () => {
       assertEquals(
         approveRight(
           finding,
-          caller({ isTeamManager: true, managedAgencyIds: ["a2"] }),
+          approver({ userId: "dana", roles: [], campaignerId: "camp2" }),
         ),
         "no",
       );
-      assertEquals(approveRight(finding, caller({})), "no");
     },
   );
 });

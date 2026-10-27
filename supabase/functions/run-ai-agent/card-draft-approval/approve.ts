@@ -1,10 +1,14 @@
 /**
  * "אשר <code>": writes the card entry a finding drafted (a group digest:
  * source group_digest, attributed to the client's campaigner, never counted
- * as contact), then closes the finding as fixed by the approving person. Only
- * the finding's person, a manager over it or a campaigner of the client may;
- * the same refusal covers a code that does not exist, so codes cannot be
- * probed. A repeated approval returns the entry already on the card.
+ * as contact), then closes the finding as fixed by the approving person.
+ * Only in a private chat with Carmen: a group session is client-visible, so
+ * there the tool refuses without naming the client or the draft. Only the
+ * finding's person, a manager over it or a campaigner of the client may
+ * (authorize.ts, from roles in the run's tenant, which is also what the
+ * closing function requires of the actor); the same refusal covers a code
+ * that does not exist or a finding already closed (approved, or written by
+ * Carmen), so codes cannot be probed and nothing is written twice.
  */
 import { ClientCardEntryError } from "../../_shared/client-card.ts";
 import {
@@ -13,7 +17,7 @@ import {
   cardDraftOf,
 } from "../../_shared/manager-round/card-draft.ts";
 import { writeCardDraft } from "../../_shared/manager-round/card-draft-write.ts";
-import { type ApproveCaller, approveRight } from "./authorize.ts";
+import { approveRight } from "./authorize.ts";
 import type { ApprovalPorts, DraftFinding } from "./ports.ts";
 
 export type ApproveInput = {
@@ -21,7 +25,8 @@ export type ApproveInput = {
   args: Record<string, unknown>;
   /** The person talking to Carmen now; null in automated runs. */
   requesterUserId: string | null;
-  caller: Omit<ApproveCaller, "userId">;
+  /** The run is a WhatsApp group session, which the client can read. */
+  isGroup: boolean;
   now: Date;
 };
 
@@ -32,6 +37,8 @@ type FoundDraft = {
   draft: CardDraft;
 };
 
+const PRIVATE_CHAT_ONLY_HE =
+  "אישור טיוטה לכרטיס הלקוח נעשה רק בצ׳אט הפרטי עם כרמן, לא בקבוצה.";
 const NO_REQUESTER_HE =
   "טיוטה נרשמת בכרטיס הלקוח רק כשאיש צוות מאשר אותה. בריצה הזאת אין איש צוות שמאשר, ולכן לא נרשם דבר.";
 
@@ -40,13 +47,16 @@ export async function approveCardDraft(
   ports: ApprovalPorts,
   input: ApproveInput,
 ): Promise<ToolResult> {
+  if (input.isGroup) {
+    return refuse("private_chat_only", PRIVATE_CHAT_ONLY_HE);
+  }
   if (!input.requesterUserId) {
     return refuse("human_requester_required", NO_REQUESTER_HE);
   }
-  const caller = { ...input.caller, userId: input.requesterUserId };
+  const userId = input.requesterUserId;
   const code = shortCodeOf(input.args.short_code);
   const found = code ? await findDraft(ports, input.tenantId, code) : null;
-  if (!found || !(await mayApprove(ports, found, caller, input))) {
+  if (!found || !(await mayApprove(ports, found, userId, input))) {
     return refuse(
       "not_found",
       `לא מצאתי טיוטה פתוחה${code ? ` מספר ${code}` : ""} שאפשר לאשר בשמך.`,
@@ -56,7 +66,7 @@ export async function approveCardDraft(
   const draft = wording
     ? { ...found.draft, content: cardDraftContent(found.draft.source, wording) }
     : found.draft;
-  return write(ports, input.tenantId, { ...found, draft }, caller.userId);
+  return write(ports, input.tenantId, { ...found, draft }, userId);
 }
 
 /** Writes the entry and closes the finding as this person's approval. */
@@ -79,7 +89,7 @@ async function write(
       update_id: written.entryId,
       created: written.inserted,
       attributed_user_id: written.attributedUserId,
-      message: `נרשם בכרטיס הלקוח: ${found.draft.content}`,
+      message: `נרשם בכרטיס הלקוח (פריט ${found.finding.short_code}).`,
     };
   } catch (error) {
     if (error instanceof ClientCardEntryError) {
@@ -103,21 +113,22 @@ async function findDraft(
     : null;
 }
 
-/** approveRight, asking about the client's assignment only when that decides it. */
+/** approveRight over the person's roles in the tenant; the assignment only when it decides. */
 async function mayApprove(
   ports: ApprovalPorts,
   found: FoundDraft,
-  caller: ApproveCaller,
+  userId: string,
   input: ApproveInput,
 ): Promise<boolean> {
-  const right = approveRight(found.finding, caller);
-  if (right !== "if_assigned" || !caller.campaignerId) {
+  const approver = await ports.approver(input.tenantId, userId);
+  const right = approveRight(found.finding, approver);
+  if (right !== "if_assigned" || !approver.campaignerId) {
     return right === "yes";
   }
   return ports.isAssigned(
     input.tenantId,
     found.finding.client_id,
-    caller.campaignerId,
+    approver.campaignerId,
     input.now,
   );
 }

@@ -59,6 +59,7 @@ import {
   CARD_DRAFT_TOOLS,
   executeCardDraftTool,
   isCardDraftTool,
+  isGroupSession,
   promoteCardDraftTool,
 } from "./card-draft-approval/tool.ts";
 import {
@@ -5651,12 +5652,7 @@ async function executeTool(
       tenantId,
       args,
       requesterUserId: humanRequesterUserId ?? null,
-      caller: {
-        campaignerId: callerCampaignerId ?? null,
-        isManagerRole,
-        isTeamManager,
-        managedAgencyIds,
-      },
+      isGroup: isGroupSession(waNotify),
       now: new Date(),
     });
   }

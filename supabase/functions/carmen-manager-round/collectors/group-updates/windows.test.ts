@@ -31,10 +31,30 @@ Deno.test("groupWindows", async (t) => {
           ["b", "client", true],
           ["c", "staff", true],
           ["d", "staff", true],
-          ["e", "client", false],
+          ["e", "unknown", false],
         ],
       );
       assertEquals(w.last, { at: "2026-11-01T09:15:00Z", id: "e" });
+    },
+  );
+
+  await t.step(
+    "an @lid sender with no known phone is unknown, never the client",
+    () => {
+      const [w] = groupWindows(
+        [
+          history([
+            message("l", "2026-11-01T09:00:00Z", "הלקוח אישר את הבאנר", {
+              key: null,
+              lidUnmapped: true,
+            }),
+          ]),
+        ],
+        { floor: "", groups: {} },
+        from,
+        staff,
+      );
+      assertEquals(w.messages[0].speaker, "unknown");
     },
   );
 

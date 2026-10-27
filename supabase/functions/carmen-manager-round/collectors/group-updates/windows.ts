@@ -1,15 +1,17 @@
 /**
  * Each linked group's window: its messages after the group's watermark (and
  * never before the collector's floor or the lookback), every one labelled
- * client or staff. Speakers are never identified by phone: a staff message is
- * one sent from the monitored line, by a person in AIOS, or from a staff
- * phone; any other sender is the client side.
+ * client, staff or unknown. Speakers are never identified by phone: a staff
+ * message is one sent from a monitored line, by a person in AIOS, or from a
+ * staff phone; a sender with no known phone (an @lid without a mapping) is
+ * unknown, so a staff member writing from one is never quoted as the client;
+ * any other sender is the client side.
  */
 import type { GroupHistory, GroupMessage } from "./messages.ts";
 import { isSubstantive } from "./substantive.ts";
 import type { GroupMark, GroupWatermark } from "./watermark.ts";
 
-export type Speaker = "client" | "staff";
+export type Speaker = "client" | "staff" | "unknown";
 
 export type WindowMessage = GroupMessage & {
   speaker: Speaker;
@@ -78,10 +80,17 @@ function isAfter(
 
 /** The message with its speaker and whether it counts. */
 function label(message: GroupMessage, staffKeys: Set<string>): WindowMessage {
-  const staff = message.out || (!!message.key && staffKeys.has(message.key));
   return {
     ...message,
-    speaker: staff ? "staff" : "client",
+    speaker: speakerOf(message, staffKeys),
     substantive: isSubstantive(message.text),
   };
+}
+
+/** Staff by line, person or phone; unknown without a phone; else the client. */
+function speakerOf(message: GroupMessage, staffKeys: Set<string>): Speaker {
+  if (message.out || (message.key && staffKeys.has(message.key))) {
+    return "staff";
+  }
+  return message.lidUnmapped || !message.key ? "unknown" : "client";
 }

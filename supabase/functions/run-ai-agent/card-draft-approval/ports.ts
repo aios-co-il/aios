@@ -4,6 +4,7 @@
  */
 import type { CardDraftWritePorts } from "../../_shared/manager-round/card-draft-write.ts";
 import type { Tables } from "../../_shared/database.types.ts";
+import type { Approver } from "./authorize.ts";
 
 export type DraftFinding = Pick<
   Tables<"carmen_findings">,
@@ -13,6 +14,8 @@ export type DraftFinding = Pick<
 export type ApprovalPorts = {
   /** The live finding with this code in the tenant, or null. */
   findLive(tenantId: string, shortCode: number): Promise<DraftFinding | null>;
+  /** The person's roles in the tenant, managed agencies and campaigner. */
+  approver(tenantId: string, userId: string): Promise<Approver>;
   /** True when the campaigner is assigned to the client today. */
   isAssigned(
     tenantId: string,

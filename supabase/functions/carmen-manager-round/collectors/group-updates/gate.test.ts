@@ -39,6 +39,18 @@ Deno.test("gateWindow", async (t) => {
     },
   );
 
+  await t.step(
+    "an entry a person asked Carmen to write makes the card current",
+    () => {
+      assertEquals(
+        gateWindow(three, [
+          entry("2026-11-01T11:30:00Z", "עדכון", "carmen_confirmed"),
+        ]),
+        "advance",
+      );
+    },
+  );
+
   await t.step("entries no person wrote do not make the card current", () => {
     const automatic = [
       "group_digest",

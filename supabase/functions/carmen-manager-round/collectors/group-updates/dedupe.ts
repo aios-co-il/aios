@@ -1,10 +1,13 @@
 /**
  * Drops digest items already on the card today (any source): an item whose
- * words are contained in, or mostly shared with, one of today's entries. A
- * digest whose every item was dropped has nothing new and is not material.
+ * words are contained in, or mostly shared with, one of today's entries. The
+ * card line is what gets written, so after a drop it is rebuilt from the
+ * items kept; a digest whose every item was dropped has nothing new and is
+ * not material.
  */
 import type { CardEntry } from "./card-entries.ts";
-import type { Digest } from "./digest.ts";
+import { clamp } from "./clamp.ts";
+import { type Digest, MAX_UPDATE_CHARS } from "./digest.ts";
 
 /** Share of an item's words an entry must hold for the item to be known. */
 const KNOWN_OVERLAP = 0.6;
@@ -19,8 +22,20 @@ export function dropKnownItems(
     (item) => !known.some((entry) => isCovered(words(item.text), entry)),
   );
   const dropped = digest.items.length - items.length;
-  const material = digest.material && (items.length > 0 || dropped === 0);
-  return { digest: { ...digest, material, items }, dropped };
+  if (!dropped) {
+    return { digest, dropped };
+  }
+  return {
+    digest: {
+      material: digest.material && items.length > 0,
+      update_text: clamp(
+        items.map((item) => item.text).join("; "),
+        MAX_UPDATE_CHARS,
+      ),
+      items,
+    },
+    dropped,
+  };
 }
 
 /** True when most of the item's words appear in the entry. */

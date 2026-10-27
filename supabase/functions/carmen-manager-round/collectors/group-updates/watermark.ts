@@ -1,7 +1,9 @@
 /**
  * The group-updates collector's watermark: the earliest time it may read
- * (its first run, so nothing from before it is digested) and, per group, the
- * last message already digested or found covered by the card.
+ * (its first run, so nothing from before it is digested), per group the last
+ * message already digested or found covered by the card, and the lines the
+ * run read (read_lines), by which another tenant's run leaves a shared group
+ * to this one (get_client_group_digest_messages).
  */
 import type { Json } from "../../../_shared/database.types.ts";
 
@@ -53,9 +55,16 @@ export function advance(
   return { floor: watermark.floor, groups };
 }
 
-/** The watermark as stored JSON. */
-export function watermarkJson(watermark: GroupWatermark): Json {
-  return { floor: watermark.floor, groups: watermark.groups };
+/** The watermark as stored JSON, with the lines this run read. */
+export function watermarkJson(
+  watermark: GroupWatermark,
+  readLines: string[],
+): Json {
+  return {
+    floor: watermark.floor,
+    groups: watermark.groups,
+    read_lines: readLines,
+  };
 }
 
 /** A plain JSON object, or null. */

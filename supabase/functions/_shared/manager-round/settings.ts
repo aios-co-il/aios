@@ -91,9 +91,10 @@ export function resolveManagerSettings(
       manager.max_alerts_per_recipient_per_day,
       d.max_alerts_per_recipient_per_day,
     ),
+    // 0 is valid: the round classifies with the markers only.
     round_llm_share_pct: Math.min(
       100,
-      positive(manager.round_llm_share_pct, d.round_llm_share_pct),
+      nonNegative(manager.round_llm_share_pct, d.round_llm_share_pct),
     ),
   };
 }
@@ -185,4 +186,12 @@ function isoOrNull(raw: unknown): string | null {
 function positive(raw: unknown, fallback: number): number {
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/** A number of zero or more, or the fallback (also for null, "" and booleans). */
+function nonNegative(raw: unknown, fallback: number): number {
+  const numeric =
+    typeof raw === "number" || (typeof raw === "string" && raw.trim() !== "");
+  const value = numeric ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }

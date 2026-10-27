@@ -36,7 +36,7 @@ Deno.test("loadLlmMeter", async (t) => {
       const { db, calls } = recordingClient((call) =>
         call.path === "tenant_integrations"
           ? [{ settings: { monthly_budget_usd: 60 } }]
-          : [{ month_usd: 10, day_usd: 0.19 }],
+          : [{ project_month_usd: 10, day_usd: 0.19 }],
       );
       const meter = await loadLlmMeter(
         db,
@@ -56,4 +56,17 @@ Deno.test("loadLlmMeter", async (t) => {
       });
     },
   );
+
+  await t.step("a share of 0 turns the model off", async () => {
+    const { db } = recordingClient((call) =>
+      call.path === "tenant_integrations"
+        ? []
+        : [{ project_month_usd: 0, day_usd: 0 }],
+    );
+    const settings = resolveManagerSettings({
+      manager: { round_llm_share_pct: 0 },
+    });
+    const meter = await loadLlmMeter(db, "t1", settings, now);
+    assertEquals(meter.allows(), false);
+  });
 });

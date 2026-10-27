@@ -1,0 +1,90 @@
+-- Group updates to the client card (20261027103000_carmen_group_updates):
+-- carmen_finding_resolve_card_written and carmen_round_llm_spend inside one
+-- transaction that is rolled back. Run on a Preview branch or Staging (needs
+-- a client with a tenant and a person with a role in that tenant).
+-- carmen_group_updates.sql covers get_client_group_digest_messages.
+BEGIN;
+DO $test$
+DECLARE
+  v_tenant uuid;
+  v_client uuid;
+  v_person uuid;
+  v_round uuid := gen_random_uuid();
+  v_finding uuid;
+  v_entry uuid;
+  v_row record;
+  v_ok boolean;
+  v_failed boolean;
+BEGIN
+  SELECT c.tenant_id, c.id INTO v_tenant, v_client
+  FROM public.clients AS c WHERE c.tenant_id IS NOT NULL ORDER BY c.id LIMIT 1;
+  IF v_client IS NULL THEN RAISE EXCEPTION 'Requires a client with a tenant'; END IF;
+  SELECT ur.user_id INTO v_person FROM public.user_roles AS ur
+  JOIN public.profiles AS p ON p.id = ur.user_id
+  WHERE ur.tenant_id = v_tenant LIMIT 1;
+  IF v_person IS NULL THEN RAISE EXCEPTION 'Requires a person with a role in the tenant'; END IF;
+
+  -- Closing a finding needs its entry on the finding's client.
+  SELECT u.finding_id INTO v_finding
+  FROM public.carmen_finding_upsert(v_tenant, v_round, 'group_updates', '1',
+    jsonb_build_array(jsonb_build_object('kind', 'card_stale_group',
+      'fingerprint', 'qa-r6-fp', 'severity', 'info', 'client_id', v_client,
+      'summary_he', 'QA ROLLBACK', 'source_event_at', now(),
+      'evidence', '{}'::jsonb))) AS u;
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, update_type, source, source_ref)
+  VALUES (v_client, v_tenant, v_person, 'QA ROLLBACK', 'group_summary', 'group_digest', 'qa-r6')
+  RETURNING id INTO v_entry;
+
+  v_failed := false;
+  BEGIN
+    PERFORM public.carmen_finding_resolve_card_written(v_tenant, v_finding, gen_random_uuid(), NULL);
+  EXCEPTION WHEN invalid_parameter_value THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'resolve: an entry of another client must be refused'; END IF;
+
+  v_failed := false;
+  BEGIN
+    PERFORM public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, gen_random_uuid());
+  EXCEPTION WHEN insufficient_privilege THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'resolve: an actor outside the tenant must be refused'; END IF;
+
+  v_ok := public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, v_person);
+  IF NOT v_ok OR (SELECT status FROM public.carmen_findings WHERE id = v_finding) <> 'resolved'
+     OR (SELECT resolution FROM public.carmen_findings WHERE id = v_finding) <> 'fixed' THEN
+    RAISE EXCEPTION 'resolve: the approved finding must be resolved as fixed';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.carmen_finding_events
+    WHERE finding_id = v_finding AND event = 'resolved'
+      AND details ->> 'via' = 'card_approved' AND details ->> 'entry_id' = v_entry::text
+  ) THEN
+    RAISE EXCEPTION 'resolve: the event must name the entry and the approval';
+  END IF;
+  IF public.carmen_finding_resolve_card_written(v_tenant, v_finding, v_entry, NULL) THEN
+    RAISE EXCEPTION 'resolve: a finding no longer live must answer false';
+  END IF;
+
+  -- The LLM allowance reads the project's month and the tenant round's day.
+  INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd, created_at) VALUES
+    (v_tenant, 'manager_round:group_updates', 0.25, now()),
+    (v_tenant, 'aiChat', 1.00, now()),
+    (v_tenant, 'manager_round:group_updates', 9.00, now() - interval '40 days');
+  SELECT * INTO v_row FROM public.carmen_round_llm_spend(
+    v_tenant, now() - interval '1 hour', now() - interval '1 hour', 'manager_round:');
+  IF v_row.project_month_usd < 1.25 OR v_row.day_usd < 0.25 OR v_row.day_usd >= 1 THEN
+    RAISE EXCEPTION 'llm spend: unexpected month % / day %', v_row.project_month_usd, v_row.day_usd;
+  END IF;
+
+  -- Service role only.
+  IF has_function_privilege('authenticated', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)', 'EXECUTE')
+     OR NOT has_function_privilege('service_role', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'grants: the card functions must be service role only';
+  END IF;
+
+  RAISE NOTICE 'carmen_group_updates_resolve: all checks passed';
+END;
+$test$;
+ROLLBACK;

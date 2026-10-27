@@ -21,5 +21,6 @@ export function collectorContext(
     clientIds: input.clientIds,
     db: deps.db,
     fixtures: input.fixtures,
+    dryRun: input.dryRun,
   };
 }

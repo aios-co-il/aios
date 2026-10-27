@@ -15798,7 +15798,7 @@ export type Database = {
           p_source_prefix: string;
           p_tenant_id: string;
         };
-        Returns: { day_usd: number; month_usd: number }[];
+        Returns: { day_usd: number; project_month_usd: number }[];
       };
       carmen_round_try_lease: {
         Args: { p_seconds?: number; p_tenant_id: string };
@@ -16043,7 +16043,10 @@ export type Database = {
       get_client_group_digest_messages: {
         Args: {
           p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
           p_per_group?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
           p_since: string;
           p_tenant_id: string;
         };

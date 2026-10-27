@@ -1,12 +1,14 @@
 /**
  * The round's LLM allowance for one tenant (plan C7): nothing once the
- * tenant's month-to-date ai_usage_log spend reaches its monthly_budget_usd
- * (the active 'llm' integration), and per Israel day at most
- * round_llm_share_pct of that budget / 30, or $1 when no budget is set. This
- * run's calls are added as they finish, since the usage log is written
- * asynchronously. AIO-252's chat collector meters the same way over the same
- * carmen_round_llm_spend; one of the two moves to a shared module once both
- * land.
+ * month-to-date LLM spend reaches the tenant's monthly_budget_usd (its active
+ * 'llm' integration), and per Israel day at most round_llm_share_pct of that
+ * budget / 30, or $1 when no budget is set; a share of 0 turns the model off
+ * (markers only). The month spend is the project's, summed as the health
+ * probe sums it (UTC month), because the OpenAI key and its budget are
+ * project-wide today. This run's calls are added as they finish, since the
+ * usage log is written asynchronously. AIO-252's chat collector meters the
+ * same way over the same carmen_round_llm_spend; one of the two moves to a
+ * shared module once both land.
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import {
@@ -58,10 +60,8 @@ export async function loadLlmMeter(
   const [spent] = spend.data ?? [];
   return createLlmMeter({
     monthBudgetUsd: budget,
-    monthSpentUsd: Number(spent?.month_usd ?? 0),
-    dailyCapUsd: budget
-      ? (budget * settings.round_llm_share_pct) / 100 / 30
-      : DEFAULT_DAILY_USD,
+    monthSpentUsd: Number(spent?.project_month_usd ?? 0),
+    dailyCapUsd: dailyCap(budget, settings.round_llm_share_pct),
     daySpentUsd: Number(spent?.day_usd ?? 0),
   });
 }
@@ -81,6 +81,14 @@ export function createLlmMeter(limits: LlmLimits): LlmMeter {
     },
     usage: () => ({ calls, costUsd }),
   };
+}
+
+/** The day's share of the budget; 0 when the share is 0, $1 without a budget. */
+function dailyCap(budget: number | null, sharePct: number): number {
+  if (sharePct === 0) {
+    return 0;
+  }
+  return budget ? (budget * sharePct) / 100 / 30 : DEFAULT_DAILY_USD;
 }
 
 /** monthly_budget_usd of the tenant's active LLM integration, or null. */

@@ -1,8 +1,8 @@
 /**
  * Carmen's approve_card_draft tool (AIO-254): a staff member replies
- * "אשר <code>" to an item about a client group update that is not on the
- * card, and the drafted entry is written to the client card. Wired into
- * run-ai-agent with one import, one spread and one dispatch block.
+ * "אשר <code>" in a private chat to an item about a client group update that
+ * is not on the card, and the drafted entry is written to the client card.
+ * Wired into run-ai-agent with one import, one spread and one dispatch block.
  */
 import { parseApproveDraftReply } from "../../_shared/manager-round/card-draft.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
@@ -15,7 +15,7 @@ export const CARD_DRAFT_TOOLS = [
   {
     name: TOOL_NAME,
     description:
-      'רישום בכרטיס הלקוח של טיוטת עדכון שכרמן הכינה מקבוצת הוואטסאפ של הלקוח. להפעיל כשאיש צוות עונה "אשר <מספר>" (או "אשר #<מספר>") על פריט שכרמן שלחה. רושם את הטיוטה שבפריט, או את הנוסח שאיש הצוות כתב, כסיכום קבוצה על שם הקמפיינר של הלקוח (לא נספר כשיחה). מותר למי שהפריט שלו, לקמפיינר של הלקוח או למנהל; לאחרים הכלי מסרב.',
+      'רישום בכרטיס הלקוח של טיוטת עדכון שכרמן הכינה מקבוצת הוואטסאפ של הלקוח. להפעיל כשאיש צוות עונה "אשר <מספר>" (או "אשר #<מספר>") על פריט שכרמן שלחה. רושם את הטיוטה שבפריט, או את הנוסח שאיש הצוות כתב, כסיכום קבוצה על שם הקמפיינר של הלקוח (לא נספר כשיחה). רק בצ׳אט פרטי עם כרמן, לא בקבוצה. מותר למי שהפריט שלו, לקמפיינר של הלקוח או למנהל; לאחרים הכלי מסרב.',
     parameters: {
       type: "object",
       properties: {
@@ -44,6 +44,16 @@ export function executeCardDraftTool(
   input: ApproveInput,
 ): Promise<Record<string, unknown>> {
   return approveCardDraft(approvalPorts(db), input);
+}
+
+/** True for a WhatsApp group session (client-visible), as run-ai-agent detects one. */
+export function isGroupSession(waNotify: unknown): boolean {
+  if (!waNotify || typeof waNotify !== "object") {
+    return false;
+  }
+  const flagged = "is_group" in waNotify && waNotify.is_group === true;
+  const chatId = "chat_id" in waNotify ? waNotify.chat_id : null;
+  return flagged || (typeof chatId === "string" && /@g\.us/i.test(chatId));
 }
 
 /** Offers the tool to the model whenever the message is an "אשר <code>" reply. */

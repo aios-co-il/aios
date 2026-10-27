@@ -29,51 +29,78 @@ Deno.test("loadGroupHistories", async (t) => {
             at: "2026-11-01T09:00:00Z",
             out: false,
             key: "521111111",
+            lid_unmapped: false,
             text: "ראשון",
+          },
+          {
+            id: "c",
+            at: "2026-11-01T09:45:00Z",
+            out: false,
+            key: null,
+            lid_unmapped: true,
+            text: "שלישי",
           },
           { at: "2026-11-01T09:30:00Z", text: "בלי מזהה" },
         ],
       };
       const { db, calls } = recordingClient(() => [row]);
-      const [history] = await loadGroupHistories(db, {
-        tenantId: "t1",
-        since,
-        clientIds: [CLIENT],
-      });
+      const [history] = await loadGroupHistories(
+        db,
+        { tenantId: "t1", connectionIds: ["line"], since, clientIds: [CLIENT] },
+        "group_updates",
+      );
       assertEquals(
-        history.messages.map((m) => m.id),
-        ["a", "b"],
+        history.messages.map((m) => [m.id, m.lidUnmapped]),
+        [
+          ["a", false],
+          ["c", true],
+          ["b", false],
+        ],
       );
       assertEquals(calls[0].path, "rpc/get_client_group_digest_messages");
       assertEquals(calls[0].body, {
         p_tenant_id: "t1",
+        p_connection_user_ids: ["line"],
         p_since: since.toISOString(),
+        p_collector: "group_updates",
+        p_provider: "green_api",
         p_client_ids: [CLIENT],
         p_per_group: 60,
       });
     },
   );
+
+  await t.step("no monitored line: no read", async () => {
+    const { db, calls } = recordingClient(() => []);
+    const query = { tenantId: "t1", connectionIds: [], since, clientIds: null };
+    assertEquals(await loadGroupHistories(db, query, "group_updates"), []);
+    assertEquals(calls, []);
+  });
 });
 
 Deno.test("loadCardEntries", async (t) => {
   await t.step(
-    "reads the tenant's own entries of the clients in play",
+    "reads the shared card of the clients in play, whoever wrote on it",
     async () => {
-      const { db, calls } = recordingClient(() => []);
-      await loadCardEntries(db, { tenantId: "t1", clientIds: [CLIENT], since });
+      const partnerEntry = {
+        client_id: CLIENT,
+        created_at: "2026-11-01T10:00:00Z",
+        source: "human",
+        content: "עדכון מהשותף",
+      };
+      const { db, calls } = recordingClient(() => [partnerEntry]);
+      const entries = await loadCardEntries(db, { clientIds: [CLIENT], since });
+      assertEquals(entries, [partnerEntry]);
       const query = calls[0].query;
       assertEquals(calls[0].path, "client_updates");
-      assertEquals(query.get("tenant_id"), "eq.t1");
+      assertEquals(query.get("tenant_id"), null);
       assertEquals(query.get("client_id"), `in.(${CLIENT})`);
     },
   );
 
   await t.step("no client: no read", async () => {
     const { db, calls } = recordingClient(() => []);
-    assertEquals(
-      await loadCardEntries(db, { tenantId: "t1", clientIds: [], since }),
-      [],
-    );
+    assertEquals(await loadCardEntries(db, { clientIds: [], since }), []);
     assertEquals(calls, []);
   });
 });

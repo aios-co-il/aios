@@ -2,6 +2,8 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import { cardDraftOf } from "../../../_shared/manager-round/card-draft.ts";
 import { CLIENT, GROUP, window } from "../../tests/group-fixtures.ts";
 import { draftCandidate } from "./candidate.ts";
+import { clamp } from "./clamp.ts";
+import { markerDigest } from "./fallback.ts";
 
 const w = window([
   { id: "m1", text: "מאשר תקציב 5000", at: "2026-11-01T10:00:00Z" },
@@ -31,7 +33,7 @@ Deno.test("draftCandidate", async (t) => {
       assertEquals(candidate.kind, "card_stale_group");
       assertEquals(
         candidate.fingerprint,
-        `client:${CLIENT}:group:${GROUP}:to:m4`,
+        `client:${CLIENT}:group:${GROUP}:from:m1`,
       );
       assertEquals(candidate.source_event_at, "2026-11-01T10:00:00Z");
       assertEquals([candidate.client_id, candidate.severity], [CLIENT, "info"]);
@@ -68,6 +70,7 @@ Deno.test("draftCandidate", async (t) => {
         substantive: 3,
         client_messages: 2,
         staff_messages: 1,
+        unknown_messages: 0,
       });
     },
   );
@@ -77,4 +80,27 @@ Deno.test("draftCandidate", async (t) => {
     assert(!text.includes("521111111"));
     assert(!text.includes("צריך באנר חדש"));
   });
+
+  await t.step(
+    "the markers' quotes: phones masked, at most a group quote's limit",
+    () => {
+      const said = `מאשר את התקציב, תתקשרו 050-1234567 ${"פרטים ".repeat(30)}`;
+      const quoted = window(
+        Array.from({ length: 5 }, (_, i) => ({ id: `q${i}`, text: said })),
+      );
+      const digest = markerDigest(quoted);
+      const marked = draftCandidate({
+        window: quoted,
+        digest,
+        by: "markers",
+        modelMaterial: null,
+        dropped: 0,
+      });
+      const text = JSON.stringify(marked);
+      assert(!/050-?1234567|501234567/.test(text));
+      assert(Array.from(digest.update_text).length > 200);
+      assert(marked.summary_he.includes(clamp(digest.update_text, 200)));
+      assert(!marked.summary_he.includes(digest.update_text));
+    },
+  );
 });

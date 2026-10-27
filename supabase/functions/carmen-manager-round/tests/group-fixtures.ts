@@ -21,7 +21,15 @@ export function message(
   text: string,
   fields: Partial<GroupMessage> = {},
 ): GroupMessage {
-  return { id, at, out: false, key: CLIENT_KEY, text, ...fields };
+  return {
+    id,
+    at,
+    out: false,
+    key: CLIENT_KEY,
+    lidUnmapped: false,
+    text,
+    ...fields,
+  };
 }
 
 /** One linked group with its messages. */
@@ -49,6 +57,7 @@ export function window(
     at: `2026-11-01T1${i}:00:00Z`,
     out: false,
     key: CLIENT_KEY,
+    lidUnmapped: false,
     text: "",
     speaker: "client",
     substantive: true,

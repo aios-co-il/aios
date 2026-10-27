@@ -7,16 +7,23 @@
  * it matters and drafts one card line. A material digest becomes a
  * card_stale_group finding holding the draft; an approval ("אשר <code>") or,
  * in team mode with card_write on, Carmen writes it. Otherwise only the
- * watermark advances. Groups only; another tenant's copy is never read.
+ * watermark advances. Groups only, from the monitored lines; another
+ * tenant's copy is never read, and a group shared across tenants is read by
+ * one of them.
  */
-import type { Collector, CollectorContext, CollectorResult } from "../types.ts";
+import type {
+  Collector,
+  CollectorContext,
+  CollectorResult,
+  FindingCandidate,
+} from "../types.ts";
 import { type CardEntry, startOfToday } from "./card-entries.ts";
 import { draftCandidate } from "./candidate.ts";
 import { gateWindow, type WindowAction } from "./gate.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
 import { keptDrafts, type LiveDraft } from "./live-drafts.ts";
 import { type GroupUpdateSources, groupUpdateSources } from "./sources.ts";
-import { digestWindows } from "./summarize.ts";
+import { digestWindows, type WindowDigest } from "./summarize.ts";
 import {
   advance,
   type GroupMark,
@@ -44,11 +51,12 @@ export async function collectGroupUpdates(
 ): Promise<CollectorResult> {
   const watermark = parseWatermark(ctx.watermark, ctx.since);
   const from = readFrom(watermark, ctx.now);
-  const [histories, staffKeys, drafts] = await Promise.all([
-    sources.histories(from),
+  const [lines, staffKeys, drafts] = await Promise.all([
+    sources.lines(),
     sources.staffKeys(),
     sources.liveDrafts(),
   ]);
+  const histories = await sources.histories(from, lines);
   const windows = groupWindows(histories, watermark, from, staffKeys);
   const entries = await cardEntries(sources, windows, drafts, from, ctx.now);
   const gated = windows.map((window) => ({
@@ -62,11 +70,8 @@ export async function collectGroupUpdates(
     { budget: ctx.budget, now: ctx.now },
   );
   return {
-    candidates: [
-      ...digests.filter((d) => d.digest.material).map(draftCandidate),
-      ...keptDrafts(drafts, entries, ctx.now),
-    ],
-    watermark: watermarkJson(advance(watermark, marks(gated), ctx.now)),
+    candidates: candidates(digests, keptDrafts(drafts, entries, ctx.now)),
+    watermark: watermarkJson(advance(watermark, marks(gated), ctx.now), lines),
     coverage: { complete: true, clientIds: ctx.clientIds },
     llm,
   };
@@ -92,6 +97,23 @@ function cardEntries(
     ...drafts.map((draft) => Date.parse(draft.from)),
   );
   return sources.cardEntries(clientIds, new Date(since));
+}
+
+/**
+ * The new drafts, then the live drafts still useful. A window digested again
+ * (a run that ended before its watermark was stored) keeps its fingerprint,
+ * so its new draft replaces the old one instead of adding an overlapping one.
+ */
+function candidates(
+  digests: WindowDigest[],
+  kept: FindingCandidate[],
+): FindingCandidate[] {
+  const fresh = digests.filter((d) => d.digest.material).map(draftCandidate);
+  const replaced = new Set(fresh.map((candidate) => candidate.fingerprint));
+  return [
+    ...fresh,
+    ...kept.filter((candidate) => !replaced.has(candidate.fingerprint)),
+  ];
 }
 
 /** Each window that was digested or found covered moves to its last message. */

@@ -4,6 +4,7 @@ import {
   type ClientCardEntryInput,
 } from "../../_shared/client-card.ts";
 import { approveCardDraft, type ApproveInput } from "./approve.ts";
+import type { Approver } from "./authorize.ts";
 import type { ApprovalPorts, DraftFinding } from "./ports.ts";
 
 const draft = {
@@ -21,12 +22,27 @@ const live: DraftFinding = {
   evidence: { card_draft: draft },
 };
 
+/** People by user id, as their roles in tenant t1 read. */
+const people: Record<string, Omit<Approver, "userId">> = {
+  dana: { roles: ["campaigner"], managedAgencyIds: [], campaignerId: "camp1" },
+  ron: { roles: ["campaigner"], managedAgencyIds: [], campaignerId: "camp2" },
+  boss: { roles: ["owner"], managedAgencyIds: [], campaignerId: null },
+  outsider: { roles: [], managedAgencyIds: [], campaignerId: null },
+};
+
 function ports(finding: DraftFinding | null, assigned = false, refuse = false) {
   const written: ClientCardEntryInput[] = [];
   const closed: (string | null)[] = [];
+  const looked: number[] = [];
   const fake: ApprovalPorts = {
-    findLive: (_tenant, code) =>
-      Promise.resolve(finding && code === finding.short_code ? finding : null),
+    findLive: (_tenant, code) => {
+      looked.push(code);
+      return Promise.resolve(
+        finding && code === finding.short_code ? finding : null,
+      );
+    },
+    approver: (_tenant, userId) =>
+      Promise.resolve({ userId, ...people[userId] }),
     isAssigned: () => Promise.resolve(assigned),
     write: {
       writeEntry(input) {
@@ -49,19 +65,14 @@ function ports(finding: DraftFinding | null, assigned = false, refuse = false) {
       },
     },
   };
-  return { fake, written, closed };
+  return { fake, written, closed, looked };
 }
 
 const input = (fields: Partial<ApproveInput> = {}): ApproveInput => ({
   tenantId: "t1",
   args: { short_code: 31 },
   requesterUserId: "dana",
-  caller: {
-    campaignerId: null,
-    isManagerRole: false,
-    isTeamManager: false,
-    managedAgencyIds: [],
-  },
+  isGroup: false,
   now: new Date("2026-11-02T07:00:00Z"),
   ...fields,
 });
@@ -73,6 +84,7 @@ Deno.test("approveCardDraft", async (t) => {
       const { fake, written, closed } = ports(live);
       const result = await approveCardDraft(fake, input());
       assertEquals(result.success, true);
+      assertEquals(result.message, "נרשם בכרטיס הלקוח (פריט 31).");
       assertEquals(
         written.map((e) => [
           e.source,
@@ -105,10 +117,7 @@ Deno.test("approveCardDraft", async (t) => {
   await t.step(
     "an assigned campaigner may; an unassigned one gets the not-found refusal",
     async () => {
-      const asCampaigner = input({
-        requesterUserId: "ron",
-        caller: { ...input().caller, campaignerId: "camp2" },
-      });
+      const asCampaigner = input({ requesterUserId: "ron" });
       assertEquals(
         (await approveCardDraft(ports(live, true).fake, asCampaigner)).success,
         true,
@@ -133,6 +142,41 @@ Deno.test("approveCardDraft", async (t) => {
         input(),
       );
       assertEquals([unknown.error, noDraft.error], ["not_found", "not_found"]);
+    },
+  );
+
+  await t.step(
+    "an owner of this tenant may; roles in other tenants do not count",
+    async () => {
+      const asOwner = await approveCardDraft(
+        ports(live).fake,
+        input({ requesterUserId: "boss" }),
+      );
+      const asOutsider = await approveCardDraft(
+        ports(live, true).fake,
+        input({ requesterUserId: "outsider" }),
+      );
+      assertEquals([asOwner.success, asOutsider.error], [true, "not_found"]);
+    },
+  );
+
+  await t.step(
+    "a group session is refused before any lookup, naming no draft",
+    async () => {
+      const { fake, written, looked } = ports(live);
+      const result = await approveCardDraft(
+        fake,
+        input({ isGroup: true, requesterUserId: "boss" }),
+      );
+      assertEquals(
+        [result.error, written.length, looked.length],
+        ["private_chat_only", 0, 0],
+      );
+      const text = JSON.stringify(result);
+      assertEquals(
+        [text.includes("31"), text.includes("תקציב")],
+        [false, false],
+      );
     },
   );
 

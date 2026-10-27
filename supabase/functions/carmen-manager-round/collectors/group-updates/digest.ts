@@ -3,6 +3,7 @@
  * Hebrew line for the card and the items behind it. Parsed from the model's
  * JSON, with every field checked and clamped; anything else is no digest.
  */
+import { clamp } from "./clamp.ts";
 
 /** Item types, in the order the card line lists them. */
 export const DIGEST_ITEM_TYPES = [
@@ -50,12 +51,6 @@ export function parseDigest(raw: string | null): Digest | null {
     update_text: updateText,
     items: items.slice(0, MAX_ITEMS),
   };
-}
-
-/** Text on one line, at most `max` characters. */
-export function clamp(text: string, max: number): string {
-  const line = text.replace(/\s+/g, " ").trim();
-  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
 /** One item with a known type and some text, or null. */

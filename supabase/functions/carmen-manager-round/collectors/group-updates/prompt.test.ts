@@ -28,6 +28,15 @@ Deno.test("digestPrompt", async (t) => {
     },
   );
 
+  await t.step("a sender with no known phone is neither side", () => {
+    const prompt = digestPrompt(
+      window([{ text: "אישרתי את הבאנר", speaker: "unknown", key: null }]),
+      [],
+    );
+    assert(prompt.includes("לא מזוהה: אישרתי את הבאנר"));
+    assert(!prompt.includes("לקוח: אישרתי"));
+  });
+
   await t.step("a long transcript keeps the newest messages", () => {
     const long = Array.from({ length: 40 }, (_, i) => ({
       id: `m${i}`,

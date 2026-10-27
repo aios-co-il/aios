@@ -2,7 +2,8 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
 import { entry, window } from "../../tests/group-fixtures.ts";
 import { createLlmMeter } from "./llm-meter.ts";
-import { type AskModel, digestWindows } from "./summarize.ts";
+import type { AskModel } from "./ask-model.ts";
+import { digestWindows } from "./summarize.ts";
 
 const now = new Date("2026-11-01T17:30:00Z");
 const marked = window([
@@ -112,6 +113,33 @@ Deno.test("digestWindows", async (t) => {
     );
     assertEquals([digests[0].dropped, digests[0].digest.material], [1, false]);
   });
+
+  await t.step(
+    "after a drop the card line holds only the items kept",
+    async () => {
+      const two = JSON.stringify({
+        material: true,
+        update_text: "הלקוח אישר את הבאנר; ביקש להעלות מחר בבוקר",
+        items: [
+          { type: "approval", text: "אישר את הבאנר" },
+          { type: "request", text: "ביקש להעלות מחר בבוקר" },
+        ],
+      });
+      const { ports: p } = ports(two);
+      const [kept] = (
+        await digestWindows(
+          [marked],
+          [entry("2026-11-01T12:00:00Z", "הלקוח אישר את הבאנר")],
+          p,
+          run(),
+        )
+      ).digests;
+      assertEquals(
+        [kept.dropped, kept.digest.material, kept.digest.update_text],
+        [1, true, "ביקש להעלות מחר בבוקר"],
+      );
+    },
+  );
 
   await t.step("no window: the meter is never loaded", async () => {
     const { ports: p } = ports(answer);

@@ -7,9 +7,9 @@
 import type { Json } from "../../../_shared/database.types.ts";
 import type { CardEntry } from "./card-entries.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
-import { createLlmMeter } from "./llm-meter.ts";
 import { groupHistory } from "./messages.ts";
 import type { GroupUpdateSources } from "./sources.ts";
+import { markersOnlyPorts } from "./summarize.ts";
 
 /** Sources over fixtures.group_updates, or null without them. */
 export function fixtureSources(
@@ -28,6 +28,7 @@ export function fixtureSources(
     return parsed ? [groupHistory(parsed)] : [];
   });
   return {
+    lines: () => Promise.resolve([]),
     histories: () => Promise.resolve(histories),
     staffKeys: () =>
       Promise.resolve(
@@ -38,18 +39,7 @@ export function fixtureSources(
     cardEntries: () =>
       Promise.resolve(list("card_entries").flatMap(fixtureEntry)),
     liveDrafts: () => Promise.resolve([]),
-    summarize: {
-      meter: () =>
-        Promise.resolve(
-          createLlmMeter({
-            monthBudgetUsd: null,
-            monthSpentUsd: 0,
-            dailyCapUsd: 0,
-            daySpentUsd: 0,
-          }),
-        ),
-      ask: () => Promise.resolve({ text: null, costUsd: 0 }),
-    },
+    summarize: markersOnlyPorts(),
   };
 }
 

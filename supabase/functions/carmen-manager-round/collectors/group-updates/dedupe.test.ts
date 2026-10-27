@@ -25,6 +25,7 @@ Deno.test("dropKnownItems", async (t) => {
         kept.items.map((i) => i.type),
         ["request"],
       );
+      assertEquals(kept.update_text, "ביקש באנר חדש עד יום שלישי");
     },
   );
 

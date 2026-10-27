@@ -7,18 +7,14 @@
  * then dropped against today's card.
  */
 import type { RoundBudget } from "../../budget.ts";
+import { type AskModel, MODEL_CALL_MS } from "./ask-model.ts";
 import { type CardEntry, todaysEntries } from "./card-entries.ts";
 import { dropKnownItems } from "./dedupe.ts";
 import { type Digest, parseDigest } from "./digest.ts";
 import { markerDigest } from "./fallback.ts";
-import type { LlmMeter } from "./llm-meter.ts";
+import { createLlmMeter, type LlmMeter } from "./llm-meter.ts";
 import { digestPrompt } from "./prompt.ts";
 import type { GroupWindow } from "./windows.ts";
-
-/** One model call: its JSON text (null on failure) and its cost. */
-export type AskModel = (
-  prompt: string,
-) => Promise<{ text: string | null; costUsd: number }>;
 
 export type SummarizePorts = {
   ask: AskModel;
@@ -38,8 +34,6 @@ export type WindowDigest = {
 /** At most this many model calls per tenant run, CONCURRENCY at a time. */
 const MAX_CALLS = 40;
 const CONCURRENCY = 4;
-/** A model call needs about this much of the round's time. */
-const CALL_MS = 8_000;
 
 /** A digest per window, and the LLM use of the run. */
 export async function digestWindows(
@@ -62,6 +56,22 @@ export async function digestWindows(
     );
   }
   return { digests, llm: meter?.usage() ?? { calls: 0, costUsd: 0 } };
+}
+
+/** Ports that never call the model, so the markers decide (fixtures, previews). */
+export function markersOnlyPorts(): SummarizePorts {
+  return {
+    ask: () => Promise.resolve({ text: null, costUsd: 0 }),
+    meter: () =>
+      Promise.resolve(
+        createLlmMeter({
+          monthBudgetUsd: null,
+          monthSpentUsd: 0,
+          dailyCapUsd: 0,
+          daySpentUsd: 0,
+        }),
+      ),
+  };
 }
 
 /** The model's digest unless it drops what the markers found; known items dropped. */
@@ -97,7 +107,7 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
   return (
     meter.usage().calls < MAX_CALLS &&
     meter.allows() &&
-    budget.hasTime(CALL_MS) &&
+    budget.hasTime(MODEL_CALL_MS) &&
     budget.takeApiCall()
   );
 }

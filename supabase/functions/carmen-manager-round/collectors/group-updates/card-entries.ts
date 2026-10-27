@@ -1,14 +1,15 @@
 /**
- * The tenant's own client card entries the collector compares a window with:
- * a person's entry after the window's first substantive message means the
- * card is up to date, and today's entries (any source) are what a digest must
- * not repeat.
+ * The client card entries the collector compares a window with: a person's
+ * entry after the window's first substantive message means the card is up to
+ * date, and today's entries (any source) are what a digest must not repeat.
+ * The card is one per client, shared by every tenant that reaches the
+ * client's agency, so entries are read by client, whoever wrote them.
  */
 import {
   jerusalemDayStartIso,
   jerusalemYmd,
 } from "../../../_shared/calendarTimeZone.ts";
-import { isHumanClientCardSource } from "../../../_shared/client-card-sources.ts";
+import { clientCardSourceCanCountAsContact } from "../../../_shared/client-card-sources.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 
@@ -19,10 +20,15 @@ export type CardEntry = {
   content: string;
 };
 
-/** Entries of these clients written in this tenant since `since`. */
+/**
+ * Entries of these clients since `since`, by any tenant. The ids come from
+ * the tenant-scoped digest function and the tenant's own findings, so the
+ * client list is the tenant scope; a filter on the writer's tenant would
+ * hide what a partner tenant's campaigner wrote on a shared client's card.
+ */
 export async function loadCardEntries(
   db: DbClient,
-  query: { tenantId: string; clientIds: string[]; since: Date },
+  query: { clientIds: string[]; since: Date },
 ): Promise<CardEntry[]> {
   if (!query.clientIds.length) {
     return [];
@@ -30,7 +36,6 @@ export async function loadCardEntries(
   const { data, error } = await db
     .from("client_updates")
     .select("client_id, created_at, source, content")
-    .eq("tenant_id", query.tenantId)
     .in("client_id", query.clientIds)
     .gte("created_at", query.since.toISOString())
     .order("created_at", { ascending: false })
@@ -39,7 +44,11 @@ export async function loadCardEntries(
   return data ?? [];
 }
 
-/** True when a person wrote on the client's card after `at`. */
+/**
+ * True when a person updated the client's card after `at`: an entry they
+ * wrote, or one Carmen wrote because they asked her to (carmen_confirmed,
+ * attributed to them). These are the sources that may count as contact.
+ */
 export function humanUpdateAfter(
   entries: CardEntry[],
   clientId: string,
@@ -48,7 +57,7 @@ export function humanUpdateAfter(
   return entries.some(
     (entry) =>
       entry.client_id === clientId &&
-      isHumanClientCardSource(entry.source) &&
+      clientCardSourceCanCountAsContact(entry.source) &&
       Date.parse(entry.created_at) > Date.parse(at),
   );
 }
