@@ -2,11 +2,8 @@
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
-import {
-  findAutomationClientRecipient,
-  recipientClientIds,
-  recordAutomationClientSend,
-} from "../_shared/automation-client-send.ts";
+import { findMetaStepClientRecipient } from "./client-recipient.ts";
+import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
   requireOriginChatId,
@@ -5756,8 +5753,9 @@ async function resolveWaIntegration(
     idInstance,
     apiTokenInstance,
     providerType,
-    connectionUserId: (integration.user_id as string | null) ?? null,
-    integrationId: (integration.id as string | null) ?? null,
+    connectionUserId:
+      typeof integration.user_id === "string" ? integration.user_id : null,
+    integrationId: typeof integration.id === "string" ? integration.id : null,
   };
 }
 
@@ -5982,17 +5980,11 @@ async function executeMetaWhatsappMessage(
   const leadId = sendingToClient
     ? data?.lead_id || null
     : data?.lead_id || data?.id || null;
-  // Logged on the client card only when the message went to the client's own
-  // phone, never to a lead, a team member or a manual number (AIO-242). Like
-  // the Green API / Manus step, data.id is a candidate when the payload is the
-  // client row, unless it is already sent as the lead id.
-  const clientRecipientId = await findAutomationClientRecipient(supabase, {
+  const clientRecipientId = await findMetaStepClientRecipient(supabase, {
     tenantId,
-    destination: phoneNumber,
-    candidateClientIds: [
-      data?.client_id,
-      leadId === data?.id ? null : data?.id,
-    ],
+    phoneNumber,
+    data,
+    leadId,
   });
   const payload: Record<string, unknown> = {
     tenantId,
@@ -6186,8 +6178,7 @@ async function executeGreenApiMessage(
             results.push({ chatId, status: "skipped", result: r });
           } else {
             results.push({ chatId, status: "sent", result: r });
-            // Client card auto-log (AIO-242): only a send to a client.
-            await recordAutomationClientSend(supabase, {
+            await recordAutomationStepSend(supabase, {
               tenantId,
               chatId,
               message,
@@ -6195,11 +6186,8 @@ async function executeGreenApiMessage(
               connectionUserId,
               integrationId,
               providerResponse: r,
-              candidateClientIds: [
-                ...recipientClientIds(config.recipients),
-                data?.client_id,
-                data?.id,
-              ],
+              data,
+              recipients: config.recipients,
             });
           }
         } catch (sendErr) {
@@ -6588,9 +6576,7 @@ async function executeGreenApiMessage(
     throw sendErr;
   }
 
-  // Client card auto-log (AIO-242): only a send to a client's own phone or a
-  // group that belongs to one client.
-  await recordAutomationClientSend(supabase, {
+  await recordAutomationStepSend(supabase, {
     tenantId,
     chatId,
     message,
@@ -6598,7 +6584,8 @@ async function executeGreenApiMessage(
     connectionUserId: integration?.user_id ?? null,
     integrationId: integration?.id ?? null,
     providerResponse: sendResult,
-    candidateClientIds: [contactRecord?.id, data?.client_id, data?.id],
+    data,
+    contact: contactRecord,
   });
 
   return {
@@ -6816,7 +6803,7 @@ async function executeGreenApiToCampaigner(
       channel: "whatsapp",
       provider: "green_api",
       raw_provider_data: { automation: true, send_target, sendResult },
-      // A message to the campaigner, never logged on a client card (AIO-242).
+      // A message to the campaigner, never logged on a client card.
       send_kind: "staff_alert",
     });
 

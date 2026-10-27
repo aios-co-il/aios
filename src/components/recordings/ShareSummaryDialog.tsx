@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -39,10 +39,8 @@ import {
   Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  reportDeliveryOutcome,
-  type ReportDeliveryChannel,
-} from "@/lib/reportDelivery";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
 
 export interface ShareableRecording {
@@ -85,7 +83,7 @@ export function ShareSummaryDialog({
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
 
   const meetingName = recording.meeting_topic || "פגישה";
   const meetingDate = recording.start_time
@@ -150,42 +148,6 @@ export function ShareSummaryDialog({
     if (gmailToken?.google_email) setEmailSender("gmail");
     else setEmailSender("aios");
   }, [gmailToken]);
-
-  // Record the send in report_deliveries. That row is the send's only client
-  // card log: a database trigger writes the "סיכום פגישה נשלח" entry (a system
-  // send, never client contact) when the tenant turned card logging on. Only
-  // the channels that went out are recorded (partial when a later one failed).
-  const recordSummaryDelivery = async (sent: ReportDeliveryChannel[]) => {
-    if (!recording.client_id) return;
-    const outcome = reportDeliveryOutcome({
-      requested: { whatsapp: sendWhatsApp, email: sendEmail },
-      sent,
-    });
-    if (!outcome) return;
-    try {
-      const { error } = await supabase.from("report_deliveries").insert({
-        tenant_id: tenantId,
-        client_id: recording.client_id,
-        target_type: "meeting_summary",
-        target_id: recording.id,
-        channels: outcome.channels,
-        status: outcome.status,
-        details: {
-          source: "manual",
-          title: meetingName,
-          meeting_date: meetingDate || null,
-          recording_id: recording.id,
-        },
-      });
-      if (error) console.error("report_deliveries log failed:", error);
-      else
-        queryClient.invalidateQueries({
-          queryKey: ["client-updates", recording.client_id],
-        });
-    } catch (err) {
-      console.error("report_deliveries log failed:", err);
-    }
-  };
 
   const handleSend = async () => {
     if (!recording.summary_md) {
@@ -402,7 +364,19 @@ export function ShareSummaryDialog({
         "שגיאה בשליחת הסיכום: " + (error instanceof Error ? error.message : ""),
       );
     } finally {
-      await recordSummaryDelivery(sentChannels);
+      recordDelivery.mutate({
+        tenantId,
+        clientId: recording.client_id,
+        targetType: "meeting_summary",
+        targetId: recording.id,
+        title: meetingName,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        extraDetails: {
+          meeting_date: meetingDate || null,
+          recording_id: recording.id,
+        },
+      });
       setIsSending(false);
     }
   };

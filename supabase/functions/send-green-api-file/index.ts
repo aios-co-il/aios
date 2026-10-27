@@ -5,7 +5,7 @@ import {
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
-import { sendKindColumns } from "../_shared/send-kind.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,8 +111,7 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
-    // What kind of system send this is (client card auto-log, AIO-242). This
-    // function only serves signed-in users, so an unnamed kind is "chat".
+    // This function only serves signed-in users, so an unnamed kind is "chat".
     const sendColumns = sendKindColumns({
       sendKind: formData.get("sendKind"),
       sendRef: formData.get("sendRef"),

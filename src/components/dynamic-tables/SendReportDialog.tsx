@@ -39,10 +39,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  reportDeliveryOutcome,
-  type ReportDeliveryChannel,
-} from "@/lib/reportDelivery";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
 const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
@@ -86,6 +84,7 @@ export function SendReportDialog({
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const recordDelivery = useRecordReportDelivery();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -175,42 +174,6 @@ export function SendReportDialog({
     if (gmailToken?.google_email) setEmailSender("gmail");
     else setEmailSender("aios");
   }, [gmailToken]);
-
-  // Same delivery record as the client card's report panel. It is the send's
-  // only client card log (a database trigger writes the entry, AIO-242), and
-  // it records only the channels that went out (partial when one failed).
-  const recordReportDelivery = async (sent: ReportDeliveryChannel[]) => {
-    if (!clientId) return;
-    const outcome = reportDeliveryOutcome({
-      requested: { whatsapp: sendWhatsApp, email: sendEmail },
-      sent,
-    });
-    if (!outcome) return;
-    try {
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "table",
-          target_id: tableId,
-          channels: outcome.channels,
-          status: outcome.status,
-          details: {
-            source: "manual",
-            title: tableName,
-            share_url: shareLink ?? null,
-            email_recipients: outcome.channels.includes("email")
-              ? [emailAddress]
-              : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log report delivery:", deliveryLogError);
-    } catch (e) {
-      console.warn("Failed to log report delivery:", e);
-    }
-  };
 
   const handleSend = async () => {
     if (!screenshotBlob) {
@@ -405,7 +368,17 @@ export function SendReportDialog({
       console.error("Error sending report:", error);
       toast.error("שגיאה בשליחת הדוח: " + error.message);
     } finally {
-      await recordReportDelivery(sentChannels);
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: tableId,
+        title: tableName,
+        shareUrl: shareLink ?? null,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients: [emailAddress],
+      });
       setIsSending(false);
     }
   };

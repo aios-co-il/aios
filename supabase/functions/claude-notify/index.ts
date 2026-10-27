@@ -105,11 +105,11 @@ async function sendViaActionStep(
     step.action_type === "send_manus_message"
       ? "send-manus-wa-message"
       : "send-green-api-message";
-  const body: any = {
+  const body: Record<string, unknown> = {
     tenantId,
     senderUserId: connectionUserId,
     message,
-    // A staff notification, never logged on a client card (AIO-242).
+    // A staff notification, never logged on a client card.
     sendKind: "staff_alert",
   };
   if (integrationId) body.integrationId = integrationId;

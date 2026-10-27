@@ -26,10 +26,8 @@ import {
   propagateWhatsappGroupInviteLink,
   resolveWhatsappGroupInviteLink,
 } from "../_shared/whatsapp-groups.ts";
-import {
-  claimStoredSendTeamForward,
-  recordCarmenFallbackGroupReply,
-} from "../_shared/automation-client-send.ts";
+import { recordCarmenFallbackGroupReply } from "../_shared/client-card/system-send.ts";
+import { forwardStoredSend } from "./stored-send-forward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -292,8 +290,10 @@ async function forwardToTeamChannels(
   }
 }
 
-// Send a WhatsApp message via Green API (used by shared Carmen handler).
-// Returns the provider response (its idMessage) when sent, null otherwise.
+/**
+ * Send a WhatsApp message via Green API (used by the shared Carmen handler).
+ * Returns the provider response (its idMessage) when sent, null otherwise.
+ */
 async function sendGreenApiMessage(
   instanceId: string,
   apiToken: string,
@@ -307,8 +307,13 @@ async function sendGreenApiMessage(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, message }),
     });
-    if (!res.ok) return null;
-    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      return null;
+    }
+    const body = await res.json().catch((err) => {
+      console.error("❌ sendGreenApiMessage: unreadable response", err);
+      return null;
+    });
     return body && typeof body === "object" ? body : {};
   } catch (e) {
     console.error("❌ sendGreenApiMessage error:", e);
@@ -892,31 +897,17 @@ Deno.serve(async (req) => {
     // duplicate replies. If we already stored this idMessage, stop here.
     const incomingIdMessage = webhookData.idMessage;
     const isApiEcho = typeWebhook === "outgoingAPIMessageReceived";
-    // An automation send or a Carmen fallback reply stored before its echo
-    // (client card auto-log, AIO-242) still owes the team-channel mirror this
-    // echo used to do: claimed once, so a redelivered echo never repeats it.
-    const forwardStoredSend = async () => {
-      const stored = await claimStoredSendTeamForward(supabaseClient, {
-        tenantId,
-        connectionUserId,
-        idMessage: incomingIdMessage,
-      });
-      if (!stored) return;
-      await forwardToTeamChannels(
-        supabaseClient,
-        tenantId,
-        connectionUserId,
-        webhookData.senderData?.chatId,
-        stored.groupId
-          ? connectionDisplayName
-          : webhookData.senderData?.senderName || null,
-        stored.messageText,
-        webhookData.messageData,
-        stored.groupId,
-      );
+    const storedSendForward = {
+      supabaseClient,
+      tenantId,
+      connectionUserId,
+      idMessage: incomingIdMessage,
+      webhookData,
+      connectionDisplayName,
+      forwardToTeamChannels,
     };
     if (incomingIdMessage) {
-      const { data: dupMsg } = await supabaseClient
+      const { data: dupMsg, error: dupMsgError } = await supabaseClient
         .from("chat_messages")
         .select("id, team_forward:raw_provider_data->>team_forward")
         .eq("tenant_id", tenantId)
@@ -924,9 +915,13 @@ Deno.serve(async (req) => {
         .eq("raw_provider_data->>idMessage", incomingIdMessage)
         .limit(1)
         .maybeSingle();
+      if (dupMsgError) {
+        console.error("❌ Duplicate message check failed:", dupMsgError);
+      }
       if (dupMsg) {
-        if (isApiEcho && dupMsg.team_forward === "pending")
-          await forwardStoredSend();
+        if (isApiEcho && dupMsg.team_forward === "pending") {
+          await forwardStoredSend(storedSendForward);
+        }
         return new Response(
           JSON.stringify({ received: true, duplicate: true }),
           {
@@ -1338,7 +1333,7 @@ Deno.serve(async (req) => {
         ? connectionDisplayName
         : senderData.senderName;
       if (groupEchoMerged) {
-        await forwardStoredSend();
+        await forwardStoredSend(storedSendForward);
       } else {
         await forwardToTeamChannels(
           supabaseClient,
@@ -1735,7 +1730,7 @@ Deno.serve(async (req) => {
     // merge_green_api_send_echo dropped this echo, the stored send's mirror
     // is claimed instead.
     if (isApiEcho && Array.isArray(savedRows) && savedRows.length === 0) {
-      await forwardStoredSend();
+      await forwardStoredSend(storedSendForward);
     } else {
       await forwardToTeamChannels(
         supabaseClient,
@@ -1896,9 +1891,11 @@ Deno.serve(async (req) => {
               chatId,
               message,
             );
-            if (!response) return false;
-            // Logged like a reply through the action step (AIO-242): only in a
-            // client's group, only while the tenant has card logging on.
+            if (!response) {
+              return false;
+            }
+            // Logged like a reply through the action step: only in a client's
+            // group, only while the tenant has card logging on.
             await recordCarmenFallbackGroupReply(supabaseClient, {
               tenantId,
               chatId,

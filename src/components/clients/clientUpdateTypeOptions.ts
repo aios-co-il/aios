@@ -8,13 +8,15 @@ import {
   Megaphone,
   MessageSquare,
   Phone,
-  Send,
   StickyNote,
   Video,
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { SYSTEM_SEND_UPDATE_TYPE_OPTIONS } from "@/components/clients/clientUpdateSource";
+import {
+  SYSTEM_SEND_UPDATE_TYPES,
+  type SystemSendUpdateType,
+} from "../../../supabase/functions/_shared/client-card/send-kind.ts";
 
 export const INTERACTION_TYPES = [
   { value: "call", label: "שיחה", icon: Phone },
@@ -28,8 +30,7 @@ export const INTERACTION_TYPES = [
   { value: "pulse_override", label: "תיקון דופק", icon: Activity },
 ];
 
-// Icons for the entries AIOS writes when it sends something to the client.
-const SYSTEM_SEND_TYPE_ICONS: Record<string, LucideIcon> = {
+const SYSTEM_SEND_TYPE_ICONS: Record<SystemSendUpdateType, LucideIcon> = {
   report_sent: FileText,
   dashboard_shared: LayoutDashboard,
   meeting_summary_sent: Video,
@@ -44,8 +45,8 @@ export const DISPLAY_UPDATE_TYPES = [
   ...INTERACTION_TYPES,
   { value: "note", label: "הערה", icon: StickyNote },
   { value: "complaint", label: "תלונה", icon: AlertTriangle },
-  ...SYSTEM_SEND_UPDATE_TYPE_OPTIONS.map((option) => ({
-    ...option,
-    icon: SYSTEM_SEND_TYPE_ICONS[option.value] ?? Send,
+  ...SYSTEM_SEND_UPDATE_TYPES.map((type) => ({
+    ...type,
+    icon: SYSTEM_SEND_TYPE_ICONS[type.value],
   })),
 ];

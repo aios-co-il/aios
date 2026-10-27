@@ -20,7 +20,7 @@ import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
 } from "../_shared/broadcast/template/email-attachments.ts";
-import { resolveBroadcastRecipientClientId } from "../_shared/broadcast/recipient-client.ts";
+import { resolveBroadcastRecipientClientId } from "./recipient-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +112,7 @@ async function greenApiSendImage(
   });
   const json = await res.json().catch(() => ({}));
   if (res.ok) {
-    await db.from("chat_messages").insert({
+    const { error } = await db.from("chat_messages").insert({
       tenant_id: tenantId,
       client_id: clientId,
       connection_user_id: senderUserId,
@@ -126,6 +126,12 @@ async function greenApiSendImage(
       send_kind: "broadcast",
       send_ref: broadcastId,
     });
+    if (error) {
+      console.error("[broadcast-dispatch] chat_messages insert failed", {
+        broadcastId,
+        error,
+      });
+    }
   }
   return { ok: res.ok, json };
 }
@@ -242,7 +248,7 @@ async function sendOne(
         const json2 = await res2.json().catch(() => ({}));
         if (res2.ok) {
           // Same chat history row as the text path, with the group.
-          await db.from("chat_messages").insert({
+          const { error } = await db.from("chat_messages").insert({
             tenant_id: b.tenant_id,
             group_id: groupId,
             connection_user_id: senderUserId,
@@ -255,6 +261,12 @@ async function sendOne(
             send_kind: "broadcast",
             send_ref: b.id,
           });
+          if (error) {
+            console.error("[broadcast-dispatch] chat_messages insert failed", {
+              broadcastId: b.id,
+              error,
+            });
+          }
         }
         return res2.ok
           ? { ok: true, messageId: json2?.idMessage }

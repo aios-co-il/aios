@@ -5,13 +5,16 @@ import { resolveBroadcastRecipientClientId } from "./recipient-client.ts";
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const CLIENT = "22222222-2222-4222-8222-222222222222";
 
+/** An RPC stand-in that answers every call with `result`, or rejects with it. */
 function fakeDb(result: { data: unknown; error: unknown } | Error) {
   const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
   return {
     calls,
     rpc(fn: string, args: Record<string, unknown>) {
       calls.push({ fn, args });
-      if (result instanceof Error) return Promise.reject(result);
+      if (result instanceof Error) {
+        return Promise.reject(result);
+      }
       return Promise.resolve(result);
     },
   };

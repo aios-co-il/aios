@@ -6,7 +6,7 @@ import {
   renderTemplateText,
 } from "../_shared/meta-whatsapp.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import { sendKindColumns } from "../_shared/send-kind.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -308,7 +308,6 @@ Deno.serve(async (request) => {
         phone_number_id: phoneNumberId,
         template: template ?? null,
       },
-      // What kind of system send this is (client card auto-log, AIO-242).
       ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
     if (insertError)

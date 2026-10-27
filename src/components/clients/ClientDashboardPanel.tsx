@@ -33,10 +33,8 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTables, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
-import {
-  reportDeliveryOutcome,
-  type ReportDeliveryChannel,
-} from "@/lib/reportDelivery";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 
 interface ClientDashboardPanelProps {
@@ -98,6 +96,7 @@ export function ClientDashboardPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -484,48 +483,6 @@ export function ClientDashboardPanel({
     }
   }, [snapshotMounted, isCapturing, captureScreenshot, dashboard.id]);
 
-  // The share's only client card log: a database trigger writes the entry
-  // from this row (AIO-242). Only the channels that went out are recorded
-  // (partial when one failed or, for Gmail, needs reconnecting).
-  const recordDashboardDelivery = async (
-    sent: ReportDeliveryChannel[],
-    link: string | null,
-  ) => {
-    const outcome = reportDeliveryOutcome({
-      requested: { whatsapp: sendWhatsApp, email: sendEmail },
-      sent,
-    });
-    if (!outcome) return;
-    try {
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "dashboard",
-          target_id: dashboard.id,
-          channels: outcome.channels,
-          status: outcome.status,
-          details: {
-            source: "manual",
-            title: dashboard.name,
-            share_url: link,
-            email_recipients: outcome.channels.includes("email")
-              ? emailRecipients
-              : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log dashboard delivery:", deliveryLogError);
-      else
-        queryClient.invalidateQueries({
-          queryKey: ["client-updates", clientId],
-        });
-    } catch (e) {
-      console.warn("Failed to log dashboard delivery:", e);
-    }
-  };
-
   const handleSend = async () => {
     if (!sendWhatsApp && !sendEmail) {
       toast.error("יש לבחור לפחות אמצעי שליחה אחד");
@@ -696,7 +653,17 @@ export function ClientDashboardPanel({
       console.error("Send error:", e);
       toast.error(`שגיאה בשליחה: ${e?.message || "לא ידוע"}`);
     } finally {
-      await recordDashboardDelivery(sentChannels, effectiveShareUrl);
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "dashboard",
+        targetId: dashboard.id,
+        title: dashboard.name,
+        shareUrl: effectiveShareUrl,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };

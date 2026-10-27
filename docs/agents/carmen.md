@@ -73,6 +73,8 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Every server-side write goes through `recordClientCardEntry` (`supabase/functions/_shared/client-card/entry.ts`), which calls the service-role RPC `record_client_card_entry`: it checks the tenant, dedupes on `source_ref` and attributes the row to a person. Browser writes follow the RLS in `20261026126000_client_card_provenance.sql`.
 - `source` says who wrote a row. The vocabulary, chip labels and the sources that may count as contact live in `_shared/client-card/sources.ts`; the pulse counts contact in `get_latest_client_call_updates`.
 - Carmen's `add_client_update` logs a call or meeting only for a person talking to her right now, on their behalf (`run-ai-agent/client-card-contact-policy.ts`); other runs get `human_requester_required`.
+- Sends are stamped `chat_messages.send_kind` (`_shared/client-card/send-kind.ts`): Carmen's replies and group introductions are `carmen`, her notifications to team members (task and follow-up notices) are `staff_alert`. While the tenant's `pulse_alert_rules.manager.card_log_system_sends` switch is on, a `carmen` send in a group of exactly one client becomes a `carmen_message` entry (`system_send`, never contact); `staff_alert` is never logged.
+- Her webhook-fallback replies (straight to Green API or Manus when her automation's send step is missing or failed) are stored as `carmen` chat rows by `_shared/client-card/system-send.ts`, only in a group of one client and only while the switch is on.
 
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 

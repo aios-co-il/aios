@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
-import { sendKindColumns } from "../_shared/send-kind.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -370,7 +370,6 @@ Deno.serve(async (req) => {
       sent_by_user_id: userId,
       raw_provider_data: responseData,
       sender_phone: senderPhoneForDb,
-      // What kind of system send this is (client card auto-log, AIO-242).
       ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
 
