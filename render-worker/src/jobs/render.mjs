@@ -12,7 +12,7 @@ import {
   assertTenantPath,
   finalError,
   loadRunItem,
-  privateStoragePath,
+  privateStorageObject,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -51,20 +51,20 @@ const sniffExt = (bytes) => {
 };
 
 async function materialize(db, tenantId, path, fileBase) {
+  const remote = /^https?:\/\//.test(path);
+  // A private upload (an entity-attachments link, such as the logo) is read with the worker's
+  // key, like the film's own files, from the tenant's folder only.
+  const stored = remote ? privateStorageObject(path) : { bucket: BUCKET, path };
   let bytes;
-  const linked = /^https?:\/\//.test(path) ? privateStoragePath(path) : null;
-  if (linked) {
-    // A private upload (the logo): read with the worker's key, from the tenant's folder only.
+  if (stored) {
     bytes = await db.download(
-      linked.bucket,
-      assertTenantPath(tenantId, linked.path),
+      stored.bucket,
+      assertTenantPath(tenantId, stored.path),
     );
-  } else if (/^https?:\/\//.test(path)) {
+  } else {
     const response = await fetch(assertMediaUrl(path));
     if (!response.ok) throw new Error(`media download ${response.status}`);
     bytes = new Uint8Array(await response.arrayBuffer());
-  } else {
-    bytes = await db.download(BUCKET, assertTenantPath(tenantId, path));
   }
   const file = `${fileBase}.${sniffExt(bytes)}`;
   await writeFile(file, bytes);
@@ -403,12 +403,16 @@ export async function renderFilm({
     let logoPath = null;
     if (brand?.logoUrl) {
       try {
-        logoPath = await materialize(
+        const file = await materialize(
           db,
           run.tenant_id,
           brand.logoUrl,
           join(dir, "logo"),
         );
+        // Anything but a picture would break the end card, so the film closes without it.
+        if (!/\.(png|jpg|webp|svg)$/.test(file))
+          throw new Error("the logo file is not a picture");
+        logoPath = file;
       } catch (error) {
         // A logo outside the tenant folder or the media hosts is left off the end card.
         log(`[render] ${run.id} logo skipped: ${error.message}`);

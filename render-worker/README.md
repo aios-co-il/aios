@@ -67,5 +67,6 @@ pnpm --dir .. test:components   # from the repo root; the ffmpeg test needs ffmp
 
 - Tenant members can insert `marketing_runs`, so `run.input` is never trusted for files. Storage paths must start with the run's tenant id and cannot contain `.` or `..` segments (`src/guard.mjs`). The item and scene are re-read for the run's tenant, and the client folder comes from the item.
 - Remote stills are fetched only over https from the Supabase project, `*.supabase.co` or `MEDIA_URL_HOSTS`.
+- A link to the project's private `entity-attachments` bucket (an uploaded logo) is downloaded with the worker's key, and only from the run's tenant folder.
 - Paid jobs are charged at most once per run. Clips resume the stored provider job. Voice and music store the audio and record its path before attaching it, and a failure after the provider has charged is final, not retried. The database also allows only one queued or running job per scene (clip, voice) and per project (music, render).
 - The tenant's own ElevenLabs and Higgsfield keys win; the worker's env keys are only a fallback.

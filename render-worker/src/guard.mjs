@@ -2,7 +2,7 @@
 // worker never trusts a path or URL from it: storage paths must stay inside the run's
 // tenant folder, and remote files may only come from known media hosts.
 
-/** A creative-video object path inside the run's tenant folder; rejects . / .. segments. */
+/** A storage object path inside the run's tenant folder; rejects . / .. segments. */
 export function assertTenantPath(tenantId, path) {
   const value = String(path ?? "");
   const segments = value.split("/");
@@ -35,16 +35,16 @@ const defaultHosts = () =>
       .filter(Boolean),
   ].filter(Boolean);
 
-/** Private buckets the app links to by URL, such as an uploaded logo in payload.logo_url. */
-const LINKED_PRIVATE_BUCKETS = new Set(["entity-attachments"]);
-
 /**
- * The bucket and path behind a link to one of this project's private buckets, or null.
+ * The bucket and path behind a link to this project's private entity-attachments bucket, or null.
  * The app keeps uploads as entity-attachments links that nobody can fetch as they are, and
  * signs them when it reads them (src/components/marketing/lib/resolveCreativeImageUrl.ts).
  * The worker downloads them with its own key instead.
  */
-export function privateStoragePath(url, projectUrl = process.env.SUPABASE_URL) {
+export function privateStorageObject(
+  url,
+  projectUrl = process.env.SUPABASE_URL,
+) {
   let link;
   let project;
   try {
@@ -55,11 +55,11 @@ export function privateStoragePath(url, projectUrl = process.env.SUPABASE_URL) {
   }
   if (link.host !== project.host) return null;
   const match = link.pathname.match(
-    /^\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
+    /^\/storage\/v1\/object\/(?:public|sign)\/entity-attachments\/(.+)$/,
   );
-  if (!match || !LINKED_PRIVATE_BUCKETS.has(match[1])) return null;
+  if (!match) return null;
   try {
-    return { bucket: match[1], path: decodeURIComponent(match[2]) };
+    return { bucket: "entity-attachments", path: decodeURIComponent(match[1]) };
   } catch {
     return null;
   }

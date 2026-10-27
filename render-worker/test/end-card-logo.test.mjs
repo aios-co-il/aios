@@ -3,8 +3,9 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { privateStoragePath } from "../src/guard.mjs";
+import { privateStorageObject } from "../src/guard.mjs";
 import { renderFilm } from "../src/jobs/render.mjs";
+import { hasFfmpeg, media } from "./media.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const OTHER = "33333333-3333-3333-3333-333333333333";
@@ -16,46 +17,34 @@ const attachment = (path) =>
 test("a link to the project's entity-attachments bucket reads as its bucket and path", () => {
   const path = `${TENANT}/workshop/${ITEM}/1793_carmen logo.png`;
   expect(
-    privateStoragePath(attachment(encodeURI(path)), PROJECT),
+    privateStorageObject(attachment(encodeURI(path)), PROJECT),
   ).toStrictEqual({ bucket: "entity-attachments", path });
   // A signed link of the same file, with its token.
   expect(
-    privateStoragePath(
+    privateStorageObject(
       `${PROJECT}/storage/v1/object/sign/entity-attachments/${TENANT}/a.png?token=abc`,
       PROJECT,
     ),
   ).toStrictEqual({ bucket: "entity-attachments", path: `${TENANT}/a.png` });
   // Another project, another bucket, or not a storage link: fetched as a plain link.
   expect(
-    privateStoragePath(
+    privateStorageObject(
       `https://other.supabase.co/storage/v1/object/public/entity-attachments/${TENANT}/a.png`,
       PROJECT,
     ),
   ).toBe(null);
   expect(
-    privateStoragePath(
+    privateStorageObject(
       `${PROJECT}/storage/v1/object/public/brand-assets/${TENANT}/a.png`,
       PROJECT,
     ),
   ).toBe(null);
-  expect(privateStoragePath("https://cdn.example.com/a.png", PROJECT)).toBe(
+  expect(privateStorageObject("https://cdn.example.com/a.png", PROJECT)).toBe(
     null,
   );
-  expect(privateStoragePath(attachment(`${TENANT}/a.png`), "")).toBe(null);
+  expect(privateStorageObject(attachment(`${TENANT}/a.png`), "")).toBe(null);
 });
 
-const hasFfmpeg =
-  spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
-const media = (args) => {
-  const result = spawnSync("ffmpeg", [
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-y",
-    ...args,
-  ]);
-  if (result.status !== 0) throw new Error(String(result.stderr));
-};
 /** The mean colour [r, g, b] of a small box at (x, y) as shares of the frame, at `atS`. */
 const colourAt = (file, atS, x, y) => {
   const out = spawnSync(
@@ -166,7 +155,7 @@ test.skipIf(!hasFfmpeg)(
         "1",
         join(dir, "logo.png"),
       ]);
-      const render = async (logoPath) => {
+      const render = async (label, logoPath) => {
         const db = renderDb(dir, {
           logo_url: attachment(logoPath),
           cta_text: "הירשמו",
@@ -183,12 +172,12 @@ test.skipIf(!hasFfmpeg)(
           },
           log: () => {},
         });
-        const film = join(dir, `film-${db.downloads.length}.mp4`);
+        const film = join(dir, `film-${label}.mp4`);
         await writeFile(film, db.stored.get(done.output.path));
         return { db, film, done };
       };
 
-      const own = await render(`${TENANT}/workshop/${ITEM}/logo.png`);
+      const own = await render("own", `${TENANT}/workshop/${ITEM}/logo.png`);
       expect(own.db.downloads).toContainEqual({
         bucket: "entity-attachments",
         path: `${TENANT}/workshop/${ITEM}/logo.png`,
@@ -200,11 +189,23 @@ test.skipIf(!hasFfmpeg)(
       expect(b).toBeLessThan(80);
 
       // Another tenant's file is never read: the film closes on the call to action alone.
-      const foreign = await render(`${OTHER}/workshop/${ITEM}/logo.png`);
+      const foreign = await render(
+        "foreign",
+        `${OTHER}/workshop/${ITEM}/logo.png`,
+      );
       expect(
         foreign.db.downloads.some((d) => d.bucket === "entity-attachments"),
       ).toBe(false);
       expect(colourAt(foreign.film, 5.2, 0.5, 0.34)[0]).toBeLessThan(120);
+
+      // A file that is not a picture is left off too, and the film still renders.
+      await writeFile(join(dir, "notes.txt"), "not a picture");
+      const broken = await render(
+        "broken",
+        `${TENANT}/workshop/${ITEM}/notes.txt`,
+      );
+      expect(broken.done.output.path).toMatch(/film-run-1\.mp4$/);
+      expect(colourAt(broken.film, 5.2, 0.5, 0.34)[0]).toBeLessThan(120);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
