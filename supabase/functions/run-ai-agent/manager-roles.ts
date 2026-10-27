@@ -5,7 +5,8 @@
  * but the role priority lists in index.ts still name these roles separately.
  * get_reconciliation_status and the direct-tool pool apply it to the caller's
  * roles in this tenant; executeTool and handleRunAgent still apply it to
- * callerRole, the caller's highest role in any tenant.
+ * callerRole, the caller's highest role in any tenant, until AIO-275 scopes
+ * that to this tenant too.
  */
 export const MANAGER_ROLES: readonly string[] = [
   "owner",

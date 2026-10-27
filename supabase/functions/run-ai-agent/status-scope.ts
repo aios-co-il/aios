@@ -60,7 +60,8 @@ export async function reconcileStatusScope(
  * rows (tenant_id NULL). A role in another tenant does not count, so an owner
  * of one org is not a manager in the org that only shares clients with it.
  * Two typed queries keep the tenant filter in the database without building a
- * PostgREST `or` string from the tenant id.
+ * PostgREST `or` string from the tenant id. resolveDirectCaller in index.ts
+ * still reads the same rows inline; AIO-275 makes this the single reader.
  */
 export async function rolesInTenant(
   db: Pick<DbClient, "from">,

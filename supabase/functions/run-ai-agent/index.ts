@@ -5672,7 +5672,8 @@ async function executeTool(
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
   // callerRole is the highest role in any of the caller's tenants, not only this
-  // one; get_reconciliation_status re-reads the roles held in this tenant.
+  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
+  // already re-reads the roles held in this tenant.
   const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)

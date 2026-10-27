@@ -31,6 +31,40 @@ const toolCtx = (
 });
 
 /**
+ * A table run and an unmapped-accounts run (table_id NULL) of tenant-1,
+ * started now because the tool reads runs since Date.now() minus the max age.
+ */
+const tableAndAccountRuns = () => {
+  const now = new Date().toISOString();
+  return [
+    statusRun("table", "ok", now, { findings_total: 0 }),
+    {
+      ...statusRun("accounts", "mismatch", now, { findings_total: 1 }),
+      client_id: null,
+      table_id: null,
+      crm_tables: null,
+      clients: null,
+    },
+  ];
+};
+
+/**
+ * user-1 owns tenant-2 and holds `roleHere` in tenant-1. executeTool's
+ * callerRole is then "owner", so run-ai-agent passes isManagerRole true.
+ */
+const ownerElsewhereCtx = (roleHere: string) =>
+  toolCtx(
+    {
+      user_roles: [
+        { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
+        { user_id: "user-1", tenant_id: "tenant-1", role: roleHere },
+      ],
+      reconcile_runs: tableAndAccountRuns(),
+    },
+    { isManagerRole: true },
+  );
+
+/**
  * user-1 asks over WhatsApp (as campaigner camp-1) about client-1 of tenant-1,
  * which has no client_team row for camp-1. callerRole made them a manager
  * (isManagerRole), as executeTool does for an owner of any tenant.
@@ -64,18 +98,17 @@ describe("reconciliationStatusTool", () => {
 
   it("does not count an owner role held in another tenant", async () => {
     await assertRejects(
-      () =>
-        reconciliationStatusTool(
-          toolCtx({
-            user_roles: [
-              { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
-              { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
-            ],
-          }),
-          {},
-        ),
+      () => reconciliationStatusTool(ownerElsewhereCtx("campaigner"), {}),
       Error,
       "למנהלים בלבד",
+    );
+    const managerHere = await reconciliationStatusTool(
+      ownerElsewhereCtx("agency_manager"),
+      {},
+    );
+    assertEquals(
+      managerHere.items.map((i) => i.table_id),
+      ["t1"],
     );
   });
 
@@ -93,22 +126,10 @@ describe("reconciliationStatusTool", () => {
   });
 
   it("shows the unmapped-account rows only for an owner role in this tenant", async () => {
-    // Started now: the tool reads runs since Date.now() minus the max age.
-    const now = new Date().toISOString();
-    const runs = [
-      statusRun("table", "ok", now, { findings_total: 0 }),
-      {
-        ...statusRun("accounts", "mismatch", now, { findings_total: 1 }),
-        client_id: null,
-        table_id: null,
-        crm_tables: null,
-        clients: null,
-      },
-    ];
+    const runs = tableAndAccountRuns();
     const managerHere = await reconciliationStatusTool(
       toolCtx({
         user_roles: [
-          { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
           { user_id: "user-1", tenant_id: "tenant-1", role: "agency_manager" },
         ],
         reconcile_runs: runs,
