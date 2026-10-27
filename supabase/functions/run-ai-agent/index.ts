@@ -10974,7 +10974,7 @@ async function executeTool(
     }
     case "get_reconciliation_status":
       return await reconciliationStatusTool(
-        { supabase, callerScope, isManagerRole, tenantId, callerRole },
+        { supabase, callerScope, tenantId, actorUserId },
         args,
       );
     case "check_ad_accounts_health": {

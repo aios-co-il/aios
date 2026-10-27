@@ -38,7 +38,7 @@ const statusRun = (
 const ownerStatus = (runs: Array<Record<string, unknown>>) =>
   getReconciliationStatus(memoryDb({ reconcile_runs: runs }), {
     tenantId: "tenant-1",
-    callerRole: "owner",
+    callerRoles: ["owner"],
     sinceIso: SINCE,
   });
 
@@ -137,27 +137,56 @@ describe("getReconciliationStatus", () => {
   });
 });
 
+/** The tool context for user-1 in tenant-1; run-ai-agent's cross-tenant flags stay false. */
+const toolCtx = (userRoles: Array<Record<string, unknown>>) => ({
+  supabase: memoryDb({ user_roles: userRoles, reconcile_runs: [] }),
+  callerScope: {
+    isManagerRole: false,
+    isTeamManager: false,
+    managedAgencyIds: [],
+    accessibleTenantIds: ["tenant-1"],
+  },
+  tenantId: "tenant-1",
+  actorUserId: "user-1",
+});
+
 describe("reconciliationStatusTool", () => {
   it("refuses every client to a caller who is not a manager", async () => {
     await assertRejects(
       () =>
         reconciliationStatusTool(
-          {
-            supabase: memoryDb({}),
-            callerScope: {
-              isManagerRole: false,
-              isTeamManager: false,
-              managedAgencyIds: [],
-              accessibleTenantIds: ["tenant-1"],
-            },
-            isManagerRole: false,
-            tenantId: "tenant-1",
-            callerRole: "campaigner",
-          },
+          toolCtx([
+            { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
+          ]),
           {},
         ),
       Error,
       "למנהלים בלבד",
     );
+  });
+
+  it("does not count an owner role held in another tenant", async () => {
+    await assertRejects(
+      () =>
+        reconciliationStatusTool(
+          toolCtx([
+            { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
+            { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
+          ]),
+          {},
+        ),
+      Error,
+      "למנהלים בלבד",
+    );
+  });
+
+  it("lets a manager of this tenant or a global super admin list every client", async () => {
+    for (const row of [
+      { user_id: "user-1", tenant_id: "tenant-1", role: "agency_manager" },
+      { user_id: "user-1", tenant_id: null, role: "super_admin" },
+    ]) {
+      const status = await reconciliationStatusTool(toolCtx([row]), {});
+      assertEquals(status.checked, 0);
+    }
   });
 });

@@ -22,7 +22,7 @@ const TENANT_LEVEL_ROLES = ["owner", "super_admin"];
 /** The caller's scope: own tenant, shared-agency clients, and tenant-level rows by role. */
 export async function reconcileStatusScope(
   db: Pick<DbClient, "from">,
-  opts: { tenantId: string; callerRole?: string | null },
+  opts: { tenantId: string; callerRoles: string[] },
 ): Promise<ReconcileStatusScope> {
   const { data: shares, error } = await db
     .from("agency_tenant_access")
@@ -48,9 +48,35 @@ export async function reconcileStatusScope(
   }
   return {
     ownTenantId: opts.tenantId,
-    includeTenantLevel: TENANT_LEVEL_ROLES.includes(String(opts.callerRole)),
+    includeTenantLevel: opts.callerRoles.some((role) =>
+      TENANT_LEVEL_ROLES.includes(role),
+    ),
     sharedClientIds,
   };
+}
+
+/**
+ * The roles `userId` holds in `tenantId`: rows for that tenant plus global
+ * rows (tenant_id NULL). A role in another tenant does not count, so an owner
+ * of one org is not a manager in the org that only shares clients with it.
+ */
+export async function rolesInTenant(
+  db: Pick<DbClient, "from">,
+  tenantId: string,
+  userId: string | null,
+): Promise<string[]> {
+  if (!userId) {
+    return [];
+  }
+  const { data, error } = await db
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+  if (error) {
+    throw new Error(`user_roles: ${error.message}`);
+  }
+  return (data || []).map((row) => row.role);
 }
 
 /** True when `clientId` is the caller's own tenant's client or a shared-agency client. */

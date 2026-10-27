@@ -67,7 +67,7 @@ describe("reconcileStatusScope", () => {
   it("lets a manager see own tables and the shared agency's clients only", async () => {
     const status = await getReconciliationStatus(sharedTenantsDb(), {
       tenantId: "tenant-A",
-      callerRole: "agency_manager",
+      callerRoles: ["agency_manager"],
       sinceIso: SINCE,
     });
     // Not B's other agency, not B's account-level run, and A's own
@@ -78,7 +78,7 @@ describe("reconcileStatusScope", () => {
   it("lets an owner also see the own tenant's unmapped-account run, never the source tenant's", async () => {
     const status = await getReconciliationStatus(sharedTenantsDb(), {
       tenantId: "tenant-A",
-      callerRole: "owner",
+      callerRoles: ["owner"],
       sinceIso: SINCE,
     });
     assertEquals(ids(status), ["accounts:null", "table-a", "table-bx"]);
@@ -94,7 +94,7 @@ describe("reconcileStatusScope", () => {
       () =>
         getReconciliationStatus(db, {
           tenantId: "tenant-A",
-          callerRole: "owner",
+          callerRoles: ["owner"],
           clientId: "client-by",
           sinceIso: SINCE,
         }),
@@ -103,7 +103,7 @@ describe("reconcileStatusScope", () => {
     );
     const shared = await getReconciliationStatus(db, {
       tenantId: "tenant-A",
-      callerRole: "agency_manager",
+      callerRoles: ["agency_manager"],
       clientId: "client-bx",
       sinceIso: SINCE,
     });

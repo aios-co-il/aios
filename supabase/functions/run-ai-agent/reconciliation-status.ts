@@ -11,29 +11,51 @@ import { RECONCILE_RESULT_MAX_AGE_MS } from "../_shared/reconcile/run-status.ts"
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { latestPerKey, rank, runKey, toStatusItem } from "./status-items.ts";
 import { scopedRuns } from "./status-runs.ts";
-import { clientInScope, reconcileStatusScope } from "./status-scope.ts";
+import {
+  clientInScope,
+  reconcileStatusScope,
+  rolesInTenant,
+} from "./status-scope.ts";
+
+/** Roles that may list every client's status: isManagerRole in index.ts. */
+const STATUS_MANAGER_ROLES = [
+  "owner",
+  "agency_owner",
+  "agency_manager",
+  "super_admin",
+];
 
 const RATE_LIMITED_NOTE =
   "הדוחות האלה לא נבדקו בבדיקה האחרונה כי הפלטפורמה הגבילה את קצב הבקשות, אז אי אפשר לומר שהם תואמים. התוצאה של הבדיקה הקודמת שלהם, אם יש, מופיעה ב-previous";
 
-/** The tool call: managers may ask for every client; anyone else names a client they can access. */
+/**
+ * The tool call: managers may ask for every client; anyone else names a client
+ * they can access. Manager means a manager role in this tenant, not the
+ * caller's highest role in any tenant (run-ai-agent's callerRole).
+ */
 export async function reconciliationStatusTool(
   ctx: {
     supabase: Pick<DbClient, "from">;
     callerScope: CallerScope;
-    isManagerRole: boolean;
     tenantId: string;
-    callerRole?: string | null;
+    actorUserId: string | null;
   },
   args: { client_id?: string | null },
 ) {
+  const callerRoles = await rolesInTenant(
+    ctx.supabase,
+    ctx.tenantId,
+    ctx.actorUserId,
+  );
+  const isManager = callerRoles.some((role) =>
+    STATUS_MANAGER_ROLES.includes(role),
+  );
   if (args.client_id) {
-    await assertCallerCanAccessClient(
-      ctx.supabase,
-      args.client_id,
-      ctx.callerScope,
-    );
-  } else if (!ctx.isManagerRole) {
+    await assertCallerCanAccessClient(ctx.supabase, args.client_id, {
+      ...ctx.callerScope,
+      isManagerRole: isManager,
+    });
+  } else if (!isManager) {
     throw new Error(
       "סטטוס ההתאמה לכל הלקוחות זמין למנהלים בלבד — העבירי client_id",
     );
@@ -41,7 +63,7 @@ export async function reconciliationStatusTool(
   // Scoped inside: own tenant + shared-agency clients; account-level rows for owners only.
   return await getReconciliationStatus(ctx.supabase, {
     tenantId: ctx.tenantId,
-    callerRole: ctx.callerRole,
+    callerRoles,
     clientId: args.client_id || null,
     sinceIso: new Date(Date.now() - RECONCILE_RESULT_MAX_AGE_MS).toISOString(),
   });
@@ -58,7 +80,7 @@ export async function getReconciliationStatus(
   db: Pick<DbClient, "from">,
   opts: {
     tenantId: string;
-    callerRole?: string | null;
+    callerRoles: string[];
     clientId?: string | null;
     sinceIso: string;
   },
