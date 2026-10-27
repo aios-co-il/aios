@@ -196,7 +196,13 @@ test.skipIf(!hasFfmpeg)(
         join(dir, "fx.wav"),
       ]);
       const fx = new Uint8Array(await readFile(join(dir, "fx.wav")));
-      const db = renderDb(dir, { video: { sound_design: true } });
+      // The production's own render (advance_video_production recorded its run id).
+      const production = {
+        status: "running",
+        render_run_id: "run-1",
+        estimate: { sound_effects: { usd: 0.05 } },
+      };
+      const db = renderDb(dir, { video: { sound_design: true, production } });
       const done = await renderFilm({
         db,
         run: run(),
@@ -215,7 +221,9 @@ test.skipIf(!hasFfmpeg)(
       await writeFile(film, db.stored.get(done.output.path));
       expect(loudness(film, 1.65, 0.3)).toBeGreaterThan(-40);
 
-      const keyless = renderDb(dir, { video: { sound_design: true } });
+      const keyless = renderDb(dir, {
+        video: { sound_design: true, production },
+      });
       const plain = await renderFilm({
         db: keyless,
         run: run(),
@@ -224,6 +232,75 @@ test.skipIf(!hasFfmpeg)(
       expect(plain.output.sound_effects_error).toMatch(/אין מפתח ElevenLabs/);
       expect(plain.costUsd).toBe(0);
       expect(keyless.stored.has(plain.output.path)).toBe(true);
+
+      // A render outside the production (the studio button, video_director) stays free: with
+      // no stored effects it renders without them and never calls ElevenLabs.
+      let generated = 0;
+      const free = await renderFilm({
+        db: renderDb(dir, {
+          video: {
+            sound_design: true,
+            production: { status: "done", render_run_id: "run-1" },
+          },
+        }),
+        run: run(),
+        resolveElevenLabsKey: async () => "xi-key",
+        makeEffects: (input) =>
+          filmSoundEffects({
+            ...input,
+            generate: async () => {
+              generated += 1;
+              return fx;
+            },
+          }),
+        log: () => {},
+      });
+      expect(generated).toBe(0);
+      expect(free.costUsd).toBe(0);
+      expect(free.output.sound_effects_error).toMatch(/רק בהפקה/);
+      const other = await renderFilm({
+        db: renderDb(dir, {
+          video: {
+            sound_design: true,
+            production: { ...production, render_run_id: "run-0" },
+          },
+        }),
+        run: run(),
+        resolveElevenLabsKey: async () => "xi-key",
+        makeEffects: (input) =>
+          filmSoundEffects({
+            ...input,
+            generate: async () => {
+              generated += 1;
+              return fx;
+            },
+          }),
+        log: () => {},
+      });
+      expect(generated).toBe(0);
+      expect(other.costUsd).toBe(0);
+      // A production whose quote did not price the effects (the studio's plan) does not pay.
+      const unquoted = await renderFilm({
+        db: renderDb(dir, {
+          video: {
+            sound_design: true,
+            production: { ...production, estimate: { clips: { usd: 1 } } },
+          },
+        }),
+        run: run(),
+        resolveElevenLabsKey: async () => "xi-key",
+        makeEffects: (input) =>
+          filmSoundEffects({
+            ...input,
+            generate: async () => {
+              generated += 1;
+              return fx;
+            },
+          }),
+        log: () => {},
+      });
+      expect(generated).toBe(0);
+      expect(unquoted.costUsd).toBe(0);
 
       let asked = 0;
       const quiet = await renderFilm({

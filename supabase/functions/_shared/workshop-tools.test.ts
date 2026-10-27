@@ -746,11 +746,14 @@ Deno.test(
     assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);
+    // The effects are made in this production's render, so its quote includes them.
+    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.05);
 
     const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
     assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
     assertStrictEquals(calm.saved.sound_design, false);
     assertStrictEquals(calm.result.sound_design, undefined);
+    assertStrictEquals(calm.rpc.p_estimate.sound_effects.usd, 0);
 
     const asked = await run("קצב: רגוע", { sound_design: true });
     assertStrictEquals(asked.saved.sound_design, true);
@@ -1664,7 +1667,8 @@ Deno.test(
         }),
         "tenant-1",
         "workshop_produce_video",
-        { item_id: "item-1", music: false },
+        // The fixture's look is "cinematic"; these quotes are about the clips alone.
+        { item_id: "item-1", music: false, sound_design: false },
         async () => {},
         null,
         {
@@ -1730,7 +1734,8 @@ Deno.test(
         }),
         "tenant-1",
         "workshop_produce_video",
-        { item_id: "item-1", music: false },
+        // The fixture's look is "cinematic"; these quotes are about the clips alone.
+        { item_id: "item-1", music: false, sound_design: false },
         async () => {},
         null,
         { defaultEngine: async () => engine },
@@ -1765,6 +1770,23 @@ Deno.test(
       "marketing_assets:select": [{ id: "clip-s-1" }],
     });
     assertStrictEquals(free.needs_budget, undefined);
+    // Trailer effects are paid for even on the free preview, so they are quoted.
+    const effects = (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [clip("s-1")],
+        "marketing_assets:select": [{ id: "clip-s-1" }],
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", music: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "mock" as const },
+    )) as Record<string, any>;
+    assertStrictEquals(effects.needs_budget, true);
+    assertStrictEquals(effects.estimated_usd, 0.05);
+    assertStrictEquals(effects.with_sound_effects, true);
   },
 );
 

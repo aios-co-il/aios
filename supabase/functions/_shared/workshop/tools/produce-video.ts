@@ -150,10 +150,17 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     String(scene.voiceover_text ?? "").trim(),
   );
   const withMusic = args.music !== false;
+  // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
+  // the music bed both follow the film brief; the render worker reads video.sound_design and
+  // makes the effects in this production's render only, so the quote includes them.
+  const soundDesign = wantsSoundDesign(project.payload, {
+    choice: args.sound_design,
+    userText: deps.userText,
+  });
   const estimate = quotedProductionEstimate(
     engine,
     costScenes,
-    { withVoice, withMusic },
+    { withVoice, withMusic, withSoundEffects: soundDesign },
     deps.videoConnections ? await deps.videoConnections() : {},
   );
   // Narration needs a voice the user chose after hearing it.
@@ -183,10 +190,18 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       clip_seconds: estimate.clipSeconds,
       with_voice: withVoice,
       with_music: withMusic,
+      ...(soundDesign
+        ? {
+            with_sound_effects: true,
+            sound_effects_usd: estimate.soundEffects.usd,
+          }
+        : {}),
       estimated_usd: estimate.totalUsd,
       message:
         engine === "mock"
-          ? "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
+          ? estimate.totalUsd > 0
+            ? `הסצנות יונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונות); הקריינות והסאונד יעלו עד כ-$${estimate.totalUsd}. אשר/י והתחל.`
+            : "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
           : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. אשר/י והתחל.`,
     },
   );
@@ -198,12 +213,6 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
       : "";
   const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
-  // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
-  // the music bed both follow the film brief; the render worker reads video.sound_design.
-  const soundDesign = wantsSoundDesign(gate.payload, {
-    choice: args.sound_design,
-    userText: deps.userText,
-  });
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   try {
     await savePayload(
@@ -242,6 +251,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       voice: estimate.voice,
       music: estimate.music,
       lipsync: estimate.lipsync,
+      sound_effects: estimate.soundEffects,
     },
     p_stage_id: stageId,
     p_with_voice: withVoice,

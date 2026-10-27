@@ -205,7 +205,11 @@ export async function loadFilmSources(db, run) {
 
 /**
  * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
- * font, logo, CTA) and whether the brief asked for trailer sound design (video.sound_design).
+ * font, logo, CTA), whether the brief asked for trailer sound design (video.sound_design), and
+ * whether this run may pay for the effects: only the assembly of a running production
+ * (advance_video_production records its render_run_id) whose approved quote priced them
+ * (workshop_produce_video puts estimate.sound_effects on the production). Every other render,
+ * and a production quoted without them (the Video Studio's own plan), is free.
  */
 export async function loadFilmSettings(db, run) {
   const [row] =
@@ -213,9 +217,15 @@ export async function loadFilmSettings(db, run) {
       "marketing_work_items",
       `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
     )) ?? [];
+  const production = row?.payload?.video?.production;
   return {
     brand: brandFromPayload(row?.payload),
     soundDesign: row?.payload?.video?.sound_design === true,
+    effectsQuoted:
+      !!production &&
+      production.status === "running" &&
+      String(production.render_run_id ?? "") === String(run.id) &&
+      Number(production.estimate?.sound_effects?.usd) > 0,
   };
 }
 
@@ -285,13 +295,15 @@ export async function renderFilm({
     const settings = await loadFilmSettings(db, run);
     // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
     const brand = settings.brand;
-    // Trailer sound design: made once per film; without it the film renders as before.
+    // Trailer sound design: made once per film, in the production's own (quoted) render; a
+    // free render only reuses stored effects. Without them the film renders as before.
     const effects = settings.soundDesign
       ? await makeEffects({
           db,
           run,
           item,
           resolveKey: resolveElevenLabsKey,
+          mayGenerate: settings.effectsQuoted,
           log,
         }).catch((error) => ({
           paths: {},
@@ -392,7 +404,8 @@ export async function renderFilm({
       },
       provider: process.env.REMOTION_DISABLE === "1" ? "compose" : "remotion",
       credits: 0,
-      // What this run paid ElevenLabs for the film's sound effects (reused ones cost nothing).
+      // What this run paid ElevenLabs for the film's sound effects, across its attempts
+      // (effects stored by another run cost nothing). Only a production's render pays.
       costUsd: effects?.costUsd ?? 0,
     };
   } finally {

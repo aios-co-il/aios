@@ -27,6 +27,7 @@ import {
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { quotedProductionEstimate } from "../video-cost.ts";
+import { wantsSoundDesign } from "../sound-design.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */
 const ownReference = (scene: Record<string, any>) =>
@@ -110,6 +111,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
         String(scene.voiceover_text ?? "").trim(),
       ),
       withMusic: true,
+      withSoundEffects: wantsSoundDesign(project.payload, {
+        userText: deps.userText,
+      }),
     },
     deps.videoConnections ? await deps.videoConnections() : {},
   );
