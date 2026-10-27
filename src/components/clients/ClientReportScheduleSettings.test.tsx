@@ -8,11 +8,14 @@ import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
 
 const backend = vi.hoisted(() => ({
   senders: [] as ReportSender[],
+  tenantDefault: null as string | null,
   schedule: null as Record<string, unknown> | null,
   update: vi.fn(),
+  insert: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: toastError } }));
 vi.mock("@/hooks/useCurrentUser", () => ({
   useCurrentUser: () => ({ userId: "u1" }),
 }));
@@ -29,8 +32,15 @@ vi.mock("@/integrations/supabase/client", () => ({
           backend.update(payload);
           return query;
         },
+        insert: (payload: unknown) => {
+          backend.insert(payload);
+          return query;
+        },
         maybeSingle: async () => ({
-          data: table === "report_schedules" ? backend.schedule : null,
+          data:
+            table === "report_schedules"
+              ? backend.schedule
+              : { whatsapp_integration_id: backend.tenantDefault },
           error: null,
         }),
         then: (resolve: (value: { error: null }) => unknown) =>
@@ -43,6 +53,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 const carmen = reportSender("carmen", { integration_type: "manus_wa" });
 const david = reportSender("david", { owner_name: "דוד", owner_user_id: "u1" });
+const office = reportSender("office", { display_name: "משרד" });
 
 function renderSettings() {
   const { wrapper } = withTestQuery();
@@ -65,7 +76,16 @@ beforeAll(() => {
   });
 });
 
+/** Clicks the save button. */
+async function save() {
+  await userEvent.click(screen.getByRole("button", { name: "שמור הגדרה" }));
+}
+
 beforeEach(() => {
+  backend.update.mockClear();
+  backend.insert.mockClear();
+  toastError.mockClear();
+  backend.tenantDefault = null;
   backend.schedule = {
     id: "schedule-1",
     enabled: true,
@@ -80,25 +100,31 @@ beforeEach(() => {
 });
 
 describe("ClientReportScheduleSettings sender line", () => {
-  it("says which phone sends when there is only one", async () => {
+  it("says which phone sends when there is only one, and stores it", async () => {
     backend.senders = [carmen];
     renderSettings();
     expect(
       await screen.findByText("יישלח מ: הטלפון של כרמן"),
     ).toBeInTheDocument();
+    await save();
+    await waitFor(() =>
+      expect(backend.update).toHaveBeenCalledWith(
+        expect.objectContaining({ whatsapp_integration_id: "carmen" }),
+      ),
+    );
   });
 
   it("saves the line chosen for the schedule", async () => {
     backend.senders = [carmen, david];
     renderSettings();
     const select = await screen.findByRole("combobox", { name: "שלח מ" });
-    // The default names the line the worker would use: the saver's own phone.
-    expect(select).toHaveTextContent("ברירת המחדל של הארגון (הטלפון של דוד)");
+    // Preselected: the line the worker would use, the saver's own phone.
+    expect(select).toHaveTextContent("הטלפון של דוד");
     await userEvent.click(select);
     await userEvent.click(
       await screen.findByRole("option", { name: "הטלפון של כרמן" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "שמור הגדרה" }));
+    await save();
     await waitFor(() =>
       expect(backend.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -109,15 +135,56 @@ describe("ClientReportScheduleSettings sender line", () => {
     );
   });
 
-  it("keeps following the organization default when nothing is chosen", async () => {
+  it("pins a legacy schedule to the line it resolves to", async () => {
     backend.senders = [carmen, david];
     renderSettings();
-    await screen.findByRole("combobox", { name: "שלח מ" });
-    await userEvent.click(screen.getByRole("button", { name: "שמור הגדרה" }));
+    const select = await screen.findByRole("combobox", { name: "שלח מ" });
+    expect(select).toHaveTextContent("הטלפון של דוד");
+    await save();
+    await waitFor(() =>
+      expect(backend.update).toHaveBeenCalledWith(
+        expect.objectContaining({ whatsapp_integration_id: "david" }),
+      ),
+    );
+  });
+
+  it("keeps a stored choice to follow the organization default", async () => {
+    backend.senders = [carmen, david];
+    backend.tenantDefault = "carmen";
+    renderSettings();
+    const select = await screen.findByRole("combobox", { name: "שלח מ" });
+    expect(select).toHaveTextContent("ברירת המחדל של הארגון (הטלפון של כרמן)");
+    await save();
     await waitFor(() =>
       expect(backend.update).toHaveBeenCalledWith(
         expect.objectContaining({ whatsapp_integration_id: null }),
       ),
     );
+  });
+
+  it("stores the default's line itself on a new schedule", async () => {
+    backend.senders = [carmen, david];
+    backend.tenantDefault = "carmen";
+    backend.schedule = null;
+    renderSettings();
+    await userEvent.click(await screen.findByRole("switch"));
+    await screen.findByRole("combobox", { name: "שלח מ" });
+    await save();
+    await waitFor(() =>
+      expect(backend.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ whatsapp_integration_id: "carmen" }),
+      ),
+    );
+  });
+
+  it("does not save an enabled schedule without a phone", async () => {
+    backend.senders = [carmen, office];
+    renderSettings();
+    expect(
+      await screen.findByText("בחרו מאיזה טלפון לשלוח"),
+    ).toBeInTheDocument();
+    await save();
+    expect(toastError).toHaveBeenCalledWith("בחרו מאיזה טלפון לשלוח");
+    expect(backend.update).not.toHaveBeenCalled();
   });
 });

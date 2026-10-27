@@ -6,13 +6,13 @@ import {
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import {
-  callerMaySendForTenant,
   lineSetting,
   lineStore,
 } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/send-kind.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
-import { legacyGreenLine, resolveGreenFileLine } from "./sender.ts";
+import { prepareGreenFileSend } from "./prepare.ts";
+import { legacyGreenLine } from "./sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -202,74 +202,31 @@ Deno.serve(async (req) => {
     }
 
     const tenantForSend = resolvedTenantId;
-    const store = lineStore(serviceClient());
-    if (!(await callerMaySendForTenant(store, tenantForSend, user.id))) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
+    const send = await prepareGreenFileSend(
+      {
+        store: lineStore(serviceClient()),
+        legacyLine: () =>
+          legacyGreenLine(supabaseClient, tenantForSend, user.id),
+        guard: checkWhatsAppSend,
+      },
+      {
+        tenantId: tenantForSend,
+        userId: user.id,
+        integrationId: chosenIntegrationId,
+        groupId,
+        groupChatId,
+        phoneNumber,
+      },
+    );
+    if ("refusal" in send) {
+      return new Response(JSON.stringify(send.refusal.body), {
+        status: send.refusal.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const sender = await resolveGreenFileLine({
-      store,
-      tenantId: tenantForSend,
-      integrationId: chosenIntegrationId,
-      legacyLine: () => legacyGreenLine(supabaseClient, tenantForSend, user.id),
-    });
-    if ("error" in sender) {
-      const notAllowed = sender.error === "sender_not_allowed";
-      return new Response(
-        JSON.stringify({
-          error: notAllowed ? "sender_not_allowed" : "Green API not configured",
-          code: sender.error,
-        }),
-        {
-          status: notAllowed ? 403 : 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const integration = sender.line;
+    const { line: integration, chatId, usedGroupChat } = send;
     const instanceId = lineSetting(integration.settings, "instance_id");
     const apiToken = integration.api_key;
-    const defaultCountryCode =
-      lineSetting(integration.settings, "country_code") || "972";
-
-    // Determine chatId — reject missing group chat id; phone fallback when provided
-    const chatTarget = resolveGreenApiChatTarget({
-      groupId,
-      groupChatId,
-      phoneNumber,
-      countryCode: defaultCountryCode,
-    });
-    if (!chatTarget.ok) {
-      return new Response(
-        JSON.stringify({ error: chatTarget.message, code: chatTarget.error }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-    const chatId: string = chatTarget.chatId;
-    const usedGroupChat = chatTarget.via === "group";
-
-    const guard = checkWhatsAppSend(usedGroupChat ? `group:${chatId}` : chatId);
-    if (guard.decision === "BLOCK") {
-      console.warn("[send-green-api-file] blocked by integration-guard", guard);
-      return new Response(
-        JSON.stringify({
-          error: "blocked_by_staging_safe_mode",
-          reason: guard.reason,
-          environment: guard.environment,
-        }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
 
     // Determine API endpoint based on file type
     let endpoint: string;

@@ -46,6 +46,7 @@ import {
 import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
 import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
 import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
 const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
@@ -249,7 +250,7 @@ export function SendReportDialog({
         const fullCaption = captionParts.join("");
 
         // Group preferred; the phone still goes along as the fallback.
-        await sendReportWhatsApp({
+        const sent = await sendReportWhatsApp({
           tenantId,
           pick: waSender.pick,
           file: screenshotBlob,
@@ -265,7 +266,7 @@ export function SendReportDialog({
           timeoutMs: SEND_REPORT_WA_CLIENT_TIMEOUT_MS,
         });
         sentChannels.push("whatsapp");
-        toast.success("הדוח נשלח בוואטסאפ בהצלחה");
+        toastReportSent(sent, "הדוח נשלח בוואטסאפ בהצלחה");
       }
 
       if (sendEmail) {

@@ -11,8 +11,9 @@ export type ReportSenderSource =
 /**
  * Why no line was chosen:
  * - no_report_sender: the tenant has no ready Green API or Manus line;
- * - sender_not_allowed: the named line is not one the tenant may use (or it
- *   is not ready), and a named line is never silently replaced;
+ * - sender_not_allowed: the line named for this send or schedule is not one
+ *   the tenant may use (or it is not ready), and such a line is never
+ *   silently replaced;
  * - choose_sender: several lines and nothing says which one.
  */
 export type ReportSenderError =
@@ -39,20 +40,23 @@ export type PickReportSenderInput<T extends PickableSender> = {
  * The line a report goes out from. Order: the line picked for this send, the
  * schedule's line, the tenant default, the tenant's only ready line, then the
  * caller's own Green API line (how reports were sent before lines could be
- * chosen).
+ * chosen). The tenant default is a preference: once its line is switched off
+ * it is skipped, so a single ready line left still sends.
  */
 export function pickReportSender<T extends PickableSender>(
   input: PickReportSenderInput<T>,
 ): ReportSenderPick<T> {
-  const usable = input.senders.filter(
-    (sender) => sender.ready && isReportSenderType(sender.integration_type),
-  );
+  const usable = input.senders.filter(isUsable);
   const named = namedSender(input);
   if (named) {
     const match = usable.find((sender) => sender.id === named.id);
     return match
       ? chosen(match, named.source)
       : { error: "sender_not_allowed" };
+  }
+  const tenantDefault = usableReportSender(usable, input.tenantDefaultId);
+  if (tenantDefault) {
+    return chosen(tenantDefault, "tenant_default");
   }
   if (usable.length === 0) {
     return { error: "no_report_sender" };
@@ -70,19 +74,31 @@ export function pickReportSender<T extends PickableSender>(
   return own ? chosen(own, "own_line") : { error: "choose_sender" };
 }
 
-/** The first explicit choice, from the most specific to the tenant-wide one. */
+/** The line with this id when it can send reports now, else null. */
+export function usableReportSender<T extends PickableSender>(
+  senders: readonly T[],
+  id: string | null | undefined,
+): T | null {
+  if (!id) {
+    return null;
+  }
+  return senders.find((sender) => sender.id === id && isUsable(sender)) ?? null;
+}
+
+/** Ready, and of a type that may send reports (never Meta Cloud). */
+function isUsable(sender: PickableSender): boolean {
+  return sender.ready && isReportSenderType(sender.integration_type);
+}
+
+/** The explicit choice for this send, else the schedule's own line. */
 function namedSender(
   input: PickReportSenderInput<PickableSender>,
 ): { id: string; source: ReportSenderSource } | null {
-  const candidates: Array<[ReportSenderSource, string | null | undefined]> = [
-    ["requested", input.requestedId],
-    ["schedule", input.scheduleSenderId],
-    ["tenant_default", input.tenantDefaultId],
-  ];
-  for (const [source, id] of candidates) {
-    if (id) {
-      return { id, source };
-    }
+  if (input.requestedId) {
+    return { id: input.requestedId, source: "requested" };
+  }
+  if (input.scheduleSenderId) {
+    return { id: input.scheduleSenderId, source: "schedule" };
   }
   return null;
 }

@@ -39,8 +39,8 @@ describe("ReportSenderPicker", () => {
         })}
       />,
     );
-    expect(screen.getByText(/נשלח מ:/)).toHaveTextContent(
-      "נשלח מ: הטלפון של כרמן",
+    expect(screen.getByText(/יישלח מ:/)).toHaveTextContent(
+      "יישלח מ: הטלפון של כרמן",
     );
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });

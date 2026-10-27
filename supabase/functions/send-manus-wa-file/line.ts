@@ -16,17 +16,19 @@ export type LineChoice =
  * tenant, as before.
  */
 export async function resolveManusLine(
-  admin: DbClient,
-  store: LineStore,
+  deps: {
+    store: LineStore;
+    ownManusLine(tenantId: string, userId: string): Promise<SenderLine | null>;
+  },
   input: { tenantId: string; userId: string; integrationId: string | null },
 ): Promise<LineChoice> {
   const line = input.integrationId
-    ? await loadSenderLine(store, {
+    ? await loadSenderLine(deps.store, {
         tenantId: input.tenantId,
         integrationId: input.integrationId,
         type: "manus_wa",
       })
-    : await ownManusLine(admin, input.tenantId, input.userId);
+    : await deps.ownManusLine(input.tenantId, input.userId);
   if (!line) {
     return {
       error: input.integrationId ? "sender_not_allowed" : "not_configured",
@@ -36,7 +38,7 @@ export async function resolveManusLine(
 }
 
 /** The caller's oldest active Manus line in the tenant. */
-async function ownManusLine(
+export async function ownManusLine(
   admin: DbClient,
   tenantId: string,
   userId: string,

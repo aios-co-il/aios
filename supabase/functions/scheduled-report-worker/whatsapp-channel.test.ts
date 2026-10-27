@@ -135,6 +135,37 @@ Deno.test("sendScheduledWhatsApp picks the line", async (t) => {
     assertEquals(result.sender?.source, "own_line");
     assertEquals(calls[0].body.integrationId, "creator-green");
   });
+
+  await t.step(
+    "a legacy schedule keeps the creator's line after a default is set",
+    async () => {
+      // 20261027104000 pinned it to the creator's own Green API line.
+      const { calls, channel } = deps(all, "carmen");
+      const result = await sendScheduledWhatsApp(
+        channel,
+        { ...schedule, whatsapp_integration_id: "creator-green" },
+        "msg",
+      );
+      assertEquals(result.sender, {
+        integration_id: "creator-green",
+        type: "green_api",
+        source: "schedule",
+      });
+      assertEquals(calls[0].name, "send-green-api-message");
+    },
+  );
+
+  await t.step(
+    "a default whose line was switched off is skipped for the only line left",
+    async () => {
+      // list_report_whatsapp_senders no longer returns the inactive default.
+      const { calls, channel } = deps([carmen], "office-green");
+      const result = await sendScheduledWhatsApp(channel, schedule, "msg");
+      assertEquals(result.ok, true);
+      assertEquals(result.sender?.source, "only_sender");
+      assertEquals(calls[0].body.integrationId, "carmen");
+    },
+  );
 });
 
 Deno.test(

@@ -106,4 +106,28 @@ describe("ReportSenderDefaultCard", () => {
       }),
     );
   });
+
+  it("flags a default whose line was switched off, and names the line used", async () => {
+    // The list no longer returns the inactive default line.
+    backend.senders = [carmen()];
+    backend.tenantDefault = "off";
+    renderCard();
+    expect(
+      await screen.findByText("דוחות נשלחים מ: הטלפון של כרמן"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/טלפון ברירת המחדל לדוחות כבר לא מחובר/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows owners the stale default as unavailable", async () => {
+    backend.senders = [carmen(owner), david(owner)];
+    backend.tenantDefault = "off";
+    renderCard();
+    const select = await screen.findByRole("combobox", { name: "שלח דוחות מ" });
+    expect(select).toHaveTextContent("הטלפון שנבחר כבר לא זמין");
+    expect(
+      screen.getByText(/טלפון ברירת המחדל לדוחות כבר לא מחובר/),
+    ).toBeInTheDocument();
+  });
 });

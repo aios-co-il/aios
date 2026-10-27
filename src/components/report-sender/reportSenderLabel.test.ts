@@ -26,7 +26,13 @@ describe("reportSenderLabel", () => {
         carmen_role: "primary",
         display_name: "DMM",
       }),
-    ).toBe("הטלפון של כרמן");
+    ).toBe("הטלפון של כרמן · DMM");
+  });
+
+  it("tells two Manus lines apart by their names", () => {
+    const own = { ...base, integration_type: "manus_wa", display_name: "משרד" };
+    const shared = { ...own, display_name: "AIOS", is_shared: true };
+    expect(reportSenderLabel(own)).not.toBe(reportSenderLabel(shared));
   });
 
   it("names other lines by name, owner or last digits", () => {

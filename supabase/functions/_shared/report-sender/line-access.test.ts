@@ -38,15 +38,19 @@ const lines: Record<string, SenderLine & { type: string }> = {
   },
 };
 
-/** A store over the fixture lines; only shared-green is shared with DMM. */
+/**
+ * A store over the fixture lines. The SQL rule (report_whatsapp_sender_usable)
+ * accepts DMM's own line and shared-green, which another tenant shared.
+ */
 function store(overrides: Partial<LineStore> = {}): LineStore {
   return {
     findActiveLine: async (id, type) => {
       const row = lines[id];
       return row && row.type === type ? row : null;
     },
-    tenantCanUse: async (tenantId, integrationId) =>
-      tenantId === OWN_TENANT && integrationId === "shared-green",
+    senderUsable: async (tenantId, integrationId) =>
+      tenantId === OWN_TENANT &&
+      (integrationId === "own-carmen" || integrationId === "shared-green"),
     isMember: async (tenantId, userId) =>
       tenantId === OWN_TENANT && userId === "member",
     isSuperAdmin: async (userId) => userId === "admin",
@@ -81,6 +85,22 @@ Deno.test("loadSenderLine", async (t) => {
     });
     assertEquals(line, null);
   });
+
+  await t.step(
+    "refuses a line in the tenant that the SQL rule rejects",
+    async () => {
+      // A row that claims DMM's tenant_id but whose owner is not a member.
+      const line = await loadSenderLine(
+        store({ senderUsable: async () => false }),
+        {
+          tenantId: OWN_TENANT,
+          integrationId: "own-carmen",
+          type: "manus_wa",
+        },
+      );
+      assertEquals(line, null);
+    },
+  );
 
   await t.step("refuses a line of the wrong type", async () => {
     const line = await loadSenderLine(store(), {

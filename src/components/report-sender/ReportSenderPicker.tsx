@@ -50,7 +50,7 @@ export function ReportSenderPicker({ choice, groupChatId }: Props) {
     <div className="space-y-1" dir="rtl">
       {readyCount === 1 && selected ? (
         <p className="text-xs text-muted-foreground">
-          נשלח מ:{" "}
+          יישלח מ:{" "}
           <span className="font-medium text-foreground">
             {reportSenderLabel(selected)}
           </span>

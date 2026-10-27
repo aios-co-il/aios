@@ -25,7 +25,8 @@ const lines: Record<string, SenderLine> = {
 const store: LineStore = {
   findActiveLine: async (id, type) =>
     type === "green_api" ? (lines[id] ?? null) : null,
-  tenantCanUse: async (tenantId, id) => tenantId === TENANT && id === "shared",
+  senderUsable: async (tenantId, id) =>
+    tenantId === TENANT && ["own", "shared", "colleague"].includes(id),
   isMember: async () => true,
   isSuperAdmin: async () => false,
 };

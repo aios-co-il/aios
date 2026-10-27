@@ -178,4 +178,34 @@ describe("sendReportWhatsApp", () => {
     ).rejects.toThrow("השליחה ארכה יותר מדי");
     expect(invoke.mock.calls[2][1].timeout).toBe(60_000);
   });
+
+  it("translates codes and older English texts from the send functions", async () => {
+    const replies = [
+      {
+        status: 400,
+        body: { error: "missing_group_chat_id", code: "missing_group_chat_id" },
+      },
+      { status: 400, body: { error: "Manus WhatsApp not configured" } },
+      { status: 403, body: { error: "Forbidden" } },
+      { status: 500, body: { error: "Internal error" } },
+    ];
+    for (const reply of replies) {
+      invoke.mockResolvedValueOnce({
+        data: null,
+        error: new FunctionsHttpError(
+          new Response(JSON.stringify(reply.body), { status: reply.status }),
+        ),
+      });
+    }
+    for (const expected of [
+      "לקבוצה שנבחרה אין מזהה וואטסאפ",
+      "הטלפון שנבחר עוד לא מחובר עד הסוף",
+      "אין לכם הרשאה לשלוח בשם הארגון הזה",
+      "השליחה בוואטסאפ נכשלה",
+    ]) {
+      await expect(
+        sendReportWhatsApp({ ...screenshot, pick: carmen }),
+      ).rejects.toThrow(expected);
+    }
+  });
 });

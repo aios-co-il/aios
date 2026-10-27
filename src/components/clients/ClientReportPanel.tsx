@@ -35,6 +35,7 @@ import { WhatsAppGroupSelect } from "./WhatsAppGroupSelect";
 import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
 import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
 import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
@@ -566,7 +567,7 @@ export function ClientReportPanel({
           captionParts.push(`\n📊 צפה בדוח המלא: ${effectiveShareLink}`);
         const fullCaption = captionParts.join("");
 
-        await sendReportWhatsApp({
+        const sent = await sendReportWhatsApp({
           tenantId,
           pick: waSender.pick,
           file: screenshotBlob,
@@ -581,7 +582,7 @@ export function ClientReportPanel({
           sendRef: table.id,
         });
         sentChannels.push("whatsapp");
-        toast.success("הדוח נשלח בוואטסאפ בהצלחה");
+        toastReportSent(sent, "הדוח נשלח בוואטסאפ בהצלחה");
       }
 
       if (sendEmail) {

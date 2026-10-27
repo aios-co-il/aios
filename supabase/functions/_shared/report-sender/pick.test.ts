@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { pickReportSender } from "./pick.ts";
+import { pickReportSender, usableReportSender } from "./pick.ts";
 import type { PickableSender } from "./types.ts";
 
 const CALLER = "user-caller";
@@ -139,7 +139,6 @@ Deno.test("pickReportSender never replaces a named line", () => {
   for (const named of [
     { requestedId: "foreign" },
     { scheduleSenderId: "foreign" },
-    { tenantDefaultId: "foreign" },
   ]) {
     assertEquals(
       outcome(pickReportSender({ senders: [carmen], ...named })),
@@ -166,4 +165,38 @@ Deno.test("pickReportSender never replaces a named line", () => {
     ),
     { error: "sender_not_allowed" },
   );
+});
+
+Deno.test("pickReportSender skips a stale tenant default", async (t) => {
+  // The default line was switched off: the list no longer returns it, or
+  // returns it as not ready.
+  for (const senders of [[carmen], [carmen, line("off", { ready: false })]]) {
+    await t.step(`one ready line left (${senders.length})`, () => {
+      assertEquals(
+        outcome(pickReportSender({ senders, tenantDefaultId: "off" })),
+        { id: "carmen", type: "manus_wa", source: "only_sender" },
+      );
+    });
+  }
+
+  await t.step("several lines fall back to the caller's own line", () => {
+    assertEquals(
+      outcome(
+        pickReportSender({
+          senders: [carmen, ownGreen, colleagueGreen],
+          tenantDefaultId: "off",
+          callerUserId: CALLER,
+        }),
+      ).source,
+      "own_line",
+    );
+  });
+});
+
+Deno.test("usableReportSender", () => {
+  const senders = [carmen, line("off", { ready: false })];
+  assertEquals(usableReportSender(senders, "carmen")?.id, "carmen");
+  assertEquals(usableReportSender(senders, "off"), null);
+  assertEquals(usableReportSender(senders, "gone"), null);
+  assertEquals(usableReportSender(senders, null), null);
 });

@@ -18,6 +18,7 @@ import { CalendarClock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ScheduleSenderSelect } from "@/components/report-sender/ScheduleSenderSelect";
 import { reportSenderMessage } from "@/components/report-sender/reportSenderMessages";
+import { useScheduleSender } from "@/components/report-sender/useScheduleSender";
 
 interface Props {
   clientId: string;
@@ -51,7 +52,6 @@ export function ClientReportScheduleSettings({
   const [sendTime, setSendTime] = useState("09:00");
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
-  const [senderId, setSenderId] = useState<string | null>(null);
   const [emails, setEmails] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -75,6 +75,7 @@ export function ClientReportScheduleSettings({
     },
     enabled: !!clientId && !!target.id,
   });
+  const sender = useScheduleSender(tenantId, schedule);
 
   useEffect(() => {
     setEnabled(!!schedule?.enabled);
@@ -90,7 +91,6 @@ export function ClientReportScheduleSettings({
     const channels: string[] = schedule?.channels || ["whatsapp"];
     setSendWhatsApp(channels.includes("whatsapp"));
     setSendEmail(channels.includes("email"));
-    setSenderId(schedule?.whatsapp_integration_id ?? null);
     setEmails((schedule?.email_recipients || []).join(", "));
     setMessage(schedule?.message || "");
   }, [schedule, target.id]);
@@ -106,6 +106,11 @@ export function ClientReportScheduleSettings({
       .filter(Boolean);
     if (sendEmail && emailRecipients.length === 0) {
       toast.error("יש להזין לפחות כתובת אימייל אחת");
+      return;
+    }
+    const line = sender.toSave(enabled && sendWhatsApp);
+    if ("error" in line) {
+      toast.error(line.error);
       return;
     }
 
@@ -130,7 +135,7 @@ export function ClientReportScheduleSettings({
           ...(sendWhatsApp ? ["whatsapp"] : []),
           ...(sendEmail ? ["email"] : []),
         ],
-        whatsapp_integration_id: senderId,
+        whatsapp_integration_id: line.id,
         email_recipients: emailRecipients,
         message: message.trim() || null,
         created_by: user.id,
@@ -253,13 +258,7 @@ export function ClientReportScheduleSettings({
         </label>
       </div>
 
-      {sendWhatsApp && (
-        <ScheduleSenderSelect
-          tenantId={tenantId}
-          value={senderId}
-          onChange={setSenderId}
-        />
-      )}
+      {sendWhatsApp && <ScheduleSenderSelect field={sender} />}
       {sendEmail && (
         <Input
           value={emails}

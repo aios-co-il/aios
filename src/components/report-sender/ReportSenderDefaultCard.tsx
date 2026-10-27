@@ -1,26 +1,17 @@
 import { Smartphone } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
-import {
-  reportSenderLabel,
-  reportSenderOptionLabel,
-} from "./reportSenderLabel";
+  pickReportSender,
+  usableReportSender,
+} from "../../../supabase/functions/_shared/report-sender/pick.ts";
+import { ReportSenderDefaultSelect } from "./ReportSenderDefaultSelect";
+import { reportSenderLabel } from "./reportSenderLabel";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 import { type ReportSenderOptions, useReportSenders } from "./useReportSenders";
-import { useSetReportSender } from "./useSetReportSender";
-
-/** Select value for "no fixed line"; Radix Select cannot hold an empty value. */
-const NO_DEFAULT = "__no_default__";
 
 /**
- * The organization's report phone ("שליחת דוחות מהטלפון"). Owners choose it
- * when there is more than one line; everyone else sees which line is used.
+ * The organization's report phone, one setting for every client. Owners
+ * choose it when there is more than one line; everyone else sees which line
+ * is used. A default whose line was switched off is flagged: sends skip it.
  */
 export function ReportSenderDefaultCard({ tenantId }: { tenantId: string }) {
   const { data } = useReportSenders(tenantId);
@@ -31,14 +22,16 @@ export function ReportSenderDefaultCard({ tenantId }: { tenantId: string }) {
     <div className="space-y-2 rounded-lg border bg-card p-3" dir="rtl">
       <div className="flex items-center gap-2">
         <Smartphone className="h-4 w-4 text-primary" />
-        <p className="text-sm font-medium">שליחת דוחות מהטלפון</p>
+        <p className="text-sm font-medium">
+          טלפון שליחת הדוחות (לכל הלקוחות בארגון)
+        </p>
       </div>
       <DefaultLine tenantId={tenantId} options={data} />
     </div>
   );
 }
 
-/** The line in use, or the owner's choice of it. */
+/** The line in use, or the owner's choice of it, and a stale-default note. */
 function DefaultLine({
   tenantId,
   options,
@@ -46,64 +39,42 @@ function DefaultLine({
   tenantId: string;
   options: ReportSenderOptions;
 }) {
-  const save = useSetReportSender(tenantId);
-  const ready = options.senders.filter((sender) => sender.ready);
-  if (ready.length === 0) {
+  const readyCount = options.senders.filter((sender) => sender.ready).length;
+  if (readyCount === 0) {
     return (
       <p className="text-xs text-muted-foreground">
         {REPORT_SENDER_MESSAGES.no_report_sender}
       </p>
     );
   }
-  const current = options.senders.find(
-    (sender) => sender.id === options.tenantDefaultId,
-  );
+  const stale =
+    !!options.tenantDefaultId &&
+    !usableReportSender(options.senders, options.tenantDefaultId);
   const canChoose =
-    options.canManage && (ready.length > 1 || !!options.tenantDefaultId);
-  if (!canChoose) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        {inUseText(current ?? onlyLine(ready))}
-      </p>
-    );
-  }
+    options.canManage && (readyCount > 1 || !!options.tenantDefaultId);
   return (
-    <Select
-      value={options.tenantDefaultId ?? NO_DEFAULT}
-      onValueChange={(value) =>
-        save.mutate(value === NO_DEFAULT ? null : value)
-      }
-      disabled={save.isPending}
-    >
-      <SelectTrigger className="h-8 text-xs" aria-label="שלח דוחות מ">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NO_DEFAULT}>
-          בלי טלפון קבוע: בוחרים בכל שליחה
-        </SelectItem>
-        {options.senders.map((sender) => (
-          <SelectItem
-            key={sender.id}
-            value={sender.id}
-            disabled={!sender.ready}
-          >
-            {reportSenderOptionLabel(sender)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      {canChoose ? (
+        <ReportSenderDefaultSelect tenantId={tenantId} options={options} />
+      ) : (
+        <p className="text-xs text-muted-foreground">{inUseText(options)}</p>
+      )}
+      {stale && (
+        <p className="text-xs text-amber-600">
+          {REPORT_SENDER_MESSAGES.stale_default}
+        </p>
+      )}
+    </>
   );
 }
 
-/** The single ready line, when there is exactly one. */
-function onlyLine(ready: ReportSender[]): ReportSender | undefined {
-  return ready.length === 1 ? ready[0] : undefined;
-}
-
-/** "Reports go out from …", or that each send names its phone. */
-function inUseText(sender: ReportSender | undefined): string {
-  return sender
-    ? `דוחות נשלחים מ: ${reportSenderLabel(sender)}`
-    : "אין טלפון קבוע לדוחות: בוחרים טלפון בכל שליחה";
+/** "Reports go out from …" when one line resolves for everyone, else how. */
+function inUseText(options: ReportSenderOptions): string {
+  const pick = pickReportSender({
+    senders: options.senders,
+    tenantDefaultId: options.tenantDefaultId,
+  });
+  return "error" in pick
+    ? "אין טלפון קבוע לדוחות: הטלפון נבחר בכל שליחה ובכל תזמון"
+    : `דוחות נשלחים מ: ${reportSenderLabel(pick.sender)}`;
 }

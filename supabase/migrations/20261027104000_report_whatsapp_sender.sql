@@ -11,7 +11,7 @@
 -- 2. report_schedules.whatsapp_integration_id is a schedule's own line. NULL
 --    follows the tenant default.
 -- 3. report_whatsapp_sender_usable(tenant, line) is the one rule for "this
---    tenant may send reports from this line".
+--    tenant may send reports from this line". The edge functions call it too.
 -- 4. set_report_whatsapp_sender lets tenant owners (and super admins) set the
 --    default.
 -- 5. list_report_whatsapp_senders returns the lines a tenant may send from,
@@ -20,9 +20,9 @@
 --    touches next_run_at, so choosing a line never sends anything.
 -- 7. report-media is a private bucket for files sent through Manus, which
 --    fetches media by URL. Only the service role reads or writes it.
---
--- No data changes: existing schedules keep a NULL line and no tenant has a
--- default, so nothing is sent or resent by this migration.
+-- 8. Existing WhatsApp schedules are pinned to the line they always used, so
+--    a tenant default set later does not move them. Only the line column
+--    changes: next_run_at stays, and nothing is sent or resent.
 
 -- 1. The tenant's default report line.
 CREATE TABLE IF NOT EXISTS public.tenant_report_settings (
@@ -64,7 +64,10 @@ COMMENT ON COLUMN public.report_schedules.whatsapp_integration_id IS
   'WhatsApp line this schedule sends from. NULL follows tenant_report_settings.';
 
 -- 3. May this tenant send reports from this line? Active Green API or Manus
--- line, owned by the tenant or shared with it.
+-- line, owned by the tenant or shared with it. Any signed-in user can write a
+-- tenant_integrations row with any tenant_id (its RLS checks only user_id,
+-- AIO-245), so a row counts only when the user it belongs to is a member of
+-- its tenant (or a super admin).
 CREATE OR REPLACE FUNCTION public.report_whatsapp_sender_usable(
   p_tenant_id uuid,
   p_integration_id uuid
@@ -81,6 +84,16 @@ AS $$
     WHERE ti.id = p_integration_id
       AND ti.integration_type IN ('green_api', 'manus_wa')
       AND public.tenant_can_use_integration(p_tenant_id, ti.id)
+      AND (
+        ti.user_id IS NULL
+        OR public.is_super_admin(ti.user_id)
+        OR EXISTS (
+          SELECT 1
+          FROM public.tenant_users AS tu
+          WHERE tu.tenant_id = ti.tenant_id
+            AND tu.user_id = ti.user_id
+        )
+      )
   );
 $$;
 
@@ -161,8 +174,11 @@ GRANT EXECUTE ON FUNCTION public.set_report_whatsapp_sender(uuid, uuid)
   TO authenticated, service_role;
 
 -- 5. The lines a tenant may send reports from, for its members and for the
--- report worker (service role). Returns labels and readiness, never api_key,
--- because tenant_integrations rows are readable by every member.
+-- report worker (service role). Returns labels and readiness, never api_key
+-- or any part of it, because tenant_integrations rows are readable by every
+-- member. last4 is the end of the instance id, to tell lines apart. A line's
+-- group_chat_ids are only the ones of this tenant's own groups: a shared
+-- Carmen line is in other tenants' groups too.
 CREATE OR REPLACE FUNCTION public.list_report_whatsapp_senders(p_tenant_id uuid)
 RETURNS TABLE (
   id uuid,
@@ -201,7 +217,6 @@ BEGIN
     nullif(btrim(ti.display_name), ''),
     right(
       coalesce(
-        nullif(ti.api_token_last_4, ''),
         nullif(ti.instance_id, ''),
         nullif(ti.settings ->> 'instance_id', '')
       ),
@@ -218,8 +233,15 @@ BEGIN
     CASE
       WHEN jsonb_typeof(ti.settings #> '{manus_groups_sync,group_chat_ids}') = 'array'
       THEN ARRAY(
-        SELECT jsonb_array_elements_text(
+        SELECT chat.id
+        FROM jsonb_array_elements_text(
           ti.settings #> '{manus_groups_sync,group_chat_ids}'
+        ) AS chat(id)
+        WHERE EXISTS (
+          SELECT 1
+          FROM public.whatsapp_groups AS wg
+          WHERE wg.tenant_id = p_tenant_id
+            AND wg.group_chat_id = chat.id
         )
       )
     END,
@@ -298,3 +320,30 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 END
 $report_media$;
+
+-- 8. Pin every WhatsApp schedule without a line to the line it has always
+-- sent from: its creator's single active Green API line in the schedule's
+-- tenant, as send-green-api-message picked it before lines could be chosen.
+-- Unpinned, such a schedule would follow a tenant default set later. Only
+-- whatsapp_integration_id is set, so trg_set_report_schedule_next_run does
+-- not fire and next_run_at stays. Schedules whose creator has no such line
+-- stay NULL. Re-running pins only rows that are still NULL.
+UPDATE public.report_schedules AS rs
+SET whatsapp_integration_id = own.id
+FROM (
+  SELECT ti.tenant_id, ti.user_id, (array_agg(ti.id))[1] AS id
+  FROM public.tenant_integrations AS ti
+  WHERE ti.integration_type = 'green_api'
+    AND ti.is_active
+  GROUP BY ti.tenant_id, ti.user_id
+  HAVING count(*) = 1
+    AND bool_and(
+      coalesce(ti.api_key, '') <> ''
+      AND coalesce(ti.settings ->> 'instance_id', '') <> ''
+    )
+) AS own
+WHERE rs.whatsapp_integration_id IS NULL
+  AND 'whatsapp' = ANY (rs.channels)
+  AND own.tenant_id = rs.tenant_id
+  AND own.user_id = rs.created_by
+  AND public.report_whatsapp_sender_usable(rs.tenant_id, own.id);

@@ -6,95 +6,120 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { pickReportSender } from "../../../supabase/functions/_shared/report-sender/pick.ts";
+import { usableReportSender } from "../../../supabase/functions/_shared/report-sender/pick.ts";
+import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import {
   reportSenderLabel,
   reportSenderOptionLabel,
 } from "./reportSenderLabel";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
-import { useReportSenders } from "./useReportSenders";
+import type { ScheduleSenderState } from "./scheduleSender";
+import type { ScheduleSenderField } from "./useScheduleSender";
 
 /** Select value for "follow the organization default" (a NULL line). */
 const TENANT_DEFAULT = "__tenant_default__";
 
-type Props = {
-  tenantId: string;
-  /** report_schedules.whatsapp_integration_id; null follows the default. */
-  value: string | null;
-  onChange: (integrationId: string | null) => void;
-};
-
 /**
- * "שלח מ:" for a scheduled report. The default option names the line the
- * worker would use today; saving the schedule makes the saver its creator,
- * so "own line" is resolved for the current user.
+ * "שלח מ:" for a scheduled report. A single phone is shown, not offered; a
+ * stored line that no longer sends, or no line at all, is said plainly.
  */
-export function ScheduleSenderSelect({ tenantId, value, onChange }: Props) {
-  const { userId } = useCurrentUser();
-  const { data } = useReportSenders(tenantId);
-  if (!data) {
+export function ScheduleSenderSelect({
+  field,
+}: {
+  field: ScheduleSenderField;
+}) {
+  const { options, state } = field;
+  if (!options || state.status === "pending") {
     return null;
   }
-  const readyCount = data.senders.filter((sender) => sender.ready).length;
-  if (readyCount === 0) {
+  if (state.status === "none" && state.error === "no_report_sender") {
     return (
       <p className="text-xs text-muted-foreground">
         {REPORT_SENDER_MESSAGES.no_report_sender}
       </p>
     );
   }
-  const fallback = pickReportSender({
-    senders: data.senders,
-    tenantDefaultId: data.tenantDefaultId,
-    callerUserId: userId,
-  });
-  const defaultLabel =
-    "error" in fallback ? "לא נבחר טלפון" : reportSenderLabel(fallback.sender);
-  if (readyCount === 1 && !value) {
+  const ready = options.senders.filter((sender) => sender.ready);
+  if (
+    ready.length === 1 &&
+    state.status === "line" &&
+    state.sender.id === ready[0].id
+  ) {
     return (
-      <p className="text-xs text-muted-foreground">יישלח מ: {defaultLabel}</p>
+      <p className="text-xs text-muted-foreground">
+        יישלח מ: {reportSenderLabel(state.sender)}
+      </p>
     );
   }
-  const missing =
-    !!value && !data.senders.some((sender) => sender.id === value);
+  const orgDefault = usableReportSender(
+    options.senders,
+    options.tenantDefaultId,
+  );
   return (
     <div className="space-y-1">
       <Label className="text-xs">שלח מ:</Label>
       <Select
-        value={value ?? TENANT_DEFAULT}
+        value={selectValue(state)}
         onValueChange={(next) =>
-          onChange(next === TENANT_DEFAULT ? null : next)
+          field.choose(next === TENANT_DEFAULT ? null : next)
         }
       >
         <SelectTrigger className="h-8 text-xs" aria-label="שלח מ">
-          <SelectValue />
+          <SelectValue placeholder="בחרו טלפון" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem
-            value={TENANT_DEFAULT}
-          >{`ברירת המחדל של הארגון (${defaultLabel})`}</SelectItem>
-          {data.senders.map((sender) => (
-            <SelectItem
-              key={sender.id}
-              value={sender.id}
-              disabled={!sender.ready}
-            >
-              {reportSenderOptionLabel(sender)}
-            </SelectItem>
-          ))}
-          {missing && value && (
-            <SelectItem value={value} disabled>
-              הטלפון שנבחר כבר לא זמין
+          {orgDefault && ready.length > 1 && (
+            <SelectItem value={TENANT_DEFAULT}>
+              {`ברירת המחדל של הארגון (${reportSenderLabel(orgDefault)})`}
             </SelectItem>
           )}
+          <SenderItems senders={options.senders} state={state} />
         </SelectContent>
       </Select>
-      {missing && (
+      {"error" in state && (
         <p className="text-xs text-amber-600">
-          {REPORT_SENDER_MESSAGES.sender_not_allowed}
+          {REPORT_SENDER_MESSAGES[state.error]}
         </p>
       )}
     </div>
   );
+}
+
+/** Every line; ones that cannot send are shown disabled, a gone one named. */
+function SenderItems(props: {
+  senders: ReportSender[];
+  state: ScheduleSenderState;
+}) {
+  const { state } = props;
+  const gone =
+    state.status === "unusable" &&
+    !props.senders.some((sender) => sender.id === state.savedId);
+  return (
+    <>
+      {props.senders.map((sender) => (
+        <SelectItem key={sender.id} value={sender.id} disabled={!sender.ready}>
+          {reportSenderOptionLabel(sender)}
+        </SelectItem>
+      ))}
+      {gone && (
+        <SelectItem value={state.savedId} disabled>
+          הטלפון שנבחר כבר לא זמין
+        </SelectItem>
+      )}
+    </>
+  );
+}
+
+/** The select's value: the default option, a line, or none yet. */
+function selectValue(state: ScheduleSenderState): string {
+  switch (state.status) {
+    case "follows_default":
+      return TENANT_DEFAULT;
+    case "line":
+      return state.sender.id;
+    case "unusable":
+      return state.savedId;
+    default:
+      return "";
+  }
 }

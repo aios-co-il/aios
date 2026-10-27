@@ -14,8 +14,9 @@ type Labelled = Pick<
 
 /**
  * How a line is named to people: Carmen's main Manus line is "the phone of
- * Carmen"; other lines by their name, their owner, or the last digits. A line
- * another organization shared says so.
+ * Carmen", with its own name when it has one so two Manus lines differ;
+ * other lines by their name, their owner, or the end of the instance id. A
+ * line another organization shared says so.
  */
 export function reportSenderLabel(sender: Labelled): string {
   const name = baseLabel(sender);
@@ -47,7 +48,9 @@ function baseLabel(sender: Labelled): string {
       { tenantHasActiveManus: true },
     ) === "primary";
   if (isCarmen) {
-    return "הטלפון של כרמן";
+    return sender.display_name
+      ? `הטלפון של כרמן · ${sender.display_name}`
+      : "הטלפון של כרמן";
   }
   if (sender.display_name) {
     return sender.display_name;

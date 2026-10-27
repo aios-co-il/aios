@@ -11,20 +11,55 @@ DECLARE
   v_shared uuid;
   v_foreign uuid;
   v_meta uuid;
+  v_member uuid;
+  v_stranger uuid;
+  v_member_line uuid;
+  v_forged uuid;
   v_schedule uuid;
   v_ids uuid[];
+  v_chats text[];
+  v_known_chat text := 'qa-known-' || gen_random_uuid() || '@g.us';
+  v_other_chat text := 'qa-other-' || gen_random_uuid() || '@g.us';
 BEGIN
   SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
   SELECT id INTO v_other FROM public.tenants WHERE id <> v_tenant ORDER BY id LIMIT 1;
   SELECT id INTO v_client FROM public.clients ORDER BY id LIMIT 1;
   SELECT id INTO v_table FROM public.crm_tables ORDER BY id LIMIT 1;
-  IF v_other IS NULL OR v_client IS NULL OR v_table IS NULL THEN
-    RAISE EXCEPTION 'Requires two tenants, a client and a table';
+  SELECT user_id INTO v_member FROM public.tenant_users WHERE tenant_id = v_tenant ORDER BY user_id LIMIT 1;
+  SELECT u.id INTO v_stranger
+  FROM auth.users AS u
+  WHERE NOT EXISTS (
+      SELECT 1 FROM public.tenant_users AS tu
+      WHERE tu.tenant_id = v_tenant AND tu.user_id = u.id
+    )
+    AND NOT public.is_super_admin(u.id)
+  ORDER BY u.id
+  LIMIT 1;
+  IF v_other IS NULL OR v_client IS NULL OR v_table IS NULL
+     OR v_member IS NULL OR v_stranger IS NULL THEN
+    RAISE EXCEPTION 'Requires two tenants, a client, a table, a member and a non-member';
   END IF;
 
+  -- Carmen's line has synced two groups; only one is a group of this tenant.
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_tenant, v_known_chat, 'qa group');
   INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, api_key, settings)
-  VALUES (v_tenant, 'manus_wa', true, 'qa-key', '{"instance_id": "qa-own"}')
+  VALUES (
+    v_tenant, 'manus_wa', true, 'qa-key',
+    jsonb_build_object(
+      'instance_id', 'qa-own',
+      'manus_groups_sync', jsonb_build_object('group_chat_ids', jsonb_build_array(v_known_chat, v_other_chat))
+    )
+  )
   RETURNING id INTO v_own;
+  INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, is_active, api_key, settings)
+  VALUES (v_tenant, v_member, 'green_api', true, 'qa-key', '{"instance_id": "qa-member"}')
+  RETURNING id INTO v_member_line;
+  -- Any signed-in user can write a row with any tenant_id (AIO-245): a line
+  -- whose owner is not a member of that tenant is not the tenant's line.
+  INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, is_active, api_key, settings)
+  VALUES (v_tenant, v_stranger, 'manus_wa', true, 'qa-key', '{"instance_id": "qa-forged"}')
+  RETURNING id INTO v_forged;
   INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, api_key, settings)
   VALUES (v_other, 'green_api', true, 'qa-key', '{"instance_id": "qa-shared"}')
   RETURNING id INTO v_shared;
@@ -37,21 +72,32 @@ BEGIN
   INSERT INTO public.integration_tenant_access (integration_id, accessing_tenant_id)
   VALUES (v_shared, v_tenant);
 
-  -- Own and shared lines are usable; another tenant's line and Meta are not.
+  -- Own and shared lines are usable; another tenant's line, a row a
+  -- non-member wrote into the tenant, and Meta are not.
   IF NOT public.report_whatsapp_sender_usable(v_tenant, v_own)
+     OR NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line)
      OR NOT public.report_whatsapp_sender_usable(v_tenant, v_shared)
      OR public.report_whatsapp_sender_usable(v_tenant, v_foreign)
+     OR public.report_whatsapp_sender_usable(v_tenant, v_forged)
      OR public.report_whatsapp_sender_usable(v_tenant, v_meta) THEN
-    RAISE EXCEPTION 'usable: own and shared only, never foreign or Meta';
+    RAISE EXCEPTION 'usable: own, member and shared only, never foreign, forged or Meta';
   END IF;
 
   -- The worker (service role) lists exactly the usable lines, without secrets.
   PERFORM set_config('request.jwt.claims', '{"role": "service_role"}', true);
   SELECT array_agg(s.id) INTO v_ids
   FROM public.list_report_whatsapp_senders(v_tenant) AS s
-  WHERE s.id IN (v_own, v_shared, v_foreign, v_meta);
-  IF v_ids IS NULL OR NOT (v_ids @> ARRAY[v_own, v_shared] AND cardinality(v_ids) = 2) THEN
-    RAISE EXCEPTION 'list: expected the own and the shared line, got %', v_ids;
+  WHERE s.id IN (v_own, v_member_line, v_shared, v_foreign, v_forged, v_meta);
+  IF v_ids IS NULL
+     OR NOT (v_ids @> ARRAY[v_own, v_member_line, v_shared] AND cardinality(v_ids) = 3) THEN
+    RAISE EXCEPTION 'list: expected the own, member and shared lines, got %', v_ids;
+  END IF;
+  -- Group ids come back only for this tenant's own groups.
+  SELECT s.group_chat_ids INTO v_chats
+  FROM public.list_report_whatsapp_senders(v_tenant) AS s
+  WHERE s.id = v_own;
+  IF v_chats IS DISTINCT FROM ARRAY[v_known_chat] THEN
+    RAISE EXCEPTION 'list: group ids must be this tenant''s groups only, got %', v_chats;
   END IF;
   IF EXISTS (
     SELECT 1
@@ -87,6 +133,12 @@ BEGIN
   BEGIN
     UPDATE public.report_schedules SET whatsapp_integration_id = v_foreign WHERE id = v_schedule;
     RAISE EXCEPTION 'schedule: a foreign line must be refused';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  BEGIN
+    UPDATE public.report_schedules SET whatsapp_integration_id = v_forged WHERE id = v_schedule;
+    RAISE EXCEPTION 'schedule: a line written by a non-member must be refused';
   EXCEPTION WHEN invalid_parameter_value THEN
     NULL;
   END;

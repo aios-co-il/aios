@@ -29,6 +29,7 @@ import { WhatsAppGroupSelect } from "./WhatsAppGroupSelect";
 import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
 import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
 import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
@@ -572,7 +573,7 @@ export function ClientDashboardPanel({
 
       if (sendWhatsApp) {
         const hasGroup = !!selectedGroupId && selectedGroupId !== "__none__";
-        await sendReportWhatsApp({
+        const sent = await sendReportWhatsApp({
           tenantId,
           pick: waSender.pick,
           file: blob,
@@ -587,7 +588,7 @@ export function ClientDashboardPanel({
           sendRef: dashboard.id,
         });
         sentChannels.push("whatsapp");
-        toast.success("הדשבורד נשלח בוואטסאפ");
+        toastReportSent(sent, "הדשבורד נשלח בוואטסאפ");
       }
 
       if (sendEmail) {

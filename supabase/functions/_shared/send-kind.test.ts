@@ -152,12 +152,13 @@ Deno.test(
   "every WhatsApp sender stamps send_kind/send_ref on its chat_messages insert",
   () => {
     for (const fn of [
-      "send-green-api-message",
-      "send-manus-wa-message",
-      "send-meta-whatsapp-message",
-      "send-manus-wa-file",
+      "send-green-api-message/index.ts",
+      "send-manus-wa-message/index.ts",
+      "send-meta-whatsapp-message/index.ts",
+      // The Manus file send stores its chat row from its own module.
+      "send-manus-wa-file/record.ts",
     ]) {
-      const src = repoFile(`supabase/functions/${fn}/index.ts`);
+      const src = repoFile(`supabase/functions/${fn}`);
       assertMatch(
         src,
         /import \{ sendKindColumns \} from "\.\.\/_shared\/send-kind\.ts";/,

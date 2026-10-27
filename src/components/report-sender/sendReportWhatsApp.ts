@@ -34,6 +34,10 @@ type FileSend = ReportSendBase & {
 
 export type ReportWhatsAppSend = TextSend | FileSend;
 
+export type ReportWhatsAppResult = {
+  deliveredAs: "media" | "text" | "text_fallback";
+};
+
 /**
  * Sends the WhatsApp part of a report, dashboard or meeting summary from the
  * chosen line (Green API or Manus), always naming it so the server never
@@ -42,7 +46,7 @@ export type ReportWhatsAppSend = TextSend | FileSend;
  */
 export async function sendReportWhatsApp(
   input: ReportWhatsAppSend,
-): Promise<{ deliveredAs: "media" | "text" | "text_fallback" }> {
+): Promise<ReportWhatsAppResult> {
   const { pick } = input;
   if ("error" in pick) {
     throw new Error(REPORT_SENDER_MESSAGES[pick.error]);

@@ -17,7 +17,8 @@ export type LineStore = {
     id: string,
     type: ReportSenderType,
   ): Promise<SenderLine | null>;
-  tenantCanUse(tenantId: string, integrationId: string): Promise<boolean>;
+  /** report_whatsapp_sender_usable, the rule the line list uses too. */
+  senderUsable(tenantId: string, integrationId: string): Promise<boolean>;
   isMember(tenantId: string, userId: string): Promise<boolean>;
   isSuperAdmin(userId: string): Promise<boolean>;
 };
@@ -40,9 +41,10 @@ export async function callerMaySendForTenant(
 
 /**
  * The line an explicit integrationId names, when the tenant may send from it:
- * active, of the expected type, and owned by the tenant or shared with it.
- * Null otherwise, and the caller refuses the send rather than pick another
- * line. Super admins get no exception: a line never sends for a tenant that
+ * active, of the expected type, and usable by the same SQL rule that lists
+ * lines (owned by the tenant through a member, or shared with it). Null
+ * otherwise, and the caller refuses the send rather than pick another line.
+ * Super admins get no exception: a line never sends for a tenant that
  * neither owns it nor was given it.
  */
 export async function loadSenderLine(
@@ -53,11 +55,8 @@ export async function loadSenderLine(
   if (!line) {
     return null;
   }
-  if (line.tenant_id === input.tenantId) {
-    return line;
-  }
-  const shared = await store.tenantCanUse(input.tenantId, line.id);
-  return shared ? line : null;
+  const usable = await store.senderUsable(input.tenantId, line.id);
+  return usable ? line : null;
 }
 
 /** A text setting of a line (instance_id, country_code), if present. */
@@ -93,8 +92,8 @@ export function lineStore(admin: DbClient): LineStore {
       }
       return data;
     },
-    async tenantCanUse(tenantId, integrationId) {
-      const { data, error } = await admin.rpc("tenant_can_use_integration", {
+    async senderUsable(tenantId, integrationId) {
+      const { data, error } = await admin.rpc("report_whatsapp_sender_usable", {
         p_tenant_id: tenantId,
         p_integration_id: integrationId,
       });
