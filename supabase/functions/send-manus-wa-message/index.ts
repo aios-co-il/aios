@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { lineAccess, senderAccess } from "./sender-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import { lineAccess, senderAccess } from "./sender-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
