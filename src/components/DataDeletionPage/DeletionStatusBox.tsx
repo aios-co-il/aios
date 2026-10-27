@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/formatDateTime";
 import { DATA_DELETION_STATUS_LABELS } from "./dataDeletionStatus";
 import { PrivacyEmailLink } from "./PrivacyEmailLink";
 import { useDeletionStatus, type DeletionLookup } from "./useDeletionStatus";
@@ -30,8 +30,7 @@ function LookupResult({ result }: { result: DeletionLookup }) {
         <strong>{DATA_DELETION_STATUS_LABELS[result.status.status]}</strong>
       </p>
       <p className="text-sm text-muted-foreground">
-        התקבלה ב-
-        {format(new Date(result.status.created_at), "dd/MM/yyyy HH:mm")}
+        התקבלה ב-{formatDateTime(result.status.created_at)}
       </p>
     </>
   );
