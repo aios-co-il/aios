@@ -12,9 +12,11 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       const append = runAiAgent.indexOf(
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
-      const filterTools = runAiAgent.indexOf("// 4. Filter tools");
+      const systemMessage = runAiAgent.indexOf(
+        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+      );
       assert(runAiAgent.indexOf("if (shouldUseV2Prompt(agent)) {") < v1Start);
-      assert(append > v1Start && append < filterTools);
+      assert(append > v1Start && append < systemMessage);
       // Both branches flow into the append: it is not nested in either of them.
       assert(
         runAiAgent
@@ -58,6 +60,40 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       assert(runAiAgent.includes("  REFRESH_CAMPAIGN_PULSE_TOOL,\n"));
       const catalog = read("../../../src/lib/agentToolsCatalog.ts");
       assert(catalog.includes('name: "refresh_campaign_pulse"'));
+    },
+  );
+
+  await t.step(
+    "a tenant pulse skin cannot override the pulse block or hide the refresh tool",
+    () => {
+      const append = runAiAgent.indexOf(
+        "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
+      );
+      // Every place a skin's text joins the prompt. Tenant pulse_check and
+      // ecommerce_pulse overrides (DMM, MarketingCaptain) that say not to
+      // refresh arrive as trigger-matched skins in activeSkillsBlock.
+      for (const skinText of [
+        "systemPrompt += pinnedBlock;",
+        "systemPrompt += await activeSkinBlock({",
+        "systemPrompt += activeSkillsBlock;",
+      ]) {
+        const at = runAiAgent.indexOf(skinText);
+        assert(at > 0, `${skinText} is in run-ai-agent`);
+        assert(at < append, `${skinText} comes before the pulse block`);
+      }
+      // A narrow allowed_tools still offers refresh_campaign_pulse to Carmen,
+      // before the router picks this message's tools.
+      const keep = runAiAgent.indexOf(
+        "filteredTools = keepPulseRefreshTool(filteredTools, ALL_TOOLS, {",
+      );
+      assert(
+        keep >
+          runAiAgent.indexOf(
+            "ALL_TOOLS.filter((t) => allowedTools.includes(t.name))",
+          ),
+        "the refresh tool is kept after allowed_tools narrows the pool",
+      );
+      assert(keep < runAiAgent.indexOf("await selectRelevantToolsForMessage("));
     },
   );
 

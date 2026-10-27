@@ -44,6 +44,7 @@ import {
   executeRefreshCampaignPulse,
   REFRESH_CAMPAIGN_PULSE_TOOL,
 } from "./pulse-refresh/tool.ts";
+import { keepPulseRefreshTool } from "./pulse-refresh/tool-pool.ts";
 import {
   classifyDirectTool,
   directToolPool,
@@ -14859,15 +14860,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 • תשובות קצרות לשאלות פשוטות נשארות קצרות — טבלה רק כשיש באמת נתונים טבלאיים.`;
     }
 
-    // Versioned pulse rules (AIO-237), appended after the V1/V2 prompt so they
-    // reach V1 with an empty or custom system_prompt and V2 alike. On WhatsApp
-    // and scheduled tasks the block also keeps the pulse to the short digest.
-    systemPrompt = appendCarmenPulseRules(systemPrompt, {
-      isCarmen,
-      surface,
-      pinSkillsOnly,
-    });
-
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
     let filteredTools =
@@ -14884,6 +14876,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
+    filteredTools = keepPulseRefreshTool(filteredTools, ALL_TOOLS, {
+      isCarmen,
+      disabledTools,
+    });
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15264,6 +15260,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
       }
     }
+    // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
+    // skin's text, so a tenant pulse skin that says not to refresh cannot
+    // override them. On WhatsApp and scheduled tasks the block also keeps the
+    // pulse to the short digest.
+    systemPrompt = appendCarmenPulseRules(systemPrompt, {
+      isCarmen,
+      surface,
+      pinSkillsOnly,
+    });
     // Surface instruction-capture confirmation in the system prompt so the model knows
     // a rule was just persisted and can acknowledge it briefly without re-saving.
     if (instructionCaptured) {

@@ -1,7 +1,8 @@
 // Carmen's campaign-pulse rules (AIO-237): one versioned block that
-// run-ai-agent appends after the V1/V2 prompt is built, outside the identity,
-// so it reaches V1 with an empty or a custom ai_agents.system_prompt and V2
-// alike. Bump CARMEN_PULSE_RULES_VERSION whenever the rules change.
+// run-ai-agent appends after the V1/V2 prompt and every skin's text, outside
+// the identity, so it reaches V1 with an empty or a custom
+// ai_agents.system_prompt and V2 alike, and a tenant pulse skin cannot
+// override it. Bump CARMEN_PULSE_RULES_VERSION whenever the rules change.
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
 import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
