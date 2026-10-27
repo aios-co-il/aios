@@ -29,7 +29,6 @@ const EVENTS = new Set<string>(["project", "artifacts"]);
 let context: WorkshopContext | null = null;
 /** A composer line the board asked for before any composer listened (prefillComposer). */
 let pendingPrefill: string | null = null;
-const contextListeners = new Set<() => void>();
 const eventListeners = new Set<(event: WorkshopEvent) => void>();
 
 export const getWorkshopContext = () => context;
@@ -42,14 +41,6 @@ export function setWorkshopContext(next: WorkshopContext | null) {
     pendingPrefill = null;
     releaseWorkshopSkins();
   }
-  contextListeners.forEach((listener) => listener());
-}
-
-export function subscribeWorkshopContext(listener: () => void) {
-  contextListeners.add(listener);
-  return () => {
-    contextListeners.delete(listener);
-  };
 }
 
 export function emitWorkshopEvent(event: WorkshopEvent) {

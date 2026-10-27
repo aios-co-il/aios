@@ -56,9 +56,8 @@ export function AssetsPanel({
   const [text, setText] = useState("");
   const [textTitle, setTextTitle] = useState("");
 
-  const rows = assets;
-  const sections = groupAssets(rows);
-  const referencesFull = referenceCount(rows) >= MAX_USER_REFERENCES;
+  const sections = groupAssets(assets);
+  const referencesFull = referenceCount(assets) >= MAX_USER_REFERENCES;
 
   const refresh = () =>
     queryClient.invalidateQueries({
