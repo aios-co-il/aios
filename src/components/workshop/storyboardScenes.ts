@@ -3,6 +3,8 @@
  * film order, with the scene's current picture or clip and what state it is in.
  */
 
+import { talkingLine } from "../../../supabase/functions/_shared/workshop/talking.ts";
+
 export type SceneState =
   "no_picture" | "picture" | "working" | "clip_ready" | "clip_stale" | "failed";
 
@@ -120,7 +122,10 @@ export function storyboardScenes(
  * public.video_talking_line, which the production uses.
  */
 export const spokenLine = (scene: StoryboardScene) =>
-  scene.lipsync ? scene.dialogue.trim() || scene.voiceover.trim() : "";
+  talkingLine(
+    { lipsync: scene.lipsync, dialogue: scene.dialogue },
+    scene.voiceover,
+  );
 
 /** The three texts of a scene as the edit form starts them. */
 export const sceneDraft = (scene: StoryboardScene) => ({

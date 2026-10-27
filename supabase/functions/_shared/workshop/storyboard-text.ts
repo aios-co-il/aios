@@ -4,6 +4,8 @@
  * a talking scene's line, else its narration.
  */
 
+import { talkingLine } from "./talking.ts";
+
 export interface SceneText {
   position: number;
   title: string;
@@ -22,10 +24,10 @@ const line = (label: string, value: unknown) => {
 
 /** What the character says to the camera: its dialogue, else its voiceover. */
 const spoken = (scene: SceneText) =>
-  scene.lipsync
-    ? String(scene.dialogue ?? "").trim() ||
-      String(scene.voiceover_text ?? "").trim()
-    : "";
+  talkingLine(
+    { lipsync: scene.lipsync === true, dialogue: scene.dialogue },
+    scene.voiceover_text,
+  );
 
 export function sceneBlock(scene: SceneText, edit: boolean) {
   const talking = spoken(scene);

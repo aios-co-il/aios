@@ -13,6 +13,7 @@ import {
 } from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { failStalePictures } from "./stale-pictures.ts";
+import { talkingLine } from "./talking.ts";
 
 export { failStalePictures };
 
@@ -135,11 +136,7 @@ export async function workshopTurnNote(
             (row.clip_asset_id && row.clip_stale !== true),
         ).length,
         narrated: rows.some((row) => String(row.voiceover_text ?? "").trim()),
-        talking: rows.some(
-          (row) =>
-            asRecord(row.meta).lipsync === true &&
-            String(asRecord(row.meta).dialogue ?? "").trim() !== "",
-        ),
+        talking: rows.some((row) => talkingLine(row.meta, row.voiceover_text)),
         voiceChosen: Boolean(asRecord(payload.video).voice_id),
         producing: production.status === "running",
       };
