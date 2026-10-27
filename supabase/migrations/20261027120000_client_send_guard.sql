@@ -25,7 +25,8 @@
 --    email is stored. Only the service role writes it. A row about a client
 --    is read by those who can see that client and are members of the sending
 --    tenant or manage the client's automatic sends; a row with no client by
---    the sending tenant's owners (user_can_view_client_send_refusal).
+--    the sending tenant's owners (user_can_view_client_send_refusal), and
+--    only the columns the card shows.
 -- 4. resolve_send_recipient: the one classifier of a send address across
 --    send_scope_tenant_ids (the sender, its parent, its children and agency
 --    links either way). Precedence: client, client_contact, client_group,
@@ -425,8 +426,21 @@ CREATE POLICY "Sending tenant views its send refusals"
   TO authenticated
   USING (public.user_can_view_client_send_refusal(tenant_id, client_id));
 
+-- Signed-in users read only the card's columns: a manager may read another
+-- tenant's row, whose subject_client_id, send_ref, group_id, lead_id and
+-- function_name describe that tenant's send.
 REVOKE ALL ON TABLE public.client_send_refusals FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.client_send_refusals TO authenticated;
+GRANT SELECT (
+  id,
+  tenant_id,
+  created_at,
+  channel,
+  recipient_kind,
+  client_id,
+  send_kind,
+  reason,
+  enforced
+) ON TABLE public.client_send_refusals TO authenticated;
 GRANT ALL ON TABLE public.client_send_refusals TO service_role;
 
 -- ─── 3. Recipient resolution ────────────────────────────────────────────────

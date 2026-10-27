@@ -69,6 +69,21 @@ BEGIN
 END;
 $fn$;
 
+-- Whether the current role may read one column of the refusal log's rows
+-- on a client.
+CREATE FUNCTION pg_temp.qa_reads_refusal_column(p_client uuid, p_column text)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $fn$
+BEGIN
+  EXECUTE format('SELECT r.%I FROM public.client_send_refusals AS r WHERE r.client_id = $1', p_column)
+  USING p_client;
+  RETURN true;
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN false;
+END;
+$fn$;
+
 -- Acts as a signed-in user (the caller then switches to the authenticated
 -- role) and makes the given tenant the user's active one.
 CREATE FUNCTION pg_temp.qa_sign_in(p_user uuid, p_tenant uuid)
@@ -105,6 +120,8 @@ DECLARE
   v_cx uuid;
   v_c4 uuid;
   v_c5 uuid;
+  v_c6 uuid;
+  v_c7 uuid;
   v_cc uuid;
   v_contact_c2 uuid;
   v_contact_c5 uuid;
@@ -114,11 +131,14 @@ DECLARE
   v_broadcast uuid;
   v_other_broadcast uuid;
   v_channel uuid;
+  v_unrelated_channel uuid;
   v_g1 uuid;
   v_g2 uuid;
   v_g3 uuid;
   v_gx uuid;
   v_g4 uuid;
+  v_gy uuid;
+  v_ga uuid;
   v_g1_chat text := 'qa-g1-' || gen_random_uuid() || '@g.us';
   v_g2_chat text := 'qa-g2-' || gen_random_uuid() || '@g.us';
   v_g3_chat text := 'qa-g3-' || gen_random_uuid() || '@g.us';
@@ -129,6 +149,7 @@ DECLARE
   v_owner_email text;
   v_tag text := 'QA ROLLBACK ' || gen_random_uuid();
   v_fn text;
+  v_column text;
   v_count integer;
   v_row public.client_auto_send_opt_ins%ROWTYPE;
 BEGIN
@@ -361,6 +382,12 @@ BEGIN
     OR NOT has_table_privilege('service_role', 'public.client_send_refusals', 'INSERT') THEN
     RAISE EXCEPTION 'Table grants: anon nothing, authenticated no delete and read-only refusals, service_role writes';
   END IF;
+  -- These columns describe the sending tenant's own send.
+  FOREACH v_column IN ARRAY ARRAY['subject_client_id', 'send_ref', 'group_id', 'lead_id', 'function_name'] LOOP
+    IF has_column_privilege('authenticated', 'public.client_send_refusals', v_column, 'SELECT') THEN
+      RAISE EXCEPTION 'authenticated reads the refusal log''s %', v_column;
+    END IF;
+  END LOOP;
 
   -- ─── Scope ────────────────────────────────────────────────────────────────
 
@@ -688,6 +715,31 @@ BEGIN
 
   -- ─── Card targets, counted as the resolver counts them ─────────────────────
 
+  -- C6's only group links are the unrelated tenant's, outside the home
+  -- tenant's scope: its card names that tenant's group, which links it by
+  -- Carmen access too, and that tenant's team channel links it by a group
+  -- chat. C7's only one is the agency tenant's group, inside the scope.
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_unrelated, 'qa-gy-' || gen_random_uuid() || '@g.us', v_tag || ' GY')
+  RETURNING id INTO v_gy;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_agency_tenant, 'qa-ga-' || gen_random_uuid() || '@g.us', v_tag || ' GA')
+  RETURNING id INTO v_ga;
+  INSERT INTO public.clients (name, tenant_id, agency_id, whatsapp_group_id)
+  VALUES (v_tag || ' C6', v_tenant, v_agency, v_gy)
+  RETURNING id INTO v_c6;
+  INSERT INTO public.clients (name, tenant_id, agency_id)
+  VALUES (v_tag || ' C7', v_tenant, v_agency)
+  RETURNING id INTO v_c7;
+  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id) VALUES
+    (v_unrelated, v_c6, v_gy),
+    (v_agency_tenant, v_c7, v_ga);
+  INSERT INTO public.team_channels (tenant_id, name, created_by)
+  VALUES (v_unrelated, v_tag || ' unrelated channel', v_owner)
+  RETURNING id INTO v_unrelated_channel;
+  INSERT INTO public.team_channel_whatsapp_links (channel_id, tenant_id, whatsapp_chat_id, client_id)
+  VALUES (v_unrelated_channel, v_unrelated, 'qa-unrelated-link-' || gen_random_uuid() || '@g.us', v_c6);
+
   PERFORM pg_temp.qa_sign_in(v_owner, v_tenant);
   SET LOCAL ROLE authenticated;
   PERFORM pg_temp.qa_expect('targets: card group, phone and email',
@@ -703,6 +755,12 @@ BEGIN
   PERFORM pg_temp.qa_expect('targets: none',
     (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c5) AS t),
     'fff');
+  PERFORM pg_temp.qa_expect('targets: no group from a tenant outside the scope',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c6) AS t),
+    'fff');
+  PERFORM pg_temp.qa_expect('targets: the agency tenant''s group',
+    (SELECT concat(t.whatsapp_group, t.whatsapp_direct, t.email) FROM public.client_auto_send_targets(v_c7) AS t),
+    'tff');
   RESET ROLE;
   PERFORM pg_temp.qa_sign_in(v_child_owner, v_child);
   SET LOCAL ROLE authenticated;
@@ -746,16 +804,17 @@ BEGIN
   -- The home tenant logs refusals on its client C1, with no client, and on
   -- the client org's own client; the client org logs one on its own client,
   -- one on the parent's client C1 (its send matched the parent's card) and
-  -- one with no client.
+  -- one with no client. Each cross-tenant row names its sender's own card
+  -- and send.
   INSERT INTO public.client_send_refusals
-    (tenant_id, function_name, channel, recipient_kind, client_id, send_kind, reason, enforced)
+    (tenant_id, function_name, channel, recipient_kind, client_id, send_kind, reason, enforced, subject_client_id, send_ref)
   VALUES
-    (v_tenant, 'send-green-api-message', 'whatsapp', 'client', v_c1, 'staff_alert', 'staff_only', true),
-    (v_tenant, 'send-green-api-message', 'whatsapp', 'client_group', NULL, NULL, 'unclassified_service_send', false),
-    (v_tenant, 'send-manus-wa-message', 'whatsapp', 'client', v_cc, 'staff_alert', 'staff_only', true),
-    (v_child, 'send-manus-wa-message', 'whatsapp', 'client', v_cc, 'automation', 'not_opted_in', true),
-    (v_child, 'send-manus-wa-message', 'whatsapp', 'client_contact', v_c1, 'staff_alert', 'staff_only', true),
-    (v_child, 'send-manus-wa-message', 'whatsapp', 'unresolved', NULL, 'staff_alert', 'guard_error', true);
+    (v_tenant, 'send-green-api-message', 'whatsapp', 'client', v_c1, 'staff_alert', 'staff_only', true, NULL, NULL),
+    (v_tenant, 'send-green-api-message', 'whatsapp', 'client_group', NULL, NULL, 'unclassified_service_send', false, NULL, NULL),
+    (v_tenant, 'send-manus-wa-message', 'whatsapp', 'client', v_cc, 'staff_alert', 'subject_mismatch', true, v_c2, 'qa-home-schedule'),
+    (v_child, 'send-manus-wa-message', 'whatsapp', 'client', v_cc, 'automation', 'not_opted_in', true, NULL, NULL),
+    (v_child, 'send-manus-wa-message', 'whatsapp', 'client_contact', v_c1, 'staff_alert', 'subject_mismatch', true, v_cc, 'qa-client-org-automation'),
+    (v_child, 'send-manus-wa-message', 'whatsapp', 'unresolved', NULL, 'staff_alert', 'guard_error', true, NULL, NULL);
 
   -- The sending tenant's owner reads its refusals on clients it sees and the
   -- one with no client, not the one on the client org's own client. As a
@@ -787,6 +846,16 @@ BEGIN
     ) THEN
     RAISE EXCEPTION 'The owner must read the client org''s refusal on C1 and no other of its rows';
   END IF;
+  -- Of that row, the card's columns only: not the client org's subject card
+  -- or send.
+  IF NOT pg_temp.qa_reads_refusal_column(v_c1, 'reason') THEN
+    RAISE EXCEPTION 'The owner cannot read the reason of a refusal on C1';
+  END IF;
+  FOREACH v_column IN ARRAY ARRAY['subject_client_id', 'send_ref'] LOOP
+    IF pg_temp.qa_reads_refusal_column(v_c1, v_column) THEN
+      RAISE EXCEPTION 'The owner reads the client org''s % on C1', v_column;
+    END IF;
+  END LOOP;
   BEGIN
     INSERT INTO public.client_send_refusals (tenant_id, function_name, channel, recipient_kind, client_id, reason, enforced)
     VALUES (v_tenant, 'forged', 'whatsapp', 'client', v_c1, 'not_opted_in', true);
@@ -827,6 +896,11 @@ BEGIN
     ) THEN
     RAISE EXCEPTION 'The client org owner must read the home tenant''s refusal on its own client and no other of its rows';
   END IF;
+  FOREACH v_column IN ARRAY ARRAY['subject_client_id', 'send_ref'] LOOP
+    IF pg_temp.qa_reads_refusal_column(v_cc, v_column) THEN
+      RAISE EXCEPTION 'The client org owner reads the home tenant''s % on its client', v_column;
+    END IF;
+  END LOOP;
   SELECT count(*) INTO v_count
   FROM public.client_send_refusals AS r
   WHERE r.tenant_id = v_child;
