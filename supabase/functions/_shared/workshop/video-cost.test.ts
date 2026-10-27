@@ -328,3 +328,58 @@ Deno.test(
     assert(SOUND_EFFECTS_USD >= 3.7 * 40 * 0.0003);
   },
 );
+
+Deno.test(
+  "a talking scene in the chosen voice pays for its lip-sync pass even on an engine that speaks",
+  () => {
+    const own = {
+      duration_s: 5,
+      voiceover_text: "",
+      lipsync: true,
+      dialogue: "שלום",
+      chosen_voice: true,
+    };
+    const engineVoice = { ...own, chosen_voice: false };
+    // 5 s of lip sync at $0.10; a four-letter line costs less than a cent.
+    for (const engine of ["elevenlabs", "higgsfield", "kling", "mock"] as const)
+      assertEquals(lipsyncEstimate(engine, [own]), {
+        usd: 0.5,
+        credits: 0,
+        scenes: 1,
+        native: false,
+      });
+    assertStrictEquals(lipsyncEstimate("elevenlabs", [engineVoice]).usd, 0);
+    // On OpenRouter the engine-spoken scene adds the Veo difference, the chosen voice its pass.
+    const mixed = lipsyncEstimate("openrouter", [own, engineVoice]);
+    const veoOnly = lipsyncEstimate("openrouter", [engineVoice]);
+    assertStrictEquals(mixed.native, false);
+    assertStrictEquals(mixed.usd, Math.round((veoOnly.usd + 0.5) * 100) / 100);
+    // The quote counts the pass in the film's total; the line is not narrated as well.
+    const film = productionEstimate("elevenlabs", [own], {
+      withVoice: true,
+      withMusic: false,
+    });
+    assertStrictEquals(film.lipsync.usd, 0.5);
+    assertStrictEquals(film.voice.usd, 0);
+    assertStrictEquals(
+      film.totalUsd,
+      Math.round((film.clips.usd + 0.5) * 100) / 100,
+    );
+    // Veo, the end of the lip-sync chain, would speak in its own voice: it is never used for a
+    // line in the chosen voice, so it is not quoted for one either.
+    const quoted = quotedProductionEstimate(
+      "kling",
+      [own],
+      { withVoice: true, withMusic: false },
+      { openrouter: true },
+    );
+    assertStrictEquals(quoted.lipsync.usd, 0.5);
+    const engineLine = quotedProductionEstimate(
+      "kling",
+      [engineVoice],
+      { withVoice: true, withMusic: false },
+      { openrouter: true },
+    );
+    assert(engineLine.lipsync.usd >= 6 * 0.4 - 0.01);
+  },
+);

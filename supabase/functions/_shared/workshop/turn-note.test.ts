@@ -26,6 +26,20 @@ Deno.test(
     assertMatch(nextFilmStep({ ...base, voiceChosen: false }), /choose_voice/);
     assertMatch(nextFilmStep(base), /produce_video/);
     assertMatch(nextFilmStep({ ...base, producing: true }), /get_state/);
+    // A film of talking pictures with no narration still says its lines in the chosen voice.
+    assertMatch(
+      nextFilmStep({
+        ...base,
+        narrated: false,
+        talking: true,
+        voiceChosen: false,
+      }),
+      /choose_voice/,
+    );
+    assertMatch(
+      nextFilmStep({ ...base, narrated: false, voiceChosen: false }),
+      /produce_video/,
+    );
   },
 );
 

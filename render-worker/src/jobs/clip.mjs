@@ -6,7 +6,7 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { talkingLine } from "../narration.mjs";
+import { speaksInChosenVoice, talkingLine } from "../narration.mjs";
 import {
   clipPrompt,
   getVideoProvider,
@@ -72,9 +72,12 @@ export async function generateClip({
   );
   // A talking scene on an engine that speaks (Veo 3.1, Seedance 2.5) is made in one pass:
   // the line goes in the prompt and the clip carries the speech. Otherwise the clip is silent
-  // and advance_video_production queues a separate lip-sync run for the scene.
+  // and advance_video_production queues a separate lip-sync run for the scene. A line in the
+  // chosen voice is never spoken by the engine (its voice would not be the chosen one).
   const line =
-    provider.nativeSpeech && process.env.LIPSYNC_NATIVE !== "0"
+    provider.nativeSpeech &&
+    process.env.LIPSYNC_NATIVE !== "0" &&
+    !speaksInChosenVoice(scene)
       ? talkingLine(scene)
       : "";
   const talking = line
