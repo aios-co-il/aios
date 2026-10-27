@@ -135,11 +135,14 @@ test.skipIf(!hasFfmpeg)(
 );
 
 /** In-memory stand-in for supabaseRest: records uploads, attaches and updates. */
-function fakeDb({ still }) {
-  const calls = { uploads: [], rpcs: [], updates: [] };
+function fakeDb({ still, stillUrl = "t1/c1/i1/still.png" }) {
+  const calls = { uploads: [], rpcs: [], updates: [], downloads: [] };
   return {
     calls,
-    download: async () => still,
+    download: async (bucket, path) => {
+      calls.downloads.push({ bucket, path });
+      return still;
+    },
     // The run's item, scene and still, as the guard reads them for the run's tenant.
     select: async (table, query) => {
       if (!query.includes("tenant_id=eq.t1")) return [];
@@ -150,7 +153,7 @@ function fakeDb({ still }) {
         return [{ id, still_asset_id: "still-1" }];
       }
       if (table === "marketing_assets" && query.includes("id=eq.still-1"))
-        return [{ id: "still-1", url: "t1/c1/i1/still.png" }];
+        return [{ id: "still-1", url: stillUrl }];
       return [];
     },
     upload: async (bucket, path, bytes, contentType) =>
@@ -353,6 +356,51 @@ test("a failed free-preview clip may be retried, since a retry renders a new one
 });
 
 const done = { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 0]) };
+
+/** An upload's link to the project's private entity-attachments bucket, as the app stores it. */
+const attachmentLink = (path) =>
+  `https://p.supabase.co/storage/v1/object/public/entity-attachments/${path}`;
+
+test("a still the user uploaded is read from its private bucket with the worker's key", async () => {
+  const project = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://p.supabase.co";
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("a private upload is never fetched as a public link");
+  };
+  try {
+    const db = fakeDb({
+      still: new Uint8Array([1]),
+      stillUrl: attachmentLink("t1/workshop/i1/campaigner.png"),
+    });
+    const { provider, seen } = recordingProvider(done);
+    await generateClip({ db, run: clipRun("s1"), provider, log: () => {} });
+    expect(db.calls.downloads).toStrictEqual([
+      { bucket: "entity-attachments", path: "t1/workshop/i1/campaigner.png" },
+    ]);
+    expect([...seen.submits[0].imageBytes]).toStrictEqual([1]);
+
+    // Another tenant's upload is refused before any provider call.
+    const other = fakeDb({
+      still: new Uint8Array([1]),
+      stillUrl: attachmentLink("t2/workshop/i9/x.png"),
+    });
+    const refused = recordingProvider(done);
+    await expect(
+      generateClip({
+        db: other,
+        run: clipRun("s1"),
+        provider: refused.provider,
+        log: () => {},
+      }),
+    ).rejects.toThrow(/outside the tenant folder/);
+    expect(refused.seen.submits.length).toBe(0);
+  } finally {
+    globalThis.fetch = realFetch;
+    if (project === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = project;
+  }
+});
 
 test("the still copy an engine fetches carries the still's real type", async () => {
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);

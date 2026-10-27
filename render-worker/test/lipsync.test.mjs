@@ -156,13 +156,15 @@ test("lip-sync providers follow the keys; a saved job only resumes its own provi
 function fakeDb({
   voiceUrl = "t1/c1/i1/s1/voice-r0.audio",
   voiceText = LINE,
+  stillUrl = "t1/c1/i1/s1/still-v1.png",
   scene = {},
 } = {}) {
-  const calls = { uploads: [], rpcs: [], updates: [], order: [] };
+  const calls = { uploads: [], rpcs: [], updates: [], order: [], buckets: [] };
   return {
     calls,
     download: async (bucket, path) => {
       calls.order.push(`download:${path}`);
+      calls.buckets.push(`${bucket}:${path}`);
       return path.includes("voice") ? MP3 : PNG;
     },
     select: async (table, query) => {
@@ -193,7 +195,7 @@ function fakeDb({
           query.includes("id=eq.still-1") &&
           !/type=eq\.(?!video_still)/.test(query)
         )
-          return [{ id: "still-1", url: "t1/c1/i1/s1/still-v1.png", meta: {} }];
+          return [{ id: "still-1", url: stillUrl, meta: {} }];
         if (
           query.includes("id=eq.clip-1") &&
           query.includes("type=eq.video_clip")
@@ -369,6 +371,38 @@ test("a voice path outside the run's tenant folder is refused before any provide
     }),
   ).rejects.toThrow(/outside the tenant folder/);
   expect(seen.submits.length).toBe(0);
+});
+
+test("the user's own picture is read from its private bucket with the worker's key", async () => {
+  const project = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://p.supabase.co";
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("a private upload is never fetched as a public link");
+  };
+  try {
+    const db = fakeDb({
+      stillUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t1/workshop/i1/designer.png",
+    });
+    const { provider, seen } = fakeProvider();
+    await generateLipsync({
+      db,
+      run: RUN,
+      keys: { elevenLabsKey: "xi" },
+      providerFor: () => provider,
+      env: {},
+      log: () => {},
+    });
+    expect(db.calls.buckets).toContain(
+      "entity-attachments:t1/workshop/i1/designer.png",
+    );
+    expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
+  } finally {
+    globalThis.fetch = realFetch;
+    if (project === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = project;
+  }
 });
 
 test("a scene from another tenant is not found", async () => {

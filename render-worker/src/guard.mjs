@@ -81,6 +81,26 @@ export function assertMediaUrl(url, hosts = defaultHosts()) {
 }
 
 /**
+ * The bytes of a file a job reads: a `bucket` path in the run's tenant folder, a link to the
+ * project's private entity-attachments bucket (a user's upload, read with the worker's key and
+ * only from the tenant folder), or an https link on an allowed media host.
+ */
+export async function readMedia(db, tenantId, pathOrUrl, bucket) {
+  const value = String(pathOrUrl ?? "");
+  const stored = /^https?:\/\//.test(value)
+    ? privateStorageObject(value)
+    : { bucket, path: value };
+  if (stored)
+    return db.download(stored.bucket, assertTenantPath(tenantId, stored.path));
+  const response = await fetch(assertMediaUrl(value));
+  if (!response.ok)
+    throw new Error(
+      `media download ${response.status}: ${value.slice(0, 200)}`,
+    );
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
  * The run's work item, checked against the run's tenant. Every job derives its storage
  * folder (client id) from here instead of from run.input.
  */

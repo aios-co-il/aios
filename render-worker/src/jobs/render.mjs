@@ -8,11 +8,10 @@ import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
-  privateStorageObject,
+  readMedia,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -51,21 +50,9 @@ const sniffExt = (bytes) => {
 };
 
 async function materialize(db, tenantId, path, fileBase) {
-  const remote = /^https?:\/\//.test(path);
-  // A private upload (an entity-attachments link, such as the logo) is read with the worker's
-  // key, like the film's own files, from the tenant's folder only.
-  const stored = remote ? privateStorageObject(path) : { bucket: BUCKET, path };
-  let bytes;
-  if (stored) {
-    bytes = await db.download(
-      stored.bucket,
-      assertTenantPath(tenantId, stored.path),
-    );
-  } else {
-    const response = await fetch(assertMediaUrl(path));
-    if (!response.ok) throw new Error(`media download ${response.status}`);
-    bytes = new Uint8Array(await response.arrayBuffer());
-  }
+  // A private upload (an entity-attachments link, such as the logo or the user's own picture) is
+  // read with the worker's key, like the film's own files, from the tenant's folder only.
+  const bytes = await readMedia(db, tenantId, path, BUCKET);
   const file = `${fileBase}.${sniffExt(bytes)}`;
   await writeFile(file, bytes);
   return file;

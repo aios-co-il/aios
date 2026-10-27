@@ -1,9 +1,9 @@
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
   loadRunScene,
+  readMedia,
   safeSegment,
 } from "../guard.mjs";
 import { speaksInChosenVoice, talkingLine } from "../narration.mjs";
@@ -19,19 +19,6 @@ const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
 const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Still bytes from a creative-video path in the tenant folder, or an allowed media URL. */
-async function loadStill(db, tenantId, url) {
-  if (/^https?:\/\//.test(url)) {
-    const response = await fetch(assertMediaUrl(url));
-    if (!response.ok)
-      throw new Error(
-        `still download ${response.status}: ${url.slice(0, 200)}`,
-      );
-    return new Uint8Array(await response.arrayBuffer());
-  }
-  return db.download(BUCKET, assertTenantPath(tenantId, url));
-}
 
 /** <item folder>/<scene>/clip-v<n>.mp4, n = the next clip version of the scene. */
 export async function clipPath(db, run, folder) {
@@ -102,7 +89,8 @@ export async function generateClip({
   if (jobId) {
     log(`[clip] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
-    const imageBytes = await loadStill(db, run.tenant_id, still.url);
+    // A creative-video path, the user's own upload (workshop_edit_from_assets) or a media link.
+    const imageBytes = await readMedia(db, run.tenant_id, still.url, BUCKET);
     let imageUrl = null;
     if (provider.needsPublicImage) {
       // Stored stills can be expiring signed links; hand the provider a fresh one of a copy,

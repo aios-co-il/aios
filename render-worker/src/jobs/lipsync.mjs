@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
   loadRunScene,
+  readMedia,
   safeSegment,
 } from "../guard.mjs";
 import {
@@ -31,19 +31,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const NO_LIPSYNC_PROVIDER =
   "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), an OpenRouter key or a Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
-
-/** Bytes of a creative-video file in the tenant folder, or of an allowed media URL. */
-async function loadFile(db, tenantId, url) {
-  if (/^https?:\/\//.test(String(url))) {
-    const response = await fetch(assertMediaUrl(url));
-    if (!response.ok)
-      throw new Error(
-        `media download ${response.status}: ${String(url).slice(0, 200)}`,
-      );
-    return new Uint8Array(await response.arrayBuffer());
-  }
-  return db.download(BUCKET, assertTenantPath(tenantId, url));
-}
 
 /** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
 export async function lipsyncPath(db, run, folder) {
@@ -258,7 +245,7 @@ async function providerInput(
   provider,
   { picture, voice, line, speaker, motionPrompt, durationS, aspect },
 ) {
-  const audioBytes = await loadFile(db, run.tenant_id, voice.url);
+  const audioBytes = await readMedia(db, run.tenant_id, voice.url, BUCKET);
   const input = {
     prompt: `${speaker || "The character"} speaks this exact audio line to the camera with natural lip sync: "${line}". No text, no letters, no logos.`,
     line,
@@ -268,7 +255,7 @@ async function providerInput(
     audioBytes,
   };
   if (provider.needs === "image")
-    input.imageBytes = await loadFile(db, run.tenant_id, picture.url);
+    input.imageBytes = await readMedia(db, run.tenant_id, picture.url, BUCKET);
   if (provider.needsPublicMedia) {
     // Stored files are private: hand the provider fresh signed links of copies in the tenant folder.
     const base = `${item.folder}/${safeSegment(run.scene_id)}`;
