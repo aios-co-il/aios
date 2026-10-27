@@ -1,7 +1,8 @@
 // PostgREST's logic-tree grammar (and(...), or(...), col.[not.]op.value), so a
 // fake query runs the exact or() string the chat scope would send.
 
-type Row = Record<string, unknown>;
+/** A fake table row: column name to value. */
+export type Row = Record<string, unknown>;
 
 export type FilterNode =
   | { kind: "and" | "or"; items: FilterNode[] }

@@ -5,8 +5,11 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { fakeDb } from "./fake-db.ts";
-import { resolveChatScope } from "./resolve.ts";
-import { isActiveAssignment } from "./staff-scope.ts";
+import {
+  type StaffScopeInput,
+  isActiveAssignment,
+  staffScopeFor,
+} from "./staff-scope.ts";
 import {
   AG1,
   CA,
@@ -16,14 +19,22 @@ import {
   GA,
   GB,
   GC,
-  ORG_LINE,
   SP,
   T,
-  T2,
   base,
-  role,
   world,
 } from "./test-fixtures.ts";
+
+/** Dana, an in-app campaigner in tenant T, with overrides. */
+const dana = (over: Partial<StaffScopeInput> = {}): StaffScopeInput => ({
+  tier: "member",
+  role: "campaigner",
+  userId: DANA,
+  callerCampaignerId: null,
+  today: base.today,
+  tenantIds: [T],
+  ...over,
+});
 
 Deno.test("isActiveAssignment", async (t) => {
   await t.step("today must be inside the start/end window", () => {
@@ -47,75 +58,50 @@ Deno.test("isActiveAssignment", async (t) => {
   });
 });
 
-Deno.test("resolveChatScope: staff callers", async (t) => {
+Deno.test("staffScopeFor", async (t) => {
   await t.step(
     "in-app campaigner gets active client_team clients only",
     async () => {
-      const { db, rpcCalls } = world({
-        user_roles: [role(DANA, "campaigner")],
-      });
-      const scope = await resolveChatScope(db, {
-        ...base,
-        userId: DANA,
-        callerCampaignerId: null,
-      });
-      assertStrictEquals(scope.mode, "staff");
+      const scope = await staffScopeFor(world().db, dana());
       assertEquals(scope.clientIds, [CA], "ended assignment to C dropped");
       assertEquals(scope.linkedGroupIds, [GA]);
-      assertEquals(scope.connectionUserIds, [DANA, ORG_LINE]);
-      assertStrictEquals(scope.ownThread, null);
-      assertEquals(rpcCalls, [
-        {
-          fn: "chat_allowed_connection_user_ids",
-          args: { p_tenant_id: T, p_user_id: DANA },
-        },
-      ]);
+      assertEquals(scope.leads, {
+        all: false,
+        agencyIds: [],
+        salesPersonId: null,
+      });
     },
   );
 
   await t.step("team manager gets the agency's clients and leads", async () => {
-    const managed = [{ user_id: DANA, agency_id: AG1 }];
     const { db } = world({
-      user_roles: [role(DANA, "team_manager")],
-      user_managed_agencies: managed,
+      user_managed_agencies: [{ user_id: DANA, agency_id: AG1 }],
     });
-    const scope = await resolveChatScope(db, {
-      ...base,
-      userId: DANA,
-      callerCampaignerId: null,
-    });
+    const scope = await staffScopeFor(db, dana({ tier: "team" }));
     assert(scope.clientIds !== "all");
     assertEquals([...scope.clientIds].sort(), [CA, CB].sort());
     assertEquals(scope.leads.agencyIds, [AG1]);
     assertEquals([...scope.linkedGroupIds].sort(), [GA, GB].sort());
 
-    // Managed agencies count only with the team_manager role in this tenant.
-    const elsewhere = await resolveChatScope(
-      world({
-        user_roles: [role(DANA, "team_manager", T2), role(DANA, "campaigner")],
-        user_managed_agencies: managed,
-      }).db,
-      { ...base, userId: DANA, callerCampaignerId: null },
-    );
-    assertEquals(elsewhere.clientIds, [CA]);
-    assertEquals(elsewhere.leads.agencyIds, []);
+    // Managed agencies count only for the team tier.
+    const member = await staffScopeFor(db, dana());
+    assertEquals(member.clientIds, [CA]);
+    assertEquals(member.leads.agencyIds, []);
   });
 
   await t.step(
     "agency owner reads all linked threads, sales person own leads",
     async () => {
-      const { db } = world({ user_roles: [role(DANA, "agency_owner")] });
-      const tenantWide = await resolveChatScope(db, {
-        ...base,
-        userId: DANA,
-        callerCampaignerId: null,
-      });
+      const tenantWide = await staffScopeFor(
+        world().db,
+        dana({ tier: "tenant", role: "agency_owner" }),
+      );
       assertStrictEquals(tenantWide.clientIds, "all");
       assertStrictEquals(tenantWide.leads.all, true);
       assertEquals([...tenantWide.linkedGroupIds].sort(), [GA, GB, GC].sort());
-      const sales = await resolveChatScope(
-        world({ user_roles: [role(DAVID, "sales_person")] }).db,
-        { ...base, userId: DAVID, callerCampaignerId: null },
+      const sales = await staffScopeFor(
+        world().db,
+        dana({ role: "sales_person", userId: DAVID }),
       );
       assertStrictEquals(sales.leads.salesPersonId, SP);
       assertEquals(sales.clientIds, []);
@@ -123,20 +109,7 @@ Deno.test("resolveChatScope: staff callers", async (t) => {
   );
 
   await t.step("a failing profile lookup rejects", async () => {
-    const { db } = fakeDb(
-      { user_roles: [role(DANA, "campaigner")] },
-      { chat_allowed_connection_user_ids: () => [DANA] },
-      { profiles: new Error("db down") },
-    );
-    await assertRejects(
-      () =>
-        resolveChatScope(db, {
-          ...base,
-          userId: DANA,
-          callerCampaignerId: null,
-        }),
-      Error,
-      "db down",
-    );
+    const { db } = fakeDb({}, {}, { profiles: new Error("db down") });
+    await assertRejects(() => staffScopeFor(db, dana()), Error, "db down");
   });
 });

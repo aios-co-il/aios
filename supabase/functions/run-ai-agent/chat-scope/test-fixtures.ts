@@ -1,5 +1,6 @@
 // Shared ids, scopes and the fake tenant for the chat-scope tests.
 import { fakeDb } from "./fake-db.ts";
+import type { Row } from "./fake-db-filter.ts";
 import type { ChatScope } from "./types.ts";
 
 export const T = "10000000-0000-4000-8000-000000000001";
@@ -27,8 +28,6 @@ export const GFAM = "f0000000-0000-4000-8000-0000000000ff";
 export const L1 = "b0000000-0000-4000-8000-000000000001";
 export const L2 = "b0000000-0000-4000-8000-000000000002";
 export const SP = "5a000000-0000-4000-8000-000000000001";
-
-export type Row = Record<string, unknown>;
 
 /** The resolveChatScope input fields every test shares. */
 export const base = {

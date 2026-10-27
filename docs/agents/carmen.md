@@ -22,6 +22,12 @@ Hard rules for every agent:
 
 Approved phones stay on `carmen_whatsapp_identities` / `carmen_access_policies.private_phones`. Approved groups stay on `allowed_group_ids` (Manus only) and take their client and agency from `carmen_client_group_access`. Carmen introduces herself as the digital marketing manager of that agency. Group verification reuses `wa_pending_activations.group_chat_id`: the code is sent privately and typed in the group. `relationship_note` is tone only and does not grant access.
 
+## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
+
+- `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
+- owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
+- `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
+
 ## AI providers (replacing the former Lovable AI gateway)
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
@@ -67,12 +73,6 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Rows are keyed to the tenant's **active** Carmen (`resolveCarmenAgent`); the settings screen resolves it the same way, so what it saves is what the server checks.
 - Also checked: `run-agent-task` (a user starting a task) and new runs in `run-ai-agent-v2`. A member with Carmen off may only list brains, read health and cancel a parliament round.
 - "View as" is client-only: the UI previews the viewed user's access from their row, the tenant's full brain list, and `carmen_member_has_personal_key` (a manager-only RPC). The server still answers for the signed-in user.
-
-## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
-
-- `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
-- owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
-- `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
 
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 

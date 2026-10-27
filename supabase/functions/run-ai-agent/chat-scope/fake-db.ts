@@ -1,6 +1,9 @@
-import { evalFilter, likeToRegex, parseOrFilter } from "./fake-db-filter.ts";
-
-type Row = Record<string, unknown>;
+import {
+  evalFilter,
+  likeToRegex,
+  parseOrFilter,
+  type Row,
+} from "./fake-db-filter.ts";
 
 /** What a list query resolves to. */
 export interface FakeResult {

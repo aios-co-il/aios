@@ -109,6 +109,8 @@ async function assignedScopeFor(
 
 /** The caller's profile links; throws on a DB error. */
 async function profileFor(supabase: Pick<DbClient, "from">, userId: string) {
+  // profiles has no tenant_id: one row per auth user, keyed by the verified
+  // caller's id, and the ids it links only reach tenant-filtered queries.
   const { data, error } = await supabase
     .from("profiles")
     .select("campaigner_id, sales_person_id")

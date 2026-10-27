@@ -82,25 +82,14 @@ export function isChatRowVisible(
     return !!scope.groupId && row.group_id === scope.groupId;
   }
 
-  if (
-    row.client_id &&
-    (scope.clientIds === "all" || scope.clientIds.includes(row.client_id))
-  ) {
-    return true;
-  }
-
-  if (row.group_id && scope.linkedGroupIds.includes(row.group_id)) {
-    return true;
-  }
-
-  if (
-    row.lead_id &&
-    leadInScope(leadOwners?.get(row.lead_id) ?? null, scope.leads)
-  ) {
-    return true;
-  }
-
-  return !!scope.ownThread && isOwnThreadRow(row, scope.ownThread);
+  return (
+    (!!row.client_id &&
+      (scope.clientIds === "all" || scope.clientIds.includes(row.client_id))) ||
+    (!!row.group_id && scope.linkedGroupIds.includes(row.group_id)) ||
+    (!!row.lead_id &&
+      leadInScope(leadOwners?.get(row.lead_id) ?? null, scope.leads)) ||
+    (!!scope.ownThread && isOwnThreadRow(row, scope.ownThread))
+  );
 }
 
 /** The caller's own private chat with Carmen: Manus line, same sender phone. */

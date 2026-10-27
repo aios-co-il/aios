@@ -4,9 +4,10 @@
 -- chat_allowed_connection_user_ids, which run-ai-agent calls server-side.
 -- get_chat_contacts is re-created with the same signature and body, except
 -- that it calls the helper, so it returns the same rows as before
--- (supabase/functions/run-ai-agent/chat-scope/connections-sql.test.ts checks
--- the body; supabase/tests/carmen_chat_scope_connections.sql checks the helper
--- and its grants on a database).
+-- (carmen-chat-scope-connections.sql.test.ts in
+-- supabase/functions/run-ai-agent/chat-scope/ checks the body;
+-- supabase/tests/carmen_chat_scope_connections.sql checks the helper and its
+-- grants on a database).
 
 -- Connection owners (tenant_integrations.user_id) whose WhatsApp threads this
 -- user may read in this tenant: their own line, a line explicitly shared with

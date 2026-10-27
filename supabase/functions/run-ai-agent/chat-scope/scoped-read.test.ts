@@ -11,9 +11,8 @@ import {
   matrixWorld,
   messages,
 } from "./matrix-fixtures.ts";
-import { resolveChatScope } from "./resolve.ts";
-import { chatReadRefusal } from "./responses.ts";
 import { readScopedChatRows } from "./rows.ts";
+import { scopedChatRead } from "./scoped-read.ts";
 import {
   AG_OWNER,
   CA,
@@ -80,7 +79,7 @@ const ALL_TENANT_ROWS = messages
   .map((m) => String(m.id))
   .sort();
 
-Deno.test("chat readers: access matrix", async (t) => {
+Deno.test("scopedChatRead: access matrix", async (t) => {
   await t.step("owner keeps today's tenant-wide access", async () => {
     const { ids } = await readChats(callers.owner, { keyword: "תקציב" });
     assertEquals(ids, ALL_TENANT_ROWS);
@@ -222,9 +221,9 @@ Deno.test("chat readers: access matrix", async (t) => {
 });
 
 /**
- * The steps run-ai-agent takes in each reader: resolve the scope from the
- * caller, refuse or read through readScopedChatRows. pushedIds are the rows
- * the DB filter alone returns, before the row check.
+ * The steps each chat reader takes: scopedChatRead, then refuse or read
+ * through readScopedChatRows. pushedIds are the rows the DB filter alone
+ * returns, before the row check.
  */
 async function readChats(
   caller: Caller,
@@ -239,15 +238,20 @@ async function readChats(
   pushedIds?: string[];
 }> {
   const { db } = matrixWorld();
-  const scope = await resolveChatScope(db, {
-    tenantId: T,
-    accessibleTenantIds: [T],
-    today: "2026-10-26",
-    ...caller,
-  });
-  const refused = await chatReadRefusal(db, scope, contact ?? null, [T]);
-  if (refused) {
-    return { refused };
+  const { scope, refusal } = await scopedChatRead(
+    {
+      supabase: db,
+      scopeInput: {
+        tenantId: T,
+        accessibleTenantIds: [T],
+        today: "2026-10-26",
+        ...caller,
+      },
+    },
+    contact ?? null,
+  );
+  if (refusal) {
+    return { refused: refusal };
   }
 
   /** A fresh chat_messages query, as the reader builds it. */

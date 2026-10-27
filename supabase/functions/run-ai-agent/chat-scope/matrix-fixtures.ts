@@ -3,6 +3,7 @@
 // (client B), an agency owner, a team manager of agency 1, Maya (owner of
 // another tenant, campaigner of client A here), and a client contact who talks
 // to Carmen in client A's group.
+import type { Row } from "./fake-db-filter.ts";
 import {
   AG1,
   AG_OWNER,
@@ -24,7 +25,6 @@ import {
   T,
   T2,
   TEAM_MGR,
-  type Row,
   world,
 } from "./test-fixtures.ts";
 
@@ -115,7 +115,8 @@ export function matrixWorld() {
 /**
  * The get_chat_contacts rule (own + org + explicitly shared; super admin all),
  * as chat_allowed_connection_user_ids returns it. The SQL itself is checked by
- * connections-sql.test.ts and supabase/tests/carmen_chat_scope_connections.sql.
+ * carmen-chat-scope-connections.sql.test.ts and
+ * supabase/tests/carmen_chat_scope_connections.sql.
  */
 function allowedConnections({ p_tenant_id, p_user_id }: Row): unknown[] {
   const owners = new Set([p_user_id]);

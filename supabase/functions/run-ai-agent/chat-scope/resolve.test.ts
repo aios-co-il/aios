@@ -12,6 +12,7 @@ import {
 } from "./responses.ts";
 import { isChatRowVisible } from "./rows.ts";
 import {
+  AG1,
   CA,
   DANA,
   DANA_CAMP,
@@ -19,6 +20,7 @@ import {
   GA,
   MANUS,
   ORG_LINE,
+  T,
   T2,
   base,
   role,
@@ -67,14 +69,23 @@ Deno.test("resolveChatScope", async (t) => {
         role(DANA, "super_admin", T2),
         role(DANA, "campaigner"),
       ];
-      const inApp = await resolveChatScope(world({ user_roles: roles }).db, {
+      const { db, rpcCalls } = world({ user_roles: roles });
+      const inApp = await resolveChatScope(db, {
         ...base,
         userId: DANA,
         callerCampaignerId: null,
       });
       assertStrictEquals(inApp.mode, "staff");
       assertEquals(inApp.clientIds, [CA]);
+      assertEquals(inApp.linkedGroupIds, [GA]);
       assertEquals(inApp.connectionUserIds, [DANA, ORG_LINE]);
+      assertStrictEquals(inApp.ownThread, null);
+      assertEquals(rpcCalls, [
+        {
+          fn: "chat_allowed_connection_user_ids",
+          args: { p_tenant_id: T, p_user_id: DANA },
+        },
+      ]);
       assertStrictEquals(
         isChatRowVisible(
           { provider: "green_api", connection_user_id: DAVID },
@@ -108,6 +119,20 @@ Deno.test("resolveChatScope", async (t) => {
       );
       assertEquals(agencyElsewhere.clientIds, [CA]);
       assertStrictEquals(agencyElsewhere.leads.all, false);
+
+      // Managed agencies count only with the team_manager role in this tenant.
+      const teamElsewhere = await resolveChatScope(
+        world({
+          user_roles: [
+            role(DANA, "team_manager", T2),
+            role(DANA, "campaigner"),
+          ],
+          user_managed_agencies: [{ user_id: DANA, agency_id: AG1 }],
+        }).db,
+        { ...base, userId: DANA, callerCampaignerId: null },
+      );
+      assertEquals(teamElsewhere.clientIds, [CA]);
+      assertEquals(teamElsewhere.leads.agencyIds, []);
 
       // No role here at all: nothing, unless a campaigner record matched here.
       const ownerElsewhere = { user_roles: [role(DANA, "owner", T2)] };

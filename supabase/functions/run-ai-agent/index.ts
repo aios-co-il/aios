@@ -43,10 +43,14 @@ import {
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
 import { withChatScopeColumns } from "./chat-scope/filters.ts";
-import { chatReadRefusal, chatScopeMeta } from "./chat-scope/responses.ts";
-import { resolveChatScope } from "./chat-scope/resolve.ts";
+import {
+  getChatHistory,
+  getRecentInboundMessages,
+} from "./chat-scope/readers.ts";
+import { chatScopeMeta } from "./chat-scope/responses.ts";
 import { readScopedChatRows } from "./chat-scope/rows.ts";
-import type { ChatHistoryRow, InboundChatRow } from "./chat-scope/types.ts";
+import { scopedChatRead } from "./chat-scope/scoped-read.ts";
+import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -5687,20 +5691,19 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
-  /**
-   * Chat readers (AIO-231): scope from the verified caller and the WhatsApp
-   * chat of this turn, never from tool arguments (./chat-scope/). It reads the
-   * caller's role in this tenant itself: callerRole here is the highest role
-   * across all of the user's tenants.
-   */
-  const chatScopeFor = () =>
-    resolveChatScope(supabase, {
+  // Chat readers (AIO-231) scope from the verified caller and the WhatsApp chat
+  // of this turn, never from tool args, and read the caller's role in this
+  // tenant: callerRole here is the highest role across all their tenants.
+  const chatRead = {
+    supabase,
+    scopeInput: {
       tenantId,
       accessibleTenantIds,
       userId: actorUserId,
       callerCampaignerId: callerCampaignerId ?? null,
       waNotify,
-    });
+    },
+  };
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
       supabase,
@@ -6426,27 +6429,12 @@ async function executeTool(
       return { update_id: data.id };
     }
     case "send_message": {
-      let phone: string | null = null;
-      let contactName: string | null = null;
-      if (args.contact_type === "lead") {
-        const { data } = await supabase
-          .from("leads")
-          .select("phone, company_name, contact_name")
-          .eq("id", args.contact_id)
-          .in("tenant_id", accessibleTenantIds)
-          .maybeSingle();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.company_name;
-      } else {
-        const { data } = await supabase
-          .from("clients")
-          .select("phone, name, contact_name")
-          .eq("id", args.contact_id)
-          .in("tenant_id", accessibleTenantIds)
-          .maybeSingle();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.name;
-      }
+      const { phone, contactName } = await sendTargetFor(
+        supabase,
+        args.contact_type,
+        args.contact_id,
+        accessibleTenantIds,
+      );
       if (!phone) return { success: false, error: "לא נמצא מספר טלפון" };
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/send-green-api-message`,
@@ -9856,55 +9844,12 @@ async function executeTool(
       return { learned: true, episode_id: data.id, topic: data.topic };
     }
     // CHAT HISTORY
-    case "get_chat_history": {
-      const chatScope = await chatScopeFor();
-      const refusal = await chatReadRefusal(
-        supabase,
-        chatScope,
-        { type: args.contact_type, id: args.contact_id },
-        accessibleTenantIds,
-      );
-      if (refusal) {
-        return refusal;
-      }
-
-      const filterCol =
-        args.contact_type === "client" ? "client_id" : "lead_id";
-      const visible = await readScopedChatRows<ChatHistoryRow>(
-        supabase,
-        supabase
-          .from("chat_messages")
-          .select(
-            withChatScopeColumns(
-              "id, message_text, direction, sender_name, created_at",
-            ),
-          )
-          .in("tenant_id", accessibleTenantIds)
-          .eq(filterCol, args.contact_id)
-          .order("created_at", { ascending: false })
-          .limit(args.limit || 20),
-        chatScope,
-        accessibleTenantIds,
-      );
-      return {
-        count: visible.length,
-        messages: visible.reverse().map((m) => ({
-          id: m.id,
-          message_text: m.message_text,
-          direction: m.direction,
-          sender_name: m.sender_name,
-          created_at: m.created_at,
-        })),
-        ...chatScopeMeta(chatScope),
-      };
-    }
+    case "get_chat_history":
+      return getChatHistory(chatRead, args);
     case "search_conversation_history": {
-      const chatScope = await chatScopeFor();
-      const refusal = await chatReadRefusal(
-        supabase,
-        chatScope,
+      const { scope: chatScope, refusal } = await scopedChatRead(
+        chatRead,
         null,
-        accessibleTenantIds,
       );
       if (refusal) {
         return refusal;
@@ -10017,60 +9962,8 @@ async function executeTool(
         ...chatScopeMeta(chatScope),
       };
     }
-    case "get_recent_inbound_messages": {
-      const chatScope = await chatScopeFor();
-      const refusal = await chatReadRefusal(
-        supabase,
-        chatScope,
-        null,
-        accessibleTenantIds,
-      );
-      if (refusal) {
-        return refusal;
-      }
-
-      const hoursAgo = args.hours || 24;
-      const since = new Date(
-        Date.now() - hoursAgo * 60 * 60 * 1000,
-      ).toISOString();
-      const data = await readScopedChatRows<InboundChatRow>(
-        supabase,
-        supabase
-          .from("chat_messages")
-          .select(
-            withChatScopeColumns(
-              "id, message_text, sender_name, sender_phone, created_at, client_id, lead_id, clients(name), leads(company_name)",
-            ),
-          )
-          .in("tenant_id", accessibleTenantIds)
-          .eq("direction", "inbound")
-          .gte("created_at", since)
-          .order("created_at", { ascending: false })
-          .limit(args.limit || 30),
-        chatScope,
-        accessibleTenantIds,
-      );
-      return {
-        count: data.length,
-        // The scope columns are for the row check only; keep the old shape.
-        messages: data.map(
-          ({
-            connection_user_id: _conn,
-            provider: _provider,
-            group_id: _group,
-            ...m
-          }) => ({
-            ...m,
-            contact_name:
-              m.clients?.name ||
-              m.leads?.company_name ||
-              m.sender_name ||
-              m.sender_phone,
-          }),
-        ),
-        ...chatScopeMeta(chatScope),
-      };
-    }
+    case "get_recent_inbound_messages":
+      return getRecentInboundMessages(chatRead, args);
     // FINANCE
     case "list_finance": {
       let query = supabase

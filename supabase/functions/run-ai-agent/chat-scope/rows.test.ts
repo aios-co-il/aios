@@ -4,6 +4,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { fakeDb } from "./fake-db.ts";
+import type { Row } from "./fake-db-filter.ts";
 import { CHAT_SCOPE_NOTES } from "./responses.ts";
 import {
   isChatRowVisible,
@@ -23,7 +24,6 @@ import {
   ORG_LINE,
   SP,
   T,
-  type Row,
   staff,
   world,
 } from "./test-fixtures.ts";
