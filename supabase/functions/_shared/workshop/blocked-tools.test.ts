@@ -38,6 +38,8 @@ Deno.test(
       "send_broadcast_now",
       "send_calendar_invite",
       "join_meeting_for_client",
+      "add_task_update",
+      "manage_task_collaborators",
       // ads and budgets
       "toggle_facebook_campaign",
       "update_facebook_budget",

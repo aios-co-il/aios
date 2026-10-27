@@ -30,6 +30,9 @@ const OUTSIDE_TOOLS = [
   "update_calendar_invite",
   "cancel_calendar_invite",
   "join_meeting_for_client",
+  // Task updates and collaborators WhatsApp the task's staff (trigger-automation).
+  "add_task_update",
+  "manage_task_collaborators",
   // Creates or changes ad campaigns, ads and budgets on Meta and Google Ads.
   "toggle_facebook_campaign",
   "update_facebook_budget",
