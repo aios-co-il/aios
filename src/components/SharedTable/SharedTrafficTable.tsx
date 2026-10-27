@@ -8,18 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
-
-/** One campaign (or ad set / ad) row of the shared report's campaign tables. */
-export type SharedCampaignRow = {
-  name: string;
-  spend: number;
-  impressions: number;
-  clicks: number;
-  leads: number;
-  purchases: number;
-  revenue: number;
-  addToCart: number;
-};
+import type { SharedCampaignRow } from "./sharedCampaignTables";
 
 type Props = {
   rows: SharedCampaignRow[];

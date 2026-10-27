@@ -18,6 +18,16 @@ describe("sharedManualRoiFigures", () => {
     ).toStrictEqual({ spend: 160, leads: 8 });
   });
 
+  it("never counts sales spend as the cost of lead campaigns that spent nothing", () => {
+    expect(
+      sharedManualRoiFigures({
+        leadRows: [{ spend: 0, leads: 4 }],
+        summary: { spend: 900, leads: 4, hasLeads: true },
+        integrationSettings: entered,
+      }),
+    ).toStrictEqual({ spend: 0, leads: 4 });
+  });
+
   it("keeps entered figures on a range without lead campaigns, with no sales spend", () => {
     expect(
       sharedManualRoiFigures({

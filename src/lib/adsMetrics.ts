@@ -155,11 +155,17 @@ export const FACEBOOK_ECOMMERCE_RESULT_KINDS = new Set([
   "search",
 ]);
 
+/**
+ * Meta objectives that make a campaign a sales campaign. The legacy CONVERSIONS
+ * objective is left out, as in the Meta sync: it ran lead and sales campaigns
+ * alike, so the stored type and the results decide those campaigns.
+ */
 const FACEBOOK_SALES_OBJECTIVES = new Set([
   "OUTCOME_SALES",
   "PRODUCT_CATALOG_SALES",
   "SALES",
 ]);
+const FACEBOOK_LEAD_OBJECTIVES = new Set(["OUTCOME_LEADS", "LEAD_GENERATION"]);
 
 const FACEBOOK_CAMPAIGN_TYPE_RANK: Record<string, number> = {
   ecommerce: 3,
@@ -185,13 +191,25 @@ export function preferFacebookCampaignType(
   return "other";
 }
 
+/** The fields of a Facebook campaign that decide whether it is a sales campaign. */
+export type FacebookSalesSignals = Pick<
+  FacebookCampaignRow,
+  | "campaign_type"
+  | "campaign_objective"
+  | "result_kind"
+  | "result"
+  | "leads"
+  | "purchases"
+  | "purchase_value"
+>;
+
 /**
- * Mirrors DynamicTableView ecommerce campaign detection on aggregated rows.
+ * Whether a Facebook campaign (a row or a campaign's totals) is a sales campaign.
  * An explicit sales campaign stays ecommerce when the pixel also fires leads
  * and purchases are still zero, so the report can show both on one row.
  */
 export function isFacebookEcommerceCampaign(
-  data: FacebookCampaignRow,
+  data: FacebookSalesSignals,
 ): boolean {
   const rowType = String(data.campaign_type || "").toLowerCase();
   if (rowType === "traffic") return false;
@@ -247,14 +265,6 @@ export function isFacebookMessagingLeadRecord(
   return false;
 }
 
-const SALES_OBJECTIVES = new Set([
-  "OUTCOME_SALES",
-  "PRODUCT_CATALOG_SALES",
-  "SALES",
-  "CONVERSIONS",
-]);
-const LEAD_OBJECTIVES = new Set(["OUTCOME_LEADS", "LEAD_GENERATION"]);
-
 /** Meta campaign objective → report kind; null when the objective does not decide it. */
 export function facebookObjectiveKind(
   data: NullableAdsMetricData,
@@ -262,9 +272,9 @@ export function facebookObjectiveKind(
   const objective = String(
     data?.campaign_objective || data?.objective || "",
   ).toUpperCase();
-  if (LEAD_OBJECTIVES.has(objective)) return "lead";
+  if (FACEBOOK_LEAD_OBJECTIVES.has(objective)) return "lead";
   // Sales campaigns stay ecommerce; their leads/conversations show on the same row.
-  if (SALES_OBJECTIVES.has(objective)) return "ecommerce";
+  if (FACEBOOK_SALES_OBJECTIVES.has(objective)) return "ecommerce";
   return null;
 }
 
@@ -291,8 +301,9 @@ export function isFacebookTrafficCampaign(data: FacebookCampaignRow): boolean {
 }
 
 /**
- * Split aggregated Facebook campaigns into ecommerce / leads / traffic tables.
- * Matches DynamicTableView exactly so mixed accounts (e.g. אביאלי) render the same breakdown.
+ * Split aggregated Facebook campaigns into ecommerce / leads / traffic tables for
+ * the dashboards. Mixed mode uses the objective and type rules that
+ * facebookCampaignGoal applies in the reports (see facebookCampaignGoal.test.ts).
  */
 export function groupFacebookCampaigns(
   campaigns: FacebookCampaignRow[],
@@ -335,7 +346,16 @@ export function groupFacebookCampaigns(
   return { ecommerce, leads, traffic };
 }
 
-/** Aggregate facebook_insights / facebook_ecommerce records by campaign name. */
+/** The key Facebook campaign rows are aggregated under: the campaign's name. */
+export function facebookCampaignKey(data: NullableAdsMetricData): string {
+  return String(data?.campaign_name || data?.campaign || "ללא שם");
+}
+
+/**
+ * Aggregate facebook_insights / facebook_ecommerce records by campaign name.
+ * Each row keeps the signals facebookCampaignGoal reads (effective type, first
+ * objective and result kind), so the dashboards split campaigns like the reports.
+ */
 export function aggregateFacebookCampaignsFromRecords(
   records: Array<{ data?: NullableAdsMetricData }>,
 ): FacebookCampaignRow[] {
@@ -345,7 +365,7 @@ export function aggregateFacebookCampaignsFromRecords(
     if (!shouldIncludeInAdsDashboardAggregate(r.data, "facebook_insights"))
       return;
     const d = r.data || {};
-    const name = d.campaign_name || d.campaign || "ללא שם";
+    const name = facebookCampaignKey(d);
     if (!map[name]) {
       map[name] = {
         name,
@@ -356,9 +376,11 @@ export function aggregateFacebookCampaignsFromRecords(
         purchases: 0,
         purchase_value: 0,
         add_to_cart: 0,
-        campaign_type: d.campaign_type,
       };
     }
+    map[name].campaign_objective ||=
+      String(d.campaign_objective || "").toUpperCase() || null;
+    map[name].result_kind ||= d.result_kind ? String(d.result_kind) : null;
     map[name].impressions += Number(d.impressions) || 0;
     map[name].clicks += Number(d.clicks) || 0;
     map[name].spend += getSpendFromData(d);
@@ -391,14 +413,9 @@ export function classifyFacebookRecord(
   const rowType = effectiveFacebookCampaignType(data);
   if (rowType === "traffic") return "traffic";
   return isFacebookEcommerceCampaign({
-    name: "",
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
     leads: getLeadsFromData(data),
     purchases: Number(data?.purchases) || 0,
     purchase_value: Number(data?.purchase_value) || 0,
-    add_to_cart: 0,
     campaign_type: rowType === "other" ? data?.campaign_type : rowType,
     campaign_objective: data?.campaign_objective,
     result_kind: data?.result_kind,
@@ -418,16 +435,11 @@ export function classifyFacebookCampaignTotals(totals: {
   const rowType = String(totals.campaign_type || "").toLowerCase();
   if (rowType === "traffic") return "traffic";
   if (rowType === "lead") return "leads";
-  const row: FacebookCampaignRow = {
-    name: "",
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
+  const row: FacebookSalesSignals = {
     leads: Number(totals.leads) || 0,
     purchases: Number(totals.purchases) || 0,
     purchase_value:
       Number(totals.purchase_value) || Number(totals.revenue) || 0,
-    add_to_cart: 0,
     campaign_type: totals.campaign_type,
   };
   return isFacebookEcommerceCampaign(row) ? "ecommerce" : "leads";

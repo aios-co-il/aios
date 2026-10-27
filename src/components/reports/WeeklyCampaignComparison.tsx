@@ -11,7 +11,7 @@ import {
 import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
 import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
-import { formatWeeklyNumber } from "./weeklyGoalColumns";
+import { formatReportNumber } from "@/lib/reportNumber";
 
 type Props = {
   records: WeeklyAdsRecord[];
@@ -106,7 +106,7 @@ export function WeeklyCampaignComparison({
                 <span>הוצאה כוללת בשבוע (כל היעדים)</span>
                 <span>
                   {currency}
-                  {formatWeeklyNumber(week.totals.spend)}
+                  {formatReportNumber(week.totals.spend)}
                 </span>
               </div>
             )}

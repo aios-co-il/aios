@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
 import { groupSharedFacebookRows } from "@/components/SharedTable/sharedFacebookGroups";
 import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
-import type { CampaignGoal } from "./campaignGoals";
+import {
+  aggregateFacebookCampaignsFromRecords,
+  classifyFacebookRecord,
+  groupFacebookCampaigns,
+} from "./adsMetrics";
+import {
+  REPORT_CAMPAIGN_GOALS,
+  type ReportCampaignGoal,
+} from "./campaignGoals";
 import {
   addFacebookGoalRecord,
   emptyFacebookGoalInputs,
@@ -13,7 +21,7 @@ import { buildWeeklyCampaignSections } from "./weeklyAdsComparison";
 import { weeklySourceModesForTable } from "./weeklyCampaignGoals";
 
 const NOW = new Date("2026-09-18T12:00:00Z");
-const GOALS: CampaignGoal[] = ["ecommerce", "leads", "traffic"];
+const GOALS = REPORT_CAMPAIGN_GOALS;
 
 const campaign = (data: Record<string, unknown>) => ({
   _source: "facebook_insights",
@@ -29,7 +37,7 @@ const campaign = (data: Record<string, unknown>) => ({
 });
 
 /** Every campaign has leads, so the KPIs show whether they were counted. */
-const cases: Array<[string, Record<string, unknown>, CampaignGoal]> = [
+const cases: Array<[string, Record<string, unknown>, ReportCampaignGoal]> = [
   [
     "a legacy CONVERSIONS campaign stored as leads",
     { campaign_type: "lead", campaign_objective: "CONVERSIONS", leads: 5 },
@@ -88,6 +96,10 @@ function goalsOnEverySurface(
   const internal = groupFacebookReportCampaigns(records, "campaign", {
     leadsOnly,
   });
+  const dashboard = groupFacebookCampaigns(
+    aggregateFacebookCampaignsFromRecords(records),
+    { forceLeadsOnly: leadsOnly },
+  );
   const summary = summarizeSharedTableRecords(records, {
     integrationType: "facebook_insights",
     goalOf: shared.goalOf,
@@ -101,6 +113,7 @@ function goalsOnEverySurface(
     sharedTable: GOALS.find((goal) => shared[goal].length > 0),
     sharedSummary: summary.leads > 0 ? "leads" : "not leads",
     internalReport: GOALS.find((goal) => internal[goal].length > 0),
+    dashboardTable: GOALS.find((goal) => dashboard[goal].length > 0),
   };
 }
 
@@ -111,7 +124,10 @@ describe("facebookCampaignGoal on every report surface", () => {
       sharedTable: goal,
       sharedSummary: goal === "leads" ? "leads" : "not leads",
       internalReport: goal,
+      dashboardTable: goal,
     });
+    // The dashboards' KPIs on a mixed table classify each row the same way.
+    expect(classifyFacebookRecord(campaign(data).data)).toBe(goal);
   });
 
   it.each(cases)("%s in a leads-only table", (_, data, goal) => {
@@ -121,6 +137,7 @@ describe("facebookCampaignGoal on every report surface", () => {
       sharedTable: expected,
       sharedSummary: expected === "leads" ? "leads" : "not leads",
       internalReport: expected,
+      dashboardTable: expected,
     });
   });
 });

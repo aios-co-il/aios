@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
-import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,7 +81,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable";
 import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
-import { googleLeadCampaignRecords } from "@/components/dynamic-tables/googleLeadCampaignRecords";
+import { googleManualRoiFigures } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SearchConsoleDashboard } from "@/components/dynamic-tables/SearchConsoleDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
@@ -112,7 +111,6 @@ import {
 } from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
-import { hasManualRoiData } from "@/components/dynamic-tables/manualRoi";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
 import {
   fetchWooReportAttribution,
@@ -4127,12 +4125,12 @@ export default function DynamicTableView({
                     ([key, group]) => ({ key, ...group }),
                   );
                   // Mixed: one table per goal, each with its own columns and totals.
-                  const { mixedGoals, isEcommerce, ecommerceTotals } =
-                    splitGoogleGroupsByGoal(groupList, fallbackGoal);
-                  const goalSections = googleGoalSections(
-                    groupList,
-                    fallbackGoal,
-                  );
+                  const {
+                    sections: goalSections,
+                    mixedGoals,
+                    isEcommerce,
+                    ecommerceTotals,
+                  } = googleGoalSections(groupList, fallbackGoal);
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders
@@ -4306,40 +4304,20 @@ export default function DynamicTableView({
           {/* Manual ROI for Google Ads (leads mode only, lead campaigns only; kept for entered figures) */}
           {hasGoogleAds &&
             filteredRecords &&
-            filteredRecords.length > 0 &&
             table?.id &&
-            table?.integration_settings?.campaign_type !== "ecommerce" &&
             (() => {
-              const leadRecords = googleLeadCampaignRecords(
-                filteredRecords,
-                table,
-              );
-              if (
-                leadRecords.length === 0 &&
-                !hasManualRoiData(table.integration_settings)
-              ) {
+              const figures = googleManualRoiFigures(filteredRecords, table);
+              if (!figures) {
                 return null;
               }
-              const totals = leadRecords.reduce(
-                (acc, record) => {
-                  acc.cost += Number(record.data?.cost) || 0;
-                  acc.conversions +=
-                    Number(record.data?.conversions) ||
-                    Number(record.data?.purchases) ||
-                    0;
-                  return acc;
-                },
-                { cost: 0, conversions: 0 },
-              );
-              const gaCurrency = getCurrencySymbol(
-                table.integration_settings?.currency,
-              );
               return (
                 <ManualROICard
                   tableId={table.id}
-                  spend={totals.cost}
-                  leads={Math.round(totals.conversions)}
-                  currency={gaCurrency}
+                  spend={figures.spend}
+                  leads={figures.leads}
+                  currency={getCurrencySymbol(
+                    table.integration_settings?.currency,
+                  )}
                   initialClosures={
                     table?.integration_settings?.manual_roi?.closures ?? null
                   }

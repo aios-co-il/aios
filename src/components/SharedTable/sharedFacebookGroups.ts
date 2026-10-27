@@ -3,8 +3,11 @@ import {
   getEntityGroupKey,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
-import type { FacebookCampaignRow } from "@/lib/adsMetrics";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import {
+  facebookCampaignKey,
+  type FacebookCampaignRow,
+} from "@/lib/adsMetrics";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import { facebookCampaignGoals } from "@/lib/facebookCampaignGoal";
 
 type RecordData = Record<string, unknown>;
@@ -19,13 +22,13 @@ export function groupSharedFacebookRows(
   records: Array<{ data?: RecordData | null }>,
   level: AdsEntityLevel,
   options: { leadsOnly: boolean },
-): Record<CampaignGoal, FacebookCampaignRow[]> & {
-  goalOf: (data: RecordData) => CampaignGoal;
+): Record<ReportCampaignGoal, FacebookCampaignRow[]> & {
+  goalOf: (data: RecordData) => ReportCampaignGoal;
 } {
   const keyOf = (data: RecordData) => facebookEntityKey(data, level);
   const goals = facebookCampaignGoals(records, keyOf, options);
   const goalOf = (data: RecordData) => goals.get(keyOf(data)) ?? "leads";
-  const rowsOf = (goal: CampaignGoal) =>
+  const rowsOf = (goal: ReportCampaignGoal) =>
     aggregateFacebookRecordsAtLevel(
       records.filter((record) => goalOf(record.data ?? {}) === goal),
       level,
@@ -38,9 +41,9 @@ export function groupSharedFacebookRows(
   };
 }
 
-/** The key the shared Facebook aggregation groups a record under at this level. */
+/** The key aggregateFacebookRecordsAtLevel groups a record under at this level. */
 function facebookEntityKey(data: RecordData, level: AdsEntityLevel): string {
   return level === "campaign"
-    ? String(data.campaign_name || data.campaign || "ללא שם")
+    ? facebookCampaignKey(data)
     : getEntityGroupKey(data, level);
 }

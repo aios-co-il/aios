@@ -5,6 +5,7 @@ import {
   facebookCampaignGoal,
   type FacebookGoalInputs,
 } from "@/lib/facebookCampaignGoal";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import { earnsRevenue } from "@/lib/weeklyAdsRevenue";
 import {
   groupWeeklyRowsByGoal,
@@ -13,7 +14,6 @@ import {
 
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
-export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
 
 export type WeeklyAdsRecord = {
   data?: Record<string, unknown>;
@@ -25,7 +25,7 @@ export type WeeklyCampaignRow = {
   source: WeeklyAdsSource;
   campaignId: string;
   campaign: string;
-  kind: WeeklyCampaignKind;
+  kind: ReportCampaignGoal;
   impressions: number;
   clicks: number;
   results: number;
@@ -91,8 +91,8 @@ type WeekCampaign = {
   spend: number;
   revenue: number;
   addToCart: number;
-  /** Facebook only: what decides the campaign's goal in every report. */
-  goal: FacebookGoalInputs;
+  /** Facebook Insights only: what facebookCampaignGoal reads, over the week's rows. */
+  facebookGoalInputs: FacebookGoalInputs | null;
 };
 
 function utcDateString(date: Date): string {
@@ -126,20 +126,27 @@ export function getSundayStart(date: Date): Date {
   return day;
 }
 
+/**
+ * A week's campaign goal, the same as in the report's tables: Google by its
+ * campaign's goal (the table's type when unknown), Facebook Ecommerce always
+ * sales, Facebook Insights by facebookCampaignGoal.
+ */
 function campaignKind(
-  source: WeeklyAdsSource,
-  goal: FacebookGoalInputs,
+  campaign: WeekCampaign,
   sourceModes: WeeklySourceModes,
   googleGoal?: GoogleCampaignGoal,
-): WeeklyCampaignKind {
-  if (source === "google_ads")
+): ReportCampaignGoal {
+  if (campaign.source === "google_ads") {
     return (
       googleGoal ??
-      (sourceModes[source] === "ecommerce" ? "ecommerce" : "leads")
+      (sourceModes.google_ads === "ecommerce" ? "ecommerce" : "leads")
     );
-  if (source === "facebook_ecommerce") return "ecommerce";
-  return facebookCampaignGoal(goal, {
-    leadsOnly: sourceModes[source] === "leads",
+  }
+  if (!campaign.facebookGoalInputs) {
+    return "ecommerce";
+  }
+  return facebookCampaignGoal(campaign.facebookGoalInputs, {
+    leadsOnly: sourceModes.facebook_insights === "leads",
   });
 }
 
@@ -198,7 +205,8 @@ export function buildWeeklyCampaignSections(
       spend: 0,
       revenue: 0,
       addToCart: 0,
-      goal: emptyFacebookGoalInputs(),
+      facebookGoalInputs:
+        source === "facebook_insights" ? emptyFacebookGoalInputs() : null,
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -232,8 +240,11 @@ export function buildWeeklyCampaignSections(
       "conversion_value",
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
-    if (source !== "google_ads") {
-      row.goal = addFacebookGoalRecord(row.goal, data);
+    if (row.facebookGoalInputs) {
+      row.facebookGoalInputs = addFacebookGoalRecord(
+        row.facebookGoalInputs,
+        data,
+      );
     }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
@@ -250,8 +261,7 @@ export function buildWeeklyCampaignSections(
       const rows = [...campaigns.entries()]
         .map(([key, campaign]) => {
           const kind = campaignKind(
-            campaign.source,
-            campaign.goal,
+            campaign,
             sourceModes,
             options.googleCampaignGoals?.get(campaign.campaignId),
           );

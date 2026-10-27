@@ -518,3 +518,22 @@ test("ecommerce-only report still lists its lead campaigns as leads", () => {
   expect(grouped.ecommerce.map((c) => c.name)).toStrictEqual(["מכירות"]);
   expect(grouped.leads.map((c) => c.name)).toStrictEqual(["דרושים | לידים"]);
 });
+
+test("the legacy CONVERSIONS objective leaves the goal to the stored type", () => {
+  expect(facebookObjectiveKind({ campaign_objective: "CONVERSIONS" })).toBe(
+    null,
+  );
+  const lead = {
+    campaign_name: "X",
+    campaign_type: "lead",
+    campaign_objective: "CONVERSIONS",
+    leads: 5,
+    spend: 100,
+  };
+  expect(classifyFacebookRecord(lead)).toBe("leads");
+  const grouped = groupFacebookCampaigns(
+    aggregateFacebookCampaignsFromRecords([{ data: lead }]),
+  );
+  expect(grouped.leads.map((c) => c.name)).toStrictEqual(["X"]);
+  expect(grouped.ecommerce).toStrictEqual([]);
+});

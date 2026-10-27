@@ -4,7 +4,7 @@ import {
   isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
 } from "@/lib/adsMetrics";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 
 type RecordData = Record<string, unknown>;
 
@@ -28,7 +28,7 @@ export type FacebookGoalInputs = {
 export function facebookCampaignGoal(
   inputs: FacebookGoalInputs,
   options: { leadsOnly: boolean },
-): CampaignGoal {
+): ReportCampaignGoal {
   if (inputs.campaignType === "traffic") {
     return "traffic";
   }
@@ -36,11 +36,6 @@ export function facebookCampaignGoal(
     return "leads";
   }
   const isSales = isFacebookEcommerceCampaign({
-    name: "",
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
-    add_to_cart: 0,
     leads: inputs.leads,
     purchases: inputs.purchases,
     purchase_value: inputs.revenue,
@@ -56,7 +51,7 @@ export function facebookCampaignGoals(
   records: Array<{ data?: RecordData | null }>,
   keyOf: (data: RecordData) => string,
   options: { leadsOnly: boolean },
-): Map<string, CampaignGoal> {
+): Map<string, ReportCampaignGoal> {
   const inputsByKey = new Map<string, FacebookGoalInputs>();
   for (const record of records) {
     const data = record.data ?? {};
@@ -64,7 +59,7 @@ export function facebookCampaignGoals(
     const inputs = inputsByKey.get(key) ?? emptyFacebookGoalInputs();
     inputsByKey.set(key, addFacebookGoalRecord(inputs, data));
   }
-  const goals = new Map<string, CampaignGoal>();
+  const goals = new Map<string, ReportCampaignGoal>();
   for (const [key, inputs] of inputsByKey) {
     goals.set(key, facebookCampaignGoal(inputs, options));
   }
@@ -96,7 +91,7 @@ export function addFacebookGoalRecord(
   return {
     campaignType: preferFacebookCampaignType(
       inputs.campaignType,
-      storedCampaignType(data),
+      effectiveFacebookCampaignType(data),
     ),
     objective: inputs.objective || objective || null,
     resultKind: inputs.resultKind || resultKind,
@@ -104,20 +99,4 @@ export function addFacebookGoalRecord(
     purchases: inputs.purchases + (Number(data.purchases) || 0),
     revenue: inputs.revenue + (Number(data.purchase_value) || 0),
   };
-}
-
-/**
- * A row's campaign type: the Meta objective first, WhatsApp "traffic" as leads.
- * The sync does not count the legacy CONVERSIONS objective as sales (it stores
- * many such campaigns as leads), so for those rows the stored type decides.
- */
-function storedCampaignType(data: RecordData) {
-  const objective = String(
-    data.campaign_objective || data.objective || "",
-  ).toUpperCase();
-  return effectiveFacebookCampaignType(
-    objective === "CONVERSIONS"
-      ? { ...data, campaign_objective: null, objective: null }
-      : data,
-  );
 }

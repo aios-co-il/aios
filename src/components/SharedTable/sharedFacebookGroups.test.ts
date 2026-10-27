@@ -131,7 +131,9 @@ describe("groupSharedFacebookRows", () => {
     });
   });
 
-  it("splits ad sets by their campaign's goal", () => {
+  // Like the internal report, an ad set's goal comes from its own rows (which
+  // carry the campaign's objective), not from the parent campaign's other rows.
+  it("splits ad sets by the goal of their own rows", () => {
     const adset = (name: string, data: Record<string, unknown>) => ({
       data: {
         entity_level: "adset",

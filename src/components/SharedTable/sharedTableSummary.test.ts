@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import { summarizeSharedTableRecords } from "./sharedTableSummary";
 
 const google = (
@@ -8,7 +8,7 @@ const google = (
 ) => ({
   data: { goal, impressions: 1000, clicks: 50, ...data },
 });
-const goalOf = (data: Record<string, unknown>): CampaignGoal =>
+const goalOf = (data: Record<string, unknown>): ReportCampaignGoal =>
   data.goal === "ecommerce" ? "ecommerce" : "leads";
 
 describe("summarizeSharedTableRecords", () => {

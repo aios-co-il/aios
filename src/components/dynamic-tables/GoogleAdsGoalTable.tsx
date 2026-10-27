@@ -2,6 +2,7 @@ import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
+import { formatReportNumber } from "@/lib/reportNumber";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 
 type Metrics = {
@@ -121,38 +122,34 @@ function MetricCells({
 }) {
   return (
     <>
-      <td className="p-2 text-center">{fmt(m.impressions)}</td>
-      <td className="p-2 text-center">{fmt(m.clicks)}</td>
+      <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
+      <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
       <td className={`p-2 text-center text-green-600${emphasis}`}>
-        {fmt(Math.round(m.conversions))}
+        {formatReportNumber(Math.round(m.conversions))}
       </td>
       <td className="p-2 text-center">
         {currency}
-        {fmt(m.cost)}
+        {formatReportNumber(m.cost)}
       </td>
       {isEcommerce ? (
         <>
           <td className={`p-2 text-center text-purple-600${emphasis}`}>
             {currency}
-            {fmt(m.conversions_value)}
+            {formatReportNumber(m.conversions_value)}
           </td>
           <td className={`p-2 text-center text-blue-600${emphasis}`}>
-            {fmt(ratio(m.conversions_value, m.cost), 2)}x
+            {formatReportNumber(ratio(m.conversions_value, m.cost), 2)}x
           </td>
         </>
       ) : (
         <td className={`p-2 text-center text-blue-600${emphasis}`}>
           {currency}
-          {fmt(ratio(m.cost, m.conversions), 1)}
+          {formatReportNumber(ratio(m.cost, m.conversions), 1)}
         </td>
       )}
     </>
   );
 }
-
-/** A table number in Hebrew locale, rounded to `digits`. */
-const fmt = (value: number, digits = 0) =>
-  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
 
 /** a ÷ b, or 0 when there is nothing to divide by. */
 const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);

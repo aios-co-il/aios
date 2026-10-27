@@ -5,7 +5,7 @@ import {
   getSessionsFromData,
   getSpendFromData,
 } from "@/lib/adsMetrics";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
 import { adsRowOutcomes } from "./adsRowOutcomes";
 
@@ -37,7 +37,7 @@ export function summarizeSharedTableRecords(
   options: {
     integrationType: string;
     /** Goal of a record's campaign; null when the table has a single goal. */
-    goalOf: ((data: RecordData) => CampaignGoal) | null;
+    goalOf: ((data: RecordData) => ReportCampaignGoal) | null;
     /** Goals the table shows; a goal it does not show has its totals zeroed. */
     goals: GoogleGoalPresence;
   },
