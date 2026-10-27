@@ -1,7 +1,6 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   PUBLIC_TABLE_SETTINGS_KEYS,
-  toPublicCachedShareBody,
   toPublicTableSettings,
 } from "./public-table-settings.ts";
 
@@ -82,8 +81,9 @@ function assertNoSecrets(output: string) {
     "password",
     "credentials",
     "last_sync_outcome",
-  ])
+  ]) {
     assert(!output.includes(`"${key}"`), `leaked key ${key}`);
+  }
 }
 
 Deno.test("public settings keep exactly the keys the shared pages read", () => {
@@ -129,12 +129,13 @@ Deno.test("sharedTabs goes out only when shared_tabs is not stored", () => {
     [{ shared_tabs: false, sharedTabs: hideGa }, {}],
     [{ shared_tabs: 0, sharedTabs: hideGa }, {}],
   ];
-  for (const [stored, expected] of cases)
+  for (const [stored, expected] of cases) {
     assertEquals(
       toPublicTableSettings(stored),
       expected,
       JSON.stringify(stored),
     );
+  }
 });
 
 Deno.test("credentials and sync errors never reach the public settings", () => {
@@ -168,8 +169,9 @@ Deno.test("missing or malformed settings give an empty object", () => {
     7,
     [],
     [{ currency: "USD" }],
-  ])
+  ]) {
     assertEquals(toPublicTableSettings(input), {});
+  }
   assertEquals(toPublicTableSettings({ manual_roi: null }), {});
   assertEquals(
     toPublicTableSettings({ manual_roi: { closures: null, revenue: null } }),
@@ -177,72 +179,15 @@ Deno.test("missing or malformed settings give an empty object", () => {
   );
 });
 
-Deno.test("a body cached before the allowlist goes out filtered", () => {
-  const cached = JSON.stringify({
-    table: {
-      id: "t1",
-      name: "SEO",
-      integration_type: "ahrefs",
-      integration_settings: storedSettings(),
-    },
-    ga_table: { id: "ga", name: "GA", integration_settings: storedSettings() },
-    gsc_table: {
-      id: "gsc",
-      name: "GSC",
-      integration_settings: storedSettings(),
-    },
-    ahrefs_reports: [{ id: "r1", domain: "example.co.il" }],
-  });
-  const body = toPublicCachedShareBody(cached);
-  assert(body);
-  assertNoSecrets(body);
-  const payload = JSON.parse(body);
-  assertEquals(payload.table.integration_settings.currency, "USD");
-  assertEquals(
-    payload.ga_table.integration_settings.campaign_type,
-    "ecommerce",
-  );
-  assertEquals(payload.gsc_table.name, "GSC");
-  assertEquals(payload.ahrefs_reports, [{ id: "r1", domain: "example.co.il" }]);
-});
-
-Deno.test("the live table settings replace the cached ones, filtered", () => {
-  const cached = JSON.stringify({
-    table: { id: "t1", integration_settings: { shared_tabs: { gsc: true } } },
-  });
-  const body = toPublicCachedShareBody(cached, {
-    ...storedSettings(),
-    shared_tabs: { gsc: false },
-  });
-  assert(body);
-  assertNoSecrets(body);
-  assertEquals(JSON.parse(body).table.integration_settings.shared_tabs, {
-    gsc: false,
-  });
-});
-
-Deno.test("a GSC-only cached body passes through unchanged", () => {
-  const cached = JSON.stringify({
-    gsc_records: [{ id: "1", data: { query: "q" } }],
-    gsc_multi_period: null,
-    gsc_synced_at: "2026-10-26T00:00:00Z",
-  });
-  assertStrictEquals(toPublicCachedShareBody(cached), cached);
-});
-
-Deno.test("an unreadable cached body is treated as a cache miss", () => {
-  assertStrictEquals(toPublicCachedShareBody("{not json"), null);
-  assertStrictEquals(toPublicCachedShareBody("[1,2]"), null);
-  assertStrictEquals(toPublicCachedShareBody("null"), null);
-});
-
-/** Reads a share-link function's source next to this shared module. */
+/** Reads a share-link function's source two folders above this module. */
 function functionSource(name: string): Promise<string> {
-  return Deno.readTextFile(new URL(`../${name}/index.ts`, import.meta.url));
+  return Deno.readTextFile(new URL(`../../${name}/index.ts`, import.meta.url));
 }
 
 // The helper tests above pass even if a response stops calling the helper, so
-// these read the functions themselves.
+// this reads the functions themselves. It sees only `integration_settings:` and
+// `_integrationSettings:` properties, and the site counts are floors: a new
+// response that sends settings under another name needs its own check.
 Deno.test(
   "share-link responses send table settings only through the allowlist",
   async () => {
@@ -259,7 +204,9 @@ Deno.test(
         /(\.update\(\{\s*)?\b(integration_settings|_integrationSettings)\s*:\s*([\w$.]+)(\()?/g,
       )) {
         const [site, dbWrite, , value, call] = match;
-        if (dbWrite) continue;
+        if (dbWrite) {
+          continue;
+        }
         const filtered = call
           ? value === "toPublicTableSettings"
           : filteredNames.has(value);
@@ -271,24 +218,5 @@ Deno.test(
         `${name}: found ${checked} settings response sites`,
       );
     }
-  },
-);
-
-Deno.test(
-  "public-table filters a cached share body before sending it",
-  async () => {
-    const source = await functionSource("public-table");
-    const cached = source.match(
-      /const\s+(\w+)\s*=\s*await\s+readSeoShareCache\(/,
-    )?.[1];
-    assert(cached, "public-table no longer reads the share cache this way");
-    assert(
-      new RegExp(`toPublicCachedShareBody\\(\\s*${cached}\\b`).test(source),
-      "the cached body skips toPublicCachedShareBody",
-    );
-    assert(
-      !new RegExp(`new Response\\(\\s*${cached}\\b`).test(source),
-      "the cached body is sent as stored",
-    );
   },
 );

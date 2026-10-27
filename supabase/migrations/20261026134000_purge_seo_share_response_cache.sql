@@ -7,13 +7,4 @@
 -- expired row is removed only when the same link is opened again. Drop every
 -- cached body; each link rebuilds its own on the next view (10-minute TTL).
 -- Safe to re-run.
-DO $$
-BEGIN
-  IF to_regclass('public.seo_share_response_cache') IS NULL THEN
-    RAISE NOTICE 'public.seo_share_response_cache does not exist; nothing to purge';
-    RETURN;
-  END IF;
-
-  DELETE FROM public.seo_share_response_cache;
-END
-$$;
+DELETE FROM public.seo_share_response_cache;

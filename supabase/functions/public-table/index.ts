@@ -12,10 +12,8 @@ import {
   resolveGscAccessToken,
   writeSeoShareCacheToDb,
 } from "../_shared/gscKeywords.ts";
-import {
-  toPublicCachedShareBody,
-  toPublicTableSettings,
-} from "../_shared/public-table-settings.ts";
+import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import { toPublicCachedShareBody } from "./cached-share-body.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -533,13 +531,13 @@ Deno.serve(async (req) => {
           : seoPart === "core"
             ? `${shareToken}:core`
             : shareToken;
-      // Display preferences (which tabs a client sees) must not wait out the
-      // cache, and bodies cached before the settings allowlist hold full
-      // settings, so every cached table gets the current, filtered settings.
       const cachedSeoBody = await readSeoShareCache(supabase, cacheKey);
       const publicCachedBody = cachedSeoBody
         ? toPublicCachedShareBody(cachedSeoBody, table.integration_settings)
         : null;
+      if (cachedSeoBody && !publicCachedBody) {
+        console.warn("Unreadable cached SEO share body, rebuilding:", table.id);
+      }
       if (publicCachedBody) {
         return new Response(publicCachedBody, {
           headers: {

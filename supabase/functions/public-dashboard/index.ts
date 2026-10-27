@@ -7,7 +7,7 @@ import {
   dedupeWooOrdersById,
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
-import { toPublicTableSettings } from "../_shared/public-table-settings.ts";
+import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -240,7 +240,6 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      // Share links are anonymous: only the display settings, never credentials.
       const publicSettings = toPublicTableSettings(table.integration_settings);
       return filteredRecords.map((r: any) => ({
         ...r,

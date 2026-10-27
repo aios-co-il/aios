@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { format, subDays } from "date-fns";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { stubResizeObserver } from "@/test/stubResizeObserver";
 import { withTestQuery } from "@/test/withTestQuery";
-import { toPublicTableSettings } from "../../supabase/functions/_shared/public-table-settings.ts";
+import { toPublicTableSettings } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import SharedTable from "./SharedTable";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -20,15 +22,10 @@ const storedGoogleSettings = {
 
 /** Yesterday in local time: inside the default "last 7 days" window. */
 function yesterday(): string {
-  const now = new Date();
-  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  return [
-    day.getFullYear(),
-    String(day.getMonth() + 1).padStart(2, "0"),
-    String(day.getDate()).padStart(2, "0"),
-  ].join("-");
+  return format(subDays(new Date(), 1), "yyyy-MM-dd");
 }
 
+/** Stubs fetch so every request answers with `body` as JSON. */
 function respondWith(body: unknown) {
   const fetchMock = vi.fn(
     async () =>
@@ -40,6 +37,7 @@ function respondWith(body: unknown) {
   return fetchMock;
 }
 
+/** Renders SharedTable at /shared/table/share-token inside the test query client. */
 function mountShare() {
   const { wrapper: Wrapper } = withTestQuery();
   return render(
@@ -53,18 +51,7 @@ function mountShare() {
   );
 }
 
-beforeAll(() => {
-  if (!("ResizeObserver" in globalThis)) {
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    );
-  }
-});
+beforeAll(stubResizeObserver);
 
 afterEach(() => {
   vi.unstubAllGlobals();

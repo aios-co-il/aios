@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { stubResizeObserver } from "@/test/stubResizeObserver";
 import { withTestQuery } from "@/test/withTestQuery";
-import { toPublicTableSettings } from "../../supabase/functions/_shared/public-table-settings.ts";
+import { toPublicTableSettings } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import SharedDashboard from "./SharedDashboard";
 
 /** Yesterday in UTC: inside the default "last 30 days" window. */
@@ -11,18 +12,7 @@ function yesterday(): string {
   return day.toISOString().slice(0, 10);
 }
 
-beforeAll(() => {
-  if (!("ResizeObserver" in globalThis)) {
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    );
-  }
-});
+beforeAll(stubResizeObserver);
 
 afterEach(() => {
   vi.unstubAllGlobals();
