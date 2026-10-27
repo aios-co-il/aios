@@ -9,17 +9,29 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   test: {
-    environment: "happy-dom",
-    setupFiles: ["./src/test/setup.ts"],
-    // Keep node:test suites on their existing runner.
-    include: [
-      "src/**/*.test.tsx",
-      "src/lib/clientConnectionProvision.test.ts",
-      "src/lib/commandCenterAttachments.test.ts",
-      "src/lib/crmTableCategories.test.ts",
-      "src/lib/seoKeywordClusters.test.ts",
-      "src/lib/seoMonthlyPdfArchive.test.ts",
-    ],
     clearMocks: true,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "frontend",
+          environment: "happy-dom",
+          setupFiles: ["./src/test/setup.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          include: [
+            "render-worker/test/**/*.test.mjs",
+            "scripts/**/*.test.mjs",
+            ".github/scripts/**/*.test.mjs",
+          ],
+        },
+      },
+    ],
   },
 });

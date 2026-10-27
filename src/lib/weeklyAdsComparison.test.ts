@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildWeeklyCampaignSections,
   formatWeeklyRange,
@@ -37,17 +36,14 @@ test("groups campaign records into Sunday–Saturday weeks, newest first", () =>
     { now: new Date("2026-09-18T12:00:00Z") },
   );
 
-  assert.deepEqual(
-    sections.map((week) => [week.startDate, week.endDate]),
-    [
-      ["2026-09-13", "2026-09-19"],
-      ["2026-09-06", "2026-09-12"],
-    ],
-  );
-  assert.equal(sections[0].rows[0].spend, 150);
-  assert.equal(sections[0].rows[0].results, 10);
-  assert.equal(sections[0].rows[0].costPerResult, 15);
-  assert.equal(sections[1].rows.length, 2);
+  expect(sections.map((week) => [week.startDate, week.endDate])).toStrictEqual([
+    ["2026-09-13", "2026-09-19"],
+    ["2026-09-06", "2026-09-12"],
+  ]);
+  expect(sections[0].rows[0].spend).toBe(150);
+  expect(sections[0].rows[0].results).toBe(10);
+  expect(sections[0].rows[0].costPerResult).toBe(15);
+  expect(sections[1].rows.length).toBe(2);
 });
 
 test("excludes ad-set and ad rows so campaign totals are not tripled", () => {
@@ -61,8 +57,8 @@ test("excludes ad-set and ad rows so campaign totals are not tripled", () => {
     { now: new Date("2026-09-18T12:00:00Z") },
   );
 
-  assert.equal(sections[0].totals.spend, 100);
-  assert.equal(sections[0].totals.results, 5);
+  expect(sections[0].totals.spend).toBe(100);
+  expect(sections[0].totals.results).toBe(5);
 });
 
 test("separates same-named campaigns from different platforms", () => {
@@ -74,8 +70,8 @@ test("separates same-named campaigns from different platforms", () => {
     { now: new Date("2026-09-18T12:00:00Z") },
   );
 
-  assert.equal(sections[0].rows.length, 2);
-  assert.deepEqual(sections[0].rows.map((row) => row.source).sort(), [
+  expect(sections[0].rows.length).toBe(2);
+  expect(sections[0].rows.map((row) => row.source).sort()).toStrictEqual([
     "facebook_insights",
     "google_ads",
   ]);
@@ -99,10 +95,10 @@ test("uses purchases and ROAS for ecommerce campaigns", () => {
     { now: new Date("2026-09-18T12:00:00Z") },
   );
 
-  assert.equal(sections[0].rows[0].kind, "ecommerce");
-  assert.equal(sections[0].rows[0].results, 4);
-  assert.equal(sections[0].rows[0].costPerResult, 50);
-  assert.equal(sections[0].rows[0].roas, 5);
+  expect(sections[0].rows[0].kind).toBe("ecommerce");
+  expect(sections[0].rows[0].results).toBe(4);
+  expect(sections[0].rows[0].costPerResult).toBe(50);
+  expect(sections[0].rows[0].roas).toBe(5);
 });
 
 test("limits the comparison to the requested number of weeks", () => {
@@ -114,19 +110,16 @@ test("limits the comparison to the requested number of weeks", () => {
     { now: new Date("2026-09-18T12:00:00Z"), maxWeeks: 52 },
   );
 
-  assert.deepEqual(
-    sections.map((week) => week.rows[0].campaign),
-    ["current"],
-  );
+  expect(sections.map((week) => week.rows[0].campaign)).toStrictEqual([
+    "current",
+  ]);
 });
 
 test("week and heading formatting are timezone-independent", () => {
-  assert.equal(
-    getSundayStart(new Date("2026-09-18T23:59:00Z")).toISOString(),
+  expect(getSundayStart(new Date("2026-09-18T23:59:00Z")).toISOString()).toBe(
     "2026-09-13T00:00:00.000Z",
   );
-  assert.equal(
-    formatWeeklyRange("2026-09-13", "2026-09-19"),
+  expect(formatWeeklyRange("2026-09-13", "2026-09-19")).toBe(
     "13/09/2026–19/09/2026",
   );
 });
@@ -140,7 +133,7 @@ test("the current week rolls over at Sunday midnight in Jerusalem", () => {
     { now: new Date("2026-09-19T21:30:00Z") },
   );
 
-  assert.equal(sections[0].startDate, "2026-09-20");
-  assert.equal(sections[0].rows[0].campaign, "new-week");
-  assert.equal(sections[1].startDate, "2026-09-13");
+  expect(sections[0].startDate).toBe("2026-09-20");
+  expect(sections[0].rows[0].campaign).toBe("new-week");
+  expect(sections[1].startDate).toBe("2026-09-13");
 });

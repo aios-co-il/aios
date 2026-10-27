@@ -6,6 +6,7 @@ sql_paths = [
   "./seeds/00_auth.sql",
   "./seeds/10_tenancy.sql",
   "./seeds/20_demo_business.sql",
+  "./seeds/30_carmen.sql",
   "./seeds/99_verify.sql",
 ]
 
@@ -107,6 +108,10 @@ verify_jwt = false
 
 # Channel gateway — Command Center Direct / Parliament. JWT is checked in-function.
 [functions.agent-channel-send]
+verify_jwt = false
+
+# Carmen settings → מוחות: manager-only brain connections; keys go to Vault.
+[functions.carmen-brain-connections]
 verify_jwt = false
 
 [functions.agent-channel-callback]

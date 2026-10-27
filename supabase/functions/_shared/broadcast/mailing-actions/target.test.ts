@@ -1,23 +1,16 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { resolveTargetEntity } from "./target.ts";
 
-test("resolveTargetEntity picks the trigger's lead or client", () => {
-  assert.deepEqual(
-    resolveTargetEntity({}, { id: "L1" }, "lead_status_changed"),
-    {
-      type: "lead",
-      id: "L1",
-    },
-  );
-  assert.deepEqual(
-    resolveTargetEntity({}, { id: "C1" }, "client_status_changed"),
-    {
-      type: "client",
-      id: "C1",
-    },
-  );
-  assert.deepEqual(
+Deno.test("resolveTargetEntity picks the trigger's lead or client", () => {
+  assertEquals(resolveTargetEntity({}, { id: "L1" }, "lead_status_changed"), {
+    type: "lead",
+    id: "L1",
+  });
+  assertEquals(resolveTargetEntity({}, { id: "C1" }, "client_status_changed"), {
+    type: "client",
+    id: "C1",
+  });
+  assertEquals(
     resolveTargetEntity(
       { entity: "client" },
       { id: "L1", client_id: "C9" },
@@ -25,7 +18,7 @@ test("resolveTargetEntity picks the trigger's lead or client", () => {
     ),
     { type: "client", id: "C9" },
   );
-  assert.equal(
+  assertStrictEquals(
     resolveTargetEntity({ entity: "client" }, { id: "L1" }, "lead_created"),
     null,
   );

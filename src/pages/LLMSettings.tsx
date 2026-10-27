@@ -77,6 +77,22 @@ const PROVIDERS = [
     helpUrl: "https://docs.higgsfield.ai/docs",
     color: "from-fuchsia-500 to-pink-600",
   },
+  {
+    key: "kling_access_key",
+    name: "Kling — Access Key",
+    placeholder: "access key",
+    help: "app.klingai.com/global/dev",
+    helpUrl: "https://app.klingai.com/global/dev/api-key",
+    color: "from-sky-500 to-cyan-600",
+  },
+  {
+    key: "kling_secret_key",
+    name: "Kling — Secret Key",
+    placeholder: "secret key",
+    help: "app.klingai.com/global/dev",
+    helpUrl: "https://app.klingai.com/global/dev/api-key",
+    color: "from-sky-500 to-cyan-600",
+  },
 ] as const;
 
 const emptyKeyForm = (): Record<ProviderKey, string> =>
@@ -220,7 +236,7 @@ export default function LLMSettings({
               <h1 className="text-3xl font-bold">מודלי AI (LLMs)</h1>
               <p className="text-muted-foreground">
                 חבר את מפתחות ה-API שלך. הסוכנים משתמשים ב-GPT, Claude ו-Gemini.
-                סטודיו הווידאו משתמש ב-ElevenLabs וב-Higgsfield.
+                סטודיו הווידאו משתמש ב-ElevenLabs, ב-Higgsfield וב-Kling.
               </p>
             </div>
           </div>

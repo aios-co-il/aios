@@ -8,11 +8,21 @@ import { elevenLabsProvider } from "./elevenlabs.mjs";
 import { higgsfieldProvider } from "./higgsfield.mjs";
 import { klingProvider } from "./kling.mjs";
 import { mockProvider } from "./mock.mjs";
+import { openRouterProvider } from "./openrouter.mjs";
 
 const PROVIDERS = {
-  kling: () => klingProvider(),
+  kling: (keys) =>
+    klingProvider({
+      accessKey: keys?.klingAccessKey,
+      secretKey: keys?.klingSecretKey,
+    }),
   mock: () => mockProvider(),
   elevenlabs: (keys) => elevenLabsProvider({ apiKey: keys?.elevenLabsKey }),
+  openrouter: (keys) =>
+    openRouterProvider({
+      apiKey: keys?.openRouterKey,
+      model: keys?.openRouterVideoModel,
+    }),
   higgsfield: (keys) =>
     higgsfieldProvider({
       keyId: keys?.higgsfieldKeyId,

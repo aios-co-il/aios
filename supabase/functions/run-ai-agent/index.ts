@@ -12,7 +12,18 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
-import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import {
+  brainDenied,
+  internalBrainDenied,
+} from "../_shared/carmen/brain-guard.ts";
+import {
+  type BrainEngine,
+  resolveBrainEngine,
+} from "../_shared/carmen/brain-engine/load.ts";
+import {
+  generateOpenRouterImage,
+  tenantOpenRouterKey,
+} from "../_shared/creative/openrouterImage.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -639,6 +650,11 @@ interface LLMTarget {
   model: string;
   label: string;
   provider: LLMProvider;
+  /** Set for a connected brain (carmen_brain_connections). */
+  connectionId?: string;
+  /** A connected brain's own settings. */
+  temperature?: number;
+  maxTokens?: number;
 }
 const LLM_FALLBACK_ORDER = [
   "google/gemini-3-flash-preview",
@@ -681,6 +697,26 @@ async function buildLLMChain(
 // request; Google/Anthropic allow far more. When targeting OpenAI with a larger
 // toolset, drop low-priority niche tools first, then hard-slice as a last resort,
 // so Carmen keeps her full daily toolkit and only sheds rarely-used extras.
+/**
+ * What to tell the user when a connected brain refuses Carmen's request. The
+ * provider's own text is kept short; it never contains the key.
+ */
+function connectedBrainHint(status: number, body: string): string {
+  const tooLarge =
+    status === 413 ||
+    /request too large|tokens per minute|context length|maximum context/i.test(
+      body,
+    );
+  if (tooLarge)
+    return "הבקשה של כרמן (כלים, ידע והיסטוריה) גדולה מהמכסה של המוח הזה. מכסה חינמית קטנה מדי לכרמן; נסו מודל או חשבון עם מכסה גדולה יותר.";
+  if (status === 429) return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
+  if (status === 401 || status === 403)
+    return "המפתח של המוח נדחה. בדקו אותו בהגדרות המוחות.";
+  if (status >= 300 && status < 400)
+    return "כתובת המוח מפנה למקום אחר, וזה לא מותר.";
+  return body.replace(/\s+/g, " ").slice(0, 200);
+}
+
 const OPENAI_MAX_TOOLS = 128;
 const LOW_PRIORITY_TOOLS = new Set([
   "send_message_to_manus",
@@ -8534,47 +8570,73 @@ async function executeTool(
     }
 
     case "generate_ad_image": {
-      const imagePrompt = args.prompt;
+      const imagePrompt = `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`;
 
-      const openaiKey = await resolveOpenAIKey();
-      if (!openaiKey) {
-        return {
-          error:
-            "מפתח OpenAI לא מוגדר. יש להגדיר OPENAI_API_KEY בסודות Supabase, או להוסיף מפתח OpenAI בהגדרות האינטגרציות (LLM).",
-          suggestion: "פנה למנהל המערכת להגדרת המפתח.",
-        };
-      }
-
-      const imageRes = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openaiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt: `${imagePrompt}. Professional, high quality, suitable for a social media advertisement.`,
-            n: 1,
-            size: "1024x1024",
-            output_format: "png",
-          }),
-        },
+      // OpenRouter first when the tenant connected an OpenRouter brain; OpenAI
+      // stays the fallback (_shared/creative/openrouterImage.ts).
+      let b64 = "";
+      let mime = "image/png";
+      let imageData: any = {};
+      let content = "";
+      let imageProvider = "openai/gpt-image-1";
+      const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
+        () => "",
       );
-
-      if (!imageRes.ok) {
-        const errText = await imageRes.text();
-        throw new Error(`Image generation error: ${errText}`);
+      if (openRouterKey) {
+        try {
+          const generated = await generateOpenRouterImage({
+            apiKey: openRouterKey,
+            prompt: imagePrompt,
+            aspectRatio:
+              typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1",
+          });
+          b64 = generated.b64;
+          mime = generated.mediaType;
+          imageProvider = `openrouter/${generated.model}`;
+        } catch (e: any) {
+          console.warn(
+            `[generate_ad_image] OpenRouter failed, using OpenAI: ${e?.message ?? e}`,
+          );
+        }
       }
 
-      const imageData = await imageRes.json();
-      const content = imageData.choices?.[0]?.message?.content || "";
-
-      // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-      const b64 = imageData?.data?.[0]?.b64_json || "";
+      if (!b64) {
+        const openaiKey = await resolveOpenAIKey();
+        if (!openaiKey) {
+          return {
+            error:
+              "אין מפתח ליצירת תמונות. חברו מוח OpenRouter בהגדרות המוחות, או הגדירו מפתח OpenAI בהגדרות האינטגרציות (LLM).",
+            suggestion: "פנה למנהל המערכת להגדרת המפתח.",
+          };
+        }
+        const imageRes = await fetch(
+          "https://api.openai.com/v1/images/generations",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openaiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-image-1",
+              prompt: imagePrompt,
+              n: 1,
+              size: "1024x1024",
+              output_format: "png",
+            }),
+          },
+        );
+        if (!imageRes.ok) {
+          const errText = await imageRes.text();
+          throw new Error(`Image generation error: ${errText}`);
+        }
+        imageData = await imageRes.json();
+        content = imageData.choices?.[0]?.message?.content || "";
+        // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
+        b64 = imageData?.data?.[0]?.b64_json || "";
+      }
       const images = b64
-        ? [{ image_url: { url: `data:image/png;base64,${b64}` } }]
+        ? [{ image_url: { url: `data:${mime};base64,${b64}` } }]
         : [];
       let imageUrl = "";
 
@@ -8658,6 +8720,7 @@ async function executeTool(
       return {
         success: true,
         image_url: imageUrl,
+        provider: imageProvider,
         message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
       };
     }
@@ -13519,6 +13582,7 @@ async function handleRunAgent(
   bodyJson: any,
   surface: Surface,
   emit: Emit,
+  brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
 ): Promise<Response> {
   try {
     const {
@@ -15462,7 +15526,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // If the agent's engine is Manus — delegate the entire conversation to Manus AI
     // and return the result directly (no tool loop needed here).
-    if (!pinSkillsOnly && (model === "manus/manus-1" || model === "manus-1")) {
+    if (
+      !pinSkillsOnly &&
+      !brainEngine &&
+      (model === "manus/manus-1" || model === "manus-1")
+    ) {
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
@@ -15509,11 +15577,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         `[AGENT] pin_skills_only: remapping ${model} → ${isolatedChatModel} for isolated chat`,
       );
     }
-    const llmChain = await buildLLMChain(
-      supabase,
-      agent.tenant_id,
-      isolatedChatModel,
-    );
+    // A picked model brain runs this same loop on its own endpoint and key;
+    // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const llmChain: LLMTarget[] = brainEngine
+      ? [
+          ...brainEngine.targets,
+          ...(brainEngine.fallbackInternal
+            ? await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel)
+            : []),
+        ]
+      : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15521,6 +15594,25 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     console.log(
       `[AGENT] LLM chain: ${llmChain.map((c) => c.label).join(" → ")}`,
     );
+
+    // Models often repeat their mid-loop text ("creating the image…") in the
+    // final answer; the client joins tokens, so send each text once, apart.
+    const emittedTexts: string[] = [];
+    const emitText = (text: string) => {
+      const key = text.trim();
+      if (!emit || !key || emittedTexts.includes(key)) return;
+      // A final answer that opens with texts already sent adds only the rest.
+      let fresh = key;
+      for (const sent of emittedTexts) {
+        if (fresh.startsWith(sent)) fresh = fresh.slice(sent.length).trim();
+      }
+      emittedTexts.push(key);
+      if (!fresh) return;
+      emit({
+        type: "token",
+        content: emittedTexts.length > 1 ? `\n\n${fresh}` : fresh,
+      });
+    };
 
     // Usage metering: accumulated across rounds, written to agent_action_log
     let usageTokensIn = 0;
@@ -15533,7 +15625,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       while (true) {
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
         const payload: any = { model: llm.model, messages };
-        if (safeTemp !== undefined) payload.temperature = safeTemp;
+        const temp = safeTemp ?? llm.temperature;
+        if (temp !== undefined) payload.temperature = temp;
+        if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
         if (cappedTools.length > 0) payload.tools = cappedTools;
         if (
           round === 0 &&
@@ -15570,10 +15664,24 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          // A tenant-set endpoint may not bounce the request (and key) elsewhere.
+          redirect: llm.connectionId ? "manual" : "follow",
         });
-        if (res.ok) break;
+        // A connected brain's 200 must be a chat completion; anything else
+        // counts as that brain failing, so the chain can move on.
+        const malformed =
+          res.ok && !!llm.connectionId
+            ? await res
+                .clone()
+                .json()
+                .then((d: any) => !d?.choices?.[0]?.message)
+                .catch(() => true)
+            : false;
+        if (res.ok && !malformed) break;
 
-        const err = await res.text();
+        const err = malformed
+          ? "המוח החזיר תשובה לא תקינה (בלי הודעה)."
+          : await res.text();
         console.error(
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
@@ -15584,7 +15692,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
             err,
           );
-        if (outOfCredit && activeIdx < llmChain.length - 1) {
+        // A connected brain may also fail on size, model or auth; any failure
+        // moves on, and the chain holds only what this brain plan allowed.
+        if (
+          (outOfCredit || !!llm.connectionId) &&
+          activeIdx < llmChain.length - 1
+        ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
@@ -15598,6 +15711,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
+        if (llm.connectionId)
+          throw new Error(
+            `${llm.label}: ${res.status} ${connectedBrainHint(res.status, err)}`,
+          );
         if (res.status === 429) throw new Error("מגבלת קצב. נסה שוב.");
         throw new Error(`AI error: ${res.status} ${err}`);
       }
@@ -15623,13 +15740,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
         );
         // Stream the final assistant text in one chunk so AIOS frontends can render progressively.
-        if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+        if (emit && finalOutput) emitText(finalOutput);
         break;
       }
 
       // Mid-loop assistant text (assistant decided to talk while also calling tools) — stream it too.
       if (emit && typeof msg.content === "string" && msg.content.length > 0) {
-        emit({ type: "token", content: msg.content });
+        emitText(msg.content);
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
@@ -16121,6 +16238,27 @@ async function resolveDirectCaller(
   };
 }
 
+/**
+ * The answer when the picked brain may not run as Carmen (not approved for
+ * client data, or not set up): Carmen says why, instead of a bare error.
+ */
+function refusedBrainResponse(message: string, wantStream: boolean): Response {
+  if (!wantStream)
+    return new Response(
+      JSON.stringify({ success: false, output: message, error: message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  const sse = [
+    { type: "token", content: message },
+    { type: "done", success: false, output: message, error: message },
+  ]
+    .map((e) => `data: ${JSON.stringify(e)}\n\n`)
+    .join("");
+  return new Response(sse, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
@@ -16173,16 +16311,26 @@ Deno.serve(async (req) => {
             ? "grok_bot"
             : "internal_chat";
 
+  // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
+  // the route, grant and keys are all read here, never taken from the body.
+  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const engine = await resolveBrainEngine(guardClient, auth, bodyJson);
+  if (engine.kind === "denied") return brainDenied("brain");
+  if (engine.kind === "refused")
+    return refusedBrainResponse(engine.message, wantStream);
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
-  const denied = await internalBrainDenied(
-    createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
-    auth,
-    { tenantId: bodyJson.tenant_id, agentId: bodyJson.agent_id },
-  );
-  if (denied) return denied;
+  // A picked model brain was checked against its own grant above.
+  if (engine.kind === "internal") {
+    const denied = await internalBrainDenied(guardClient, auth, {
+      tenantId: bodyJson.tenant_id,
+      agentId: bodyJson.agent_id,
+    });
+    if (denied) return denied;
+  }
+  const brainEngine = engine.kind === "connections" ? engine : undefined;
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined);
+    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16198,7 +16346,7 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit);
+        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
         let final: any = {};
         try {
           final = await resp.json();

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { startOfDay } from "date-fns";
 import {
   recurringTaskBelongsInBacklog,
@@ -17,8 +16,8 @@ test("recurring task hidden before due day", () => {
     due_time: "09:00:00",
     status: "open",
   };
-  assert.equal(shouldShowRecurringTaskNow(task, monday), false);
-  assert.equal(shouldShowRecurringTaskNow(task, wednesday), true);
+  expect(shouldShowRecurringTaskNow(task, monday)).toBe(false);
+  expect(shouldShowRecurringTaskNow(task, wednesday)).toBe(true);
 });
 
 test("recurring overdue still visible", () => {
@@ -27,8 +26,8 @@ test("recurring overdue still visible", () => {
     due_date: "2026-09-10",
     status: "open",
   };
-  assert.equal(shouldShowRecurringTaskNow(task, wednesday), true);
-  assert.equal(recurringTaskBelongsInBacklog(task, wednesday), true);
+  expect(shouldShowRecurringTaskNow(task, wednesday)).toBe(true);
+  expect(recurringTaskBelongsInBacklog(task, wednesday)).toBe(true);
 });
 
 test("recurring untimed shows in backlog only on due day", () => {
@@ -38,13 +37,13 @@ test("recurring untimed shows in backlog only on due day", () => {
     due_time: null,
     status: "open",
   };
-  assert.equal(recurringTaskBelongsInBacklog(task, monday), false);
-  assert.equal(recurringTaskBelongsInBacklog(task, wednesday), true);
+  expect(recurringTaskBelongsInBacklog(task, monday)).toBe(false);
+  expect(recurringTaskBelongsInBacklog(task, wednesday)).toBe(true);
 });
 
 test("non-recurring tasks are not filtered", () => {
   const task = { due_date: "2026-09-20", status: "open" };
-  assert.equal(shouldShowRecurringTaskNow(task, monday), true);
+  expect(shouldShowRecurringTaskNow(task, monday)).toBe(true);
 });
 
 test("showAllRecurring reveals future recurring tasks", () => {
@@ -53,13 +52,12 @@ test("showAllRecurring reveals future recurring tasks", () => {
     due_date: "2026-09-16",
     status: "open",
   };
-  assert.equal(
+  expect(
     shouldShowRecurringTaskOnBoard(task, {
       showAllRecurring: true,
       asOf: monday,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("completed recurring task stays visible on due day only", () => {
@@ -69,22 +67,20 @@ test("completed recurring task stays visible on due day only", () => {
     due_time: "09:00:00",
     status: "done",
   };
-  assert.equal(shouldShowRecurringTaskNow(task, wednesday), true);
-  assert.equal(shouldShowRecurringTaskNow(task, monday), false);
-  assert.equal(shouldShowRecurringTaskOnBoard(task, { asOf: wednesday }), true);
-  assert.equal(
+  expect(shouldShowRecurringTaskNow(task, wednesday)).toBe(true);
+  expect(shouldShowRecurringTaskNow(task, monday)).toBe(false);
+  expect(shouldShowRecurringTaskOnBoard(task, { asOf: wednesday })).toBe(true);
+  expect(
     shouldShowRecurringTaskOnBoard(task, {
       showAllRecurring: true,
       asOf: wednesday,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldShowRecurringTaskOnBoard(task, {
       showAllRecurring: true,
       asOf: monday,
     }),
-    false,
-  );
-  assert.equal(recurringTaskBelongsInBacklog(task, wednesday), false);
+  ).toBe(false);
+  expect(recurringTaskBelongsInBacklog(task, wednesday)).toBe(false);
 });

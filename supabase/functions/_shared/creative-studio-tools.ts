@@ -15,7 +15,13 @@
 
 const FORMATS = ["1:1", "4:5", "9:16", "16:9"] as const;
 const STILL_MODELS = ["gpt-image-1", "nano-banana-pro"] as const;
-const SCENE_ENGINES = ["mock", "kling", "elevenlabs", "higgsfield"] as const;
+const SCENE_ENGINES = [
+  "mock",
+  "kling",
+  "elevenlabs",
+  "higgsfield",
+  "openrouter",
+] as const;
 const SOUND_ENGINES = ["elevenlabs", "higgsfield"] as const;
 const ATTACH_ROLES = [
   "logo",

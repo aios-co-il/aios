@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
@@ -94,34 +93,37 @@ const scenes = [
   },
 ];
 
-test("every studio tool has a schema and is recognised", () => {
-  assert.equal(CREATIVE_STUDIO_TOOLS.length, 7);
+Deno.test("every studio tool has a schema and is recognised", () => {
+  assertStrictEquals(CREATIVE_STUDIO_TOOLS.length, 7);
   for (const tool of CREATIVE_STUDIO_TOOLS)
-    assert.ok(isCreativeStudioTool(tool.name));
-  assert.equal(isCreativeStudioTool("render_video_film"), false);
+    assert(isCreativeStudioTool(tool.name));
+  assertStrictEquals(isCreativeStudioTool("render_video_film"), false);
 });
 
-test("a project outside the tenant or the caller's clients is refused", async () => {
-  const { db } = fakeDb({ marketing_work_items: [videoItem] });
-  assert.deepEqual(
-    await executeCreativeStudioTool(db, "other-tenant", "get_studio_state", {
-      item_id: "item-1",
-    }),
-    { error: "פרויקט לא נמצא" },
-  );
-  const denied = await executeCreativeStudioTool(
-    db,
-    "t1",
-    "get_studio_state",
-    { item_id: "item-1" },
-    async () => {
-      throw new Error("אין גישה");
-    },
-  );
-  assert.deepEqual(denied, { error: "אין גישה" });
-});
+Deno.test(
+  "a project outside the tenant or the caller's clients is refused",
+  async () => {
+    const { db } = fakeDb({ marketing_work_items: [videoItem] });
+    assertEquals(
+      await executeCreativeStudioTool(db, "other-tenant", "get_studio_state", {
+        item_id: "item-1",
+      }),
+      { error: "פרויקט לא נמצא" },
+    );
+    const denied = await executeCreativeStudioTool(
+      db,
+      "t1",
+      "get_studio_state",
+      { item_id: "item-1" },
+      async () => {
+        throw new Error("אין גישה");
+      },
+    );
+    assertEquals(denied, { error: "אין גישה" });
+  },
+);
 
-test("studio state lists scenes and what is missing", async () => {
+Deno.test("studio state lists scenes and what is missing", async () => {
   const { db } = fakeDb({
     marketing_work_items: [videoItem],
     marketing_video_scenes: scenes,
@@ -129,121 +131,127 @@ test("studio state lists scenes and what is missing", async () => {
   const state = (await executeCreativeStudioTool(db, "t1", "get_studio_state", {
     item_id: "item-1",
   })) as Record<string, unknown>;
-  assert.equal(state.mode, "video");
-  assert.equal((state.scenes as unknown[]).length, 2);
-  assert.deepEqual(state.missing, [
-    "לוגו",
-    "רפרנס סגנון (תמונה או מודעה קודמת)",
-  ]);
+  assertStrictEquals(state.mode, "video");
+  assertStrictEquals((state.scenes as unknown[]).length, 2);
+  assertEquals(state.missing, ["לוגו", "רפרנס סגנון (תמונה או מודעה קודמת)"]);
 });
 
-test("settings and attachments are merged into the payload, invalid values ignored", async () => {
-  const { db, calls } = fakeDb({ marketing_work_items: [videoItem] });
-  const result = await executeCreativeStudioTool(
-    db,
-    "t1",
-    "update_studio_settings",
-    {
-      item_id: "item-1",
-      scene_engine: "elevenlabs",
-      still_model: "midjourney",
-    },
-  );
-  assert.deepEqual(result, {
-    updated: true,
-    changed: ["מנוע הנפשה elevenlabs"],
-  });
-  const saved = calls.find((c) => c.op === "update")!.payload as {
-    payload: Record<string, unknown>;
-  };
-  assert.equal(
-    (saved.payload.video as Record<string, unknown>).scene_engine,
-    "elevenlabs",
-  );
-  assert.ok(saved.payload.project_type === "video");
+Deno.test(
+  "settings and attachments are merged into the payload, invalid values ignored",
+  async () => {
+    const { db, calls } = fakeDb({ marketing_work_items: [videoItem] });
+    const result = await executeCreativeStudioTool(
+      db,
+      "t1",
+      "update_studio_settings",
+      {
+        item_id: "item-1",
+        scene_engine: "elevenlabs",
+        still_model: "midjourney",
+      },
+    );
+    assertEquals(result, {
+      updated: true,
+      changed: ["מנוע הנפשה elevenlabs"],
+    });
+    const saved = calls.find((c) => c.op === "update")!.payload as {
+      payload: Record<string, unknown>;
+    };
+    assertStrictEquals(
+      (saved.payload.video as Record<string, unknown>).scene_engine,
+      "elevenlabs",
+    );
+    assert(saved.payload.project_type === "video");
 
-  const { db: db2, calls: calls2 } = fakeDb({
-    marketing_work_items: [videoItem],
-  });
-  await executeCreativeStudioTool(db2, "t1", "attach_to_project", {
-    item_id: "item-1",
-    role: "character",
-    file_url: "https://x.supabase.co/storage/v1/object/sign/a.png",
-  });
-  const saved2 = calls2.find((c) => c.op === "update")!.payload as {
-    payload: Record<string, unknown>;
-  };
-  assert.equal(
-    (saved2.payload.video as Record<string, unknown>).character_ref_url,
-    "https://x.supabase.co/storage/v1/object/sign/a.png",
-  );
-  assert.deepEqual(
+    const { db: db2, calls: calls2 } = fakeDb({
+      marketing_work_items: [videoItem],
+    });
     await executeCreativeStudioTool(db2, "t1", "attach_to_project", {
       item_id: "item-1",
-      role: "logo",
-      file_url: "javascript:alert(1)",
-    }),
-    { error: "file_url חייב להיות קישור https" },
-  );
-});
+      role: "character",
+      file_url: "https://x.supabase.co/storage/v1/object/sign/a.png",
+    });
+    const saved2 = calls2.find((c) => c.op === "update")!.payload as {
+      payload: Record<string, unknown>;
+    };
+    assertStrictEquals(
+      (saved2.payload.video as Record<string, unknown>).character_ref_url,
+      "https://x.supabase.co/storage/v1/object/sign/a.png",
+    );
+    assertEquals(
+      await executeCreativeStudioTool(db2, "t1", "attach_to_project", {
+        item_id: "item-1",
+        role: "logo",
+        file_url: "javascript:alert(1)",
+      }),
+      { error: "file_url חייב להיות קישור https" },
+    );
+  },
+);
 
-test("scene edits target the scene by number inside the tenant, deletes need confirmation", async () => {
-  const { db, calls } = fakeDb({
-    marketing_work_items: [videoItem],
-    marketing_video_scenes: scenes,
-  });
-  const edited = (await executeCreativeStudioTool(db, "t1", "edit_scene", {
-    item_id: "item-1",
-    scene_number: 2,
-    overlay_text: "מבצע השקה",
-  })) as Record<string, unknown>;
-  assert.equal(edited.updated, true);
-  const update = calls.find((c) => c.op === "update")!;
-  assert.deepEqual(update.payload, { overlay_text: "מבצע השקה" });
-  assert.ok(
-    update.filters.includes("id=sc2") &&
-      update.filters.includes("tenant_id=t1"),
-  );
-
-  const ask = (await executeCreativeStudioTool(db, "t1", "delete_scene", {
-    item_id: "item-1",
-    scene_number: 1,
-  })) as Record<string, unknown>;
-  assert.equal(ask.needs_confirmation, true);
-  assert.ok(!calls.some((c) => c.op === "delete"));
-});
-
-test("ui actions are validated for the project's mode and carry the target", async () => {
-  const { db } = fakeDb({
-    marketing_work_items: [videoItem],
-    marketing_video_scenes: scenes,
-  });
-  const animate = (await executeCreativeStudioTool(
-    db,
-    "t1",
-    "studio_ui_action",
-    {
+Deno.test(
+  "scene edits target the scene by number inside the tenant, deletes need confirmation",
+  async () => {
+    const { db, calls } = fakeDb({
+      marketing_work_items: [videoItem],
+      marketing_video_scenes: scenes,
+    });
+    const edited = (await executeCreativeStudioTool(db, "t1", "edit_scene", {
       item_id: "item-1",
-      action: "animate_scene",
+      scene_number: 2,
+      overlay_text: "מבצע השקה",
+    })) as Record<string, unknown>;
+    assertStrictEquals(edited.updated, true);
+    const update = calls.find((c) => c.op === "update")!;
+    assertEquals(update.payload, { overlay_text: "מבצע השקה" });
+    assert(
+      update.filters.includes("id=sc2") &&
+        update.filters.includes("tenant_id=t1"),
+    );
+
+    const ask = (await executeCreativeStudioTool(db, "t1", "delete_scene", {
+      item_id: "item-1",
       scene_number: 1,
-    },
-  )) as Record<string, unknown>;
-  assert.deepEqual(animate.ui_action, {
-    type: "animate_scene",
-    item_id: "item-1",
-    scene_id: "sc1",
-  });
-  assert.deepEqual(
-    await executeCreativeStudioTool(db, "t1", "studio_ui_action", {
-      item_id: "item-1",
-      action: "generate_variations",
-    }),
-    { error: "הפעולה הזו היא לפוסט סטטי, והפרויקט סרטון" },
-  );
-});
+    })) as Record<string, unknown>;
+    assertStrictEquals(ask.needs_confirmation, true);
+    assert(!calls.some((c) => c.op === "delete"));
+  },
+);
 
-test("missing items for a static post ask for copy or a brief", () => {
-  assert.deepEqual(
+Deno.test(
+  "ui actions are validated for the project's mode and carry the target",
+  async () => {
+    const { db } = fakeDb({
+      marketing_work_items: [videoItem],
+      marketing_video_scenes: scenes,
+    });
+    const animate = (await executeCreativeStudioTool(
+      db,
+      "t1",
+      "studio_ui_action",
+      {
+        item_id: "item-1",
+        action: "animate_scene",
+        scene_number: 1,
+      },
+    )) as Record<string, unknown>;
+    assertEquals(animate.ui_action, {
+      type: "animate_scene",
+      item_id: "item-1",
+      scene_id: "sc1",
+    });
+    assertEquals(
+      await executeCreativeStudioTool(db, "t1", "studio_ui_action", {
+        item_id: "item-1",
+        action: "generate_variations",
+      }),
+      { error: "הפעולה הזו היא לפוסט סטטי, והפרויקט סרטון" },
+    );
+  },
+);
+
+Deno.test("missing items for a static post ask for copy or a brief", () => {
+  assertEquals(
     missingForStudio(
       { logo_url: "u", style_references: [{ url: "r" }] },
       { scenes: 0, copy: 0 },

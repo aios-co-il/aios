@@ -1,9 +1,8 @@
-import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { detectCuts, extractFrame, probe } from "../src/ffmpeg.mjs";
 import { buildShots } from "../src/shots.mjs";
 
@@ -16,9 +15,8 @@ const hasFfmpeg = (() => {
   }
 })();
 
-test(
+test.skipIf(!hasFfmpeg)(
   "a synthetic 3-shot video is split at its hard cuts",
-  { skip: !hasFfmpeg },
   async () => {
     const dir = mkdtempSync(join(tmpdir(), "ffmpeg-test-"));
     try {
@@ -57,13 +55,12 @@ test(
         file,
       ]);
       const info = await probe(file);
-      assert.ok(Math.abs(info.duration - 7) < 0.2);
-      assert.equal(info.hasAudio, true);
+      expect(Math.abs(info.duration - 7) < 0.2).toBeTruthy();
+      expect(info.hasAudio).toBe(true);
       const shots = buildShots(await detectCuts(file), info.duration);
-      assert.deepEqual(
-        shots.map((shot) => Math.round(shot.start)),
-        [0, 2, 5],
-      );
+      expect(shots.map((shot) => Math.round(shot.start))).toStrictEqual([
+        0, 2, 5,
+      ]);
       await extractFrame(file, 3.5, join(dir, "frame.jpg"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
