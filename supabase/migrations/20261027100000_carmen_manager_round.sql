@@ -25,7 +25,8 @@
 --    is ignored, so nothing can be backdated and no stale save can replay old
 --    findings. A save without a 'manager' key keeps the stored one. Only
 --    owners may change the manager block from the browser, and a mode change
---    cancels the messages planned under the old mode.
+--    cancels the messages planned under the old mode and moves each ladder
+--    back to the last level someone was actually told, to be planned again.
 -- 6. Cron 'carmen-manager-round-15m' from the Vault template (skips with a
 --    NOTICE when pg_cron, Vault or its secrets are missing).
 
@@ -657,9 +658,11 @@ $$;
 
 -- Apply the router's decisions in one statement: routing state on each live
 -- finding of the tenant, planned delivery rows (the first plan per finding,
--- level and recipient wins) and an 'escalated' event when a routed finding
--- moves above its previous level (a first routing is not an escalation). Decisions for findings that stopped being live
--- meanwhile (acknowledged, resolved) are ignored.
+-- level and recipient wins, except over a row a rollout change cancelled:
+-- carmen_manager_reset_ladders) and an 'escalated' event when a routed
+-- finding moves above its previous level (a first routing is not an
+-- escalation). Decisions for findings that stopped being live meanwhile
+-- (acknowledged, resolved) are ignored.
 -- Decision keys: finding_id, status, escalation_level, ladder_started_at,
 -- next_action_at, owner_user_id, planned_actions, deliveries[] (level,
 -- recipient_key, recipient_user_id, recipient_name, recipient_phone,
@@ -698,10 +701,13 @@ AS $$
     WHERE f.id = d.finding_id
     RETURNING f.id
   ), planned AS (
-    INSERT INTO public.carmen_finding_deliveries (
+    -- DISTINCT ON: a decision may name one recipient twice at a level (a
+    -- climb to level 2 plus the critical copy), and DO UPDATE refuses that.
+    INSERT INTO public.carmen_finding_deliveries AS cur (
       tenant_id, finding_id, level, recipient_key, recipient_user_id,
       recipient_name, recipient_phone, channel, slot, status, not_before, round_id)
-    SELECT p_tenant_id, d.finding_id, x.level, x.recipient_key,
+    SELECT DISTINCT ON (d.finding_id, x.level, x.recipient_key)
+           p_tenant_id, d.finding_id, x.level, x.recipient_key,
            x.recipient_user_id, x.recipient_name, x.recipient_phone, x.channel,
            x.slot, x.status, coalesce(x.not_before, now()), p_round_id
     FROM decision AS d
@@ -709,7 +715,15 @@ AS $$
       level smallint, recipient_key text, recipient_user_id uuid,
       recipient_name text, recipient_phone text, channel text, slot text,
       status text, not_before timestamptz)
-    ON CONFLICT (finding_id, level, recipient_key) DO NOTHING
+    ON CONFLICT (finding_id, level, recipient_key) DO UPDATE
+      SET recipient_user_id = EXCLUDED.recipient_user_id,
+          recipient_name = EXCLUDED.recipient_name,
+          recipient_phone = EXCLUDED.recipient_phone,
+          channel = EXCLUDED.channel, slot = EXCLUDED.slot,
+          status = EXCLUDED.status, not_before = EXCLUDED.not_before,
+          attempted_at = NULL, message_key = NULL, provider_message_id = NULL,
+          error = NULL, round_id = EXCLUDED.round_id
+      WHERE cur.status = 'cancelled' AND cur.error = 'rollout_changed'
     RETURNING 1
   ), escalated AS (
     INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, level)
@@ -723,9 +737,11 @@ AS $$
 $$;
 
 -- Claim the tenant's due 'now'/'list' deliveries for sending. First: a claim
--- older than 10 minutes becomes delivery_unknown (it may have left; never
--- resend), a plan due more than 24 hours ago expires instead of going out
--- late, and plans whose finding stopped escalating are cancelled.
+-- older than 10 minutes was cut off; a row whose send had started
+-- (attempted_at) becomes delivery_unknown (it may have left; never resend)
+-- and a row never tried goes back to planned. Then a plan due more than 24
+-- hours ago expires instead of going out late, and plans whose finding
+-- stopped escalating are cancelled.
 CREATE OR REPLACE FUNCTION public.carmen_finding_claim_deliveries(
   p_tenant_id uuid,
   p_limit integer DEFAULT 200
@@ -737,7 +753,8 @@ RETURNS SETOF public.carmen_finding_deliveries
 AS $$
 BEGIN
   UPDATE public.carmen_finding_deliveries AS d
-  SET status = 'delivery_unknown', error = 'claim_timeout'
+  SET status = CASE WHEN d.attempted_at IS NULL THEN 'planned' ELSE 'delivery_unknown' END,
+      error = CASE WHEN d.attempted_at IS NULL THEN d.error ELSE 'claim_timeout' END
   WHERE d.tenant_id = p_tenant_id AND d.status = 'claimed'
     AND d.updated_at < now() - interval '10 minutes';
 
@@ -768,9 +785,11 @@ BEGIN
 END;
 $$;
 
--- Record the outcome of one message (the claimed rows it carried). 'planned'
--- puts the rows back with a later not_before (over the daily cap). A sent or
--- possibly-sent message writes a 'notified' event per finding.
+-- Record the outcome of one message (the claimed rows it carried). 'claimed'
+-- marks the rows as being sent now (attempted_at), just before the send, so
+-- a call cut off mid-send never resends them. 'planned' puts the rows back
+-- with a later not_before (over the daily cap). A sent or possibly-sent
+-- message writes a 'notified' event per finding.
 CREATE OR REPLACE FUNCTION public.carmen_finding_record_send(
   p_tenant_id uuid,
   p_delivery_ids uuid[],
@@ -1022,6 +1041,60 @@ AS $$
      OR p_old -> 'kinds' -> k.key -> 'mode' IS DISTINCT FROM p_new -> 'kinds' -> k.key -> 'mode'
 $$;
 
+-- A rollout change for the tenant (p_kinds NULL: every kind) or for some
+-- kinds. Messages planned under the old rollout never go out under the new
+-- one: they are cancelled as 'rollout_changed', which lets the router plan
+-- them again. Each routed finding that lost a planned message, or whose
+-- ladder no one has heard of yet, goes back to the highest level someone was
+-- actually told or tried (below the first cancelled level; NULL when that is
+-- level 0 or nobody) and is routed again at once. Otherwise the ladder would
+-- move on to a manager ("not handled in time") about an item the campaigner
+-- never got. Snoozed findings keep their snooze.
+CREATE OR REPLACE FUNCTION public.carmen_manager_reset_ladders(
+  p_tenant_id uuid,
+  p_kinds text[]
+)
+RETURNS integer
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+AS $$
+DECLARE
+  v_count integer;
+BEGIN
+  WITH cancelled AS (
+    UPDATE public.carmen_finding_deliveries AS d
+    SET status = 'cancelled', error = 'rollout_changed'
+    FROM public.carmen_findings AS f
+    WHERE d.tenant_id = p_tenant_id AND d.status = 'planned'
+      AND f.id = d.finding_id
+      AND (p_kinds IS NULL OR f.kind = ANY (p_kinds))
+    RETURNING d.finding_id, d.level
+  ), ladder AS (
+    SELECT f.id,
+      (SELECT max(x.level) FROM public.carmen_finding_deliveries AS x
+       WHERE x.finding_id = f.id
+         AND x.status NOT IN ('planned', 'cancelled', 'expired')) AS reached,
+      (SELECT min(c.level) FROM cancelled AS c WHERE c.finding_id = f.id) AS first_cancelled
+    FROM public.carmen_findings AS f
+    WHERE f.tenant_id = p_tenant_id
+      AND f.status IN ('open', 'notified')
+      AND f.escalation_level IS NOT NULL
+      AND (p_kinds IS NULL OR f.kind = ANY (p_kinds))
+  )
+  UPDATE public.carmen_findings AS f
+  SET escalation_level = CASE WHEN l.reached IS NULL OR l.first_cancelled = 0 THEN NULL
+        ELSE least(f.escalation_level, l.reached, l.first_cancelled - 1) END,
+      ladder_started_at = CASE WHEN l.reached IS NULL OR l.first_cancelled = 0 THEN NULL
+        ELSE f.ladder_started_at END,
+      next_action_at = now()
+  FROM ladder AS l
+  WHERE f.id = l.id AND (l.first_cancelled IS NOT NULL OR l.reached IS NULL);
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.carmen_manager_settings_guard()
 RETURNS trigger
   LANGUAGE plpgsql
@@ -1067,19 +1140,14 @@ BEGIN
     RAISE EXCEPTION 'carmen_manager_settings_owner_only' USING ERRCODE = '42501';
   END IF;
 
-  -- Messages planned under the old rollout never go out under the new one:
-  -- a tenant mode change cancels every planned message of the tenant, a
-  -- kind's own change those of that kind.
+  -- A tenant mode change resets every ladder of the tenant, a kind's own
+  -- change those of that kind (carmen_manager_reset_ladders).
   IF TG_OP = 'UPDATE' THEN
     v_mode_changed := v_new -> 'mode' IS DISTINCT FROM v_old -> 'mode';
     v_changed_kinds := public.carmen_manager_changed_kinds(v_old, v_new);
     IF v_mode_changed OR cardinality(v_changed_kinds) > 0 THEN
-      UPDATE public.carmen_finding_deliveries AS d
-      SET status = 'cancelled'
-      FROM public.carmen_findings AS f
-      WHERE d.tenant_id = NEW.tenant_id AND d.status = 'planned'
-        AND f.id = d.finding_id
-        AND (v_mode_changed OR f.kind = ANY (v_changed_kinds));
+      PERFORM public.carmen_manager_reset_ladders(NEW.tenant_id,
+        CASE WHEN v_mode_changed THEN NULL ELSE v_changed_kinds END);
     END IF;
   END IF;
 
@@ -1123,11 +1191,13 @@ REVOKE ALL ON FUNCTION public.carmen_manager_kind_sends(jsonb, text) FROM PUBLIC
 REVOKE ALL ON FUNCTION public.carmen_manager_kinds_without_stamps(jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_manager_without_stamps(jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.carmen_manager_changed_kinds(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.carmen_manager_reset_ladders(uuid, text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_mode_sends(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_kind_sends(jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_kinds_without_stamps(jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_without_stamps(jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.carmen_manager_changed_kinds(jsonb, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.carmen_manager_reset_ladders(uuid, text[]) TO service_role;
 
 DROP TRIGGER IF EXISTS carmen_manager_settings_guard ON public.tenant_heartbeat_settings;
 CREATE TRIGGER carmen_manager_settings_guard

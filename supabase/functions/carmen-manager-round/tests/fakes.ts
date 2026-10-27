@@ -123,17 +123,20 @@ function findingsStore(w: World): FindingsStore {
           ladder_started_at: d.ladder_started_at ?? f.ladder_started_at,
         });
         for (const p of d.deliveries) {
-          if (
-            !w.deliveries.some(
-              (r) =>
-                r.finding_id === f.id &&
-                r.level === p.level &&
-                r.recipient_key === p.recipient_key,
-            )
+          const row = delivery({ ...p, tenant_id: tenantId, finding_id: f.id });
+          const same = w.deliveries.find(
+            (r) =>
+              r.finding_id === f.id &&
+              r.level === p.level &&
+              r.recipient_key === p.recipient_key,
+          );
+          if (!same) {
+            w.deliveries.push(row);
+          } else if (
+            same.status === "cancelled" &&
+            same.error === "rollout_changed"
           ) {
-            w.deliveries.push(
-              delivery({ ...p, tenant_id: tenantId, finding_id: f.id }),
-            );
+            Object.assign(same, { ...row, id: same.id });
           }
         }
       }
@@ -165,6 +168,12 @@ function deliveriesStore(w: World): DeliveriesStore {
         counts.set(d.recipient_key, (counts.get(d.recipient_key) ?? 0) + 1);
       }
       return Promise.resolve(counts);
+    },
+    markSending: (_tenant, ids) => {
+      for (const d of w.deliveries.filter((row) => ids.includes(row.id))) {
+        d.attempted_at = w.now.toISOString();
+      }
+      return Promise.resolve();
     },
     recordSend: (_tenant, ids, outcome) => {
       for (const d of w.deliveries.filter(

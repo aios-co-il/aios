@@ -21,6 +21,11 @@ export type DeliveriesStore = {
   claim(tenantId: string, limit: number): Promise<DeliveryRow[]>;
   /** Alert messages (not briefs) each recipient got since `since`. */
   messagesSince(tenantId: string, since: Date): Promise<Map<string, number>>;
+  /**
+   * Marks claimed rows as being sent now. A claim cut off later keeps only
+   * these as possibly sent; the rest of the claim goes back to planned.
+   */
+  markSending(tenantId: string, ids: string[]): Promise<void>;
   recordSend(
     tenantId: string,
     ids: string[],
@@ -62,6 +67,15 @@ export function createDeliveriesStore(db: DbClient): DeliveriesStore {
         keys.set(row.recipient_key, set);
       }
       return new Map([...keys].map(([key, set]) => [key, set.size]));
+    },
+
+    async markSending(tenantId, ids) {
+      const { error } = await db.rpc("carmen_finding_record_send", {
+        p_tenant_id: tenantId,
+        p_delivery_ids: ids,
+        p_status: "claimed",
+      });
+      throwIf(error, "carmen_finding_record_send claimed");
     },
 
     async recordSend(tenantId, ids, outcome) {

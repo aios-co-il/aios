@@ -1,7 +1,8 @@
 /**
  * One recipient's due rows in one round: cancel what may no longer go, hold
  * what waits for business time, send at most one message with the most
- * pressing items, and record when the rest is tried again.
+ * pressing items (marked as being sent first), and record when the rest is
+ * tried again.
  */
 import {
   jerusalemLocalTimeToUtc,
@@ -58,6 +59,10 @@ export async function dispatchGroup(
     return;
   }
   const head = sending[0];
+  await deps.deliveries.markSending(
+    input.tenantId,
+    sending.map((row) => row.id),
+  );
   const outcome = await sendText(
     deps.send,
     input.tenantId,

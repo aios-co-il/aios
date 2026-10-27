@@ -33,6 +33,7 @@ function batch(count: number, slot: "now" | "list", critical = false) {
 async function dispatch(
   b: ReturnType<typeof batch>,
   flags: { capped?: boolean; waiting?: boolean } = {},
+  ports = deps(b.w),
 ) {
   const report: DispatchReport = {
     messages: 0,
@@ -41,7 +42,7 @@ async function dispatch(
     cancelled: 0,
   };
   await dispatchGroup(
-    deps(b.w),
+    ports,
     {
       tenantId: TENANT,
       settings,
@@ -69,6 +70,22 @@ Deno.test("dispatchGroup", async (t) => {
       const lines = b.w.sent[0].message.split("\n");
       assertEquals([lines.length, lines[1]], [8, "1) #18 ממצא 8 (דחוף)"]);
       assertEquals(planned(b), [b.w.now.toISOString(), b.w.now.toISOString()]);
+    },
+  );
+
+  await t.step(
+    "a message's rows are marked as being sent before it leaves; the rest are not",
+    async () => {
+      const b = batch(8, "list");
+      const ports = deps(b.w);
+      const send = ports.send;
+      let markedAtSend: boolean[] = [];
+      ports.send = (input) => {
+        markedAtSend = b.group.map((row) => row.attempted_at !== null);
+        return send(input);
+      };
+      await dispatch(b, {}, ports);
+      assertEquals(markedAtSend.filter(Boolean).length, 7);
     },
   );
 

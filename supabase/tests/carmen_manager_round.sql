@@ -193,6 +193,36 @@ BEGIN
     RAISE EXCEPTION 'guard: a mode change must cancel planned messages';
   END IF;
 
+  -- ...and its ladder starts again, so nobody above hears of an item the
+  -- first person never got; the router may plan the cancelled row again.
+  IF (SELECT escalation_level IS NOT NULL OR next_action_at > now()
+      FROM public.carmen_findings WHERE id = v_planned) THEN
+    RAISE EXCEPTION 'guard: a mode change must reset a ladder nobody heard';
+  END IF;
+  PERFORM public.carmen_finding_apply_route(v_tenant, v_round, jsonb_build_array(
+    jsonb_build_object('finding_id', v_planned, 'status', 'notified', 'escalation_level', 0,
+      'deliveries', jsonb_build_array(jsonb_build_object('level', 0, 'recipient_key', 'qa:two',
+        'channel', 'manus_wa', 'slot', 'list', 'status', 'planned', 'not_before', now() + interval '2 hours')))));
+  IF (SELECT status FROM public.carmen_finding_deliveries WHERE finding_id = v_planned) <> 'planned' THEN
+    RAISE EXCEPTION 'apply_route: a row cancelled by a rollout change must be planned again';
+  END IF;
+
+  -- A claim cut off for 10 minutes: a row whose send started may have left
+  -- (delivery_unknown), a row never tried goes back to planned.
+  INSERT INTO public.carmen_finding_deliveries (tenant_id, finding_id, level,
+    recipient_key, channel, slot, status, not_before, attempted_at, updated_at)
+  VALUES
+    (v_tenant, v_planned, 1, 'qa:tried', 'manus_wa', 'now', 'claimed',
+      now() + interval '1 day', now() - interval '11 minutes', now() - interval '11 minutes'),
+    (v_tenant, v_planned, 1, 'qa:untried', 'manus_wa', 'now', 'claimed',
+      now() + interval '1 day', NULL, now() - interval '11 minutes');
+  PERFORM public.carmen_finding_claim_deliveries(v_tenant, 500);
+  IF (SELECT string_agg(recipient_key || ':' || status, ',' ORDER BY recipient_key)
+      FROM public.carmen_finding_deliveries WHERE finding_id = v_planned AND level = 1)
+     IS DISTINCT FROM 'qa:tried:delivery_unknown,qa:untried:planned' THEN
+    RAISE EXCEPTION 'claim: a cut-off claim must keep tried rows and release untried ones';
+  END IF;
+
   -- Browsers read through RLS and write only through carmen_finding_set_status.
   IF has_table_privilege('authenticated', 'public.carmen_findings', 'UPDATE')
      OR has_table_privilege('authenticated', 'public.carmen_finding_deliveries', 'INSERT')

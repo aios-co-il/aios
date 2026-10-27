@@ -1,7 +1,13 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
 import { deps } from "../tests/fakes.ts";
-import { finding, TENANT, type World, world } from "../tests/fake-world.ts";
+import {
+  delivery,
+  finding,
+  TENANT,
+  type World,
+  world,
+} from "../tests/fake-world.ts";
 import { routeTenant } from "./route-tenant.ts";
 
 const team = resolveManagerSettings({
@@ -156,6 +162,44 @@ Deno.test("routeTenant", async (t) => {
         w.findings.map((f) => f.status),
         ["resolved", "resolved", "notified"],
       );
+    },
+  );
+
+  await t.step(
+    "a ladder a rollout change reset starts again with the campaigner, not the manager",
+    async () => {
+      // Tuesday 2026-11-03 12:00 Israel time, a day after the cancelled list.
+      const w = setup();
+      w.now = new Date("2026-11-03T10:00:00Z");
+      w.staff.push({
+        user_id: "michal",
+        name: "מיכל",
+        phone: "0502222222",
+        roles: ["team_manager"],
+        managed_agency_ids: ["a1"],
+      });
+      const reset = finding({
+        client_id: "c1",
+        status: "notified",
+        routed: true,
+        next_action_at: "2026-11-02T18:00:00Z",
+      });
+      w.findings = [reset];
+      w.deliveries.push(
+        delivery({
+          finding_id: reset.id,
+          recipient_key: "user:dana",
+          slot: "list",
+          status: "cancelled",
+          error: "rollout_changed",
+        }),
+      );
+      await route(w);
+      assertEquals(
+        w.deliveries.map((d) => [d.level, d.recipient_key, d.status]),
+        [[0, "user:dana", "planned"]],
+      );
+      assertEquals(w.deliveries[0].not_before, "2026-11-04T06:30:00.000Z");
     },
   );
 

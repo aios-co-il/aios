@@ -60,6 +60,7 @@ Deno.test("createDeliveriesStore", async (t) => {
       status: "planned",
       notBefore: new Date("2026-11-02T06:30:00Z"),
     });
+    await store.markSending(T, ["d2"]);
     await store.recordBrief(
       T,
       ["f1"],
@@ -79,6 +80,11 @@ Deno.test("createDeliveriesStore", async (t) => {
       p_not_before: "2026-11-02T06:30:00.000Z",
     });
     assertEquals(calls[1].body, {
+      p_tenant_id: T,
+      p_delivery_ids: ["d2"],
+      p_status: "claimed",
+    });
+    assertEquals(calls[2].body, {
       p_tenant_id: T,
       p_finding_ids: ["f1"],
       p_status: "sent",

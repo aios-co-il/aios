@@ -15724,6 +15724,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      carmen_manager_changed_kinds: {
+        Args: { p_new: Json; p_old: Json };
+        Returns: string[];
+      };
       carmen_manager_is_owner: {
         Args: { p_tenant_id: string };
         Returns: boolean;
@@ -15737,6 +15741,14 @@ export type Database = {
         Returns: Json;
       };
       carmen_manager_mode_sends: { Args: { p_mode: string }; Returns: boolean };
+      carmen_manager_reset_ladders: {
+        Args: { p_kinds: string[]; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_manager_without_stamps: {
+        Args: { p_manager: Json };
+        Returns: Json;
+      };
       carmen_member_has_personal_key: {
         Args: { p_user_id: string };
         Returns: boolean;
