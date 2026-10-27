@@ -1,21 +1,19 @@
 // The client send guard's step in the Manus file checks (AIO-261): an
 // automatic send reaches a client only with a proof or the client card's
 // opt-in (_shared/client-send/rules.ts).
-import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
-import { clientSendRefusalOf } from "../_shared/client-send/sender-step.ts";
+import { refuseClientSendWith } from "../_shared/client-send/sender-step.ts";
 import type { ClientSendGuard } from "../_shared/client-send/types.ts";
-import { corsHeaders } from "../_shared/cors.ts";
 import type { SendContext } from "./prepare.ts";
 
 /**
  * 403 when the guard refuses this send, else null. The group row counts only
  * when its chat id is where the file goes.
  */
-export async function clientSendBlock(
+export function clientSendBlock(
   guard: ClientSendGuard,
   send: Pick<SendContext, "request" | "isServiceRole" | "tenantId" | "target">,
 ): Promise<Response | null> {
-  const refused = await clientSendRefusalOf(guard, {
+  return refuseClientSendWith(guard, {
     functionName: "send-manus-wa-file",
     tenantId: send.tenantId,
     channel: "whatsapp",
@@ -24,5 +22,4 @@ export async function clientSendBlock(
     isServiceRole: send.isServiceRole,
     body: send.request,
   });
-  return refused ? clientSendRefusedResponse(refused, corsHeaders) : null;
 }

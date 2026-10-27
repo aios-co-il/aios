@@ -200,8 +200,8 @@ BEGIN
   INSERT INTO public.clients (name, tenant_id, agency_id, phone, email)
   VALUES (v_tag || ' C1', v_tenant, v_agency, '050-9990001', 'QA-C1@example.invalid')
   RETURNING id INTO v_c1;
-  INSERT INTO public.clients (name, tenant_id, agency_id)
-  VALUES (v_tag || ' C2', v_tenant, v_agency)
+  INSERT INTO public.clients (name, tenant_id, agency_id, email)
+  VALUES (v_tag || ' C2', v_tenant, v_agency, '  QA-C2@example.invalid ')
   RETURNING id INTO v_c2;
   INSERT INTO public.clients (name, tenant_id, agency_id)
   VALUES (v_tag || ' C3', v_tenant, v_agency_b)
@@ -222,7 +222,7 @@ BEGIN
   RETURNING id INTO v_cc;
 
   INSERT INTO public.client_contacts (client_id, tenant_id, contact_name, phone, email) VALUES
-    (v_c1, v_tenant, 'QA contact', '+972 50-999-0002', 'qa-contact@example.invalid'),
+    (v_c1, v_tenant, 'QA contact', '+972 50-999-0002', ' qa-contact@example.invalid '),
     (v_c1, v_tenant, 'QA client org owner', '0509990007', NULL),
     (v_c2, v_tenant, 'QA staff as contact', '0509990005', NULL),
     (v_c3, v_tenant, 'QA campaigner as contact', '0509990006', upper(v_owner_email)),
@@ -270,7 +270,7 @@ BEGIN
   VALUES (v_tag || ' agency tenant campaigner', v_agency_tenant, '0509990011');
 
   INSERT INTO public.leads (company_name, tenant_id, agency_id, phone, email)
-  VALUES (v_tag || ' lead', v_tenant, v_agency, '0509990008', 'qa-lead@example.invalid')
+  VALUES (v_tag || ' lead', v_tenant, v_agency, '0509990008', ' qa-lead@example.invalid ')
   RETURNING id INTO v_lead;
   INSERT INTO public.leads (company_name, tenant_id, agency_id, phone)
   VALUES (v_tag || ' staff lead', v_tenant, v_agency, '0509990005');
@@ -464,13 +464,16 @@ BEGIN
   PERFORM pg_temp.qa_expect('card email, any case',
     pg_temp.qa_resolve(v_tenant, 'email', ' qa-c1@EXAMPLE.invalid '),
     pg_temp.qa_want('client', ARRAY[v_c1], NULL, NULL, false));
-  PERFORM pg_temp.qa_expect('contact email',
+  PERFORM pg_temp.qa_expect('card email stored with spaces',
+    pg_temp.qa_resolve(v_tenant, 'email', 'qa-c2@example.invalid'),
+    pg_temp.qa_want('client', ARRAY[v_c2], NULL, NULL, false));
+  PERFORM pg_temp.qa_expect('contact email stored with spaces',
     pg_temp.qa_resolve(v_tenant, 'email', 'qa-contact@example.invalid'),
     pg_temp.qa_want('client_contact', ARRAY[v_c1], NULL, NULL, false));
   PERFORM pg_temp.qa_expect('member profile email on its tenant''s card is staff',
     pg_temp.qa_resolve(v_tenant, 'email', v_owner_email),
     pg_temp.qa_want('staff', ARRAY[]::uuid[], NULL, NULL, false, true));
-  PERFORM pg_temp.qa_expect('lead email',
+  PERFORM pg_temp.qa_expect('lead email stored with spaces',
     pg_temp.qa_resolve(v_tenant, 'email', 'QA-LEAD@example.invalid'),
     pg_temp.qa_want('lead', ARRAY[]::uuid[], v_lead, NULL, false));
   PERFORM pg_temp.qa_expect('unknown email',
@@ -755,7 +758,9 @@ BEGIN
     (v_child, 'send-manus-wa-message', 'whatsapp', 'unresolved', NULL, 'staff_alert', 'guard_error', true);
 
   -- The sending tenant's owner reads its refusals on clients it sees and the
-  -- one with no client, not the one on the client org's own client.
+  -- one with no client, not the one on the client org's own client. As a
+  -- manager of C1's automatic sends, the owner also reads the client org's
+  -- refusal on C1, and no other row of the client org.
   PERFORM pg_temp.qa_sign_in(v_owner, v_tenant);
   SET LOCAL ROLE authenticated;
   SELECT count(*) INTO v_count
@@ -768,8 +773,19 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.client_send_refusals AS r WHERE r.client_id = v_cc) THEN
     RAISE EXCEPTION 'The owner reads a refusal on a client it cannot see';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.client_send_refusals AS r WHERE r.tenant_id = v_child) THEN
-    RAISE EXCEPTION 'The owner reads the client org''s refusals';
+  IF NOT EXISTS (
+      SELECT 1
+      FROM public.client_send_refusals AS r
+      WHERE r.tenant_id = v_child
+        AND r.client_id = v_c1
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.client_send_refusals AS r
+      WHERE r.tenant_id = v_child
+        AND r.client_id IS DISTINCT FROM v_c1
+    ) THEN
+    RAISE EXCEPTION 'The owner must read the client org''s refusal on C1 and no other of its rows';
   END IF;
   BEGIN
     INSERT INTO public.client_send_refusals (tenant_id, function_name, channel, recipient_kind, client_id, reason, enforced)
@@ -790,14 +806,26 @@ BEGIN
   RESET ROLE;
 
   -- The client org's owner reads its own refusals on its own client and with
-  -- no client, never the one naming the parent's client C1 or the parent's.
+  -- no client, and as that card's manager the parent's refusal on it; never
+  -- a row naming the parent's client C1, nor the parent's with no client.
   PERFORM pg_temp.qa_sign_in(v_child_owner, v_child);
   SET LOCAL ROLE authenticated;
   IF EXISTS (SELECT 1 FROM public.client_send_refusals AS r WHERE r.client_id = v_c1) THEN
     RAISE EXCEPTION 'The client org owner learns a phone of the parent''s client from its own refusal';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.client_send_refusals AS r WHERE r.tenant_id = v_tenant) THEN
-    RAISE EXCEPTION 'The client org owner reads the home tenant''s refusals';
+  IF NOT EXISTS (
+      SELECT 1
+      FROM public.client_send_refusals AS r
+      WHERE r.tenant_id = v_tenant
+        AND r.client_id = v_cc
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.client_send_refusals AS r
+      WHERE r.tenant_id = v_tenant
+        AND r.client_id IS DISTINCT FROM v_cc
+    ) THEN
+    RAISE EXCEPTION 'The client org owner must read the home tenant''s refusal on its own client and no other of its rows';
   END IF;
   SELECT count(*) INTO v_count
   FROM public.client_send_refusals AS r

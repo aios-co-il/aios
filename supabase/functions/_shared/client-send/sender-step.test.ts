@@ -6,7 +6,11 @@ import {
   resolved,
   TENANT,
 } from "./fake-guard-db.ts";
-import { clientSendRefusalOf, refuseClientSend } from "./sender-step.ts";
+import {
+  clientSendRefusalOf,
+  refuseClientSend,
+  refuseClientSendWith,
+} from "./sender-step.ts";
 import type {
   ClientSendDecision,
   ClientSendRequest,
@@ -71,6 +75,37 @@ Deno.test("refuseClientSend", async (t) => {
       error: "client_send_not_authorized",
       reason: "guard_error",
     });
+  });
+});
+
+Deno.test("refuseClientSendWith", async (t) => {
+  await t.step("answers the injected guard's refusal with a 403", async () => {
+    const response = await refuseClientSendWith(
+      async () => ({
+        allowed: false,
+        reason: "subject_mismatch",
+        recipient: null,
+      }),
+      send(),
+    );
+    assertEquals(response?.status, 403);
+    assertEquals(response?.headers.get("Access-Control-Allow-Origin"), "*");
+    assertEquals(await response?.json(), {
+      error: "client_send_not_authorized",
+      reason: "subject_mismatch",
+    });
+  });
+
+  await t.step("lets an observed send through", async () => {
+    const response = await refuseClientSendWith(
+      async () => ({
+        allowed: true,
+        recipient: null,
+        observed: "not_opted_in",
+      }),
+      send(),
+    );
+    assertEquals(response, null);
   });
 });
 

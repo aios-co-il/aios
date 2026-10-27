@@ -16,14 +16,26 @@ import type {
  * The 403 a sender's handler returns when the guard over this database
  * refuses the send, else null.
  */
-export async function refuseClientSend(
+export function refuseClientSend(
   db: ClientSendDb,
   send: SenderSend,
 ): Promise<Response | null> {
-  const refused = await clientSendRefusalOf(
+  return refuseClientSendWith(
     (request) => authorizeClientSend(db, request),
     send,
   );
+}
+
+/**
+ * The 403 a sender returns when the injected guard refuses the send, else
+ * null. Checks steps that answer with a Response call it with the guard
+ * their dependencies inject.
+ */
+export async function refuseClientSendWith(
+  guard: ClientSendGuard,
+  send: SenderSend,
+): Promise<Response | null> {
+  const refused = await clientSendRefusalOf(guard, send);
   return refused ? clientSendRefusedResponse(refused, corsHeaders) : null;
 }
 

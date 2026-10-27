@@ -44,9 +44,10 @@ export async function loadServedHandler(moduleUrl: URL): Promise<Handler> {
 
 /**
  * Calls the handler with the test env. `routes` answers Supabase REST calls
- * by "METHOD /path" (for example "POST /rpc/is_super_admin"); a missing
- * route answers [] to a read and 201 to a write. Any other URL is the
- * provider: recorded and answered with `providerReply`.
+ * by "METHOD /path" (for example "POST /rpc/is_super_admin"); a Response
+ * route is returned as it is (a failed call), and a missing route answers []
+ * to a read and 201 to a write. Any other URL is the provider: recorded and
+ * answered with `providerReply`.
  */
 export async function callServedHandler(
   handler: Handler,
@@ -85,6 +86,9 @@ export async function callServedHandler(
 
 /** PostgREST's answer: one object when the client asked for one. */
 function restAnswer(call: Request, answer: unknown): Response {
+  if (answer instanceof Response) {
+    return answer;
+  }
   if (answer === undefined) {
     return call.method === "GET"
       ? jsonResponse([])

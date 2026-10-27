@@ -17,8 +17,15 @@ const SENDER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const handler = await loadServedHandler(new URL("./index.ts", import.meta.url));
 
-/** A service-role send to a phone, with the resolver's answer for it. */
-function send(body: Record<string, unknown>, recipient: ResolverRow) {
+/**
+ * A service-role send to a phone, with the resolver's answer for it and any
+ * REST routes answered otherwise.
+ */
+function send(
+  body: Record<string, unknown>,
+  recipient: ResolverRow,
+  routes: Record<string, unknown> = {},
+) {
   const request = new Request(
     "http://functions.test/send-meta-whatsapp-message",
     {
@@ -53,6 +60,7 @@ function send(body: Record<string, unknown>, recipient: ResolverRow) {
       ],
       "GET /meta_whatsapp_tokens": [{ access_token: "meta-token" }],
       "POST /rpc/resolve_send_recipient": [recipient],
+      ...routes,
     },
     { messages: [{ id: "wamid.1" }] },
   );
@@ -128,5 +136,27 @@ Deno.test(
     assertEquals(response.status, 200);
     assertEquals(provider.length, 1);
     assertEquals(refusals(rest), []);
+  },
+);
+
+Deno.test(
+  "send-meta-whatsapp-message answers 500 when the membership lookup fails",
+  async () => {
+    const { response, provider, rest } = await send(
+      { sendKind: "staff_alert" },
+      resolved("staff"),
+      {
+        "POST /rpc/is_super_admin": new Response(
+          JSON.stringify({ message: "lookup failed" }),
+          { status: 500, headers: { "Content-Type": "application/json" } },
+        ),
+      },
+    );
+    assertEquals(response.status, 500);
+    assertEquals(provider, []);
+    assertEquals(
+      rest.some((call) => call.path === "/rpc/resolve_send_recipient"),
+      false,
+    );
   },
 );

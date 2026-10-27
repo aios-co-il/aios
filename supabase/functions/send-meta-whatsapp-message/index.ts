@@ -8,6 +8,7 @@ import {
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
+import { lineStore } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
@@ -116,19 +117,17 @@ Deno.serve(async (request) => {
     if (!tenantId) return reply({ error: "tenant_not_found" }, 404);
     if (!to) return reply({ error: "phone_number_required" }, 400);
 
-    const [{ data: membership }, { data: superAdmin }] = await Promise.all([
-      admin
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle(),
-      admin.rpc("is_super_admin", { _user_id: userId }),
+    const service = serviceClient();
+    const access = lineStore(service);
+    const [member, superAdmin] = await Promise.all([
+      access.isMember(tenantId, userId),
+      access.isSuperAdmin(userId),
     ]);
-    if (!membership && superAdmin !== true)
+    if (!member && !superAdmin) {
       return reply({ error: "forbidden" }, 403);
+    }
 
-    const refused = await refuseClientSend(serviceClient(), {
+    const refused = await refuseClientSend(service, {
       functionName: "send-meta-whatsapp-message",
       tenantId,
       channel: "whatsapp",

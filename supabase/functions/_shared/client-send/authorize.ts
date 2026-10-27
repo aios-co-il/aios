@@ -1,8 +1,9 @@
 // The client send guard (AIO-261): a client gets no automatic message unless
-// something the tenant set up asked for it. Each sender calls
-// authorizeClientSend after its tenant, membership and chat-id checks and
-// before it sends; the rules per send kind are in rules.ts and are applied
-// by rule-check.ts.
+// something the tenant set up asked for it. Each sender takes the guard step
+// in sender-step.ts (refuseClientSend, or refuseClientSendWith and
+// clientSendRefusalOf over an injected guard) after its tenant, membership
+// and chat-id checks and before it sends; the rules per send kind are in
+// rules.ts and are applied by rule-check.ts.
 import { normalizeSendRef, resolveSendKind } from "../client-card/send-kind.ts";
 import { asUuidOrNull } from "../uuid.ts";
 import { resolveRecipient } from "./recipient.ts";
