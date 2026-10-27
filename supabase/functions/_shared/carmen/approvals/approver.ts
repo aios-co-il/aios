@@ -90,7 +90,7 @@ export async function expireApprovalRow(
   }
 }
 
-/** Roles of the user in the row's tenant (plus global roles) and tenant membership. */
+/** The user's roles in `tenantId` (plus global roles) and whether they belong to that tenant. */
 export async function loadApproverScope(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
