@@ -8572,13 +8572,17 @@ async function executeTool(
             ? "creative"
             : "target_seo";
 
-      // Ensure pipeline + default stages (mirrors ensurePipelineForClient)
-      let { data: pipeline } = await supabase
+      // Ensure pipeline + default stages (mirrors ensurePipelineForClient). A client can have
+      // duplicate pipelines: take the oldest, as the department screens do.
+      const { data: pipelines } = await supabase
         .from("marketing_pipelines")
         .select("id")
         .eq("client_id", client_id)
         .eq("track", track)
-        .maybeSingle();
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(1);
+      let pipeline = pipelines?.[0] ?? null;
       if (!pipeline) {
         const { data: created, error: pErr } = await supabase
           .from("marketing_pipelines")

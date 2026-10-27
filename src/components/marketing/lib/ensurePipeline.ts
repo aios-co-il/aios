@@ -80,6 +80,22 @@ function buildDefaultStages(track: MarketingTrack): DefaultStage[] {
   ];
 }
 
+/**
+ * A client's pipeline of one track. A client can have duplicates, so this takes the oldest one,
+ * the same one the workshop's assign RPC (public.workshop_department_stage) picks.
+ */
+async function findOldestPipeline(clientId: string, track: MarketingTrack) {
+  const { data } = await supabase
+    .from("marketing_pipelines")
+    .select("*")
+    .eq("client_id", clientId)
+    .eq("track", track)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 export async function ensurePipelineForClient({
   clientId,
   tenantId,
@@ -90,12 +106,7 @@ export async function ensurePipelineForClient({
   track: MarketingTrack;
 }) {
   // First try to find existing pipeline
-  const { data: existing, error: selectError } = await supabase
-    .from("marketing_pipelines")
-    .select("*")
-    .eq("client_id", clientId)
-    .eq("track", track)
-    .maybeSingle();
+  const existing = await findOldestPipeline(clientId, track);
 
   if (existing) {
     // Check if stages exist — if not, seed them (handles legacy pipelines created before stage seeding)
@@ -147,12 +158,7 @@ export async function ensurePipelineForClient({
 
   // If insert failed (e.g. duplicate), try fetching again
   if (error) {
-    const { data: retry } = await supabase
-      .from("marketing_pipelines")
-      .select("*")
-      .eq("client_id", clientId)
-      .eq("track", track)
-      .maybeSingle();
+    const retry = await findOldestPipeline(clientId, track);
     if (retry) return retry;
     console.error("ensurePipeline error:", error);
     return null;
