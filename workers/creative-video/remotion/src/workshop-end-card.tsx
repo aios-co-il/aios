@@ -9,6 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { WorkshopBrand } from "./manifest";
+import { accentColours } from "./workshop-layout";
 
 /** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.mjs). */
 const GLYPH_EM = 0.56;
@@ -55,6 +56,7 @@ export const EndCard: React.FC<{
   const second = brand.secondaryColor || "#07111c";
   const lines = ctaLinesOf(brand);
   const fontSize = ctaFontSize(lines, width, height);
+  const colours = accentColours(accent);
   return (
     <AbsoluteFill
       style={{
@@ -88,8 +90,8 @@ export const EndCard: React.FC<{
         <div
           dir="rtl"
           style={{
-            background: accent,
-            color: "#05080f",
+            background: colours.fill,
+            color: colours.onFill,
             fontWeight: 800,
             fontSize,
             lineHeight: 1.22,
@@ -99,7 +101,7 @@ export const EndCard: React.FC<{
             borderRadius: lines.length > 1 ? Math.round(unit * 0.04) : 999,
             opacity: ctaIn,
             transform: `translateY(${(1 - ctaIn) * 30}px)`,
-            boxShadow: `0 10px 40px ${accent}55`,
+            boxShadow: `0 10px 40px ${colours.glow}`,
           }}
         >
           {lines.map((line, index) => {

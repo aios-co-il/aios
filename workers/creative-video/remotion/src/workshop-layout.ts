@@ -109,3 +109,26 @@ export const readableAccent = (accent: string) =>
   luminance(accent) < 0.18
     ? `color-mix(in srgb, ${accent} 45%, white)`
     : accent;
+
+/** The accent where the film draws it, each legible on what lies under it. */
+export type AccentColours = {
+  /** A fill: the call to action's pill. */
+  fill: string;
+  /** Text on that fill. */
+  onFill: string;
+  /** Text over the dark picture or caption box: the spoken karaoke word. */
+  text: string;
+  /** A soft glow under the fill, as rgba: alpha digits after a 3-digit hex are no colour. */
+  glow: string;
+};
+
+export function accentColours(accent: string): AccentColours {
+  const rgb = channels(accent) ?? [0, 0, 0];
+  const [r, g, b] = rgb.map((c) => Math.round(c * 255));
+  return {
+    fill: accent,
+    onFill: inkOn(accent),
+    text: readableAccent(accent),
+    glow: `rgba(${r}, ${g}, ${b}, 0.33)`,
+  };
+}

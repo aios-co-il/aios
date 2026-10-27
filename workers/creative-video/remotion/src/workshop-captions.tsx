@@ -8,6 +8,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { WorkshopCaption } from "./manifest";
+import { accentColours } from "./workshop-layout";
 
 const clamp = {
   extrapolateLeft: "clamp",
@@ -27,6 +28,8 @@ const Line: React.FC<{
   const appear = spring({ frame, fps, config: { damping: 18, mass: 0.5 } });
   const leave = interpolate(frame, [length - 5, length], [1, 0], clamp);
   const fontSize = Math.round(height * 0.042);
+  // The spoken word over the dark box: a dark brand colour is lightened to stay legible.
+  const said = accentColours(accent).text;
   return (
     <AbsoluteFill
       style={{
@@ -67,7 +70,7 @@ const Line: React.FC<{
               key={`${word.startFrame}-${index}`}
               style={{
                 display: "inline-block",
-                color: active ? accent : "white",
+                color: active ? said : "white",
                 opacity: spoken ? 1 : 0.55,
                 transform: `scale(${active ? 1 + 0.08 * pop : 1})`,
                 textShadow: "0 2px 10px rgba(0,0,0,0.55)",
