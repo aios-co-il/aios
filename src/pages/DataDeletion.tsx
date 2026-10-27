@@ -23,9 +23,9 @@ export default function DataDeletion() {
               מחיקת מידע
             </h1>
             <p className="text-muted-foreground mt-2">
-              דף זה מסביר כיצד לבקש מחיקה של המידע ש-AfterLead שומרת עבורך
-              מאינטגרציות Meta (Facebook, Instagram) ו-Google, ומה קורה לאחר
-              הבקשה.
+              דף זה מסביר כיצד לבקש מחיקה של המידע ש-Carmen Marketing OS שומרת
+              עבורך מאינטגרציות Meta (Facebook, Instagram) ו-Google, ומה קורה
+              לאחר הבקשה.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">

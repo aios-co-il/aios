@@ -8,7 +8,7 @@
 // tenant_integrations; no Facebook user id is persisted, so there is no row to
 // match against `user_id` from the signed request. Tokens are revoked by Meta
 // when the app is removed; the logged request is processed manually (see
-// /data-deletion and privacy@afterlead.com).
+// /data-deletion and privacy@aios.co.il).
 //
 // Request handling lives in _shared/meta-data-deletion.ts (node-tested).
 

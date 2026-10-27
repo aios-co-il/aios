@@ -7,21 +7,23 @@ export function EnglishInstructionsSection() {
         Data Deletion Instructions (English)
       </h2>
       <p className="mb-2">
-        To delete the data AfterLead holds from your Meta (Facebook, Instagram)
-        or Google integrations:
+        To delete the data Carmen Marketing OS holds from your Meta (Facebook,
+        Instagram) or Google integrations:
       </p>
       <ul className="list-disc pl-6 space-y-2">
         <li>
-          Disconnect the integration under Settings → Integrations (this removes
-          the stored access tokens), or
+          Disconnect the integration under Settings → Integrations. This stops
+          Carmen Marketing OS from using the account right away; stored
+          credentials and imported data are deleted only when a deletion request
+          below is processed.
         </li>
         <li>
-          Email <PrivacyEmailLink /> from your AfterLead account email, naming
-          the integration to delete.
+          Email <PrivacyEmailLink /> from your Carmen Marketing OS account
+          email, naming the integration to delete.
         </li>
         <li>
-          Removing AfterLead from your Facebook apps settings sends us a
-          deletion request; you will receive a confirmation code and a link to
+          Removing Carmen Marketing OS from your Facebook apps settings sends us
+          a deletion request; you will receive a confirmation code and a link to
           this page to check its status.
         </li>
       </ul>

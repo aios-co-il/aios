@@ -10,9 +10,9 @@ export default function Privacy() {
           <CardHeader>
             <CardTitle className="text-3xl">מדיניות פרטיות</CardTitle>
             <p className="text-muted-foreground mt-2">
-              AfterLead ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על פרטיותך.
-              מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים ומגנים
-              על המידע שלך בעת השימוש בפלטפורמת AfterLead.
+              Carmen Marketing OS ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על
+              פרטיותך. מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים
+              ומגנים על המידע שלך בעת השימוש בפלטפורמת Carmen Marketing OS.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
@@ -321,7 +321,7 @@ export default function Privacy() {
               </ul>
               <p className="mt-3">
                 לממש את זכויותיך, פנה אלינו בכתובת:{" "}
-                <strong>privacy@afterlead.com</strong>
+                <strong>privacy@aios.co.il</strong>
               </p>
             </section>
 
@@ -349,24 +349,24 @@ export default function Privacy() {
               <p className="mb-3">לשאלות, בקשות או תלונות בנוגע לפרטיות:</p>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
-                  <strong>AfterLead</strong>
+                  <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
                   אימייל:{" "}
                   <a
-                    href="mailto:privacy@afterlead.com"
+                    href="mailto:privacy@aios.co.il"
                     className="text-primary hover:underline"
                   >
-                    privacy@afterlead.com
+                    privacy@aios.co.il
                   </a>
                 </p>
                 <p>
                   אתר:{" "}
                   <a
-                    href="https://afterlead.com"
+                    href="https://aios.co.il"
                     className="text-primary hover:underline"
                   >
-                    afterlead.com
+                    aios.co.il
                   </a>
                 </p>
               </div>

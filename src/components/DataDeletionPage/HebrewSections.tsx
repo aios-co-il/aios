@@ -8,18 +8,21 @@ export function HowToRequestSection() {
       <ul className="list-disc pr-6 space-y-2">
         <li>
           <strong>ניתוק האינטגרציה:</strong> היכנס למערכת, עבור אל הגדרות ←
-          אינטגרציות ונתק את החיבור ל-Facebook / Instagram / Google. הניתוק מוחק
-          את אסימוני הגישה (tokens) של החשבון.
+          אינטגרציות ונתק את החיבור ל-Facebook / Instagram / Google. הניתוק
+          מפסיק מיד את השימוש בחשבון, אך פרטי הגישה השמורים והנתונים שיובאו
+          נמחקים רק בעת הטיפול בבקשת מחיקה (באימייל או דרך Facebook, כמפורט
+          כאן).
         </li>
         <li>
           <strong>בקשה באימייל:</strong> שלח הודעה לכתובת <PrivacyEmailLink />{" "}
-          עם כתובת האימייל של חשבון AfterLead שלך וציון האינטגרציה שברצונך
-          למחוק. נאשר את קבלת הבקשה ונטפל בה ידנית.
+          עם כתובת האימייל של חשבון Carmen Marketing OS שלך וציון האינטגרציה
+          שברצונך למחוק. נאשר את קבלת הבקשה ונטפל בה ידנית.
         </li>
         <li>
-          <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת AfterLead מתוך הגדרות
-          ← אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו בקשת מחיקה. הבקשה
-          נרשמת אצלנו, ותקבל קוד אישור וקישור לדף זה למעקב אחר הסטטוס.
+          <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת Carmen Marketing OS
+          מתוך הגדרות ← אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו בקשת
+          מחיקה. הבקשה נרשמת אצלנו, ותקבל קוד אישור וקישור לדף זה למעקב אחר
+          הסטטוס.
         </li>
       </ul>
     </section>
@@ -36,7 +39,7 @@ export function WhatIsDeletedSection() {
       </p>
       <ul className="list-disc pr-6 space-y-2">
         <li>
-          <strong>אסימוני גישה:</strong> אסימוני OAuth של Meta ו-Google ורשימת
+          <strong>Access Tokens:</strong> אסימוני OAuth של Meta ו-Google ורשימת
           הדפים / החשבונות המחוברים
         </li>
         <li>
@@ -83,7 +86,7 @@ export function ContactSection() {
       <h2 className="text-2xl font-semibold mb-3">4. יצירת קשר</h2>
       <div className="bg-muted/50 p-4 rounded-lg">
         <p>
-          <strong>AfterLead</strong>
+          <strong>Carmen Marketing OS</strong>
         </p>
         <p>
           אימייל: <PrivacyEmailLink />
