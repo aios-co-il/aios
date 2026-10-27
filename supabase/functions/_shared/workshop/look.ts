@@ -3,6 +3,7 @@
  * wardrobe, setting, palette, rendering) and the approved first frame. Every picture of the project
  * is generated from the same look, so scenes stay in one style with one character.
  */
+import { parsePublicHttpUrl } from "./public-url.ts";
 
 export const MAX_USER_REFERENCES = 4;
 const MAX_BIBLE_CHARS = 1500;
@@ -22,6 +23,19 @@ const urlsFrom = (value: unknown): string[] =>
     .map((entry) => (typeof entry === "string" ? entry : asRecord(entry).url))
     .filter(isHttps)
     .map((url) => (url as string).trim());
+
+/**
+ * A scene's own reference picture (meta.reference_url, e.g. the skin Carmen wears in that scene):
+ * an https address on a public host, as the project's reference_urls are (a project asset or a
+ * link the user gave). Null for anything else, so such a scene keeps the project's look.
+ */
+export function sceneReferenceUrl(value: unknown): string | null {
+  if (!isHttps(value)) return null;
+  const url = value.trim();
+  if (url.length > 2000) return null;
+  const parsed = parsePublicHttpUrl(url);
+  return parsed?.protocol === "https:" ? url : null;
+}
 
 export interface ProjectLook {
   references: string[];
@@ -118,6 +132,11 @@ export function stillPrompt(input: {
   userReferences: number;
   hasAnchor: boolean;
   suffix: string;
+  /**
+   * The one attached image is this scene's own character reference (the skin or outfit the user
+   * gave for it): it replaces the project's references and anchor frame for this picture.
+   */
+  sceneReference?: boolean;
 }): string {
   const parts: string[] = [];
   if (input.look.bible.trim())
@@ -126,11 +145,15 @@ export function stillPrompt(input: {
     );
   parts.push(`This picture: ${input.visual.trim()}`);
   const rules: string[] = [];
-  if (input.userReferences > 0)
+  if (input.sceneReference)
+    rules.push(
+      "The attached image is this scene's character reference. Draw exactly that character: the same face, hair, skin tone, build, outfit, accessories and colours, with nothing redesigned, restyled or added. Place that character in this picture's setting, framing and action. Where the style bible describes the character's look differently, the reference wins: take only the setting, palette, lighting and rendering from the style bible.",
+    );
+  else if (input.userReferences > 0)
     rules.push(
       `The first ${input.userReferences} attached image(s) are the client's reference. Copy their art style, colour palette, lighting and rendering exactly, and if a person or character appears in them, draw that exact same person (face, hair, build, wardrobe).`,
     );
-  if (input.hasAnchor)
+  if (input.hasAnchor && !input.sceneReference)
     rules.push(
       "The last attached image is the approved first frame of this project. Keep the same character, wardrobe, rendering style, colour grade and level of detail; only the scene, framing and action change.",
     );

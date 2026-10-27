@@ -95,7 +95,13 @@ const HANDLERS = {
     },
   },
   render: {
-    run: (ctx) => renderFilm(ctx),
+    run: (ctx) =>
+      renderFilm({
+        ...ctx,
+        // Trailer sound effects are made with the tenant's ElevenLabs key, read only when needed.
+        resolveElevenLabsKey: async () =>
+          (await resolveMediaKeys(ctx.db, ctx.run.tenant_id)).elevenLabsKey,
+      }),
   },
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;

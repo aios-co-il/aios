@@ -99,6 +99,8 @@ export type WorkshopBrand = {
   logo?: string | null;
   fontFamily?: string | null;
   ctaText?: string | null;
+  /** ctaText in reading order, one entry per line (at most three). */
+  ctaLines?: string[] | null;
   ctaUrl?: string | null;
 };
 export type WorkshopScene = {
@@ -116,11 +118,20 @@ export type WorkshopScene = {
   /** The clip's own length; past it the last frame holds. */
   clipFrames?: number;
 };
+/** One sound effect (a whoosh at a cut, an impact on the title or end card). */
+export type WorkshopEffect = {
+  file: string;
+  startFrame: number;
+  frameCount: number;
+};
 export type WorkshopFilmProps = {
   scenes: WorkshopScene[];
   narration?: string | null;
   music?: string | null;
   musicEnvelope?: WorkshopEnvelope | null;
+  effects?: WorkshopEffect[];
+  /** Effect levels over the film, ducked under the voice like the music bed. */
+  effectsEnvelope?: WorkshopEnvelope | null;
   captions?: WorkshopCaption[];
   brand?: WorkshopBrand | null;
   endCardFrames?: number;

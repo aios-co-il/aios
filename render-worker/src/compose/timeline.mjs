@@ -22,6 +22,7 @@ export function buildTimeline(
     narrationAlignment = null,
     brand = null,
     clipAudio = true,
+    effects = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -61,6 +62,14 @@ export function buildTimeline(
     narrationAlignment: narration ? narrationAlignment : null,
     brand,
     clipAudio: clipAudio !== false,
+    // Trailer sound design: a whoosh at each cut, an impact on the title and the end card.
+    effects:
+      effects?.whooshPath || effects?.impactPath
+        ? {
+            whooshPath: effects.whooshPath || null,
+            impactPath: effects.impactPath || null,
+          }
+        : null,
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };

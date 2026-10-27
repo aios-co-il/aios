@@ -40,7 +40,7 @@ export function brandFromPayload(payload) {
     secondaryColor: colors[1] ?? null,
     logoUrl: text(data.logo_url, 2000) ?? text(book.logoUrl, 2000),
     fontFamily: fonts.map(brandFont).find(Boolean) ?? null,
-    ctaText: text(data.cta_text ?? data.cta ?? book.cta, 60),
+    ctaText: text(data.cta_text ?? data.cta ?? book.cta, 120),
     ctaUrl: displayUrl(data.client_website ?? book.website),
   };
   if (!Object.values(brand).some(Boolean)) return null;

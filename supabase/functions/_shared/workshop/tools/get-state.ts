@@ -29,7 +29,7 @@ export async function workshopGetState(ctx: ToolContext) {
     supabase
       .from("marketing_runs")
       .select(
-        "kind, status, error, created_at, provider, fallback_from:output->>fallback_from",
+        "kind, status, error, created_at, provider, fallback_from:output->>fallback_from, sound_effects_error:output->>sound_effects_error",
       )
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)

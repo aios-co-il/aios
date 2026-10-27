@@ -182,6 +182,7 @@ test("a brand with a logo or CTA adds an end card and stages the logo", () => {
     fontFamily: "Assistant",
     ctaText: "הזמינו עכשיו",
     ctaUrl: "example.co.il",
+    ctaLines: ["הזמינו עכשיו"],
   });
   expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 75 });
   expect(manifest.totalFrames).toBe(135);

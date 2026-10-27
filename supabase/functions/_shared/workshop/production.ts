@@ -14,6 +14,8 @@ export interface RunRow {
   /** The engine that made the clip, and the one it replaced when it fell back. */
   provider?: string | null;
   fallback_from?: string | null;
+  /** A render that was assembled without its sound effects, and why (output.sound_effects_error). */
+  sound_effects_error?: string | null;
 }
 
 /** A queued job nobody claimed for this long means no worker is listening to this database. */
@@ -90,6 +92,14 @@ export function productionReport(
   const musicNote = music
     ? ` הסרט הורכב בלי מוזיקת רקע${music.error ? ` (${String(music.error).slice(0, 120)})` : ""}. אם עוד לא אמרת, אמרי זאת למשתמש במשפט אחד, ואל תנסי להפיק מוזיקה שוב.`
     : "";
+  // Sound effects are made by the render itself; without them the film is still assembled,
+  // and the report says so once. Runs come newest first: the latest render decides.
+  const render = runs.find(
+    (run) => run.kind === "render" && run.status === "completed",
+  );
+  const effectsNote = render?.sound_effects_error
+    ? ` הסרט הורכב בלי אפקטי סאונד (${String(render.sound_effects_error).slice(0, 120)}). אם עוד לא אמרת, אמרי זאת למשתמש במשפט אחד, ואל תפיקי שוב בשביל זה.`
+    : "";
   const summary = stalled
     ? `${queued.length} משימות ממתינות בתור כבר ${Math.round(oldestQueuedMin)} דקות ואף שרת הפקה לא קולט אותן. אמרי למשתמש שהסרט לא יחזור עד ששרת ההפקה (render worker) מחובר לסביבה הזו, ואל תנסי שוב ואל תבטיחי זמן.`
     : status === "failed"
@@ -97,7 +107,7 @@ export function productionReport(
       : status === "running"
         ? `ההפקה רצה: ${count("running")} בעבודה, ${queued.length} בתור, ${count("completed")} הושלמו. הסרט יופיע בלוח כשיסתיים.${previewNote}`
         : status === "done"
-          ? `ההפקה הסתיימה והסרט בלוח.${previewNote}${musicNote}`
+          ? `ההפקה הסתיימה והסרט בלוח.${previewNote}${musicNote}${effectsNote}`
           : "אין הפקה פעילה.";
   return {
     status,

@@ -11,6 +11,7 @@ import {
   musicEstimate,
   productionEstimate,
   quotedProductionEstimate,
+  SOUND_EFFECTS_USD,
   sceneEngineFor,
   speaksNatively,
   voiceEstimate,
@@ -294,5 +295,36 @@ Deno.test(
     ]);
     assertStrictEquals(short.usd, 0.42);
     assertStrictEquals(short.seconds, 3);
+  },
+);
+
+Deno.test(
+  "a production with trailer sound design is quoted with its sound effects",
+  () => {
+    const film = [{ duration_s: 5, voiceover_text: "שלום" }];
+    const options = { withVoice: true, withMusic: true };
+    const plain = quotedProductionEstimate("higgsfield", film, options, {
+      openrouter: true,
+    });
+    const trailer = quotedProductionEstimate(
+      "higgsfield",
+      film,
+      { ...options, withSoundEffects: true },
+      { openrouter: true },
+    );
+    assertStrictEquals(plain.soundEffects.usd, 0);
+    assertStrictEquals(trailer.soundEffects.usd, SOUND_EFFECTS_USD);
+    assertStrictEquals(
+      trailer.totalUsd,
+      Math.round((plain.totalUsd + SOUND_EFFECTS_USD) * 100) / 100,
+    );
+    // The free preview still pays ElevenLabs for the effects.
+    assertStrictEquals(
+      productionEstimate("mock", film, { ...options, withSoundEffects: true })
+        .soundEffects.usd,
+      SOUND_EFFECTS_USD,
+    );
+    // 3.7 s of effects at 40 credits a second and $0.0003 a credit, rounded up to the cent.
+    assert(SOUND_EFFECTS_USD >= 3.7 * 40 * 0.0003);
   },
 );

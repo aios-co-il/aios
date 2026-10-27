@@ -2,6 +2,15 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
+import {
+  ctaFontPx,
+  ctaLines,
+  endCardBackground,
+  endCardSeconds,
+  endCardTextFilters,
+  hasEndCard,
+} from "./end-card.mjs";
+import { MIX, WHOOSH_LEAD } from "./workshop-edit.mjs";
 
 const ffmpeg = (args) =>
   new Promise((resolve, reject) => {
@@ -145,7 +154,148 @@ async function segment(timeline, scene, index, dir) {
   return output;
 }
 
+/**
+ * The closing card as a segment: the brand colour, the logo, the call to action wrapped into at
+ * most three centred lines (drawtext shapes the Hebrew right to left) and the website, in silence.
+ */
+const RLM = "‏";
+
+async function endCardSegment(timeline, index, dir) {
+  const brand = timeline.brand;
+  const { width, height } = timeline;
+  const lines = ctaLines(brand.ctaText);
+  const lineFiles = [];
+  for (const [line, text] of lines.entries()) {
+    const file = join(dir, `cta-${line}.txt`);
+    // A right-to-left mark first: a line that opens with a number ("1000 הנרשמים") still
+    // reads right to left.
+    await writeFile(file, `${RLM}${text}`);
+    lineFiles.push(file);
+  }
+  let urlFile = null;
+  if (brand.ctaUrl) {
+    urlFile = join(dir, "cta-url.txt");
+    await writeFile(urlFile, String(brand.ctaUrl).slice(0, 120));
+  }
+  // ffmpeg cannot draw an SVG logo: the card then shows the call to action alone.
+  const logo =
+    brand.logoPath && !/\.svg$/i.test(brand.logoPath) ? brand.logoPath : null;
+  const text = endCardTextFilters({
+    lineFiles,
+    urlFile,
+    fontPx: ctaFontPx(lines, { width, height }),
+    width,
+    height,
+    accent: brand.primaryColor,
+    fontFile: FONT(),
+    centreShare: logo ? 0.62 : 0.5,
+  });
+  const duration = endCardSeconds(lines).toFixed(3);
+  const background = `color=c=${endCardBackground(brand)}:s=${width}x${height}:r=${timeline.fps}:d=${duration}`;
+  const graph = logo
+    ? `[1:v]scale=${Math.round(width * 0.58)}:${Math.round(height * 0.24)}:force_original_aspect_ratio=decrease[logo];[0:v][logo]overlay=x=(W-w)/2:y=H*0.34-h/2${text.length ? `,${text.join(",")}` : ""},fade=t=in:st=0:d=0.4[v]`
+    : `[0:v]${text.length ? `${text.join(",")},` : ""}fade=t=in:st=0:d=0.4[v]`;
+  const output = join(dir, `seg-${index}.mp4`);
+  await ffmpeg([
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    background,
+    ...(logo ? ["-i", logo] : []),
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=channel_layout=stereo:sample_rate=48000",
+    "-filter_complex",
+    graph,
+    "-map",
+    "[v]",
+    "-map",
+    `${logo ? 2 : 1}:a`,
+    "-t",
+    duration,
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    String(timeline.fps),
+    "-c:a",
+    "aac",
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
+    output,
+  ]);
+  return output;
+}
+
 const TAIL_S = 0.5;
+
+/**
+ * When each sound effect plays in the ffmpeg edit, in seconds: an impact at the opening title
+ * and on the end card, a whoosh building into every cut.
+ */
+export function fallbackEffectCues(
+  lengths,
+  { whoosh = false, impact = false, endCardS = null } = {},
+) {
+  const cues = [];
+  if (impact) cues.push({ name: "impact", atS: 0 });
+  let at = 0;
+  for (const [index, length] of lengths.entries()) {
+    if (index > 0 && whoosh)
+      cues.push({ name: "whoosh", atS: Math.max(0, at - WHOOSH_LEAD) });
+    at += length;
+  }
+  if (impact && Number.isFinite(endCardS) && endCardS > 0)
+    cues.push({ name: "impact", atS: Math.max(0, endCardS - 0.2) });
+  return cues.map((cue) => ({
+    ...cue,
+    atS: Math.round(cue.atS * 1000) / 1000,
+  }));
+}
+
+const STEREO = "aformat=sample_rates=48000:channel_layouts=stereo";
+
+/**
+ * The filter graph that lays the effects into the film. `index` maps an effect name to its
+ * ffmpeg input. Every cue is a delayed copy of its effect; together they are ducked under the
+ * speech (the scenes' audio, plus the narration when there is one) with a sidechain compressor,
+ * the ffmpeg counterpart of the Remotion edit's effect envelope.
+ */
+export function effectsGraph(cues, index, { narration = false } = {}) {
+  const filters = [
+    narration
+      ? `[0:a]${STEREO}[a0];[a0][n]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,asplit=2[speech][key]`
+      : `[0:a]${STEREO},asplit=2[speech][key]`,
+  ];
+  const parts = [];
+  for (const [name, input] of Object.entries(index)) {
+    const mine = cues.filter((cue) => cue.name === name);
+    if (!mine.length) continue;
+    const copies = mine.map((_, i) => `[${name}${i}]`);
+    filters.push(
+      `[${input}:a]${STEREO},volume=${MIX.effects},asplit=${mine.length}${copies.join("")}`,
+    );
+    for (const [i, cue] of mine.entries()) {
+      filters.push(
+        `${copies[i]}adelay=${Math.round(cue.atS * 1000)}:all=1[${name}d${i}]`,
+      );
+      parts.push(`[${name}d${i}]`);
+    }
+  }
+  filters.push(
+    `${parts.join("")}amix=inputs=${parts.length}:duration=longest:dropout_transition=0:normalize=0[fxraw]`,
+    "[fxraw][key]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=300[fx]",
+  );
+  return { filters, speech: "[speech]", effects: "[fx]" };
+}
 
 /**
  * Seconds each scene lasts. Speech is never cut: a scene runs as long as its voice (plus a short
@@ -184,6 +334,11 @@ export async function assembleFilm(timeline, outputPath) {
       ),
     );
   }
+  // The closing card (logo, call to action, website) after the last scene.
+  const scenesS = lengths.reduce((sum, length) => sum + length, 0);
+  const endCard = hasEndCard(timeline.brand);
+  if (endCard)
+    segments.push(await endCardSegment(timeline, segments.length, dir));
   const list = join(dir, "list.txt");
   await writeFile(
     list,
@@ -207,7 +362,12 @@ export async function assembleFilm(timeline, outputPath) {
     "copy",
     picture,
   ]);
-  if (!timeline.narrationPath && !timeline.musicPath) {
+  const cues = fallbackEffectCues(lengths, {
+    whoosh: Boolean(timeline.effects?.whooshPath),
+    impact: Boolean(timeline.effects?.impactPath),
+    endCardS: endCard ? scenesS : null,
+  });
+  if (!timeline.narrationPath && !timeline.musicPath && !cues.length) {
     await ffmpeg([
       "-hide_banner",
       "-loglevel",
@@ -221,7 +381,9 @@ export async function assembleFilm(timeline, outputPath) {
     ]);
     return outputPath;
   }
-  const duration = lengths.reduce((sum, length) => sum + length, 0).toFixed(3);
+  const duration = (
+    scenesS + (endCard ? endCardSeconds(ctaLines(timeline.brand.ctaText)) : 0)
+  ).toFixed(3);
   const inputs = ["-i", picture];
   const filters = [];
   const beds = [];
@@ -239,6 +401,23 @@ export async function assembleFilm(timeline, outputPath) {
     );
     beds.push("[m]");
   }
+  let speech = "[0:a]";
+  if (cues.length) {
+    const index = {};
+    for (const name of ["whoosh", "impact"]) {
+      const path = timeline.effects?.[`${name}Path`];
+      if (!path || !cues.some((cue) => cue.name === name)) continue;
+      inputs.push("-i", path);
+      index[name] = inputs.filter((arg) => arg === "-i").length - 1;
+    }
+    // The effects duck under everything spoken: the scenes' own audio and the narration.
+    const narration = beds.includes("[n]");
+    if (narration) beds.splice(beds.indexOf("[n]"), 1);
+    const graph = effectsGraph(cues, index, { narration });
+    filters.push(...graph.filters);
+    speech = graph.speech;
+    beds.push(graph.effects);
+  }
   await ffmpeg([
     "-hide_banner",
     "-loglevel",
@@ -246,7 +425,7 @@ export async function assembleFilm(timeline, outputPath) {
     "-y",
     ...inputs,
     "-filter_complex",
-    `${filters.join(";")};[0:a]${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
+    `${filters.join(";")};${speech}${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
     "-map",
     "0:v",
     "-map",
