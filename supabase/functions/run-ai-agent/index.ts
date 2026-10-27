@@ -36,7 +36,7 @@ import {
 } from "../_shared/carmen-direct-tools.mjs";
 import { listVerifyTables } from "./verify-tables.ts";
 import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
-import { reconciliationStatusTool } from "./reconciliation-status.ts";
+import { reconciliationStatusTool } from "./status-tool.ts";
 import { MANAGER_ROLES } from "./manager-roles.ts";
 import {
   assertCallerCanAccessClient,
@@ -5671,7 +5671,8 @@ async function executeTool(
     };
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // Role-based scope: managers (MANAGER_ROLES) bypass the campaigner narrow-scope.
+  // callerRole is the highest role in any of the caller's tenants, not only this
+  // one; get_reconciliation_status re-reads the roles held in this tenant.
   const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)

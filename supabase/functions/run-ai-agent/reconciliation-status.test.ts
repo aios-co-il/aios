@@ -5,34 +5,10 @@ import {
 } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { memoryDb } from "../_shared/reconcile/memory-db.ts";
-import {
-  getReconciliationStatus,
-  reconciliationStatusTool,
-} from "./reconciliation-status.ts";
+import { getReconciliationStatus } from "./reconciliation-status.ts";
+import { statusRun } from "./status-fixtures.ts";
 
 const SINCE = "2026-10-23T00:00:00Z";
-
-/** A run of table t1 of tenant-1. */
-const statusRun = (
-  id: string,
-  status: string,
-  started_at: string,
-  summary: Record<string, unknown>,
-) => ({
-  id,
-  tenant_id: "tenant-1",
-  client_id: "client-1",
-  table_id: "t1",
-  platform: "meta",
-  status,
-  started_at,
-  finished_at: started_at,
-  window_start: status === "ok" ? "2026-10-18" : null,
-  window_end: status === "ok" ? "2026-10-24" : null,
-  summary,
-  crm_tables: { name: "דוח לידים" },
-  clients: { name: "לקוח" },
-});
 
 /** Status of tenant-1 as its owner sees it. */
 const ownerStatus = (runs: Array<Record<string, unknown>>) =>
@@ -134,100 +110,5 @@ describe("getReconciliationStatus", () => {
     ]);
     assertStrictEquals("rate_limited_tables" in status, false);
     assertStrictEquals("rate_limited" in status.items[0], false);
-  });
-});
-
-/** The tool context for user-1 in tenant-1; run-ai-agent's cross-tenant flags stay false. */
-const toolCtx = (
-  userRoles: Array<Record<string, unknown>>,
-  runs: Array<Record<string, unknown>> = [],
-): Parameters<typeof reconciliationStatusTool>[0] => ({
-  supabase: memoryDb({ user_roles: userRoles, reconcile_runs: runs }),
-  callerScope: {
-    isManagerRole: false,
-    isTeamManager: false,
-    managedAgencyIds: [],
-    accessibleTenantIds: ["tenant-1"],
-  },
-  tenantId: "tenant-1",
-  actorUserId: "user-1",
-});
-
-describe("reconciliationStatusTool", () => {
-  it("refuses every client to a caller who is not a manager", async () => {
-    await assertRejects(
-      () =>
-        reconciliationStatusTool(
-          toolCtx([
-            { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
-          ]),
-          {},
-        ),
-      Error,
-      "למנהלים בלבד",
-    );
-  });
-
-  it("does not count an owner role held in another tenant", async () => {
-    await assertRejects(
-      () =>
-        reconciliationStatusTool(
-          toolCtx([
-            { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
-            { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
-          ]),
-          {},
-        ),
-      Error,
-      "למנהלים בלבד",
-    );
-  });
-
-  it("lets a manager of this tenant or a global super admin list every client", async () => {
-    for (const row of [
-      { user_id: "user-1", tenant_id: "tenant-1", role: "agency_manager" },
-      { user_id: "user-1", tenant_id: null, role: "super_admin" },
-    ]) {
-      const status = await reconciliationStatusTool(toolCtx([row]), {});
-      assertEquals(status.checked, 0);
-    }
-  });
-
-  it("shows the unmapped-account rows only for an owner role in this tenant", async () => {
-    // Started now: the tool reads runs since Date.now() minus the max age.
-    const now = new Date().toISOString();
-    const runs = [
-      statusRun("table", "ok", now, { findings_total: 0 }),
-      {
-        ...statusRun("accounts", "mismatch", now, { findings_total: 1 }),
-        client_id: null,
-        table_id: null,
-        crm_tables: null,
-        clients: null,
-      },
-    ];
-    const managerHere = await reconciliationStatusTool(
-      toolCtx(
-        [
-          { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
-          { user_id: "user-1", tenant_id: "tenant-1", role: "agency_manager" },
-        ],
-        runs,
-      ),
-      {},
-    );
-    assertStrictEquals(managerHere.checked, 1);
-    assertEquals(
-      managerHere.items.map((i) => i.table_id),
-      ["t1"],
-    );
-    const ownerHere = await reconciliationStatusTool(
-      toolCtx(
-        [{ user_id: "user-1", tenant_id: "tenant-1", role: "owner" }],
-        runs,
-      ),
-      {},
-    );
-    assertStrictEquals(ownerHere.checked, 2);
   });
 });

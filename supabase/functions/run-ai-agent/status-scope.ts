@@ -59,8 +59,8 @@ export async function reconcileStatusScope(
  * The roles `userId` holds in `tenantId`: rows for that tenant plus global
  * rows (tenant_id NULL). A role in another tenant does not count, so an owner
  * of one org is not a manager in the org that only shares clients with it.
- * The tenant filter runs here, not in a PostgREST `or` string, so the tenant
- * id never becomes filter syntax.
+ * Two typed queries keep the tenant filter in the database without building a
+ * PostgREST `or` string from the tenant id.
  */
 export async function rolesInTenant(
   db: Pick<DbClient, "from">,
@@ -70,16 +70,18 @@ export async function rolesInTenant(
   if (!userId) {
     return [];
   }
-  const { data, error } = await db
-    .from("user_roles")
-    .select("role, tenant_id")
-    .eq("user_id", userId);
-  if (error) {
-    throw new Error(`user_roles: ${error.message}`);
-  }
-  return (data || [])
-    .filter((row) => row.tenant_id === tenantId || row.tenant_id === null)
-    .map((row) => row.role);
+  const userRoles = () =>
+    db.from("user_roles").select("role").eq("user_id", userId);
+  const results = await Promise.all([
+    userRoles().eq("tenant_id", tenantId),
+    userRoles().is("tenant_id", null),
+  ]);
+  return results.flatMap(({ data, error }) => {
+    if (error) {
+      throw new Error(`user_roles: ${error.message}`);
+    }
+    return (data || []).map((row) => row.role);
+  });
 }
 
 /** True when `clientId` is the caller's own tenant's client or a shared-agency client. */

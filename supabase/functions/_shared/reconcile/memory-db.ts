@@ -1,10 +1,10 @@
 /**
  * Test helper (not imported by any edge function): an in-memory stand-in for
  * the PostgREST builder the reconcile code reads with (AIO-238). It applies the
- * filters for real (eq, neq, in, gt, gte, lt, lte, `not is null`, simple `or`
- * lists), ordering and paging over plain rows, so scoping tests check which
- * rows come back rather than which calls were made. Embedded selects such as
- * `clients(name)` are read from the row as stored.
+ * filters for real (eq, neq, in, gt, gte, lt, lte, `is null`, `not is null`,
+ * simple `or` lists), ordering and paging over plain rows, so scoping tests
+ * check which rows come back rather than which calls were made. Embedded
+ * selects such as `clients(name)` are read from the row as stored.
  */
 import { asRecord } from "./json.ts";
 
@@ -12,7 +12,8 @@ type Row = Record<string, unknown>;
 
 type Filter = (row: Row) => boolean;
 
-type Result<T> = { data: T; error: null };
+type Result<T> =
+  { data: T; error: null } | { data: null; error: { message: string } };
 
 type Builder = {
   select: (columns?: string) => Builder;
@@ -23,6 +24,7 @@ type Builder = {
   gte: (column: string, value: string) => Builder;
   lt: (column: string, value: string) => Builder;
   lte: (column: string, value: string) => Builder;
+  is: (column: string, value: null) => Builder;
   not: (column: string, op: string, value: unknown) => Builder;
   or: (expr: string) => Builder;
   order: (column: string, opts?: { ascending?: boolean }) => Builder;
@@ -35,14 +37,23 @@ type Builder = {
   ) => Promise<T>;
 };
 
-/** A client whose `from(table)` reads `tables[table]`; `queries` lists the filters each query used. */
-export function memoryDb(tables: Record<string, Row[]>) {
+/**
+ * A client whose `from(table)` reads `tables[table]`; `queries` lists the
+ * filters each query used. Every query of a table named in `failing` returns
+ * `{ data: null, error }` with that message, for error-path tests.
+ */
+export function memoryDb(
+  tables: Record<string, Row[]>,
+  failing: Record<string, string> = {},
+) {
   const queries: Array<{ table: string; filters: string[] }> = [];
   return {
     queries,
     from(table: string): Builder {
-      return tableQuery(tables[table] || [], (filters) =>
-        queries.push({ table, filters }),
+      return tableQuery(
+        tables[table] || [],
+        (filters) => queries.push({ table, filters }),
+        failing[table],
       );
     },
   };
@@ -52,6 +63,7 @@ export function memoryDb(tables: Record<string, Row[]>) {
 function tableQuery(
   source: Row[],
   record: (filters: string[]) => void,
+  errorMessage?: string,
 ): Builder {
   const filters: Filter[] = [];
   const described: string[] = [];
@@ -78,6 +90,10 @@ function tableQuery(
     }
     return out;
   };
+  const result = <T>(data: () => T): Result<T> =>
+    errorMessage === undefined
+      ? { data: data(), error: null }
+      : { data: null, error: { message: errorMessage } };
   const add = (label: string, f: Filter) => {
     described.push(label);
     filters.push(f);
@@ -92,6 +108,7 @@ function tableQuery(
     gte: (c, v) => add(`gte ${c}`, (r) => String(read(r, c)) >= v),
     lt: (c, v) => add(`lt ${c}`, (r) => String(read(r, c)) < v),
     lte: (c, v) => add(`lte ${c}`, (r) => String(read(r, c)) <= v),
+    is: (c) => add(`is ${c} null`, (r) => read(r, c) == null),
     not: (c, op, v) => {
       if (op !== "is" || v !== null) {
         throw new Error(`memory db: unsupported not ${op}`);
@@ -114,10 +131,9 @@ function tableQuery(
       range = [from, to];
       return builder;
     },
-    maybeSingle: () =>
-      Promise.resolve({ data: rows()[0] ?? null, error: null }),
+    maybeSingle: () => Promise.resolve(result(() => rows()[0] ?? null)),
     then: (resolve, reject) =>
-      Promise.resolve({ data: rows(), error: null }).then(resolve, reject),
+      Promise.resolve(result(rows)).then(resolve, reject),
   };
   return builder;
 }

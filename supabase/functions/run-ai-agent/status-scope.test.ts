@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { memoryDb } from "../_shared/reconcile/memory-db.ts";
 import { getReconciliationStatus } from "./reconciliation-status.ts";
+import { rolesInTenant } from "./status-scope.ts";
 
 const SINCE = "2026-10-23T00:00:00Z";
 
@@ -108,5 +109,37 @@ describe("reconcileStatusScope", () => {
       sinceIso: SINCE,
     });
     assertEquals(ids(shared), ["table-bx"]);
+  });
+});
+
+describe("rolesInTenant", () => {
+  it("reads this tenant's and global roles, filtering the tenant in the database", async () => {
+    const db = memoryDb({
+      user_roles: [
+        { user_id: "user-1", tenant_id: "tenant-2", role: "owner" },
+        { user_id: "user-1", tenant_id: "tenant-1", role: "campaigner" },
+        { user_id: "user-1", tenant_id: null, role: "super_admin" },
+        { user_id: "user-2", tenant_id: "tenant-1", role: "owner" },
+      ],
+    });
+    const roles = await rolesInTenant(db, "tenant-1", "user-1");
+    assertEquals(roles.sort(), ["campaigner", "super_admin"]);
+    // No user_id-only read: each query carries a tenant filter.
+    assertEquals(
+      db.queries.map((q) => [q.table, ...q.filters]),
+      [
+        ["user_roles", "eq user_id", "eq tenant_id"],
+        ["user_roles", "eq user_id", "is tenant_id null"],
+      ],
+    );
+  });
+
+  it("throws when user_roles cannot be read", async () => {
+    const db = memoryDb({}, { user_roles: "permission denied" });
+    await assertRejects(
+      () => rolesInTenant(db, "tenant-1", "user-1"),
+      Error,
+      "user_roles: permission denied",
+    );
   });
 });
