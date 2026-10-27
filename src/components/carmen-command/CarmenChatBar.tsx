@@ -41,6 +41,8 @@ import { getSessionSkin, setSessionSkin } from "@/lib/carmenSessionSkin";
 import {
   emitWorkshopEvent,
   getWorkshopContext,
+  prefilledDraft,
+  subscribeComposerPrefill,
   workshopEventFrom,
   workshopRequestParts,
 } from "@/lib/workshopBridge";
@@ -1652,6 +1654,20 @@ export const CarmenChatBar = forwardRef<
 
   // Release the mic and stop audio when the page unmounts
   useEffect(() => () => endConversation(), [endConversation]);
+
+  // The workshop board's "comment on this scene" writes its line here and hands over the focus.
+  useEffect(() => {
+    if (!isSidecar) return;
+    return subscribeComposerPrefill((text) => {
+      setInput((current) => prefilledDraft(current, text));
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    });
+  }, [isSidecar]);
 
   useImperativeHandle(
     ref,

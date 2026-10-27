@@ -5,8 +5,9 @@ import {
   loadProject,
   savePayload,
 } from "../project-io.ts";
-import { recordArtifact } from "../record.ts";
+import { asRecord, recordArtifact } from "../record.ts";
 import { loadScenes } from "../scene-helpers.ts";
+import { storyboardText } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 export async function workshopEditFromAssets(ctx: ToolContext) {
@@ -39,6 +40,7 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
     workshop_edit: true,
   });
   const total = built.rows.reduce((sum, row) => sum + row.duration_s, 0);
+  const talking = built.plan.filter((scene) => scene.talking).length;
   const artifact = await recordArtifact(supabase, {
     tenantId,
     itemId,
@@ -47,20 +49,24 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
     meta: {
       total_s: total,
       scenes: built.rows,
-      text: built.rows
-        .map(
-          (row) =>
-            `${row.position}. ${row.title} (${row.duration_s} ש׳)${
-              row.overlay_text ? `\nכיתוב: ${row.overlay_text}` : ""
-            }${row.voiceover_text ? `\nקריינות: ${row.voiceover_text}` : ""}`,
-        )
-        .join("\n\n"),
+      text: storyboardText(built.rows, true),
     },
   });
+  const voiceChosen =
+    String(asRecord(brief.payload.video).voice_id ?? "").trim() !== "";
   return {
     success: true,
     scenes: built.rows.length,
     total_s: total,
+    format: String(brief.payload.format ?? "9:16"),
+    ...(talking > 0
+      ? {
+          talking_scenes: talking,
+          talking_note: voiceChosen
+            ? "הסצנות המדברות יגידו את המשפטים בקול שנבחר לפרויקט, בליפ סינק על התמונות של המשתמש."
+            : "יש סצנות מדברות ועוד לא נבחר קול: לפני ההפקה workshop_choose_voice, כדי שהמשפטים יהיו בקול שהמשתמש בחר.",
+        }
+      : {}),
     ...(built.failed.length > 0 ? { not_attached: built.failed } : {}),
     artifact,
     workshop: {
@@ -69,6 +75,6 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
       artifact_id: artifact.id,
     },
     message:
-      "הסצנות נבנו מהחומרים ומופיעות בלוח. להרכבת הסרט קראי ל-workshop_produce_video: עם engine=mock התמונות זזות בתנועת מצלמה בלי עלות, ומנוע בתשלום מנפיש אותן.",
+      "הסצנות נבנו מהחומרים ומופיעות בלוח. אם המשתמש ביקש לאשר את התסריט או את המשפטים לפני ההפקה, הציגי לו אותם ועצרי עד שיאשר; שינוי בסצנה אחת עם workshop_update_scene. להרכבת הסרט קראי ל-workshop_produce_video: עם engine=mock התמונות זזות בתנועת מצלמה בלי עלות, ומנוע בתשלום מנפיש אותן.",
   };
 }

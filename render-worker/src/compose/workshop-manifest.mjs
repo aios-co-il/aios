@@ -10,21 +10,40 @@ import {
   wordsToFrames,
 } from "./captions.mjs";
 import { kickerTitle } from "./kicker.mjs";
+import {
+  captionStyleOf,
+  lineCharsFor,
+  motionCaptions,
+} from "./motion-captions.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
+import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.mjs";
 import {
   MIX,
   effectCues,
   fitScenes,
   musicEnvelope,
-  sceneTransition,
   speaks,
   speechSpans,
-  transitionFrames,
 } from "./workshop-edit.mjs";
 
 export const WORKSHOP_FPS = 30;
 export const WORKSHOP_SCHEMA = 3;
 const TAIL_FRAMES = 15;
+/**
+ * A line lip-synced on the still has none of the scene's movement, so the scene's animated clip
+ * plays after it (the skin's own move, into the next cut): at least this long, more when the
+ * scene was planned longer than its line, never past the animated clip's own length.
+ */
+export const MOVE_MIN_FRAMES = 36;
+
+/** Frames of the move beat after a talking clip of `clipFrames`, or 0 without one. */
+export function moveBeatFrames(baseFrames, clipFrames, moveClipFrames) {
+  if (!clipFrames || !moveClipFrames) return 0;
+  return Math.min(
+    moveClipFrames,
+    Math.max(MOVE_MIN_FRAMES, baseFrames - clipFrames),
+  );
+}
 export const WORKSHOP_MOVES = [
   "push",
   "drift-left",
@@ -141,7 +160,7 @@ export function buildWorkshopManifest(timeline) {
       !useStill && seconds(scene.clipDurationS)
         ? Math.floor(seconds(scene.clipDurationS) * fps)
         : null;
-    const frames = sceneMinFrames(
+    const base = sceneMinFrames(
       {
         durationS: scene.durationS,
         voiceS,
@@ -150,6 +169,18 @@ export function buildWorkshopManifest(timeline) {
       },
       fps,
     );
+    // The skin's move after her lip-synced line (lipsync.mjs keeps the animated clip).
+    const moveClipFrames =
+      scene.lipsync && scene.moveClipPath && seconds(scene.moveClipDurationS)
+        ? Math.floor(seconds(scene.moveClipDurationS) * fps)
+        : 0;
+    const moveFrames = moveBeatFrames(base, clipFrames, moveClipFrames);
+    let move = null;
+    if (moveFrames) {
+      move = `move-${index}.${extension(scene.moveClipPath)}`;
+      files.push({ from: scene.moveClipPath, to: move });
+    }
+    const frames = Math.max(base, (moveFrames && clipFrames + moveFrames) || 0);
     picked.push({
       index,
       scene,
@@ -159,6 +190,8 @@ export function buildWorkshopManifest(timeline) {
       voiceWords,
       voiceS,
       clipFrames,
+      move,
+      moveClipFrames,
       frames,
     });
   }
@@ -205,22 +238,44 @@ export function buildWorkshopManifest(timeline) {
       if (!words.length && p.voiceS)
         spans.push([startFrame, startFrame + Math.ceil(p.voiceS * fps)]);
     }
+    // The same character in another picture: a skin switch (flash, pop, sweep on the whoosh).
+    const { transition, transitionFrames } = sceneTransitionFor(
+      order,
+      p.scene.transition,
+      {
+        skin: isSkinSwitch(picked[order - 1]?.scene, p.scene, {
+          soundDesign: timeline.soundDesign === true,
+        }),
+        previousFrames: order ? counts[order - 1] : 0,
+        frames: frameCount,
+      },
+    );
     if (p.scene.lipsync) {
-      spans.push([startFrame, startFrame + frameCount]);
-      // The clip speaks the line with no word timings: caption it across the speech.
-      if (p.scene.spokenText)
+      // Speech only while the talking clip plays: the move after it lets the music up.
+      const talkFrames = Math.min(frameCount, p.clipFrames || frameCount);
+      spans.push([startFrame, startFrame + talkFrames]);
+      // The line's own voice file drove the lips, so its word timings caption the clip, which
+      // starts with the scene's transition (workshop-film.tsx). Without them the words share
+      // the clip's speech by length.
+      const spoken = wordsFromAlignment(p.scene.spokenAlignment);
+      if (spoken.length)
+        framed = framed.concat(
+          wordsToFrames(
+            spoken,
+            fps,
+            startFrame - Math.min(startFrame, transitionFrames || 0),
+          ),
+        );
+      else if (p.scene.spokenText)
         framed = framed.concat(
           spreadWords(
             p.scene.spokenText,
             startFrame + Math.round(fps * 0.3),
             // Over the clip's own speech: a longer scene holds its last frame silently.
-            startFrame +
-              Math.min(frameCount, p.clipFrames || frameCount) -
-              TAIL_FRAMES,
+            startFrame + talkFrames - TAIL_FRAMES,
           ),
         );
     }
-    const transition = sceneTransition(order, p.scene.transition);
     return {
       id: String(p.scene.id),
       order,
@@ -233,7 +288,8 @@ export function buildWorkshopManifest(timeline) {
       caption: String(p.scene.overlayText ?? "")
         .trim()
         .slice(0, 180),
-      // Over karaoke captions the scene's own short title still shows, at the top.
+      // Over the narration's captions the scene's own short title still shows: at the top
+      // over karaoke lines, as a title card over the motion captions.
       kicker: kickerTitle(
         p.scene.overlayText,
         p.scene.voiceoverText || p.scene.spokenText || "",
@@ -242,16 +298,21 @@ export function buildWorkshopManifest(timeline) {
         ? "static"
         : WORKSHOP_MOVES[p.index % WORKSHOP_MOVES.length],
       transition,
-      transitionFrames: transitionFrames(
-        order ? counts[order - 1] : 0,
-        frameCount,
-        transition,
-      ),
+      transitionFrames,
       lipsync: p.scene.lipsync === true,
+      // After the talking clip: the scene's animated clip, muted, from that picture frame on.
+      ...(p.move
+        ? {
+            moveClip: p.move,
+            moveFrom: p.clipFrames,
+            moveFrames: p.moveClipFrames,
+          }
+        : {}),
       hasAudio: p.scene.clipHasAudio !== false,
     };
   });
   const scenesEnd = cursor;
+  const captionStyle = captionStyleOf(timeline.captionStyle);
   for (const word of framed) spans.push([word.startFrame, word.endFrame]);
   const speech = speechSpans(spans);
   const clipAudio = timeline.clipAudio !== false;
@@ -339,7 +400,22 @@ export function buildWorkshopManifest(timeline) {
             }),
           }
         : {}),
-      captions: captionChunks(framed, fps, scenesEnd),
+      captionStyle,
+      captions:
+        captionStyle === "motion"
+          ? motionCaptions(framed, {
+              fps,
+              endFrame: scenesEnd,
+              // A phrase never runs over a cut, and a scene's title words are its key words.
+              breaks: scenes.slice(1).map((scene) => scene.startFrame),
+              scenes: scenes.map((scene, order) => ({
+                startFrame: scene.startFrame,
+                title: picked[order].scene.overlayText ?? "",
+              })),
+              brand: timeline.brandName ?? "",
+              maxLineChars: lineCharsFor(timeline.aspect),
+            })
+          : captionChunks(framed, fps, scenesEnd),
       clipAudio,
       brand,
       endCard,

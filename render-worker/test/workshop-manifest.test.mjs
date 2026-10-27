@@ -121,9 +121,12 @@ test("word timings become karaoke captions and duck the music", () => {
     narrationPath: "/tmp/n.mp3",
     narrationAlignment: alignment,
     musicPath: "/tmp/m.mp3",
+    captionStyle: "karaoke",
     scenes: [scene("a", { durationS: 3 })],
   });
+  expect(manifest.captionStyle).toBe("karaoke");
   expect(manifest.captions.length).toBe(1);
+  expect("line" in manifest.captions[0].words[0]).toBe(false);
   expect(
     manifest.captions[0].words.map((w) => [w.text, w.startFrame, w.endFrame]),
   ).toStrictEqual([
@@ -134,6 +137,41 @@ test("word timings become karaoke captions and duck the music", () => {
     frames: [0, 30, 44, 90],
     volumes: [0.06, 0.06, 0.2, 0.2],
   });
+});
+
+test("a workshop film gets motion captions by default: phrases cut at scenes, title words key", () => {
+  // "שלום עולם" over scene a (0–1 s), "שלום כרמן" over scene b from 2 s.
+  const words = {
+    words: [
+      { text: "שלום", start: 0, end: 0.4 },
+      { text: "עולם", start: 0.5, end: 1 },
+      { text: "שלום", start: 2.1, end: 2.4 },
+      { text: "כרמן!", start: 2.5, end: 2.9 },
+    ],
+  };
+  const { manifest } = buildWorkshopManifest({
+    aspect: "9:16",
+    narrationPath: "/tmp/n.mp3",
+    narrationAlignment: words,
+    scenes: [
+      scene("a", { durationS: 2, overlayText: "עולם" }),
+      scene("b", { durationS: 2, overlayText: "פתיחה" }),
+    ],
+  });
+  expect(manifest.captionStyle).toBe("motion");
+  expect(
+    manifest.captions.map((c) =>
+      c.words.map((w) => `${w.key ? "*" : ""}${w.text}`),
+    ),
+  ).toStrictEqual([
+    ["שלום", "*עולם"],
+    ["שלום", "*כרמן!"],
+  ]);
+  // A phrase never runs over the cut into scene b.
+  expect(manifest.captions[0].endFrame).toBeLessThanOrEqual(
+    manifest.scenes[1].startFrame,
+  );
+  expect(manifest.captions[1].words.every((w) => w.line === 0)).toBe(true);
 });
 
 test("clip audio plays alone, sits under speech, and a lip-synced clip stays loud and still", () => {
@@ -245,4 +283,71 @@ test("an ending without a closing card leaves the end card out", () => {
     brand: { logoPath: "/tmp/logo.png", ctaText: "בואו", endCard: false },
   });
   expect(manifest.endCard).toBe(null);
+});
+
+test("a line lip-synced on the still is followed by the skin's own move", () => {
+  const talking = {
+    clipProvider: "elevenlabs",
+    stillPath: null,
+    lipsync: true,
+    clipDurationS: 3,
+    spokenText: "אני הקמפיינרית",
+    moveClipPath: "/tmp/move.mp4",
+    moveClipDurationS: 5,
+  };
+  const { manifest, files } = buildWorkshopManifest({
+    scenes: [
+      // Planned as long as its line: the move adds MOVE_MIN_FRAMES (1.2 s).
+      scene("a", { ...talking, durationS: 3 }),
+      // Planned longer than its line: the move fills the rest, up to the animated clip's length.
+      scene("b", { ...talking, durationS: 5 }),
+      // No animated clip kept (a clip that talked by itself): no move.
+      scene("c", { ...talking, moveClipPath: null, durationS: 3 }),
+    ],
+  });
+  const [a, b, c] = manifest.scenes;
+  expect(a.moveClip).toBe("move-0.mp4");
+  expect(a.moveFrom).toBe(90);
+  expect(a.moveFrames).toBe(150);
+  expect(a.frameCount).toBe(90 + 36);
+  expect(b.moveClip).toBe("move-1.mp4");
+  expect(b.frameCount).toBe(150);
+  expect(c.moveClip).toBeUndefined();
+  expect(c.frameCount).toBe(90);
+  expect(files).toContainEqual({ from: "/tmp/move.mp4", to: "move-0.mp4" });
+  // The talking clip keeps the camera still and its own voice; the move is muted in the film.
+  expect(a.move).toBe("static");
+  expect(a.clipVolume).toBe(1);
+  // Captions stay over the line, not over the move.
+  const words = manifest.captions
+    .flatMap((chunk) => chunk.words)
+    .filter((word) => word.startFrame < a.frameCount);
+  expect(words.at(-1).endFrame <= a.moveFrom).toBeTruthy();
+});
+
+test("a lip-synced line is captioned on its own voice's word timings", () => {
+  const { manifest } = buildWorkshopManifest({
+    scenes: [
+      scene("a", { durationS: 2 }),
+      scene("t", {
+        clipProvider: "elevenlabs",
+        stillPath: null,
+        lipsync: true,
+        clipDurationS: 2,
+        durationS: 2,
+        spokenText: "שלום עולם",
+        spokenAlignment: alignment,
+      }),
+    ],
+  });
+  const t = manifest.scenes[1];
+  // The talking clip starts with the scene's transition, and so does its speech.
+  const clipStart = t.startFrame - t.transitionFrames;
+  const words = manifest.captions
+    .flatMap((chunk) => chunk.words)
+    .filter((word) => word.startFrame >= clipStart);
+  expect(words.map((word) => word.text)).toStrictEqual(["שלום", "עולם"]);
+  expect(words[0].startFrame).toBe(clipStart);
+  expect(words[1].startFrame).toBe(clipStart + 15);
+  expect(words[1].endFrame).toBe(clipStart + 30);
 });

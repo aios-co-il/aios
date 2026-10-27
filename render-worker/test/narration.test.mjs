@@ -199,3 +199,55 @@ test("a talking clip made for an older line is muted and the new line plays as a
   expect(current.scenes[0].lipsync).toBe(true);
   expect(current.scenes[0].voicePath).toBe(null);
 });
+
+test("each scene says which picture and skin it shows, for skin switches", async () => {
+  const assets = [
+    { id: "clip-1", url: "t/clip-1.mp4", meta: {} },
+    { id: "clip-2", url: "t/clip-2.mp4", meta: {} },
+    { id: "clip-3", url: "t/clip-3.mp4", meta: {} },
+    // Two scenes made from the same uploaded material keep its asset id.
+    { id: "still-1", url: "t/s1.jpg", meta: { asset_id: "m-1" } },
+    { id: "still-2", url: "t/s2.jpg", meta: { asset_id: "m-1" } },
+  ];
+  const scenes = [
+    {
+      id: "s1",
+      position: 1,
+      clip_asset_id: "clip-1",
+      still_asset_id: "still-1",
+      meta: {},
+    },
+    {
+      id: "s2",
+      position: 2,
+      clip_asset_id: "clip-2",
+      still_asset_id: "still-2",
+      meta: { skin_switch: false },
+    },
+    {
+      id: "s3",
+      position: 3,
+      clip_asset_id: "clip-3",
+      meta: { reference_url: " https://x/skin-3.jpg ", skin_switch: true },
+    },
+  ];
+  const { scenes: mapped } = await loadFilmSources(
+    fakeDb({ scenes, assets }),
+    run,
+  );
+  expect(
+    mapped.map(({ pictureKey, skinRef, skinSwitch }) => ({
+      pictureKey,
+      skinRef,
+      skinSwitch,
+    })),
+  ).toStrictEqual([
+    { pictureKey: "m-1", skinRef: null, skinSwitch: null },
+    { pictureKey: "m-1", skinRef: null, skinSwitch: false },
+    {
+      pictureKey: "https://x/skin-3.jpg",
+      skinRef: "https://x/skin-3.jpg",
+      skinSwitch: true,
+    },
+  ]);
+});

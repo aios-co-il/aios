@@ -15,6 +15,7 @@ import {
   musicQuoteSeconds,
 } from "./clip-prices.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
+import { talkingLine as sceneLine, talkingMeta } from "./talking.ts";
 
 export type SceneEngine =
   "mock" | "kling" | "elevenlabs" | "higgsfield" | "openrouter";
@@ -67,6 +68,27 @@ export interface CostScene {
   /** A talking scene (meta.lipsync): the character says `dialogue`, else the voiceover. */
   lipsync?: boolean;
   dialogue?: string;
+  /**
+   * The line is spoken in the project's chosen voice (meta.chosen_voice, e.g. Yael): the engine
+   * never speaks it, so the scene always pays for its own voice line and a lip-sync pass.
+   */
+  chosen_voice?: boolean;
+}
+
+/** A marketing_video_scenes row as the quote prices it. */
+export function costSceneOf(scene: {
+  duration_s?: unknown;
+  voiceover_text?: unknown;
+  meta?: unknown;
+}): CostScene {
+  const talk = talkingMeta(scene.meta);
+  return {
+    duration_s: Number(scene.duration_s) || 3,
+    voiceover_text: String(scene.voiceover_text ?? ""),
+    lipsync: talk.lipsync,
+    dialogue: talk.dialogue,
+    chosen_voice: talk.chosenVoice,
+  };
 }
 
 /**
@@ -89,53 +111,68 @@ export const speaksNatively = (engine: SceneEngine) =>
   engine === "elevenlabs" || engine === "higgsfield" || engine === "openrouter";
 
 const talkingLine = (scene: CostScene) =>
-  scene.lipsync
-    ? String(scene.dialogue ?? "").trim() || scene.voiceover_text.trim()
-    : "";
+  sceneLine(
+    { lipsync: scene.lipsync === true, dialogue: scene.dialogue },
+    scene.voiceover_text,
+  );
 
 /**
- * Talking scenes. On an engine that speaks, the clip already carries the line (no extra).
- * Otherwise each talking scene pays for its own voice line plus a lip-sync pass.
+ * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
+ * chosen voice, and all of them on an engine that cannot speak.
  */
-export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
-  const talking = scenes.filter((scene) => talkingLine(scene));
-  // OpenRouter makes a talking scene on Veo 3.1 with audio instead of the Kling clip that
-  // clipEstimate already counted; only the difference is added here.
-  if (talking.length > 0 && engine === "openrouter") {
-    const extra = talking.reduce(
-      (sum, scene) =>
-        sum +
-        veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
-        openRouterBilledSeconds(sceneClipSeconds(engine, scene.duration_s)) *
-          OPENROUTER_USD_PER_SECOND,
-      0,
-    );
-    return {
-      usd: roundUsd(Math.max(0, extra)),
-      credits: 0,
-      scenes: talking.length,
-      native: true,
-    };
-  }
-  if (talking.length === 0 || speaksNatively(engine))
-    return {
-      usd: 0,
-      credits: 0,
-      scenes: talking.length,
-      native: talking.length > 0,
-    };
-  const seconds = talking.reduce(
+const lipsyncPassScenes = (engine: SceneEngine, scenes: CostScene[]) =>
+  scenes.filter(
+    (scene) =>
+      talkingLine(scene) &&
+      (scene.chosen_voice === true || !speaksNatively(engine)),
+  );
+
+/** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
+function lipsyncPassUsd(scenes: CostScene[]) {
+  if (scenes.length === 0) return 0;
+  const seconds = scenes.reduce(
     (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
     0,
   );
   const voice = voiceEstimate(
-    talking.map((scene) => ({ ...scene, voiceover_text: talkingLine(scene) })),
+    scenes.map((scene) => ({ ...scene, voiceover_text: talkingLine(scene) })),
   );
+  return roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd);
+}
+
+/**
+ * Talking scenes. On an engine that speaks, the clip already carries the line (no extra), unless
+ * the line is in the chosen voice. Otherwise each talking scene pays for its own voice line plus
+ * a lip-sync pass.
+ */
+export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
+  const talking = scenes.filter((scene) => talkingLine(scene));
+  const pass = lipsyncPassScenes(engine, scenes);
+  const spokenByEngine = talking.filter((scene) => !pass.includes(scene));
+  // OpenRouter makes a talking scene on Veo 3.1 with audio instead of the Kling clip that
+  // clipEstimate already counted; only the difference is added here.
+  const veoExtra =
+    engine === "openrouter" && spokenByEngine.length > 0
+      ? Math.max(
+          0,
+          spokenByEngine.reduce(
+            (sum, scene) =>
+              sum +
+              veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND -
+              openRouterBilledSeconds(
+                sceneClipSeconds(engine, scene.duration_s),
+              ) *
+                OPENROUTER_USD_PER_SECOND,
+            0,
+          ),
+        )
+      : 0;
   return {
-    usd: roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd),
+    usd: roundUsd(veoExtra + lipsyncPassUsd(pass)),
     credits: 0,
     scenes: talking.length,
-    native: false,
+    // Every talking scene is spoken by the engine itself: no lip-sync pass at all.
+    native: talking.length > 0 && pass.length === 0,
   };
 }
 
@@ -256,32 +293,70 @@ function withLipsyncFallback(
   scenes: CostScene[],
   connections: VideoConnections,
 ) {
-  const talking = lipsyncEstimate(engine, scenes);
-  if (!connections.openrouter || talking.native || talking.scenes === 0)
-    return estimate;
-  const veo = roundUsd(
-    scenes
-      .filter((scene) => talkingLine(scene))
-      .reduce(
-        (sum, scene) =>
-          sum +
-          veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
-        0,
-      ),
+  // A line in the chosen voice never goes to Veo, which would speak it in its own voice.
+  const pass = lipsyncPassScenes(engine, scenes).filter(
+    (scene) => scene.chosen_voice !== true,
   );
-  if (veo <= estimate.lipsync.usd) return estimate;
+  if (!connections.openrouter || pass.length === 0) return estimate;
+  const own = lipsyncPassUsd(pass);
+  const veo = roundUsd(
+    pass.reduce(
+      (sum, scene) =>
+        sum + veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
+      0,
+    ),
+  );
+  if (veo <= own) return estimate;
   return {
     ...estimate,
-    lipsync: { usd: veo, credits: estimate.lipsync.credits },
-    totalUsd: roundUsd(estimate.totalUsd - estimate.lipsync.usd + veo),
+    lipsync: {
+      usd: roundUsd(estimate.lipsync.usd - own + veo),
+      credits: estimate.lipsync.credits,
+    },
+    totalUsd: roundUsd(estimate.totalUsd - own + veo),
   };
 }
 
+/**
+ * Talking scenes whose clip is kept but does not say the current line (say, a line changed on the
+ * board): the production records the line and lip-syncs the scene again (queue_video_lipsync),
+ * with no new clip. Priced as a lip-sync pass, or as Veo where the worker's chain can end there.
+ */
+export function relipEstimate(
+  scenes: CostScene[],
+  connections: VideoConnections = {},
+): Estimate {
+  const talking = scenes.filter((scene) => talkingLine(scene));
+  const chosen = talking.filter((scene) => scene.chosen_voice === true);
+  const others = talking.filter((scene) => scene.chosen_voice !== true);
+  const veo = connections.openrouter
+    ? roundUsd(
+        others.reduce(
+          (sum, scene) =>
+            sum +
+            veoSeconds(scene.duration_s) * OPENROUTER_TALKING_USD_PER_SECOND,
+          0,
+        ),
+      )
+    : 0;
+  return {
+    usd: roundUsd(
+      lipsyncPassUsd(chosen) + Math.max(lipsyncPassUsd(others), veo),
+    ),
+    credits: 0,
+  };
+}
+
+/**
+ * The quote for the scenes produce_video animates, plus `relip`: talking scenes kept as they are
+ * that only need a new voice line and lip sync (relipEstimate).
+ */
 export function quotedProductionEstimate(
   engine: SceneEngine,
   scenes: CostScene[],
   options: ProductionOptions,
   connections: VideoConnections = {},
+  relip: CostScene[] = [],
 ) {
   const own = withLipsyncFallback(
     productionEstimate(engine, scenes, options),
@@ -289,12 +364,26 @@ export function quotedProductionEstimate(
     scenes,
     connections,
   );
-  if (engine === "mock" || engine === "openrouter" || !connections.openrouter)
-    return { ...own, pricedOn: engine };
-  const fallback = productionEstimate("openrouter", scenes, options);
-  return fallback.totalUsd > own.totalUsd
-    ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
-    : { ...own, pricedOn: engine };
+  const fallback =
+    engine === "mock" || engine === "openrouter" || !connections.openrouter
+      ? null
+      : productionEstimate("openrouter", scenes, options);
+  const quote =
+    fallback && fallback.totalUsd > own.totalUsd
+      ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
+      : { ...own, pricedOn: engine };
+  const again = relipEstimate(relip, connections);
+  if (again.usd === 0) return quote;
+  return {
+    ...quote,
+    lipsync: {
+      usd: roundUsd(quote.lipsync.usd + again.usd),
+      credits: quote.lipsync.credits,
+    },
+    talkingScenes:
+      quote.talkingScenes + relip.filter((scene) => talkingLine(scene)).length,
+    totalUsd: roundUsd(quote.totalUsd + again.usd),
+  };
 }
 
 /** Connections outside the LLM integration settings that can make video. */

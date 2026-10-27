@@ -10,7 +10,11 @@ import {
   loadRunScene,
   safeSegment,
 } from "../guard.mjs";
-import { isTalkingScene, talkingLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  speaksInChosenVoice,
+  talkingLine,
+} from "../narration.mjs";
 import {
   getLipsyncProvider,
   lipsyncProviderNames,
@@ -62,6 +66,21 @@ const asset = async (db, run, id, type) => {
     )) ?? [];
   return row?.url ? row : null;
 };
+
+/**
+ * The scene's animated clip, which carries its own movement (motion_prompt): the current clip, or
+ * the one an earlier lip sync of the scene was made over, so a new line keeps the movement. A clip
+ * that talks (a one-shot talking clip, or a lip sync with no clip behind it) has none to keep.
+ */
+export async function motionClipOf(db, run, clip) {
+  if (!clip) return null;
+  if (clip.meta?.lipsync !== true) return clip;
+  const id =
+    clip.meta?.motion_clip_asset_id ||
+    (clip.meta?.source_kind === "clip" ? clip.meta?.source_asset_id : null);
+  const earlier = await asset(db, run, id, "video_clip");
+  return earlier && earlier.meta?.lipsync !== true ? earlier : null;
+}
 
 /** Length of the stored MP4, so the film gives the whole line its time. null without ffprobe. */
 async function videoSeconds(bytes) {
@@ -123,8 +142,13 @@ export async function generateLipsync({
     );
   const still = await asset(db, run, scene.still_asset_id, "video_still");
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
+  const motion = await motionClipOf(db, run, clip);
 
-  const names = lipsyncProviderNames(run, keys, env);
+  // OpenRouter Veo speaks the line in its own voice: never for a line in the chosen voice,
+  // which is assembled as it is (the chosen voice over the picture) when nothing else can.
+  const names = lipsyncProviderNames(run, keys, env).filter(
+    (name) => !(name === "openrouter" && speaksInChosenVoice(scene)),
+  );
   if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
   const durationS = Number(scene.duration_s) || 5;
   const aspect = run.input?.aspect || clip?.meta?.aspect || "9:16";
@@ -142,7 +166,8 @@ export async function generateLipsync({
       let lastError = null;
       for (const name of names) {
         const candidate = providerFor(name, keys);
-        const picture = candidate.needs === "video" ? clip : still;
+        // A clip-based lip sync re-times the mouth of the clip with the movement in it.
+        const picture = candidate.needs === "video" ? (motion ?? clip) : still;
         if (!picture) {
           lastError = new Error(
             `${name} lip sync needs the scene ${candidate.needs === "video" ? "clip" : "still"}`,
@@ -209,6 +234,12 @@ export async function generateLipsync({
       scene,
       voice,
       source,
+      // A lip sync of the still has none of the scene's movement: the film plays the animated
+      // clip after the line (workshop-manifest.mjs), so each skin still makes her own move.
+      motionClipId:
+        source?.kind === "still" && motion?.id && motion.id !== source.asset_id
+          ? motion.id
+          : null,
       durationS,
       aspect,
       log,
@@ -273,6 +304,7 @@ async function finishLipsync({
   scene,
   voice,
   source,
+  motionClipId = null,
   durationS,
   aspect,
   log,
@@ -318,6 +350,7 @@ async function finishLipsync({
       voice_asset_id: voice.id,
       source_kind: source?.kind ?? null,
       source_asset_id: source?.asset_id ?? null,
+      ...(motionClipId ? { motion_clip_asset_id: motionClipId } : {}),
       duration_s: seconds,
       aspect,
       generation_cost: { usd: estimate.usd, credits: estimate.credits },

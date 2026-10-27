@@ -602,3 +602,97 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
   expect(sent.model).toBe(provider.model);
   expect(sent.prompt).toMatch(/שלום/);
 });
+
+/** fakeDb whose scene clip is an older lip sync over the animated clip "motion-1". */
+function relippedDb() {
+  const db = fakeDb();
+  const select = db.select;
+  db.select = async (table, query) => {
+    if (table === "marketing_assets" && query.includes("type=eq.video_clip")) {
+      if (query.includes("id=eq.clip-1"))
+        return [
+          {
+            id: "clip-1",
+            url: "t1/c1/i1/s1/lipsync-v1.mp4",
+            meta: {
+              lipsync: true,
+              dialogue: "שורה ישנה",
+              source_kind: "still",
+              motion_clip_asset_id: "motion-1",
+            },
+          },
+        ];
+      if (query.includes("id=eq.motion-1"))
+        return [
+          {
+            id: "motion-1",
+            url: "t1/c1/i1/s1/clip-v1.mp4",
+            meta: { aspect: "9:16" },
+          },
+        ];
+    }
+    return select(table, query);
+  };
+  return db;
+}
+
+test("a lip sync of the still keeps the scene's animated clip for the film", async () => {
+  const db = fakeDb();
+  const { provider } = fakeProvider();
+  await generateLipsync({
+    db,
+    run: RUN,
+    keys: { elevenLabsKey: "xi" },
+    providerFor: () => provider,
+    env: {},
+    log: () => {},
+  });
+  const attach = db.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attach.args.p_meta.source_kind).toBe("still");
+  // The silent clip with the skin's movement plays after the line (workshop-manifest.mjs).
+  expect(attach.args.p_meta.motion_clip_asset_id).toBe("clip-1");
+});
+
+test("a new line keeps the movement: the earlier animated clip is reused, never the old lip sync", async () => {
+  // Still-based (Aurora): the animated clip behind the old lip sync is carried over.
+  const still = relippedDb();
+  const aurora = fakeProvider();
+  await generateLipsync({
+    db: still,
+    run: RUN,
+    keys: { elevenLabsKey: "xi" },
+    providerFor: () => aurora.provider,
+    env: {},
+    log: () => {},
+  });
+  const attached = still.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attached.args.p_meta.motion_clip_asset_id).toBe("motion-1");
+  // Clip-based (Kling): the mouth is re-timed on the animated clip, not on the old lip sync.
+  const clip = relippedDb();
+  const kling = fakeProvider("kling");
+  const klingProvider = {
+    ...kling.provider,
+    needs: "video",
+    needsPublicMedia: true,
+  };
+  await generateLipsync({
+    db: clip,
+    run: RUN,
+    keys: {},
+    providerFor: () => klingProvider,
+    env: { LIPSYNC_PROVIDER: "kling" },
+    log: () => {},
+  });
+  expect(kling.seen.submits[0].videoUrl).toBe(
+    "https://p.supabase.co/sign/t1/c1/i1/s1/clip-v1.mp4",
+  );
+  const relipped = clip.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(relipped.args.p_meta.source_asset_id).toBe("motion-1");
+  expect(relipped.args.p_meta.motion_clip_asset_id).toBeUndefined();
+});

@@ -5,7 +5,8 @@ import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 /**
  * The Remotion smoke workflow (.github/workflows/creative-remotion-smoke.yml) renders this
  * manifest with render-job.mjs: a two-scene trailer whose 2 s music track is looped across the
- * film, with kickers over karaoke captions and an end card. It must stay what the worker
+ * film, with title cards over motion captions, a skin switch between the two pictures and an
+ * end card. It must stay what the worker
  * builds; after a deliberate manifest change, rerun with UPDATE_FIXTURE=1 to rewrite it.
  */
 const FIXTURE = new URL(
@@ -67,4 +68,6 @@ test("the smoke workflow's Workshop fixture is what the worker builds", () => {
     "אנליסטית",
     "SEO ו-GEO",
   ]);
+  expect(built.captionStyle).toBe("motion");
+  expect(built.scenes[1].transition).toBe("skin");
 });

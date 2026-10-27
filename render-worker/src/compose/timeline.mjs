@@ -1,4 +1,5 @@
 /** The edit decision list the ffmpeg assembly renders. */
+import { captionStyleOf } from "./motion-captions.mjs";
 
 export const FRAME_SIZE = {
   "16:9": [1280, 720],
@@ -28,6 +29,8 @@ export function buildTimeline(
     clipAudio = true,
     effects = null,
     soundDesign = false,
+    captionStyle = "motion",
+    brandName = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -48,12 +51,23 @@ export function buildTimeline(
       voiceoverText: String(scene.voiceoverText ?? "").trim(),
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
-      // What a talking clip says, for its captions.
+      // What a talking clip says, for its captions, with the word timings of the voice line
+      // that drove its lips when there is one.
       spokenText:
         scene.lipsync === true ? String(scene.spokenText ?? "").trim() : "",
+      spokenAlignment:
+        scene.lipsync === true ? scene.spokenAlignment || null : null,
+      // A line lip-synced on the still: the scene's animated clip plays after it (the move).
+      moveClipPath: scene.lipsync === true ? scene.moveClipPath || null : null,
       // A talking clip made for an older line: its speech is muted.
       muteClip: scene.muteClip === true,
       transition: scene.transition || null,
+      // A skin switch into this scene (skin-switch.mjs isSkinSwitch): the scene's own say
+      // (true/false, else null), its skin reference and which picture it shows.
+      skinSwitch:
+        typeof scene.skinSwitch === "boolean" ? scene.skinSwitch : null,
+      skinRef: scene.skinRef || null,
+      pictureKey: scene.pictureKey || null,
       overlayText: String(scene.overlayText ?? "").trim(),
       durationS: sceneSeconds(scene.durationS),
     }));
@@ -80,6 +94,14 @@ export function buildTimeline(
     // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
     // also when its effects could not be made.
     soundDesign: soundDesign === true,
+    // Remotion's captions: motion graphics, or karaoke lines when the film asks for them
+    // (payload.video.caption_style). The ffmpeg edit draws plain titles either way.
+    captionStyle: captionStyleOf(captionStyle),
+    // The brand's name, for the key words of motion captions.
+    brandName:
+      String(brandName ?? "")
+        .trim()
+        .slice(0, 60) || null,
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };

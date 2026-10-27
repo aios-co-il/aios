@@ -41,7 +41,7 @@ jobs:
           test -s /tmp/carmen-job.mp4.json
           ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 /tmp/carmen-job.mp4
         working-directory: .
-      - name: Render a Workshop film (v3, looped bed, kickers over karaoke)
+      - name: Render a Workshop film (v3, looped bed, motion captions, skin switch)
         # fixtures/workshop-manifest.json is what render-worker's buildWorkshopManifest makes of a
         # two-scene trailer: a 2 s music track laid five times across the 6.5 s film.
         run: |

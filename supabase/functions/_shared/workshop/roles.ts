@@ -12,8 +12,11 @@ import {
 
 export type WorkshopRole = "designer" | "producer" | "editor";
 
-/** The open project: a film or not, and whether it is cut from the user's materials. */
-export type ProjectKind = { video: boolean; edit: boolean };
+/**
+ * The open project: a film or not, whether it is cut from the user's materials, and whether the
+ * user picked one of its scenes on the board (the workshop context names its scene_id).
+ */
+export type ProjectKind = { video: boolean; edit: boolean; scene?: boolean };
 
 /** The ai_skills row with the role's instructions. */
 export const ROLE_SKILL: Record<WorkshopRole, string> = {
@@ -46,6 +49,7 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
     ...SHARED,
     "workshop_save_concepts",
     "workshop_storyboard",
+    "workshop_update_scene",
     "workshop_make_stills",
     "workshop_choose_voice",
     "workshop_produce_video",
@@ -54,6 +58,7 @@ export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
     ...SHARED,
     "workshop_edit_from_assets",
     "workshop_storyboard",
+    "workshop_update_scene",
     "workshop_make_stills",
     "workshop_choose_voice",
     "workshop_produce_video",
@@ -128,6 +133,18 @@ export function aboutCarmen(message: string | null | undefined): boolean {
   );
 }
 
+/** Quoted words: what a scene should say or show ("שתגיד 'אני מריצה לך מודעות'"), not a request. */
+const QUOTED = /["“”״][^"“”״]*["“”״]|['‘’׳][^'‘’׳]*['‘’׳]/g;
+
+/**
+ * With a scene picked, only a request to make a new post or ad leaves the film: a verb of making
+ * and a static deliverable outside quotes ("סצנה 3: תכיני גם פוסט עם התמונה הזאת").
+ */
+const asksForStatic = (text: string) => {
+  const own = text.replace(QUOTED, " ");
+  return MAKE.test(own) && STATIC_DELIVERABLE.test(own);
+};
+
 /** A bare yes or no ("כן", "כן, לשלוח", "לא"): an answer to Carmen, not a new request. */
 function bareReply(text: string) {
   return (
@@ -150,8 +167,10 @@ export function roleOfPersona(slug: string | null | undefined) {
  * The role for this message. Editing words win (a film from materials), then film words, then a
  * new static deliverable. Otherwise the open project decides (a film stays with its producer or
  * editor, so "תשני את התמונה בסצנה 2" does not go to the designer), then the current role.
- * A question about Carmen herself keeps the current role, or none (the workshop's own persona):
- * it is answered, not briefed. So does a bare yes or no on a board with no project or role yet.
+ * A scene picked on the board keeps the film's specialist, who changes it (workshop_update_scene):
+ * a skin's line naturally says "פוסטים" or "מודעות". A question about Carmen herself keeps the
+ * current role, or none (the workshop's own persona): it is answered, not briefed. So does a bare
+ * yes or no on a board with no project or role yet.
  */
 export function workshopRole(
   message: string,
@@ -162,6 +181,8 @@ export function workshopRole(
   if (aboutCarmen(text)) return roleOfPersona(current);
   if (EDITOR.test(text)) return "editor";
   if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
+  if (project?.video && project.scene && !asksForStatic(text))
+    return project.edit ? "editor" : "producer";
   // "סרט לסטורי" is a film, "פוסט על הסרט" a post: the word that comes first is the deliverable.
   const film = text.search(FILM_NOUN);
   const still = text.search(STATIC_DELIVERABLE);

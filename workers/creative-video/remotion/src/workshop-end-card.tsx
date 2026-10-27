@@ -102,11 +102,29 @@ export const EndCard: React.FC<{
             boxShadow: `0 10px 40px ${accent}55`,
           }}
         >
-          {lines.map((line, index) => (
-            <div key={index} dir="rtl" style={{ whiteSpace: "nowrap" }}>
-              {line}
-            </div>
-          ))}
+          {lines.map((line, index) => {
+            // Line by line, like the film's motion captions: up, sharp and in place.
+            const p = spring({
+              frame: frame - 14 - index * 5,
+              fps,
+              config: { damping: 14, mass: 0.45, stiffness: 190 },
+            });
+            const blur = (1 - Math.min(1, Math.max(0, p))) * 8;
+            return (
+              <div
+                key={index}
+                dir="rtl"
+                style={{
+                  whiteSpace: "nowrap",
+                  opacity: Math.min(1, p * 1.5),
+                  transform: `translateY(${((1 - p) * 0.5).toFixed(3)}em)`,
+                  filter: blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : undefined,
+                }}
+              >
+                {line}
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {brand.ctaUrl ? (

@@ -12,15 +12,56 @@ import {
   previewClipIds,
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
+import { clipSaysLine, talkingLine } from "../talking.ts";
 import {
   ENGINE_LABEL,
   type SceneEngine,
+  costSceneOf,
   isSceneEngine,
   quotedProductionEstimate,
 } from "../video-cost.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+
+type Scene = Record<string, unknown>;
+
+/**
+ * Of the scenes kept as they are, the talking ones the production lip-syncs again: a still to
+ * lip-sync and a clip that does not say the current line (advance_video_production's rule).
+ */
+async function relipScenes(
+  supabase: ToolContext["supabase"],
+  tenantId: string,
+  kept: Scene[],
+): Promise<Scene[]> {
+  const talking = kept.filter(
+    (scene) =>
+      scene.still_asset_id && talkingLine(scene.meta, scene.voiceover_text),
+  );
+  const ids = talking
+    .map((scene) => String(scene.clip_asset_id ?? ""))
+    .filter(Boolean);
+  if (ids.length === 0) return talking;
+  const { data } = await supabase
+    .from("marketing_assets")
+    .select("id, meta")
+    .eq("tenant_id", tenantId)
+    .in("id", ids);
+  const clips = new Map(
+    (Array.isArray(data) ? data : []).map((row: Scene) => [
+      String(row.id),
+      row.meta,
+    ]),
+  );
+  return talking.filter(
+    (scene) =>
+      !clipSaysLine(
+        clips.get(String(scene.clip_asset_id ?? "")),
+        talkingLine(scene.meta, scene.voiceover_text),
+      ),
+  );
+}
 
 export async function workshopProduceVideo(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
@@ -132,22 +173,30 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           itemId,
           scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
         );
-  const costScenes = scenes
-    .filter(
-      (scene) =>
-        !scene.clip_asset_id ||
-        scene.clip_stale === true ||
-        scene.status === "failed" ||
-        previewClips.has(String(scene.clip_asset_id)),
+  const animated = scenes.filter(
+    (scene) =>
+      !scene.clip_asset_id ||
+      scene.clip_stale === true ||
+      scene.status === "failed" ||
+      previewClips.has(String(scene.clip_asset_id)),
+  );
+  const costScenes = animated.map(costSceneOf);
+  // A kept clip that does not say the scene's current line (a line changed on the board) is
+  // lip-synced again by the production (queue_video_lipsync), so the quote prices that too.
+  const relip = (
+    await relipScenes(
+      supabase,
+      tenantId,
+      scenes.filter((scene) => !animated.includes(scene)),
     )
-    .map((scene) => ({
-      duration_s: Number(scene.duration_s) || 3,
-      voiceover_text: String(scene.voiceover_text ?? ""),
-      lipsync: asRecord(scene.meta).lipsync === true,
-      dialogue: String(asRecord(scene.meta).dialogue ?? ""),
-    }));
+  ).map(costSceneOf);
   const withVoice = scenes.some((scene) =>
     String(scene.voiceover_text ?? "").trim(),
+  );
+  // A talking scene's own line is recorded in the project's voice too (queue_video_lipsync
+  // reads video.voice_id), so it also needs a voice the user chose.
+  const talking = scenes.some((scene) =>
+    talkingLine(scene.meta, scene.voiceover_text),
   );
   const withMusic = args.music !== false;
   // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
@@ -162,10 +211,11 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     costScenes,
     { withVoice, withMusic, withSoundEffects: soundDesign },
     deps.videoConnections ? await deps.videoConnections() : {},
+    relip,
   );
   // Narration needs a voice the user chose after hearing it.
   const chosenVoice = narrationVoiceId(args.voice_id, video.voice_id);
-  if (withVoice && !chosenVoice)
+  if ((withVoice || talking) && !chosenVoice)
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
@@ -178,7 +228,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     {
       tool: "workshop_produce_video",
       engine,
-      count: costScenes.length,
+      count: costScenes.length + relip.length,
       usd: estimate.totalUsd,
     },
     args,
@@ -190,6 +240,13 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       clip_seconds: estimate.clipSeconds,
       with_voice: withVoice,
       with_music: withMusic,
+      // Talking scenes and what their voice lines and lip sync add to the price.
+      ...(estimate.talkingScenes > 0
+        ? {
+            talking_scenes: estimate.talkingScenes,
+            lipsync_usd: estimate.lipsync.usd,
+          }
+        : {}),
       ...(soundDesign
         ? {
             with_sound_effects: true,
@@ -232,7 +289,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           },
         },
         "workshop_produce_video",
-        costScenes.length || 1,
+        costScenes.length + relip.length || 1,
       ),
     );
   } catch (error) {
