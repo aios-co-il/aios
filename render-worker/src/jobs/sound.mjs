@@ -19,7 +19,8 @@ import {
   synthesizeSpeech,
 } from "../providers/elevenlabsSound.mjs";
 import { synthesizeGeminiSpeech } from "../providers/geminiTts.mjs";
-import { isPaidPlanError } from "../providers/plan.mjs";
+import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.mjs";
+import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -91,6 +92,7 @@ export async function generateVoice({
   run,
   apiKey,
   googleKey = null,
+  resolveOpenRouterKey = async () => null,
   log = console.log,
 }) {
   const continuous = run.input?.continuous === true || !run.scene_id;
@@ -136,13 +138,47 @@ export async function generateVoice({
             },
           };
         } catch (error) {
-          if (!isPaidPlanError(error)) throw error;
-          log(`[voice] ${run.id} ElevenLabs plan cannot narrate; using Gemini`);
+          if (!isPaidPlanError(error) && !isRejectedKeyError(error))
+            throw error;
+          log(
+            `[voice] ${run.id} ElevenLabs cannot narrate (${isPaidPlanError(error) ? "plan" : "key"}); trying OpenRouter, then Gemini`,
+          );
+        }
+      }
+      // A refused request is not billed, so the next route may still be tried.
+      const openRouterKey = await resolveOpenRouterKey().catch(() => null);
+      if (openRouterKey) {
+        try {
+          const speech = await synthesizeOpenRouterSpeech({
+            apiKey: openRouterKey,
+            voiceId: run.input?.voice_id || null,
+            text,
+          });
+          return {
+            bytes: speech.bytes,
+            contentType: speech.contentType,
+            meta: {
+              provider: "openrouter",
+              model: speech.model,
+              voice_id: speech.voice,
+              cost_usd: speech.costUsd,
+              cost_reported: speech.costReported,
+              generation_id: speech.generationId ?? null,
+            },
+          };
+        } catch (error) {
+          // A failure after OpenRouter charged is final; only a refused request moves on.
+          if (error?.final || !googleKey) throw error;
+          log(
+            `[voice] ${run.id} OpenRouter speech failed (${error instanceof Error ? error.message : error}); using Gemini`,
+          );
         }
       }
       if (!googleKey) {
         throw finalError(
-          "קריינות ElevenLabs דורשת תוכנית Pro, ואין מפתח Google לקריינות Gemini",
+          apiKey
+            ? "קריינות ElevenLabs לא זמינה (תוכנית Pro או מפתח לא תקין), ואין מוח OpenRouter או מפתח Google לקריינות חלופית"
+            : "אין מפתח לקריינות: חברו ElevenLabs, מוח OpenRouter או Google",
         );
       }
       const speech = await synthesizeGeminiSpeech({ apiKey: googleKey, text });
@@ -203,8 +239,9 @@ export async function generateVoice({
     provider,
     credits: 0,
     // ElevenLabs bills characters and returns no price; Gemini's comes from its token counts.
+    // OpenRouter's is what it charged when its generation record had the price.
     costUsd:
-      provider === "gemini"
+      provider === "gemini" || provider === "openrouter"
         ? Number(meta.cost_usd) || 0
         : Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
           10000,
@@ -227,12 +264,23 @@ export async function generateMusic({ db, run, apiKey, log = console.log }) {
     run,
     path,
     generate: async () => {
+      // Music has no OpenRouter route: without a working ElevenLabs key the film is
+      // assembled without a music bed, and the run's error says so once.
+      if (!apiKey)
+        throw finalError(
+          "אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
+        );
       try {
         return { bytes: await composeMusic({ apiKey, prompt, musicLengthMs }) };
       } catch (error) {
         if (isPaidPlanError(error)) {
           throw finalError(
             "מוזיקת ElevenLabs דורשת תוכנית Pro. הסרט יורכב בלי מיטת מוזיקה",
+          );
+        }
+        if (isRejectedKeyError(error)) {
+          throw finalError(
+            "מפתח ה-ElevenLabs לא תקין למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
           );
         }
         throw error;

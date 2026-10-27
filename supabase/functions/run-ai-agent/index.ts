@@ -18,8 +18,14 @@ import {
 } from "../_shared/carmen/brain-guard.ts";
 import {
   type BrainEngine,
+  type BrainEngineTarget,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import {
+  movesToNextLink,
+  openRouterTail,
+  lazyBrainTail,
+} from "../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { makeAdImage } from "../_shared/creative/ad-image.ts";
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
@@ -79,6 +85,7 @@ import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
   connectedProviders,
@@ -5771,6 +5778,8 @@ async function executeTool(
   approval: {
     turnId?: string | null;
     userText?: string | null;
+    /** Carmen's previous message; the workshop reads the taps that answer it. */
+    lastAssistant?: string | null;
     outOfBand?: boolean;
     /** In the workshop, approve_dev_task and dispatch_dev_task wait for the user's later yes. */
     workshopDevTasks?: {
@@ -5842,6 +5851,7 @@ async function executeTool(
       {
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
+        lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         imageEngines: async () => {
           const { data } = await supabase
@@ -5947,6 +5957,21 @@ async function executeTool(
           return sceneEngineFor(
             (data?.settings || {}) as Record<string, unknown>,
             fetch,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        sceneEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return connectedSceneEngines(
+            (data?.settings || {}) as Record<string, unknown>,
             await videoConnectionsFor(supabase, tenantId),
           );
         },
@@ -13769,6 +13794,8 @@ async function handleRunAgent(
     /** The browser's Origin header, for full links back to the app the chat runs on. */
     origin?: string | null;
   } = {},
+  /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
+  internalTail?: () => Promise<BrainEngineTarget[]>,
 ): Promise<Response> {
   try {
     const {
@@ -15922,6 +15949,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const runsInternal = !brainEngine || brainEngine.fallbackInternal;
     const llmChain: LLMTarget[] = brainEngine
       ? [
           ...brainEngine.targets,
@@ -15930,6 +15958,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             : []),
         ]
       : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
+    // Carmen's own engine ends on the tenant's OpenRouter brain, read only once the chain
+    // runs out, so a missing or refused provider key continues there instead of failing.
+    const extendChain = lazyBrainTail<LLMTarget>(
+      llmChain,
+      runsInternal ? internalTail : undefined,
+    );
+    if (llmChain.length === 0) await extendChain();
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -16030,22 +16065,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, or any body signalling exhausted balance/quota, triggers failover.
-        const outOfCredit =
-          res.status === 429 ||
-          /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-            err,
-          );
-        // A connected brain may also fail on size, model or auth; any failure
-        // moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
+        // triggers failover. A connected brain may also fail on size, model or auth; any
+        // failure moves on, and the chain holds only what this brain plan allowed.
         if (
-          (outOfCredit || !!llm.connectionId) &&
-          activeIdx < llmChain.length - 1
+          movesToNextLink(res.status, err, !!llm.connectionId) &&
+          (activeIdx < llmChain.length - 1 || (await extendChain()))
         ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason = res.status === 429 ? "מגבלת קצב/קרדיט" : "קרדיט נגמר";
+          const reason =
+            res.status === 429
+              ? "מגבלת קצב/קרדיט"
+              : res.status === 401 || res.status === 403
+                ? "המפתח נדחה"
+                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
@@ -16207,6 +16242,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                         lastAssistantText(conversation_history),
                     }
                   : null,
+                lastAssistant: lastAssistantText(conversation_history),
               },
               request.origin ?? null,
             );
@@ -16745,12 +16781,19 @@ Deno.serve(async (req) => {
     if (denied) return denied;
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
+  // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
+  // that brain's own access rules.
+  const internalTail = () => openRouterTail(guardClient, auth, bodyJson);
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine, {
-      authKind: auth.kind,
-      origin: req.headers.get("origin"),
-    });
+    return await handleRunAgent(
+      bodyJson,
+      surface,
+      undefined,
+      brainEngine,
+      { authKind: auth.kind, origin: req.headers.get("origin") },
+      internalTail,
+    );
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16775,6 +16818,7 @@ Deno.serve(async (req) => {
             authKind: auth.kind,
             origin: req.headers.get("origin"),
           },
+          internalTail,
         );
         let final: any = {};
         try {

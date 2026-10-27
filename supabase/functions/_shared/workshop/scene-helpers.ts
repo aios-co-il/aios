@@ -1,4 +1,4 @@
-import { briefAnswersOf } from "./brief-answers.ts";
+import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { type Db } from "./db.ts";
 import { type StartProjectPlan } from "./defaults.ts";
 
@@ -40,7 +40,7 @@ export const SCENE_COLUMNS =
  * (render-worker compose/brand.mjs).
  */
 export function endingOf(payload: Record<string, unknown>, ctaText: string) {
-  const ending = briefAnswersOf(payload)["סיום"] ?? "";
+  const ending = answerFor(briefAnswersOf(payload), "סיום");
   const next: Record<string, unknown> = { ...payload };
   next.end_card = !/בלי סגיר/.test(ending);
   if (/בלי סגיר|לוגו בלבד/.test(ending)) delete next.cta_text;
