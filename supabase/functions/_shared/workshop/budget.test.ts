@@ -210,6 +210,28 @@ Deno.test("settling twice does not count the film twice", () => {
   assertStrictEquals(budgetOf(twice).spent_usd, 4.2);
 });
 
+Deno.test(
+  "a second film counts its own quote once, on top of what the first one cost",
+  () => {
+    // The first film was quoted $2.50 and really cost $2.
+    const first = settleProduction(filmBudget(), { usd: 2, inFlight: false });
+    const checked = checkBudget(first, film, {});
+    if (!checked.ok) throw new Error("budget refused");
+    const second = spendBudget(checked.payload, "workshop_produce_video", 5);
+    assertStrictEquals(budgetOf(second).spent_usd, 4.5);
+    // Nothing new charged yet: the first film's cost and the second's quote.
+    const running = settleProduction(second, { usd: 2, inFlight: true });
+    assertStrictEquals(budgetOf(running).spent_usd, 4.5);
+    // Both done: what the two films really cost, $2 and $1.50.
+    const done = settleProduction(running, { usd: 3.5, inFlight: false });
+    assertStrictEquals(budgetOf(done).spent_usd, 3.5);
+    assertStrictEquals(
+      budgetOf(settleProduction(done, { usd: 3.5, inFlight: false })).spent_usd,
+      3.5,
+    );
+  },
+);
+
 Deno.test("pictures that were not made give their reservation back", () => {
   const still: Quote = {
     tool: "workshop_make_stills",

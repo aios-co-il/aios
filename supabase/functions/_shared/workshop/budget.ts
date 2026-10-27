@@ -75,6 +75,9 @@ export function budgetOf(payload: Record<string, unknown>): Budget {
     ...(raw.production_usd !== undefined
       ? { production_usd: money(raw.production_usd) }
       : {}),
+    ...(raw.production_quoted_usd !== undefined
+      ? { production_quoted_usd: money(raw.production_quoted_usd) }
+      : {}),
     ...(typeof request.token === "string"
       ? { request: request as unknown as BudgetRequest }
       : {}),
@@ -214,9 +217,10 @@ export function refundBudget(
 }
 
 /**
- * What the film really cost replaces its quote once the render worker reports charges: while
+ * What the films really cost replace their quotes once the render worker reports charges: while
  * runs are still in flight the larger of the two counts, and when they are done only the real
- * charge does. Pictures stay at their quote, they are charged when made.
+ * charge does. `run.usd` is every production of the project so far, so a film quoted since the
+ * last settle counts on top of what that settle counted. Pictures stay at their quote.
  */
 export function settleProduction(
   payload: Record<string, unknown>,
@@ -226,12 +230,18 @@ export function settleProduction(
   const quoted = Number(budget.quoted_usd?.workshop_produce_video ?? 0);
   if (quoted <= 0 && run.usd <= 0) return payload;
   const real = money(run.usd);
-  const counted = run.inFlight ? Math.max(quoted, real) : real;
-  const before = budget.production_usd ?? quoted;
+  // A budget settled before production_quoted_usd was kept had all its quotes settled.
+  const settledQuote =
+    budget.production_quoted_usd ??
+    (budget.production_usd !== undefined ? quoted : 0);
+  const before =
+    (budget.production_usd ?? 0) + Math.max(0, quoted - settledQuote);
+  const counted = run.inFlight ? Math.max(before, real) : real;
   const spent = Math.max(0, budget.spent_usd - before + counted);
   return withBudget(payload, {
     ...budget,
     spent_usd: Math.round(spent * 100) / 100,
-    production_usd: counted,
+    production_usd: Math.round(counted * 100) / 100,
+    production_quoted_usd: quoted,
   });
 }
