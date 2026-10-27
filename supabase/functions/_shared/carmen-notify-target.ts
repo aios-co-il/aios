@@ -12,6 +12,7 @@
  *    notify never follows the freshest live session.
  */
 
+import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
 import { isGroupChatId } from "./carmen-session-identity.ts";
 
 export { isGroupChatId } from "./carmen-session-identity.ts";
@@ -40,8 +41,8 @@ export type NotifyStaffCandidate = {
 export type ResolveCarmenNotifyTargetInput = {
   /** Explicit chat_id / phone from the caller (highest priority). */
   preferredPhone?: string | null;
-  /** tenant_heartbeat_settings.campaign_pulse_phone */
-  campaignPulsePhone?: string | null;
+  /** Whom the tenant's Carmen reports to (loadCarmenReportRecipients), in order. */
+  reportRecipients?: Pick<CarmenReportRecipient, "phone" | "name">[];
   /** Non-group carmen_whatsapp_sessions for the tenant (newest first preferred). */
   sessions: NotifySessionCandidate[];
   /** Active tenant campaigners with phones (this tenant only). */
@@ -54,7 +55,7 @@ export type ResolveCarmenNotifyTargetResult = {
   contactName: string | null;
   source:
     | "preferred_phone"
-    | "campaign_pulse_phone"
+    | "report_recipient"
     | "tenant_staff_session"
     | "tenant_staff_phone"
     | "none";
@@ -207,8 +208,15 @@ export function resolveCarmenNotifyTarget(
   const preferred = tryPhone(input.preferredPhone, "preferred_phone");
   if (preferred) return preferred;
 
-  const pulse = tryPhone(input.campaignPulsePhone, "campaign_pulse_phone");
-  if (pulse) return pulse;
+  // A single-recipient notify goes to the first person Carmen reports to.
+  const reportRecipient = input.reportRecipients?.[0];
+  const report = tryPhone(reportRecipient?.phone, "report_recipient");
+  if (report) {
+    return {
+      ...report,
+      contactName: report.contactName ?? reportRecipient?.name ?? null,
+    };
+  }
 
   // Prefer a session whose chat belongs to a tenant campaigner.
   // Managers (מנהל צוות) win over regular campaigners when both have sessions.
@@ -251,6 +259,6 @@ export function resolveCarmenNotifyTarget(
     contactName: null,
     source: "none",
     reason:
-      "No preferred phone, campaign_pulse_phone, or tenant campaigner session/phone found — refusing cross-tenant owner fallback",
+      "No preferred phone, report recipient, or tenant campaigner session/phone found — refusing cross-tenant owner fallback",
   };
 }

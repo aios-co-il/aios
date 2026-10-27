@@ -198,6 +198,12 @@ function fakeSupabase(log = []) {
   return { from: query, log };
 }
 
+const OWNER_RECIPIENT = {
+  name: "Owner",
+  phone: "972501234567",
+  source: "owner_fallback",
+};
+
 const ACME = {
   client_id: "c1",
   client_name: "Acme",
@@ -213,7 +219,7 @@ async function run(supabase, now, snapshots = [ACME], extra = {}) {
     supabase,
     tenantId: "t1",
     tenantSlug: "test-tenant",
-    pulsePhone: "0501234567",
+    reportRecipients: [OWNER_RECIPIENT],
     snapshots,
     criticalIssues: [],
     rules: DEFAULT_PULSE_ALERT_RULES,
@@ -429,7 +435,7 @@ Deno.test(
       const result = await runGatedInstantPulseAlerts(gate, {
         supabase: fakeSupabase(),
         tenantId: "t1",
-        pulsePhone: "0501234567",
+        reportRecipients: [OWNER_RECIPIENT],
         snapshots: [ACME],
         criticalIssues: [],
         rules: DEFAULT_PULSE_ALERT_RULES,
@@ -608,5 +614,49 @@ Deno.test(
     );
     assertMatch(manual, /skip_instant_alerts: true/);
     assertMatch(manual, /source: "approved_manual_trigger"/);
+  },
+);
+
+Deno.test(
+  "every report recipient gets each alert; one log row and one throttle cover them all",
+  async () => {
+    const supabase = fakeSupabase();
+    const reportRecipients = [
+      { name: "Felix", phone: "972500000011", source: "configured" },
+      { name: "David", phone: "972500000012", source: "configured" },
+    ];
+    const first = await run(supabase, WEDNESDAY, [ACME], { reportRecipients });
+
+    assertStrictEquals(first.result.sent, 2); // no_contact + connection_lost
+    assertEquals(first.sends.map((send) => send.phone).sort(), [
+      "972500000011",
+      "972500000011",
+      "972500000012",
+      "972500000012",
+    ]);
+    assertStrictEquals(supabase.log.length, 2);
+    assertStrictEquals(
+      supabase.log[0].recipient_phone,
+      "972500000011,972500000012",
+    );
+
+    const again = await run(
+      supabase,
+      new Date(WEDNESDAY.getTime() + 3600e3),
+      [ACME],
+      { reportRecipients },
+    );
+    assertStrictEquals(again.sends.length, 0);
+  },
+);
+
+Deno.test(
+  "with no report recipient and no agency manager an alert is skipped, not sent to a guess",
+  async () => {
+    const { result, sends } = await run(fakeSupabase(), WEDNESDAY, [ACME], {
+      reportRecipients: [],
+    });
+    assertStrictEquals(result.sent, 0);
+    assertStrictEquals(sends.length, 0);
   },
 );

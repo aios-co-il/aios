@@ -392,13 +392,24 @@ Deno.test(
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
-function tenantTables({ steps, integrations, sessions, trigger = {} } = {}) {
+function tenantTables({
+  steps,
+  integrations,
+  sessions,
+  trigger = {},
+  reportRecipients,
+} = {}) {
   return {
     tenant_heartbeat_settings: [
+      { tenant_id: TENANT, campaign_pulse_enabled: true },
+    ],
+    carmen_report_recipients: reportRecipients ?? [
       {
         tenant_id: TENANT,
-        campaign_pulse_phone: PHONE,
-        campaign_pulse_enabled: true,
+        user_id: null,
+        phone: `+${PHONE}`,
+        label: "David",
+        created_at: "2026-10-27T08:00:00Z",
       },
     ],
     carmen_whatsapp_sessions: sessions ?? [
@@ -435,6 +446,7 @@ function handler({
   tables = tenantTables(),
   responses,
   bearerSecret = null,
+  rpc = {},
 } = {}) {
   const fetch = fakeFetch(responses);
   const warnings = [];
@@ -442,7 +454,7 @@ function handler({
     supabaseUrl: "https://this-project.supabase.co",
     serviceRoleKey: SERVICE_KEY,
     bearerSecret,
-    createSupabase: () => fakeSupabase(tables),
+    createSupabase: () => fakeSupabase(tables, { rpc }),
     fetchImpl: fetch.impl,
     logger: { warn: (...a) => warnings.push(a), error: () => {} },
   });
@@ -498,6 +510,32 @@ Deno.test(
       });
       assertStrictEquals(warnings.length, 0);
     }
+  },
+);
+
+Deno.test(
+  "handler: with an empty report list the notify goes to the organization's owner",
+  async () => {
+    const { handle, fetch } = handler({
+      tables: tenantTables({ reportRecipients: [] }),
+      rpc: {
+        carmen_report_staff: ({ p_tenant_id }) =>
+          p_tenant_id === TENANT
+            ? [
+                {
+                  user_id: DAVID_USER,
+                  full_name: "David",
+                  phone: "0501234567",
+                  is_owner: true,
+                },
+              ]
+            : [],
+      },
+    });
+    const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
+    assertStrictEquals(out.sent, true);
+    assertStrictEquals(out.source, "report_recipient");
+    assertStrictEquals(fetch.calls[0].body.phoneNumber, PHONE);
   },
 );
 
@@ -661,7 +699,7 @@ Deno.test(
             reason: "inactive",
           },
         ],
-        recipient_source: "campaign_pulse_phone",
+        recipient_source: "report_recipient",
         sender_resolved: true,
         reason: "manus_integration_inactive",
       },

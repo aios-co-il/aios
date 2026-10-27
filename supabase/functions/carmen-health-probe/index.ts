@@ -21,6 +21,7 @@ import {
   notifyRecallCreditRecovered,
 } from "../_shared/recall-credit-alert.ts";
 import { probeMcp, resyncInternalMcpBearer } from "../_shared/mcp-bearer.ts";
+import { deliverHealthDigest } from "./report-delivery.ts";
 
 // Periodic infrastructure health probe for the Carmen Command Center.
 // Invoked by pg_cron (see migration 20260722160000_service_health_checks.sql).
@@ -830,7 +831,7 @@ Deno.serve(async (req) => {
   }> = [];
   const { data: deliverySettings } = await supabase
     .from("tenant_heartbeat_settings")
-    .select("tenant_id, campaign_pulse_phone")
+    .select("tenant_id")
     .eq("campaign_pulse_enabled", true);
   for (const setting of deliverySettings || []) {
     const claim = await supabase.rpc("claim_health_digest_delivery", {
@@ -843,16 +844,15 @@ Deno.serve(async (req) => {
         setting.tenant_id,
         rows,
       );
-      const delivery = await supabase.rpc("claude_notify_david", {
-        p_message: digest,
-        p_tenant: setting.tenant_id,
-        p_chat_id: setting.campaign_pulse_phone || null,
-      });
-      const sent = !delivery.error && delivery.data?.queued === true;
+      const { sent, error } = await deliverHealthDigest(
+        supabase,
+        setting.tenant_id,
+        digest,
+      );
       deliveries.push({
         tenant_id: setting.tenant_id,
         sent,
-        ...(delivery.error ? { error: delivery.error.message } : {}),
+        ...(error ? { error } : {}),
       });
       if (!sent) {
         await supabase

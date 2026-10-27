@@ -2,7 +2,7 @@
 // pulse / health jobs push a WhatsApp update to the human, independent of
 // Carmen's live session.
 //
-// Recipient: explicit chat_id / campaign_pulse_phone / tenant campaigner —
+// Recipient: explicit chat_id / first Carmen report recipient / tenant campaigner —
 // never a cross-tenant owner who merely has the newest session, never a group
 // chat. Always 1:1.
 //

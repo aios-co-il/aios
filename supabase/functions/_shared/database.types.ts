@@ -3926,6 +3926,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      carmen_report_recipients: {
+        Row: {
+          created_at: string;
+          id: string;
+          label: string | null;
+          phone: string | null;
+          tenant_id: string;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          phone?: string | null;
+          tenant_id: string;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          phone?: string | null;
+          tenant_id?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_report_recipients_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_report_recipients_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_whatsapp_identities: {
         Row: {
           allowed_group_ids: string[] | null;
@@ -15264,6 +15306,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      carmen_is_tenant_owner: {
+        Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
       carmen_member_has_personal_key: {
         Args: { p_user_id: string };
         Returns: boolean;
@@ -15287,6 +15333,15 @@ export type Database = {
           node_id: string;
           source_file: string;
           source_location: string;
+        }[];
+      };
+      carmen_report_staff: {
+        Args: { p_tenant_id: string };
+        Returns: {
+          full_name: string;
+          is_owner: boolean;
+          phone: string;
+          user_id: string;
         }[];
       };
       carmen_send_activation: {

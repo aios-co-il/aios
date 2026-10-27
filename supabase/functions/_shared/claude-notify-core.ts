@@ -29,6 +29,7 @@ import {
   type NotifyBridgeSession,
   type ResolveCarmenNotifyTargetResult,
 } from "./carmen-notify-target.ts";
+import { loadCarmenReportRecipients } from "./carmen-report-recipients/load.ts";
 import { isServiceKey, timingSafeEqualStr } from "./timing-safe-equal.ts";
 import { readWaSendResponse, type WaSendStatus } from "./wa-send-result.ts";
 import {
@@ -174,13 +175,9 @@ export async function planTenantNotify(
   tenantId: string,
   explicitChatId: string | null,
 ): Promise<TenantNotifyPlan> {
-  const [{ data: heartbeat }, { data: sessionRows }, { data: campaigners }] =
+  const [report, { data: sessionRows }, { data: campaigners }] =
     await Promise.all([
-      sb
-        .from("tenant_heartbeat_settings")
-        .select("campaign_pulse_phone")
-        .eq("tenant_id", tenantId)
-        .maybeSingle(),
+      loadCarmenReportRecipients(sb, tenantId),
       sb
         .from("carmen_whatsapp_sessions")
         .select(
@@ -198,6 +195,13 @@ export async function planTenantNotify(
         .limit(200),
     ]);
   const sessions = (sessionRows || []) as SessionRow[];
+  if (report.error) {
+    // The staff fallback below still finds a tenant campaigner.
+    console.warn("[claude-notify] report recipients unavailable", {
+      tenantId,
+      error: report.error,
+    });
+  }
 
   const staff = (campaigners || [])
     .filter((c: any) => !!normalizeNotifyPhone(c.phone))
@@ -209,7 +213,7 @@ export async function planTenantNotify(
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
-    campaignPulsePhone: heartbeat?.campaign_pulse_phone ?? null,
+    reportRecipients: report.recipients,
     sessions: sessions.map((s) => ({
       chat_id: s.chat_id,
       phone: s.phone,

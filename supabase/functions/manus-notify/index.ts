@@ -11,6 +11,7 @@
 // Body: { tenant_id, message, chat_id? }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { loadCarmenReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
 import {
   normalizeNotifyPhone,
   pickNotifyDelivery,
@@ -153,13 +154,9 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const [{ data: heartbeat }, { data: sessions }, { data: campaigners }] =
-    await Promise.all([
-      sb
-        .from("tenant_heartbeat_settings")
-        .select("campaign_pulse_phone")
-        .eq("tenant_id", tenantId)
-        .maybeSingle(),
+  const [report, { data: sessions }, { data: campaigners }] = await Promise.all(
+    [
+      loadCarmenReportRecipients(sb, tenantId),
       sb
         .from("carmen_whatsapp_sessions")
         .select(
@@ -175,7 +172,16 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .limit(200),
-    ]);
+    ],
+  );
+
+  if (report.error) {
+    // The staff fallback below still finds a tenant campaigner.
+    console.warn("[manus-notify] report recipients unavailable", {
+      tenantId,
+      error: report.error,
+    });
+  }
 
   const staff = (campaigners || [])
     .filter((c: any) => !!normalizeNotifyPhone(c.phone))
@@ -187,7 +193,7 @@ Deno.serve(async (req) => {
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
-    campaignPulsePhone: heartbeat?.campaign_pulse_phone ?? null,
+    reportRecipients: report.recipients,
     sessions: (sessions || []).map((s: any) => ({
       chat_id: s.chat_id,
       phone: s.phone,
