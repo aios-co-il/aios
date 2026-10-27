@@ -40,6 +40,8 @@ function run(
     pulse_alert_rules: manager ? rules(manager) : null,
     last_run_at: null,
   };
+  // The round reads the stored settings again before routing and sending.
+  w.tenants = [tenant];
   return runTenant(deps(w, collectors), tenant, {
     roundId: "r1",
     budget: RoundBudget.create(60_000, 10),

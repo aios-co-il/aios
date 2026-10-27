@@ -35,6 +35,8 @@ export type DispatchInput = {
   briefKeys: () => Promise<Set<string>>;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
+  /** True once the stored settings differ from `settings` (re-checked before each message). */
+  settingsChanged: () => Promise<boolean>;
 };
 
 export type DispatchReport = {
@@ -80,7 +82,13 @@ export async function dispatchDue(
   const briefKeys = await input.briefKeys();
   const groups = groupByRecipient(rows);
   for (const [index, group] of groups.entries()) {
-    if (!input.budget.hasTime(SEND_RESERVE_MS)) {
+    // Out of time, or the owner changed the rollout mid-send (the database
+    // cancels only planned rows, not this claim): the next call triages the
+    // rest under the settings it reads then.
+    if (
+      !input.budget.hasTime(SEND_RESERVE_MS) ||
+      (await input.settingsChanged())
+    ) {
       await putBack(deps, input, groups.slice(index).flat(), report);
       return report;
     }
@@ -98,7 +106,7 @@ export async function dispatchDue(
   return report;
 }
 
-/** Out of time: the rest of the claim goes back to planned, due at once, for the next call. */
+/** The rest of the claim goes back to planned, due at once, for the next call. */
 async function putBack(
   deps: DispatchDeps,
   input: DispatchInput,

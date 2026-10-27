@@ -5,7 +5,10 @@
  */
 import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 import { sendsAnything } from "../_shared/manager-round/modes.ts";
-import type { ManagerSettings } from "../_shared/manager-round/settings.ts";
+import {
+  type ManagerSettings,
+  resolveManagerSettings,
+} from "../_shared/manager-round/settings.ts";
 import { type BriefRun, briefed, sendBriefIfDue } from "./brief/send.ts";
 import { dueCollectors } from "./collectors/registry.ts";
 import { runCollectors } from "./collectors/run.ts";
@@ -41,10 +44,13 @@ export async function runSteps(
     dryRun,
   });
   const floors = notifyFloors(deps.collectors, state, now);
+  // The owner may change the rollout while the collectors run; the database
+  // then cancels what was planned, so route under the settings stored now.
+  const routing = await currentSettings(deps, tenantId);
   const routed = await routeTenant(deps, {
     tenantId,
     roundId: run.roundId,
-    settings,
+    settings: routing,
     now,
     today: jerusalemYmd(now),
     floors,
@@ -52,12 +58,19 @@ export async function runSteps(
     dryRun,
     virtual: dryRun ? virtualFindings(collected.candidates) : undefined,
   });
+  // Read again for sending: a switch while routing must stop this run's sends
+  // too, or a message routing just planned under the old mode would go out;
+  // each message checks once more before it starts.
+  const sending = await currentSettings(deps, tenantId);
   const { brief, dispatch } = await deliver(deps, {
     tenantId,
-    settings,
+    settings: sending,
+    settingsChanged: async () =>
+      JSON.stringify(await currentSettings(deps, tenantId)) !==
+      JSON.stringify(sending),
     now,
     recipients: once(async () =>
-      resolveBriefRecipients(await staff(), settings),
+      resolveBriefRecipients(await staff(), sending),
     ),
     floors,
     budget: run.sendBudget,
@@ -101,6 +114,14 @@ async function deliver(
           new Set((await run.recipients()).map((recipient) => recipient.key)),
       });
   return { brief, dispatch };
+}
+
+/** The tenant's manager settings as stored now. */
+async function currentSettings(
+  deps: RoundDeps,
+  tenantId: string,
+): Promise<ManagerSettings> {
+  return resolveManagerSettings(await deps.state.loadRules(tenantId));
 }
 
 /** Calls `load` at most once and shares its promise. */

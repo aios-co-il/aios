@@ -211,6 +211,11 @@ function deliveriesStore(w: World): DeliveriesStore {
 function stateStore(w: World): RoundStateStore {
   return {
     listTenants: () => Promise.resolve(w.tenants),
+    loadRules: (tenantId) =>
+      Promise.resolve(
+        w.tenants.find((t) => t.tenant_id === tenantId)?.pulse_alert_rules ??
+          null,
+      ),
     loadState: () => Promise.resolve(w.state),
     saveCollectorState: (_tenant, collector, result) => {
       const row = w.state.find((s) => s.collector === collector) ?? {

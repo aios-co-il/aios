@@ -25,6 +25,7 @@ function brief(
     recipients?: Recipient[];
     budget?: RoundBudget;
     ports?: ReturnType<typeof deps>;
+    settingsChanged?: boolean;
   } = {},
 ) {
   return sendBriefIfDue(fields.ports ?? deps(w), {
@@ -34,6 +35,7 @@ function brief(
     recipients: () => Promise.resolve(fields.recipients ?? [david]),
     floors: {},
     budget: fields.budget ?? RoundBudget.create(140_000, 0),
+    settingsChanged: () => Promise.resolve(fields.settingsChanged ?? false),
     dryRun: fields.dryRun ?? false,
   });
 }
@@ -155,6 +157,20 @@ Deno.test("sendBriefIfDue", async (t) => {
       const next = await brief(w, manager, { recipients });
       assertEquals(next?.sent, [{ key: "user:dana", status: "sent" }]);
       assertEquals(w.sent.length, 2);
+    },
+  );
+
+  await t.step(
+    "after the owner changed the settings mid-run nothing is claimed or sent",
+    async () => {
+      const w = world({ now: SLOT_TIME });
+      const report = await brief(
+        w,
+        { mode: "david_only", notify_since: SINCE },
+        { settingsChanged: true },
+      );
+      assertEquals([report?.sent, report?.deferred], [[], 1]);
+      assertEquals([w.sent.length, w.slots.length], [0, 0]);
     },
   );
 

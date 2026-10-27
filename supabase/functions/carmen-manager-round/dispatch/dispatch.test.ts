@@ -50,6 +50,7 @@ const run = (
     floors: {},
     briefKeys: () => Promise.resolve(new Set(fields.briefKeys ?? [])),
     budget: fields.budget ?? RoundBudget.create(140_000, 0),
+    settingsChanged: () => Promise.resolve(false),
   });
 
 Deno.test("dispatchDue", async (t) => {

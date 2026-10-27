@@ -38,6 +38,8 @@ export type BriefRun = {
   floors: NotifyFloors;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
+  /** True once the stored settings differ from `settings`; nothing more is sent then. */
+  settingsChanged: () => Promise<boolean>;
   /** Compose the texts only (also outside the slot); claim, send and record nothing. */
   dryRun: boolean;
 };
@@ -65,7 +67,7 @@ export async function sendBriefIfDue(
   };
   let content: BriefContent | null = null;
   for (const recipient of await run.recipients()) {
-    if (!run.dryRun && !run.budget.hasTime(SEND_RESERVE_MS)) {
+    if (!run.dryRun && !(await mayStartSend(run))) {
       report.deferred += 1;
       continue;
     }
@@ -83,6 +85,14 @@ export async function sendBriefIfDue(
     report.sent.push(await briefOne(deps, run, recipient, content));
   }
   return report.sent.length || report.deferred ? report : null;
+}
+
+/**
+ * A send may start while the window has room for it and the owner has not
+ * changed the settings since the run read them (a switch to observe mid-run).
+ */
+async function mayStartSend(run: BriefRun): Promise<boolean> {
+  return run.budget.hasTime(SEND_RESERVE_MS) && !(await run.settingsChanged());
 }
 
 /** People who got this round's brief (sent or possibly sent). */
