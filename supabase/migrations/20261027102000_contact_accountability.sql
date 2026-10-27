@@ -394,7 +394,8 @@ BEGIN
 
   UPDATE public.carmen_finding_deliveries AS d
   SET status = 'cancelled'
-  WHERE d.finding_id = v_finding.id AND d.status = 'planned';
+  WHERE d.tenant_id = p_tenant_id AND d.finding_id = v_finding.id
+    AND d.status = 'planned';
 
   INSERT INTO public.carmen_finding_events
     (tenant_id, finding_id, event, actor_user_id, note, details)
