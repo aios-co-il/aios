@@ -11,17 +11,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  formatLastClientCall,
   formatPulseMoney,
-  pulseHasNoRecentClientCall,
   pulseSpendColumnLabel,
   type PulseSnapshotRow,
 } from "@/lib/pulseDashboard";
-import {
-  CLIENT_CALL_STALE_DAYS,
-  NO_RECENT_CLIENT_CALL_LABEL,
-  NO_RECENT_CLIENT_CALL_TEXT,
-} from "../../../supabase/functions/_shared/pulse-client-call.ts";
 import {
   campaignDeliveryStatusLabel,
   type PulseCampaignGoal,
@@ -29,6 +22,7 @@ import {
 } from "@/lib/pulseCampaignGoals";
 import { ExternalLink } from "lucide-react";
 import type { PulsePeriod } from "@/lib/pulseDashboard";
+import { PulseClientCallCell } from "./PulseClientCallCell";
 
 const GOAL_SECTION_LABELS: Record<PulseCampaignGoal, string> = {
   leads: "לידים",
@@ -251,27 +245,6 @@ export function PulseClientRawCard({
   onOpenClient,
   onCallLog,
 }: PulseClientRawCardProps) {
-  const callSnapshot: PulseSnapshotRow = pulse ?? {
-    client_id: "",
-    agency_id: null,
-    status: "no_data",
-    is_ecommerce: false,
-    spend_7d: 0,
-    leads_7d: null,
-    cpl_7d: null,
-    cpl_change_pct: null,
-    purchases_7d: null,
-    revenue_7d: null,
-    roas_7d: null,
-    flags: [],
-    data_fresh_through: null,
-    calculated_at: null,
-    last_client_call_at: null,
-    last_client_call_by: null,
-  };
-  // Contact indicator, kept apart from campaign status (AIO-227).
-  const noRecentCall = pulseHasNoRecentClientCall(pulse);
-
   const sections = GOAL_SECTION_ORDER.map((goal) => ({
     goal,
     label: GOAL_SECTION_LABELS[goal],
@@ -317,28 +290,7 @@ export function PulseClientRawCard({
             <span className="text-muted-foreground">קמפיינר: </span>
             {campaignerName}
           </div>
-          <div>
-            <span className="text-muted-foreground">שיחה אחרונה: </span>
-            <button
-              type="button"
-              className={`underline decoration-dotted underline-offset-2 hover:text-primary ${
-                noRecentCall ? "font-medium text-amber-700" : ""
-              }`}
-              onClick={onCallLog}
-              disabled={!pulse}
-            >
-              {formatLastClientCall(callSnapshot)}
-            </button>
-            {noRecentCall && callSnapshot.last_client_call_at ? (
-              <Badge
-                variant="outline"
-                className="ms-1 border-amber-300 bg-amber-100 text-[10px] text-amber-900"
-                title={NO_RECENT_CLIENT_CALL_TEXT}
-              >
-                {`${NO_RECENT_CLIENT_CALL_LABEL} ב-${CLIENT_CALL_STALE_DAYS} יום`}
-              </Badge>
-            ) : null}
-          </div>
+          <PulseClientCallCell pulse={pulse} onCallLog={onCallLog} />
           <div>
             <span className="text-muted-foreground">נגיעה בקמפיין: </span>
             {formatDate(lastCampaignTouchAt)}

@@ -12,11 +12,11 @@ import {
   detectCampaignGoalMode,
   integrationTypeToGoal,
   isPulseDeliveryExcludedPhone,
-  resolveNoRecentClientCall,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
   fetchLastMetaCampaignActivity,

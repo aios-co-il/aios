@@ -11,11 +11,9 @@ import {
 } from "@/lib/pulseCampaignGoals";
 import { syncOutcomeProblem } from "../../supabase/functions/_shared/sync-freshness.ts";
 import {
-  CLIENT_CALL_STALE_MS as SHARED_CLIENT_CALL_STALE_MS,
   isLegacyClientCallFlag,
-  normalizePulseRowClientCall,
-  resolveNoRecentClientCall,
-} from "../../supabase/functions/_shared/pulse-client-call.ts";
+  stripLegacyClientCallFlag,
+} from "../../supabase/functions/_shared/pulse/client-call.ts";
 
 /**
  * Helpers for the Pulse Check dashboard (דשבורד בדיקת דופק).
@@ -1168,15 +1166,14 @@ function classifyPlatformGoalStatus(input: {
   }
 
   // The client-call gap is a separate indicator, never a platform status (AIO-227).
-  const platformFlags = filterPulseCallFlags(input.snapshotFlags).filter(
-    (flag) => {
-      if (flag.includes(platformName)) return true;
-      if (platformName === "Meta" && /מטה|Meta|Facebook|פייסבוק/i.test(flag))
-        return true;
-      if (platformName === "Google" && /Google|גוגל/i.test(flag)) return true;
-      return !/(Meta|Google|מטה|Facebook|פייסבוק|גוגל)/i.test(flag);
-    },
-  );
+  const callFreeFlags = filterPulseCallFlags(input.snapshotFlags);
+  const platformFlags = callFreeFlags.filter((flag) => {
+    if (flag.includes(platformName)) return true;
+    if (platformName === "Meta" && /מטה|Meta|Facebook|פייסבוק/i.test(flag))
+      return true;
+    if (platformName === "Google" && /Google|גוגל/i.test(flag)) return true;
+    return !/(Meta|Google|מטה|Facebook|פייסבוק|גוגל)/i.test(flag);
+  });
   flags.push(...platformFlags.filter((flag) => !flags.includes(flag)));
 
   const fromFlags = inferPulseStatusFromFlags(flags);
@@ -1579,7 +1576,9 @@ export function formatMetaChange(row: PulseSnapshotRow): string {
   return "לא זמין";
 }
 
-export function formatLastClientCall(row: PulseSnapshotRow): string {
+export function formatLastClientCall(
+  row: Pick<PulseSnapshotRow, "last_client_call_at">,
+): string {
   if (!row.last_client_call_at) return "לא תועדה שיחה";
   return new Date(row.last_client_call_at).toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
@@ -1589,37 +1588,11 @@ export function formatLastClientCall(row: PulseSnapshotRow): string {
 }
 
 /** Call-freshness flags are shown in the dedicated call column, not under הערה. */
-export function isPulseCallFreshnessFlag(flag: string): boolean {
-  return isLegacyClientCallFlag(flag);
-}
-
 export function filterPulseCallFlags(
   flags: string[] | null | undefined,
 ): string[] {
   if (!Array.isArray(flags)) return [];
-  return flags.filter((flag) => !isPulseCallFreshnessFlag(flag));
-}
-
-export const CLIENT_CALL_STALE_MS = SHARED_CLIENT_CALL_STALE_MS;
-
-export function isClientCallFresh(
-  lastClientCallAt: string | null | undefined,
-  nowMs = Date.now(),
-): boolean {
-  return resolveNoRecentClientCall(lastClientCallAt ?? null, nowMs) === false;
-}
-
-/**
- * Separate contact indicator: no client call logged in the last 14 days.
- * It never changes the campaign status (AIO-227). Unknown call data (the
- * call columns were not loaded) shows no indicator.
- */
-export function pulseHasNoRecentClientCall(
-  row: Pick<PulseSnapshotRow, "last_client_call_at"> | null | undefined,
-  nowMs = Date.now(),
-): boolean {
-  if (!row) return false;
-  return resolveNoRecentClientCall(row.last_client_call_at, nowMs) === true;
+  return flags.filter((flag) => !isLegacyClientCallFlag(flag));
 }
 
 function isPulseCriticalFlag(flag: string): boolean {
@@ -1640,16 +1613,6 @@ export function inferPulseStatusFromFlags(flags: string[]): PulseStatus | null {
   return null;
 }
 
-export function worstPulseStatus(a: PulseStatus, b: PulseStatus): PulseStatus {
-  const rank: Record<PulseStatus, number> = {
-    critical: 0,
-    warning: 1,
-    no_data: 2,
-    healthy: 3,
-  };
-  return rank[a] <= rank[b] ? a : b;
-}
-
 /**
  * Update snapshot row after a fresh client call is logged from the dashboard.
  * The call only moves the contact indicator; the status is performance-only.
@@ -1660,10 +1623,8 @@ export function applyClientCallToPulseSnapshot(
   lastClientCallAt: string,
   lastClientCallBy: string,
 ): PulseSnapshotRow {
-  const { no_recent_client_call: _indicator, ...normalized } =
-    normalizePulseRowClientCall(snapshot);
   return {
-    ...normalized,
+    ...stripLegacyClientCallFlag(snapshot),
     last_client_call_at: lastClientCallAt,
     last_client_call_by: lastClientCallBy,
   };

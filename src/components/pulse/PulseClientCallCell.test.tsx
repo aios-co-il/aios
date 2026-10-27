@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { PulseSnapshotRow } from "@/lib/pulseDashboard";
-import { PulseClientRawCard } from "./PulseClientRawCard";
+import { PulseClientCallCell } from "./PulseClientCallCell";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
@@ -33,25 +33,13 @@ function snapshot(lastCallAt: string | null): PulseSnapshotRow {
   };
 }
 
-function renderCard(pulse: PulseSnapshotRow | null) {
-  return render(
-    <PulseClientRawCard
-      clientName="בילבי"
-      campaignerName="רוני"
-      agencyName="DMM"
-      period="last_7_days"
-      pulse={pulse}
-      campaignsByGoal={{}}
-      lastCampaignTouchAt={null}
-      onOpenClient={vi.fn()}
-      onCallLog={vi.fn()}
-    />,
-  );
+function renderCell(pulse: PulseSnapshotRow | null) {
+  return render(<PulseClientCallCell pulse={pulse} onCallLog={vi.fn()} />);
 }
 
-describe("PulseClientRawCard contact indicator (AIO-227)", () => {
+describe("PulseClientCallCell", () => {
   it("flags a call older than 14 days next to the date", () => {
-    renderCard(snapshot(new Date(Date.now() - 20 * DAY_MS).toISOString()));
+    renderCell(snapshot(new Date(Date.now() - 20 * DAY_MS).toISOString()));
     const badge = screen.getByText("ללא שיחה מתועדת ב-14 יום");
     expect(badge).toHaveAttribute(
       "title",
@@ -60,19 +48,19 @@ describe("PulseClientRawCard contact indicator (AIO-227)", () => {
   });
 
   it("shows no indicator for a recent call", () => {
-    renderCard(snapshot(new Date(Date.now() - 2 * DAY_MS).toISOString()));
+    renderCell(snapshot(new Date(Date.now() - 2 * DAY_MS).toISOString()));
     expect(screen.queryByText(/ללא שיחה מתועדת/)).not.toBeInTheDocument();
   });
 
   it("highlights a client with no logged call at all", () => {
-    renderCard(snapshot(null));
+    renderCell(snapshot(null));
     expect(screen.getByRole("button", { name: "לא תועדה שיחה" })).toHaveClass(
       "text-amber-700",
     );
   });
 
   it("claims nothing without a pulse snapshot", () => {
-    renderCard(null);
+    renderCell(null);
     expect(
       screen.getByRole("button", { name: "לא תועדה שיחה" }),
     ).not.toHaveClass("text-amber-700");

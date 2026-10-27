@@ -8,12 +8,7 @@ import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
   pulseRowHasNoRecentClientCall,
-} from "./pulse-client-call.ts";
-
-export {
-  CLIENT_CALL_STALE_MS,
-  resolveNoRecentClientCall,
-} from "./pulse-client-call.ts";
+} from "./pulse/client-call.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -410,7 +405,7 @@ function applyStoppedCampaigns(
  * - critical / healthy: metric-driven when recent data exists
  *
  * A missing client call never changes the status (AIO-227): it is reported as
- * the separate `no_recent_client_call` indicator (see pulse-client-call.ts).
+ * the separate `no_recent_client_call` indicator (see pulse/client-call.ts).
  */
 export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   status: PulseStatus;
@@ -1065,11 +1060,14 @@ export function clientPerformance(
   const perfFlags = flags.filter((flag) => !OPERATIONAL_FLAG.test(flag));
   const ops = row.status === "no_data" || flags.length > perfFlags.length;
   let status: ClientPerformance["status"] = null;
-  if (row.status === "critical") status = "critical";
-  // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
-  else if (row.status === "warning")
+  if (row.status === "critical") {
+    status = "critical";
+  } else if (row.status === "warning") {
+    // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
     status = perfFlags.length || !allFlags.length ? "warning" : "healthy";
-  else if (row.status === "healthy") status = "healthy";
+  } else if (row.status === "healthy") {
+    status = "healthy";
+  }
   const criticalCampaign = (
     Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : []
   ).find((campaign) => campaign.status === "critical");
