@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { fakeSupabase } from "../_shared/testing/fake-supabase.mjs";
+import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
 import { deliverHealthDigest } from "./report-delivery.ts";
 
 const TENANT = "tenant-a";

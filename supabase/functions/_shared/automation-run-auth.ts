@@ -25,7 +25,7 @@ async function callerUserId(
   return error ? null : (data?.user?.id ?? null);
 }
 
-async function isSuperAdmin(supabase: AuthRpcClient, userId: string) {
+async function isSuperAdmin(supabase: Pick<DbClient, "rpc">, userId: string) {
   const admin = await supabase.rpc("is_super_admin", { _user_id: userId });
   if (admin.error) throw admin.error;
   return admin.data === true;
@@ -100,3 +100,7 @@ export async function authorizeTenantCaller(
     error: "Not a member of this tenant",
   };
 }
+
+// The same caller and super-admin lookups gate the Manus senders
+// (_shared/auth/tenant-access.ts, manage-manus-wa/send-auth.ts).
+export { callerUserId, isSuperAdmin };

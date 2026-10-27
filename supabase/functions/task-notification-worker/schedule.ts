@@ -1,16 +1,10 @@
 import {
   jerusalemLocalTimeToUtc,
-  jerusalemWeekdayIndex,
-  jerusalemYmd,
-  shiftYmd,
-} from "../_shared/calendarTimeZone.ts";
-import { taskNotificationsHeldUntil } from "../_shared/task-notification-hold.ts";
-
-export { taskNotificationsHeldUntil };
+  NOTIFICATION_WINDOW_START,
+} from "../_shared/shabbat/quiet-window.ts";
+import { onReminderDay, outsideShabbat } from "./reminder-day.ts";
 
 const ISRAEL_TIME_ZONE = "Asia/Jerusalem";
-const MORNING_HOUR = 8;
-const MORNING_MINUTE = 30;
 const EVENING_CUTOFF_HOUR = 20;
 
 type LocalParts = {
@@ -42,27 +36,10 @@ function localParts(date: Date): LocalParts {
   };
 }
 
+/** Israel wall-clock parts → UTC, through the shared DST-safe converter. */
 function israelLocalToUtc(parts: LocalParts): Date {
-  const target = Date.UTC(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-  );
-  let result = new Date(target);
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const actual = localParts(result);
-    const actualAsUtc = Date.UTC(
-      actual.year,
-      actual.month - 1,
-      actual.day,
-      actual.hour,
-      actual.minute,
-    );
-    result = new Date(result.getTime() + target - actualAsUtc);
-  }
-  return result;
+  const dateYmd = `${parts.year}-${parts.month}-${parts.day}`;
+  return jerusalemLocalTimeToUtc(dateYmd, parts.hour, parts.minute);
 }
 
 function shiftLocalDate(parts: LocalParts, days: number): LocalParts {
@@ -79,15 +56,8 @@ function shiftLocalDate(parts: LocalParts, days: number): LocalParts {
 }
 
 function isBeforeMorning(parts: LocalParts) {
-  return (
-    parts.hour < MORNING_HOUR ||
-    (parts.hour === MORNING_HOUR && parts.minute < MORNING_MINUTE)
-  );
-}
-
-/** A planned send inside the Shabbat window moves to Sunday 08:30. */
-function outsideShabbat(at: Date): Date {
-  return taskNotificationsHeldUntil(at) ?? at;
+  const { hour, minute } = NOTIFICATION_WINDOW_START;
+  return parts.hour < hour || (parts.hour === hour && parts.minute < minute);
 }
 
 export function taskOverdueNotifyAt(task: {
@@ -100,11 +70,7 @@ export function taskOverdueNotifyAt(task: {
     1,
   );
   return outsideShabbat(
-    israelLocalToUtc({
-      ...dayAfterDue,
-      hour: MORNING_HOUR,
-      minute: MORNING_MINUTE,
-    }),
+    israelLocalToUtc({ ...dayAfterDue, ...NOTIFICATION_WINDOW_START }),
   );
 }
 
@@ -117,49 +83,13 @@ type ReminderTask = {
   recurrence_previous_task_id?: string | null;
 };
 
-export function isRecurringTask(task: {
-  recurrence_frequency?: string | null;
-  recurrence_previous_task_id?: string | null;
-}): boolean {
-  return Boolean(task.recurrence_frequency || task.recurrence_previous_task_id);
-}
-
-/**
- * When the open-task reminder goes out.
- *
- * One-off tasks keep the day-before heads-up. A recurring occurrence is created
- * (and the worker invoked) as soon as the previous one is done, so the same
- * rule sent its reminder on the day BEFORE the task's day (AIO-226). Recurring
- * occurrences are never reminded before 08:30 Israel time on their own date.
- * Nothing goes out on Shabbat: a task due on Saturday is reminded on Friday
- * morning, anything else in the window waits until Sunday 08:30.
- */
+/** When the open-task reminder goes out (reminder-day.ts sets its day). */
 export function taskReminderAt(task: ReminderTask): Date | null {
-  let at = plannedReminderAt(task);
-  if (!at) return null;
-  if (isRecurringTask(task) && task.due_date) {
-    const ownDayStart = jerusalemLocalTimeToUtc(
-      task.due_date,
-      MORNING_HOUR,
-      MORNING_MINUTE,
-    );
-    if (at.getTime() < ownDayStart.getTime()) at = ownDayStart;
-  }
-  if (
-    task.due_date &&
-    taskNotificationsHeldUntil(at) &&
-    jerusalemYmd(at) === task.due_date &&
-    jerusalemWeekdayIndex(jerusalemLocalTimeToUtc(task.due_date, 12)) === 6
-  ) {
-    return jerusalemLocalTimeToUtc(
-      shiftYmd(task.due_date, -1),
-      MORNING_HOUR,
-      MORNING_MINUTE,
-    );
-  }
-  return outsideShabbat(at);
+  const planned = plannedReminderAt(task);
+  return planned ? onReminderDay(task, planned) : null;
 }
 
+/** Day-before slot for a dated task; 5h after creation at priority 8+. */
 function plannedReminderAt(task: ReminderTask): Date | null {
   if (task.priority >= 8) {
     const fiveHoursLater = new Date(
@@ -168,18 +98,10 @@ function plannedReminderAt(task: ReminderTask): Date | null {
     const local = localParts(fiveHoursLater);
     if (local.hour >= EVENING_CUTOFF_HOUR) {
       const nextMorning = shiftLocalDate(local, 1);
-      return israelLocalToUtc({
-        ...nextMorning,
-        hour: MORNING_HOUR,
-        minute: MORNING_MINUTE,
-      });
+      return israelLocalToUtc({ ...nextMorning, ...NOTIFICATION_WINDOW_START });
     }
     if (isBeforeMorning(local)) {
-      return israelLocalToUtc({
-        ...local,
-        hour: MORNING_HOUR,
-        minute: MORNING_MINUTE,
-      });
+      return israelLocalToUtc({ ...local, ...NOTIFICATION_WINDOW_START });
     }
     return fiveHoursLater;
   }
