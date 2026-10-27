@@ -7,6 +7,7 @@
 import { ASSET_BUCKET, type AssetView } from "./assets.ts";
 import { pickMaterials, planEditScenes } from "./edit-plan.ts";
 import { asRecord } from "./record.ts";
+import { spokenField } from "./spoken-text.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -42,8 +43,9 @@ export const EDIT_TOOL = {
       voiceover: {
         type: "array",
         items: { type: "string" },
-        description:
+        description: spokenField(
           "קריינות לכל סצנה, לפי הסדר. בסצנה מדברת בלי dialogue, הדמות אומרת את הקריינות.",
+        ),
       },
       motion: {
         type: "array",
@@ -60,8 +62,9 @@ export const EDIT_TOOL = {
       dialogue: {
         type: "array",
         items: { type: "string" },
-        description:
+        description: spokenField(
           "המשפט שהדמות אומרת למצלמה בסצנה, בעברית, לפי הסדר. סצנה עם משפט מדברת גם בלי lipsync, אלא אם lipsync=false.",
+        ),
       },
       speaker: {
         type: "array",

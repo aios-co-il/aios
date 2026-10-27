@@ -1,4 +1,5 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import { spokenField } from "./spoken-text.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
 export const WORKSHOP_SKIN = "carmen_workshop";
@@ -301,7 +302,7 @@ export const WORKSHOP_TOOLS = [
               overlay_text: { type: "string" },
               voiceover_text: {
                 type: "string",
-                description: "מה נאמר בסצנה, בעברית",
+                description: spokenField("מה נאמר בסצנה, בעברית."),
               },
               duration_s: { type: "number" },
               lipsync: {
@@ -316,8 +317,9 @@ export const WORKSHOP_TOOLS = [
               },
               dialogue: {
                 type: "string",
-                description:
-                  "המשפט שהדמות אומרת, בעברית. בלי זה היא אומרת את voiceover_text",
+                description: spokenField(
+                  "המשפט שהדמות אומרת, בעברית. בלי זה היא אומרת את voiceover_text.",
+                ),
               },
               reference_url: {
                 type: "string",
@@ -357,12 +359,15 @@ export const WORKSHOP_TOOLS = [
         },
         voiceover_text: {
           type: "string",
-          description: "הקריינות של הסצנה, בעברית",
+          description: spokenField(
+            "הקריינות של הסצנה, בעברית. משפט שחסר בסצנה של קריינות נכנס לכאן.",
+          ),
         },
         dialogue: {
           type: "string",
-          description:
-            "המשפט שהדמות אומרת למצלמה בליפ סינק, בעברית (בסצנה מדברת)",
+          description: spokenField(
+            "המשפט שהדמות אומרת למצלמה בליפ סינק, בעברית (בסצנה מדברת).",
+          ),
         },
         speaker: {
           type: "string",
@@ -372,7 +377,7 @@ export const WORKSHOP_TOOLS = [
         lipsync: {
           type: "boolean",
           description:
-            "true: הדמות בסצנה מדברת למצלמה בליפ סינק (צריך dialogue או voiceover_text). false: הסצנה מקבלת קריינות במקום.",
+            "true: הדמות בסצנה מדברת למצלמה בליפ סינק (צריך dialogue או voiceover_text), רק כשהמשתמש ביקש שהיא תדבר למצלמה. false: הסצנה מקבלת קריינות במקום.",
         },
         motion_prompt: {
           type: "string",
