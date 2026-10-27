@@ -1,9 +1,11 @@
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import {
   addFacebookGoalRecord,
   emptyFacebookGoalInputs,
   facebookCampaignGoal,
   type FacebookGoalInputs,
 } from "@/lib/facebookCampaignGoal";
+import { earnsRevenue } from "@/lib/weeklyAdsRevenue";
 import {
   groupWeeklyRowsByGoal,
   type WeeklyGoalGroup,
@@ -128,9 +130,8 @@ function campaignKind(
   source: WeeklyAdsSource,
   goal: FacebookGoalInputs,
   sourceModes: WeeklySourceModes,
-  googleGoal?: "leads" | "ecommerce",
+  googleGoal?: GoogleCampaignGoal,
 ): WeeklyCampaignKind {
-  // Google: each campaign by its own goal; the report's type only when unknown.
   if (source === "google_ads")
     return (
       googleGoal ??
@@ -154,7 +155,7 @@ export function buildWeeklyCampaignSections(
     defaultSource?: WeeklyAdsSource;
     sourceModes?: WeeklySourceModes;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
-    googleCampaignGoals?: Map<string, "leads" | "ecommerce">;
+    googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -254,8 +255,9 @@ export function buildWeeklyCampaignSections(
             sourceModes,
             options.googleCampaignGoals?.get(campaign.campaignId),
           );
-          // A lead campaign's conversion value (often ₪1 per lead) is not revenue.
-          const revenue = kind === "ecommerce" ? campaign.revenue : 0;
+          const revenue = earnsRevenue(campaign.source, kind)
+            ? campaign.revenue
+            : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases

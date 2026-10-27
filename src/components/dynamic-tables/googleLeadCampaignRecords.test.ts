@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { googleLeadCampaignRecords } from "./googleLeadCampaignRecords";
 
 const table = {
@@ -6,7 +7,7 @@ const table = {
   integration_type: "google_ads",
   integration_settings: { campaign_type: "leads" },
 };
-const record = (campaign: string, goal?: string) => ({
+const record = (campaign: string, goal?: GoogleCampaignGoal) => ({
   data: {
     date: "2026-10-20",
     campaign_id: campaign,

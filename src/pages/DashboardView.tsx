@@ -1,5 +1,5 @@
-import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection";
-import { summarizeGoogleAdsCampaigns } from "@/lib/googleAdsReport";
+import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1475,21 +1475,21 @@ export default function DashboardView() {
     facebookCampaignGroups,
   ]);
 
-  // Google Ads campaigns, each with its own goal (same rules as the pulse check):
-  // one account can run ecommerce and lead campaigns side by side.
   const googleAdsSummary = useMemo(
     () =>
       summarizeGoogleAdsCampaigns(
         platformFilter === "google_ads"
-          ? displayAllRecords.filter((r: any) => r._source === "google_ads")
+          ? displayAllRecords.filter(
+              (r: { _source?: string }) => r._source === "google_ads",
+            )
           : [],
         tables || [],
       ),
     [platformFilter, displayAllRecords, tables],
   );
-  // Ecommerce as soon as one campaign in the tab is an ecommerce campaign.
-  const googleAdsCampaignType: "leads" | "ecommerce" =
-    googleAdsSummary.hasEcommerce ? "ecommerce" : "leads";
+  const googleAdsCampaignType = googleAdsSummary.hasEcommerce
+    ? "ecommerce"
+    : "leads";
 
   const googleAdsTableSettings = useMemo(() => {
     const gaTables = (tables || []).filter(
@@ -1510,14 +1510,6 @@ export default function DashboardView() {
       dashboard?.client_id,
       googleAdsTableSettings,
     );
-  const googleWooOverlay = useGoogleWooOverlay
-    ? {
-        purchases: googleWooAttribution.paidOrders,
-        revenue: googleWooAttribution.paidRevenue,
-        organicOrders: googleWooAttribution.organicOrders,
-        organicRevenue: googleWooAttribution.organicRevenue,
-      }
-    : null;
 
   const analyticsTableIds = useMemo(
     () =>
@@ -2590,7 +2582,6 @@ export default function DashboardView() {
                   </div>
                 )}
 
-              {/* Google Ads: each campaign by its own goal (same rules as the pulse check) */}
               {platformFilter === "google_ads" && (
                 <GoogleAdsCampaignSection
                   summary={googleAdsSummary}
@@ -2598,7 +2589,7 @@ export default function DashboardView() {
                   formatCurrency={formatCurrency}
                   formatNumber={formatNumber}
                   formatUnitCost={formatUnitCost}
-                  woo={googleWooOverlay}
+                  woo={useGoogleWooOverlay ? googleWooAttribution : null}
                 />
               )}
 

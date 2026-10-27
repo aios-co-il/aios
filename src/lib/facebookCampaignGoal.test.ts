@@ -92,11 +92,9 @@ function goalsOnEverySurface(
     integrationType: "facebook_insights",
     goalOf: shared.goalOf,
     goals: {
-      ecommerce: shared.ecommerce.length > 0,
-      leads: shared.leads.length > 0,
+      hasEcommerce: shared.ecommerce.length > 0,
+      hasLeads: shared.leads.length > 0,
     },
-    forceLeadsOnly: shared.ecommerce.length === 0,
-    forceEcommerceOnly: shared.leads.length === 0,
   });
   return {
     weekly: week.rows[0].kind,

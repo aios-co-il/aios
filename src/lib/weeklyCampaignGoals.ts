@@ -1,4 +1,5 @@
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { weeklyRoas } from "@/lib/weeklyAdsRevenue";
 import type {
   WeeklyCampaignKind,
   WeeklyCampaignRow,
@@ -80,6 +81,6 @@ function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
     },
   );
   totals.costPerResult = totals.results > 0 ? totals.spend / totals.results : 0;
-  totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
+  totals.roas = weeklyRoas(rows, totals.revenue);
   return totals;
 }

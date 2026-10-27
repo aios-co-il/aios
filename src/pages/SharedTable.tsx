@@ -1,7 +1,5 @@
-import {
-  googleReportCampaignGoals,
-  googleReportCampaignKey,
-} from "@/lib/pulseCampaignGoals";
+import { googleCampaignRowsByGoal } from "@/components/SharedTable/googleCampaignRowsByGoal";
+import { useSharedTableGoals } from "@/components/SharedTable/useSharedTableGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -90,7 +88,6 @@ import { getCurrencySymbol } from "@/lib/currency";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   aggregateFacebookRecordsAtLevel,
-  aggregateGoogleRecordsAtLevel,
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
@@ -295,33 +292,11 @@ export default function SharedTable() {
           : tableCampaignType === "ecommerce"
             ? "ecommerce"
             : "leads";
-  // Google Ads: each campaign by its own goal (same rules as the pulse check),
-  // so one account can show ecommerce and lead campaigns side by side.
-  const googleGoalOf = useMemo(() => {
-    const table = data?.table;
-    if (!isGoogleAds || !table?.id) return null;
-    const goals = googleReportCampaignGoals({
-      records: (data?.records || []).map((record: any) => ({
-        table_id: table.id,
-        data: record.data,
-      })),
-      tables: [table],
-    });
-    return (recordData: Record<string, unknown> | null | undefined) =>
-      goals.get(googleReportCampaignKey(recordData)) ?? tableMode;
-  }, [data, isGoogleAds, tableMode]);
-  const googleGoals = useMemo(() => {
-    if (!googleGoalOf) return null;
-    const goals = new Set(
-      (data?.records || []).map((record: any) => googleGoalOf(record.data)),
-    );
-    return {
-      ecommerce: goals.size
-        ? goals.has("ecommerce")
-        : tableMode === "ecommerce",
-      leads: goals.size ? goals.has("leads") : tableMode === "leads",
-    };
-  }, [data, googleGoalOf, tableMode]);
+  const tableGoals = useSharedTableGoals(
+    data?.records,
+    isGoogleAds ? data?.table : null,
+    tableMode,
+  );
 
   const { data: weeklyData, isPending: weeklyPending } = useQuery({
     queryKey: ["shared-table", shareToken, "last_365_days", "weekly"],
@@ -371,23 +346,15 @@ export default function SharedTable() {
     });
   }, [filteredRecords, integrationType, adsEntityLevel, facebookLeadsOnly]);
   const campaignGoals = useMemo(() => {
-    if (googleGoals) {
-      return googleGoals;
-    }
     if (!facebookGroups) {
-      return null;
+      return tableGoals;
     }
     return {
-      ecommerce: facebookGroups.ecommerce.length > 0,
-      leads: facebookGroups.leads.length > 0,
+      hasEcommerce: facebookGroups.ecommerce.length > 0,
+      hasLeads: facebookGroups.leads.length > 0,
     };
-  }, [googleGoals, facebookGroups]);
-  const forceLeadsOnly = campaignGoals
-    ? !campaignGoals.ecommerce
-    : tableMode === "leads";
-  const forceEcommerceOnly = campaignGoals
-    ? !campaignGoals.leads
-    : tableMode === "ecommerce";
+  }, [tableGoals, facebookGroups]);
+  const forceLeadsOnly = !campaignGoals.hasEcommerce;
 
   // Summary for integration tables
   const summary = useMemo(() => {
@@ -396,18 +363,14 @@ export default function SharedTable() {
     }
     return summarizeSharedTableRecords(filteredRecords, {
       integrationType: integrationType || "",
-      goalOf: googleGoalOf ?? facebookGroups?.goalOf ?? null,
+      goalOf: tableGoals.goalOf ?? facebookGroups?.goalOf ?? null,
       goals: campaignGoals,
-      forceLeadsOnly,
-      forceEcommerceOnly,
     });
   }, [
     filteredRecords,
     integrationType,
     isIntegrationTable,
-    forceLeadsOnly,
-    forceEcommerceOnly,
-    googleGoalOf,
+    tableGoals,
     facebookGroups,
     campaignGoals,
   ]);
@@ -468,36 +431,17 @@ export default function SharedTable() {
       };
     }
 
-    const googleRows = (records: any[]) =>
-      aggregateGoogleRecordsAtLevel(records, adsEntityLevel).map((c) => ({
-        name: c.name,
-        spend: c.cost || c.spend,
-        impressions: c.impressions,
-        clicks: c.clicks,
-        leads: c.leads,
-        purchases: c.purchases,
-        revenue: c.conversions_value || c.purchase_value,
-        addToCart: c.add_to_cart,
-      }));
-    const goalOf = googleGoalOf ?? (() => tableMode);
-    const ecommerce = googleRows(
-      filteredRecords.filter((r: any) => goalOf(r.data) === "ecommerce"),
+    const { ecommerce, leads, all } = googleCampaignRowsByGoal(
+      filteredRecords,
+      adsEntityLevel,
+      tableGoals.goalOf ?? (() => tableMode),
     );
-    const leads = googleRows(
-      filteredRecords.filter((r: any) => goalOf(r.data) !== "ecommerce"),
-    );
-    return {
-      ecommerce,
-      leads,
-      traffic: [],
-      all: [...ecommerce, ...leads],
-      entityColumnLabel,
-    };
+    return { ecommerce, leads, traffic: [], all, entityColumnLabel };
   }, [
     filteredRecords,
     integrationType,
     facebookGroups,
-    googleGoalOf,
+    tableGoals,
     tableMode,
     adsEntityLevel,
   ]);
