@@ -149,7 +149,7 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: ["google", "elevenlabs", "higgsfield", "openai"],
           description:
-            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+            "רשות: מנוע התמונות שהמשתמש בחר. הבחירה נשמרת לפרויקט. מנוע שלא מחובר לא נחשב שגיאה: השרת בוחר מנוע מחובר ומחזיר engine_note.",
         },
         reference_urls: {
           type: "array",
@@ -247,7 +247,7 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: ["google", "elevenlabs", "higgsfield", "openai"],
           description:
-            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+            "רשות: מנוע התמונות שהמשתמש בחר. הבחירה נשמרת לפרויקט. מנוע שלא מחובר לא נחשב שגיאה: השרת בוחר מנוע מחובר ומחזיר engine_note.",
         },
         reference_urls: {
           type: "array",
@@ -349,7 +349,7 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: ["google", "elevenlabs", "higgsfield", "openai"],
           description:
-            "מנוע התמונות שהמשתמש בחר. כשמחוברים כמה, הכלי מחזיר את האפשרויות ושואלים אותו. הבחירה נשמרת לפרויקט.",
+            "רשות: מנוע התמונות שהמשתמש בחר. הבחירה נשמרת לפרויקט. מנוע שלא מחובר לא נחשב שגיאה: השרת בוחר מנוע מחובר ומחזיר engine_note.",
         },
         reference_urls: {
           type: "array",
@@ -404,7 +404,7 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: ["mock", "kling", "elevenlabs", "higgsfield", "openrouter"],
           description:
-            "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון",
+            "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון. מנוע שלא מחובר לא נחשב שגיאה: השרת בוחר מנוע מחובר ומחזיר engine_note.",
         },
         voice_id: { type: "string" },
         music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },

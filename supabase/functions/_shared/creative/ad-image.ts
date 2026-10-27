@@ -1,22 +1,19 @@
 /**
- * One ad or scene picture: the tenant's OpenRouter brain first when there are no references,
- * then the connected image engines; the result is uploaded to the public social-media bucket.
+ * One ad or scene picture: the tenant's OpenRouter brain first (with the reference pictures),
+ * then the connected image engines, and OpenRouter again from the prompt alone before giving
+ * up; the result is uploaded to the public social-media bucket.
  * Shared by Carmen's generate_ad_image tool and the workshop-image function, which runs it in
  * its own request so a film's pictures do not use up the chat request's CPU time.
  */
 import { imageProvidersFor } from "../workshop/capabilities.ts";
 import {
-  fromBase64,
-  generateStill,
   loadReferences,
   type ImageProvider,
 } from "../workshop/image-providers.ts";
 import { tenantImageKeys } from "./tenant-image-keys.ts";
 import { publicFetchAsFetch } from "../public-fetch.ts";
-import {
-  generateOpenRouterImage,
-  tenantOpenRouterKey,
-} from "./openrouterImage.ts";
+import { tenantOpenRouterKey } from "./openrouterImage.ts";
+import { pictureFromEngines } from "./picture-engines.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -39,7 +36,6 @@ export type AdImageResult =
   | { success: false; error: string; suggestion?: string };
 
 const ENGINES: string[] = ["google", "elevenlabs", "higgsfield", "openai"];
-
 export async function makeAdImage(
   supabase: Db,
   tenantId: string,
@@ -72,56 +68,25 @@ export async function makeAdImage(
         "לא הצלחתי לקרוא את תמונות הרפרנס (הקישור פג או לא נגיש). בקשי מהמשתמש לצרף אותן שוב.",
     };
   }
-  const prompt = String(args.prompt ?? "");
-  const aspect =
-    typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1";
-  let made: { bytes: Uint8Array; mime: string; provider: string } | undefined;
-  // OpenRouter first when there are no references (openrouterImage.ts); the connected
-  // image engines are the fallback. With references and no other engine, OpenRouter still
-  // makes the picture from the prompt, which carries the project's style bible.
-  const otherEngines = imageProvidersFor(connected).length > 0;
-  if (
-    openRouterKey &&
-    (loadedReferences.references.length === 0 || !otherEngines)
-  ) {
-    try {
-      const generated = await generateOpenRouterImage({
-        apiKey: openRouterKey,
-        prompt: `${prompt}. Professional, high quality, suitable for a social media advertisement.`,
-        aspectRatio: aspect,
-      });
-      made = {
-        bytes: fromBase64(generated.b64),
-        mime: generated.mediaType,
-        provider: `openrouter/${generated.model}`,
-      };
-    } catch (e) {
-      console.warn(
-        `[generate_ad_image] OpenRouter failed, using the image engines: ${e instanceof Error ? e.message : e}`,
-      );
-    }
+  let made: { bytes: Uint8Array; mime: string; provider: string };
+  try {
+    made = await pictureFromEngines({
+      openRouterKey,
+      keys,
+      otherEngines: imageProvidersFor(connected).length > 0,
+      prompt: String(args.prompt ?? ""),
+      aspectRatio: args.aspect_ratio,
+      engine: ENGINES.includes(String(args.engine))
+        ? (args.engine as ImageProvider)
+        : undefined,
+      references: loadedReferences.references,
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
+    };
   }
-  if (!made)
-    try {
-      made = await generateStill(
-        keys,
-        loadedReferences.references.length > 0
-          ? prompt
-          : `${prompt}. Professional, high quality, suitable for a social media advertisement.`,
-        args.aspect_ratio,
-        {
-          engine: ENGINES.includes(String(args.engine))
-            ? (args.engine as ImageProvider)
-            : undefined,
-        },
-        loadedReferences.references,
-      );
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "יצירת התמונה נכשלה",
-      };
-    }
   const ext = made.mime.includes("jpeg") ? "jpg" : "png";
   const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
   await supabase.storage

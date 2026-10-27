@@ -5,10 +5,12 @@ import {
   briefAnswersOf,
   briefAsked,
   filmFromAnswers,
+  styleFromAnswers,
   unanswered,
   withBriefAnswers,
   withBriefAsked,
 } from "./brief-answers.ts";
+import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
 import { PROVIDER_LABEL } from "./capabilities.ts";
@@ -138,7 +140,9 @@ export async function briefProject(
     options.kind === "video"
       ? [...STYLE_CHOICES.video, ...FILM_CHOICES]
       : STYLE_CHOICES.static;
+  // Taps on Carmen's own buttons count too ("סגנון חזותי", "סגיר"): each topic is asked once.
   const fresh = {
+    ...tappedAnswers(deps.lastAssistant ?? "", deps.userText ?? ""),
     ...answersFromMessage(
       deps.userText ?? "",
       unanswered(questions, briefAnswersOf(payload)),
@@ -149,15 +153,24 @@ export async function briefProject(
   const answers = briefAnswersOf(briefed);
   const writtenFilm =
     options.kind === "video" && !stored.film ? filmFromAnswers(answers) : null;
-  const folded = withLook(briefed, {
-    ...args,
-    engine: asked,
+  const givenBible =
+    typeof args.style_bible === "string" && args.style_bible.trim();
+  const writtenStyle =
+    options.needsStyle !== false && !stored.bible && !givenBible
+      ? styleFromAnswers(answers, options.kind)
+      : null;
+  const written = {
     ...(writtenFilm && !args.film_brief ? { film_brief: writtenFilm } : {}),
-  });
+    ...(writtenStyle ? { style_bible: writtenStyle } : {}),
+  };
+  const folded = withLook(briefed, { ...args, engine: asked, ...written });
   const look = lookOf(folded.payload);
   const gate = briefingGate({
     look,
-    styleApproved: args.style_approved === true || stored.bible.length > 0,
+    styleApproved:
+      args.style_approved === true ||
+      stored.bible.length > 0 ||
+      Boolean(writtenStyle),
     connected,
     engine: chosen,
     kind: options.kind,
@@ -171,12 +184,9 @@ export async function briefProject(
     const asking = typeof gate.say_to_user === "string" && gate.say_to_user;
     if (
       options.save &&
-      (Object.keys(fresh).length > 0 || writtenFilm || asking)
+      (Object.keys(fresh).length > 0 || writtenFilm || writtenStyle || asking)
     ) {
-      const kept = withLook(
-        briefed,
-        writtenFilm ? { film_brief: writtenFilm } : {},
-      ).payload;
+      const kept = withLook(briefed, written).payload;
       await options.save(asking ? withBriefAsked(kept) : kept);
     }
     return { gate: gate as unknown as Record<string, unknown> };

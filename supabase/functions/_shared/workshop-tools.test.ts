@@ -1274,16 +1274,22 @@ Deno.test(
     assertStrictEquals(asked.needs_input, undefined);
     assertNotStrictEquals(asked.missing?.[0], "engine");
 
-    const unknown = (await executeWorkshopTool(
-      fakeDb(script),
-      "tenant-1",
-      "workshop_make_stills",
-      { item_id: "item-1", engine: "openai" },
-      async () => {},
-      null,
-      deps,
-    )) as Record<string, any>;
-    assertMatch(unknown.error, /אין מפתח ל-OpenAI/);
+    // An engine that is not connected is ignored with a note, never an error to retry on.
+    for (const engine of ["openai", "openrouter", "dall-e-9"]) {
+      const unknown = (await executeWorkshopTool(
+        fakeDb(script),
+        "tenant-1",
+        "workshop_make_stills",
+        { item_id: "item-1", engine },
+        async () => {},
+        null,
+        deps,
+      )) as Record<string, any>;
+      assertStrictEquals(unknown.error, undefined, engine);
+      assertStrictEquals(unknown.needs_budget, true, engine);
+      assertMatch(unknown.engine_note, /לא מחובר, אז השרת בחר מנוע מחובר/);
+      assertNotMatch(JSON.stringify(unknown), /רצה שוב|בלי לציין מנוע/);
+    }
 
     const db = fakeDb(script);
     await executeWorkshopTool(
@@ -2507,5 +2513,99 @@ Deno.test(
       { userText: "תכתבי סטוריבורד חדש עם סוף אחר" },
     )) as Record<string, any>;
     assertNotMatch(String(asked.error ?? ""), /סיפור חדש/);
+  },
+);
+
+Deno.test(
+  "questions Carmen already asked with her own buttons are not asked again by the storyboard",
+  async () => {
+    // David's run: Carmen asked her own buttons, he tapped all three, then she wrote the storyboard.
+    const carmenAsked = [
+      "לפני שנתחיל, כמה בחירות:",
+      "[[בחירה: סגנון חזותי | קולנועי ריאליסטי | אנימציית תלת־ממד | איור מונפש]]",
+      "[[בחירה: מוזיקה | אלקטרונית קצבית | אקוסטית חמה | בלי מוזיקה]]",
+      "[[בחירה: סגיר | לוגו וקריאה לפעולה | לוגו בלבד | בלי סגיר]]",
+    ].join("\n");
+    const tapped =
+      "סגנון חזותי: קולנועי ריאליסטי\nמוזיקה: אקוסטית חמה\nסגיר: לוגו וקריאה לפעולה";
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a woman at a laptop" }],
+    };
+    const first = fakeDb(bareProject());
+    const asked = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      { userText: tapped, lastAssistant: carmenAsked },
+    )) as Record<string, any>;
+    assertStrictEquals(asked.needs_input, true);
+    const labels = [
+      ...asked.say_to_user.matchAll(/\[\[בחירה: ([^|]+?) \|/g),
+    ].map((match: RegExpMatchArray) => match[1]);
+    // Each topic once: look, music and ending were answered under Carmen's own names.
+    assertEquals(labels, ["דמות", "צבעים", "קצב", "קול"]);
+    const saved = first.calls.find((c) => c.op === "update")?.value as any;
+    assertEquals(saved.payload.workshop_brief.answers, {
+      "סגנון חזותי": "קולנועי ריאליסטי",
+      מוזיקה: "אקוסטית חמה",
+      סגיר: "לוגו וקריאה לפעולה",
+    });
+
+    // He answers the rest; every topic is answered now, so the storyboard is written.
+    const second = fakeDb({
+      ...bareProject(),
+      "marketing_work_items:select": {
+        id: "item-1",
+        title: "",
+        client_id: "client-1",
+        current_stage_id: "stage-1",
+        payload: saved.payload,
+      },
+    });
+    const written = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      {
+        userText:
+          "דמות: דמות אחת קבועה\nצבעים: חם ומזמין\nקצב: רגוע ורגשי\nקול: קריינית",
+        lastAssistant: asked.say_to_user,
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(written.needs_input, undefined);
+    assertStrictEquals(written.success, true);
+    assert(second.calls.some((c) => c.table === "rpc:save_video_storyboard"));
+  },
+);
+
+Deno.test(
+  "taps on questions asked before the project existed start its brief",
+  async () => {
+    const db = fakeDb();
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "סרטון לכרמן", kind: "video" },
+      async () => {},
+      null,
+      {
+        lastAssistant: "[[בחירה: סגיר | לוגו בלבד | בלי סגיר]]",
+        userText: "לוגו בלבד",
+      },
+    );
+    const inserted = db.calls.find(
+      (c) => c.table === "marketing_work_items" && c.op === "insert",
+    )?.value as any;
+    assertEquals(inserted.payload.workshop_brief.answers, {
+      סגיר: "לוגו בלבד",
+    });
   },
 );
