@@ -24,11 +24,10 @@ export const PROVIDER_SEND_PATTERNS: Record<string, RegExp> = {
 };
 
 /**
- * A direct call of the guard. An injected `deps.authorizeClientSend(` or a
- * typed signature `authorizeClientSend(request: …)` does not count: the
- * folder must also wire the real one.
+ * A call of the guard itself. Checks steps take it injected under another
+ * name (clientSendGuard), so a folder passes only where it wires the real one.
  */
-const GUARD_CALL = /(?<![.\w$])authorizeClientSend\((?!\s*[\w$]+\s*\??:)/;
+const GUARD_CALL = /\bauthorizeClientSend\(/;
 
 export type CallSiteReport = {
   /** Provider files in none of the lists. */

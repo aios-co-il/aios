@@ -4,13 +4,6 @@ import { resolveRecipient } from "./recipient.ts";
 
 const GROUP = "99999999-9999-4999-8999-999999999999";
 
-/** An rpc that answers one result, for the resolver's failure modes. */
-function answering(result: { data: unknown; error: unknown }) {
-  return {
-    rpc: () => ({ single: () => Promise.resolve(result) }),
-  };
-}
-
 Deno.test("resolveRecipient asks the database", async (t) => {
   await t.step("with the sender's tenant and the address's shape", async () => {
     const { db, rpcCalls } = guardDb({
@@ -78,19 +71,18 @@ Deno.test("resolveRecipient throws so the guard fails closed", async (t) => {
   };
 
   await t.step("on a database error", async () => {
-    const db = answering({ data: null, error: { message: "timeout" } });
+    const { db } = guardDb({ failing: ["resolve_send_recipient"] });
     await assertRejects(() => resolveRecipient(db, input));
   });
 
   await t.step("on no row", async () => {
-    const db = answering({ data: null, error: null });
-    await assertRejects(() => resolveRecipient(db, input), Error, "no row");
+    const { db } = guardDb({ recipient: null });
+    await assertRejects(() => resolveRecipient(db, input));
   });
 
   await t.step("on a kind TypeScript does not know", async () => {
-    const db = answering({
-      data: { ...resolved("unknown"), recipient_kind: "vendor" },
-      error: null,
+    const { db } = guardDb({
+      recipient: { ...resolved("unknown"), recipient_kind: "vendor" },
     });
     await assertRejects(() => resolveRecipient(db, input), Error, "vendor");
   });

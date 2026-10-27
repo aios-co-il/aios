@@ -1,6 +1,7 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { clientAutoSendKey } from "./useClientAutoSendOptIns";
 
 /** How far back the card lists refused sends. */
@@ -10,12 +11,10 @@ export const REFUSALS_WINDOW_DAYS = 30;
 // card reads a bounded window, blocked sends first, and groups it by reason.
 const REFUSALS_LIMIT = 200;
 
-export type ClientSendRefusalRow = {
-  id: string;
-  created_at: string;
-  reason: string;
-  enforced: boolean;
-};
+export type ClientSendRefusalRow = Pick<
+  Tables<"client_send_refusals">,
+  "id" | "created_at" | "reason" | "enforced"
+>;
 
 /** Refusals of one reason and status: how many, and the newest. */
 export type ClientSendRefusalGroup = {

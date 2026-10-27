@@ -1,5 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import type {
   ClientAutoSendKind,
   ClientAutoSendTarget,
@@ -9,11 +10,10 @@ import type {
 export const clientAutoSendKey = (clientId: string | null | undefined) =>
   ["client-auto-send", clientId] as const;
 
-export type ClientAutoSendOptIn = {
-  send_kind: ClientAutoSendKind;
-  target: ClientAutoSendTarget;
-  enabled: boolean;
-};
+export type ClientAutoSendOptIn = Pick<
+  Tables<"client_auto_send_opt_ins">,
+  "send_kind" | "target" | "enabled"
+>;
 
 /**
  * The card's switch rows, and whether the viewer may change them. A missing
@@ -55,12 +55,16 @@ async function fetchOptIns(clientId: string): Promise<ClientAutoSendOptIn[]> {
   return data ?? [];
 }
 
-/** Asks the database whether the viewer may change the switches. */
+/**
+ * Asks the database whether the viewer may change the switches. A failure
+ * is logged here; the matrix shows it and stays read-only.
+ */
 async function fetchCanManage(clientId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("can_manage_client_auto_sends", {
     p_client_id: clientId,
   });
   if (error) {
+    console.error("[client-auto-send] permission check failed", error);
     throw error;
   }
   return data === true;

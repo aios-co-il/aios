@@ -15376,6 +15376,16 @@ export type Database = {
         };
         Returns: undefined;
       };
+      broadcast_lists_recipient: {
+        Args: {
+          p_address: string;
+          p_broadcast_id: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       broadcast_matching_entity_ids: {
         Args: { p_entity_type: string; p_filter: Json; p_tenant_id: string };
         Returns: string[];
@@ -16474,6 +16484,10 @@ export type Database = {
       };
       user_can_view_campaigner: {
         Args: { _campaigner_id: string; _user_id: string };
+        Returns: boolean;
+      };
+      user_can_view_client_send_refusal: {
+        Args: { p_client_id: string; p_tenant_id: string };
         Returns: boolean;
       };
       user_has_agency_access: {

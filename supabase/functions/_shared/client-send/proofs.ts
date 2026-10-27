@@ -1,7 +1,7 @@
 // What proves a service-role send was asked for by something the tenant set
-// up: an enabled report schedule, a broadcast being dispatched, an active
-// automation. Every read is keyed by the sending tenant. A ref that is not
-// a uuid proves nothing, so it never reaches a uuid column.
+// up: an enabled report schedule or an active automation (a broadcast's proof
+// is in broadcast-proof.ts). Every read is keyed by the sending tenant. A ref
+// that is not a uuid proves nothing, so it never reaches a uuid column.
 import { isRecord } from "../client-card/is-record.ts";
 import type { DbClient } from "../supabase-clients.ts";
 import { asUuidOrNull } from "../uuid.ts";
@@ -28,42 +28,6 @@ export async function reportScheduleClient(
     throw error;
   }
   return data?.client_id ?? null;
-}
-
-/**
- * A broadcast being dispatched. `automationStream`: an automation's template
- * stream (origin automation), which stays 'sending' for good, so its status
- * proves nothing and its automation's rule decides.
- */
-export type SendingBroadcast =
-  | { automationStream: false }
-  | { automationStream: true; automationId: string | null };
-
-/** The tenant's broadcast when it is being dispatched now, else null. */
-export async function sendingBroadcast(
-  db: ProofDb,
-  input: { tenantId: string; broadcastId: string },
-): Promise<SendingBroadcast | null> {
-  const broadcastId = asUuidOrNull(input.broadcastId);
-  if (!broadcastId) {
-    return null;
-  }
-  const { data, error } = await db
-    .from("broadcasts")
-    .select("origin, automation_id")
-    .eq("id", broadcastId)
-    .eq("tenant_id", input.tenantId)
-    .eq("status", "sending")
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  if (!data) {
-    return null;
-  }
-  return data.origin === "automation"
-    ? { automationStream: true, automationId: data.automation_id }
-    : { automationStream: false };
 }
 
 export type AutomationTarget = {

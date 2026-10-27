@@ -14,18 +14,27 @@ const SCHEDULE = "55555555-5555-4555-8555-555555555555";
 const BROADCAST = "66666666-6666-4666-8666-666666666666";
 const FOR_CLIENT = "77777777-7777-4777-8777-777777777777";
 const TENANT_WIDE = "88888888-8888-4888-8888-888888888888";
+const PAUSED = "99999999-9999-4999-8999-999999999999";
+const GROUP_CHAT = "120363416882903532@g.us";
 
 const tables = {
   report_schedules: [
     { id: SCHEDULE, tenant_id: TENANT, enabled: true, client_id: CLIENT },
   ],
-  broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "paused" }],
+  broadcasts: [
+    { id: PAUSED, tenant_id: TENANT, status: "paused" },
+    { id: BROADCAST, tenant_id: TENANT, status: "sending", origin: "manual" },
+  ],
+  broadcast_recipients: [
+    { broadcast_id: BROADCAST, tenant_id: TENANT, address: GROUP_CHAT },
+  ],
   automations: [
     automation(FOR_CLIENT, "task_overdue", { client_id: CLIENT }),
     automation(TENANT_WIDE, "lead_created", {}),
   ],
 };
 
+/** An active single-step automation of the tenant. */
 function automation(id: string, trigger: string, conditions: object) {
   return {
     id,
@@ -38,11 +47,12 @@ function automation(id: string, trigger: string, conditions: object) {
   };
 }
 
+/** A service-role send to the group about CLIENT, with these fields changed. */
 const send = (fields: Partial<ClientSendRequest>): ClientSendRequest => ({
   functionName: "send-green-api-message",
   tenantId: TENANT,
   channel: "whatsapp",
-  address: "120363416882903532@g.us",
+  address: GROUP_CHAT,
   groupId: null,
   origin: "system",
   sendKind: null,
@@ -51,6 +61,7 @@ const send = (fields: Partial<ClientSendRequest>): ClientSendRequest => ({
   ...fields,
 });
 
+/** The group, resolved to these clients. */
 const group = (clientIds: string[]): SendRecipient => ({
   kind: "client_group",
   clientIds,
@@ -134,24 +145,19 @@ Deno.test("a report needs its schedule, for this client", async () => {
   );
 });
 
-Deno.test("a broadcast needs to be dispatching", async () => {
+Deno.test("a broadcast needs to be dispatching to this address", async () => {
   const broadcast = { sendKind: "broadcast" as const, sendRef: BROADCAST };
-  assertEquals(await refusal(broadcast), "proof_invalid");
+  assertEquals(await refusal(broadcast), null);
+  assertEquals(
+    await refusal({ ...broadcast, sendRef: PAUSED }),
+    "proof_invalid",
+  );
   assertEquals(await refusal({ ...broadcast, sendRef: null }), "proof_missing");
-  const { db } = guardDb({
-    tables: {
-      broadcasts: [
-        {
-          id: BROADCAST,
-          tenant_id: TENANT,
-          status: "sending",
-          origin: "manual",
-          automation_id: null,
-        },
-      ],
-    },
-  });
-  assertEquals(await clientRefusal(db, send(broadcast), group([CLIENT])), null);
+  assertEquals(
+    await refusal({ ...broadcast, address: "120363000000000000@g.us" }),
+    "proof_invalid",
+    "an active broadcast does not open a client it does not list",
+  );
 });
 
 Deno.test(

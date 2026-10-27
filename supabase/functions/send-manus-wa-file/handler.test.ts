@@ -57,8 +57,7 @@ function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
     resolveTenantId: async (request) => request.tenantId,
     findGroupChatId: async () => null,
     guard: () => ALLOW,
-    authorizeClientSend: (request) =>
-      authorizeClientSend(guardDb().db, request),
+    clientSendGuard: (request) => authorizeClientSend(guardDb().db, request),
     upload: async () => {
       calls.uploads += 1;
       return "https://storage.local/signed";
@@ -208,7 +207,7 @@ Deno.test("handleFileSend asks the client send guard first", async (t) => {
     const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
     const { deps, calls } = fakeDeps({
       authenticate: async () => ({ kind: "service", userId: null }),
-      authorizeClientSend: (request) => {
+      clientSendGuard: (request) => {
         requests.push(request);
         return authorizeClientSend(guard.db, request);
       },
@@ -248,7 +247,7 @@ Deno.test("handleFileSend asks the client send guard first", async (t) => {
   await t.step("a person's report to a client goes out", async () => {
     const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
     const { deps, calls } = fakeDeps({
-      authorizeClientSend: (request) => authorizeClientSend(guard.db, request),
+      clientSendGuard: (request) => authorizeClientSend(guard.db, request),
     });
     const result = await handleFileSend(
       reportRequest({ integrationId: "carmen", sendKind: "report" }),

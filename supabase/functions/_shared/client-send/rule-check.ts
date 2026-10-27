@@ -3,11 +3,8 @@
 // authorize.ts turns a throw into guard_error.
 import type { DbClient } from "../supabase-clients.ts";
 import { isOptedIn } from "./opt-in.ts";
-import {
-  automationTarget,
-  reportScheduleClient,
-  sendingBroadcast,
-} from "./proofs.ts";
+import { sendingBroadcast } from "./broadcast-proof.ts";
+import { automationTarget, reportScheduleClient } from "./proofs.ts";
 import {
   CLIENT_RULES,
   type ClientAutoSendKind,
@@ -74,9 +71,9 @@ async function reportRefusal(
 }
 
 /**
- * The broadcast in send_ref is this tenant's and is being dispatched. An
- * automation's template stream is always dispatching, so its automation's
- * rule decides, and is only observed until AIO-267.
+ * The broadcast in send_ref is this tenant's, is being dispatched and lists
+ * this address. An automation's template stream is always dispatching, so
+ * its automation's rule decides, and is only observed until AIO-267.
  */
 async function broadcastRefusal(
   db: ClientSendDb,
@@ -87,7 +84,7 @@ async function broadcastRefusal(
     return "proof_missing";
   }
   const broadcast = await sendingBroadcast(db, {
-    tenantId: request.tenantId,
+    ...request,
     broadcastId: request.sendRef,
   });
   if (!broadcast) {

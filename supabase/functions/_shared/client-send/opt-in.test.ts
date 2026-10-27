@@ -39,9 +39,7 @@ Deno.test("isOptedIn asks client_auto_send_allowed", async (t) => {
   });
 
   await t.step("a database error throws", async () => {
-    const db = {
-      rpc: () => Promise.resolve({ data: null, error: { message: "down" } }),
-    };
+    const { db } = guardDb({ failing: ["client_auto_send_allowed"] });
     await assertRejects(() => isOptedIn(db, input));
   });
 });

@@ -23,12 +23,15 @@ import { useSetClientAutoSend } from "./useSetClientAutoSend";
 const READ_ONLY_HINT =
   "רק בעלים, בעלי סוכנות או מנהל הצוות של הלקוח יכולים לשנות";
 
+const PERMISSION_CHECK_FAILED =
+  "בדיקת ההרשאה לשינוי נכשלה, ולכן ההגדרה מוצגת לקריאה בלבד";
+
 type SaveSwitch = ReturnType<typeof useSetClientAutoSend>;
 
 /**
  * One switch per kind (rows) and target (columns). A switch is off limits
- * when the viewer may not manage the card, or the card has no address of
- * that target, and while another switch is being saved.
+ * when the viewer may not manage the card, while another switch is being
+ * saved, and while it is off for a target the card has no address of.
  */
 export function AutoSendMatrix({ clientId }: { clientId: string }) {
   const { optIns, canManage } = useClientAutoSendOptIns(clientId);
@@ -40,11 +43,14 @@ export function AutoSendMatrix({ clientId }: { clientId: string }) {
   if (optIns.isError || card.isError) {
     return <p className="text-sm text-destructive">טעינת ההגדרה נכשלה</p>;
   }
-  // A failed permission check leaves the switches read-only.
+  // A failed permission check leaves the switches read-only, and says so.
   const editable = canManage.data === true;
   return (
     <div className="space-y-2">
-      {!editable && (
+      {canManage.isError && (
+        <p className="text-xs text-destructive">{PERMISSION_CHECK_FAILED}</p>
+      )}
+      {canManage.isSuccess && !editable && (
         <p className="text-xs text-muted-foreground">{READ_ONLY_HINT}</p>
       )}
       <div className="overflow-x-auto rounded-lg border">
@@ -99,7 +105,10 @@ function TargetHeader({
   );
 }
 
-/** One kind's switches, one per target. */
+/**
+ * One kind's switches, one per target. A switch left on for a target the
+ * card has since lost can still be turned off.
+ */
 function KindRow({
   kind,
   optIns,
@@ -118,18 +127,25 @@ function KindRow({
       <th scope="row" className="p-2 text-start font-normal">
         {AUTO_SEND_KIND_LABELS[kind]}
       </th>
-      {CLIENT_AUTO_SEND_TARGETS.map((target) => (
-        <td key={target} className="p-2 text-center">
-          <Switch
-            aria-label={`${AUTO_SEND_KIND_LABELS[kind]}: ${AUTO_SEND_TARGET_LABELS[target]}`}
-            checked={switchPosition(save, optIns, kind, target)}
-            disabled={!editable || !card.targets[target] || save.isPending}
-            onCheckedChange={(enabled) =>
-              save.mutate({ client: card, kind, target, enabled })
-            }
-          />
-        </td>
-      ))}
+      {CLIENT_AUTO_SEND_TARGETS.map((target) => {
+        const checked = switchPosition(save, optIns, kind, target);
+        return (
+          <td key={target} className="p-2 text-center">
+            <Switch
+              aria-label={`${AUTO_SEND_KIND_LABELS[kind]}: ${AUTO_SEND_TARGET_LABELS[target]}`}
+              checked={checked}
+              disabled={
+                !editable ||
+                save.isPending ||
+                (!checked && !card.targets[target])
+              }
+              onCheckedChange={(enabled) =>
+                save.mutate({ client: card, kind, target, enabled })
+              }
+            />
+          </td>
+        );
+      })}
     </tr>
   );
 }

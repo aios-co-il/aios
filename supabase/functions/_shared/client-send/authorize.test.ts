@@ -10,6 +10,7 @@ import {
 } from "./fake-guard-db.ts";
 import type { ClientSendRequest } from "./types.ts";
 
+/** A service-role staff alert to a phone, with these fields changed. */
 const systemSend = (
   fields: Partial<ClientSendRequest> = {},
 ): ClientSendRequest => ({
@@ -29,7 +30,7 @@ const systemSend = (
 async function decide(
   request: ClientSendRequest,
   recipient: ResolverRow,
-  options: { resolverFails?: boolean } = {},
+  options: { failing?: string[] } = {},
 ) {
   const { db, writes, rpcCalls } = guardDb({ recipient, ...options });
   const decision = await authorizeClientSend(db, request);
@@ -136,7 +137,7 @@ Deno.test(
     const { decision, refusals } = await decide(
       systemSend(),
       resolved("staff"),
-      { resolverFails: true },
+      { failing: ["resolve_send_recipient"] },
     );
     assertEquals(decision, {
       allowed: false,

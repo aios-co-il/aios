@@ -1,6 +1,7 @@
 // Everything checked before a Manus file leaves: who calls, for which tenant,
 // from which line, to whom, whether the client send guard lets it reach that
 // recipient, and whether this environment may send there.
+import type { ClientSendGuard } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
   callerMaySendForTenant,
@@ -9,7 +10,7 @@ import {
   type SenderLine,
 } from "../_shared/report-sender/line-access.ts";
 import { json } from "../_shared/telephony/response.ts";
-import { type AuthorizeClientSend, clientSendBlock } from "./client-send.ts";
+import { clientSendBlock } from "./client-send.ts";
 import { resolveManusLine } from "./line.ts";
 import { type FileSendRequest, readFileSendRequest } from "./request.ts";
 import { manusTarget, type ManusTarget } from "./target.ts";
@@ -32,7 +33,7 @@ export type PrepareDeps = {
   /** checkWhatsAppSend: Staging sends only to allowlisted phones. */
   guard(destination: string): GuardResult;
   /** The client send guard (AIO-261). */
-  authorizeClientSend: AuthorizeClientSend;
+  clientSendGuard: ClientSendGuard;
 };
 
 export type SendContext = {
@@ -86,7 +87,7 @@ export async function prepareSend(
   if ("error" in target) {
     return json({ error: target.error, code: target.error }, 400);
   }
-  const refused = await clientSendBlock(deps.authorizeClientSend, {
+  const refused = await clientSendBlock(deps.clientSendGuard, {
     request,
     isServiceRole,
     tenantId,

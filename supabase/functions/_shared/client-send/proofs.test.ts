@@ -1,87 +1,72 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { fakeDb } from "../broadcast/fake-db.ts";
-import { CLIENT, OTHER_CLIENT, OTHER_TENANT, TENANT } from "./fake-guard-db.ts";
 import {
-  automationTarget,
-  reportScheduleClient,
-  sendingBroadcast,
-} from "./proofs.ts";
+  CLIENT,
+  guardDb,
+  OTHER_CLIENT,
+  OTHER_TENANT,
+  TENANT,
+} from "./fake-guard-db.ts";
+import { automationTarget, reportScheduleClient } from "./proofs.ts";
 
 const SCHEDULE = "55555555-5555-4555-8555-555555555555";
-const BROADCAST = "66666666-6666-4666-8666-666666666666";
 const OWN = "77777777-7777-4777-8777-777777777777";
 const SHARED = "88888888-8888-4888-8888-888888888888";
 const FLOW = "99999999-9999-4999-8999-999999999999";
-const STREAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-const { db, writes } = fakeDb({
-  report_schedules: [
-    { id: SCHEDULE, tenant_id: TENANT, enabled: true, client_id: CLIENT },
-  ],
-  broadcasts: [
-    {
-      id: BROADCAST,
-      tenant_id: TENANT,
-      status: "sending",
-      origin: "manual",
-      automation_id: null,
-    },
-    {
-      id: STREAM,
-      tenant_id: TENANT,
-      status: "sending",
-      origin: "automation",
-      automation_id: OWN,
-    },
-  ],
-  automations: [
-    {
-      id: OWN,
-      tenant_id: TENANT,
-      active: true,
-      is_flow: false,
-      trigger_type: "lead_created",
-      configuration: {},
-      conditions: { client_id: CLIENT },
-    },
-    {
-      id: SHARED,
-      tenant_id: OTHER_TENANT,
-      active: true,
-      is_flow: false,
-      trigger_type: "task_overdue",
-      configuration: { client_id: OTHER_CLIENT },
-      conditions: null,
-    },
-    {
-      id: FLOW,
-      tenant_id: TENANT,
-      active: true,
-      is_flow: true,
-      trigger_type: "manual_command",
-      configuration: {},
-      conditions: null,
-    },
-  ],
-  automation_shared_tenants: [{ automation_id: SHARED, tenant_id: TENANT }],
-  automation_flow_steps: [
-    {
-      automation_id: FLOW,
-      tenant_id: OTHER_TENANT,
-      step_type: "trigger",
-      sort_order: 0,
-      action_type: "task_overdue",
-      configuration: { client_id: OTHER_CLIENT },
-    },
-    {
-      automation_id: FLOW,
-      tenant_id: TENANT,
-      step_type: "trigger",
-      sort_order: 1,
-      action_type: "inbound_webhook_lead",
-      configuration: { client_id: CLIENT },
-    },
-  ],
+const { db, writes } = guardDb({
+  tables: {
+    report_schedules: [
+      { id: SCHEDULE, tenant_id: TENANT, enabled: true, client_id: CLIENT },
+    ],
+    automations: [
+      {
+        id: OWN,
+        tenant_id: TENANT,
+        active: true,
+        is_flow: false,
+        trigger_type: "lead_created",
+        configuration: {},
+        conditions: { client_id: CLIENT },
+      },
+      {
+        id: SHARED,
+        tenant_id: OTHER_TENANT,
+        active: true,
+        is_flow: false,
+        trigger_type: "task_overdue",
+        configuration: { client_id: OTHER_CLIENT },
+        conditions: null,
+      },
+      {
+        id: FLOW,
+        tenant_id: TENANT,
+        active: true,
+        is_flow: true,
+        trigger_type: "manual_command",
+        configuration: {},
+        conditions: null,
+      },
+    ],
+    automation_shared_tenants: [{ automation_id: SHARED, tenant_id: TENANT }],
+    automation_flow_steps: [
+      {
+        automation_id: FLOW,
+        tenant_id: OTHER_TENANT,
+        step_type: "trigger",
+        sort_order: 0,
+        action_type: "task_overdue",
+        configuration: { client_id: OTHER_CLIENT },
+      },
+      {
+        automation_id: FLOW,
+        tenant_id: TENANT,
+        step_type: "trigger",
+        sort_order: 1,
+        action_type: "inbound_webhook_lead",
+        configuration: { client_id: CLIENT },
+      },
+    ],
+  },
 });
 
 Deno.test("reportScheduleClient proves an enabled schedule here", async () => {
@@ -90,28 +75,6 @@ Deno.test("reportScheduleClient proves an enabled schedule here", async () => {
   assertEquals(await ask(TENANT, SCHEDULE), CLIENT);
   assertEquals(await ask(OTHER_TENANT, SCHEDULE), null);
   assertEquals(await ask(TENANT, "not-a-uuid"), null);
-});
-
-Deno.test("sendingBroadcast proves a broadcast being dispatched", async () => {
-  const ask = (tenantId: string, broadcastId: string) =>
-    sendingBroadcast(db, { tenantId, broadcastId });
-  assertEquals(await ask(TENANT, BROADCAST), { automationStream: false });
-  assertEquals(await ask(TENANT, STREAM), {
-    automationStream: true,
-    automationId: OWN,
-  });
-  assertEquals(await ask(OTHER_TENANT, BROADCAST), null);
-  assertEquals(await ask(TENANT, "draft"), null);
-  const paused = fakeDb({
-    broadcasts: [{ id: BROADCAST, tenant_id: TENANT, status: "paused" }],
-  });
-  assertEquals(
-    await sendingBroadcast(paused.db, {
-      tenantId: TENANT,
-      broadcastId: BROADCAST,
-    }),
-    null,
-  );
 });
 
 Deno.test(
@@ -147,8 +110,10 @@ Deno.test(
     });
 
     await t.step("not an inactive one", async () => {
-      const inactive = fakeDb({
-        automations: [{ id: OWN, tenant_id: TENANT, active: false }],
+      const inactive = guardDb({
+        tables: {
+          automations: [{ id: OWN, tenant_id: TENANT, active: false }],
+        },
       });
       assertEquals(
         await automationTarget(inactive.db, {

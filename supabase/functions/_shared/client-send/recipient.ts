@@ -24,7 +24,7 @@ export async function resolveRecipient(
     groupId: string | null;
   },
 ): Promise<SendRecipient | null> {
-  const shape = addressShape(input.channel, input.address);
+  const shape = addressShape(input);
   if (shape.shape === "unusable") {
     return null;
   }

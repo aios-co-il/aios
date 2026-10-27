@@ -5,9 +5,11 @@ import type {
   ClientSendRequest,
 } from "../_shared/client-send/types.ts";
 import { clientSendBlock } from "./client-send.ts";
+import type { SendContext } from "./prepare.ts";
 import type { FileSendRequest } from "./request.ts";
 
 const SCHEDULE = "55555555-5555-4555-8555-555555555555";
+const GROUP = "66666666-6666-4666-8666-666666666666";
 
 const request: FileSendRequest = {
   clientId: CLIENT,
@@ -24,30 +26,36 @@ const request: FileSendRequest = {
   media: { kind: "url", url: "", isImage: true, mimeType: "", filename: null },
 };
 
+/** The guard's answer for a send it lets through. */
+const ALLOWED: ClientSendDecision = {
+  allowed: true,
+  recipient: null,
+  observed: null,
+};
+
 /** The guard's request for this send, and the block it answers with. */
-async function block(decision: ClientSendDecision, isServiceRole: boolean) {
+async function block(
+  decision: ClientSendDecision,
+  isServiceRole: boolean,
+  send: Pick<SendContext, "request" | "target"> = {
+    request,
+    target: { to: "972501234567", isGroup: false },
+  },
+) {
   const asked: ClientSendRequest[] = [];
   const response = await clientSendBlock(
     async (guardRequest) => {
       asked.push(guardRequest);
       return decision;
     },
-    {
-      request,
-      isServiceRole,
-      tenantId: "tenant-1",
-      target: { to: "972501234567", isGroup: false },
-    },
+    { ...send, isServiceRole, tenantId: "tenant-1" },
   );
   return { asked, response };
 }
 
 Deno.test("clientSendBlock", async (t) => {
   await t.step("asks the guard about the gateway recipient", async () => {
-    const { asked, response } = await block(
-      { allowed: true, recipient: null, observed: null },
-      true,
-    );
+    const { asked, response } = await block(ALLOWED, true);
     assertEquals(response, null);
     assertEquals(asked, [
       {
@@ -64,11 +72,25 @@ Deno.test("clientSendBlock", async (t) => {
     ]);
   });
 
+  await t.step(
+    "names the group row only when the file goes there",
+    async () => {
+      const withGroup = { ...request, groupId: GROUP };
+      const toGroup = await block(ALLOWED, true, {
+        request: withGroup,
+        target: { to: "120363416882903532@g.us", isGroup: true },
+      });
+      assertEquals(toGroup.asked[0].groupId, GROUP);
+      const toPhone = await block(ALLOWED, true, {
+        request: withGroup,
+        target: { to: "972501234567", isGroup: false },
+      });
+      assertEquals(toPhone.asked[0].groupId, null);
+    },
+  );
+
   await t.step("a signed-in caller's send is a person's", async () => {
-    const { asked } = await block(
-      { allowed: true, recipient: null, observed: null },
-      false,
-    );
+    const { asked } = await block(ALLOWED, false);
     assertEquals(asked[0].origin, "person");
   });
 

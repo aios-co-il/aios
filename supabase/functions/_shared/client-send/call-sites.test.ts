@@ -65,6 +65,7 @@ Deno.test("unclassified sends are enforced once every caller stamps", () => {
   }
 });
 
+/** Empty lists, with these fields filled in. */
 const lists = (fields: Partial<CallSiteLists>): CallSiteLists => ({
   guarded: {},
   personOnly: {},
@@ -83,6 +84,7 @@ const STAMPED_SEND =
 const UNSTAMPED_SEND =
   "fetch(`${u}/functions/v1/send-x`, { body: JSON.stringify({ to }) });";
 
+/** A source file of these lines. */
 const file = (path: string, ...lines: string[]): SourceFile => ({
   path,
   text: lines.join("\n"),
@@ -174,8 +176,8 @@ Deno.test("checkCallSites", async (t) => {
         file("split/gateway.ts", GREEN_SEND),
         file(
           "split/prepare.ts",
-          "type Deps = { authorizeClientSend(request: Request): Promise<D> };",
-          "await deps.authorizeClientSend(request);",
+          "type Deps = { clientSendGuard: ClientSendGuard };",
+          "await deps.clientSendGuard(request);",
         ),
       ],
       lists({

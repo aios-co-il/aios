@@ -120,19 +120,6 @@ Deno.serve(async (request) => {
     if (!tenantId) return reply({ error: "tenant_not_found" }, 404);
     if (!to) return reply({ error: "phone_number_required" }, 400);
 
-    const guard = checkWhatsAppSend(to);
-    if (guard.decision === "BLOCK") {
-      console.warn("[send-meta-whatsapp] blocked by integration-guard", guard);
-      return reply(
-        {
-          error: "blocked_by_staging_safe_mode",
-          reason: guard.reason,
-          environment: guard.environment,
-        },
-        403,
-      );
-    }
-
     const [{ data: membership }, { data: superAdmin }] = await Promise.all([
       admin
         .from("tenant_users")
@@ -163,6 +150,19 @@ Deno.serve(async (request) => {
     );
     if (!clientSend.allowed) {
       return clientSendRefusedResponse(clientSend, corsHeaders);
+    }
+
+    const guard = checkWhatsAppSend(to);
+    if (guard.decision === "BLOCK") {
+      console.warn("[send-meta-whatsapp] blocked by integration-guard", guard);
+      return reply(
+        {
+          error: "blocked_by_staging_safe_mode",
+          reason: guard.reason,
+          environment: guard.environment,
+        },
+        403,
+      );
     }
 
     let integrationQuery = admin

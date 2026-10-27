@@ -1,7 +1,8 @@
 // The shape of a provider address decides how resolve_send_recipient matches
-// it. A WhatsApp chat id carries its shape in its suffix.
+// it. A WhatsApp chat id carries its shape in its suffix, unless the send
+// names the group row it read the chat id from.
 import { phoneMatchKey } from "../telephony/phone.ts";
-import type { SendChannel } from "./types.ts";
+import type { ClientSendRequest } from "./types.ts";
 
 export type AddressShape =
   | { shape: "phone" | "group" | "email" | "telegram"; address: string }
@@ -13,28 +14,29 @@ const UNUSABLE: AddressShape = { shape: "unusable" };
 const WHATSAPP_PHONE_SUFFIXES = ["@c.us", "@s.whatsapp.net"];
 
 /**
- * How the resolver reads an address. `unusable` when nothing can match it,
- * such as a `@lid` chat id or a phone too short for phone_match_key.
+ * How the resolver reads an address. A send that names its group row goes
+ * to a group, whatever the stored chat id's suffix. `unusable` when nothing
+ * can match it, such as a `@lid` chat id or a phone too short for
+ * phone_match_key.
  */
 export function addressShape(
-  channel: SendChannel,
-  address: string,
+  input: Pick<ClientSendRequest, "channel" | "address" | "groupId">,
 ): AddressShape {
-  const value = address.trim();
-  if (channel === "email") {
+  const value = input.address.trim();
+  if (input.channel === "email") {
     return emailShape(value);
   }
-  if (channel === "telegram") {
+  if (input.channel === "telegram") {
     return /^-?\d{1,18}$/.test(value)
       ? { shape: "telegram", address: value }
       : UNUSABLE;
   }
-  return whatsappShape(value);
+  return whatsappShape(value, input.groupId !== null);
 }
 
 /** A group chat id as is, or the phone of a one-to-one chat id. */
-function whatsappShape(value: string): AddressShape {
-  if (value.endsWith("@g.us")) {
+function whatsappShape(value: string, namedGroup: boolean): AddressShape {
+  if (value && (namedGroup || value.endsWith("@g.us"))) {
     return { shape: "group", address: value };
   }
   const suffix = WHATSAPP_PHONE_SUFFIXES.find((end) => value.endsWith(end));

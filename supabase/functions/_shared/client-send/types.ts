@@ -36,9 +36,10 @@ export type SendRecipient = {
   /** A WhatsApp group linked to more than one client. */
   ambiguous: boolean;
   /**
-   * The phone or email is also staff of the sending tenant itself (a member,
-   * an active campaigner or sales person, an approved campaigner identity),
-   * such as a client org's owner seen from that org.
+   * The phone or email is also staff of the sending tenant itself: a
+   * member's profile, an active campaigner or sales person, an approved
+   * campaigner identity, or the tenant's pulse phones. A client org's owner
+   * seen from that org is one; only staff alerts and reports use it.
    */
   senderStaff: boolean;
 };
@@ -73,9 +74,10 @@ export type ClientSendRequest = {
   /** What the provider gets: a chat id, phone, email or Telegram chat id. */
   address: string;
   /**
-   * The whatsapp_groups row the sender read a group chat id from. The
-   * resolver trusts it even outside the sender's scope (a line shared from
-   * another tenant), when its chat id is the address.
+   * The whatsapp_groups row whose chat id is the address; null when the send
+   * goes to a phone. The address is then a group whatever its suffix, and the
+   * resolver trusts the row even outside the sender's scope (a line shared
+   * from another tenant) when its chat id is the address.
    */
   groupId: string | null;
   origin: SendOrigin;
@@ -103,3 +105,11 @@ export type ClientSendDecision =
     };
 
 export type ClientSendRefused = Extract<ClientSendDecision, { allowed: false }>;
+
+/**
+ * authorizeClientSend bound to a database, as a sender's checks step takes
+ * it, so a test can answer for the guard.
+ */
+export type ClientSendGuard = (
+  request: ClientSendRequest,
+) => Promise<ClientSendDecision>;

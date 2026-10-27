@@ -4,10 +4,7 @@
 // this environment may send there.
 import { clientSendRequest } from "../_shared/client-send/authorize.ts";
 import { clientSendRefusal } from "../_shared/client-send/response.ts";
-import type {
-  ClientSendDecision,
-  ClientSendRequest,
-} from "../_shared/client-send/types.ts";
+import type { ClientSendGuard } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
   callerMaySendForTenant,
@@ -25,7 +22,7 @@ export type GreenFileSendDeps = {
   /** checkWhatsAppSend: Staging sends only to allowlisted phones. */
   guard(destination: string): GuardResult;
   /** The client send guard over the service-role client. */
-  authorizeClientSend(request: ClientSendRequest): Promise<ClientSendDecision>;
+  clientSendGuard: ClientSendGuard;
 };
 
 export type GreenFileSendInput = {
@@ -79,7 +76,10 @@ export async function prepareGreenFileSend(
     return refuse(400, { error: target.message, code: target.error });
   }
   const usedGroupChat = target.via === "group";
-  const clientRefusal = await clientSendBlock(deps, input, target.chatId);
+  const clientRefusal = await clientGuardRefusal(deps, input, {
+    chatId: target.chatId,
+    usedGroupChat,
+  });
   if (clientRefusal) {
     return clientRefusal;
   }
@@ -97,19 +97,22 @@ export async function prepareGreenFileSend(
   return { line: sender.line, chatId: target.chatId, usedGroupChat };
 }
 
-/** The client send guard's refusal, else null. */
-async function clientSendBlock(
+/**
+ * The client send guard's refusal, else null. The group row counts only when
+ * its chat id is where the file goes.
+ */
+async function clientGuardRefusal(
   deps: GreenFileSendDeps,
   input: GreenFileSendInput,
-  chatId: string,
+  target: { chatId: string; usedGroupChat: boolean },
 ): Promise<GreenFileSend | null> {
-  const decision = await deps.authorizeClientSend(
+  const decision = await deps.clientSendGuard(
     clientSendRequest({
       functionName: "send-green-api-file",
       tenantId: input.tenantId,
       channel: "whatsapp",
-      address: chatId,
-      groupId: input.groupId,
+      address: target.chatId,
+      groupId: target.usedGroupChat ? input.groupId : null,
       isServiceRole: input.isServiceRole,
       sendKind: input.sendKind,
       sendRef: input.sendRef,

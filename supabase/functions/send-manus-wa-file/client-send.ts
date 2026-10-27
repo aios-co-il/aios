@@ -3,30 +3,25 @@
 // opt-in (_shared/client-send/rules.ts).
 import { clientSendRequest } from "../_shared/client-send/authorize.ts";
 import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
-import type {
-  ClientSendDecision,
-  ClientSendRequest,
-} from "../_shared/client-send/types.ts";
+import type { ClientSendGuard } from "../_shared/client-send/types.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import type { SendContext } from "./prepare.ts";
 
-/** authorizeClientSend over the service-role client (deps.ts). */
-export type AuthorizeClientSend = (
-  request: ClientSendRequest,
-) => Promise<ClientSendDecision>;
-
-/** 403 when the guard refuses this send, else null. */
+/**
+ * 403 when the guard refuses this send, else null. The group row counts only
+ * when its chat id is where the file goes.
+ */
 export async function clientSendBlock(
-  authorize: AuthorizeClientSend,
+  guard: ClientSendGuard,
   send: Pick<SendContext, "request" | "isServiceRole" | "tenantId" | "target">,
 ): Promise<Response | null> {
-  const decision = await authorize(
+  const decision = await guard(
     clientSendRequest({
       functionName: "send-manus-wa-file",
       tenantId: send.tenantId,
       channel: "whatsapp",
       address: send.target.to,
-      groupId: send.request.groupId,
+      groupId: send.target.isGroup ? send.request.groupId : null,
       isServiceRole: send.isServiceRole,
       sendKind: send.request.sendKind,
       sendRef: send.request.sendRef,

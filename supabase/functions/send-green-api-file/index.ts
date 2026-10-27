@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         legacyLine: () =>
           legacyGreenLine(supabaseClient, tenantForSend, user.id),
         guard: checkWhatsAppSend,
-        authorizeClientSend: (request) => authorizeClientSend(admin, request),
+        clientSendGuard: (request) => authorizeClientSend(admin, request),
       },
       {
         tenantId: tenantForSend,

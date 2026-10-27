@@ -16,7 +16,9 @@ import {
 
 const TENANT = "tenant-a";
 const MEMBER = "user-member";
+const GROUP = "66666666-6666-4666-8666-666666666666";
 
+/** An active Green API line of this tenant, owned by the member. */
 const line = (id: string, tenant_id: string): SenderLine => ({
   id,
   tenant_id,
@@ -49,8 +51,7 @@ function deps(overrides: Partial<GreenFileSendDeps> = {}): GreenFileSendDeps {
     },
     legacyLine: async () => lines.own,
     guard: () => ALLOW,
-    authorizeClientSend: (request) =>
-      authorizeClientSend(guardDb().db, request),
+    clientSendGuard: (request) => authorizeClientSend(guardDb().db, request),
     ...overrides,
   };
 }
@@ -153,7 +154,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
     const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
     const result = await prepareGreenFileSend(
       deps({
-        authorizeClientSend: (request) => {
+        clientSendGuard: (request) => {
           requests.push(request);
           return authorizeClientSend(guard.db, request);
         },
@@ -177,11 +178,34 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
     assertEquals(guard.rpcCalls, []);
   });
 
+  await t.step("the group row only when the file goes there", async () => {
+    const requests: ClientSendRequest[] = [];
+    const recording = deps({
+      clientSendGuard: (request) => {
+        requests.push(request);
+        return authorizeClientSend(guardDb().db, request);
+      },
+    });
+    await prepareGreenFileSend(recording, {
+      ...send,
+      groupId: GROUP,
+      groupChatId: "120363416882903532@g.us",
+    });
+    await prepareGreenFileSend(recording, { ...send, groupId: GROUP });
+    assertEquals(
+      requests.map((request) => [request.address, request.groupId]),
+      [
+        ["120363416882903532@g.us", GROUP],
+        ["972501234567@c.us", null],
+      ],
+    );
+  });
+
   await t.step("a service-role send, as the auth step says", async () => {
     const requests: ClientSendRequest[] = [];
     await prepareGreenFileSend(
       deps({
-        authorizeClientSend: (request) => {
+        clientSendGuard: (request) => {
           requests.push(request);
           return authorizeClientSend(guardDb().db, request);
         },
@@ -198,7 +222,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
     const destinations: string[] = [];
     const result = await prepareGreenFileSend(
       deps({
-        authorizeClientSend: async () => ({
+        clientSendGuard: async () => ({
           allowed: false,
           reason: "staff_only",
           recipient: null,

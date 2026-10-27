@@ -100,17 +100,14 @@ Deno.test(
   },
 );
 
-Deno.test("recordClientSendRefusal never throws", async () => {
-  const failing = {
-    from: () => ({
-      insert: () => Promise.resolve({ error: { message: "rls" } }),
-    }),
-  };
-  await recordClientSendRefusal(failing, request, contact, "staff_only", true);
-  const throwing = {
-    from: () => {
-      throw new Error("network");
-    },
-  };
-  await recordClientSendRefusal(throwing, request, contact, "staff_only", true);
+Deno.test("recordClientSendRefusal never throws", async (t) => {
+  await t.step("on a failed insert", async () => {
+    const { db } = guardDb({ failing: ["client_send_refusals"] });
+    await recordClientSendRefusal(db, request, contact, "staff_only", true);
+  });
+
+  await t.step("on a network failure", async () => {
+    const { db } = guardDb({ offline: true });
+    await recordClientSendRefusal(db, request, contact, "staff_only", true);
+  });
 });

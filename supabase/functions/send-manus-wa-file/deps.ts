@@ -26,7 +26,7 @@ export function liveFileSendDeps(): FileSendDeps {
     findGroupChatId: (tenantId, groupId) =>
       findGroupChatId(admin, tenantId, groupId),
     guard: checkWhatsAppSend,
-    authorizeClientSend: (request) => authorizeClientSend(admin, request),
+    clientSendGuard: (request) => authorizeClientSend(admin, request),
     upload: (tenantId, file) => uploadReportMedia(admin, tenantId, file),
     deliver: (input) => deliverManusMedia(fetch, input),
     record: (send, media, outcome) => recordSend(admin, send, media, outcome),

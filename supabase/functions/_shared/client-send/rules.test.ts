@@ -11,6 +11,7 @@ import {
 } from "./rules.ts";
 import { CLIENT_SEND_REFUSALS, RECIPIENT_KINDS } from "./types.ts";
 
+/** A recipient of this kind, with no client, lead or group. */
 const recipient = (kind: (typeof RECIPIENT_KINDS)[number]) => ({
   kind,
   clientIds: [],

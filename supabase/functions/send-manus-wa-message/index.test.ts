@@ -21,8 +21,15 @@ const GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const GROUP_CHAT = "120363416882903532@g.us";
 
-/** A service-role send to a phone, with the resolver's answer for it. */
-function send(body: Record<string, unknown>, recipient: ResolverRow) {
+/**
+ * A service-role send to a phone, with the resolver's answer for it; a send
+ * naming GROUP reads `groupChat` from its row.
+ */
+function send(
+  body: Record<string, unknown>,
+  recipient: ResolverRow,
+  groupChat = GROUP_CHAT,
+) {
   const request = new Request("http://functions.test/send-manus-wa-message", {
     method: "POST",
     headers: {
@@ -52,9 +59,7 @@ function send(body: Record<string, unknown>, recipient: ResolverRow) {
           settings: { instance_id: "inst-1" },
         },
       ],
-      "GET /whatsapp_groups": [
-        { tenant_id: TENANT, group_chat_id: GROUP_CHAT },
-      ],
+      "GET /whatsapp_groups": [{ tenant_id: TENANT, group_chat_id: groupChat }],
       "POST /rpc/resolve_send_recipient": [recipient],
     },
     { success: true, messageId: "manus-1" },
@@ -134,6 +139,27 @@ Deno.test(
       p_tenant_id: TENANT,
       p_shape: "group",
       p_address: GROUP_CHAT,
+      p_group_id: GROUP,
+    });
+  },
+);
+
+Deno.test(
+  "send-manus-wa-message treats a group row's chat id as a group, any suffix",
+  async () => {
+    const { response, rest } = await send(
+      { sendKind: "staff_alert", groupId: GROUP, phoneNumber: undefined },
+      resolved("client_group", [CLIENT], { group_id: GROUP }),
+      "120363416882903532",
+    );
+    assertEquals(response.status, 403);
+    const resolverCall = rest.find(
+      (call) => call.path === "/rpc/resolve_send_recipient",
+    );
+    assertEquals(resolverCall?.body, {
+      p_tenant_id: TENANT,
+      p_shape: "group",
+      p_address: "120363416882903532",
       p_group_id: GROUP,
     });
   },
