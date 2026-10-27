@@ -7,7 +7,8 @@
 -- skins list it so a skin-matched run offers it too. Guidance added to the skins:
 --   * a selected scene: change only that scene, with workshop_update_scene;
 --   * a talking scene from the user's materials: workshop_edit_from_assets with lipsync and
---     dialogue, spoken in the project's chosen voice over the user's own picture;
+--     dialogue, spoken in the project's chosen voice over the user's own picture, and
+--     skin_switch on each cut into another skin of the same character;
 --   * a script the user asked to approve: shown, and nothing paid runs until the user approves.
 
 UPDATE public.ai_skills SET
@@ -29,7 +30,7 @@ WHERE slug IN ('carmen_workshop', 'workshop_producer', 'workshop_editor')
 -- the user's that talks.
 UPDATE public.ai_skills SET
   system_prompt = system_prompt
-    || E'\n- סצנה מדברת מהחומרים (למשל כל סקין מציגה את עצמה): ב-workshop_edit_from_assets מעבירים לסצנה lipsync=true, dialogue עם המשפט שלה בעברית, speaker באנגלית, ותנועה אחרת לכל סקין ב-motion. הדמות שבתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט: לפני ההפקה workshop_choose_voice אם עוד לא נבחר קול. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונות שהמצאת.'
+    || E'\n- סצנה מדברת מהחומרים (למשל כל סקין מציגה את עצמה): ב-workshop_edit_from_assets מעבירים לסצנה lipsync=true, dialogue עם המשפט שלה בעברית, speaker באנגלית, ותנועה אחרת לכל סקין ב-motion. כשכל תמונה היא סקין אחר של אותה דמות, skin_switch=true בכל סצנה שעוברת לסקין אחר, כדי שהמעבר יהיה החלפת סקין (הבזק, פופ וסוויפ של אור) ולא מעבר רגיל. הדמות שבתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט: לפני ההפקה workshop_choose_voice אם עוד לא נבחר קול. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונות שהמצאת.'
 WHERE slug IN ('carmen_workshop', 'workshop_editor')
   AND scope = 'global'
   AND system_prompt NOT LIKE '%lipsync=true, dialogue%';

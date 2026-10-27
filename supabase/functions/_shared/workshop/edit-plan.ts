@@ -56,7 +56,10 @@ const seconds = (value: unknown, fallback: number) => {
 const listAt = (value: unknown, index: number) =>
   Array.isArray(value) ? text(value[index]) : "";
 
-/** One value per scene, or one string for every scene (e.g. the same speaker throughout). */
+/**
+ * One value per scene. The tool schema asks for arrays (edit-tool.ts); a single string a model
+ * sends anyway is read as the same value for every scene (e.g. one speaker throughout).
+ */
 const eachOrAll = (value: unknown, index: number) =>
   typeof value === "string" ? text(value) : listAt(value, index);
 
@@ -66,8 +69,9 @@ const flagAt = (value: unknown, index: number): boolean | null =>
     : null;
 
 /**
- * skin_switch: one flag per scene, or one boolean for the film. true: every cut to another
- * picture switches skin (the first scene and a repeated picture have no cut to flash).
+ * skin_switch: one flag per scene, as the tool schema asks. A single boolean a model sends anyway
+ * is read for the whole film: true makes every cut to another picture a skin switch (the first
+ * scene and a repeated picture have no cut to flash).
  */
 function skinSwitchAt(
   value: unknown,
