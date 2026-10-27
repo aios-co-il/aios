@@ -8,7 +8,10 @@
 --
 -- No data changes and nothing is executed or sent. Safe to re-run.
 
+-- approval_insert: WITH CHECK (true) let any role queue any row.
 drop policy if exists approval_insert on public.agent_approval_queue;
+
+-- approval_update: let any tenant member rewrite any column of their tenant's rows.
 drop policy if exists approval_update on public.agent_approval_queue;
 
 revoke all on table public.agent_approval_queue from public;

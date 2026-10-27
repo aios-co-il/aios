@@ -64,7 +64,7 @@ import {
 import {
   automationRunCaller,
   bindAutomationAgentCaller,
-} from "../_shared/run-agent-trust.mjs";
+} from "../run-ai-agent/caller-trust.ts";
 import { internalBrainRefusal } from "../_shared/carmen/brain-guard.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
 

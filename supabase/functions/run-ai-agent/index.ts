@@ -121,21 +121,25 @@ import {
   resolveDevTaskActorUserId,
 } from "../_shared/dev-escalation-auth.ts";
 import {
-  APPROVAL_PICK_COLUMNS,
-  approvalBindingContext,
-  approvalConversationKey,
-  approvalDisplayCode,
-  approvalPickToolResult,
-  buildApprovalPickPromptRule,
   formatApprovalExecutionReply,
-  formatApprovalPickReply,
-  isDeterministicApprovalPick,
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,
-  mergeApprovalBinding,
-  parseApprovalReply,
-  resolveApprovalConfirm,
 } from "../_shared/wa-approval-flow.ts";
+import { bindApprovalToConversation } from "./approvals/binding.ts";
+import {
+  buildApprovalPickPromptRule,
+  formatApprovalPickReply,
+} from "./approvals/chat-text.ts";
+import { approvalDisplayCode } from "./approvals/codes.ts";
+import {
+  postApprovalDecision,
+  runApprovalExecutor,
+} from "./approvals/executor.ts";
+import { loadApprovalPick } from "./approvals/pick.ts";
+import { parseApprovalReply } from "./approvals/reply.ts";
+import { isDeterministicApprovalPick } from "./approvals/resolve.ts";
+import type { ApprovalPick } from "./approvals/types.ts";
+import { approvalPickToolResult } from "./approvals/tool-result.ts";
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
 import { extractMeetingUrl } from "../_shared/meeting-url.ts";
 import {
@@ -5627,80 +5631,6 @@ async function tryCreateCalendarEventForTask(
     }
   } catch (e: any) {
     console.warn("[create_task] calendar sync error:", e?.message);
-  }
-}
-
-// ─── Bound approvals (AIO-230); rules live in _shared/wa-approval-flow.mjs ───
-
-/** POST a decision to carmen-approval-execute, which checks the approver's tenant and role. */
-async function postApprovalDecision(
-  body: Record<string, unknown>,
-): Promise<{ ok: boolean; status: number; json: any }> {
-  const r = await fetch(
-    `${SUPABASE_URL}/functions/v1/carmen-approval-execute`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/json",
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-      },
-      body: JSON.stringify(body),
-    },
-  );
-  const json = await r.json().catch(() => ({}));
-  return { ok: r.ok, status: r.status, json };
-}
-
-/** Run an approval row through carmen-approval-execute, which re-checks the approver. */
-async function runApprovalExecutor(
-  approvalId: string,
-  approvedBy: string | null,
-): Promise<any> {
-  const { ok: httpOk, json: j } = await postApprovalDecision({
-    approval_id: approvalId,
-    approved_by: approvedBy,
-  });
-  const ok = !!(
-    httpOk &&
-    (j?.success === true || j?.already_executed === true)
-  );
-  return {
-    ...j,
-    success: ok,
-    approval_id: approvalId,
-    claim_execution: ok,
-    guardrail: ok
-      ? null
-      : "הביצוע לא הצליח — אסור לכתוב למשתמש שבוצע/נוצר/עודכן ב-Meta.",
-  };
-}
-
-/** Stamp the requester's conversation on an approval row a tool just queued. */
-async function bindApprovalToConversation(
-  supabase: any,
-  tenantId: string,
-  approvalId: string,
-  userId: string | null,
-  binding: Record<string, unknown> | null,
-): Promise<void> {
-  if (!approvalId || !userId || !binding) return;
-  try {
-    const { data: row } = await supabase
-      .from("agent_approval_queue")
-      .select("id, requested_by, context")
-      .eq("id", approvalId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    const context = mergeApprovalBinding(row, { userId, binding });
-    if (!context) return;
-    await supabase
-      .from("agent_approval_queue")
-      .update({ context })
-      .eq("id", approvalId)
-      .eq("tenant_id", tenantId);
-  } catch (e) {
-    console.warn("[AGENT] approval binding failed (non-fatal):", e);
   }
 }
 
@@ -11882,36 +11812,24 @@ async function executeTool(
     // ============ APPROVAL HELPERS ============
     case "list_pending_approvals": {
       // Only requests this caller may approve, each with the short code for "כן <קוד>".
-      const { data, error } = await supabase
-        .from("agent_approval_queue")
-        .select(APPROVAL_PICK_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(25);
-      if (error) throw error;
-      const pick = resolveApprovalConfirm(data || [], {
+      const pick = await loadApprovalPick(supabase, tenantId, {
         userId: actorUserId,
-        roles: callerRole ? [callerRole] : [],
-        conversationKey: approvalConversationKey({
-          surface,
-          conversationId,
-          waChatId: waNotify?.chat_id,
-          phone: callerPhone,
-        }),
+        role: callerRole,
+        surface,
+        conversationId,
+        waChatId: waNotify?.chat_id,
+        phone: callerPhone,
       });
-      const approvals = pick.pickable
-        .slice(0, args.limit || 10)
-        .map((r: any) => ({
-          code: approvalDisplayCode(r, pick.pickable),
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          tool_name: r.tool_name,
-          created_at: r.created_at,
-          requested_by: r.requested_by,
-          mine: r.requested_by === actorUserId,
-        }));
+      const approvals = pick.pickable.slice(0, args.limit || 10).map((r) => ({
+        code: approvalDisplayCode(r, pick.pickable),
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        tool_name: r.tool_name,
+        created_at: r.created_at,
+        requested_by: r.requested_by,
+        mine: r.requested_by === actorUserId,
+      }));
       const bound = pick.kind === "match" ? pick.row : null;
       return {
         count: approvals.length,
@@ -11923,28 +11841,20 @@ async function executeTool(
       };
     }
     case "execute_pending_approval": {
-      // AIO-230: runs only the caller's own request from this conversation (last 30 min).
-      // Others' requests are approved by the user typing "כן <קוד>" or in the approvals screen.
-      const { data: pendingRows } = await supabase
-        .from("agent_approval_queue")
-        .select(APPROVAL_PICK_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(25);
-      const pick = resolveApprovalConfirm(pendingRows || [], {
+      // AIO-230: others' requests are approved by "כן <קוד>" or in the approvals screen.
+      const pick = await loadApprovalPick(supabase, tenantId, {
         userId: actorUserId,
-        roles: callerRole ? [callerRole] : [],
-        conversationKey: approvalConversationKey({
-          surface,
-          conversationId,
-          waChatId: waNotify?.chat_id,
-          phone: callerPhone,
-        }),
+        role: callerRole,
+        surface,
+        conversationId,
+        waChatId: waNotify?.chat_id,
+        phone: callerPhone,
       });
       const wantedId = asUuidOrNull(args.approval_id);
-      if (pick.kind !== "match" || (wantedId && wantedId !== pick.row.id))
+      if (pick.kind !== "match" || (wantedId && wantedId !== pick.row.id)) {
         return approvalPickToolResult(pick, { requestedId: wantedId });
+      }
+
       const exec = await runApprovalExecutor(pick.row.id, actorUserId);
       return { ...exec, title: pick.row.title || exec.title || null };
     }
@@ -11952,28 +11862,36 @@ async function executeTool(
       // AIO-230: carmen-approval-execute rejects only an undecided row, and only for
       // its requester or an approver in the row's tenant.
       const approvalId = asUuidOrNull(args.approval_id);
-      const { data: own } = approvalId
+      const { data: own, error: ownError } = approvalId
         ? await supabase
             .from("agent_approval_queue")
             .select("id")
             .eq("id", approvalId)
             .eq("tenant_id", tenantId)
             .maybeSingle()
-        : { data: null };
-      if (!own)
+        : { data: null, error: null };
+      if (ownError) {
+        throw ownError;
+      }
+
+      if (!own) {
         return {
           success: false,
           error: "approval_not_found",
           approval_id: args.approval_id ?? null,
         };
+      }
+
       const r = await postApprovalDecision({
         approval_id: approvalId,
         approved_by: actorUserId,
         decision: "reject",
         reason: args.reason || null,
       });
-      if (r.ok && r.json?.success === true)
+      if (r.ok && r.json?.success === true) {
         return { success: true, approval_id: approvalId, status: "rejected" };
+      }
+
       return {
         success: false,
         approval_id: approvalId,
@@ -13611,7 +13529,7 @@ import {
   isAutomationRun,
   runCallerPhone,
   runMayDecideApprovals,
-} from "../_shared/run-agent-trust.mjs";
+} from "./caller-trust.ts";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -15280,37 +15198,27 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
-    // ─── Chat approval flow (AIO-230) ───
-    // "כן" runs only a pending row the same user requested in this conversation in
-    // the last 30 minutes; "כן 4821" picks a row by its code. Otherwise Carmen lists
-    // the candidates. Approver-only rows need owner / agency_owner / super_admin.
-    // Rules: _shared/wa-approval-flow.mjs; carmen-approval-execute re-checks the role.
+    // ─── Chat approval flow (AIO-230): ./approvals/resolve.ts ───
+    const approvalConversation = {
+      surface,
+      conversationId: serverConversationId,
+      waChatId: wa_notify?.chat_id,
+      phone: callerPhone,
+    };
     const approvalReply = parseApprovalReply(String(command_text || ""));
     const userSaidApprove = approvalReply.approve;
     const userSaidReject = approvalReply.reject;
-    let approvalPick: any = null;
+    let approvalPick: ApprovalPick | null = null;
     if (
       isCarmen &&
       !pinSkillsOnly &&
       mayDecideApprovals &&
       (userSaidApprove || userSaidReject)
     ) {
-      const { data: pendingRows } = await supabase
-        .from("agent_approval_queue")
-        .select(APPROVAL_PICK_COLUMNS)
-        .eq("tenant_id", resolvedTenantId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(25);
-      approvalPick = resolveApprovalConfirm(pendingRows || [], {
+      approvalPick = await loadApprovalPick(supabase, resolvedTenantId, {
+        ...approvalConversation,
         userId: callerUserId,
-        roles: callerRole ? [callerRole] : [],
-        conversationKey: approvalConversationKey({
-          surface,
-          conversationId: serverConversationId,
-          waChatId: wa_notify?.chat_id,
-          phone: callerPhone,
-        }),
+        role: callerRole,
         code: approvalReply.code,
         mode: userSaidApprove ? "approve" : "reject",
       });
@@ -15320,7 +15228,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         systemPrompt += `\n\n🚫 המשתמש דחה. קראי ל-reject_pending_approval עם approval_id=${approvalPick.row.id}. אל תבצעי את הפעולה.`;
       }
     }
-    const pendingForConfirm: any =
+    const pendingForConfirm =
       approvalPick?.kind === "match" ? approvalPick.row : null;
 
     // Deterministic path: a short approval reply is answered without the LLM —
@@ -15330,6 +15238,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       !pinSkillsOnly &&
       mayDecideApprovals &&
       userSaidApprove &&
+      approvalPick &&
       isDeterministicApprovalPick(approvalPick, String(command_text || ""))
     ) {
       console.log(
@@ -15376,7 +15285,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             caller_campaigner_id: callerCampaignerId,
             auto_approval_execute: !!execResult,
             approval_pick: approvalPick.kind,
-            approval_id: pendingForConfirm?.id ?? approvalPick.row?.id ?? null,
+            approval_id: "row" in approvalPick ? approvalPick.row.id : null,
             exec_success: !!(execResult && (execResult as any).success),
           },
           user_id: callerUserId,
@@ -15396,15 +15305,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           ),
           execution_time_ms: executionTime,
           tools_used: execResult ? ["execute_pending_approval"] : [],
-          tool_log: execResult
-            ? [
-                {
-                  tool: "execute_pending_approval",
-                  args: { approval_id: pendingForConfirm.id },
-                  result: execResult,
-                },
-              ]
-            : [],
+          tool_log:
+            execResult && pendingForConfirm
+              ? [
+                  {
+                    tool: "execute_pending_approval",
+                    args: { approval_id: pendingForConfirm.id },
+                    result: execResult,
+                  },
+                ]
+              : [],
           auto_approval_execute: !!execResult,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -15878,20 +15788,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               surface,
               serverConversationId,
             );
-            // Bind a freshly queued approval to this user + conversation (AIO-230).
-            if (result?.pending_approval && result?.approval_id)
+            if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
                 supabase,
                 resolvedTenantId,
                 String(result.approval_id),
                 callerUserId || asUuidOrNull(resolvedUserId),
-                approvalBindingContext({
-                  surface,
-                  conversationId: serverConversationId,
-                  waChatId: wa_notify?.chat_id,
-                  phone: callerPhone,
-                }),
+                approvalConversation,
               );
+            }
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
         } catch (e: any) {
@@ -16344,7 +16249,7 @@ Deno.serve(async (req) => {
   // Never trust a browser-supplied identity. A user JWT runs as that user, without
   // the caller phone (lead_data), WhatsApp target (wa_notify), whatsapp surface or
   // admin config — approvals are bound to the identity those fields would set.
-  // Service-to-service calls keep their explicit user (_shared/run-agent-trust.mjs).
+  // Service-to-service calls keep their explicit user (./caller-trust.ts).
   bindRunAgentCaller(bodyJson, auth);
 
   if (bodyJson.direct_tool) {
