@@ -38,8 +38,10 @@ export type SendRecipient = {
   /**
    * The phone or email is also staff of the sending tenant itself: a
    * member's profile, an active campaigner or sales person, an approved
-   * campaigner identity, or the tenant's pulse phones. A client org's owner
-   * seen from that org is one; only staff alerts and reports use it.
+   * campaigner identity (pulse phones are not staff). The resolver has then
+   * dropped the sender's own cards, so any clientIds left are other
+   * tenants' clients, as for a client org's owner seen from that org. Only
+   * staff alerts and reports use it.
    */
   senderStaff: boolean;
 };
@@ -86,6 +88,22 @@ export type ClientSendRequest = {
   sendRef: string | null;
   /** The client the content is about: the sender's clientId field. */
   subjectClientId: string | null;
+};
+
+/**
+ * What a sender knows about one send when it asks the guard: its checked
+ * tenant, the address the provider gets, the group row only when the send
+ * goes to that row's chat, and its request's own guard fields.
+ */
+export type SenderSend = {
+  functionName: string;
+  tenantId: string;
+  channel: SendChannel;
+  address: string;
+  groupId: unknown;
+  isServiceRole: boolean;
+  /** The request's sendKind, sendRef and clientId, as sent. */
+  body: { sendKind?: unknown; sendRef?: unknown; clientId?: unknown };
 };
 
 /**

@@ -2,8 +2,8 @@
 // belongs to the tenant, the line is one the tenant may use, there is a
 // recipient, the client send guard lets the file reach it (AIO-261), and
 // this environment may send there.
-import { clientSendRequest } from "../_shared/client-send/authorize.ts";
 import { clientSendRefusal } from "../_shared/client-send/response.ts";
+import { clientSendRefusalOf } from "../_shared/client-send/sender-step.ts";
 import type { ClientSendGuard } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
@@ -76,12 +76,18 @@ export async function prepareGreenFileSend(
     return refuse(400, { error: target.message, code: target.error });
   }
   const usedGroupChat = target.via === "group";
-  const clientRefusal = await clientGuardRefusal(deps, input, {
-    chatId: target.chatId,
-    usedGroupChat,
+  // The group row counts only when its chat id is where the file goes.
+  const refused = await clientSendRefusalOf(deps.clientSendGuard, {
+    functionName: "send-green-api-file",
+    tenantId: input.tenantId,
+    channel: "whatsapp",
+    address: target.chatId,
+    groupId: usedGroupChat ? input.groupId : null,
+    isServiceRole: input.isServiceRole,
+    body: input,
   });
-  if (clientRefusal) {
-    return clientRefusal;
+  if (refused) {
+    return { refusal: clientSendRefusal(refused) };
   }
   const guard = deps.guard(
     usedGroupChat ? `group:${target.chatId}` : target.chatId,
@@ -95,31 +101,6 @@ export async function prepareGreenFileSend(
     });
   }
   return { line: sender.line, chatId: target.chatId, usedGroupChat };
-}
-
-/**
- * The client send guard's refusal, else null. The group row counts only when
- * its chat id is where the file goes.
- */
-async function clientGuardRefusal(
-  deps: GreenFileSendDeps,
-  input: GreenFileSendInput,
-  target: { chatId: string; usedGroupChat: boolean },
-): Promise<GreenFileSend | null> {
-  const decision = await deps.clientSendGuard(
-    clientSendRequest({
-      functionName: "send-green-api-file",
-      tenantId: input.tenantId,
-      channel: "whatsapp",
-      address: target.chatId,
-      groupId: target.usedGroupChat ? input.groupId : null,
-      isServiceRole: input.isServiceRole,
-      sendKind: input.sendKind,
-      sendRef: input.sendRef,
-      clientId: input.clientId,
-    }),
-  );
-  return decision.allowed ? null : { refusal: clientSendRefusal(decision) };
 }
 
 /** A refusal with its HTTP status. */

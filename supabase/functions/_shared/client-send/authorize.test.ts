@@ -95,6 +95,55 @@ Deno.test(
   },
 );
 
+// The staff rule as resolve_send_recipient answers it
+// (supabase/tests/client_send_guard.sql checks those answers).
+Deno.test("authorizeClientSend applies the staff rule", async (t) => {
+  await t.step(
+    "staff on their own tenant's card get another tenant's staff alert",
+    async () => {
+      // Tenant B's sales person, whose phone is on B's card, sent from A.
+      const { decision, refusals, rpcs } = await decide(
+        systemSend({ subjectClientId: CLIENT }),
+        resolved("staff"),
+      );
+      assertEquals(decision, {
+        allowed: true,
+        recipient: {
+          kind: "staff",
+          clientIds: [],
+          leadId: null,
+          groupId: null,
+          ambiguous: false,
+          senderStaff: false,
+        },
+        observed: null,
+      });
+      assertEquals(refusals, []);
+      assertEquals(rpcs, ["resolve_send_recipient"]);
+    },
+  );
+
+  await t.step(
+    "the sender's pulse phone on its own client's card is refused",
+    async () => {
+      const { decision, refusals } = await decide(
+        systemSend(),
+        resolved("client_contact", [CLIENT]),
+      );
+      assertEquals(decision.allowed ? null : decision.reason, "staff_only");
+      assertEquals(refusals[0].enforced, true);
+    },
+  );
+
+  await t.step("the sender's own staff get no other kind", async () => {
+    const { decision } = await decide(
+      systemSend({ sendKind: "dashboard_share" }),
+      resolved("client_contact", [CLIENT], { sender_staff: true }),
+    );
+    assertEquals(decision.allowed ? null : decision.reason, "person_only_kind");
+  });
+});
+
 Deno.test("authorizeClientSend logs an address nothing can match", async () => {
   const { decision, refusals, rpcs } = await decide(
     systemSend({ address: "123456789012@lid" }),
@@ -164,9 +213,11 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
         ...base,
         groupId: GROUP,
         isServiceRole: true,
-        sendKind: "report",
-        sendRef: "  schedule-1  ",
-        clientId: CLIENT,
+        body: {
+          sendKind: "report",
+          sendRef: "  schedule-1  ",
+          clientId: CLIENT,
+        },
       }),
       {
         ...base,
@@ -184,9 +235,7 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
       ...base,
       groupId: "group-1",
       isServiceRole: true,
-      sendKind: "pulse",
-      sendRef: undefined,
-      clientId: "client-name",
+      body: { sendKind: "pulse", clientId: "client-name" },
     });
     assertEquals(request.sendKind, null);
     assertEquals(request.subjectClientId, null);
@@ -198,9 +247,7 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
       ...base,
       groupId: null,
       isServiceRole: false,
-      sendKind: "staff_alert",
-      sendRef: null,
-      clientId: null,
+      body: { sendKind: "staff_alert", sendRef: null, clientId: null },
     });
     assertEquals([request.origin, request.sendKind], ["person", "chat"]);
   });

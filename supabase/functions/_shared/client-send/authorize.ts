@@ -13,8 +13,8 @@ import type {
   ClientSendDecision,
   ClientSendRefusal,
   ClientSendRequest,
-  SendChannel,
   SendRecipient,
+  SenderSend,
 } from "./types.ts";
 
 /**
@@ -68,30 +68,20 @@ async function recipientRefusal(
     : null;
 }
 
-/** The guard's request from a sender's checked tenant and raw body fields. */
-export function clientSendRequest(input: {
-  functionName: string;
-  tenantId: string;
-  channel: SendChannel;
-  address: string;
-  groupId: unknown;
-  isServiceRole: boolean;
-  sendKind: unknown;
-  sendRef: unknown;
-  clientId: unknown;
-}): ClientSendRequest {
+/** The guard's request from a sender's checked values and raw body fields. */
+export function clientSendRequest(send: SenderSend): ClientSendRequest {
   return {
-    functionName: input.functionName,
-    tenantId: input.tenantId,
-    channel: input.channel,
-    address: input.address,
-    groupId: asUuidOrNull(input.groupId),
-    origin: input.isServiceRole ? "system" : "person",
+    functionName: send.functionName,
+    tenantId: send.tenantId,
+    channel: send.channel,
+    address: send.address,
+    groupId: asUuidOrNull(send.groupId),
+    origin: send.isServiceRole ? "system" : "person",
     sendKind: resolveSendKind({
-      requested: input.sendKind,
-      isServiceRole: input.isServiceRole,
+      requested: send.body.sendKind,
+      isServiceRole: send.isServiceRole,
     }),
-    sendRef: normalizeSendRef(input.sendRef),
-    subjectClientId: asUuidOrNull(input.clientId),
+    sendRef: normalizeSendRef(send.body.sendRef),
+    subjectClientId: asUuidOrNull(send.body.clientId),
   };
 }

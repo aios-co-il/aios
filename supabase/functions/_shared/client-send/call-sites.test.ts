@@ -113,6 +113,32 @@ Deno.test("checkCallSites", async (t) => {
     assertEquals(report.guardNotFirst, ["late/index.ts"]);
   });
 
+  await t.step("the sender step counts as the guard, before the send", () => {
+    const STEP = "const refused = await refuseClientSend(serviceClient(), {";
+    const report = checkCallSites(
+      [
+        file("stepped/index.ts", STEP, GREEN_SEND),
+        file("removed/index.ts", "const refused = null;", GREEN_SEND),
+        file(
+          "unwired/index.ts",
+          "clientSendRefusalOf(guard, send);",
+          GREEN_SEND,
+        ),
+      ],
+      lists({
+        guarded: {
+          "stepped/index.ts": "in_file",
+          "removed/index.ts": "in_file",
+          "unwired/index.ts": "in_file",
+        },
+      }),
+    );
+    assertEquals(report.guardNotFirst, [
+      "removed/index.ts",
+      "unwired/index.ts",
+    ]);
+  });
+
   await t.step("a split sender whose folder never calls the guard", () => {
     const report = checkCallSites(
       [file("split/gateway.ts", GREEN_SEND), file("split/prepare.ts", "")],

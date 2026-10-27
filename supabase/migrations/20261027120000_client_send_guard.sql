@@ -22,26 +22,26 @@
 --    address for, the way the resolver below matches them.
 -- 3. client_send_refusals: each send the guard refused (enforced) or would
 --    have refused (enforced = false while a rule is observed). No phone or
---    email is stored. Only the service role writes it; the sending tenant's
---    owners read all of its rows, its other members the rows on a client
---    they can see (user_can_view_client_send_refusal).
+--    email is stored. Only the service role writes it. A row about a client
+--    is read by the sending tenant's members who can see that client; a row
+--    with no client by the sending tenant's owners
+--    (user_can_view_client_send_refusal).
 -- 4. resolve_send_recipient: the one classifier of a send address across
 --    send_scope_tenant_ids (the sender, its parent, its children and agency
 --    links either way). Precedence: client, client_contact, client_group,
 --    then lead, then staff, then unknown.
 --      phone    clients.phone, client_contacts.phone and approved
---               client-contact identities (phone_match_key). A match is
---               dropped when a manager's record says the phone is staff of
---               the tenant that owns the card: an active campaigner or an
---               approved campaigner identity. A member's own profile phone,
---               a sales person (any member may edit both) and the tenant's
---               pulse phones never hide a client, so nobody can switch the
---               guard off for a client by typing its phone into a profile.
---               A client org's owner therefore stays a client of the
---               parent. Then leads, with the same exclusion; then staff of
---               any tenant in scope, from every source above.
---      email    the same order on lower(email); identities and pulse
---               settings have no email.
+--               client-contact identities (phone_match_key). Staff of a
+--               tenant are its members' profile phones, its active
+--               campaigners and sales people and its approved campaigner
+--               identities; nothing else (pulse phones are not staff). A
+--               match is dropped when the phone is staff of the tenant that
+--               owns the card, so staff testing with their own number stay
+--               staff whoever sends, while a client org's owner stays a
+--               client of the parent. Then leads, with the same exclusion;
+--               then staff of any tenant in scope.
+--      email    the same order on lower(email): members' profile emails,
+--               campaigners and sales people; identities have no email.
 --      group    whatsapp_group_client_ids (AIO-242) of the scope's groups with
 --               that chat id, and of the group row the sender read it from
 --               (p_group_id, even outside the scope: a line shared from
@@ -51,16 +51,15 @@
 --      telegram the newest message of the sender's chat naming a client or a
 --               lead.
 --    sender_staff says whether a phone or email is staff of the sending
---    tenant itself, from any source above: a member's profile, an active
---    campaigner or sales person, an approved campaigner identity, or the
---    tenant's campaign_pulse_phone or campaign_pulse_preview_phone. It never
---    changes the kind: a client match stays a client, and the guard lets
---    only the sender's staff alerts and reports reach it (a client org's
---    owner seen from that org, even with no profile phone when the org's
---    pulse settings name it; an agency tenant's own campaigner).
---    It raises on a missing tenant or an unknown shape, so callers fail
---    closed. client_auto_send_allowed: is a card's switch on, for a sender in
---    scope. broadcast_lists_recipient: is the address among a broadcast's
+--    tenant itself. Such a phone's matches on the sender's own cards are
+--    already dropped, so a client match left beside it is on another
+--    tenant's card: someone who works for the sender and is a client
+--    elsewhere (a client org's owner seen from that org, an agency tenant's
+--    own campaigner). The kind stays client, and the guard lets only the
+--    sender's staff alerts and reports reach them. It raises on a missing
+--    tenant or an unknown shape, so callers fail closed.
+--    client_auto_send_allowed: is a card's switch on, for a sender in scope.
+--    broadcast_lists_recipient: is the address among a broadcast's
 --    recipients. All three are service role only.
 --
 -- AIO-260's carmen_is_client_phone is not on this base; when it rebases onto
@@ -328,9 +327,11 @@ CREATE INDEX IF NOT EXISTS idx_client_send_refusals_client_created
 CREATE INDEX IF NOT EXISTS idx_client_send_refusals_tenant_created
   ON public.client_send_refusals (tenant_id, created_at DESC);
 
--- True when the signed-in user may read a refusal the tenant logged: its
--- owners read every one, its other members those on a client they can see.
--- A related tenant's member never reads it, even about their own client.
+-- True when the signed-in user may read a refusal the tenant logged. A row
+-- about a client: a member of the sending tenant who can see that client,
+-- so a client org never learns whose phone its sends matched on the
+-- parent's other cards. A row with no client: the sending tenant's owners.
+-- Super admins read both, as user_can_access_client lets them.
 CREATE OR REPLACE FUNCTION public.user_can_view_client_send_refusal(
   p_tenant_id uuid,
   p_client_id uuid
@@ -341,13 +342,17 @@ RETURNS boolean
   SECURITY DEFINER
   SET search_path TO ''
 AS $$
-  SELECT public.is_super_admin(auth.uid())
-    OR public.user_can_manage_client_card_entries(p_tenant_id)
-    OR (
-      p_client_id IS NOT NULL
-      AND public.user_is_tenant_member(p_tenant_id)
-      AND public.user_can_access_client(auth.uid(), p_client_id)
-    )
+  SELECT CASE
+    WHEN p_client_id IS NULL THEN
+      public.is_super_admin(auth.uid())
+      OR public.user_can_manage_client_card_entries(p_tenant_id)
+    ELSE
+      public.user_can_access_client(auth.uid(), p_client_id)
+      AND (
+        public.user_is_tenant_member(p_tenant_id)
+        OR public.is_super_admin(auth.uid())
+      )
+  END
 $$;
 
 REVOKE ALL ON FUNCTION public.user_can_view_client_send_refusal(uuid, uuid)
@@ -357,7 +362,8 @@ GRANT EXECUTE ON FUNCTION public.user_can_view_client_send_refusal(uuid, uuid)
 
 ALTER TABLE public.client_send_refusals ENABLE ROW LEVEL SECURITY;
 
--- Reads: the sending tenant's owners, and its members on clients they see.
+-- Reads: the sending tenant's members on clients they see, its owners on
+-- rows with no client.
 DROP POLICY IF EXISTS "Users view send refusals of clients they can see"
   ON public.client_send_refusals;
 DROP POLICY IF EXISTS "Sending tenant views its send refusals"
@@ -457,49 +463,35 @@ BEGIN
   IF p_shape = 'phone' THEN
     v_key := public.phone_match_key(p_address);
     IF v_key IS NOT NULL THEN
-      -- Staff with this phone in the scope. hides_client: a manager's
-      -- record, which drops its tenant's own client and lead matches.
-      SELECT
-        coalesce(
-          array_agg(DISTINCT s.tenant_id) FILTER (WHERE s.hides_client),
-          ARRAY[]::uuid[]
-        ),
-        coalesce(bool_or(s.tenant_id = p_tenant_id), false),
-        count(*) > 0
-      INTO v_staff_tenants, v_sender_staff, v_is_staff
+      -- The tenants in scope this phone is staff of; their own client and
+      -- lead matches are dropped below.
+      SELECT coalesce(array_agg(DISTINCT s.tenant_id), ARRAY[]::uuid[])
+      INTO v_staff_tenants
       FROM (
-        SELECT tu.tenant_id, false AS hides_client
+        SELECT tu.tenant_id
         FROM public.tenant_users AS tu
         JOIN public.profiles AS p ON p.id = tu.user_id
         WHERE tu.tenant_id = ANY (v_scope)
           AND public.phone_match_key(p.phone) = v_key
         UNION ALL
-        SELECT cp.tenant_id, true
+        SELECT cp.tenant_id
         FROM public.campaigners AS cp
         WHERE cp.tenant_id = ANY (v_scope)
           AND cp.active
           AND public.phone_match_key(cp.phone) = v_key
         UNION ALL
-        SELECT sp.tenant_id, false
+        SELECT sp.tenant_id
         FROM public.sales_people AS sp
         WHERE sp.tenant_id = ANY (v_scope)
           AND sp.active
           AND public.phone_match_key(sp.phone) = v_key
         UNION ALL
-        SELECT i.tenant_id, true
+        SELECT i.tenant_id
         FROM public.carmen_whatsapp_identities AS i
         WHERE i.tenant_id = ANY (v_scope)
           AND i.entity_type = 'campaigner'
           AND i.status = 'approved'
           AND public.phone_match_key(i.phone) = v_key
-        UNION ALL
-        SELECT h.tenant_id, false
-        FROM public.tenant_heartbeat_settings AS h
-        WHERE h.tenant_id = ANY (v_scope)
-          AND v_key IN (
-            public.phone_match_key(h.campaign_pulse_phone),
-            public.phone_match_key(h.campaign_pulse_preview_phone)
-          )
       ) AS s;
 
       SELECT
@@ -542,32 +534,28 @@ BEGIN
     ELSE
       RAISE NOTICE 'resolve_send_recipient: no phone match key in the address; unknown';
     END IF;
+    v_is_staff := cardinality(v_staff_tenants) > 0;
+    v_sender_staff := p_tenant_id = ANY (v_staff_tenants);
 
   ELSIF p_shape = 'email' THEN
     v_key := nullif(lower(btrim(coalesce(p_address, ''))), '');
     IF v_key IS NOT NULL THEN
-      SELECT
-        coalesce(
-          array_agg(DISTINCT s.tenant_id) FILTER (WHERE s.hides_client),
-          ARRAY[]::uuid[]
-        ),
-        coalesce(bool_or(s.tenant_id = p_tenant_id), false),
-        count(*) > 0
-      INTO v_staff_tenants, v_sender_staff, v_is_staff
+      SELECT coalesce(array_agg(DISTINCT s.tenant_id), ARRAY[]::uuid[])
+      INTO v_staff_tenants
       FROM (
-        SELECT tu.tenant_id, false AS hides_client
+        SELECT tu.tenant_id
         FROM public.tenant_users AS tu
         JOIN public.profiles AS p ON p.id = tu.user_id
         WHERE tu.tenant_id = ANY (v_scope)
           AND lower(p.email) = v_key
         UNION ALL
-        SELECT cp.tenant_id, true
+        SELECT cp.tenant_id
         FROM public.campaigners AS cp
         WHERE cp.tenant_id = ANY (v_scope)
           AND cp.active
           AND lower(cp.email) = v_key
         UNION ALL
-        SELECT sp.tenant_id, false
+        SELECT sp.tenant_id
         FROM public.sales_people AS sp
         WHERE sp.tenant_id = ANY (v_scope)
           AND sp.active
@@ -604,6 +592,8 @@ BEGIN
     ELSE
       RAISE NOTICE 'resolve_send_recipient: empty email address; unknown';
     END IF;
+    v_is_staff := cardinality(v_staff_tenants) > 0;
+    v_sender_staff := p_tenant_id = ANY (v_staff_tenants);
 
   ELSIF p_shape = 'group' THEN
     SELECT g.id

@@ -24,10 +24,12 @@ export const PROVIDER_SEND_PATTERNS: Record<string, RegExp> = {
 };
 
 /**
- * A call of the guard itself. Checks steps take it injected under another
- * name (clientSendGuard), so a folder passes only where it wires the real one.
+ * A call of the guard itself, or of refuseClientSend (sender-step.ts), which
+ * always runs it over the database it is given. Checks steps take the guard
+ * injected under another name (clientSendGuard), so a folder passes only
+ * where it wires the real one.
  */
-const GUARD_CALL = /\bauthorizeClientSend\(/;
+const GUARD_CALL = /\b(authorizeClientSend|refuseClientSend)\(/;
 
 export type CallSiteReport = {
   /** Provider files in none of the lists. */

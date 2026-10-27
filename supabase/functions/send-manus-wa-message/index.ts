@@ -1,11 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
-import {
-  authorizeClientSend,
-  clientSendRequest,
-} from "../_shared/client-send/authorize.ts";
-import { clientSendRefusedResponse } from "../_shared/client-send/response.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
@@ -242,24 +238,17 @@ Deno.serve(async (req) => {
           /^\d{1,3}$/.test(cc) ? cc : "972",
         );
 
-    // The client send guard (AIO-261): an automatic send reaches a client only
-    // with a proof or the client card's opt-in (_shared/client-send/rules.ts).
-    const clientSend = await authorizeClientSend(
-      serviceClient(),
-      clientSendRequest({
-        functionName: "send-manus-wa-message",
-        tenantId,
-        channel: "whatsapp",
-        address: to,
-        groupId: groupChatId ? groupId : null,
-        isServiceRole,
-        sendKind,
-        sendRef,
-        clientId,
-      }),
-    );
-    if (!clientSend.allowed) {
-      return clientSendRefusedResponse(clientSend, corsHeaders);
+    const refused = await refuseClientSend(serviceClient(), {
+      functionName: "send-manus-wa-message",
+      tenantId,
+      channel: "whatsapp",
+      address: to,
+      groupId: groupChatId ? groupId : null,
+      isServiceRole,
+      body,
+    });
+    if (refused) {
+      return refused;
     }
 
     const guard = checkWhatsAppSend(groupChatId ? `group:${groupChatId}` : to);
