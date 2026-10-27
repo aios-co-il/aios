@@ -133,12 +133,12 @@ export default function CarmenWorkshop() {
     queryKey: ["carmen-workshop-projects", tenantId, clientParam],
     queryFn: tenantId
       ? async (): Promise<WorkshopListRow[]> => {
-          const { data, error } = await supabase.rpc(
-            "workshop_list_projects" as never,
-            { p_tenant_id: tenantId, p_client: clientParam } as never,
-          );
+          const { data, error } = await supabase.rpc("workshop_list_projects", {
+            p_tenant_id: tenantId,
+            p_client: clientParam,
+          });
           if (error) throw error;
-          return (data ?? []) as unknown as WorkshopListRow[];
+          return data ?? [];
         }
       : skipToken,
   });

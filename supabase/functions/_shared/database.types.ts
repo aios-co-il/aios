@@ -16261,6 +16261,26 @@ export type Database = {
         Args: { p_data: Json; p_table_id: string };
         Returns: boolean;
       };
+      workshop_list_projects: {
+        Args: { p_client?: string; p_limit?: number; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          department_hint: string;
+          has_board: boolean;
+          has_copy: boolean;
+          has_creative: boolean;
+          has_seo_plan: boolean;
+          id: string;
+          project_type: string;
+          stage_type: string;
+          status: string;
+          target_channel: string;
+          title: string;
+          track: string;
+          updated_at: string;
+        }[];
+      };
     };
     Enums: {
       agency_status: "active" | "paused" | "former";
