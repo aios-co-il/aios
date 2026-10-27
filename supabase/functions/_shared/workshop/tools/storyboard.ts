@@ -6,7 +6,7 @@ import {
   savePayload,
 } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
-import { STORY_CHANGE, loadScenes } from "../scene-helpers.ts";
+import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
 
@@ -50,16 +50,13 @@ export async function workshopStoryboard(ctx: ToolContext) {
   const old = await loadScenes(supabase, tenantId, itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
-  // Replacing a storyboard that was already filmed throws away paid clips: only when the user
-  // asks for a new or changed story, never to recover from a failed step.
-  if (
-    old.some((scene) => scene.clip_asset_id) &&
-    !STORY_CHANGE.test(deps.userText ?? "")
-  )
-    return {
-      error:
-        "לסטוריבורד הזה כבר יש סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש.",
-    };
+  const keepsPaid = await paidReplaceRefusal(
+    supabase,
+    tenantId,
+    old,
+    deps.userText,
+  );
+  if (keepsPaid) return keepsPaid;
   const rows = input.map((scene, index) => ({
     id: crypto.randomUUID(),
     position: index + 1,

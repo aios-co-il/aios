@@ -903,3 +903,133 @@ Deno.test(
     assertStrictEquals(offer.estimated_usd, offer.lipsync_usd);
   },
 );
+
+// ── Replacing a storyboard that already cost money ──────────────────────────
+
+const madeStills = () =>
+  memoryDb({
+    marketing_work_items: [project()],
+    marketing_video_scenes: [
+      sceneRow("s-1", 1, { clip_asset_id: null, status: "still_ready" }),
+      sceneRow("s-2", 2, { clip_asset_id: null, status: "still_ready" }),
+    ],
+    marketing_assets: ["s-1", "s-2"].map((id) => ({
+      id: `still-${id}`,
+      tenant_id: "tenant-1",
+      meta: { source: "workshop", prompt: "Carmen at her desk" },
+    })),
+  });
+
+const storyboard = (db: ReturnType<typeof memoryDb>, userText: string) =>
+  executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_storyboard",
+    {
+      item_id: "item-1",
+      replace: true,
+      scenes: [{ visual_prompt: "a bakery at dawn" }],
+    },
+    async () => {},
+    null,
+    { userText },
+  ) as Promise<Row>;
+
+Deno.test(
+  "paid stills are kept unless the user asks for a new story, in whole words",
+  async () => {
+    for (const userText of [
+      // "אחרי", "האחרונה" and "לאחר" hold "אחר" but ask for no other story.
+      "מה קורה אחרי ההפקה?",
+      "תנסי מחדש",
+      "הסצנה האחרונה יצאה חשוכה",
+      "מה הסיפור עם הסרטון?",
+      "לאחר הסיפור הזה תפיקי",
+    ]) {
+      const db = madeStills();
+      const refused = await storyboard(db, userText);
+      assertMatch(String(refused.error), /סיפור חדש/, userText);
+      assertEquals(
+        db.tables.marketing_video_scenes.map((scene) => scene.id),
+        ["s-1", "s-2"],
+      );
+    }
+    for (const userText of [
+      "תכתבי סיפור אחר",
+      "תשני את התסריט",
+      "אני רוצה סטוריבורד חדש",
+      "a new storyboard please",
+    ]) {
+      const db = madeStills();
+      const replaced = await storyboard(db, userText);
+      assertStrictEquals(replaced.success, true, userText);
+      assertEquals(
+        db.tables.marketing_video_scenes.some((scene) => scene.id === "s-1"),
+        false,
+      );
+    }
+  },
+);
+
+const editOverFilm = (clipProvider: string, stillSource = "workshop") =>
+  memoryDb({
+    marketing_work_items: [project()],
+    workshop_assets: materials().tables.workshop_assets,
+    marketing_video_scenes: [sceneRow("s-1", 1), sceneRow("s-2", 2)],
+    marketing_assets: ["s-1", "s-2"].flatMap((id) => [
+      {
+        id: `still-${id}`,
+        tenant_id: "tenant-1",
+        meta: { source: stillSource },
+      },
+      {
+        id: `clip-${id}`,
+        tenant_id: "tenant-1",
+        meta: { provider: clipProvider },
+      },
+    ]),
+  });
+
+const reEdit = (db: ReturnType<typeof memoryDb>, userText: string) =>
+  executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_edit_from_assets",
+    { ...editArgs, replace: true },
+    async () => {},
+    null,
+    { userText },
+  ) as Promise<Row>;
+
+Deno.test(
+  "the video editor replaces a filmed storyboard only when the user asks for a new story",
+  async () => {
+    const paid = editOverFilm("kling");
+    const refused = await reEdit(paid, "תנסי שוב");
+    assertMatch(String(refused.error), /סיפור חדש/);
+    assertEquals(
+      paid.tables.marketing_video_scenes.map((scene) => scene.id),
+      ["s-1", "s-2"],
+    );
+    const replaced = await reEdit(
+      editOverFilm("kling"),
+      "בואי נעשה סיפור חדש מהחומרים",
+    );
+    assertStrictEquals(replaced.success, true, JSON.stringify(replaced));
+    // The user's own pictures and a free preview cost nothing: a re-edit just replaces them.
+    const own = materials();
+    await executeWorkshopTool(
+      own,
+      "tenant-1",
+      "workshop_edit_from_assets",
+      editArgs,
+    );
+    const again = await reEdit(own, "תסדרי לפי הסדר");
+    assertStrictEquals(again.success, true, JSON.stringify(again));
+    const preview = await reEdit(
+      editOverFilm("mock", "user_asset"),
+      "תסדרי לפי הסדר",
+    );
+    assertStrictEquals(preview.success, true, JSON.stringify(preview));
+  },
+);

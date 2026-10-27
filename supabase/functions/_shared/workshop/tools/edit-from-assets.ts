@@ -6,7 +6,7 @@ import {
   savePayload,
 } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
-import { loadScenes } from "../scene-helpers.ts";
+import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
 
@@ -30,8 +30,9 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
   if ("gate" in brief) return brief.gate;
   const built = await buildEditScenes(supabase, tenantId, itemId, args, {
     loadAssets: (id) => loadAssets(supabase, tenantId, id),
-    loadScenes: (id) =>
-      loadScenes(supabase, tenantId, id) as Promise<{ id: string }[]>,
+    loadScenes: (id) => loadScenes(supabase, tenantId, id),
+    replaceRefusal: (old) =>
+      paidReplaceRefusal(supabase, tenantId, old, deps.userText),
   });
   if ("error" in built) return built;
   await savePayload(supabase, tenantId, itemId, {
