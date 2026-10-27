@@ -3,19 +3,63 @@ import {
   addFacebookFollowers,
   costPerFollower,
   emptyFacebookFollowers,
-  FOLLOWER_COLUMN_LABELS,
+  formatFollowerCell,
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "./facebookFollowers";
 
 const followersOf = (...rows: Array<Record<string, unknown>>) =>
   rows.reduce(addFacebookFollowers, emptyFacebookFollowers());
+/** A campaign row built from its stored Insights rows. */
+const campaign = (...rows: Array<Record<string, unknown>>) => ({
+  followers: followersOf(...rows),
+});
+
+const profileDay = (spend: number, newFollowers: number) => ({
+  destination_type: "INSTAGRAM_PROFILE",
+  spend,
+  new_followers: newFollowers,
+});
+// Website traffic with a few follows from the ad header's Follow button.
+const websiteDay = (spend: number, newFollowers: number) => ({
+  destination_type: "WEBSITE",
+  optimization_goal: "LINK_CLICKS",
+  spend,
+  new_followers: newFollowers,
+});
+// A profile campaign's row synced before the sync stored new_followers.
+const profileDayBeforeFollowers = (spend: number) => ({
+  optimization_goal: "PROFILE_VISIT",
+  spend,
+});
 
 describe("addFacebookFollowers", () => {
-  it("sums the stored follower count over a campaign's rows", () => {
+  it("sums the follower count and its spend over a campaign's rows", () => {
     expect(
-      followersOf({ new_followers: 12 }, { new_followers: 7 }, {}),
-    ).toStrictEqual({ newFollowers: 19, profileTraffic: false });
+      followersOf(
+        { new_followers: 12, spend: 50 },
+        { new_followers: 7, spend: 30 },
+      ),
+    ).toStrictEqual({
+      newFollowers: 19,
+      followerSpend: 80,
+      profileTraffic: false,
+    });
+  });
+
+  it("rows without a follower count add neither followers nor spend", () => {
+    expect(followersOf({ spend: 300 })).toStrictEqual({
+      newFollowers: null,
+      followerSpend: 0,
+      profileTraffic: false,
+    });
+    expect(
+      followersOf({ spend: 300 }, { new_followers: 0, spend: 20 }),
+    ).toStrictEqual({
+      newFollowers: 0,
+      followerSpend: 20,
+      profileTraffic: false,
+    });
   });
 
   it("marks Page and profile destinations as profile traffic", () => {
@@ -48,61 +92,77 @@ describe("addFacebookFollowers", () => {
 });
 
 describe("showsFollowerColumns", () => {
-  const website = { spend: 100, followers: emptyFacebookFollowers() };
-
-  it("hides the columns for website traffic only", () => {
-    expect(showsFollowerColumns([website, {}])).toBe(false);
+  it("hides the columns for website traffic, even with a few follows", () => {
+    expect(showsFollowerColumns([campaign(websiteDay(300, 2)), {}])).toBe(
+      false,
+    );
   });
 
   it("shows them for a profile campaign even before it gains followers", () => {
-    const profile = {
-      spend: 50,
-      followers: { newFollowers: 0, profileTraffic: true },
-    };
-    expect(showsFollowerColumns([website, profile])).toBe(true);
-  });
-
-  it("shows them for any campaign that gained followers", () => {
-    const gained = {
-      spend: 50,
-      followers: { newFollowers: 3, profileTraffic: false },
-    };
-    expect(showsFollowerColumns([website, gained])).toBe(true);
+    expect(
+      showsFollowerColumns([
+        campaign(websiteDay(300, 0)),
+        campaign(profileDay(50, 0)),
+      ]),
+    ).toBe(true);
   });
 });
 
-describe("costPerFollower", () => {
-  const profile = {
-    spend: 120,
-    followers: { newFollowers: 40, profileTraffic: true },
-  };
-  const website = { spend: 300, followers: emptyFacebookFollowers() };
-
-  it("divides spend by new followers", () => {
-    expect(costPerFollower([profile])).toBe(3);
-  });
-
-  it("leaves website traffic spend out of the total", () => {
-    expect(costPerFollower([profile, website])).toBe(3);
-    expect(sumFacebookFollowers([profile, website])).toStrictEqual({
-      newFollowers: 40,
+describe("sumFacebookFollowers", () => {
+  it("adds up the campaigns that carry a follower count", () => {
+    expect(
+      sumFacebookFollowers([
+        campaign(profileDay(120, 30)),
+        campaign(websiteDay(300, 2)),
+        campaign({ spend: 80 }),
+      ]),
+    ).toStrictEqual({
+      newFollowers: 32,
+      followerSpend: 420,
       profileTraffic: true,
     });
   });
 
-  it("is null without followers", () => {
-    expect(costPerFollower([website])).toBeNull();
+  it("is null when no campaign carries a follower count", () => {
     expect(
-      costPerFollower([{ ...profile, followers: emptyFacebookFollowers() }]),
+      sumFacebookFollowers([campaign({ spend: 80 }), {}]).newFollowers,
     ).toBeNull();
   });
 });
 
-describe("FOLLOWER_COLUMN_LABELS", () => {
-  it("uses the synced field's name for new followers", () => {
-    expect(FOLLOWER_COLUMN_LABELS).toStrictEqual({
-      newFollowers: "עוקבים חדשים",
-      costPerFollower: "עלות לעוקב",
-    });
+describe("costPerFollower", () => {
+  it("divides spend by new followers", () => {
+    expect(costPerFollower([campaign(profileDay(120, 40))])).toBe(3);
+  });
+
+  it("leaves website traffic and its follows out, mixed or alone", () => {
+    const blog = campaign(websiteDay(300, 2));
+    expect(costPerFollower([campaign(profileDay(120, 30)), blog])).toBe(4);
+    expect(costPerFollower([blog])).toBeNull();
+  });
+
+  it("counts only the spend of rows synced with a follower count", () => {
+    const profile = campaign(
+      profileDayBeforeFollowers(300),
+      profileDay(120, 30),
+    );
+    expect(profile.followers.profileTraffic).toBe(true);
+    expect(costPerFollower([profile])).toBe(4);
+    expect(
+      costPerFollower([campaign(profileDayBeforeFollowers(300))]),
+    ).toBeNull();
+  });
+
+  it("is null without followers", () => {
+    expect(costPerFollower([campaign(profileDay(120, 0))])).toBeNull();
+    expect(costPerFollower([{}])).toBeNull();
+  });
+});
+
+describe("formatFollowerCell", () => {
+  it("formats a value and shows a dash for none", () => {
+    expect(formatFollowerCell(4, (value) => `₪${value}`)).toBe("₪4");
+    expect(formatFollowerCell(0, String)).toBe("0");
+    expect(formatFollowerCell(null, String)).toBe("—");
   });
 });

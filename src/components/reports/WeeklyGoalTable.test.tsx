@@ -37,6 +37,13 @@ function renderTrafficWeek(records: Array<ReturnType<typeof traffic>>) {
   return screen.getByRole("region", { name: "קמפייני תנועה" });
 }
 
+// Website traffic that picked up two follows from the ad's Follow button.
+const websiteFollows = {
+  destination_type: "WEBSITE",
+  optimization_goal: "LINK_CLICKS",
+  new_followers: 2,
+};
+
 const headers = (region: HTMLElement) =>
   within(region)
     .getAllByRole("columnheader")
@@ -45,8 +52,10 @@ const cells = (row: HTMLElement | null) =>
   [...(row?.children ?? [])].map((cell) => cell.textContent);
 
 describe("WeeklyGoalTable traffic followers", () => {
-  it("website traffic has no follower columns", () => {
-    const region = renderTrafficWeek([traffic("Blog", { spend: 50 })]);
+  it("website traffic has no follower columns, even with a few follows", () => {
+    const region = renderTrafficWeek([
+      traffic("Blog", { ...websiteFollows, spend: 50 }),
+    ]);
     expect(headers(region)).toStrictEqual([
       "קמפיין",
       "חשיפות",
@@ -63,7 +72,7 @@ describe("WeeklyGoalTable traffic followers", () => {
         spend: 90,
         new_followers: 30,
       }),
-      traffic("Blog", { spend: 50 }),
+      traffic("Blog", { ...websiteFollows, spend: 50 }),
     ]);
     expect(headers(region).slice(-2)).toStrictEqual([
       "עוקבים חדשים",
@@ -71,10 +80,11 @@ describe("WeeklyGoalTable traffic followers", () => {
     ]);
     const row = (name: string) => within(region).getByText(name).closest("tr");
     expect(cells(row("Profile")).slice(-2)).toStrictEqual(["30", "₪3"]);
-    expect(cells(row("Blog")).slice(-2)).toStrictEqual(["0", "—"]);
-    // Website traffic spend stays out of the total cost per follower.
+    // A website campaign shows its follows but has no cost per follower.
+    expect(cells(row("Blog")).slice(-2)).toStrictEqual(["2", "—"]);
+    // Its spend stays out of the total cost per follower.
     expect(cells(region.querySelector("tfoot tr")).slice(-2)).toStrictEqual([
-      "30",
+      "32",
       "₪3",
     ]);
   });

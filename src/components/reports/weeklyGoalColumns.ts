@@ -1,5 +1,7 @@
+import { formatReportNumber } from "@/components/dynamic-tables/reportTableFormat";
 import {
   FOLLOWER_COLUMN_LABELS,
+  formatFollowerCell,
   showsFollowerColumns,
 } from "@/lib/facebookFollowers";
 import type { WeeklyCampaignKind } from "@/lib/weeklyAdsComparison";
@@ -24,31 +26,27 @@ export function weeklyGoalColumnsFor(
 ): WeeklyGoalColumn[] {
   const columns = WEEKLY_GOAL_COLUMNS[group.kind];
   if (group.kind === "traffic" && showsFollowerColumns(group.rows)) {
-    return [...columns, newFollowers, costPerFollower];
+    return [...columns, newFollowersColumn, costPerFollowerColumn];
   }
   return columns;
 }
 
-/** A weekly table number in Hebrew locale, rounded to `digits`. */
-export const formatWeeklyNumber = (value: number, digits = 0) =>
-  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
-
 const impressions: WeeklyGoalColumn = {
   label: "חשיפות",
-  value: (m) => formatWeeklyNumber(m.impressions),
+  value: (m) => formatReportNumber(m.impressions),
 };
 const clicks: WeeklyGoalColumn = {
   label: "קליקים",
-  value: (m) => formatWeeklyNumber(m.clicks),
+  value: (m) => formatReportNumber(m.clicks),
 };
 const spend: WeeklyGoalColumn = {
   label: "הוצאה",
-  value: (m, currency) => `${currency}${formatWeeklyNumber(m.spend)}`,
+  value: (m, currency) => `${currency}${formatReportNumber(m.spend)}`,
 };
 /** The goal's result count (purchases or leads) under its own label. */
 const results = (label: string): WeeklyGoalColumn => ({
   label,
-  value: (m) => formatWeeklyNumber(m.results, 1),
+  value: (m) => formatReportNumber(m.results, 1),
   className: "font-medium text-green-600",
 });
 /** Spend per result; a dash when the goal had no results. */
@@ -56,7 +54,7 @@ const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
   label,
   value: (m, currency) =>
     m.results > 0
-      ? `${currency}${formatWeeklyNumber(m.costPerResult, digits)}`
+      ? `${currency}${formatReportNumber(m.costPerResult, digits)}`
       : "—",
   className: "font-medium text-blue-600",
 });
@@ -72,11 +70,11 @@ const WEEKLY_GOAL_COLUMNS: Record<WeeklyCampaignKind, WeeklyGoalColumn[]> = {
     {
       label: "הכנסה",
       value: (m, currency) =>
-        m.revenue > 0 ? `${currency}${formatWeeklyNumber(m.revenue)}` : "—",
+        m.revenue > 0 ? `${currency}${formatReportNumber(m.revenue)}` : "—",
     },
     {
       label: "ROAS",
-      value: (m) => (m.roas > 0 ? `${formatWeeklyNumber(m.roas, 2)}x` : "—"),
+      value: (m) => (m.roas > 0 ? `${formatReportNumber(m.roas, 2)}x` : "—"),
     },
   ],
   leads: [
@@ -95,17 +93,19 @@ const WEEKLY_GOAL_COLUMNS: Record<WeeklyCampaignKind, WeeklyGoalColumn[]> = {
   ],
 };
 
-const newFollowers: WeeklyGoalColumn = {
+const newFollowersColumn: WeeklyGoalColumn = {
   label: FOLLOWER_COLUMN_LABELS.newFollowers,
-  value: (m) => formatWeeklyNumber(m.followers.newFollowers),
+  value: (m) =>
+    formatFollowerCell(m.followers.newFollowers, formatReportNumber),
   className: "font-medium text-green-600",
 };
 /** Spend per new follower; a dash when the campaigns gained none. */
-const costPerFollower: WeeklyGoalColumn = {
+const costPerFollowerColumn: WeeklyGoalColumn = {
   label: FOLLOWER_COLUMN_LABELS.costPerFollower,
   value: (m, currency) =>
-    m.costPerFollower === null
-      ? "—"
-      : `${currency}${formatWeeklyNumber(m.costPerFollower, 2)}`,
+    formatFollowerCell(
+      m.costPerFollower,
+      (cost) => `${currency}${formatReportNumber(cost, 2)}`,
+    ),
   className: "font-medium text-blue-600",
 };

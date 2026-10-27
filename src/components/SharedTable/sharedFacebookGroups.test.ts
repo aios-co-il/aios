@@ -197,8 +197,8 @@ describe("groupSharedFacebookRows", () => {
         leadsOnly: false,
       });
       expect(groups.traffic.map((row) => row.followers)).toStrictEqual([
-        { newFollowers: 20, profileTraffic: true },
-        { newFollowers: 0, profileTraffic: false },
+        { newFollowers: 20, followerSpend: 120, profileTraffic: true },
+        { newFollowers: null, followerSpend: 0, profileTraffic: false },
       ]);
     }
   });

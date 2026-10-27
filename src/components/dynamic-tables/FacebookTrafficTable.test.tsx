@@ -30,6 +30,13 @@ function renderTraffic(records: Array<{ data: Record<string, unknown> }>) {
   );
 }
 
+// Website traffic that picked up two follows from the ad's Follow button.
+const websiteFollows = {
+  destination_type: "WEBSITE",
+  optimization_goal: "LINK_CLICKS",
+  new_followers: 2,
+};
+
 const headers = () =>
   screen.getAllByRole("columnheader").map((cell) => cell.textContent);
 const cells = (name: string) =>
@@ -58,6 +65,11 @@ describe("FacebookTrafficTable", () => {
     ]);
   });
 
+  it("website traffic with a few follows gets no follower columns", () => {
+    renderTraffic([day("Blog", { ...websiteFollows, spend: 300 })]);
+    expect(headers().slice(-2)).toStrictEqual(["CTR", "עלות לקליק"]);
+  });
+
   it("profile traffic adds new followers and cost per follower", () => {
     renderTraffic([
       day("Profile", {
@@ -71,12 +83,29 @@ describe("FacebookTrafficTable", () => {
         spend: 60,
         new_followers: 18,
       }),
-      day("Blog", { spend: 300 }),
+      day("Blog", { ...websiteFollows, spend: 300 }),
     ]);
     expect(headers().slice(-2)).toStrictEqual(["עוקבים חדשים", "עלות לעוקב"]);
     expect(cells("Profile").slice(-2)).toStrictEqual(["30", "₪4"]);
-    expect(cells("Blog").slice(-2)).toStrictEqual(["0", "—"]);
-    // Website traffic spend stays out of the total cost per follower.
+    // A website campaign shows its follows but has no cost per follower.
+    expect(cells("Blog").slice(-2)).toStrictEqual(["2", "—"]);
+    // Its spend stays out of the total cost per follower.
+    expect(cells("סה״כ").slice(-2)).toStrictEqual(["32", "₪4"]);
+  });
+
+  it("rows synced before new_followers add neither followers nor spend", () => {
+    renderTraffic([
+      day("Profile", { optimization_goal: "PROFILE_VISIT", spend: 300 }),
+      day("Profile", {
+        date: "2026-10-21",
+        destination_type: "INSTAGRAM_PROFILE",
+        spend: 120,
+        new_followers: 30,
+      }),
+      day("Older profile", { optimization_goal: "PROFILE_VISIT", spend: 80 }),
+    ]);
+    expect(cells("Profile").slice(-2)).toStrictEqual(["30", "₪4"]);
+    expect(cells("Older profile").slice(-2)).toStrictEqual(["—", "—"]);
     expect(cells("סה״כ").slice(-2)).toStrictEqual(["30", "₪4"]);
   });
 });

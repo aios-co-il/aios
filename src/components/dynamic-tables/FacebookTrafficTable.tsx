@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import {
   costPerFollower,
   FOLLOWER_COLUMN_LABELS,
+  formatFollowerCell,
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
@@ -9,6 +10,11 @@ import type {
   FacebookReportCampaign,
   FacebookReportEntry,
 } from "./facebookReportCampaigns";
+import {
+  formatReportNumber,
+  ratio,
+  resultCellClass,
+} from "./reportTableFormat";
 
 type Props = {
   rows: FacebookReportEntry[];
@@ -57,7 +63,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
                   campaigns={[campaign]}
                   currency={currency}
                   withFollowers={withFollowers}
-                  emphasis=" font-medium"
+                  isTotal={false}
                 />
               </tr>
             ))}
@@ -69,7 +75,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
                 campaigns={campaigns}
                 currency={currency}
                 withFollowers={withFollowers}
-                emphasis=""
+                isTotal
               />
             </tr>
           </tfoot>
@@ -84,53 +90,51 @@ function TrafficCells({
   campaigns,
   currency,
   withFollowers,
-  emphasis,
+  isTotal,
 }: {
   campaigns: FacebookReportCampaign[];
   currency: string;
   withFollowers: boolean;
-  emphasis: string;
+  isTotal: boolean;
 }) {
   const sum = (metric: (campaign: FacebookReportCampaign) => number) =>
     campaigns.reduce((total, campaign) => total + metric(campaign), 0);
   const impressions = sum((campaign) => campaign.impressions);
   const clicks = sum((campaign) => campaign.clicks);
   const spend = sum((campaign) => campaign.spend);
-  const followerCost = costPerFollower(campaigns);
   return (
     <>
-      <td className="p-2 text-center">{fmt(impressions)}</td>
-      <td className={`p-2 text-center text-green-600${emphasis}`}>
-        {fmt(clicks)}
+      <td className="p-2 text-center">{formatReportNumber(impressions)}</td>
+      <td className={resultCellClass("text-green-600", isTotal)}>
+        {formatReportNumber(clicks)}
       </td>
       <td className="p-2 text-center">
         {currency}
-        {fmt(spend)}
+        {formatReportNumber(spend)}
       </td>
       <td className="p-2 text-center">
-        {fmt(ratio(clicks, impressions) * 100, 2)}%
+        {formatReportNumber(ratio(clicks, impressions) * 100, 2)}%
       </td>
-      <td className={`p-2 text-center text-blue-600${emphasis}`}>
+      <td className={resultCellClass("text-blue-600", isTotal)}>
         {currency}
-        {fmt(ratio(spend, clicks), 2)}
+        {formatReportNumber(ratio(spend, clicks), 2)}
       </td>
       {withFollowers && (
         <>
-          <td className={`p-2 text-center text-green-600${emphasis}`}>
-            {fmt(sumFacebookFollowers(campaigns).newFollowers)}
+          <td className={resultCellClass("text-green-600", isTotal)}>
+            {formatFollowerCell(
+              sumFacebookFollowers(campaigns).newFollowers,
+              formatReportNumber,
+            )}
           </td>
-          <td className={`p-2 text-center text-blue-600${emphasis}`}>
-            {followerCost === null ? "—" : `${currency}${fmt(followerCost, 2)}`}
+          <td className={resultCellClass("text-blue-600", isTotal)}>
+            {formatFollowerCell(
+              costPerFollower(campaigns),
+              (cost) => `${currency}${formatReportNumber(cost, 2)}`,
+            )}
           </td>
         </>
       )}
     </>
   );
 }
-
-/** A table number in Hebrew locale, rounded to `digits`. */
-const fmt = (value: number, digits = 0) =>
-  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
-
-/** a ÷ b, or 0 when there is nothing to divide by. */
-const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);

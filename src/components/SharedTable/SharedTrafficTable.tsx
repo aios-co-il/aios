@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -11,6 +12,7 @@ import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import {
   costPerFollower,
   FOLLOWER_COLUMN_LABELS,
+  formatFollowerCell,
   showsFollowerColumns,
   sumFacebookFollowers,
   type FacebookFollowerTotals,
@@ -30,23 +32,32 @@ export type SharedCampaignRow = {
   followers?: FacebookFollowerTotals;
 };
 
+/** What a traffic row needs, so the dashboards pass their campaign rows as-is. */
+type TrafficRow = Pick<
+  SharedCampaignRow,
+  "name" | "spend" | "impressions" | "clicks" | "followers"
+>;
+
 type Props = {
-  rows: SharedCampaignRow[];
+  rows: TrafficRow[];
   entityColumnLabel: string;
   formatCurrency: (value: number) => string;
   formatNumber: (value: number) => string;
+  /** Card heading; the shared report's goal title unless a page names its own. */
+  title?: ReactNode;
 };
 
 /**
- * Traffic campaigns of a shared report. A click is their result, so the table
- * shows CTR and cost per click instead of leads or purchases, plus new
- * followers once a campaign sends people to a Page or profile.
+ * Traffic campaigns of a shared report or dashboard. A click is their result,
+ * so the table shows CTR and cost per click instead of leads or purchases,
+ * plus new followers once a campaign sends people to a Page or profile.
  */
 export function SharedTrafficTable({
   rows,
   entityColumnLabel,
   formatCurrency,
   formatNumber,
+  title = CAMPAIGN_GOAL_TITLES.traffic,
 }: Props) {
   const withFollowers = showsFollowerColumns(rows);
   const cells = (metrics: TrafficMetrics) => (
@@ -62,11 +73,11 @@ export function SharedTrafficTable({
       </TableCell>
       {withFollowers && (
         <>
-          <TableCell>{formatNumber(metrics.newFollowers)}</TableCell>
           <TableCell>
-            {metrics.costPerFollower === null
-              ? "—"
-              : formatCurrency(metrics.costPerFollower)}
+            {formatFollowerCell(metrics.newFollowers, formatNumber)}
+          </TableCell>
+          <TableCell>
+            {formatFollowerCell(metrics.costPerFollower, formatCurrency)}
           </TableCell>
         </>
       )}
@@ -76,7 +87,7 @@ export function SharedTrafficTable({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{CAMPAIGN_GOAL_TITLES.traffic}</CardTitle>
+        <CardTitle className="flex items-center gap-2">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -128,13 +139,13 @@ type TrafficMetrics = {
   spend: number;
   impressions: number;
   clicks: number;
-  newFollowers: number;
+  newFollowers: number | null;
   costPerFollower: number | null;
 };
 
 /** Delivery, spend and followers of one campaign or of the whole table. */
-function trafficMetrics(rows: SharedCampaignRow[]): TrafficMetrics {
-  const sum = (metric: (row: SharedCampaignRow) => number) =>
+function trafficMetrics(rows: TrafficRow[]): TrafficMetrics {
+  const sum = (metric: (row: TrafficRow) => number) =>
     rows.reduce((total, row) => total + metric(row), 0);
   return {
     spend: sum((row) => row.spend),

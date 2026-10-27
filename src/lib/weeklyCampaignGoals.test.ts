@@ -132,6 +132,38 @@ describe("groupWeeklyRowsByGoal", () => {
       ["Leads", "Shop"],
     );
   });
+
+  it("a traffic group totals its followers and prices profile campaigns only", () => {
+    const traffic = (campaign: string, data: Record<string, unknown>) =>
+      fb(campaign, { campaign_type: "traffic", ...data });
+    const [week] = buildWeeklyCampaignSections(
+      [
+        traffic("Profile", {
+          destination_type: "INSTAGRAM_PROFILE",
+          spend: 120,
+          new_followers: 30,
+        }),
+        traffic("Profile", {
+          date: "2026-09-15",
+          optimization_goal: "PROFILE_VISIT",
+          spend: 300,
+        }),
+        traffic("Blog", {
+          destination_type: "WEBSITE",
+          spend: 300,
+          new_followers: 2,
+        }),
+      ],
+      { now: NOW },
+    );
+    const [group] = week.groups;
+    expect(group.totals.followers).toStrictEqual({
+      newFollowers: 32,
+      followerSpend: 420,
+      profileTraffic: true,
+    });
+    expect(group.totals.costPerFollower).toBe(4);
+  });
 });
 
 describe("weeklySourceModesForTable", () => {

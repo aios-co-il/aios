@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { FacebookFollowerTotals } from "@/lib/facebookFollowers";
 import { SharedTrafficTable } from "./SharedTrafficTable";
 
 const row = (
   name: string,
   spend: number,
   clicks: number,
-  followers?: { newFollowers: number; profileTraffic: boolean },
+  followers?: FacebookFollowerTotals,
 ) => ({
   name,
   spend,
@@ -18,6 +19,11 @@ const row = (
   addToCart: 0,
   followers,
 });
+const follows = (
+  newFollowers: number | null,
+  followerSpend: number,
+  profileTraffic: boolean,
+): FacebookFollowerTotals => ({ newFollowers, followerSpend, profileTraffic });
 const renderTable = (rows: Array<ReturnType<typeof row>>) =>
   render(
     <SharedTrafficTable
@@ -55,11 +61,17 @@ describe("SharedTrafficTable", () => {
     ]);
   });
 
+  it("website traffic with a few follows gets no follower columns", () => {
+    renderTable([row("Blog", 300, 100, follows(2, 300, false))]);
+    expect(screen.queryByText("עוקבים חדשים")).toBeNull();
+  });
+
   it("adds new followers and cost per follower for Page and profile traffic", () => {
     renderTable([
-      row("Profile", 120, 60, { newFollowers: 40, profileTraffic: true }),
-      row("New page", 30, 10, { newFollowers: 0, profileTraffic: true }),
-      row("Blog", 300, 100, { newFollowers: 0, profileTraffic: false }),
+      row("Profile", 120, 60, follows(40, 120, true)),
+      row("New page", 30, 10, follows(0, 30, true)),
+      row("Older profile", 80, 20, follows(null, 0, true)),
+      row("Blog", 300, 100, follows(2, 300, false)),
     ]);
     expect(
       screen.getAllByRole("columnheader").map((cell) => cell.textContent),
@@ -75,8 +87,11 @@ describe("SharedTrafficTable", () => {
     ]);
     expect(cells("Profile").slice(-2)).toStrictEqual(["40", "₪3"]);
     expect(cells("New page").slice(-2)).toStrictEqual(["0", "—"]);
-    expect(cells("Blog").slice(-2)).toStrictEqual(["0", "—"]);
-    // Website traffic spend stays out of the total cost per follower.
-    expect(cells('סה"כ').slice(-2)).toStrictEqual(["40", "₪3.75"]);
+    // Synced before the follower count, so there is no number to show.
+    expect(cells("Older profile").slice(-2)).toStrictEqual(["—", "—"]);
+    // A website campaign shows its follows but has no cost per follower.
+    expect(cells("Blog").slice(-2)).toStrictEqual(["2", "—"]);
+    // Neither its spend nor the older row's enters the total cost per follower.
+    expect(cells('סה"כ').slice(-2)).toStrictEqual(["42", "₪3.75"]);
   });
 });

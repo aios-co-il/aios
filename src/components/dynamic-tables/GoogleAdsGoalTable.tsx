@@ -3,6 +3,11 @@ import {
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
 import type { GoogleReportCampaignGoal } from "@/lib/pulseCampaignGoals";
+import {
+  formatReportNumber,
+  ratio,
+  resultCellClass,
+} from "./reportTableFormat";
 
 type Metrics = {
   impressions: number;
@@ -86,7 +91,7 @@ export function GoogleAdsGoalTable({
                 m={row}
                 isEcommerce={isEcommerce}
                 currency={currency}
-                emphasis=" font-medium"
+                isTotal={false}
               />
             </tr>
           ))}
@@ -98,7 +103,7 @@ export function GoogleAdsGoalTable({
               m={totals}
               isEcommerce={isEcommerce}
               currency={currency}
-              emphasis=""
+              isTotal
             />
           </tr>
         </tfoot>
@@ -112,47 +117,40 @@ function MetricCells({
   m,
   isEcommerce,
   currency,
-  emphasis,
+  isTotal,
 }: {
   m: Metrics;
   isEcommerce: boolean;
   currency: string;
-  emphasis: string;
+  isTotal: boolean;
 }) {
   return (
     <>
-      <td className="p-2 text-center">{fmt(m.impressions)}</td>
-      <td className="p-2 text-center">{fmt(m.clicks)}</td>
-      <td className={`p-2 text-center text-green-600${emphasis}`}>
-        {fmt(Math.round(m.conversions))}
+      <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
+      <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
+      <td className={resultCellClass("text-green-600", isTotal)}>
+        {formatReportNumber(Math.round(m.conversions))}
       </td>
       <td className="p-2 text-center">
         {currency}
-        {fmt(m.cost)}
+        {formatReportNumber(m.cost)}
       </td>
       {isEcommerce ? (
         <>
-          <td className={`p-2 text-center text-purple-600${emphasis}`}>
+          <td className={resultCellClass("text-purple-600", isTotal)}>
             {currency}
-            {fmt(m.conversions_value)}
+            {formatReportNumber(m.conversions_value)}
           </td>
-          <td className={`p-2 text-center text-blue-600${emphasis}`}>
-            {fmt(ratio(m.conversions_value, m.cost), 2)}x
+          <td className={resultCellClass("text-blue-600", isTotal)}>
+            {formatReportNumber(ratio(m.conversions_value, m.cost), 2)}x
           </td>
         </>
       ) : (
-        <td className={`p-2 text-center text-blue-600${emphasis}`}>
+        <td className={resultCellClass("text-blue-600", isTotal)}>
           {currency}
-          {fmt(ratio(m.cost, m.conversions), 1)}
+          {formatReportNumber(ratio(m.cost, m.conversions), 1)}
         </td>
       )}
     </>
   );
 }
-
-/** A table number in Hebrew locale, rounded to `digits`. */
-const fmt = (value: number, digits = 0) =>
-  value.toLocaleString("he-IL", { maximumFractionDigits: digits });
-
-/** a ÷ b, or 0 when there is nothing to divide by. */
-const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);

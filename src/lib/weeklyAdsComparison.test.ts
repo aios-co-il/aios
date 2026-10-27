@@ -200,3 +200,23 @@ test("a leads-only google week carries no revenue", () => {
   ]);
   expect(sections[0].groups[0].totals.revenue).toBe(0);
 });
+
+test("google rows carry no followers", () => {
+  const sections = buildWeeklyCampaignSections(
+    [
+      {
+        _source: "google_ads",
+        data: {
+          date: "2026-09-14",
+          campaign_id: "a",
+          campaign_name: "a",
+          cost: 100,
+          new_followers: 5,
+        },
+      },
+    ],
+    { now: new Date("2026-09-18T12:00:00Z") },
+  );
+  expect(sections[0].rows[0].followers.newFollowers).toBeNull();
+  expect(sections[0].rows[0].costPerFollower).toBeNull();
+});
