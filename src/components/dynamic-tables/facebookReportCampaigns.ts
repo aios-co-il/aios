@@ -4,7 +4,7 @@ import {
   getEntityGroupKey,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import { facebookCampaignGoals } from "@/lib/facebookCampaignGoal";
 import {
   addFacebookFollowers,
@@ -43,7 +43,7 @@ export function groupFacebookReportCampaigns(
   records: Array<{ data?: Record<string, unknown> | null }>,
   level: AdsEntityLevel,
   options: { leadsOnly: boolean },
-): Record<CampaignGoal, FacebookReportEntry[]> {
+): Record<ReportCampaignGoal, FacebookReportEntry[]> {
   const entries = Object.entries(
     aggregateFacebookReportCampaigns(records, level),
   );
@@ -52,7 +52,7 @@ export function groupFacebookReportCampaigns(
     (data) => getEntityGroupKey(data, level),
     options,
   );
-  const withGoal = (goal: CampaignGoal) =>
+  const withGoal = (goal: ReportCampaignGoal) =>
     entries.filter(([key]) => goals.get(key) === goal);
   return {
     ecommerce: withGoal("ecommerce"),

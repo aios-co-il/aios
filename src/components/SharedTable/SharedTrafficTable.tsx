@@ -15,22 +15,8 @@ import {
   formatFollowerCell,
   showsFollowerColumns,
   sumFacebookFollowers,
-  type FacebookFollowerTotals,
 } from "@/lib/facebookFollowers";
-
-/** One campaign (or ad set / ad) row of the shared report's campaign tables. */
-export type SharedCampaignRow = {
-  name: string;
-  spend: number;
-  impressions: number;
-  clicks: number;
-  leads: number;
-  purchases: number;
-  revenue: number;
-  addToCart: number;
-  /** Facebook only; traffic tables show it. */
-  followers?: FacebookFollowerTotals;
-};
+import type { SharedCampaignRow } from "./sharedCampaignTables";
 
 /** What a traffic row needs, so the dashboards pass their campaign rows as-is. */
 type TrafficRow = Pick<

@@ -5,7 +5,7 @@ import {
   getRevenueFromData,
   type RawAdsMetricData,
 } from "@/lib/adsMetrics";
-import type { CampaignGoal } from "@/lib/campaignGoals";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 
 /**
  * What one ads row adds to a shared table's summary. A row with a goal (Google
@@ -14,7 +14,10 @@ import type { CampaignGoal } from "@/lib/campaignGoals";
  * adds neither. A row without a goal adds everything and the table mode filters
  * the totals afterwards.
  */
-export function adsRowOutcomes(data: RawAdsMetricData, goal?: CampaignGoal) {
+export function adsRowOutcomes(
+  data: RawAdsMetricData,
+  goal?: ReportCampaignGoal,
+) {
   const sales = goal === undefined || goal === "ecommerce";
   const leads = goal === undefined || goal === "leads";
   return {

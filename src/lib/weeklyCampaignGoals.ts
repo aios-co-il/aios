@@ -1,8 +1,11 @@
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import {
+  groupRowsByCampaignGoal,
+  type ReportCampaignGoal,
+} from "@/lib/campaignGoals";
 import { costPerFollower, sumFacebookFollowers } from "@/lib/facebookFollowers";
 import { weeklyRoas } from "@/lib/weeklyAdsRevenue";
 import type {
-  WeeklyCampaignKind,
   WeeklyCampaignRow,
   WeeklySourceModes,
 } from "@/lib/weeklyAdsComparison";
@@ -14,22 +17,23 @@ export type WeeklyGoalTotals = Omit<
 
 /** One goal's campaigns in a week, with totals of that goal only. */
 export type WeeklyGoalGroup = {
-  kind: WeeklyCampaignKind;
+  kind: ReportCampaignGoal;
   rows: WeeklyCampaignRow[];
   totals: WeeklyGoalTotals;
 };
 
 /**
- * A week's campaigns by goal in a fixed order (sales, leads, traffic), each
+ * A week's campaigns by goal in report order (sales, leads, traffic), each
  * with its own totals. Goals without campaigns are left out.
  */
 export function groupWeeklyRowsByGoal(
   rows: WeeklyCampaignRow[],
 ): WeeklyGoalGroup[] {
-  return WEEKLY_GOAL_ORDER.map((kind) => {
-    const goalRows = rows.filter((row) => row.kind === kind);
-    return { kind, rows: goalRows, totals: goalTotals(goalRows) };
-  }).filter((group) => group.rows.length > 0);
+  return groupRowsByCampaignGoal(rows, (row) => row.kind).map((group) => ({
+    kind: group.goal,
+    rows: group.rows,
+    totals: goalTotals(group.rows),
+  }));
 }
 
 /**
@@ -51,12 +55,6 @@ export function weeklySourceModesForTable(
     google_ads: campaignType === "ecommerce" ? "ecommerce" : "leads",
   };
 }
-
-const WEEKLY_GOAL_ORDER: readonly WeeklyCampaignKind[] = [
-  "ecommerce",
-  "leads",
-  "traffic",
-];
 
 /**
  * Totals of one goal: its own results, cost per result, (sales only) ROAS and

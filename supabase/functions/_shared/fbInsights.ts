@@ -1,3 +1,5 @@
+import { metaObjectiveGoal } from "./meta-ads/campaign-objectives.ts";
+
 // Shared Facebook Insights → CRM record logic.
 //
 // Both `sync-facebook-insights` (manual "sync now") and
@@ -620,9 +622,8 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(
     _campaignStatusForLeads?.objective || "",
   ).toUpperCase();
-  const _isLeadFormObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    _objectiveForLeads,
-  );
+  const _isLeadFormObjective =
+    metaObjectiveGoal(_objectiveForLeads) === "leads";
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -792,14 +793,8 @@ export function buildInsightRecord(
 
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || "").toUpperCase();
-  const isEcommerceObjective = [
-    "OUTCOME_SALES",
-    "PRODUCT_CATALOG_SALES",
-    "SALES",
-  ].includes(objective);
-  const isLeadObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    objective,
-  );
+  const isEcommerceObjective = metaObjectiveGoal(objective) === "ecommerce";
+  const isLeadObjective = metaObjectiveGoal(objective) === "leads";
   const isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     objective,
   );

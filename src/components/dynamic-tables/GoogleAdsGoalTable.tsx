@@ -2,12 +2,8 @@ import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
+import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
-import {
-  formatReportNumber,
-  ratio,
-  resultCellClass,
-} from "@/lib/reportTableFormat";
 
 type Metrics = {
   impressions: number;

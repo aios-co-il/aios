@@ -1,10 +1,10 @@
-import { formatReportNumber } from "@/lib/reportTableFormat";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import {
   FOLLOWER_COLUMN_LABELS,
   formatFollowerCell,
   showsFollowerColumns,
 } from "@/lib/facebookFollowers";
-import type { WeeklyCampaignKind } from "@/lib/weeklyAdsComparison";
+import { formatReportNumber } from "@/lib/reportNumber";
 import type {
   WeeklyGoalGroup,
   WeeklyGoalTotals,
@@ -60,7 +60,7 @@ const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
 });
 
 /** Each goal shows only its own metrics: no revenue or ROAS outside sales. */
-const WEEKLY_GOAL_COLUMNS: Record<WeeklyCampaignKind, WeeklyGoalColumn[]> = {
+const WEEKLY_GOAL_COLUMNS: Record<ReportCampaignGoal, WeeklyGoalColumn[]> = {
   ecommerce: [
     impressions,
     clicks,

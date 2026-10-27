@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
-import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,7 +81,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable";
 import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
-import { googleLeadCampaignRecords } from "@/components/dynamic-tables/googleLeadCampaignRecords";
+import { googleManualRoiFigures } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SearchConsoleDashboard } from "@/components/dynamic-tables/SearchConsoleDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
@@ -113,7 +112,6 @@ import {
 } from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
-import { hasManualRoiData } from "@/components/dynamic-tables/manualRoi";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
 import {
   fetchWooReportAttribution,
@@ -133,6 +131,8 @@ import {
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
+import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
+import { formatReportNumber } from "@/lib/reportNumber";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import {
   ADS_ENTITY_LEVEL_LABELS,
@@ -4003,12 +4003,12 @@ export default function DynamicTableView({
                     ([key, group]) => ({ key, ...group }),
                   );
                   // Mixed: one table per goal, each with its own columns and totals.
-                  const { mixedGoals, isEcommerce, ecommerceTotals } =
-                    splitGoogleGroupsByGoal(groupList, fallbackGoal);
-                  const goalSections = googleGoalSections(
-                    groupList,
-                    fallbackGoal,
-                  );
+                  const {
+                    sections: goalSections,
+                    mixedGoals,
+                    isEcommerce,
+                    ecommerceTotals,
+                  } = googleGoalSections(groupList, fallbackGoal);
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders
@@ -4063,10 +4063,7 @@ export default function DynamicTableView({
                             {salesTotalLabel} מבוססת על WooCommerce (Google
                             Ads): {Math.round(googleWooPaid.paidOrders)} רכישות,{" "}
                             {gaCurrency}
-                            {Math.round(
-                              googleWooPaid.paidRevenue,
-                            ).toLocaleString("he-IL")}
-                            .
+                            {formatReportNumber(googleWooPaid.paidRevenue)}.
                             {gaDiffersFromWoo && (
                               <>
                                 {" "}
@@ -4074,9 +4071,9 @@ export default function DynamicTableView({
                                 {Math.round(
                                   ecommerceTotals.conversions,
                                 )} המרות, {gaCurrency}
-                                {Math.round(
+                                {formatReportNumber(
                                   ecommerceTotals.conversions_value,
-                                ).toLocaleString("he-IL")}
+                                )}
                                 .
                               </>
                             )}
@@ -4085,9 +4082,9 @@ export default function DynamicTableView({
                                 {" "}
                                 בנוסף {googleWooPaid.organicOrders} רכישות
                                 Google אורגני ({gaCurrency}
-                                {Math.round(
+                                {formatReportNumber(
                                   googleWooPaid.organicRevenue,
-                                ).toLocaleString("he-IL")}
+                                )}
                                 ).
                               </>
                             )}
@@ -4149,18 +4146,12 @@ export default function DynamicTableView({
                         />
                       ))}
                       {mixedGoals && (
-                        <div
-                          className="flex items-center justify-between border-t bg-muted/40 px-3 py-2 text-sm font-semibold"
-                          dir="rtl"
-                        >
-                          <span>הוצאה כוללת (כל היעדים)</span>
-                          <span>
-                            {gaCurrency}
-                            {totals.cost.toLocaleString("he-IL", {
-                              maximumFractionDigits: 0,
-                            })}
-                          </span>
-                        </div>
+                        <AllGoalsSpendRow
+                          label="הוצאה כוללת (כל היעדים)"
+                          currency={gaCurrency}
+                          spend={totals.cost}
+                          className="px-3"
+                        />
                       )}
                       {useGoogleWooOverlay && (
                         <p className="border-t px-3 py-2 text-xs text-muted-foreground">
@@ -4182,40 +4173,20 @@ export default function DynamicTableView({
           {/* Manual ROI for Google Ads (leads mode only, lead campaigns only; kept for entered figures) */}
           {hasGoogleAds &&
             filteredRecords &&
-            filteredRecords.length > 0 &&
             table?.id &&
-            table?.integration_settings?.campaign_type !== "ecommerce" &&
             (() => {
-              const leadRecords = googleLeadCampaignRecords(
-                filteredRecords,
-                table,
-              );
-              if (
-                leadRecords.length === 0 &&
-                !hasManualRoiData(table.integration_settings)
-              ) {
+              const figures = googleManualRoiFigures(filteredRecords, table);
+              if (!figures) {
                 return null;
               }
-              const totals = leadRecords.reduce(
-                (acc, record) => {
-                  acc.cost += Number(record.data?.cost) || 0;
-                  acc.conversions +=
-                    Number(record.data?.conversions) ||
-                    Number(record.data?.purchases) ||
-                    0;
-                  return acc;
-                },
-                { cost: 0, conversions: 0 },
-              );
-              const gaCurrency = getCurrencySymbol(
-                table.integration_settings?.currency,
-              );
               return (
                 <ManualROICard
                   tableId={table.id}
-                  spend={totals.cost}
-                  leads={Math.round(totals.conversions)}
-                  currency={gaCurrency}
+                  spend={figures.spend}
+                  leads={figures.leads}
+                  currency={getCurrencySymbol(
+                    table.integration_settings?.currency,
+                  )}
                   initialClosures={
                     table?.integration_settings?.manual_roi?.closures ?? null
                   }

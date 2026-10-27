@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatReportNumber,
-  ratio,
-  resultCellClass,
-} from "./reportTableFormat";
+import { formatReportNumber, ratio, resultCellClass } from "./reportNumber";
 
 describe("formatReportNumber", () => {
-  it("groups thousands and rounds to the given digits", () => {
-    expect(formatReportNumber(12345.678)).toBe("12,346");
-    expect(formatReportNumber(3.14159, 2)).toBe("3.14");
+  it("rounds to whole numbers by default and groups thousands", () => {
+    expect(formatReportNumber(1234.6)).toBe("1,235");
+  });
+
+  it("keeps up to the given fraction digits", () => {
+    expect(formatReportNumber(2.345, 2)).toBe("2.35");
+    expect(formatReportNumber(3, 1)).toBe("3");
   });
 });
 

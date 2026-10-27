@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
-import { ratio } from "@/lib/reportTableFormat";
+import { ratio } from "@/lib/reportNumber";
 import type {
   GoogleAdsCampaignSummaryRow,
   GoogleAdsFormatters,

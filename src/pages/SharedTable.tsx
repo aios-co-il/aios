@@ -1,4 +1,3 @@
-import { googleCampaignRowsByGoal } from "@/components/SharedTable/googleCampaignRowsByGoal";
 import { useSharedTableGoals } from "@/components/SharedTable/useSharedTableGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
@@ -67,16 +66,13 @@ import {
   getPurchasesFromData,
   getRevenueFromData,
   getSessionsFromData,
-  isFacebookLeadsOnlyTable,
-  type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
-import { groupSharedFacebookRows } from "@/components/SharedTable/sharedFacebookGroups";
-import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
-import { sharedManualRoiFigures } from "@/components/SharedTable/sharedManualRoi";
 import {
-  SharedTrafficTable,
-  type SharedCampaignRow,
-} from "@/components/SharedTable/SharedTrafficTable";
+  isAdsPlatform,
+  isAnalyticsPlatform,
+  sharedIntegrationReport,
+} from "@/components/SharedTable/sharedIntegrationReport";
+import { SharedTrafficTable } from "@/components/SharedTable/SharedTrafficTable";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
@@ -87,19 +83,12 @@ import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import { formatUnitCost, getCurrencySymbol } from "@/lib/currency";
 import {
   ADS_ENTITY_LEVEL_LABELS,
-  aggregateFacebookRecordsAtLevel,
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
 
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
 const DATE_FILTERS = SHARED_TABLE_DATE_FILTERS;
-
-const isAnalyticsPlatform = (s: string) => s === "google_analytics";
-const isAdsPlatform = (s: string) =>
-  ["facebook_insights", "facebook_ecommerce", "google_ads"].includes(s);
-const isFacebookPlatform = (s: string) =>
-  ["facebook_insights", "facebook_ecommerce"].includes(s);
 
 const isEcommerceRecord = (d: any) =>
   String(d?.campaign_type || "").toLowerCase() === "ecommerce" ||
@@ -334,128 +323,28 @@ export default function SharedTable() {
     return filterRecordsByEntityLevel(records, adsEntityLevel);
   }, [data, integrationType, adsEntityLevel]);
 
-  // Facebook Insights: sales, lead and traffic campaigns each in their own table,
-  // like the internal report. Only campaign_type leads keeps everything in leads.
-  const facebookLeadsOnly = isFacebookLeadsOnlyTable(
-    data?.table?.integration_settings,
-  );
-  const facebookGroups = useMemo(() => {
-    if (integrationType !== "facebook_insights") {
-      return null;
-    }
-    return groupSharedFacebookRows(filteredRecords, adsEntityLevel, {
-      leadsOnly: facebookLeadsOnly,
-    });
-  }, [filteredRecords, integrationType, adsEntityLevel, facebookLeadsOnly]);
-  const campaignGoals = useMemo(() => {
-    if (!facebookGroups) {
-      return tableGoals;
-    }
-    return {
-      hasEcommerce: facebookGroups.ecommerce.length > 0,
-      hasLeads: facebookGroups.leads.length > 0,
-    };
-  }, [tableGoals, facebookGroups]);
-  const forceLeadsOnly = !campaignGoals.hasEcommerce;
-
-  // Summary for integration tables
-  const summary = useMemo(() => {
-    if (!isIntegrationTable) {
-      return null;
-    }
-    return summarizeSharedTableRecords(filteredRecords, {
-      integrationType: integrationType || "",
-      goalOf: tableGoals.goalOf ?? facebookGroups?.goalOf ?? null,
-      goals: campaignGoals,
-    });
-  }, [
-    filteredRecords,
-    integrationType,
-    isIntegrationTable,
-    tableGoals,
-    facebookGroups,
-    campaignGoals,
-  ]);
-
-  // Campaign/adset/ad aggregation for Facebook / Google Ads
-  const campaignSummary = useMemo((): {
-    ecommerce: SharedCampaignRow[];
-    leads: SharedCampaignRow[];
-    traffic: SharedCampaignRow[];
-    all: SharedCampaignRow[];
-    entityColumnLabel?: string;
-  } => {
-    if (!isAdsPlatform(integrationType || ""))
-      return { ecommerce: [], leads: [], traffic: [], all: [] };
-
-    const entityColumnLabel =
-      adsEntityLevel === "ad"
-        ? "מודעה"
-        : adsEntityLevel === "adset"
-          ? "קבוצת מודעות"
-          : "קמפיין";
-
-    if (isFacebookPlatform(integrationType || "")) {
-      const facebookRows = (rows: FacebookCampaignRow[]) =>
-        rows.map((c) => ({
-          name: c.name,
-          spend: c.spend,
-          impressions: c.impressions,
-          clicks: c.clicks,
-          leads: Math.round(c.leads),
-          purchases: c.purchases,
-          revenue: c.purchase_value,
-          addToCart: c.add_to_cart,
-          followers: c.followers,
-        }));
-
-      if (facebookGroups) {
-        const ecommerce = facebookRows(facebookGroups.ecommerce);
-        const leads = facebookRows(facebookGroups.leads);
-        const traffic = facebookRows(facebookGroups.traffic);
-        return {
-          ecommerce,
-          leads,
-          traffic,
-          all: [...ecommerce, ...leads, ...traffic],
-          entityColumnLabel,
-        };
-      }
-      // facebook_ecommerce: a sales report by definition.
-      const rows = facebookRows(
-        aggregateFacebookRecordsAtLevel(filteredRecords, adsEntityLevel),
-      );
-      return {
-        ecommerce: rows,
-        leads: [],
-        traffic: [],
-        all: rows,
-        entityColumnLabel,
-      };
-    }
-
-    const { ecommerce, leads, all } = googleCampaignRowsByGoal(
-      filteredRecords,
-      adsEntityLevel,
-      tableGoals.goalOf ?? (() => tableMode),
-    );
-    return { ecommerce, leads, traffic: [], all, entityColumnLabel };
-  }, [
-    filteredRecords,
-    integrationType,
-    facebookGroups,
-    tableGoals,
-    tableMode,
-    adsEntityLevel,
-  ]);
-
-  const manualRoiFigures = summary
-    ? sharedManualRoiFigures({
-        leadRows: campaignSummary.leads,
-        summary,
+  // KPIs, campaign tables and manual ROI: each campaign counts toward its own
+  // goal, like the internal report.
+  const report = useMemo(
+    () =>
+      sharedIntegrationReport(filteredRecords, {
+        integrationType: integrationType || "",
+        level: adsEntityLevel,
         integrationSettings: data?.table?.integration_settings,
-      })
-    : null;
+        tableGoals,
+        tableMode,
+      }),
+    [
+      filteredRecords,
+      integrationType,
+      adsEntityLevel,
+      data?.table?.integration_settings,
+      tableGoals,
+      tableMode,
+    ],
+  );
+  const { summary, campaigns: campaignSummary, manualRoi } = report;
+  const forceLeadsOnly = !report.goals.hasEcommerce;
 
   // Generic table columns from fields or data keys
   const genericColumns = useMemo(() => {
@@ -975,7 +864,7 @@ export default function SharedTable() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-right">
-                          {campaignSummary.entityColumnLabel || "קמפיין"}
+                          {campaignSummary.entityColumnLabel}
                         </TableHead>
                         <TableHead className="text-right">הוצאה</TableHead>
                         <TableHead className="text-right">חשיפות</TableHead>
@@ -1110,7 +999,7 @@ export default function SharedTable() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-right">
-                          {campaignSummary.entityColumnLabel || "קמפיין"}
+                          {campaignSummary.entityColumnLabel}
                         </TableHead>
                         <TableHead className="text-right">הוצאה</TableHead>
                         <TableHead className="text-right">חשיפות</TableHead>
@@ -1202,7 +1091,7 @@ export default function SharedTable() {
           campaignSummary.traffic.length > 0 && (
             <SharedTrafficTable
               rows={campaignSummary.traffic}
-              entityColumnLabel={campaignSummary.entityColumnLabel || "קמפיין"}
+              entityColumnLabel={campaignSummary.entityColumnLabel}
               formatCurrency={formatCurrency}
               formatUnitCost={formatTableUnitCost}
               formatNumber={formatNumber}
@@ -1212,11 +1101,11 @@ export default function SharedTable() {
         {/* Manual ROI summary — viewers can fill in closures & revenue */}
         {isAdsPlatform(integrationType || "") &&
           adsReportView === "summary" &&
-          manualRoiFigures && (
+          manualRoi && (
             <ManualROICard
               tableId={data.table.id}
-              spend={manualRoiFigures.spend}
-              leads={manualRoiFigures.leads}
+              spend={manualRoi.spend}
+              leads={manualRoi.leads}
               currency={(() => {
                 const code = (
                   (data?.table?.integration_settings as any)?.currency || "ILS"

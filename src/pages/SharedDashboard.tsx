@@ -57,7 +57,6 @@ import {
   getSpendFromData,
   getUsersFromData,
   hasAddToCartMetric,
-  classifyFacebookRecord,
   aggregateFacebookCampaignsFromRecords,
   groupFacebookCampaigns,
   facebookTableUsesMixedRows,
@@ -96,6 +95,10 @@ import {
   sumWooRevenue,
 } from "@/lib/wooOrderRevenue";
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import {
+  facebookRecordGoalOf,
+  groupFacebookRowsByGoal,
+} from "@/lib/facebookGoalGroups";
 
 const DATE_FILTERS = SHARED_COMBINED_DASHBOARD_DATE_FILTERS;
 
@@ -610,7 +613,7 @@ export default function SharedDashboard({
     });
     // Lock google_ads to leads when unset — noisy pixel events must not flip GA ecommerce tables.
     // facebook_insights stays unlocked unless integration_settings.campaign_type is explicit;
-    // mixed FB accounts classify each campaign row (see classifyFacebookRecord).
+    // mixed FB accounts classify each campaign (see groupFacebookRowsByGoal).
     ["google_ads"].forEach((key) => {
       if (!map[key] && tables.some((t: any) => t.integration_type === key)) {
         map[key] = "leads";
@@ -657,6 +660,15 @@ export default function SharedDashboard({
 
   const summaryByPlatform = useMemo(() => {
     const platforms: Record<string, any> = {};
+    // Mixed Facebook KPIs classify whole campaigns, as the campaign tables do:
+    // one campaign's days can look like different goals on their own.
+    const facebookGoalOf = facebookRecordGoalOf(
+      filteredRecords.filter((record: { _source?: string }) =>
+        isFacebookPlatform(record._source || ""),
+      ),
+      "campaign",
+      { leadsOnly: false },
+    );
     filteredRecords.forEach((record: any) => {
       const rawSource = record._source || "unknown";
       const source = normalizePlatformKey(rawSource);
@@ -698,7 +710,7 @@ export default function SharedDashboard({
           facebookTableUsesMixedRows(rawSource, record._integrationSettings);
 
         if (useMixedFacebook) {
-          const kind = classifyFacebookRecord(d);
+          const kind = facebookGoalOf(d);
           if (kind === "traffic") return;
           platforms[source].leads += getLeadsFromData(d);
           if (kind === "ecommerce") {
@@ -1060,8 +1072,12 @@ export default function SharedDashboard({
       return { ...grouped, all };
     }
 
-    const grouped = groupFacebookCampaigns(all, { forceLeadsOnly });
-    return { ...grouped, all };
+    const { ecommerce, leads, traffic } = groupFacebookRowsByGoal(
+      fbRecords,
+      "campaign",
+      { leadsOnly: forceLeadsOnly },
+    );
+    return { ecommerce, leads, traffic, all };
   }, [filteredRecords, tables, facebookMixedMode, campaignTypeByPlatform]);
 
   type PlatformBreakdownRowKind = "ecommerce" | "leads" | "standard";

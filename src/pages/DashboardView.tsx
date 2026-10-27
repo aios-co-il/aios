@@ -76,7 +76,6 @@ import {
   getSpendFromData,
   getUsersFromData,
   hasAddToCartMetric,
-  classifyFacebookRecord,
   aggregateFacebookCampaignsFromRecords,
   groupFacebookCampaigns,
   facebookTableUsesMixedRows,
@@ -111,7 +110,14 @@ import {
   shouldUseGoogleWooAttributionOverlay,
   summarizeGoogleAttributedWooOrders,
 } from "@/lib/wooAttribution";
-import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import {
+  filterCampaignLevelAdsRecords,
+  shouldIncludeInAdsDashboardAggregate,
+} from "@/lib/adsEntityLevel";
+import {
+  facebookRecordGoalOf,
+  groupFacebookRowsByGoal,
+} from "@/lib/facebookGoalGroups";
 import {
   LineChart,
   Line,
@@ -805,6 +811,15 @@ export default function DashboardView() {
   const summaryByPlatform = useMemo(() => {
     const platforms: Record<string, any> = {};
     const tableById = new Map(tables.map((t: any) => [t.id, t]));
+    // Mixed Facebook KPIs classify whole campaigns, as the campaign tables do:
+    // one campaign's days can look like different goals on their own.
+    const facebookGoalOf = facebookRecordGoalOf(
+      filteredRecords.filter((record) =>
+        isFacebookPlatform(record._source || ""),
+      ),
+      "campaign",
+      { leadsOnly: false },
+    );
 
     filteredRecords.forEach((record: any) => {
       const rawSource = record._source || "unknown";
@@ -857,7 +872,7 @@ export default function DashboardView() {
           );
 
         if (useMixedFacebook) {
-          const kind = classifyFacebookRecord(data);
+          const kind = facebookGoalOf(data);
           if (kind === "traffic") return;
           platforms[source].leads += getLeadsFromData(data);
           if (kind === "ecommerce") {
@@ -1345,8 +1360,12 @@ export default function DashboardView() {
       return { ...grouped, all };
     }
 
-    const grouped = groupFacebookCampaigns(all, { forceLeadsOnly });
-    return { ...grouped, all };
+    const { ecommerce, leads, traffic } = groupFacebookRowsByGoal(
+      filterCampaignLevelAdsRecords(fbRecords, "facebook_insights"),
+      "campaign",
+      { leadsOnly: forceLeadsOnly },
+    );
+    return { ecommerce, leads, traffic, all };
   }, [
     platformFilter,
     displayAllRecords,

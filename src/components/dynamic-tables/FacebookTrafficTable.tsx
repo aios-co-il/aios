@@ -6,11 +6,7 @@ import {
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
-import {
-  formatReportNumber,
-  ratio,
-  resultCellClass,
-} from "@/lib/reportTableFormat";
+import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
 import type {
   FacebookReportCampaign,
   FacebookReportEntry,
