@@ -2,6 +2,7 @@ import { assertEquals, assertMatch } from "jsr:@std/assert@1";
 import {
   CALL_SITE_LISTS,
   type CallSiteLists,
+  FOLLOW_UPS,
   GUARDED_SENDERS,
   KNOWN_UNSTAMPED_CALLERS,
 } from "./call-site-allowlist.ts";
@@ -44,11 +45,13 @@ Deno.test("each file is in one list, with its proof or issue", async () => {
     }
   }
   // Deno CI runs --no-check, so the FollowUpNote type alone does not hold.
-  for (const note of [
+  const issues = FOLLOW_UPS.map((issue) => issue.replace(/[()]/g, "\\$&"));
+  const note = new RegExp(`^(${issues.join("|")}) \\S`);
+  for (const entry of [
     ...Object.values(CALL_SITE_LISTS.bypasses),
     ...Object.values(CALL_SITE_LISTS.unstampedCallers),
   ]) {
-    assertMatch(note, /^AIO-(261\(b\)|246|248|267) \S/);
+    assertMatch(entry, note);
   }
 });
 
@@ -73,6 +76,12 @@ const lists = (fields: Partial<CallSiteLists>): CallSiteLists => ({
 const GREEN_SEND =
   "await fetch(`https://api.green-api.com/waInstance${id}/sendMessage/${token}`);";
 const GUARD = "const decision = await authorizeClientSend(db, request);";
+
+const STAMPED_SEND =
+  'fetch(`${u}/functions/v1/send-x`, { body: JSON.stringify({ sendKind: "x" }) });';
+
+const UNSTAMPED_SEND =
+  "fetch(`${u}/functions/v1/send-x`, { body: JSON.stringify({ to }) });";
 
 const file = (path: string, ...lines: string[]): SourceFile => ({
   path,
@@ -122,15 +131,19 @@ Deno.test("checkCallSites", async (t) => {
     assertEquals(report.staleListed, ["fixed/index.ts"]);
   });
 
-  await t.step("callers of a guarded sender must name a sendKind", () => {
+  await t.step("each call of a guarded sender must name a sendKind", () => {
     const report = checkCallSites(
       [
         file("send-x/index.ts", GUARD, GREEN_SEND, '"send-x"'),
-        file("literal/index.ts", "fetch(`${url}/functions/v1/send-x`)"),
-        file("built/index.ts", 'call("send-x"); `functions/v1/${name}`'),
-        file("stamped/index.ts", "`functions/v1/send-x` sendKind"),
+        file("literal/index.ts", "fetch(`${url}/functions/v1/send-x`, {});"),
+        file(
+          "built/index.ts",
+          'call("send-x", {});',
+          "fetch(`${url}/functions/v1/${name}`);",
+        ),
+        file("stamped/index.ts", STAMPED_SEND),
         file("named/index.ts", 'const routes = ["send-x"];'),
-        file("listed/index.ts", "fetch(`${url}/functions/v1/send-x`)"),
+        file("listed/index.ts", STAMPED_SEND, UNSTAMPED_SEND),
       ],
       lists({
         guarded: { "send-x/index.ts": "in_file" },
@@ -141,9 +154,34 @@ Deno.test("checkCallSites", async (t) => {
       }),
     );
     assertEquals(report.unstampedCallers, [
-      "literal/index.ts",
-      "built/index.ts",
+      "literal/index.ts:1",
+      "built/index.ts:1",
     ]);
     assertEquals(report.staleUnstamped, ["stamped/index.ts"]);
+  });
+
+  await t.step("one stamped call does not cover another in the file", () => {
+    const report = checkCallSites(
+      [file("mixed/index.ts", STAMPED_SEND, UNSTAMPED_SEND)],
+      lists({ guarded: { "send-x/index.ts": "in_file" } }),
+    );
+    assertEquals(report.unstampedCallers, ["mixed/index.ts:2"]);
+  });
+
+  await t.step("an injected guard does not wire the real one", () => {
+    const report = checkCallSites(
+      [
+        file("split/gateway.ts", GREEN_SEND),
+        file(
+          "split/prepare.ts",
+          "type Deps = { authorizeClientSend(request: Request): Promise<D> };",
+          "await deps.authorizeClientSend(request);",
+        ),
+      ],
+      lists({
+        guarded: { "split/gateway.ts": { proof: "split/gateway.test.ts" } },
+      }),
+    );
+    assertEquals(report.folderUnguarded, ["split/gateway.ts"]);
   });
 });

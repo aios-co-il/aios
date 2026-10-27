@@ -4,7 +4,15 @@
 // and unstamped lists may only shrink. Paths are relative to
 // supabase/functions.
 
-export type FollowUp = "AIO-261(b)" | "AIO-246" | "AIO-248" | "AIO-267";
+/** The issues that empty these lists. */
+export const FOLLOW_UPS = [
+  "AIO-261(b)",
+  "AIO-246",
+  "AIO-248",
+  "AIO-267",
+] as const;
+
+export type FollowUp = (typeof FOLLOW_UPS)[number];
 
 /** The issue that fixes the entry, then why it is listed. */
 export type FollowUpNote = `${FollowUp} ${string}`;
@@ -64,7 +72,11 @@ export const KNOWN_BYPASSES: CallSiteLists["bypasses"] = {
   "trigger-automation/index.ts": "AIO-267 direct Green, Manus, Telegram steps",
 };
 
-/** Callers of a guarded sender that name no sendKind, so they are observed. */
+/**
+ * Files with a call of a guarded sender that names no sendKind, so it is
+ * observed. Checked per call (call-site-stamps.ts): a file listed here may
+ * also hold stamped calls.
+ */
 export const KNOWN_UNSTAMPED_CALLERS: CallSiteLists["unstampedCallers"] = {
   "_shared/agent-channel/whatsapp-direct.ts": "AIO-261(b) staff_alert",
   "agent-heartbeat/index.ts": "AIO-261(b) staff_alert; no senderUserId yet",
@@ -73,9 +85,13 @@ export const KNOWN_UNSTAMPED_CALLERS: CallSiteLists["unstampedCallers"] = {
   "process-new-recording/index.ts": "AIO-261(b) staff_alert",
   "test-campaign-monitor/index.ts": "AIO-261(b) staff_alert",
   "carmen-activate-phone/index.ts": "AIO-248 carmen with its activation ref",
+  "carmen-introduce-group/index.ts": "AIO-248 activation codes, as carmen",
+  "manus-wa-webhook/index.ts": "AIO-248 activation confirmations and acks",
   "run-ai-agent/index.ts": "AIO-248 send tools by surface, stamped carmen",
   "_shared/crm-whatsapp-send.ts": "AIO-267 automation with its id",
   "meta-whatsapp-warm/index.ts": "AIO-267 warm replies skip clients",
+  "meta-whatsapp-webhook/index.ts": "AIO-267 the warm opt-in thanks reply",
+  "trigger-automation/index.ts": "AIO-267 Meta step, stamped only for a client",
 };
 
 export const CALL_SITE_LISTS: CallSiteLists = {

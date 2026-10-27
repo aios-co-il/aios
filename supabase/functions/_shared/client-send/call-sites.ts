@@ -1,7 +1,10 @@
 // The scan behind call-sites.test.ts (AIO-261): which edge files talk to a
-// message provider directly, and whether each one goes through the client
-// send guard. It reads source text and runs nothing.
+// message provider directly, whether each one goes through the client send
+// guard, and whether each call of a guarded sender names its sendKind. It
+// reads source text and runs nothing.
 import type { CallSiteLists } from "./call-site-allowlist.ts";
+import { senderCalls } from "./call-site-stamps.ts";
+import { maskSource } from "./source-mask.ts";
 
 /** A source file, its path relative to supabase/functions. */
 export type SourceFile = { path: string; text: string };
@@ -20,7 +23,12 @@ export const PROVIDER_SEND_PATTERNS: Record<string, RegExp> = {
   calendar_invite: /sendUpdates["']?\s*[:=]\s*["']?all\b/,
 };
 
-const GUARD_CALL = /\bauthorizeClientSend\(/;
+/**
+ * A direct call of the guard. An injected `deps.authorizeClientSend(` or a
+ * typed signature `authorizeClientSend(request: …)` does not count: the
+ * folder must also wire the real one.
+ */
+const GUARD_CALL = /(?<![.\w$])authorizeClientSend\((?!\s*[\w$]+\s*\??:)/;
 
 export type CallSiteReport = {
   /** Provider files in none of the lists. */
@@ -31,9 +39,9 @@ export type CallSiteReport = {
   folderUnguarded: string[];
   /** Listed files that no longer call a provider: drop them. */
   staleListed: string[];
-  /** Callers of a guarded sender that never name a sendKind. */
+  /** Calls of a guarded sender that name no sendKind, as path:line. */
   unstampedCallers: string[];
-  /** Listed unstamped callers that now stamp, or no longer call: drop them. */
+  /** Listed unstamped callers whose every call now stamps: drop them. */
   staleUnstamped: string[];
 };
 
@@ -50,9 +58,9 @@ export function checkCallSites(
     ...Object.keys(lists.bypasses),
   ]);
   const unstamped = files
-    .filter((file) => callsGuardedSender(file, lists))
-    .filter((file) => !file.text.includes("sendKind"))
-    .map((file) => file.path);
+    .map((file) => ({ path: file.path, lines: unstampedLines(file, lists) }))
+    .filter((file) => file.lines.length > 0);
+  const unstampedPaths = unstamped.map((file) => file.path);
   const knownUnstamped = Object.keys(lists.unstampedCallers);
   return {
     unlisted: [...senderPaths].filter((path) => !listed.has(path)),
@@ -67,10 +75,12 @@ export function checkCallSites(
       )
       .map(([path]) => path),
     staleListed: [...listed].filter((path) => !senderPaths.has(path)),
-    unstampedCallers: unstamped.filter(
-      (path) => !knownUnstamped.includes(path),
+    unstampedCallers: unstamped
+      .filter((file) => !knownUnstamped.includes(file.path))
+      .flatMap((file) => file.lines.map((line) => `${file.path}:${line}`)),
+    staleUnstamped: knownUnstamped.filter(
+      (path) => !unstampedPaths.includes(path),
     ),
-    staleUnstamped: knownUnstamped.filter((path) => !unstamped.includes(path)),
   };
 }
 
@@ -101,29 +111,26 @@ function guardComesFirst(text: string): boolean {
   return guard !== undefined && guard[0] < firstSend;
 }
 
-/** Some file of the folder, tests aside, calls the guard. */
+/** Some file of the folder, tests and comments aside, calls the guard. */
 function folderCallsGuard(files: SourceFile[], folder: string): boolean {
   return files.some(
-    (file) => folderOf(file.path) === folder && GUARD_CALL.test(file.text),
+    (file) =>
+      folderOf(file.path) === folder &&
+      GUARD_CALL.test(maskSource(file.text).plain),
   );
 }
 
 /**
- * A literal functions/v1/<sender> URL, or a sender's quoted name in a file
- * that builds functions/v1/${…} URLs. A sender's own folder is not a caller.
+ * The lines of the file's calls of a guarded sender (call-site-stamps.ts)
+ * that name no sendKind. A sender's own folder is not a caller.
  */
-function callsGuardedSender(file: SourceFile, lists: CallSiteLists): boolean {
-  const builds = file.text.includes("functions/v1/${");
-  return Object.keys(lists.guarded).some((path) => {
-    const name = folderOf(path);
-    if (folderOf(file.path) === name) {
-      return false;
-    }
-    return (
-      file.text.includes(`functions/v1/${name}`) ||
-      (builds && new RegExp(`["'\`]${name}["'\`]`).test(file.text))
-    );
-  });
+function unstampedLines(file: SourceFile, lists: CallSiteLists): number[] {
+  const senders = [...new Set(Object.keys(lists.guarded).map(folderOf))].filter(
+    (name) => name !== folderOf(file.path),
+  );
+  return senderCalls(file.text, senders)
+    .filter((call) => !call.stamped)
+    .map((call) => call.line);
 }
 
 /** Lines with their 0-based index, without comment-only lines. */
