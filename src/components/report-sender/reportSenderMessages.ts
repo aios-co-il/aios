@@ -1,3 +1,5 @@
+import type { NamedSenderSource } from "../../../supabase/functions/_shared/report-sender/pick.ts";
+
 /** Hebrew text for every report-sender code the UI can meet. */
 export const REPORT_SENDER_MESSAGES = {
   loading: "טוען את טלפוני השליחה, נסו שוב בעוד רגע",
@@ -62,7 +64,7 @@ export function isReportSenderMessageKey(
  */
 export function pickErrorKey<K extends ReportSenderMessageKey>(pick: {
   error: K;
-  refused?: string;
+  refused?: NamedSenderSource;
 }): K | "stale_default" {
   return pick.refused === "tenant_default" ? "stale_default" : pick.error;
 }
