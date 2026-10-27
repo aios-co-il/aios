@@ -3,11 +3,12 @@
  * integration. When those are missing or refused, the tenant's OpenRouter brain is the last
  * link of that chain, resolved exactly as if the user had picked it (resolveBrainEngine): its
  * route must be active, the user must hold its grant, and its owner must have approved client
- * data for it.
+ * data for it. Like the smart router, it runs unpicked only when marked free.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { tenantOpenRouterConnectionId } from "../../creative/openrouterImage.ts";
+import { sanitizeProfile } from "../brain-connections/profile.ts";
 import { type BrainEngineTarget, resolveBrainEngine } from "./load.ts";
+import { runsUnpicked } from "./plan.ts";
 
 /** The chain with the tail's targets appended, each connection once. */
 export function withBrainTail<T extends { connectionId?: string }>(
@@ -82,7 +83,23 @@ export async function openRouterTail(
     tenantId = agent?.tenant_id ?? tenantId;
   }
   if (!tenantId) return [];
-  const connectionId = await tenantOpenRouterConnectionId(sb, tenantId);
+  // Only a free brain runs without being picked (the smart router's rule): a paid one has no
+  // budget ledger yet (AIO-211).
+  const { data: conns } = await sb
+    .from("carmen_brain_connections")
+    .select("id, base_url, model, profile, key_last4")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "chat_model")
+    .eq("provider_preset", "openrouter")
+    .order("created_at", { ascending: true });
+  const connectionId = (conns ?? []).find((c: Record<string, unknown>) =>
+    runsUnpicked({
+      base_url: (c.base_url as string | null) ?? null,
+      model: (c.model as string | null) ?? null,
+      key_last4: (c.key_last4 as string | null) ?? null,
+      profile: sanitizeProfile(c.profile),
+    }),
+  )?.id as string | undefined;
   if (!connectionId) return [];
   const { data: route } = await sb
     .from("agent_brain_routes")

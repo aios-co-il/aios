@@ -48,7 +48,7 @@ const openRouterConnection = {
   name: "OpenRouter",
   base_url: "https://8.8.8.8/api/v1",
   model: "google/gemini-3-flash-preview",
-  profile: { client_data_ok: true },
+  profile: { tier: "free", client_data_ok: true },
   key_last4: "abcd",
   created_at: "2026-10-01",
 };
@@ -139,7 +139,10 @@ Deno.test(
       fakeDb(
         tables({
           carmen_brain_connections: [
-            { ...openRouterConnection, profile: { client_data_ok: false } },
+            {
+              ...openRouterConnection,
+              profile: { tier: "free", client_data_ok: false },
+            },
           ],
         }),
       ),
@@ -147,6 +150,58 @@ Deno.test(
       { tenant_id: TENANT },
     );
     assertEquals(targets, []);
+  },
+);
+
+Deno.test(
+  "a paid or untiered OpenRouter brain never runs unpicked",
+  async () => {
+    for (const profile of [
+      { tier: "premium", client_data_ok: true },
+      { client_data_ok: true },
+    ]) {
+      const targets = await openRouterTail(
+        fakeDb(
+          tables({
+            carmen_brain_connections: [{ ...openRouterConnection, profile }],
+          }),
+        ),
+        { kind: "user", userId: "u1" },
+        { tenant_id: TENANT },
+      );
+      assertEquals(targets, []);
+    }
+  },
+);
+
+Deno.test(
+  "a free OpenRouter brain is used even when a paid one was connected first",
+  async () => {
+    const targets = await openRouterTail(
+      fakeDb(
+        tables({
+          carmen_brain_connections: [
+            {
+              ...openRouterConnection,
+              id: "conn-paid",
+              slug: "openrouter-paid",
+              profile: { tier: "premium", client_data_ok: true },
+            },
+            openRouterConnection,
+          ],
+          agent_brain_routes: [
+            { ...route, slug: "a-paid", connection_id: "conn-paid" },
+            route,
+          ],
+        }),
+      ),
+      { kind: "user", userId: "u1" },
+      { tenant_id: TENANT },
+    );
+    assertEquals(
+      targets.map((target) => target.connectionId),
+      ["conn-or"],
+    );
   },
 );
 
