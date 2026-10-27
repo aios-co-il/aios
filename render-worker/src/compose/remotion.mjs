@@ -13,22 +13,61 @@ const remotionDir = () =>
     "../../../workers/creative-video/remotion",
   );
 
-const run = (command, args, cwd) =>
+/** A render still running after this long is stopped (REMOTION_TIMEOUT_MS overrides it). */
+const RENDER_TIMEOUT_MS = () =>
+  Number(process.env.REMOTION_TIMEOUT_MS) || 20 * 60_000;
+
+/**
+ * Runs the render job in its own process group, so a stop also ends the browser Remotion
+ * starts: after timeoutMs, or when the worker itself exits.
+ */
+const run = (command, args, cwd, timeoutMs) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       stdio: ["ignore", "inherit", "pipe"],
+      detached: true,
     });
+    const stop = () => {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    };
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      stop();
+    }, timeoutMs);
+    process.on("exit", stop);
+    const settle = (error) => {
+      clearTimeout(timer);
+      process.off("exit", stop);
+      if (error) reject(error);
+      else resolve();
+    };
     let stderr = "";
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk).slice(-2000);
     });
-    child.on("error", reject);
-    child.on("close", (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`remotion ${code}: ${stderr.slice(-800)}`)),
-    );
+    child.on("error", settle);
+    child.on("exit", () => {
+      if (timedOut)
+        settle(
+          new Error(
+            `remotion render timed out after ${Math.round(timeoutMs / 1000)} s`,
+          ),
+        );
+    });
+    child.on("close", (code) => {
+      if (timedOut) return;
+      settle(
+        code === 0
+          ? null
+          : new Error(`remotion ${code}: ${stderr.slice(-800)}`),
+      );
+    });
   });
 
 /** Media lengths and audio tracks the edit needs; an unreadable file keeps the defaults. */
@@ -97,7 +136,11 @@ export async function assembleWithRemotion(
   timeline,
   outputPath,
   workDir,
-  { probeFile = probe, prepare = prepareSound } = {},
+  {
+    probeFile = probe,
+    prepare = prepareSound,
+    timeoutMs = RENDER_TIMEOUT_MS(),
+  } = {},
 ) {
   const stage = join(workDir, "remotion");
   await mkdir(stage, { recursive: true });
@@ -112,6 +155,7 @@ export async function assembleWithRemotion(
     process.execPath,
     [join(remotionDir(), "render-job.mjs"), manifestPath, outputPath],
     remotionDir(),
+    timeoutMs,
   );
   return {
     outputPath,
