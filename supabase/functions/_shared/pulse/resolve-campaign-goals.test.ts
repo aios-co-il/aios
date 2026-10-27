@@ -1,5 +1,5 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
-import { resolveCampaignGoals } from "./resolve-campaign-goals.ts";
+import { resolveCampaignGoals, voteSpend } from "./resolve-campaign-goals.ts";
 
 Deno.test("a stronger signal beats a goal backed by more spend", () => {
   const goals = resolveCampaignGoals([
@@ -28,3 +28,13 @@ Deno.test("unknown wins only when nothing else is known", () => {
   assertStrictEquals(goals.get("a"), "leads");
   assertStrictEquals(goals.get("b"), "unknown");
 });
+
+Deno.test(
+  "voteSpend reads spend, then cost, and parses numeric strings",
+  () => {
+    assertStrictEquals(voteSpend({ spend: 5, cost: 9 }), 5);
+    assertStrictEquals(voteSpend({ cost: "12.5" }), 12.5);
+    assertStrictEquals(voteSpend({ spend: "n/a" }), 0);
+    assertStrictEquals(voteSpend({}), 0);
+  },
+);

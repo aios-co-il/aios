@@ -3,6 +3,7 @@ import {
   isEcommerceReportTable,
   tableReportGoal,
 } from "./pulse-campaign-goals.mjs";
+import { isConfirmedGoogleSalesCampaign } from "./pulse/google-sales-campaign.ts";
 
 const MOOD_STATUS_LABELS = {
   happy: "😊 מבסוט / תקין",
@@ -72,12 +73,7 @@ function effectiveCampaignGoal(row, table) {
   if (!table || row.goal !== "ecommerce") return row.goal;
   if (isEcommerceReportTable(table)) return row.goal;
   if (rowConfirmsSalesObjective(row)) return "ecommerce";
-  // A Google campaign whose goal came from its own conversion goal (or a manual
-  // mapping) is a sales campaign even inside a leads report.
-  if (
-    table.integration_type === "google_ads" &&
-    ["platform_goal", "explicit_mapping"].includes(row.classification_source)
-  ) {
+  if (isConfirmedGoogleSalesCampaign(row, table)) {
     return "ecommerce";
   }
   return "leads";
@@ -395,6 +391,10 @@ function rowHasIssue(issues) {
   return Object.values(issues).some((issue) => issue && issue.level !== "ok");
 }
 
+/**
+ * One attention row per client and platform that has an issue.
+ * @param {{ campaignRows?: object[], tables?: object[], clients?: object[] }} input
+ */
 export function buildPulseAttentionRows({
   campaignRows = [],
   tables = [],

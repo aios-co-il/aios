@@ -1,4 +1,9 @@
-import { resolveCampaignGoals } from "./pulse/resolve-campaign-goals.ts";
+import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
+import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
+import {
+  resolveCampaignGoals,
+  voteSpend,
+} from "./pulse/resolve-campaign-goals.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -393,71 +398,21 @@ function hasExplicitLeadSignals(data = {}, context = {}) {
   return goalFromExplicitLeadSignals(data, context) === "leads";
 }
 
-const PULSE_GOAL_SET = new Set(PULSE_CAMPAIGN_GOALS);
-
-/** A goal set by hand for one campaign in the report settings (`pulse_campaign_goals`). */
-function goalFromCampaignOverride(data = {}, settings = {}) {
-  const overrides = settings.pulse_campaign_goals;
-  if (!overrides || typeof overrides !== "object") {
-    return null;
-  }
-  const id = String(data.campaign_id || data.campaignId || "");
-  const name = String(data.campaign_name || data.campaignName || "").trim();
-  const goal = String((id && overrides[id]) || (name && overrides[name]) || "")
-    .trim()
-    .toLowerCase();
-  return PULSE_GOAL_SET.has(goal) ? goal : null;
-}
-
-/**
- * Google Ads campaigns (Performance Max, Search, Shopping) have no objective.
- * The sync stamps `conversion_goal` from what each campaign converts on; without
- * it the report's own type decides. Conversion value or a clicks-only day never
- * does: lead accounts often give leads a value, and quiet days have no conversions.
- */
-function classifyGoogleCampaignGoal(data = {}, ctx = {}) {
-  const stamped = String(data.conversion_goal || "")
-    .trim()
-    .toLowerCase();
-  if (stamped === "ecommerce" || stamped === "leads") {
-    return { goal: stamped, source: "platform_goal" };
-  }
-
-  // Legacy Make/webhook rows carry the table type per row and `purchases` only on ecommerce tables.
-  const derived = goalFromDerivedCampaignType(data.campaign_type);
-  if (derived === "ecommerce" || derived === "leads") {
-    return { goal: derived, source: "explicit_mapping" };
-  }
-  if (data.purchases !== undefined && data.purchases !== null) {
-    return { goal: "ecommerce", source: "explicit_mapping" };
-  }
-
-  if (String(data.campaign_channel_type || "").toUpperCase() === "SHOPPING") {
-    return { goal: "ecommerce", source: "platform_goal" };
-  }
-
-  const nameGoal = goalFromCampaignName(data.campaign_name);
-  if (nameGoal) {
-    return { goal: nameGoal, source: "explicit_mapping" };
-  }
-
-  return {
-    goal: isEcommerceReportTable(ctx) ? "ecommerce" : "leads",
-    source: "table_report_type",
-  };
-}
-
 /** Classify by campaign objective first; fall back to report type only when unknown. */
 export function classifyPulseCampaignGoal(data = {}, context = {}) {
   const ctx = classificationContext(context);
 
-  const override = goalFromCampaignOverride(data, ctx.integration_settings);
-  if (override) {
+  const override = campaignGoalOverride(data, ctx.integration_settings);
+  if (PULSE_CAMPAIGN_GOALS.includes(override)) {
     return { goal: override, source: "explicit_mapping" };
   }
 
   if (ctx.integration_type === "google_ads") {
-    return classifyGoogleCampaignGoal(data, ctx);
+    return classifyGoogleCampaignGoal(data, {
+      legacyGoal: goalFromDerivedCampaignType(data.campaign_type),
+      nameGoal: goalFromCampaignName(data.campaign_name),
+      reportIsEcommerce: isEcommerceReportTable(ctx),
+    });
   }
 
   const messagingLeadGoal = goalFromMessagingLeadSignals(data);
@@ -981,6 +936,10 @@ function datesBetween(start, end) {
   return dates;
 }
 
+/**
+ * Pulse rows per campaign from report records, one goal per campaign.
+ * @param {{ records?: Array<{ table_id: string, data?: object | null }>, tables?: object[], nowYmd: string }} input
+ */
 export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
   const windows = pulseTrendWindows(nowYmd);
   const tableMap = new Map(tables.map((table) => [table.id, table]));
@@ -1031,7 +990,7 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       key: campaignOf(item),
       goal: item.goal,
       source: item.source,
-      spend: Number(item.record.data.spend ?? item.record.data.cost) || 0,
+      spend: voteSpend(item.record.data),
     })),
   );
 

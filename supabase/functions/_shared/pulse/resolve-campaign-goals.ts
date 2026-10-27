@@ -37,6 +37,14 @@ export function resolveCampaignGoals(
   return result;
 }
 
+/**
+ * The spend a daily row votes with. Google rows carry `cost` instead of
+ * `spend`, and Make/webhook rows can hold numeric strings.
+ */
+export function voteSpend(data: Record<string, unknown>): number {
+  return Number(data.spend ?? data.cost) || 0;
+}
+
 type GoalTally = { rank: number; spend: number };
 
 const GOAL_SOURCE_RANK: Record<string, number> = {
