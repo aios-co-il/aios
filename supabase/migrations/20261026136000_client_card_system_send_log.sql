@@ -73,11 +73,11 @@
 --    acting for that person) logs only chat, attributed to that person
 --    (auth.uid()), never to the sent_by_user_id it names: broadcast, carmen
 --    and automation entries come only from the server. Like every other
---    entry, a chat entry is written in the sending tenant (client_updates
---    is readable only in its own tenant): the client's tenant sees its own
---    sends on the card, an agency read_write tenant sees its own, and
---    neither sees the other's count. The group name is read only from the
---    sending tenant or the client's.
+--    entry, a chat entry is written in the sending tenant; the shared-card
+--    read policy (20261026126000) shows it to everyone who can see the
+--    client, so the client's org and an agency org that shares it see each
+--    other's sends. The group name is read only from the sending tenant or
+--    the client's.
 --
 -- 4. Which client owns a WhatsApp group (resolve_whatsapp_group_client): the
 --    union of clients.whatsapp_group_id, team_channel_whatsapp_links and
@@ -551,9 +551,8 @@ BEGIN
 
     -- chat: one entry per sending tenant per client thread per Israel day,
     -- no message text. The entry lives in the sending tenant, like every
-    -- other entry: client_updates is readable only in its own tenant, so the
-    -- client's tenant and an agency tenant each count their own sends on an
-    -- entry they can see, and neither sees the other's.
+    -- other entry, so the client's org and an agency org that shares it each
+    -- count their own sends; the shared card shows both entries.
     v_day := (v_sent_at AT TIME ZONE 'Asia/Jerusalem')::date;
     v_ref := 'chat:' || NEW.tenant_id::text || ':' || v_client::text || ':'
       || coalesce(NEW.group_id::text, 'dm') || ':'
