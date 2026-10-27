@@ -77,8 +77,9 @@ function effectiveCampaignGoal(row, table) {
   if (
     table.integration_type === "google_ads" &&
     ["platform_goal", "explicit_mapping"].includes(row.classification_source)
-  )
+  ) {
     return "ecommerce";
+  }
   return "leads";
 }
 
@@ -121,8 +122,9 @@ function goalFromRows(rows, configuredGoal = null) {
     return "leads";
   // Rows are already normalized: ecommerce rows left in a leads report are
   // confirmed sales campaigns, so a platform with only those is measured on ROAS.
-  if (configuredGoal === "leads" && best === "ecommerce" && counts.size === 1)
+  if (configuredGoal === "leads" && best === "ecommerce" && counts.size === 1) {
     return "ecommerce";
+  }
   if (configuredGoal === "leads" && best === "ecommerce") return "leads";
   if (configuredGoal && configuredGoal !== "unknown") return configuredGoal;
   if (bestSpend >= 0) return best;
