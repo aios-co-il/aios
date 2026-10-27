@@ -7,7 +7,7 @@ import type { SceneTextPatch, StoryboardScene } from "./storyboardScenes";
 export type SceneDraft = Required<SceneTextPatch>;
 
 /** The lengths workshop_edit_scene_text keeps (and Carmen's workshop_update_scene). */
-export const SCENE_TEXT_LIMITS: Record<keyof SceneDraft, number> = {
+const SCENE_TEXT_LIMITS: Record<keyof SceneDraft, number> = {
   overlay_text: 300,
   voiceover_text: 2000,
   dialogue: 1000,

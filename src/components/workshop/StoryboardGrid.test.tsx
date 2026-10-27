@@ -174,6 +174,12 @@ test("inline edit saves only what changed, and cancel keeps the scene", async ()
   const narration = within(form).getByLabelText("קריינות");
   expect(narration).toHaveValue("היא גם מפוקחת על ידי צוות אנושי");
   expect(within(form).queryByLabelText(/ליפ סינק/)).toBe(null);
+  // The lengths the database keeps (workshop_edit_scene_text).
+  expect(within(form).getByLabelText("טקסט על המסך")).toHaveAttribute(
+    "maxLength",
+    "300",
+  );
+  expect(narration).toHaveAttribute("maxLength", "2000");
   await user.clear(narration);
   await user.type(narration, "צוות אנושי עובד לצידה");
   await user.click(within(form).getByRole("button", { name: /שמירה/ }));
