@@ -41,8 +41,9 @@
 --    org, or an org its agency is shared with) reads every entry on it,
 --    whichever org wrote it. Non-human rows are readable like any other
 --    row. In the browser they can be edited or deleted only by tenant owners
---    and agency owners; campaigners keep editing and deleting their own human
---    rows. The browser may insert only human or system_send rows.
+--    and agency owners of the org that wrote them (the row's tenant_id);
+--    campaigners keep editing and deleting their own human rows. The browser
+--    may insert only human or system_send rows.
 
 ALTER TABLE public.client_updates
   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'human',

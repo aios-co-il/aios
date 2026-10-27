@@ -1,4 +1,8 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import {
   addClientUpdateFromCarmen,
@@ -206,24 +210,51 @@ Deno.test(
   },
 );
 
-Deno.test(
-  "health card entry: a card refusal is returned, not thrown, so the health update stands",
-  async () => {
-    const { supabase, calls } = fakeCardRpc({
-      error: {
-        code: "42501",
-        message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
-      },
-    });
-    const error = await recordHealthCardEntryAfterUpdate(supabase, {
-      tenantId: TENANT,
-      clientId: CLIENT,
-      note: "עלייה בעלות לליד",
-      moodStatus: "wavering",
-      tool: "batch_update_client_health",
-      now: NOW,
-    });
-    assertStrictEquals(calls.length, 1);
-    assertStrictEquals(error?.includes("is not in tenant"), true);
-  },
-);
+Deno.test("recordHealthCardEntryAfterUpdate", async (t) => {
+  const input = {
+    tenantId: TENANT,
+    clientId: CLIENT,
+    note: "עלייה בעלות לליד",
+    moodStatus: "wavering",
+    tool: "batch_update_client_health" as const,
+    now: NOW,
+  };
+
+  await t.step("a written entry adds nothing to the tool result", async () => {
+    const { supabase, rows } = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
+    assertEquals(fields, {});
+    assertStrictEquals(rows.length, 1);
+  });
+
+  await t.step(
+    "a card refusal becomes card_entry_error, so the health update stands",
+    async () => {
+      const { supabase, calls } = fakeCardRpc({
+        error: {
+          code: "42501",
+          message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
+        },
+      });
+      const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
+      assertStrictEquals(calls.length, 1);
+      assertEquals(fields, {
+        card_entry_error: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
+      });
+    },
+  );
+
+  await t.step(
+    "any other failure is rethrown, so the tool reports it",
+    async () => {
+      const outage = new Error("network down");
+      const supabase = {
+        rpc: () => Promise.reject(outage),
+      };
+      const thrown = await assertRejects(() =>
+        recordHealthCardEntryAfterUpdate(supabase, input),
+      );
+      assertStrictEquals(thrown, outage);
+    },
+  );
+});

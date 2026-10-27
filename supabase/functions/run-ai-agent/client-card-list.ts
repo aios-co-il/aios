@@ -1,6 +1,6 @@
-// Carmen's list_updates for a client card (AIO-232): tenant-scoped rows with
-// the author, update_type and source, so Carmen can tell who logged what and
-// which entries were written automatically.
+// Carmen's list_updates for a client card (AIO-232): every entry on a client
+// the caller can access, with the author, update_type and source, so Carmen
+// can tell who logged what and which entries were written automatically.
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
@@ -28,7 +28,11 @@ export type ClientCardListResult =
       instructions_to_agent: string;
     };
 
-/** Carmen's list_updates for a client: tenant-scoped, with author, type and source. */
+/**
+ * Carmen's list_updates for a client: the client must be in the caller's
+ * tenants; its entries come from every org that writes on it, with author,
+ * type and source.
+ */
 export async function listClientCardEntries(
   supabase: Pick<DbClient, "from">,
   input: { clientId: string; accessibleTenantIds: string[]; limit?: unknown },
@@ -53,13 +57,15 @@ export async function listClientCardEntries(
       message: "הלקוח לא נמצא בארגון הזה",
     };
   }
+  // One shared card, as in the client_updates SELECT policy: the clients
+  // lookup above is the tenant scope; an entry's tenant_id is the org that
+  // wrote it, which may be another org sharing the client's agency.
   const { data, error } = await supabase
     .from("client_updates")
     .select(
       "id, content, created_at, update_type, source, counts_as_contact, user_id, profiles:user_id (full_name, email)",
     )
     .eq("client_id", input.clientId)
-    .in("tenant_id", input.accessibleTenantIds)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
