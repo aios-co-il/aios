@@ -102,6 +102,31 @@ Deno.test("sanitizePulseWordingLine", async (t) => {
     });
   });
 
+  await t.step(
+    "a percentage or a number in words never passes, with or without a digit",
+    () => {
+      for (const allowed of [new Set<string>(), new Set(["30", "52"])]) {
+        for (const text of [
+          "שלושים אחוז מעל היעד",
+          "עלייה של עשרות אחוזים בעלות לליד",
+          "ה-ROAS ירד בעשרות אחוזים",
+          "העלות לליד כמעט כפולה מהיעד",
+          "שלושה ימים ברציפות מעל היעד",
+          "העלות לליד פי שניים מהיעד",
+          "ירידה של 52 %",
+          "ירידה של ٪ בהמרות",
+          "ROAS down by thirty percent",
+        ]) {
+          assertEquals(
+            sanitizePulseWordingLine(text, allowed),
+            { ok: false, reason: "invented_number" },
+            text,
+          );
+        }
+      }
+    },
+  );
+
   await t.step("a minus sign is never dropped; only a bullet dash is", () => {
     const allowed = new Set(["30", "52"]);
     // A signed number is rejected whole, never shown without its sign.

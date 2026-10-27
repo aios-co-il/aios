@@ -1,6 +1,10 @@
 /** Optional model wording for a campaign_exception alert (AIO-243). */
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
-import { sanitizePulseWordingLine } from "./wording-line.ts";
+import {
+  PULSE_WORDING_SUMMARY_LABEL,
+  RECOMMENDED_CHECK_LABEL,
+  sanitizePulseWordingLine,
+} from "./wording-line.ts";
 import { deterministicNumbers } from "./wording-numbers.ts";
 
 /** The two short Hebrew lines the model may return. */
@@ -26,8 +30,6 @@ type PulseAiWordingEvidence = {
 };
 
 const PULSE_WORDING_TIMEOUT_MS = 8000;
-const PULSE_WORDING_SUMMARY_LABEL = "סיכום כרמן:";
-const RECOMMENDED_CHECK_LABEL = "בדיקה מומלצת:";
 export const DEFAULT_EXCEPTION_CHECK_LINE = `${RECOMMENDED_CHECK_LABEL} לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.`;
 
 /**

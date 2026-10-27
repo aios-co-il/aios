@@ -4,6 +4,7 @@
 import {
   DEFAULT_PULSE_ALERT_RULES,
   deliverInstantPulseAlerts,
+  type InstantPulseAlertsInput,
   type PulseSnapshotAlertInput,
 } from "../pulse-instant-alerts.ts";
 
@@ -28,8 +29,6 @@ type FakeClient = {
   clock: string;
   insertError: string | null;
 };
-
-type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
 
 export const ACME: PulseSnapshotAlertInput = {
   client_id: "c1",
@@ -119,7 +118,7 @@ export async function run(
   supabase: ReturnType<typeof fakeSupabase>,
   now: Date,
   snapshots: PulseSnapshotAlertInput[] = [ACME],
-  extra: Partial<DeliverInput> = {},
+  extra: Partial<InstantPulseAlertsInput> = {},
 ) {
   supabase.clock = now.toISOString();
   const sends: Array<{ message: string; phone: string | null }> = [];

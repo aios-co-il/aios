@@ -1,27 +1,36 @@
 /** One summary per phone for campaign_exception alerts over the cap (AIO-243). */
 import type {
-  deliverInstantPulseAlerts,
+  InstantPulseAlertsInput,
   PulseInstantAlertCandidate,
 } from "../pulse-instant-alerts.ts";
+import { PULSE_ALERT_FOOTER } from "./alert-footer.ts";
 import { logInstantAlert } from "./instant-alert-log.ts";
 import type { PlannedInstantAlert } from "./planned-alert.ts";
 
-type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
+type SummaryCandidate = Pick<
+  PulseInstantAlertCandidate,
+  "client_name" | "campaign_name" | "campaign_key" | "status_reason"
+>;
 
 const EXCEPTION_SUMMARY_MAX_LINES = 15;
 
 /**
  * Queues one summary message per phone over the cap, built by code. Each
- * alert in a queued summary is logged like a sent one, so the next run's
- * dedupe treats it as delivered; if no summary with it is queued, it is not
- * logged and the next run sends it. `summarized` counts the logged ones.
+ * alert listed in a queued summary is then logged once, for the phones whose
+ * summary was queued (`evidence.delivery = "summary"`), so dedupe treats it
+ * as delivered. An alert that reached no phone is not logged, so the next
+ * run sends it. `summarized` counts the alerts that went out only inside a
+ * summary.
  */
 export async function sendExceptionSummaries(
-  input: Pick<DeliverInput, "supabase" | "tenantId" | "queueWhatsApp">,
+  input: Pick<
+    InstantPulseAlertsInput,
+    "supabase" | "tenantId" | "queueWhatsApp"
+  >,
   summaryByPhone: Map<string, PlannedInstantAlert[]>,
 ): Promise<{ summarized: number; summary_messages: number }> {
-  let summarized = 0;
   let summaryMessages = 0;
+  const listed = new Set<PlannedInstantAlert>();
   for (const [phone, items] of summaryByPhone) {
     const queued = await input.queueWhatsApp(
       buildExceptionSummaryMessage(items.map((item) => item.candidate)),
@@ -33,22 +42,25 @@ export async function sendExceptionSummaries(
 
     summaryMessages += 1;
     for (const item of items) {
-      if (item.delivered) {
-        continue;
-      }
-
-      item.candidate.evidence = {
-        ...(item.candidate.evidence || {}),
-        delivery: "summary",
-      };
-      item.delivered = true;
-      if (await logInstantAlert(input.supabase, input.tenantId, item)) {
-        summarized += 1;
-      }
+      item.summarizedTo.push(phone);
+      listed.add(item);
     }
   }
 
-  return { summarized, summary_messages: summaryMessages };
+  for (const item of listed) {
+    const evidence = { ...item.candidate.evidence, delivery: "summary" };
+    await logInstantAlert(
+      input.supabase,
+      input.tenantId,
+      { ...item.candidate, evidence },
+      item.summarizedTo,
+    );
+  }
+
+  return {
+    summarized: [...listed].filter((item) => !item.sentTo.length).length,
+    summary_messages: summaryMessages,
+  };
 }
 
 /**
@@ -57,12 +69,7 @@ export async function sendExceptionSummaries(
  * given, and a count of the rest when they do not fit.
  */
 export function buildExceptionSummaryMessage(
-  candidates: Array<
-    Pick<
-      PulseInstantAlertCandidate,
-      "client_name" | "campaign_name" | "campaign_key" | "status_reason"
-    >
-  >,
+  candidates: SummaryCandidate[],
 ): string {
   const shown = candidates.slice(0, EXCEPTION_SUMMARY_MAX_LINES);
   const rest = candidates.length - shown.length;
@@ -71,22 +78,24 @@ export function buildExceptionSummaryMessage(
     candidates.length === 1
       ? "עוד חריגת קמפיין אחת:"
       : `עוד ${candidates.length} חריגות קמפיין:`,
-    ...shown.map(
-      (candidate) =>
-        `• ${oneLine(candidate.client_name, "לקוח")} · ${oneLine(
-          candidate.campaign_name ?? candidate.campaign_key,
-          "קמפיין",
-        )} · ${oneLine(candidate.status_reason, "חריגה מתמשכת")}`,
-    ),
+    ...shown.map(summaryLine),
     ...(rest > 0
       ? [rest === 1 ? "ועוד אחת בדשבורד הדופק" : `ועוד ${rest} בדשבורד הדופק`]
       : []),
     "",
-    "AIOS → דשבורד דופק",
+    PULSE_ALERT_FOOTER,
   ].join("\n");
 }
 
-/** The value on one line, or `fallback` when nothing is left of it. */
-function oneLine(value: string | null | undefined, fallback: string): string {
-  return (value ?? "").replace(/\s+/g, " ").trim() || fallback;
+/**
+ * "• client · campaign · reason", each part on one line. Code always sets all
+ * three for a campaign_exception, so an empty part is left out, not replaced.
+ */
+function summaryLine(candidate: SummaryCandidate): string {
+  const parts = [
+    candidate.client_name,
+    candidate.campaign_name ?? candidate.campaign_key,
+    candidate.status_reason,
+  ].map((part) => (part ?? "").replace(/\s+/g, " ").trim());
+  return `• ${parts.filter(Boolean).join(" · ")}`;
 }

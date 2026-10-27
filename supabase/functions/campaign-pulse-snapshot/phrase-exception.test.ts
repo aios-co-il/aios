@@ -37,7 +37,8 @@ Deno.test("phraseException", async (t) => {
       assertStrictEquals(model, undefined);
       assert(prompt.includes(`הודעת ההתראה:\n${CANDIDATE.message}`));
       assert(prompt.includes(`ראיות: ${JSON.stringify(CANDIDATE.evidence)}`));
-      assert(prompt.includes("אל תכתבי מספרים"));
+      assert(prompt.includes("אל תכתבי מספרים, גם לא במילים"));
+      assert(prompt.includes("אחוזים"));
       assert(prompt.includes('"summary"'));
       assert(prompt.includes('"recommended_check"'));
       assert(!prompt.includes("confirmed"));

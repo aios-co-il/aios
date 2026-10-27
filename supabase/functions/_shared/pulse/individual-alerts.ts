@@ -1,16 +1,14 @@
 /** Pulse alerts sent as their own message, each logged once it went out. */
 import type {
-  deliverInstantPulseAlerts,
+  InstantPulseAlertsInput,
   PulseInstantAlertCandidate,
 } from "../pulse-instant-alerts.ts";
 import { wordPulseException } from "./exception-wording.ts";
 import { logInstantAlert } from "./instant-alert-log.ts";
 import type { PlannedInstantAlert } from "./planned-alert.ts";
 
-type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
-
 type SendInput = Pick<
-  DeliverInput,
+  InstantPulseAlertsInput,
   | "supabase"
   | "tenantId"
   | "queueWhatsApp"
@@ -20,8 +18,9 @@ type SendInput = Pick<
 
 /**
  * Queues each planned alert to its `individual` phones, in evaluation order,
- * and logs each alert that reached at least one of them. A campaign_exception
- * first gets the optional model wording.
+ * and logs each alert right after it reached at least one of them, with the
+ * phones it reached. A campaign_exception first gets the optional model
+ * wording.
  */
 export async function sendIndividualAlerts(
   input: SendInput,
@@ -36,19 +35,21 @@ export async function sendIndividualAlerts(
       wordingCalls += 1;
     }
 
-    let delivered = false;
     for (const phone of item.individual) {
-      const queued = await input.queueWhatsApp(item.candidate.message, phone);
-      if (queued) {
-        delivered = true;
+      if (await input.queueWhatsApp(item.candidate.message, phone)) {
+        item.sentTo.push(phone);
       }
     }
 
-    if (delivered) {
+    if (item.sentTo.length) {
       sent += 1;
       worded += wording.applied ? 1 : 0;
-      item.delivered = true;
-      await logInstantAlert(input.supabase, input.tenantId, item);
+      await logInstantAlert(
+        input.supabase,
+        input.tenantId,
+        item.candidate,
+        item.sentTo,
+      );
     }
   }
 

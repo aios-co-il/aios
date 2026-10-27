@@ -5,10 +5,7 @@ import {
   assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import {
-  DEFAULT_PULSE_ALERT_RULES,
-  type PulseSnapshotAlertInput,
-} from "../pulse-instant-alerts.ts";
+import type { PulseSnapshotAlertInput } from "../pulse-instant-alerts.ts";
 import {
   campaignNames,
   campaignOf,
@@ -16,43 +13,20 @@ import {
   exceptionCampaigns,
   exceptionSnapshot,
   isSummary,
+  loggedDeliveries,
+  MANAGER_ON_AGENCY_A1,
+  MANAGER_PHONE,
+  OWNER_PHONE,
+  ownerAndManagerClients,
   SUMMARY_HEADER,
   summaryText,
 } from "./exception-fixtures.ts";
-import { maxExceptionMessagesPerRun } from "./exception-flood-guard.ts";
 import {
   fakeSupabase,
   NO_CONTACT_OFF,
   run,
   WEDNESDAY,
 } from "./fake-alert-log.ts";
-
-Deno.test("maxExceptionMessagesPerRun", async (t) => {
-  await t.step(
-    "max_exception_messages_per_run overrides the cap, clamped to 1..10",
-    () => {
-      assertStrictEquals(maxExceptionMessagesPerRun(null), 3);
-      assertStrictEquals(
-        maxExceptionMessagesPerRun(DEFAULT_PULSE_ALERT_RULES),
-        3,
-      );
-      const cap = (value: unknown) =>
-        maxExceptionMessagesPerRun({
-          ...DEFAULT_PULSE_ALERT_RULES,
-          instant: { max_exception_messages_per_run: value },
-        });
-      assertStrictEquals(cap(5), 5);
-      assertStrictEquals(cap("6"), 6);
-      assertStrictEquals(cap(0), 1);
-      assertStrictEquals(cap(-4), 1);
-      assertStrictEquals(cap(50), 10);
-      assertStrictEquals(cap(2.9), 2);
-      assertStrictEquals(cap("many"), 3);
-      assertStrictEquals(cap(null), 3);
-      assertStrictEquals(cap(true), 3);
-    },
-  );
-});
 
 Deno.test("capExceptionMessages", async (t) => {
   await t.step(
@@ -70,7 +44,7 @@ Deno.test("capExceptionMessages", async (t) => {
       const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
       const first = await run(supabase, WEDNESDAY, [snapshot], extra);
       assertStrictEquals(first.sends.length, 4);
-      assert(first.sends.every((send) => send.phone === "972501234567"));
+      assert(first.sends.every((send) => send.phone === OWNER_PHONE));
       const individual = first.sends.filter((send) => !isSummary(send.message));
       const summaries = first.sends.filter((send) => isSummary(send.message));
       assertStrictEquals(individual.length, 3);
@@ -118,7 +92,7 @@ Deno.test("capExceptionMessages", async (t) => {
         assertStrictEquals(row.rule_type, "campaign_exception");
         assertStrictEquals(row.fingerprint, `meta:id:c${i}:סיבה c${i}:cpl:30`);
         assertStrictEquals(row.severity_score, 10 * i);
-        assertStrictEquals(row.recipient_phone, "972501234567");
+        assertStrictEquals(row.recipient_phone, OWNER_PHONE);
         assertStrictEquals(
           evidenceOf(row).delivery,
           i <= 4 ? "summary" : undefined,
@@ -141,38 +115,15 @@ Deno.test("capExceptionMessages", async (t) => {
   );
 
   await t.step("the cap counts per recipient phone", async () => {
-    // The owner sees both clients; the manager only client c1 (agency a1).
-    const supabase = fakeSupabase([], {
-      user_roles: [{ tenant_id: "t1", user_id: "m1", role: "team_manager" }],
-      user_managed_agencies: [{ user_id: "m1", agency_id: "a1" }],
-      profiles: [
-        {
-          id: "m1",
-          full_name: "Manager",
-          campaigners: { phone: "0529999999" },
-        },
-      ],
-    });
-    const c1: PulseSnapshotAlertInput = {
-      ...exceptionSnapshot(...exceptionCampaigns(5, "a")),
-      agency_id: "a1",
-    };
-    const c2: PulseSnapshotAlertInput = {
-      ...exceptionSnapshot(
-        ...exceptionCampaigns(2, "b").map((campaign, i) => ({
-          ...campaign,
-          trend_3d_pct: 100 + i, // the two worst of the run
-        })),
-      ),
-      client_id: "c2",
-      client_name: "Beta",
-      agency_id: "a2",
-    };
-    const { result, sends } = await run(supabase, WEDNESDAY, [c1, c2], {
-      rules: NO_CONTACT_OFF,
-    });
-    const owner = sends.filter((send) => send.phone === "972501234567");
-    const manager = sends.filter((send) => send.phone === "972529999999");
+    const supabase = fakeSupabase([], MANAGER_ON_AGENCY_A1);
+    const { result, sends } = await run(
+      supabase,
+      WEDNESDAY,
+      ownerAndManagerClients(),
+      { rules: NO_CONTACT_OFF },
+    );
+    const owner = sends.filter((send) => send.phone === OWNER_PHONE);
+    const manager = sends.filter((send) => send.phone === MANAGER_PHONE);
     assertStrictEquals(owner.length, 4);
     assertStrictEquals(manager.length, 4);
     assertEquals(campaignNames(owner), [
@@ -195,7 +146,18 @@ Deno.test("capExceptionMessages", async (t) => {
       { sent, summarized, summary_messages, skipped },
       { sent: 5, summarized: 2, summary_messages: 2, skipped: 0 },
     );
-    assertStrictEquals(supabase.log.length, 7);
+    // One row per way an alert went out, with the phones it reached.
+    assertEquals(loggedDeliveries(supabase.log), [
+      `meta:id:a1 summary ${OWNER_PHONE},${MANAGER_PHONE}`,
+      `meta:id:a2 summary ${OWNER_PHONE},${MANAGER_PHONE}`,
+      `meta:id:a3 own ${MANAGER_PHONE}`,
+      `meta:id:a3 summary ${OWNER_PHONE}`,
+      `meta:id:a4 own ${MANAGER_PHONE}`,
+      `meta:id:a4 summary ${OWNER_PHONE}`,
+      `meta:id:a5 own ${OWNER_PHONE},${MANAGER_PHONE}`,
+      `meta:id:b1 own ${OWNER_PHONE}`,
+      `meta:id:b2 own ${OWNER_PHONE}`,
+    ]);
   });
 
   await t.step(

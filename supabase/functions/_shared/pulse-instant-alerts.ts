@@ -12,28 +12,25 @@ import {
   isNoDataWithoutTable,
   isRealConnectionLoss,
 } from "./pulse/connection-loss.ts";
-import { withoutPhonesAlertedElsewhere } from "./pulse/cross-tenant-recipients.ts";
-import {
-  isInstantAlertSuppressed,
-  type InstantAlertLogRow,
-} from "./pulse/instant-alert-dedupe.ts";
+import { PULSE_ALERT_FOOTER } from "./pulse/alert-footer.ts";
 import {
   connectionLostFingerprint,
   cplSpikeFingerprint,
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
-import {
-  capExceptionMessages,
-  maxExceptionMessagesPerRun,
-} from "./pulse/exception-flood-guard.ts";
+import { capExceptionMessages } from "./pulse/exception-flood-guard.ts";
 import { sendExceptionSummaries } from "./pulse/exception-summary.ts";
 import {
   DEFAULT_EXCEPTION_CHECK_LINE,
   type PhrasePulseException,
 } from "./pulse/exception-wording.ts";
 import { sendIndividualAlerts } from "./pulse/individual-alerts.ts";
-import type { PlannedInstantAlert } from "./pulse/planned-alert.ts";
+import {
+  parsePulseInstantRunRules,
+  type PulseInstantRunRules,
+} from "./pulse/instant-run-rules.ts";
+import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -45,6 +42,7 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  instant: PulseInstantRunRules;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -54,6 +52,7 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
+  instant: parsePulseInstantRunRules(undefined),
 };
 
 export type PulseInstantAlertCandidate = {
@@ -115,13 +114,6 @@ type QueueWhatsApp = (
   chatId: string | null,
 ) => Promise<boolean>;
 
-const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
-  no_contact: 7 * 24,
-  cpl_spike: 7 * 24,
-  connection_lost: 24,
-  campaign_exception: 7 * 24,
-};
-
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
   const input = raw as Record<string, unknown>;
@@ -139,6 +131,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    instant: parsePulseInstantRunRules(input.instant),
   };
 }
 
@@ -222,7 +215,7 @@ export function evaluatePulseInstantAlerts(
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",
           DEFAULT_EXCEPTION_CHECK_LINE,
-          "AIOS → דשבורד דופק",
+          PULSE_ALERT_FOOTER,
         ].join("\n"),
       });
     }
@@ -248,7 +241,7 @@ export function evaluatePulseInstantAlerts(
               ? `לא תועדה שיחה/פגישה ב-${days} הימים האחרונים`
               : `עדכון קשר אחרון: ${new Date(lastContact).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -274,7 +267,7 @@ export function evaluatePulseInstantAlerts(
             `לקוח: ${clientName}`,
             `CPL עלה ב-${Math.round(Number(change) * 10) / 10}% לעומת השבוע הקודם`,
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -319,7 +312,7 @@ export function evaluatePulseInstantAlerts(
             `לקוח: ${clientName}`,
             detail.length ? detail.join(" · ") : "דוח מנותק / חשבון לא פעיל",
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -385,11 +378,8 @@ async function resolveInstantAlertRecipients(
   }));
 }
 
-/**
- * Sends a run's instant alerts: plan what goes out, cap campaign_exception
- * messages per phone, send the individual messages, then the summaries.
- */
-export async function deliverInstantPulseAlerts(input: {
+/** One org's run of instant alerts. */
+export type InstantPulseAlertsInput = {
   supabase: any;
   tenantId: string;
   tenantSlug?: string | null;
@@ -404,7 +394,15 @@ export async function deliverInstantPulseAlerts(input: {
   wordingTimeoutMs?: number;
   /** Clock override for tests. */
   now?: Date;
-}): Promise<{
+};
+
+/**
+ * Sends a run's instant alerts: plan what goes out, cap campaign_exception
+ * messages per phone, send the individual messages, then the summaries.
+ */
+export async function deliverInstantPulseAlerts(
+  input: InstantPulseAlertsInput,
+): Promise<{
   /** Alerts sent as their own message. */
   sent: number;
   skipped: number;
@@ -433,14 +431,27 @@ export async function deliverInstantPulseAlerts(input: {
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
-  const plan = await planInstantAlerts(input, candidates, now);
+  const plan = await planInstantAlerts(input, candidates, now, (candidate) =>
+    resolveInstantAlertRecipients(
+      input.supabase,
+      input.tenantId,
+      candidate.client_id,
+      input.snapshots.find(
+        (snapshot) => snapshot.client_id === candidate.client_id,
+      )?.agency_id,
+      input.pulsePhone,
+      input.tenantSlug,
+    ),
+  );
   const summaryByPhone = capExceptionMessages(
     plan.planned,
-    maxExceptionMessagesPerRun(input.rules),
+    parsePulseAlertRules(input.rules).instant.max_exception_messages_per_run,
   );
   const individual = await sendIndividualAlerts(input, plan.planned);
   const summary = await sendExceptionSummaries(input, summaryByPhone);
-  const undelivered = plan.planned.filter((item) => !item.delivered).length;
+  const undelivered = plan.planned.filter(
+    (item) => !item.sentTo.length && !item.summarizedTo.length,
+  ).length;
   return {
     sent: individual.sent,
     skipped: plan.skipped + undelivered,
@@ -451,79 +462,4 @@ export async function deliverInstantPulseAlerts(input: {
     worded: individual.worded,
     held: evaluated.length - candidates.length,
   };
-}
-
-/**
- * Code decides what goes out, before any message is queued: dedupe and
- * throttle, then recipients. Alerts accepted earlier in this run count like
- * log rows, since they are logged only after the sends.
- */
-async function planInstantAlerts(
-  input: Parameters<typeof deliverInstantPulseAlerts>[0],
-  candidates: PulseInstantAlertCandidate[],
-  now: Date,
-): Promise<{ planned: PlannedInstantAlert[]; skipped: number }> {
-  const planned: PlannedInstantAlert[] = [];
-  let skipped = 0;
-  const acceptedThisRun = new Map<string, InstantAlertLogRow[]>();
-  for (const candidate of candidates) {
-    const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
-    const runKey = [
-      candidate.rule_type,
-      candidate.client_id,
-      candidate.campaign_key || "",
-    ].join("|");
-    const earlier = acceptedThisRun.get(runKey) || [];
-    if (
-      await isInstantAlertSuppressed(
-        input,
-        candidate,
-        throttleHours,
-        now,
-        earlier,
-      )
-    ) {
-      skipped += 1;
-      continue;
-    }
-
-    const tenantRecipients = await resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      input.snapshots.find(
-        (snapshot) => snapshot.client_id === candidate.client_id,
-      )?.agency_id,
-      input.pulsePhone,
-      input.tenantSlug,
-    );
-    const recipients = await withoutPhonesAlertedElsewhere(
-      input,
-      candidate,
-      tenantRecipients,
-      throttleHours,
-      now,
-    );
-    if (!recipients.length) {
-      skipped += 1;
-      continue;
-    }
-
-    acceptedThisRun.set(runKey, [
-      {
-        fingerprint: candidate.fingerprint,
-        severity_score: candidate.severity_score,
-      },
-      ...earlier,
-    ]);
-    const phones = recipients.map((row) => row.phone);
-    planned.push({
-      candidate,
-      recipients: phones,
-      individual: phones,
-      delivered: false,
-    });
-  }
-
-  return { planned, skipped };
 }

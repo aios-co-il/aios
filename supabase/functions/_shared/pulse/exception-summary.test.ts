@@ -1,9 +1,18 @@
-import { assertNotMatch, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   consoleErrorsOf,
   exceptionCampaigns,
   exceptionSnapshot,
   isSummary,
+  loggedDeliveries,
+  MANAGER_ON_AGENCY_A1,
+  MANAGER_PHONE,
+  OWNER_PHONE,
+  ownerAndManagerClients,
   SUMMARY_HEADER,
 } from "./exception-fixtures.ts";
 import { buildExceptionSummaryMessage } from "./exception-summary.ts";
@@ -88,7 +97,40 @@ Deno.test("sendExceptionSummaries", async (t) => {
   );
 
   await t.step(
-    "a summarized alert whose log insert fails is not counted",
+    "a phone whose summary is not queued is not logged for its alerts",
+    async () => {
+      const supabase = fakeSupabase([], MANAGER_ON_AGENCY_A1);
+      const { result } = await run(
+        supabase,
+        WEDNESDAY,
+        ownerAndManagerClients(),
+        {
+          rules: NO_CONTACT_OFF,
+          queueWhatsApp: async (message, phone) =>
+            !(isSummary(message) && phone === OWNER_PHONE),
+        },
+      );
+      const { sent, summarized, summary_messages, skipped } = result;
+      assertEquals(
+        { sent, summarized, summary_messages, skipped },
+        { sent: 5, summarized: 2, summary_messages: 1, skipped: 0 },
+      );
+      // a3 and a4 reached only the manager; the owner's phone is in no row
+      // for a1..a4, so cross-org dedupe does not count it as alerted.
+      assertEquals(loggedDeliveries(supabase.log), [
+        `meta:id:a1 summary ${MANAGER_PHONE}`,
+        `meta:id:a2 summary ${MANAGER_PHONE}`,
+        `meta:id:a3 own ${MANAGER_PHONE}`,
+        `meta:id:a4 own ${MANAGER_PHONE}`,
+        `meta:id:a5 own ${OWNER_PHONE},${MANAGER_PHONE}`,
+        `meta:id:b1 own ${OWNER_PHONE}`,
+        `meta:id:b2 own ${OWNER_PHONE}`,
+      ]);
+    },
+  );
+
+  await t.step(
+    "a failed log insert leaves the counts adding up to the candidates",
     async () => {
       const supabase = fakeSupabase();
       supabase.insertError = "connection reset";
@@ -98,10 +140,18 @@ Deno.test("sendExceptionSummaries", async (t) => {
           rules: NO_CONTACT_OFF,
         });
         assertStrictEquals(sends.length, 4);
-        assertStrictEquals(result.sent, 3);
-        assertStrictEquals(result.summary_messages, 1);
-        assertStrictEquals(result.summarized, 0);
-        assertStrictEquals(result.skipped, 0);
+        const { sent, summarized, summary_messages, skipped, candidates } =
+          result;
+        assertEquals(
+          { sent, summarized, summary_messages, skipped, candidates },
+          {
+            sent: 3,
+            summarized: 4,
+            summary_messages: 1,
+            skipped: 0,
+            candidates: 7,
+          },
+        );
       });
       assertStrictEquals(errors.length, 7);
       assertStrictEquals(supabase.log.length, 0);

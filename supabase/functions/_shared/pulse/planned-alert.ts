@@ -7,6 +7,8 @@ export type PlannedInstantAlert = {
   recipients: string[];
   /** Phones that get this alert as its own message (the rest: a summary). */
   individual: string[];
-  /** Went out on its own or inside a queued summary. */
-  delivered: boolean;
+  /** Phones its own message was queued to. */
+  sentTo: string[];
+  /** Phones whose queued summary message lists it. */
+  summarizedTo: string[];
 };

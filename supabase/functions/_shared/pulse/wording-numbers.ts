@@ -9,6 +9,28 @@ const NUMBER_TOKEN = /\d+(?:(?:[.,:/-]|T)\d+)*/g;
 // the same digit as a value ("פי 3", "ירידה של 7%").
 const DAY_UNIT_AFTER = /\s*ה?(?:ימים|יום)(?![\p{L}\p{N}])/uy;
 const DAYS_SUFFIX = " ימים";
+// Numbers, fractions and multipliers written as Hebrew words, which code
+// cannot check against the evidence ("שלושה ימים", "עשרות", "כמעט כפולה").
+// "אחד"/"אחת" mostly mean "a" or "one of", and ordinals also name weekdays
+// ("יום שלישי"), so both are left out.
+const NUMBER_WORDS = [
+  "שניים שתיים שני שתי שלוש שלושה שלושת ארבע ארבעה ארבעת חמש חמישה חמשת",
+  "שש שישה ששת שבע שבעה שבעת שמונה שמונת תשע תשעה תשעת עשר עשרה עשרת",
+  "עשרים שלושים ארבעים חמישים שישים שבעים שמונים תשעים עשרות תריסר",
+  "מאה מאות מאתיים אלף אלפי אלפים אלפיים מיליון מיליונים מיליארד",
+  "יומיים שבועיים חודשיים שנתיים פעמיים כפליים",
+  "חצי מחצית שליש רבע כפול כפולה כפולים כפולות הכפיל הכפילה הכפילו",
+  "הוכפל הוכפלה הוכפלו התכפל התכפלה משולש משולשת שולש שולשה",
+]
+  .join(" ")
+  .split(" ");
+// A whole word, with up to two one-letter prefixes ("ובשלושה", "לחצי").
+const NUMBER_WORD = new RegExp(
+  `(?<![\\p{L}\\p{N}])[ובהלמשכ]{0,2}(?:${NUMBER_WORDS.join("|")})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+// "פי" (times) as its own word; "לפי" and "על פי" mean "according to".
+const TIMES_WORD = /(?<![\p{L}\p{N}])(?<!על[\s\-־])פי(?![\p{L}\p{N}])/u;
 
 /**
  * Numbers the model may repeat: the values code computed for this alert
@@ -35,6 +57,11 @@ export function numberTokens(text: string): string[] {
     tokens.push(DAY_UNIT_AFTER.test(text) ? `${token}${DAYS_SUFFIX}` : token);
   }
   return tokens;
+}
+
+/** True when text writes a number, fraction or multiplier as a word. */
+export function hasNumberWord(text: string): boolean {
+  return NUMBER_WORD.test(text) || TIMES_WORD.test(text);
 }
 
 /** Canonical form of a number token: 1,200 → 1200, 52.0 → 52, 3,5 → 3.5. */

@@ -71,6 +71,59 @@ export function exceptionCampaigns(n: number, prefix = "c"): Campaign[] {
   }));
 }
 
+export const OWNER_PHONE = "972501234567";
+export const MANAGER_PHONE = "972529999999";
+
+/** Staff tables for fakeSupabase: team manager m1 (MANAGER_PHONE) on agency a1. */
+export const MANAGER_ON_AGENCY_A1 = {
+  user_roles: [{ tenant_id: "t1", user_id: "m1", role: "team_manager" }],
+  user_managed_agencies: [{ user_id: "m1", agency_id: "a1" }],
+  profiles: [
+    { id: "m1", full_name: "Manager", campaigners: { phone: "0529999999" } },
+  ],
+};
+
+/**
+ * The owner sees both clients, the manager only c1 (agency a1): c1 has five
+ * exceptions a1..a5 and c2 has b1 and b2, the two worst of the run.
+ */
+export function ownerAndManagerClients(): PulseSnapshotAlertInput[] {
+  const c1: PulseSnapshotAlertInput = {
+    ...exceptionSnapshot(...exceptionCampaigns(5, "a")),
+    agency_id: "a1",
+  };
+  const c2: PulseSnapshotAlertInput = {
+    ...exceptionSnapshot(
+      ...exceptionCampaigns(2, "b").map((campaign, i) => ({
+        ...campaign,
+        trend_3d_pct: 100 + i,
+      })),
+    ),
+    client_id: "c2",
+    client_name: "Beta",
+    agency_id: "a2",
+  };
+  return [c1, c2];
+}
+
+/**
+ * Each pulse_instant_alert_log row as "campaign_key delivery phones", with
+ * delivery "own" or "summary", sorted.
+ */
+export function loggedDeliveries(
+  log: Array<Record<string, unknown>>,
+): string[] {
+  return log
+    .map((row) =>
+      [
+        row.campaign_key,
+        evidenceOf(row).delivery ?? "own",
+        row.recipient_phone,
+      ].join(" "),
+    )
+    .sort();
+}
+
 /** True for the flood guard's summary message. */
 export function isSummary(message: string): boolean {
   return message.startsWith(SUMMARY_HEADER);

@@ -2,7 +2,6 @@ import {
   assert,
   assertEquals,
   assertMatch,
-  assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
@@ -126,6 +125,9 @@ Deno.test("applyPulseExceptionWording", async (t) => {
         [12.5, "עלייה של %12.5"],
         // 30 is the target CPL, not a change.
         [40, "ירידה של 30% בלידים"],
+        // No digit at all.
+        [40, "ה-ROAS ירד בעשרות אחוזים"],
+        [40, "שלושים אחוז מעל היעד"],
       ];
       for (const [trend, summary] of cases) {
         const candidate = candidateWith(trend);
@@ -153,16 +155,6 @@ Deno.test("applyPulseExceptionWording", async (t) => {
       assertEquals(plain.ai_wording, { applied: true });
     },
   );
-
-  await t.step("a repeated label right after a bare dash is dropped", () => {
-    const worded = applyPulseExceptionWording(
-      exceptionAlert({ target_value: 30 }),
-      { recommended_check: "-בדיקה מומלצת: לבדוק את אירוע ההמרה" },
-    );
-    assertEquals(worded.ai_wording, { applied: true });
-    assertMatch(worded.message, /\nבדיקה מומלצת: לבדוק את אירוע ההמרה\n/);
-    assertNotMatch(worded.message, /-בדיקה/);
-  });
 });
 
 Deno.test("wordPulseException", async (t) => {
