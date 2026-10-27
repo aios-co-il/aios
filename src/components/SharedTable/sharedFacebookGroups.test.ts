@@ -168,4 +168,38 @@ describe("groupSharedFacebookRows", () => {
     expect(names(groups.leads)).toStrictEqual(["Lead set · Leads"]);
     expect(groups.goalOf(records[1].data)).toBe("leads");
   });
+
+  it("traffic rows carry their followers at campaign and ad set level", () => {
+    for (const level of ["campaign", "adset"] as const) {
+      const traffic = (campaign: string, data: Record<string, unknown>) =>
+        fb(campaign, {
+          entity_level: level,
+          adset_id: `${campaign} set`,
+          adset_name: `${campaign} set`,
+          campaign_type: "traffic",
+          ...data,
+        });
+      const records = [
+        traffic("Profile", {
+          optimization_goal: "PROFILE_VISIT",
+          spend: 60,
+          new_followers: 12,
+        }),
+        traffic("Profile", {
+          date: "2026-09-15",
+          optimization_goal: "PROFILE_VISIT",
+          spend: 60,
+          new_followers: 8,
+        }),
+        traffic("Blog", { spend: 100 }),
+      ];
+      const groups = groupSharedFacebookRows(records, level, {
+        leadsOnly: false,
+      });
+      expect(groups.traffic.map((row) => row.followers)).toStrictEqual([
+        { newFollowers: 20, profileTraffic: true },
+        { newFollowers: 0, profileTraffic: false },
+      ]);
+    }
+  });
 });

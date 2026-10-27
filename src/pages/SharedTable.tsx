@@ -441,6 +441,7 @@ export default function SharedTable() {
           purchases: c.purchases,
           revenue: c.purchase_value,
           addToCart: c.add_to_cart,
+          followers: c.followers,
         }));
 
       if (facebookGroups) {

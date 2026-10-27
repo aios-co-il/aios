@@ -1,4 +1,9 @@
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import {
+  addFacebookFollowers,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
 
 // Shared metric extraction for report records (`crm_records.data`).
 //
@@ -143,6 +148,8 @@ export type FacebookCampaignRow = {
   campaign_objective?: string | null;
   result_kind?: string | null;
   result?: { result_kind?: string | null } | null;
+  /** Set by the record aggregators; traffic tables show it. */
+  followers?: FacebookFollowerTotals;
 };
 
 /** Result kinds that belong on the ecommerce table, next to leads when both fire. */
@@ -339,7 +346,10 @@ export function groupFacebookCampaigns(
 export function aggregateFacebookCampaignsFromRecords(
   records: Array<{ data?: NullableAdsMetricData }>,
 ): FacebookCampaignRow[] {
-  const map: Record<string, FacebookCampaignRow> = {};
+  const map: Record<
+    string,
+    FacebookCampaignRow & { followers: FacebookFollowerTotals }
+  > = {};
 
   records.forEach((r) => {
     if (!shouldIncludeInAdsDashboardAggregate(r.data, "facebook_insights"))
@@ -357,6 +367,7 @@ export function aggregateFacebookCampaignsFromRecords(
         purchase_value: 0,
         add_to_cart: 0,
         campaign_type: d.campaign_type,
+        followers: emptyFacebookFollowers(),
       };
     }
     map[name].impressions += Number(d.impressions) || 0;
@@ -366,6 +377,7 @@ export function aggregateFacebookCampaignsFromRecords(
     map[name].purchases += getAdsPurchasesFromData(d);
     map[name].purchase_value += getRevenueFromData(d);
     map[name].add_to_cart += getAddToCartFromData(d);
+    map[name].followers = addFacebookFollowers(map[name].followers, d);
     const rowType = effectiveFacebookCampaignType(d);
     if (
       rowType === "ecommerce" ||

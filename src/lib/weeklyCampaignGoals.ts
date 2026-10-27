@@ -1,4 +1,5 @@
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { costPerFollower, sumFacebookFollowers } from "@/lib/facebookFollowers";
 import type {
   WeeklyCampaignKind,
   WeeklyCampaignRow,
@@ -56,7 +57,10 @@ const WEEKLY_GOAL_ORDER: readonly WeeklyCampaignKind[] = [
   "traffic",
 ];
 
-/** Totals of one goal: its own results, cost per result and (sales only) ROAS. */
+/**
+ * Totals of one goal: its own results, cost per result, (sales only) ROAS and
+ * the followers its campaigns gained.
+ */
 function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
   const totals = rows.reduce(
     (sum, row) => {
@@ -81,5 +85,9 @@ function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
   );
   totals.costPerResult = totals.results > 0 ? totals.spend / totals.results : 0;
   totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
-  return totals;
+  return {
+    ...totals,
+    followers: sumFacebookFollowers(rows),
+    costPerFollower: costPerFollower(rows),
+  };
 }

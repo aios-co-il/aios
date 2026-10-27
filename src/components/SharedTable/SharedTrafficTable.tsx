@@ -8,6 +8,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
+import {
+  costPerFollower,
+  FOLLOWER_COLUMN_LABELS,
+  showsFollowerColumns,
+  sumFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
 
 /** One campaign (or ad set / ad) row of the shared report's campaign tables. */
 export type SharedCampaignRow = {
@@ -19,6 +26,8 @@ export type SharedCampaignRow = {
   purchases: number;
   revenue: number;
   addToCart: number;
+  /** Facebook only; traffic tables show it. */
+  followers?: FacebookFollowerTotals;
 };
 
 type Props = {
@@ -30,7 +39,8 @@ type Props = {
 
 /**
  * Traffic campaigns of a shared report. A click is their result, so the table
- * shows CTR and cost per click instead of leads or purchases.
+ * shows CTR and cost per click instead of leads or purchases, plus new
+ * followers once a campaign sends people to a Page or profile.
  */
 export function SharedTrafficTable({
   rows,
@@ -38,25 +48,28 @@ export function SharedTrafficTable({
   formatCurrency,
   formatNumber,
 }: Props) {
-  const totals = rows.reduce(
-    (sum, row) => ({
-      spend: sum.spend + row.spend,
-      impressions: sum.impressions + row.impressions,
-      clicks: sum.clicks + row.clicks,
-    }),
-    { spend: 0, impressions: 0, clicks: 0 },
-  );
-  const cells = (
-    row: Pick<SharedCampaignRow, "spend" | "impressions" | "clicks">,
-  ) => (
+  const withFollowers = showsFollowerColumns(rows);
+  const cells = (metrics: TrafficMetrics) => (
     <>
-      <TableCell>{formatCurrency(row.spend)}</TableCell>
-      <TableCell>{formatNumber(row.impressions)}</TableCell>
-      <TableCell>{formatNumber(row.clicks)}</TableCell>
-      <TableCell>{ctr(row.clicks, row.impressions)}</TableCell>
+      <TableCell>{formatCurrency(metrics.spend)}</TableCell>
+      <TableCell>{formatNumber(metrics.impressions)}</TableCell>
+      <TableCell>{formatNumber(metrics.clicks)}</TableCell>
+      <TableCell>{ctr(metrics.clicks, metrics.impressions)}</TableCell>
       <TableCell>
-        {formatCurrency(row.clicks > 0 ? row.spend / row.clicks : 0)}
+        {formatCurrency(
+          metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0,
+        )}
       </TableCell>
+      {withFollowers && (
+        <>
+          <TableCell>{formatNumber(metrics.newFollowers)}</TableCell>
+          <TableCell>
+            {metrics.costPerFollower === null
+              ? "—"
+              : formatCurrency(metrics.costPerFollower)}
+          </TableCell>
+        </>
+      )}
     </>
   );
 
@@ -78,6 +91,16 @@ export function SharedTrafficTable({
                 <TableHead className="text-right">קליקים</TableHead>
                 <TableHead className="text-right">CTR</TableHead>
                 <TableHead className="text-right">עלות לקליק</TableHead>
+                {withFollowers && (
+                  <>
+                    <TableHead className="text-right">
+                      {FOLLOWER_COLUMN_LABELS.newFollowers}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {FOLLOWER_COLUMN_LABELS.costPerFollower}
+                    </TableHead>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,12 +109,12 @@ export function SharedTrafficTable({
                   <TableCell className="font-medium max-w-[200px] truncate">
                     {row.name}
                   </TableCell>
-                  {cells(row)}
+                  {cells(trafficMetrics([row]))}
                 </TableRow>
               ))}
               <TableRow className="bg-primary/10 font-bold border-t-2">
                 <TableCell>סה"כ</TableCell>
-                {cells(totals)}
+                {cells(trafficMetrics(rows))}
               </TableRow>
             </TableBody>
           </Table>
@@ -99,6 +122,27 @@ export function SharedTrafficTable({
       </CardContent>
     </Card>
   );
+}
+
+type TrafficMetrics = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  newFollowers: number;
+  costPerFollower: number | null;
+};
+
+/** Delivery, spend and followers of one campaign or of the whole table. */
+function trafficMetrics(rows: SharedCampaignRow[]): TrafficMetrics {
+  const sum = (metric: (row: SharedCampaignRow) => number) =>
+    rows.reduce((total, row) => total + metric(row), 0);
+  return {
+    spend: sum((row) => row.spend),
+    impressions: sum((row) => row.impressions),
+    clicks: sum((row) => row.clicks),
+    newFollowers: sumFacebookFollowers(rows).newFollowers,
+    costPerFollower: costPerFollower(rows),
+  };
 }
 
 /** Click-through rate as a percentage with two decimals. */

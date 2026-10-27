@@ -7,6 +7,11 @@ import {
 import type { CampaignGoal } from "@/lib/campaignGoals";
 import { facebookCampaignGoals } from "@/lib/facebookCampaignGoal";
 import {
+  addFacebookFollowers,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
+import {
   addFacebookResult,
   emptyFacebookResultTotals,
   type FacebookResultTotals,
@@ -24,6 +29,7 @@ export type FacebookReportCampaign = {
   add_to_cart: number;
   conversations: number;
   result: FacebookResultTotals;
+  followers: FacebookFollowerTotals;
 };
 
 /** A row with its entity key, in the order the entity first appears. */
@@ -55,7 +61,7 @@ export function groupFacebookReportCampaigns(
   };
 }
 
-/** Sums each entity's delivery, results and Meta result over its records. */
+/** Sums each entity's delivery, results, Meta result and followers over its records. */
 function aggregateFacebookReportCampaigns(
   records: Array<{ data?: Record<string, unknown> | null }>,
   level: AdsEntityLevel,
@@ -75,6 +81,7 @@ function aggregateFacebookReportCampaigns(
       add_to_cart: 0,
       conversations: 0,
       result: emptyFacebookResultTotals(),
+      followers: emptyFacebookFollowers(),
     });
     group.impressions += Number(data.impressions) || 0;
     group.clicks += Number(data.clicks) || 0;
@@ -85,6 +92,7 @@ function aggregateFacebookReportCampaigns(
     group.add_to_cart += Number(data.add_to_cart) || 0;
     group.conversations += Number(data.conversations) || 0;
     group.result = addFacebookResult(group.result, data);
+    group.followers = addFacebookFollowers(group.followers, data);
   }
   return groups;
 }
