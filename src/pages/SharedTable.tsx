@@ -77,6 +77,7 @@ import {
   summarizeSharedTableRecords,
 } from "@/lib/sharedTableSummary";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
+import { sharedManualRoiFigures } from "@/components/SharedTable/sharedManualRoi";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
@@ -488,6 +489,14 @@ export default function SharedTable() {
     tableMode,
     adsEntityLevel,
   ]);
+
+  const manualRoiFigures = summary
+    ? sharedManualRoiFigures({
+        leadRows: campaignSummary.leads,
+        summary,
+        integrationSettings: data?.table?.integration_settings,
+      })
+    : null;
 
   // Generic table columns from fields or data keys
   const genericColumns = useMemo(() => {
@@ -1311,22 +1320,11 @@ export default function SharedTable() {
         {/* Manual ROI summary — viewers can fill in closures & revenue */}
         {isAdsPlatform(integrationType || "") &&
           adsReportView === "summary" &&
-          summary &&
-          (summary.hasLeads || campaignSummary.leads.length > 0) && (
+          manualRoiFigures && (
             <ManualROICard
               tableId={data.table.id}
-              spend={
-                campaignSummary.leads.reduce(
-                  (s: number, c: any) => s + c.spend,
-                  0,
-                ) || summary.spend
-              }
-              leads={
-                campaignSummary.leads.reduce(
-                  (s: number, c: any) => s + c.leads,
-                  0,
-                ) || summary.leads
-              }
+              spend={manualRoiFigures.spend}
+              leads={manualRoiFigures.leads}
               currency={(() => {
                 const code = (
                   (data?.table?.integration_settings as any)?.currency || "ILS"

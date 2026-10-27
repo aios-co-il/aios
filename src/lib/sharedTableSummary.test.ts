@@ -118,6 +118,36 @@ describe("shared facebook insights table", () => {
     expect(summary.cpl).toBe(30);
   });
 
+  it("a legacy CONVERSIONS lead campaign keeps its leads out of ROAS", () => {
+    const records = [
+      fb("LegacyLead", {
+        campaign_type: "lead",
+        campaign_objective: "CONVERSIONS",
+        leads: 5,
+        spend: 100,
+      }),
+      fb("Shop", {
+        campaign_objective: "OUTCOME_SALES",
+        spend: 100,
+        purchases: 2,
+        purchase_value: 400,
+      }),
+    ];
+    const groups = groupSharedFacebookRows(records, "campaign", {
+      leadsOnly: false,
+    });
+    expect(names(groups.leads)).toStrictEqual(["LegacyLead"]);
+    expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
+    const summary = summarizeSharedTableRecords(records, {
+      integrationType: "facebook_insights",
+      goalOf: groups.goalOf,
+      goals: { ecommerce: true, leads: true },
+      forceLeadsOnly: false,
+      forceEcommerceOnly: false,
+    });
+    expect(summary).toMatchObject({ leads: 5, cpl: 20, roas: 4 });
+  });
+
   it("a sales campaign with pixel leads stays in sales and adds no leads", () => {
     const records = [
       fb("Shop", {

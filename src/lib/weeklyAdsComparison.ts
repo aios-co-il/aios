@@ -1,9 +1,10 @@
+import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import {
-  effectiveFacebookCampaignType,
-  isFacebookEcommerceCampaign,
-  isFacebookLeadsOnlyTable,
-  preferFacebookCampaignType,
-} from "@/lib/adsMetrics";
+  addFacebookGoalRecord,
+  emptyFacebookGoalInputs,
+  facebookCampaignGoal,
+  type FacebookGoalInputs,
+} from "@/lib/facebookCampaignGoal";
 
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
@@ -112,48 +113,19 @@ const shouldIncludeCampaignRow = (data: Record<string, unknown>): boolean => {
   return !level || level === "campaign";
 };
 
-type CampaignAccumulator = {
-  leads: number;
-  purchases: number;
-  revenue: number;
-  campaignType?: string;
-  objective?: string;
-  resultKind?: string;
-};
-
-type WeekCampaign = CampaignAccumulator & {
+type WeekCampaign = {
   source: WeeklyAdsSource;
   campaignId: string;
   campaign: string;
   impressions: number;
   clicks: number;
+  leads: number;
+  purchases: number;
   spend: number;
+  revenue: number;
   addToCart: number;
-};
-
-/** Same split as the report's Facebook tables (objective first, then results). */
-const facebookKind = (
-  totals: CampaignAccumulator,
-  leadsOnly: boolean,
-): WeeklyCampaignKind => {
-  const type = String(totals.campaignType || "").toLowerCase();
-  if (type === "traffic") return "traffic";
-  if (leadsOnly) return "leads";
-  return isFacebookEcommerceCampaign({
-    name: "",
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
-    leads: totals.leads,
-    purchases: totals.purchases,
-    purchase_value: totals.revenue,
-    add_to_cart: 0,
-    campaign_type: type || undefined,
-    campaign_objective: totals.objective,
-    result_kind: totals.resultKind,
-  })
-    ? "ecommerce"
-    : "leads";
+  /** Facebook only: what decides the campaign's goal in every report. */
+  goal: FacebookGoalInputs;
 };
 
 function utcDateString(date: Date): string {
@@ -189,7 +161,7 @@ export function getSundayStart(date: Date): Date {
 
 function campaignKind(
   source: WeeklyAdsSource,
-  totals: CampaignAccumulator,
+  goal: FacebookGoalInputs,
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
   googleGoal?: "leads" | "ecommerce",
 ): WeeklyCampaignKind {
@@ -200,7 +172,9 @@ function campaignKind(
       (sourceModes[source] === "ecommerce" ? "ecommerce" : "leads")
     );
   if (source === "facebook_ecommerce") return "ecommerce";
-  return facebookKind(totals, sourceModes[source] === "leads");
+  return facebookCampaignGoal(goal, {
+    leadsOnly: sourceModes[source] === "leads",
+  });
 }
 
 const emptyTotals = (): WeeklyGoalTotals => ({
@@ -285,6 +259,7 @@ export function buildWeeklyCampaignSections(
       spend: 0,
       revenue: 0,
       addToCart: 0,
+      goal: emptyFacebookGoalInputs(),
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -319,22 +294,7 @@ export function buildWeeklyCampaignSections(
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
     if (source !== "google_ads") {
-      // The Meta objective decides when known; WhatsApp "traffic" counts as leads.
-      // The legacy CONVERSIONS objective is not a sales objective in the sync (it
-      // stores many such campaigns as leads), so the stored type and results decide.
-      const legacyConversions =
-        String(
-          data.campaign_objective || data.objective || "",
-        ).toUpperCase() === "CONVERSIONS";
-      const type = effectiveFacebookCampaignType(
-        legacyConversions
-          ? { ...data, campaign_objective: null, objective: null }
-          : data,
-      );
-      if (type !== "other")
-        row.campaignType = preferFacebookCampaignType(row.campaignType, type);
-      row.objective ||= String(data.campaign_objective || "") || undefined;
-      row.resultKind ||= String(data.result_kind || "") || undefined;
+      row.goal = addFacebookGoalRecord(row.goal, data);
     }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
@@ -352,7 +312,7 @@ export function buildWeeklyCampaignSections(
         .map(([key, campaign]) => {
           const kind = campaignKind(
             campaign.source,
-            campaign,
+            campaign.goal,
             sourceModes,
             options.googleCampaignGoals?.get(campaign.campaignId),
           );

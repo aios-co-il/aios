@@ -6,7 +6,6 @@ import {
   getRevenueFromData,
   getSessionsFromData,
   getSpendFromData,
-  groupFacebookCampaigns,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
 import {
@@ -14,6 +13,7 @@ import {
   getEntityGroupKey,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import { facebookCampaignGoals } from "@/lib/facebookCampaignGoal";
 
 type RecordData = Record<string, unknown>;
 
@@ -128,42 +128,38 @@ export function summarizeSharedTableRecords(
   };
 }
 
-/** The key the Facebook aggregation groups a record under at this level. */
-function facebookEntityKey(data: RecordData, level: AdsEntityLevel): string {
-  return level === "campaign"
-    ? String(data.campaign_name || data.campaign || "ללא שם")
-    : getEntityGroupKey(data, level);
-}
-
 /**
- * Facebook Insights rows of a shared report, split by goal the way the internal
- * report does (sales / leads / traffic), plus each record's goal for the KPIs.
- * A leads-only table (campaign_type leads) keeps every non-traffic row in leads.
+ * Facebook Insights rows of a shared report split into sales, lead and traffic
+ * tables by the classifier the internal report and the weekly tab use, plus the
+ * goal of each record for the KPIs. A leads-only table keeps every non-traffic
+ * campaign in leads.
  */
 export function groupSharedFacebookRows(
   records: Array<{ data?: RecordData | null }>,
   level: AdsEntityLevel,
   options: { leadsOnly: boolean },
-): {
-  ecommerce: FacebookCampaignRow[];
-  leads: FacebookCampaignRow[];
-  traffic: FacebookCampaignRow[];
+): Record<SharedCampaignGoal, FacebookCampaignRow[]> & {
   goalOf: (data: RecordData) => SharedCampaignGoal;
 } {
-  const rows = aggregateFacebookRecordsAtLevel(records, level);
-  const groups = groupFacebookCampaigns(rows, {
-    forceLeadsOnly: options.leadsOnly,
-  });
-  const keyOf = (row: FacebookCampaignRow) =>
-    level === "campaign"
-      ? row.name
-      : ((row as FacebookCampaignRow & { key?: string }).key ?? row.name);
-  const goalByKey = new Map<string, SharedCampaignGoal>();
-  for (const row of groups.ecommerce) goalByKey.set(keyOf(row), "ecommerce");
-  for (const row of groups.leads) goalByKey.set(keyOf(row), "leads");
-  for (const row of groups.traffic) goalByKey.set(keyOf(row), "traffic");
+  const keyOf = (data: RecordData) => facebookEntityKey(data, level);
+  const goals = facebookCampaignGoals(records, keyOf, options);
+  const goalOf = (data: RecordData) => goals.get(keyOf(data)) ?? "leads";
+  const rowsOf = (goal: SharedCampaignGoal) =>
+    aggregateFacebookRecordsAtLevel(
+      records.filter((record) => goalOf(record.data ?? {}) === goal),
+      level,
+    );
   return {
-    ...groups,
-    goalOf: (data) => goalByKey.get(facebookEntityKey(data, level)) ?? "leads",
+    ecommerce: rowsOf("ecommerce"),
+    leads: rowsOf("leads"),
+    traffic: rowsOf("traffic"),
+    goalOf,
   };
+}
+
+/** The key the shared Facebook aggregation groups a record under at this level. */
+function facebookEntityKey(data: RecordData, level: AdsEntityLevel): string {
+  return level === "campaign"
+    ? String(data.campaign_name || data.campaign || "ללא שם")
+    : getEntityGroupKey(data, level);
 }

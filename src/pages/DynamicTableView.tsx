@@ -103,21 +103,15 @@ import {
 } from "@/lib/currency";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
+import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
 import {
-  effectiveFacebookCampaignType,
-  getLeadsFromData,
-  isFacebookEcommerceCampaign,
-  preferFacebookCampaignType,
-} from "@/lib/adsMetrics";
-import {
-  addFacebookResult,
-  emptyFacebookResultTotals,
   facebookCostPerResult,
   facebookResultsColumnLabel,
-  type FacebookResultTotals,
 } from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
+import { hasManualRoiData } from "@/components/dynamic-tables/manualRoi";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
 import {
   fetchWooReportAttribution,
@@ -3141,116 +3135,21 @@ export default function DynamicTableView({
                 adsEntityLevel === "campaign"
                   ? `קמפיין ${suffix}`
                   : entityColumnLabel;
-              const campaignGroups = filteredRecords.reduce(
-                (acc, record) => {
-                  const groupKey = getEntityGroupKey(
-                    record.data,
-                    adsEntityLevel,
-                  );
-                  const campaignName = getEntityDisplayName(
-                    record.data,
-                    adsEntityLevel,
-                  );
-                  if (!acc[groupKey]) {
-                    acc[groupKey] = {
-                      name: campaignName,
-                      impressions: 0,
-                      clicks: 0,
-                      leads: 0,
-                      spend: 0,
-                      purchases: 0,
-                      purchase_value: 0,
-                      add_to_cart: 0,
-                      conversations: 0,
-                      campaign_type: "other" as
-                        "lead" | "ecommerce" | "traffic" | "other",
-                      campaign_objective: null as string | null,
-                      result: emptyFacebookResultTotals(),
-                    };
-                  }
-
-                  const rowType = effectiveFacebookCampaignType(
-                    record.data || {},
-                  );
-                  if (
-                    rowType === "ecommerce" ||
-                    rowType === "lead" ||
-                    rowType === "traffic"
-                  ) {
-                    acc[groupKey].campaign_type = preferFacebookCampaignType(
-                      acc[groupKey].campaign_type,
-                      rowType,
-                    );
-                  }
-
-                  acc[groupKey].impressions +=
-                    Number(record.data?.impressions) || 0;
-                  acc[groupKey].clicks += Number(record.data?.clicks) || 0;
-                  const effectiveLeads = getLeadsFromData(record.data || {});
-                  acc[groupKey].leads += effectiveLeads;
-                  acc[groupKey].spend += Number(record.data?.spend) || 0;
-                  acc[groupKey].purchases +=
-                    Number(record.data?.purchases) || 0;
-                  acc[groupKey].purchase_value +=
-                    Number(record.data?.purchase_value) || 0;
-                  acc[groupKey].add_to_cart +=
-                    Number(record.data?.add_to_cart) || 0;
-                  acc[groupKey].conversations +=
-                    Number(record.data?.conversations) || 0;
-                  acc[groupKey].result = addFacebookResult(
-                    acc[groupKey].result,
-                    record.data,
-                  );
-                  const objective = String(
-                    record.data?.campaign_objective || "",
-                  ).toUpperCase();
-                  if (objective && !acc[groupKey].campaign_objective)
-                    acc[groupKey].campaign_objective = objective;
-
-                  return acc;
-                },
-                {} as Record<
-                  string,
-                  {
-                    name: string;
-                    impressions: number;
-                    clicks: number;
-                    leads: number;
-                    spend: number;
-                    purchases: number;
-                    purchase_value: number;
-                    add_to_cart: number;
-                    conversations: number;
-                    campaign_type: "lead" | "ecommerce" | "traffic" | "other";
-                    campaign_objective: string | null;
-                    result: FacebookResultTotals;
-                  }
-                >,
-              );
-
-              const entries = Object.entries(campaignGroups);
               // Respect table-level campaign_type setting: if 'leads', NEVER show ecommerce table
               // (even if Facebook reports stray purchase events from a tracking pixel)
-              const tableCampaignType = String(
-                table?.integration_settings?.campaign_type || "",
-              ).toLowerCase();
-              const forceLeadsOnly =
-                tableCampaignType === "leads" || tableCampaignType === "lead";
-              const trafficCampaigns = entries.filter(
-                ([, data]) => data.campaign_type === "traffic",
+              const {
+                ecommerce: ecommerceCampaigns,
+                leads: leadCampaigns,
+                traffic: trafficCampaigns,
+              } = groupFacebookReportCampaigns(
+                filteredRecords,
+                adsEntityLevel,
+                {
+                  leadsOnly: isFacebookLeadsOnlyTable(
+                    table?.integration_settings,
+                  ),
+                },
               );
-              const ecommerceCampaigns = forceLeadsOnly
-                ? []
-                : entries.filter(([, data]) =>
-                    isFacebookEcommerceCampaign(data),
-                  );
-              const leadCampaigns = (
-                forceLeadsOnly
-                  ? entries
-                  : entries.filter(
-                      ([, data]) => !isFacebookEcommerceCampaign(data),
-                    )
-              ).filter(([, data]) => data.campaign_type !== "traffic");
 
               const currency = getCurrencySymbol(
                 table.integration_settings?.currency,
@@ -4433,7 +4332,7 @@ export default function DynamicTableView({
             </>
           )}
 
-          {/* Manual ROI for Google Ads (leads mode only, lead campaigns only) */}
+          {/* Manual ROI for Google Ads (leads mode only, lead campaigns only; kept for entered figures) */}
           {hasGoogleAds &&
             filteredRecords &&
             filteredRecords.length > 0 &&
@@ -4444,7 +4343,12 @@ export default function DynamicTableView({
                 filteredRecords,
                 table,
               );
-              if (leadRecords.length === 0) return null;
+              if (
+                leadRecords.length === 0 &&
+                !hasManualRoiData(table.integration_settings)
+              ) {
+                return null;
+              }
               const totals = leadRecords.reduce(
                 (acc, record) => {
                   acc.cost += Number(record.data?.cost) || 0;
