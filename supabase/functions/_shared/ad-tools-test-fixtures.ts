@@ -128,8 +128,9 @@ const SHARES = [
 
 export function store(): AdScopeStore {
   return {
+    // A uuid column matches any letter case, as Postgres does.
     clientsByIds: async (ids) =>
-      CLIENTS.filter((c) => ids.includes(c.id)).map(
+      CLIENTS.filter((c) => ids.some((id) => id.toLowerCase() === c.id)).map(
         ({ id, tenant_id, agency_id }) => ({ id, tenant_id, agency_id }),
       ),
     clientIdsForMetaAccount: async (variants) =>

@@ -196,6 +196,40 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "fb-tools: an uppercase client_id names the same client",
+  async () => {
+    const owner = tokenOf("ownerA");
+    const upper = await fbGate(owner, {
+      ...pause("9001"),
+      client_id: CA.toUpperCase(),
+    });
+    assertStrictEquals(upper.ok, true);
+    // Still not the client the Meta object sits under.
+    denied(
+      await fbGate(owner, { ...pause("9001"), client_id: CRW.toUpperCase() }),
+      403,
+      "target_out_of_scope",
+    );
+  },
+);
+
+Deno.test(
+  "fb-tools: an object the tenant's own Meta token cannot read",
+  async () => {
+    // 9999 is unknown to A's token (fetchAccountId answers null).
+    const res = await fbGate(tokenOf("ownerA"), pause("9999"));
+    denied(res, 403, "fb_object_unreachable");
+    assertStrictEquals(!res.ok && res.message?.includes("Meta"), true);
+    // Readable but linked to no client in scope: still out of scope.
+    denied(
+      await fbGate(tokenOf("ownerA"), pause("9002")),
+      403,
+      "target_out_of_scope",
+    );
+  },
+);
+
 Deno.test("fb-tools: a client_id that is not a uuid gets 400", async () => {
   for (const client_id of ["abc", "cA", " " + CA, 42])
     denied(
@@ -210,9 +244,8 @@ Deno.test("fb-tools: owner is refused outside scope", async () => {
   denied(await fbGate(owner, pause("9002")), 403, "target_out_of_scope");
   // Shared read_only: no writes.
   denied(await fbGate(owner, pause("9004")), 403, "target_out_of_scope");
-  // Ad account not linked to any client, or unknown to the token.
+  // Ad account not linked to any client.
   denied(await fbGate(owner, pause("9005")), 403, "target_out_of_scope");
-  denied(await fbGate(owner, pause("9999")), 403, "target_out_of_scope");
   // A foreign client_id would also pick that client's FB token.
   denied(
     await fbGate(owner, { ...pause("9001"), client_id: CB }),

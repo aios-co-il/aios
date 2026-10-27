@@ -162,7 +162,8 @@ export function fbTokenSource(
 /** carmen-fb-tools: caller, then (for a user) client_id and the Meta object. */
 export async function authorizeFbToolRequest(
   input: GateInput & {
-    /** Ad account of a Meta campaign / ad set / ad, read with that token. */
+    /** Ad account of a Meta campaign / ad set / ad, read with that token;
+     * null when the token cannot read it. */
     fetchAccountId(
       token: FbTokenSource,
       entityId: string,

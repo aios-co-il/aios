@@ -49,6 +49,14 @@ function outOfScope(scope: AdScope): AdToolDenied {
   };
 }
 
+/** The caller's own Meta token cannot read the object, or there is none. */
+const fbObjectUnreachable: AdToolDenied = {
+  ok: false,
+  status: 403,
+  error: "fb_object_unreachable",
+  message: "לארגון שלך אין חיבור Meta עם גישה לפריט הזה.",
+};
+
 const invalid = (error: string): AdToolDenied => ({
   ok: false,
   status: 400,
@@ -137,6 +145,7 @@ export async function checkFbEntityTarget(input: {
   body: Record<string, unknown>;
   scope: AdScope;
   store: AdScopeStore;
+  /** null: the caller's token cannot read the object. */
   fetchAccountId(entityId: string): Promise<string | null>;
 }): Promise<TargetResult> {
   const field = FB_ENTITY_FIELD[input.action];
@@ -146,13 +155,15 @@ export async function checkFbEntityTarget(input: {
   if (entityId == null || entityId === "") return OK;
   if (!isNumericId(entityId)) return invalid(`invalid_${field}`);
   const account = await input.fetchAccountId(String(entityId).trim());
+  if (!account) return fbObjectUnreachable;
   const variants = metaAccountVariants(account);
   if (!variants) return outOfScope(input.scope);
   const clientIds = await input.store.clientIdsForMetaAccount(variants);
+  // A uuid may arrive in upper case; Postgres returns ids in lower case.
   const named = input.body.client_id;
   const owners =
     typeof named === "string" && named
-      ? clientIds.filter((id) => id === named)
+      ? clientIds.filter((id) => id.toLowerCase() === named.toLowerCase())
       : clientIds;
   return (await anyClientInScope(input.store, input.scope, owners))
     ? OK
