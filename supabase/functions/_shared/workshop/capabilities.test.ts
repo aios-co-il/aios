@@ -104,3 +104,9 @@ Deno.test(
     assert(!report.missing.some((line) => line.includes("קריינות")));
   },
 );
+
+Deno.test("an OpenRouter brain alone also runs Carmen's chat", () => {
+  const report = capabilityReport({}, {}, { openrouter: true });
+  assertEquals(report.brains, ["OpenRouter"]);
+  assert(!report.missing.includes("אין מפתח למודל שפה"));
+});

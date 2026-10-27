@@ -18,8 +18,14 @@ import {
 } from "../_shared/carmen/brain-guard.ts";
 import {
   type BrainEngine,
+  type BrainEngineTarget,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import {
+  movesToNextLink,
+  openRouterTail,
+  lazyBrainTail,
+} from "../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { makeAdImage } from "../_shared/creative/ad-image.ts";
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
@@ -13627,6 +13633,8 @@ async function handleRunAgent(
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
+  /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
+  internalTail?: () => Promise<BrainEngineTarget[]>,
 ): Promise<Response> {
   try {
     const {
@@ -15720,6 +15728,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const runsInternal = !brainEngine || brainEngine.fallbackInternal;
     const llmChain: LLMTarget[] = brainEngine
       ? [
           ...brainEngine.targets,
@@ -15728,6 +15737,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             : []),
         ]
       : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
+    // Carmen's own engine ends on the tenant's OpenRouter brain, read only once the chain
+    // runs out, so a missing or refused provider key continues there instead of failing.
+    const extendChain = lazyBrainTail<LLMTarget>(
+      llmChain,
+      runsInternal ? internalTail : undefined,
+    );
+    if (llmChain.length === 0) await extendChain();
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15828,22 +15844,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, or any body signalling exhausted balance/quota, triggers failover.
-        const outOfCredit =
-          res.status === 429 ||
-          /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-            err,
-          );
-        // A connected brain may also fail on size, model or auth; any failure
-        // moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
+        // triggers failover. A connected brain may also fail on size, model or auth; any
+        // failure moves on, and the chain holds only what this brain plan allowed.
         if (
-          (outOfCredit || !!llm.connectionId) &&
-          activeIdx < llmChain.length - 1
+          movesToNextLink(res.status, err, !!llm.connectionId) &&
+          (activeIdx < llmChain.length - 1 || (await extendChain()))
         ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason = res.status === 429 ? "מגבלת קצב/קרדיט" : "קרדיט נגמר";
+          const reason =
+            res.status === 429
+              ? "מגבלת קצב/קרדיט"
+              : res.status === 401 || res.status === 403
+                ? "המפתח נדחה"
+                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
@@ -16528,9 +16544,18 @@ Deno.serve(async (req) => {
     if (denied) return denied;
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
+  // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
+  // that brain's own access rules.
+  const internalTail = () => openRouterTail(guardClient, auth, bodyJson);
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
+    return await handleRunAgent(
+      bodyJson,
+      surface,
+      undefined,
+      brainEngine,
+      internalTail,
+    );
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16546,7 +16571,13 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
+        const resp = await handleRunAgent(
+          bodyJson,
+          surface,
+          emit,
+          brainEngine,
+          internalTail,
+        );
         let final: any = {};
         try {
           final = await resp.json();

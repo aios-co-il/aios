@@ -74,10 +74,14 @@ export function capabilityReport(
     missing.push(
       "אין מנוע וידאו אמיתי (ElevenLabs, Higgsfield או OpenRouter): הסרט יופק במנוע בדיקה",
     );
-  if (brains.length === 0) missing.push("אין מפתח למודל שפה");
+  // Carmen's own engine continues on the OpenRouter brain when no provider key answers.
+  if (brains.length === 0 && !openRouter) missing.push("אין מפתח למודל שפה");
   return {
     connected,
-    brains: brains.map((provider) => PROVIDER_LABEL[provider]),
+    brains: [
+      ...brains.map((provider) => PROVIDER_LABEL[provider]),
+      ...(openRouter ? ["OpenRouter"] : []),
+    ],
     can: {
       images: images.length > 0 || openRouter,
       image_providers: [
