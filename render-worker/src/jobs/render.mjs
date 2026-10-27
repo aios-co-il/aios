@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
-import { brandFromPayload } from "../compose/brand.mjs";
+import { brandFromPayload, brandNameFromPayload } from "../compose/brand.mjs";
+import { captionStyleOf } from "../compose/motion-captions.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
@@ -158,6 +159,17 @@ export async function loadFilmSources(db, run) {
       const clipTalks = clipMeta.lipsync === true && !spokeOldLine;
       const voicePath = voicePathOf(scene, clipTalks);
       const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
+      const still = assets.get(scene.still_asset_id);
+      const sceneMeta = metaOf(scene);
+      // Which picture the scene shows, by its source (a material keeps its asset id across
+      // scenes), and the skin it wears: two scenes in a row in other skins are a skin switch.
+      const source = (asset) =>
+        asset?.url ? metaOf(asset).asset_id || asset.url : null;
+      const skinRef =
+        typeof sceneMeta.reference_url === "string" &&
+        sceneMeta.reference_url.trim()
+          ? sceneMeta.reference_url.trim()
+          : null;
       return {
         id: scene.id,
         position: scene.position,
@@ -166,7 +178,13 @@ export async function loadFilmSources(db, run) {
         durationS: scene.duration_s,
         clipPath: clip?.url || null,
         clipProvider: clipMeta.provider || null,
-        stillPath: assets.get(scene.still_asset_id)?.url || null,
+        stillPath: still?.url || null,
+        skinSwitch:
+          typeof sceneMeta.skin_switch === "boolean"
+            ? sceneMeta.skin_switch
+            : null,
+        skinRef,
+        pictureKey: skinRef || source(still) || source(clip),
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
@@ -192,7 +210,8 @@ export async function loadFilmSources(db, run) {
 
 /**
  * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
- * font, logo, CTA), whether the brief asked for trailer sound design (video.sound_design), and
+ * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
+ * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), and
  * whether this run may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id) whose approved quote priced them
  * (workshop_produce_video puts estimate.sound_effects on the production). Every other render,
@@ -207,6 +226,9 @@ export async function loadFilmSettings(db, run) {
   const production = row?.payload?.video?.production;
   return {
     brand: brandFromPayload(row?.payload),
+    // Motion-graphic captions unless the film asks for karaoke lines.
+    captionStyle: captionStyleOf(row?.payload?.video?.caption_style),
+    brandName: brandNameFromPayload(row?.payload),
     soundDesign: row?.payload?.video?.sound_design === true,
     effectsQuoted:
       !!production &&
@@ -337,6 +359,8 @@ export async function renderFilm({
       effects: effectFiles,
       // A trailer brief gets the trailer mix, also when its effects could not be made.
       soundDesign: settings.soundDesign,
+      captionStyle: settings.captionStyle,
+      brandName: settings.brandName,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

@@ -43,51 +43,59 @@
     "frames": [0, 3, 102, 114, 195],
     "volumes": [0.168, 0.168, 0.168, 0.596, 0.596]
   },
+  "captionStyle": "motion",
   "captions": [
     {
       "startFrame": 3,
-      "endFrame": 76,
+      "endFrame": 58,
       "words": [
         {
           "text": "היא",
           "startFrame": 3,
-          "endFrame": 11
+          "endFrame": 11,
+          "line": 0
         },
         {
           "text": "קוראת",
           "startFrame": 13,
-          "endFrame": 26
+          "endFrame": 26,
+          "line": 0
         },
         {
           "text": "את",
           "startFrame": 29,
-          "endFrame": 34
+          "endFrame": 34,
+          "line": 0
         },
         {
           "text": "הנתונים",
           "startFrame": 37,
-          "endFrame": 55
-        },
-        {
-          "text": "ומקדמת",
-          "startFrame": 58,
-          "endFrame": 73
+          "endFrame": 55,
+          "line": 0
         }
       ]
     },
     {
-      "startFrame": 76,
-      "endFrame": 114,
+      "startFrame": 58,
+      "endFrame": 113,
       "words": [
+        {
+          "text": "ומקדמת",
+          "startFrame": 58,
+          "endFrame": 73,
+          "line": 0
+        },
         {
           "text": "אותך",
           "startFrame": 76,
-          "endFrame": 86
+          "endFrame": 86,
+          "line": 0
         },
         {
           "text": "בגוגל",
           "startFrame": 89,
-          "endFrame": 102
+          "endFrame": 102,
+          "line": 0
         }
       ]
     }
@@ -137,8 +145,8 @@
       "caption": "SEO ו-GEO",
       "kicker": "SEO ו-GEO",
       "move": "drift-left",
-      "transition": "crossfade",
-      "transitionFrames": 15,
+      "transition": "skin",
+      "transitionFrames": 10,
       "lipsync": false,
       "hasAudio": true,
       "clipVolume": 0

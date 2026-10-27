@@ -28,6 +28,21 @@ const displayUrl = (value) => {
   return raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "") || null;
 };
 
+/**
+ * The brand's name on the work item (brand_book.name, brand_name or client_name), for the key
+ * words of motion captions; null when none is set.
+ */
+export function brandNameFromPayload(payload) {
+  const data = record(payload);
+  const book = record(data.brand_book);
+  return (
+    text(book.name, 60) ??
+    text(book.brand_name, 60) ??
+    text(data.brand_name, 60) ??
+    text(data.client_name, 60)
+  );
+}
+
 export function brandFromPayload(payload) {
   const data = record(payload);
   const book = record(data.brand_book);

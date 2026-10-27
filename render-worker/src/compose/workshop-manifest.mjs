@@ -10,16 +10,20 @@ import {
   wordsToFrames,
 } from "./captions.mjs";
 import { kickerTitle } from "./kicker.mjs";
+import {
+  captionStyleOf,
+  lineCharsFor,
+  motionCaptions,
+} from "./motion-captions.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
+import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.mjs";
 import {
   MIX,
   effectCues,
   fitScenes,
   musicEnvelope,
-  sceneTransition,
   speaks,
   speechSpans,
-  transitionFrames,
 } from "./workshop-edit.mjs";
 
 export const WORKSHOP_FPS = 30;
@@ -220,7 +224,18 @@ export function buildWorkshopManifest(timeline) {
           ),
         );
     }
-    const transition = sceneTransition(order, p.scene.transition);
+    // The same character in another picture: a skin switch (flash, pop, sweep on the whoosh).
+    const { transition, transitionFrames } = sceneTransitionFor(
+      order,
+      p.scene.transition,
+      {
+        skin: isSkinSwitch(picked[order - 1]?.scene, p.scene, {
+          soundDesign: timeline.soundDesign === true,
+        }),
+        previousFrames: order ? counts[order - 1] : 0,
+        frames: frameCount,
+      },
+    );
     return {
       id: String(p.scene.id),
       order,
@@ -233,7 +248,8 @@ export function buildWorkshopManifest(timeline) {
       caption: String(p.scene.overlayText ?? "")
         .trim()
         .slice(0, 180),
-      // Over karaoke captions the scene's own short title still shows, at the top.
+      // Over the narration's captions the scene's own short title still shows: at the top
+      // over karaoke lines, as a title card over the motion captions.
       kicker: kickerTitle(
         p.scene.overlayText,
         p.scene.voiceoverText || p.scene.spokenText || "",
@@ -242,16 +258,13 @@ export function buildWorkshopManifest(timeline) {
         ? "static"
         : WORKSHOP_MOVES[p.index % WORKSHOP_MOVES.length],
       transition,
-      transitionFrames: transitionFrames(
-        order ? counts[order - 1] : 0,
-        frameCount,
-        transition,
-      ),
+      transitionFrames,
       lipsync: p.scene.lipsync === true,
       hasAudio: p.scene.clipHasAudio !== false,
     };
   });
   const scenesEnd = cursor;
+  const captionStyle = captionStyleOf(timeline.captionStyle);
   for (const word of framed) spans.push([word.startFrame, word.endFrame]);
   const speech = speechSpans(spans);
   const clipAudio = timeline.clipAudio !== false;
@@ -339,7 +352,22 @@ export function buildWorkshopManifest(timeline) {
             }),
           }
         : {}),
-      captions: captionChunks(framed, fps, scenesEnd),
+      captionStyle,
+      captions:
+        captionStyle === "motion"
+          ? motionCaptions(framed, {
+              fps,
+              endFrame: scenesEnd,
+              // A phrase never runs over a cut, and a scene's title words are its key words.
+              breaks: scenes.slice(1).map((scene) => scene.startFrame),
+              scenes: scenes.map((scene, order) => ({
+                startFrame: scene.startFrame,
+                title: picked[order].scene.overlayText ?? "",
+              })),
+              brand: timeline.brandName ?? "",
+              maxLineChars: lineCharsFor(timeline.aspect),
+            })
+          : captionChunks(framed, fps, scenesEnd),
       clipAudio,
       brand,
       endCard,
