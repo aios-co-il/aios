@@ -1,6 +1,9 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { buildDestinationTypeMaps } from "./fb-insights/adsets.ts";
-import { buildInsightRecord } from "./fbInsights.ts";
+import {
+  buildAllLevelInsightRecords,
+  buildInsightRecord,
+} from "./fbInsights.ts";
 
 type Action = { action_type: string; value: string };
 
@@ -90,3 +93,37 @@ Deno.test("buildInsightRecord stores new followers", async (t) => {
     assertEquals(profileTrafficRow({}).new_followers, 0);
   });
 });
+
+Deno.test(
+  "buildAllLevelInsightRecords refuses a sync without destination types",
+  async () => {
+    const realFetch = globalThis.fetch;
+    let fetches = 0;
+    globalThis.fetch = () => {
+      fetches += 1;
+      return Promise.reject(new Error("offline"));
+    };
+    try {
+      await assertRejects(
+        () =>
+          // @ts-expect-error: a sync call site that lost the argument in a merge.
+          buildAllLevelInsightRecords(
+            "act_1",
+            "2026-10-20",
+            "2026-10-20",
+            "token",
+            statuses,
+            {},
+            {},
+            { byCampaign: {}, byAdset: {} },
+          ),
+        Error,
+        "destinationTypes is required",
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    // Nothing was fetched, so nothing could be written with a null destination.
+    assertEquals(fetches, 0);
+  },
+);
