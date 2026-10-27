@@ -6,7 +6,10 @@
 -- edit or delete rows directly: a direct edit could rewrite tool_input, requested_by
 -- or the conversation binding of a pending request, or queue a forged one.
 --
--- No data changes and nothing is executed or sent. Safe to re-run.
+-- One data change: the learned skin wa_meta_approval_confirm_flow told Carmen
+-- that a bare "כן" runs the latest pending Meta approval, which this change no
+-- longer allows, so it is turned off (the approval pick rule in run-ai-agent
+-- replaces it). Nothing is executed or sent. Safe to re-run.
 
 -- approval_insert: WITH CHECK (true) let any role queue any row.
 drop policy if exists approval_insert on public.agent_approval_queue;
@@ -21,3 +24,9 @@ revoke insert, update, delete, truncate, references, trigger
 
 grant select on table public.agent_approval_queue to authenticated;
 grant all on table public.agent_approval_queue to service_role;
+
+-- Retire the learned skin that contradicts the bound approval rule (any org).
+update public.ai_skills
+set is_active = false
+where slug = 'wa_meta_approval_confirm_flow'
+  and is_active;
