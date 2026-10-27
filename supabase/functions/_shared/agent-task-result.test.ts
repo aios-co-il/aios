@@ -2,10 +2,11 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asJsonObject,
   readWhatsAppNotify,
+  type WhatsAppNotify,
   taskResultOutput,
 } from "./agent-task-result.ts";
 
-const notify = {
+const notify: WhatsAppNotify = {
   surface: "whatsapp",
   tenant_id: "t1",
   automation_id: null,
