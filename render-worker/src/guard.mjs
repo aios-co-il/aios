@@ -35,6 +35,36 @@ const defaultHosts = () =>
       .filter(Boolean),
   ].filter(Boolean);
 
+/** Private buckets the app links to by URL, such as an uploaded logo in payload.logo_url. */
+const LINKED_PRIVATE_BUCKETS = new Set(["entity-attachments"]);
+
+/**
+ * The bucket and path behind a link to one of this project's private buckets, or null.
+ * The app keeps uploads as entity-attachments links that nobody can fetch as they are, and
+ * signs them when it reads them (src/components/marketing/lib/resolveCreativeImageUrl.ts).
+ * The worker downloads them with its own key instead.
+ */
+export function privateStoragePath(url, projectUrl = process.env.SUPABASE_URL) {
+  let link;
+  let project;
+  try {
+    link = new URL(String(url));
+    project = new URL(String(projectUrl));
+  } catch {
+    return null;
+  }
+  if (link.host !== project.host) return null;
+  const match = link.pathname.match(
+    /^\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
+  );
+  if (!match || !LINKED_PRIVATE_BUCKETS.has(match[1])) return null;
+  try {
+    return { bucket: match[1], path: decodeURIComponent(match[2]) };
+  } catch {
+    return null;
+  }
+}
+
 /** https only, on the Supabase project, *.supabase.co, or MEDIA_URL_HOSTS. */
 export function assertMediaUrl(url, hosts = defaultHosts()) {
   let parsed;

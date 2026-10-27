@@ -12,6 +12,7 @@ import {
   assertTenantPath,
   finalError,
   loadRunItem,
+  privateStoragePath,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -51,7 +52,14 @@ const sniffExt = (bytes) => {
 
 async function materialize(db, tenantId, path, fileBase) {
   let bytes;
-  if (/^https?:\/\//.test(path)) {
+  const linked = /^https?:\/\//.test(path) ? privateStoragePath(path) : null;
+  if (linked) {
+    // A private upload (the logo): read with the worker's key, from the tenant's folder only.
+    bytes = await db.download(
+      linked.bucket,
+      assertTenantPath(tenantId, linked.path),
+    );
+  } else if (/^https?:\/\//.test(path)) {
     const response = await fetch(assertMediaUrl(path));
     if (!response.ok) throw new Error(`media download ${response.status}`);
     bytes = new Uint8Array(await response.arrayBuffer());
