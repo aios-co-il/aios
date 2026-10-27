@@ -17,26 +17,57 @@ import {
 } from "@/lib/workshopBridge";
 import CarmenWorkshop from "./CarmenWorkshop";
 
+const workshopProject = {
+  id: "p-1",
+  tenant_id: "t-1",
+  status: "draft",
+  title: "סרט כרמן",
+  client_id: null,
+  payload: { format: "9:16", workshop: { kind: "film" } },
+};
+
 const state = vi.hoisted(() => ({
   setOpen: vi.fn(),
   scenes: [] as unknown[],
+  /** marketing_work_items, newest first, as the query orders them. */
+  items: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
-  const rows = [
-    {
-      id: "p-1",
-      title: "סרט כרמן",
-      client_id: null,
-      payload: { format: "9:16" },
-    },
-  ];
-  const chain: Record<string, unknown> = {};
-  for (const name of ["select", "eq", "neq", "order", "limit", "in"])
-    chain[name] = () => chain;
-  chain.then = (resolve: (value: unknown) => unknown) =>
-    resolve({ data: rows, error: null });
-  return { supabase: { from: () => chain, rpc: vi.fn() } };
+  // A small PostgREST: eq, neq and not(...is null) filter the rows; "a->b" reads a JSON key.
+  const valueAt = (row: Record<string, unknown>, column: string) =>
+    column
+      .split("->")
+      .reduce<unknown>(
+        (value, key) =>
+          value && typeof value === "object"
+            ? (value as Record<string, unknown>)[key]
+            : undefined,
+        row,
+      );
+  const from = () => {
+    let rows = state.items;
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "order", "limit", "in"])
+      chain[name] = () => chain;
+    chain.eq = (column: string, value: unknown) => {
+      rows = rows.filter((row) => valueAt(row, column) === value);
+      return chain;
+    };
+    chain.neq = (column: string, value: unknown) => {
+      rows = rows.filter((row) => valueAt(row, column) !== value);
+      return chain;
+    };
+    chain.not = (column: string, operator: string, value: unknown) => {
+      if (operator === "is" && value === null)
+        rows = rows.filter((row) => valueAt(row, column) != null);
+      return chain;
+    };
+    chain.then = (resolve: (value: unknown) => unknown) =>
+      resolve({ data: rows, error: null });
+    return chain;
+  };
+  return { supabase: { from, rpc: vi.fn() } };
 });
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenant: { id: "t-1" } }),
@@ -89,6 +120,7 @@ const scene = (id: string, position: number) => ({
 
 beforeEach(() => {
   state.scenes = storyboardScenes([scene("s1", 1), scene("s2", 2)], new Map());
+  state.items = [workshopProject];
 });
 
 function renderPage() {
@@ -156,4 +188,27 @@ test("asking for a change picks the scene, opens Carmen and writes the scene in 
     "aria-pressed",
     "true",
   );
+});
+
+test("the board opens the newest workshop project, never another marketing item", async () => {
+  // A copy item edited a minute ago in /marketing shares the table but is no workshop project.
+  state.items = [
+    {
+      id: "copy-1",
+      tenant_id: "t-1",
+      status: "draft",
+      title: "קופי לדף נחיתה",
+      client_id: null,
+      payload: { department: "copy" },
+    },
+    workshopProject,
+  ];
+  renderPage();
+  await waitFor(() =>
+    expect(getWorkshopContext()).toMatchObject({
+      projectId: "p-1",
+      title: "סרט כרמן",
+    }),
+  );
+  expect(screen.queryByText("קופי לדף נחיתה")).toBeNull();
 });

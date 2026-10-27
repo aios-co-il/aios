@@ -72,6 +72,8 @@ export default function CarmenWorkshop() {
             .select("id,title,status,updated_at,client_id,payload")
             .eq("tenant_id", tenantId)
             .neq("status", "archived")
+            // The table holds every marketing item; workshop projects carry payload.workshop.
+            .not("payload->workshop", "is", null)
             .order("updated_at", { ascending: false })
             .limit(40);
           if (error) throw error;
