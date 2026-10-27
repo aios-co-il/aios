@@ -82,6 +82,14 @@ export function productionReport(
   const previewNote = preview.length
     ? ` ${preview.length} סצנות הונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונה) במקום ${isSceneEngine(replaced) ? ENGINE_LABEL[replaced] : replaced}, כי המנוע בתשלום סירב לעבודה (אין קרדיט או שהמפתח נדחה). אמרי זאת למשתמש ואל תציגי את הסרט כאילו נוצר במנוע בתשלום.`
     : "";
+  // Music has no OpenRouter route: a film without a working ElevenLabs key is assembled
+  // without its music bed, and the finished film's report says so once.
+  const music = runs.find(
+    (run) => run.kind === "music" && run.status === "failed",
+  );
+  const musicNote = music
+    ? ` הסרט הורכב בלי מוזיקת רקע${music.error ? ` (${String(music.error).slice(0, 120)})` : ""}. אם עוד לא אמרת, אמרי זאת למשתמש במשפט אחד, ואל תנסי להפיק מוזיקה שוב.`
+    : "";
   const summary = stalled
     ? `${queued.length} משימות ממתינות בתור כבר ${Math.round(oldestQueuedMin)} דקות ואף שרת הפקה לא קולט אותן. אמרי למשתמש שהסרט לא יחזור עד ששרת ההפקה (render worker) מחובר לסביבה הזו, ואל תנסי שוב ואל תבטיחי זמן.`
     : status === "failed"
@@ -89,7 +97,7 @@ export function productionReport(
       : status === "running"
         ? `ההפקה רצה: ${count("running")} בעבודה, ${queued.length} בתור, ${count("completed")} הושלמו. הסרט יופיע בלוח כשיסתיים.${previewNote}`
         : status === "done"
-          ? `ההפקה הסתיימה והסרט בלוח.${previewNote}`
+          ? `ההפקה הסתיימה והסרט בלוח.${previewNote}${musicNote}`
           : "אין הפקה פעילה.";
   return {
     status,

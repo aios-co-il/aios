@@ -57,15 +57,19 @@ export function capabilityReport(
   const brains = (["openai", "google", "anthropic"] as const).filter(
     (provider) => connected[provider],
   );
+  // An OpenRouter brain also makes pictures and narrates (ElevenLabs voices through OpenRouter).
+  const openRouter = connections.openrouter === true;
   const missing: string[] = [];
-  if (images.length === 0)
+  if (images.length === 0 && !openRouter)
     missing.push(
-      "אין מפתח ליצירת תמונות: צריך אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",
+      "אין מפתח ליצירת תמונות: צריך מוח OpenRouter או אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",
     );
-  if (!connected.elevenlabs && !connected.google)
-    missing.push("בלי ElevenLabs או Google אין קריינות");
+  if (!connected.elevenlabs && !connected.google && !openRouter)
+    missing.push("בלי ElevenLabs, OpenRouter או Google אין קריינות");
   if (!connected.elevenlabs)
-    missing.push("בלי ElevenLabs אין מוזיקה והנפשה במנוע ElevenLabs");
+    missing.push(
+      "בלי ElevenLabs אין מוזיקה (הסרט יורכב בלי מיטת מוזיקה) והנפשה במנוע ElevenLabs",
+    );
   if (engine === "mock")
     missing.push(
       "אין מנוע וידאו אמיתי (ElevenLabs, Higgsfield או OpenRouter): הסרט יופק במנוע בדיקה",
@@ -75,13 +79,16 @@ export function capabilityReport(
     connected,
     brains: brains.map((provider) => PROVIDER_LABEL[provider]),
     can: {
-      images: images.length > 0,
-      image_providers: images.map((provider) => PROVIDER_LABEL[provider]),
+      images: images.length > 0 || openRouter,
+      image_providers: [
+        ...(openRouter ? ["OpenRouter"] : []),
+        ...images.map((provider) => PROVIDER_LABEL[provider]),
+      ],
       video: engine !== "mock",
       video_engine: ENGINE_LABEL[engine],
       /** OpenRouter is connected as a Carmen brain and can also make video. */
       openrouter_video: connections.openrouter === true,
-      narration: connected.elevenlabs || connected.google,
+      narration: connected.elevenlabs || connected.google || openRouter,
       music: connected.elevenlabs,
     },
     missing,

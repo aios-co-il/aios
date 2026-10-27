@@ -122,3 +122,29 @@ Deno.test(
     assertStrictEquals(productionRunning(null, now), false);
   },
 );
+
+Deno.test(
+  "a film finished without its music bed says so, with the reason",
+  () => {
+    const report = productionReport(
+      [
+        { kind: "voice", status: "completed", provider: "openrouter" },
+        {
+          kind: "music",
+          status: "failed",
+          error: "אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
+        },
+        { kind: "render", status: "completed" },
+      ],
+      { status: "done" },
+      now,
+    );
+    assertMatch(report.summary, /בלי מוזיקת רקע \(אין מפתח ElevenLabs/);
+    const withMusic = productionReport(
+      [{ kind: "music", status: "completed" }],
+      { status: "done" },
+      now,
+    );
+    assertNotMatch(withMusic.summary, /מוזיקת רקע/);
+  },
+);

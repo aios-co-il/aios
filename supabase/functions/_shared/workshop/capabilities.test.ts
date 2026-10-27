@@ -91,3 +91,16 @@ Deno.test(
     assertStrictEquals(report.brains.length, 0);
   },
 );
+
+Deno.test(
+  "an OpenRouter brain alone makes pictures and narration, but no music",
+  () => {
+    const report = capabilityReport({}, {}, { openrouter: true });
+    assertStrictEquals(report.can.images, true);
+    assertEquals(report.can.image_providers, ["OpenRouter"]);
+    assertStrictEquals(report.can.narration, true);
+    assertStrictEquals(report.can.music, false);
+    assert(report.missing.some((line) => line.includes("בלי מיטת מוזיקה")));
+    assert(!report.missing.some((line) => line.includes("קריינות")));
+  },
+);
