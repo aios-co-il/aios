@@ -2050,6 +2050,73 @@ Deno.test(
   },
 );
 
+const LOGO_SITE = `<html><head><title>קפה הגינה</title></head>
+<body><img src="/img/logo.png" alt="קפה הגינה logo"></body></html>`;
+
+/** workshop_inspect_site with apply_brand on a site with a logo; importImage answers `copy`. */
+async function brandFromSite(copy: { url?: string; error?: string }) {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "x",
+      client_id: null,
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+  });
+  const imported: string[] = [];
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_inspect_site",
+    {
+      item_id: "item-1",
+      url: "https://garden.example.com/",
+      apply_brand: true,
+    },
+    async () => {},
+    null,
+    {
+      fetchPublic: async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode(LOGO_SITE),
+      }),
+      importImage: async (url) => {
+        imported.push(url);
+        return copy;
+      },
+    },
+  )) as Record<string, any>;
+  const saved = db.calls.filter(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  );
+  const payload = (saved[saved.length - 1].value as Record<string, any>)
+    .payload;
+  return { result, imported, payload };
+}
+
+Deno.test(
+  "the site's logo is copied into storage for the brand, never kept as the site's own link",
+  async () => {
+    const stored =
+      "https://p.supabase.co/storage/v1/object/public/social-media/workshop-imports/tenant-1/item-1/logo.png";
+    const { result, imported, payload } = await brandFromSite({ url: stored });
+    assertEquals(imported, ["https://garden.example.com/img/logo.png"]);
+    // The worker reads storage links; it refuses the client's own host.
+    assertStrictEquals(payload.logo_url, stored);
+    assertStrictEquals(result.brand_applied, true);
+    assertStrictEquals(result.logo_url, stored);
+
+    const failed = await brandFromSite({ error: "הקובץ אינו תמונה נתמכת" });
+    assertStrictEquals(failed.payload.logo_url, undefined);
+    assertStrictEquals(failed.result.brand_applied, true);
+    assertMatch(failed.result.logo_error, /אינו תמונה נתמכת/);
+    assertMatch(failed.result.message, /הלוגו מהאתר לא נשמר/);
+  },
+);
+
 Deno.test(
   "a site that cannot be read says so, and a missing address is asked for",
   async () => {

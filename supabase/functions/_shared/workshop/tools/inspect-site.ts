@@ -95,6 +95,8 @@ export async function workshopInspectSite(ctx: ToolContext) {
       });
   if (savedSite.error) return { error: savedSite.error.message };
   let applied = false;
+  let logoUrl: string | null = null;
+  let logoError: string | null = null;
   const brand = asRecord(project.payload.brand_book);
   const nextPayload: Record<string, unknown> = { ...project.payload };
   if (
@@ -110,8 +112,15 @@ export async function workshopInspectSite(ctx: ToolContext) {
       notes: String(brand.notes ?? "") || summary.slice(0, 600),
       source: "auto",
     };
-    if (report.logo && !nextPayload.logo_url)
-      nextPayload.logo_url = report.logo;
+    // A copy in storage, as workshop_add_assets keeps a picture: the render worker reads only
+    // storage and known media hosts, so the site's own link would leave the end card bare.
+    if (report.logo && !nextPayload.logo_url) {
+      const copied = deps.importImage
+        ? await deps.importImage(report.logo, { tenantId, itemId })
+        : { error: "ייבוא תמונות לא זמין כאן" };
+      if (copied.url) nextPayload.logo_url = logoUrl = copied.url;
+      else logoError = copied.error ?? "הלוגו לא נקרא";
+    }
     applied = true;
   }
   if (applied || nextPayload.client_website !== project.payload.client_website)
@@ -132,8 +141,13 @@ export async function workshopInspectSite(ctx: ToolContext) {
     logo: report.logo,
     images: report.images.slice(0, 8),
     brand_applied: applied,
-    message:
-      "קראתי את האתר ושמרתי את הדוח בלשונית הנכסים. הציגי למשתמש במשפט אחד מה מצאת (צבעים, סגנון כתיבה) והציעי להשתמש בזה. תמונה מהאתר שמרי עם workshop_add_assets.",
+    ...(logoUrl ? { logo_url: logoUrl } : {}),
+    ...(logoError ? { logo_error: logoError } : {}),
+    message: `קראתי את האתר ושמרתי את הדוח בלשונית הנכסים. הציגי למשתמש במשפט אחד מה מצאת (צבעים, סגנון כתיבה) והציעי להשתמש בזה. תמונה מהאתר שמרי עם workshop_add_assets.${
+      logoError
+        ? ` הלוגו מהאתר לא נשמר (${logoError}): בקשי מהמשתמש להעלות את הלוגו.`
+        : ""
+    }`,
     workshop: { event: "artifacts", item_id: itemId },
   };
 }
