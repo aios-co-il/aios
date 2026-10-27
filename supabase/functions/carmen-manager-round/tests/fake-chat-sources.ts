@@ -3,6 +3,7 @@ import { RoundBudget } from "../budget.ts";
 import type { ActivityRow } from "../collectors/chat/activity.ts";
 import type { LiveChatFinding } from "../collectors/chat/gate.ts";
 import { createLlmMeter } from "../collectors/chat/llm-meter.ts";
+import type { CachedReview } from "../collectors/chat/review-cache.ts";
 import type { ChatSources } from "../collectors/chat/sources.ts";
 import type { CollectorContext } from "../collectors/types.ts";
 import { il, NOW, SETTINGS, STAFF_KEY } from "./chat-fixtures.ts";
@@ -32,6 +33,8 @@ export type FakeChatFields = {
   lines?: string[];
   live?: LiveChatFinding[];
   closed?: string[];
+  /** Verdicts the review cache holds, by thread key. */
+  reviews?: Map<string, CachedReview>;
   /** The model's JSON answer (no answer: the model is down). */
   answer?: string;
 };
@@ -69,7 +72,7 @@ export function fakeChatSources(
     chatLinkBase: () => Promise.resolve("https://app.test/t/acme/chat/"),
     classify: {
       cache: {
-        load: () => Promise.resolve(new Map()),
+        load: () => Promise.resolve(new Map(fields.reviews ?? [])),
         save: () => Promise.resolve(),
       },
       ask: (prompt) => {

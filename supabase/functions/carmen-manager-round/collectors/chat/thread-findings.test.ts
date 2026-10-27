@@ -15,6 +15,7 @@ import {
 import { TENANT } from "../../tests/fake-world.ts";
 import type { ActivityRow } from "./activity.ts";
 import { threadFindings } from "./thread-findings.ts";
+import type { ChatVerdict } from "./verdict.ts";
 
 const ALL: FindingKind[] = ["unanswered_request", "client_complaint"];
 const query = {
@@ -119,6 +120,47 @@ Deno.test("threadFindings", async (t) => {
             "הלידים שלכם זבל, שוקל לעזוב",
           ],
         ],
+      );
+    },
+  );
+
+  await t.step(
+    "a request the model read stays a request after the client's thanks",
+    async () => {
+      const verdict: ChatVerdict = {
+        needs_reply: true,
+        is_request: true,
+        complaint_ids: [],
+        urgency: "normal",
+        summary_he: "הדוח החודשי לא הגיע",
+        confidence: 0.9,
+      };
+      const found = await find(
+        [
+          staffRow({ message_id: "hi", created_at: il("08:00") }),
+          row({
+            message_id: "c1",
+            created_at: il("09:00"),
+            message_text: "הדוח של החודש עוד לא הגיע",
+          }),
+          row({
+            message_id: "c2",
+            created_at: il("09:10"),
+            message_text: "🙏",
+          }),
+        ],
+        {
+          reviews: new Map([["group:111@g.us", { messageId: "c1", verdict }]]),
+        },
+      );
+      assertEquals(found.asked.length, 0, "thanks need no new read");
+      assertEquals(
+        found.candidates.map((c) => [
+          c.kind,
+          c.fingerprint,
+          c.evidence.classified_by,
+        ]),
+        [["unanswered_request", "chat:group:111@g.us:c1", "llm"]],
       );
     },
   );

@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { dmRow, il, row, staffRow, thread } from "../../tests/chat-fixtures.ts";
-import { needsModel, unreviewedTurns } from "./unreviewed.ts";
+import { needsModel, readCoversWait, unreviewedTurns } from "./unreviewed.ts";
 
 /** Complaint without a listed word, a quick staff reply, then thanks. */
 const thanked = thread([
@@ -90,4 +90,44 @@ Deno.test("needsModel", async (t) => {
     assertEquals(needsModel(dm, dm.pending, true), false);
     assertEquals(needsModel(privateGroup, privateGroup.pending, true), false);
   });
+});
+
+Deno.test("readCoversWait", async (t) => {
+  const asked = [
+    staffRow({ message_id: "hi", created_at: il("08:00") }),
+    row({
+      message_id: "c1",
+      created_at: il("09:00"),
+      message_text: "הדוח של החודש עוד לא הגיע",
+    }),
+    row({ message_id: "c2", created_at: il("09:10"), message_text: "🙏 תודה" }),
+  ];
+  const wait = thread(asked);
+
+  await t.step("a read of the wait followed only by thanks covers it", () => {
+    assertEquals(readCoversWait(wait, "c1"), true);
+    assertEquals(readCoversWait(wait, "c2"), true);
+    assertEquals(
+      needsModel(wait, unreviewedTurns(wait, "c1"), true),
+      false,
+      "and the thanks are not asked about",
+    );
+  });
+
+  await t.step(
+    "a new line after the read, or a read before the wait, does not",
+    () => {
+      const more = thread([
+        ...asked,
+        row({
+          message_id: "c3",
+          created_at: il("09:20"),
+          message_text: "ועוד",
+        }),
+      ]);
+      assertEquals(readCoversWait(more, "c1"), false);
+      assertEquals(readCoversWait(thanked, "c1"), false);
+      assertEquals(readCoversWait(wait, "gone"), false);
+    },
+  );
 });

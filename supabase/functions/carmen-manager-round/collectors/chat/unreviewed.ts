@@ -1,8 +1,9 @@
 /**
- * Which client lines of a thread the model has not read yet, and whether
- * they are worth a call. Every client streak with an unread line counts, not
- * only the latest: a complaint staff answered before the run, followed by a
- * thank-you, is still read.
+ * Which client lines of a thread the model has not read yet, whether they
+ * are worth a call, and whether an earlier read still speaks for the open
+ * wait. Every client streak with an unread line counts, not only the latest:
+ * a complaint staff answered before the run, followed by a thank-you, is
+ * still read.
  */
 import { onlyAcknowledgements, readMarkers } from "./markers.ts";
 import { clientStreaks } from "./streaks.ts";
@@ -51,4 +52,19 @@ export function needsModel(
     const waiting = index === streaks.length - 1 && thread.pending.length > 0;
     return (complaints && !markers.complaint) || (waiting && !markers.request);
   });
+}
+
+/**
+ * True when the model's read, up to the client message `reviewedId`, still
+ * speaks for the open wait: it read one of the wait's lines, and the client
+ * wrote only thanks after it. needsModel never asks about thanks, so a
+ * thank-you must not make the read stale either.
+ */
+export function readCoversWait(thread: Thread, reviewedId: string): boolean {
+  const at = thread.pending.findIndex((turn) => turn.id === reviewedId);
+  if (at < 0) {
+    return false;
+  }
+  const later = thread.pending.slice(at + 1).map((turn) => turn.text);
+  return onlyAcknowledgements(later);
 }

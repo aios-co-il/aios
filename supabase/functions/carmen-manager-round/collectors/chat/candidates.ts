@@ -11,20 +11,26 @@ import type { ThreadReview } from "./gate.ts";
 import { isLowConfidence, quoteOf, requestSummary } from "./summary.ts";
 import type { Thread } from "./threads.ts";
 import type { Verdicts } from "./classify.ts";
+import { readCoversWait } from "./unreviewed.ts";
 import { verdictSaysRequest } from "./verdict.ts";
 
 /** A link to the client's chat in AIOS, or null when there is none. */
 export type ChatLink = (clientId: string) => string | null;
 
-/** The reviews with the verdict of their wait's last message, when there is one. */
+/**
+ * The reviews with the verdict that read their wait, when there is one: it
+ * read the wait up to its last message, or up to a line followed only by
+ * the client's thanks.
+ */
 export function withVerdicts(
   reviews: ThreadReview[],
   verdicts: Verdicts,
 ): ThreadReview[] {
   return reviews.map((review) => {
     const cached = verdicts.get(review.thread.key);
-    const fresh = cached?.messageId === review.thread.pending.at(-1)?.id;
-    return fresh && cached ? { ...review, verdict: cached.verdict } : review;
+    return cached && readCoversWait(review.thread, cached.messageId)
+      ? { ...review, verdict: cached.verdict }
+      : review;
   });
 }
 

@@ -124,15 +124,50 @@ Deno.test("requestCandidates", async (t) => {
 });
 
 Deno.test("withVerdicts", async (t) => {
-  await t.step("a verdict counts only for the wait's last message", () => {
+  /** The verdict withVerdicts gives the wait when the model read up to `messageId`. */
+  const verdictAt = (wait: ReturnType<typeof review>, messageId: string) =>
+    withVerdicts(
+      [wait],
+      new Map([["group:111@g.us", { messageId, verdict: confident }]]),
+    )[0].verdict;
+
+  await t.step("a verdict counts for the wait's last message", () => {
     const wait = review(teamGroup("יש עדכון"));
-    const fresh = new Map([
-      ["group:111@g.us", { messageId: "ask", verdict: confident }],
-    ]);
-    const stale = new Map([
-      ["group:111@g.us", { messageId: "older", verdict: confident }],
-    ]);
-    assertEquals(withVerdicts([wait], fresh)[0].verdict, confident);
-    assertEquals(withVerdicts([wait], stale)[0].verdict, null);
+    assertEquals(verdictAt(wait, "ask"), confident);
+    assertEquals(verdictAt(wait, "older"), null);
+  });
+
+  await t.step("the client's thanks after the line read keep it", () => {
+    const thanked = review(
+      thread([
+        staffRow({ message_id: "hi", created_at: il("08:00") }),
+        row({ message_id: "ask", created_at: il("09:00") }),
+        row({ message_id: "ty", created_at: il("09:10"), message_text: "🙏" }),
+      ]),
+    );
+    assertEquals(verdictAt(thanked, "ask"), confident);
+    const more = review(
+      thread([
+        staffRow({ message_id: "hi", created_at: il("08:00") }),
+        row({ message_id: "ask", created_at: il("09:00") }),
+        row({
+          message_id: "new",
+          created_at: il("09:10"),
+          message_text: "ועוד",
+        }),
+      ]),
+    );
+    assertEquals(verdictAt(more, "ask"), null, "a new line needs a new read");
+  });
+
+  await t.step("a read of an earlier wait never counts", () => {
+    const later = review(
+      thread([
+        row({ message_id: "old", created_at: il("08:00") }),
+        staffRow({ message_id: "s1", created_at: il("08:30") }),
+        row({ message_id: "ask", created_at: il("09:00") }),
+      ]),
+    );
+    assertEquals(verdictAt(later, "old"), null);
   });
 });
