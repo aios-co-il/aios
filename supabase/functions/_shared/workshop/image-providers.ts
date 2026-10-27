@@ -126,7 +126,7 @@ const openAiSize = (aspect: GeminiAspectRatio) =>
       ? "1024x1536"
       : "1024x1024";
 
-const toBase64 = (bytes: Uint8Array) => {
+export const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x8000)
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
