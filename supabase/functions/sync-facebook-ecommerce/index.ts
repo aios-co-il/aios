@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { trustedInternalCron } from "../_shared/edge-caller-auth.ts";
+import { trustedInternalCron } from "../_shared/auth/edge-caller-auth.ts";
 import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
@@ -58,10 +58,7 @@ Deno.serve(async (req) => {
       update_last_sync = true,
     } = requestBody;
 
-    // Auth: `_internal_cron: true` skips the user check only when the bearer is
-    // this project's service-role key (cron-sync-facebook-ecommerce). From anyone
-    // else (anon key, user JWT) it is ignored and the caller must be a signed-in
-    // user whose RLS can see the table (AIO-239).
+    // AIO-239: the body flag counts only from the service-role bearer.
     const internalCron = trustedInternalCron(
       requestBody,
       req.headers.get("Authorization"),

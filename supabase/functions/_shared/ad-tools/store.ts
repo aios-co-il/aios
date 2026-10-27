@@ -1,40 +1,20 @@
 /**
  * Service-role implementations of AdToolIdentity and AdScopeStore. Kept apart
- * from the decisions in ./ad-tools-auth.ts and ./ad-tools-scope.ts so those
- * are tested without a database.
+ * from the decisions in ./caller.ts and ./scope.ts so those are tested
+ * without a database.
  */
-import type { AdToolIdentity } from "./ad-tools-auth.ts";
-import type {
-  AdScopeStore,
-  AdToolAccess,
-  ScopeClient,
-} from "./ad-tools-scope.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import type { AdToolIdentity } from "./caller.ts";
+import { META_SETTING_KEYS, META_TABLE_TYPES } from "./meta-links.ts";
+import type { AdScopeStore } from "./scope.ts";
 
-type Rows<T> = { data: T[] | null; error: unknown };
+/** The parts of the typed service-role client (serviceClient()) the identity
+ * and store read with. Handlers still on supabase-js 2.45 pass serviceClient()
+ * here, since a 2.45 client does not match these types. */
+export type StoreDb = Pick<DbClient, "auth" | "rpc" | "from">;
 
-// Settings keys carmen-fb-tools reads an ad account from (getClientAdAccount).
-const META_SETTING_KEYS = ["ad_account_id", "account_id", "meta_account_id"];
-const META_TABLE_TYPES = ["facebook_insights", "facebook_ecommerce"];
-
-function rowsOrThrow<T>(res: Rows<T>): T[] {
-  if (res.error) throw res.error;
-  return res.data ?? [];
-}
-
-function clientIdsOf(rows: { id?: unknown; client_id?: unknown }[]) {
-  return rows
-    .map((r) => r.id ?? r.client_id)
-    .filter((id): id is string => typeof id === "string" && !!id);
-}
-
-// deno-lint-ignore no-explicit-any
-type Db = any;
-
-/** Variants are digits, "act_<digits>" or "ddd-ddd-dddd", so they are safe
- * inside a PostgREST in.(...) list. */
-const inList = (variants: string[]) => `in.(${variants.join(",")})`;
-
-export function createAdToolIdentity(db: Db): AdToolIdentity {
+/** Who the caller is, read with the service role. */
+export function createAdToolIdentity(db: StoreDb): AdToolIdentity {
   return {
     async getUserId(token) {
       const { data, error } = await db.auth.getUser(token);
@@ -44,7 +24,9 @@ export function createAdToolIdentity(db: Db): AdToolIdentity {
       const { data, error } = await db.rpc("get_user_tenant_id", {
         _user_id: userId,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return typeof data === "string" && data ? data : null;
     },
     async tenantRoles(userId, tenantId) {
@@ -60,18 +42,20 @@ export function createAdToolIdentity(db: Db): AdToolIdentity {
           .eq("user_id", userId)
           .eq("tenant_id", tenantId),
       ]);
-      const memberRows = rowsOrThrow<{ role: unknown }>(members);
-      const roleRows = rowsOrThrow<{ role: unknown }>(roles);
-      if (!memberRows.length) return null;
-      return [...memberRows, ...roleRows]
-        .map((r) => (r.role == null ? "" : String(r.role)))
-        .filter(Boolean);
+      const memberRows = rowsOrThrow(members);
+      const roleRows = rowsOrThrow(roles);
+      if (!memberRows.length) {
+        return null;
+      }
+      return [...memberRows, ...roleRows].map((r) => r.role).filter(Boolean);
     },
     async isSuperAdmin(userId) {
       const { data, error } = await db.rpc("is_super_admin", {
         _user_id: userId,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data === true;
     },
     async allowsSuperAdmin(tenantId) {
@@ -79,20 +63,21 @@ export function createAdToolIdentity(db: Db): AdToolIdentity {
         .from("tenants")
         .select("allow_super_admin_access")
         .eq("id", tenantId);
-      const rows = rowsOrThrow<{ allow_super_admin_access: unknown }>(res);
-      return rows[0]?.allow_super_admin_access === true;
+      return rowsOrThrow(res)[0]?.allow_super_admin_access === true;
     },
   };
 }
 
-export function createAdScopeStore(db: Db): AdScopeStore {
+/** Which clients an ad account or customer links to, and which agencies are
+ * shared with a tenant, read with the service role. */
+export function createAdScopeStore(db: StoreDb): AdScopeStore {
   return {
     async clientsByIds(ids) {
       const res = await db
         .from("clients")
         .select("id, tenant_id, agency_id")
         .in("id", ids);
-      return rowsOrThrow<ScopeClient>(res);
+      return rowsOrThrow(res);
     },
     async clientIdsForMetaAccount(variants) {
       const [clients, tables] = await Promise.all([
@@ -128,16 +113,39 @@ export function createAdScopeStore(db: Db): AdScopeStore {
         ...clientIdsOf(rowsOrThrow(tables)),
       ];
     },
-    async sharedAgencyIds(tenantId, access: AdToolAccess) {
+    async sharedAgencyIds(tenantId, access) {
       let q = db
         .from("agency_tenant_access")
         .select("agency_id")
         .eq("accessing_tenant_id", tenantId);
-      if (access === "write") q = q.eq("access_level", "read_write");
-      const rows = rowsOrThrow<{ agency_id: unknown }>(await q);
-      return rows
-        .map((r) => r.agency_id)
-        .filter((id): id is string => typeof id === "string" && !!id);
+      if (access === "write") {
+        q = q.eq("access_level", "read_write");
+      }
+      return rowsOrThrow(await q).map((r) => r.agency_id);
     },
   };
+}
+
+/** The rows, or the query's error thrown so a failed lookup is never read as
+ * "no rows". */
+function rowsOrThrow<T>(res: { data: T[] | null; error: unknown }): T[] {
+  if (res.error) {
+    throw res.error;
+  }
+  return res.data ?? [];
+}
+
+/** clients.id or crm_tables.client_id of each row. */
+function clientIdsOf(
+  rows: { id?: string | null; client_id?: string | null }[],
+): string[] {
+  return rows
+    .map((r) => r.id ?? r.client_id)
+    .filter((id): id is string => !!id);
+}
+
+/** Variants are digits, "act_<digits>" or "ddd-ddd-dddd", so they are safe
+ * inside a PostgREST in.(...) list. */
+function inList(variants: string[]): string {
+  return `in.(${variants.join(",")})`;
 }

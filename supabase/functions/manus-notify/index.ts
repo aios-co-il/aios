@@ -6,9 +6,8 @@
 // owner fallback, never a group chat whose session row stores the
 // recipient's phone as last speaker). Pulse/notify is always 1:1.
 //
-// Auth (fails closed, AIO-239): Authorization: Bearer must be MANUS_MCP_BEARER
-// (same shared secret as manus-mcp) or this project's service-role key. With
-// MANUS_MCP_BEARER unset only the service-role key is accepted.
+// Auth (fails closed, AIO-239): Bearer MANUS_MCP_BEARER (manus-mcp's shared
+// secret) or this project's service-role key; only the latter when it is unset.
 //
 // Body: { tenant_id, message, chat_id? }
 
@@ -18,7 +17,7 @@ import {
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
-import { authorizeSecretOrServiceRole } from "../_shared/edge-caller-auth.ts";
+import { authorizeSecretOrServiceRole } from "../_shared/auth/edge-caller-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -131,7 +130,10 @@ Deno.serve(async (req) => {
     secret: Deno.env.get("MANUS_MCP_BEARER"),
     serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   });
-  if (!auth.ok) return json({ error: "unauthorized" }, 401);
+  if (!auth.ok) {
+    console.warn("[manus-notify] refused: no valid bearer");
+    return json({ error: "unauthorized" }, 401);
+  }
 
   let body: any;
   try {

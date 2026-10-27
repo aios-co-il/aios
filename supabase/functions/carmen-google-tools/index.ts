@@ -1,13 +1,11 @@
 // Carmen Google Ads Tools — pause/resume/update_budget at campaign level via Google Ads API v23.
 // Per project memory: Google Ads API v23, micros costs, MCC-aware.
-// Callers (AIO-239, ../_shared/ad-tools-auth.ts): the service role (approval execute, scheduler)
+// Callers (AIO-239, ./gate.ts): the service role (approval execute, scheduler)
 // with the tenant in the body, or a user JWT scoped to the user's own tenant.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { authorizeGoogleToolRequest } from "../_shared/ad-tools-auth.ts";
-import {
-  createAdScopeStore,
-  createAdToolIdentity,
-} from "../_shared/ad-tools-store.ts";
+import { isNumericId } from "../_shared/ad-tools/ids.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { authorizeGoogleCall } from "./gate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,15 +108,13 @@ Deno.serve(async (req) => {
     const { action, customer_id, campaign_id, daily_budget, confirmed } = body;
 
     // Never trust tenant_id from the body for a user: the gate derives it.
-    const gate = await authorizeGoogleToolRequest({
-      authorization: req.headers.get("Authorization"),
+    const gate = await authorizeGoogleCall(req, body, {
+      db: serviceClient(),
       serviceRoleKey,
-      body,
-      identity: createAdToolIdentity(supabase),
-      store: createAdScopeStore(supabase),
     });
-    if (!gate.ok)
+    if (!gate.ok) {
       return err(gate.error, gate.status, { message: gate.message });
+    }
     const caller = gate.caller;
     const tenant_id = caller.tenantId;
 
@@ -145,6 +141,7 @@ Deno.serve(async (req) => {
       );
 
     const cleanCustomer = String(customer_id).trim().replace(/-/g, "");
+    const cleanCampaign = String(campaign_id ?? "").trim();
 
     let result: any = {};
     switch (action) {
@@ -159,7 +156,7 @@ Deno.serve(async (req) => {
               {
                 campaignOperation: {
                   update: {
-                    resourceName: `customers/${cleanCustomer}/campaigns/${String(campaign_id).trim()}`,
+                    resourceName: `customers/${cleanCustomer}/campaigns/${cleanCampaign}`,
                     status,
                   },
                   updateMask: "status",
@@ -177,8 +174,9 @@ Deno.serve(async (req) => {
         if (!campaign_id || daily_budget == null)
           return err("campaign_id, daily_budget required");
         // Interpolated into GAQL below.
-        if (!/^\d+$/.test(String(campaign_id).trim()))
+        if (!isNumericId(cleanCampaign)) {
           return err("invalid_campaign_id");
+        }
         // Need budget resource id — fetch campaign first
         const sr = await fetch(
           `${GADS_API}/customers/${cleanCustomer}/googleAds:search`,
@@ -186,7 +184,7 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: { "Content-Type": "application/json", ...headers },
             body: JSON.stringify({
-              query: `SELECT campaign.campaign_budget FROM campaign WHERE campaign.id = ${String(campaign_id).trim()}`,
+              query: `SELECT campaign.campaign_budget FROM campaign WHERE campaign.id = ${cleanCampaign}`,
             }),
           },
         );

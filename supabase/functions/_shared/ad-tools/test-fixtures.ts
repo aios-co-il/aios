@@ -6,8 +6,9 @@
  * and cRO (agency shared with A read_only). Tenant B owns cB and has turned
  * super-admin access off.
  */
-import type { AdToolIdentity } from "./ad-tools-auth.ts";
-import type { AdScopeStore, ScopeClient } from "./ad-tools-scope.ts";
+import { fakeJwt } from "../auth/jwt-test-fixtures.ts";
+import type { AdToolIdentity } from "./caller.ts";
+import type { AdScopeStore, ScopeClient } from "./scope.ts";
 
 export const SERVICE = "service-role-key";
 export const A = "tenant-a";
@@ -21,18 +22,6 @@ export const CRO = "00000000-0000-4000-8000-0000000000c2";
 
 /** Tenants with tenants.allow_super_admin_access = false. */
 const NO_SUPER_ADMIN = new Set([B]);
-
-function fakeJwt(payload: Record<string, unknown>): string {
-  const enc = (o: unknown) =>
-    btoa(JSON.stringify(o))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-  return `${enc({ alg: "HS256", typ: "JWT" })}.${enc(payload)}.sig`;
-}
-
-export const ANON_KEY = fakeJwt({ role: "anon" });
-export const FOREIGN_SERVICE_KEY = fakeJwt({ role: "service_role" });
 
 type User = {
   id: string;
@@ -78,8 +67,16 @@ const userByToken = (token: string) =>
   Object.keys(USERS)
     .filter((name) => tokenOf(name) === token)
     .map((name) => USERS[name])[0] ?? null;
-const userById = (id: string) => Object.values(USERS).find((u) => u.id === id)!;
 
+const userById = (id: string) => {
+  const user = Object.values(USERS).find((u) => u.id === id);
+  if (!user) {
+    throw new Error(`unknown test user ${id}`);
+  }
+  return user;
+};
+
+/** AdToolIdentity over USERS; records "getUserId" in `calls`. */
 export function identity(calls: string[] = []): AdToolIdentity {
   return {
     getUserId: async (token) => {
@@ -89,7 +86,9 @@ export function identity(calls: string[] = []): AdToolIdentity {
     activeTenantId: async (id) => userById(id).active,
     tenantRoles: async (id, tenant) => {
       const u = userById(id);
-      if (!(tenant in u.members)) return null;
+      if (!(tenant in u.members)) {
+        return null;
+      }
       return [u.members[tenant], ...(u.roles?.[tenant] ?? [])];
     },
     isSuperAdmin: async (id) => !!userById(id).superAdmin,
@@ -126,6 +125,7 @@ const SHARES = [
   { agency_id: "ag-ro", accessing_tenant_id: A, access_level: "read_only" },
 ];
 
+/** AdScopeStore over CLIENTS and SHARES. */
 export function store(): AdScopeStore {
   return {
     // A uuid column matches any letter case, as Postgres does.
