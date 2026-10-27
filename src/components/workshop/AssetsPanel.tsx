@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link2, Loader2, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +29,10 @@ import {
 import { AssetCard } from "./AssetCard";
 
 type Adding = "link" | "text" | null;
+type NewAsset = Omit<
+  TablesInsert<"workshop_assets">,
+  "tenant_id" | "item_id" | "source"
+>;
 
 /** The project's inputs: files, links, briefs, references and what came with the client. */
 export function AssetsPanel({
@@ -60,13 +65,13 @@ export function AssetsPanel({
       queryKey: workshopAssetsKey(tenantId, projectId),
     });
 
-  const insert = async (row: Record<string, unknown>) => {
-    const { error } = await supabase.from("workshop_assets" as never).insert({
-      tenant_id: tenantId,
+  const insert = async (owner: string, row: NewAsset) => {
+    const { error } = await supabase.from("workshop_assets").insert({
+      tenant_id: owner,
       item_id: projectId,
       source: "user",
       ...row,
-    } as never);
+    });
     if (error) throw error;
   };
 
@@ -77,15 +82,14 @@ export function AssetsPanel({
     onError: (_error, { failure }) => toast.error(failure),
   });
   const busy = change.isPending;
-  const run = (task: () => Promise<void>, failure: string) => {
-    if (tenantId) change.mutate({ task, failure });
+  const run = (task: (owner: string) => Promise<void>, failure: string) => {
+    if (tenantId) change.mutate({ task: () => task(tenantId), failure });
   };
 
   const upload = (files: FileList | null) => {
-    const owner = tenantId;
-    if (!files?.length || !owner) return;
+    if (!files?.length) return;
     const list = Array.from(files);
-    run(async () => {
+    run(async (owner) => {
       for (const file of list) {
         if (file.size > MAX_UPLOAD_BYTES) {
           toast.error(`הקובץ ${file.name} גדול מ-10MB`);
@@ -99,7 +103,7 @@ export function AssetsPanel({
         // Stored as an identifier for the server tools; the hook signs it for display.
         const { data } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(path);
         const type = assetTypeFor({ name: file.name, mime: file.type });
-        await insert({
+        await insert(owner, {
           asset_type: type === "link" ? "file" : type,
           title: file.name,
           url: data.publicUrl,
@@ -118,8 +122,8 @@ export function AssetsPanel({
       toast.error("הקישור לא תקין");
       return;
     }
-    run(async () => {
-      await insert({
+    run(async (owner) => {
+      await insert(owner, {
         asset_type: "link",
         title: linkTitle.trim() || hostLabel(url),
         url,
@@ -133,8 +137,8 @@ export function AssetsPanel({
   const addText = () => {
     const body = text.trim();
     if (!body) return;
-    run(async () => {
-      await insert({
+    run(async (owner) => {
+      await insert(owner, {
         asset_type: "text",
         title: textTitle.trim() || "בריף",
         text: body.slice(0, MAX_ASSET_TEXT),
@@ -148,8 +152,8 @@ export function AssetsPanel({
   const toggleReference = (asset: WorkshopAsset) =>
     run(async () => {
       const { error } = await supabase
-        .from("workshop_assets" as never)
-        .update({ use_as_reference: !asset.use_as_reference } as never)
+        .from("workshop_assets")
+        .update({ use_as_reference: !asset.use_as_reference })
         .eq("id", asset.id);
       if (error) throw error;
     }, "לא הצלחנו לעדכן את הרפרנס");
@@ -157,7 +161,7 @@ export function AssetsPanel({
   const remove = (asset: WorkshopAsset) =>
     run(async () => {
       const { error } = await supabase
-        .from("workshop_assets" as never)
+        .from("workshop_assets")
         .delete()
         .eq("id", asset.id);
       if (error) throw error;

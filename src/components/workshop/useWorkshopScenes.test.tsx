@@ -140,11 +140,12 @@ test("a saved text shows at once; a failed save puts the old text back and says 
       "חדש",
     ),
   );
-  expect(mocks.rpc).toHaveBeenCalledWith("workshop_edit_scene_text", {
+  // The texts left out are not sent: the function's null default keeps them.
+  const [name, args] = mocks.rpc.mock.calls[0];
+  expect(name).toBe("workshop_edit_scene_text");
+  expect(JSON.parse(JSON.stringify(args))).toStrictEqual({
     p_scene_id: "s1",
     p_overlay_text: "חדש",
-    p_voiceover_text: null,
-    p_dialogue: null,
   });
 
   await act(async () => {

@@ -94,10 +94,11 @@ export default function CarmenWorkshop() {
       itemId: string;
       clientId: string | null;
     }) => {
-      const { error } = await supabase.rpc(
-        "workshop_assign_client" as never,
-        { p_item_id: itemId, p_client_id: clientId } as never,
-      );
+      // No client: the function's null default takes the project off its client.
+      const { error } = await supabase.rpc("workshop_assign_client", {
+        p_item_id: itemId,
+        p_client_id: clientId ?? undefined,
+      });
       if (error) throw error;
       const synced = await syncClientAssets(
         supabase,

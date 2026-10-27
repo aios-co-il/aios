@@ -66,7 +66,7 @@ export function useWorkshopAssets(
       tenantId && projectId
         ? async (): Promise<WorkshopAsset[]> => {
             const { data, error } = await supabase
-              .from("workshop_assets" as never)
+              .from("workshop_assets")
               .select(COLUMNS)
               .eq("tenant_id", tenantId)
               .eq("item_id", projectId)

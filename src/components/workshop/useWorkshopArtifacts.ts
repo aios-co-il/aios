@@ -24,7 +24,7 @@ async function clearFailures(
     .messages.slice(0, 3)
     .forEach((message) => toast.error(message, { duration: 12_000 }));
   await supabase
-    .from("workshop_artifacts" as never)
+    .from("workshop_artifacts")
     .delete()
     .eq("tenant_id", tenantId)
     .in("id", fresh);
@@ -69,7 +69,7 @@ export function useWorkshopArtifacts(
       tenantId && projectId
         ? async (): Promise<WorkshopArtifact[]> => {
             const { data, error } = await supabase
-              .from("workshop_artifacts" as never)
+              .from("workshop_artifacts")
               .select(COLUMNS)
               .eq("tenant_id", tenantId)
               .eq("item_id", projectId)

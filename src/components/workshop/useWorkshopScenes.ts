@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
 import { subscribeWorkshopEvents } from "@/lib/workshopBridge";
 import {
@@ -131,7 +132,7 @@ async function refreshStoryboardPage(
 ) {
   try {
     const { data } = await supabase
-      .from("workshop_artifacts" as never)
+      .from("workshop_artifacts")
       .select("id, meta")
       .eq("tenant_id", tenantId)
       .eq("item_id", projectId)
@@ -139,13 +140,12 @@ async function refreshStoryboardPage(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const page = data as { id?: string; meta?: unknown } | null;
-    const meta = page?.id ? storyboardPageWith(page.meta, scene, edit) : null;
-    if (!page?.id || !meta) return;
+    const meta = data ? storyboardPageWith(data.meta, scene, edit) : null;
+    if (!data || !meta) return;
     await supabase
-      .from("workshop_artifacts" as never)
-      .update({ meta } as never)
-      .eq("id", page.id)
+      .from("workshop_artifacts")
+      .update({ meta: meta as Json })
+      .eq("id", data.id)
       .eq("tenant_id", tenantId);
   } catch {
     // The page catches up with the next storyboard; the scene itself is saved.
@@ -172,17 +172,17 @@ export function useEditSceneText(
       sceneId: string;
       patch: SceneTextPatch;
     }) => {
-      const { data, error } = await supabase.rpc(
-        "workshop_edit_scene_text" as never,
+      // A text left out keeps its field (the function's null default).
+      const { data: scene, error } = await supabase.rpc(
+        "workshop_edit_scene_text",
         {
           p_scene_id: sceneId,
-          p_overlay_text: patch.overlay_text ?? null,
-          p_voiceover_text: patch.voiceover_text ?? null,
-          p_dialogue: patch.dialogue ?? null,
-        } as never,
+          p_overlay_text: patch.overlay_text,
+          p_voiceover_text: patch.voiceover_text,
+          p_dialogue: patch.dialogue,
+        },
       );
       if (error) throw error;
-      const scene = data as PageScene | null;
       if (tenantId && projectId && scene?.id)
         await refreshStoryboardPage(tenantId, projectId, scene, edit);
     },
