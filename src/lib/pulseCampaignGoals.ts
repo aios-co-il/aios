@@ -13,6 +13,10 @@ import {
   resolveCampaignDeliveryStatus as resolveDeliveryStatus,
   tableReportGoal as reportTableGoal,
 } from "../../supabase/functions/_shared/pulse-campaign-goals.mjs";
+import type {
+  PulseTargetScope,
+  PulseTargetSource,
+} from "../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 export const campaignDeliveryStatusLabel = deliveryStatusLabel as (
   status: string,
@@ -48,10 +52,8 @@ export type PulseCampaignGoalRow = {
   alert_eligible: boolean;
   target_value: number | null;
   target_kind: string | null;
-  /** "approved" (a person) or "carmen_market" (Carmen's market estimate). */
-  target_source?: "approved" | "carmen_market" | null;
-  /** Where the target came from: the campaign itself, the platform goal, or the table. */
-  target_scope?: "campaign" | "platform" | "default" | "table" | null;
+  target_source?: PulseTargetSource | null;
+  target_scope?: PulseTargetScope | null;
   /** The table that holds the target (a duplicate report table may hold it). */
   target_table_id?: string | null;
   /** The campaign id that table stores a campaign-level target under. */

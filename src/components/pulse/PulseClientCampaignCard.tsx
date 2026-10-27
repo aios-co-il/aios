@@ -58,7 +58,7 @@ import {
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
 import { Input } from "@/components/ui/input";
-import { pulseTargetSourceLabel } from "@/lib/pulseTargets";
+import { pulseTargetSourceLabel } from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
   facebook_insights: { name: "Facebook", color: "text-blue-600" },

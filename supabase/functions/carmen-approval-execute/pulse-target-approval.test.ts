@@ -1,0 +1,151 @@
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+
+import { fakeDb } from "../_shared/carmen/pulse-targets/fake-db.ts";
+import {
+  NOW,
+  RATIONALE,
+  seed,
+  settingsOf,
+} from "../_shared/carmen/pulse-targets/test-fixtures.ts";
+import { at } from "../_shared/pulse/test-fixtures.ts";
+import {
+  applyApprovedPulseTarget,
+  handlePulseTargetApproval,
+} from "./pulse-target-approval.ts";
+
+const HEADERS = { "Content-Type": "application/json" };
+
+/** A queued set_pulse_target for campaign c1's CPL on the Meta table. */
+function queuedRow(over: Record<string, unknown> = {}) {
+  return {
+    id: "approval-1",
+    tenant_id: "tenant-1",
+    status: "pending",
+    tool_name: "set_pulse_target",
+    requested_by: "user-1",
+    approved_at: null,
+    expires_at: "2026-10-27T08:00:00.000Z",
+    tool_input: {
+      client_id: "client-1",
+      platform: "meta",
+      goal: "leads",
+      kind: "cpl",
+      value: 45,
+      campaign_id: "c1",
+      campaign_name: "לידים שיפוץ",
+      table_ids: ["t-meta", "t-other-client"],
+    },
+    ...over,
+  };
+}
+
+/** The seeded client with Carmen's market CPL on campaign c1 and a queued row. */
+function dbWithQueuedRow(failOn?: Parameters<typeof fakeDb>[1]) {
+  const tables = seed({
+    pulse_targets: {
+      c1: { cpl: 60, source: "carmen_market", rationale: RATIONALE },
+    },
+  });
+  tables.agent_approval_queue = [queuedRow()];
+  return fakeDb(tables, failOn);
+}
+
+Deno.test(
+  "an approved set_pulse_target replaces Carmen's market target",
+  async () => {
+    const db = dbWithQueuedRow();
+    const outcome = await applyApprovedPulseTarget(
+      db,
+      queuedRow(),
+      "owner-1",
+      () => NOW,
+    );
+    assertStrictEquals(outcome.ok, true);
+    assertEquals(at(settingsOf(db, "t-meta"), "pulse_targets", "c1"), {
+      cpl: 45,
+      source: "approved",
+      set_at: NOW.toISOString(),
+      set_by: "user-1",
+      approved_by: "owner-1",
+      goal: "leads",
+    });
+    const tableWrites = db.writes.filter((w) => w.table === "crm_tables");
+    assertEquals(tableWrites[0].filters, ["id", "tenant_id"]);
+  },
+);
+
+Deno.test("an expired request answers 410 and is marked expired", async () => {
+  const db = dbWithQueuedRow();
+  const expired = queuedRow({ expires_at: "2026-10-25T08:00:00.000Z" });
+  const response = await handlePulseTargetApproval(
+    db,
+    expired,
+    "approval-1",
+    "owner-1",
+    HEADERS,
+    () => NOW,
+  );
+  assertStrictEquals(response.status, 410);
+  assertEquals(await response.json(), {
+    error: "expired",
+    approval_id: "approval-1",
+  });
+  assertStrictEquals(db.tables.agent_approval_queue[0].status, "expired");
+  assertStrictEquals(
+    at(settingsOf(db, "t-meta"), "pulse_targets", "c1", "cpl"),
+    60,
+  );
+});
+
+Deno.test(
+  "the request records executed, or failed when no table matches",
+  async () => {
+    const db = dbWithQueuedRow();
+    const ok = await handlePulseTargetApproval(
+      db,
+      queuedRow(),
+      "approval-1",
+      "owner-1",
+      HEADERS,
+      () => NOW,
+    );
+    assertStrictEquals(ok.status, 200);
+    const [row] = db.tables.agent_approval_queue;
+    assertStrictEquals(row.status, "executed");
+    assertStrictEquals(row.approved_by, "owner-1");
+    assertStrictEquals(at(row, "execution_result", "target"), "CPL 45");
+
+    const elsewhere = queuedRow({
+      tool_input: { ...queuedRow().tool_input, table_ids: ["t-other-client"] },
+    });
+    const failed = await handlePulseTargetApproval(
+      db,
+      elsewhere,
+      "approval-1",
+      null,
+      HEADERS,
+      () => NOW,
+    );
+    assertStrictEquals(failed.status, 400);
+    assertStrictEquals(db.tables.agent_approval_queue[0].status, "failed");
+    assertStrictEquals(db.tables.agent_approval_queue[0].approved_by, "user-1");
+  },
+);
+
+Deno.test("a status write that fails answers 500", async () => {
+  const db = dbWithQueuedRow({ table: "agent_approval_queue", op: "update" });
+  const response = await handlePulseTargetApproval(
+    db,
+    queuedRow(),
+    "approval-1",
+    "owner-1",
+    HEADERS,
+    () => NOW,
+  );
+  assertStrictEquals(response.status, 500);
+  assertEquals(await response.json(), {
+    error: "status_not_saved",
+    approval_id: "approval-1",
+  });
+  assertStrictEquals(db.tables.agent_approval_queue[0].status, "pending");
+});

@@ -1,86 +1,8 @@
-import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import {
-  buildPulseAttentionRows,
-  evaluateEfficiencyIssue,
-  readApprovedPlatformTarget,
-  resolvePlatformTarget,
-} from "./pulse-attention-matrix.mjs";
+import { assert, assertStrictEquals } from "jsr:@std/assert@1";
+import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
 
 /** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
 const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
-
-Deno.test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
-  assertStrictEquals(
-    readApprovedPlatformTarget(
-      { pulse_platform_targets: { leads: { cpl: 90 } } },
-      "leads",
-    )?.value,
-    90,
-  );
-});
-
-Deno.test(
-  "resolvePlatformTarget no longer treats the 30-day baseline as a target",
-  () => {
-    assertStrictEquals(resolvePlatformTarget({}, "leads", 75), null);
-  },
-);
-
-Deno.test(
-  "evaluateEfficiencyIssue is red only for a campaign that alerts",
-  () => {
-    const breach = {
-      campaign_name: "לידים",
-      status: "critical",
-      status_tier: "exception",
-      status_reason: "חריגה מתמשכת מהיעד המאושר (CPL 90)",
-      alert_eligible: true,
-      spend_7d: 800,
-    };
-    const issue = evaluateEfficiencyIssue({ campaignRows: [breach] });
-    assertStrictEquals(issue?.level, "alert");
-    assertMatch(issue.label, /CPL 90/);
-
-    const silent = evaluateEfficiencyIssue({
-      campaignRows: [{ ...breach, alert_eligible: false }],
-    });
-    assertStrictEquals(silent?.level, "watch");
-    assertMatch(silent.label, /בלי התראה/);
-
-    // A target-less exception with its alerts off is stored yellow (warning) and
-    // still shows, labelled as silent.
-    const yellow = evaluateEfficiencyIssue({
-      campaignRows: [
-        {
-          ...breach,
-          status: "warning",
-          alert_eligible: false,
-          status_reason:
-            "עלייה מתמשכת ב־CPL מול הבסיס (40%+ ב־3 וב־7 ימים) — אין יעד",
-        },
-      ],
-    });
-    assertStrictEquals(yellow?.level, "watch");
-    assertMatch(yellow.label, /בלי התראה \(התראות לקמפיינים בלי יעד כבויות\)$/);
-
-    const watch = { ...breach, status: "warning", status_tier: "watch" };
-    assertMatch(
-      evaluateEfficiencyIssue({ campaignRows: [breach, watch] }).label,
-      / \(ועוד קמפיין אחד\)$/,
-    );
-    assertMatch(
-      evaluateEfficiencyIssue({ campaignRows: [breach, watch, watch] }).label,
-      / \(ועוד 2 קמפיינים\)$/,
-    );
-
-    assertStrictEquals(
-      evaluateEfficiencyIssue({
-        campaignRows: [{ ...breach, status: "healthy", status_tier: "normal" }],
-      }),
-      null,
-    );
-  },
-);
 
 Deno.test(
   "leads-only google table reclassifies mis-tagged ecommerce rows to CPL",

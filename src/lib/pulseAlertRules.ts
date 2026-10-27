@@ -1,3 +1,6 @@
+import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost-rules.ts";
+import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -5,19 +8,16 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
-  /**
-   * Manager settings (AIO-236 and later). Only manager.cost is edited here; any
-   * other key is kept as stored. Read by _shared/pulse-cost-rules.mjs.
-   */
-  manager?: Record<string, unknown> & {
-    cost?: {
-      trend_pct?: number;
-      roas_drop_pct?: number;
-      min_spend_7d?: number;
-      target_less_alerts?: boolean;
-      [key: string]: unknown;
-    };
-  };
+  manager?: PulseManagerRules;
+};
+
+/**
+ * pulse_alert_rules.manager: only cost is edited from the dashboard (read by
+ * resolvePulseCostRules); any other key is kept as stored.
+ */
+export type PulseManagerRules = {
+  cost?: Partial<PulseCostRules>;
+  [key: string]: unknown;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -46,9 +46,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
-    ...(input.manager && typeof input.manager === "object"
-      ? { manager: input.manager as PulseAlertRules["manager"] }
-      : {}),
+    ...(isManagerRules(input.manager) ? { manager: input.manager } : {}),
   };
 }
 
@@ -60,20 +58,11 @@ export function mergePulseAlertRules(
   stored: unknown,
   edited: PulseAlertRules,
 ): Record<string, unknown> {
-  const base =
-    stored && typeof stored === "object" && !Array.isArray(stored)
-      ? (stored as Record<string, unknown>)
-      : {};
-  const storedManager =
-    base.manager && typeof base.manager === "object"
-      ? (base.manager as Record<string, unknown>)
-      : {};
+  const base = isJsonObject(stored) ? stored : {};
+  const storedManager = isJsonObject(base.manager) ? base.manager : {};
   const parsed = parsePulseAlertRules(edited);
   const editedManager = parsed.manager ?? {};
-  const storedCost =
-    storedManager.cost && typeof storedManager.cost === "object"
-      ? (storedManager.cost as Record<string, unknown>)
-      : {};
+  const storedCost = isJsonObject(storedManager.cost) ? storedManager.cost : {};
   return {
     ...base,
     ...parsed,
@@ -83,4 +72,12 @@ export function mergePulseAlertRules(
       cost: { ...storedCost, ...(editedManager.cost ?? {}) },
     },
   };
+}
+
+/** A stored manager block: an object whose cost, when present, is an object too. */
+function isManagerRules(value: unknown): value is PulseManagerRules {
+  return (
+    isJsonObject(value) &&
+    (value.cost === undefined || isJsonObject(value.cost))
+  );
 }

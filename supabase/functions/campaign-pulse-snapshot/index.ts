@@ -34,13 +34,13 @@ import {
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
 import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
-import { buildPulseExceptionConfirmPrompt } from "../_shared/pulse-exception-confirm.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
 } from "../_shared/pulse-campaign-goals.mjs";
 import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
+import { buildPulseExceptionConfirmPrompt } from "./exception-confirm-prompt.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -911,7 +911,6 @@ Deno.serve(async (req) => {
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          // Confirms approved, Carmen-market and target-less candidates alike.
           analyzeException: async (candidate) =>
             await aiChatJSON<{
               confirmed: boolean;

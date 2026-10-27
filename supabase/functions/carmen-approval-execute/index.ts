@@ -3,6 +3,7 @@
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by campaign-scheduler-cron.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { handlePulseTargetApproval } from "./pulse-target-approval.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,9 +41,6 @@ const TOOL_TO_FUNCTION: Record<string, { fn: string; action?: string }> = {
   gads_resume: { fn: "carmen-google-tools", action: "resume" },
   gads_update_budget: { fn: "carmen-google-tools", action: "update_budget" },
 };
-
-// Placed here, not in the header, so it stays clear of other approval-flow edits.
-import { applyApprovedPulseTarget } from "../_shared/carmen-pulse-target-tools.ts";
 
 async function invokeEdgeFn(name: string, payload: any) {
   const r = await fetch(`${SB_URL}/functions/v1/${name}`, {
@@ -145,41 +143,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Pulse target (AIO-236): write the approved target on the requested tables.
     if (row.tool_name === "set_pulse_target") {
-      if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
-        await supabase
-          .from("agent_approval_queue")
-          .update({ status: "expired" })
-          .eq("id", approval_id)
-          .in("status", ["pending", "approved"]);
-        return new Response(JSON.stringify({ error: "expired", approval_id }), {
-          status: 410,
-          headers: corsHeaders,
-        });
-      }
-      const outcome = await applyApprovedPulseTarget(
+      return await handlePulseTargetApproval(
         supabase,
         row,
+        approval_id,
         approved_by || null,
-      );
-      await supabase
-        .from("agent_approval_queue")
-        .update({
-          status: outcome.ok ? "executed" : "failed",
-          approved_by: approved_by || row.requested_by,
-          approved_at: row.approved_at || new Date().toISOString(),
-          executed_at: new Date().toISOString(),
-          execution_result: outcome.result,
-        })
-        .eq("id", approval_id);
-      return new Response(
-        JSON.stringify({
-          success: outcome.ok,
-          result: outcome.result,
-          approval_id,
-        }),
-        { status: outcome.ok ? 200 : 400, headers: corsHeaders },
+        corsHeaders,
       );
     }
 

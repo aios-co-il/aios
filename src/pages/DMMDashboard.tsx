@@ -52,23 +52,19 @@ import {
 } from "@/lib/agencyCampaignData";
 import { PulseClientRawCard } from "@/components/pulse/PulseClientRawCard";
 import { PulseAttentionTable } from "@/components/pulse/PulseAttentionTable";
-import {
-  PulseTargetEditorDialog,
-  type PulseTargetEditorContext,
-  type PulseTargetSaveInput,
-} from "@/components/pulse/PulseTargetEditorDialog";
+import { PulseTargetEditorDialog } from "@/components/pulse/PulseTargetEditorDialog/PulseTargetEditorDialog";
 import { PulseMissingTargetsList } from "@/components/pulse/PulseMissingTargetsList";
+import { usePulseAlertRules } from "@/components/pulse/usePulseAlertRules";
+import { usePulseTargetEditor } from "@/components/pulse/usePulseTargetEditor";
+import { useSavePulseTarget } from "@/components/pulse/useSavePulseTarget";
+import {
+  isPulseDashboardTab,
+  type PulseDashboardTab,
+} from "@/components/pulse/pulseDashboardTabs";
 import {
   buildPulseAttentionRows,
   type PulseAttentionClientContext,
-  type PulseAttentionRow,
 } from "@/lib/pulseAttentionMatrix";
-import { listCampaignsWithoutTarget } from "@/lib/pulseTargets";
-import {
-  pulseTargetSaveKey,
-  savePulseTargetToTables,
-  type PulseTargetStore,
-} from "@/lib/pulseTargetSave";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -127,9 +123,7 @@ export function CampaignPulseDashboard({
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
-  const [dashboardTab, setDashboardTab] = useState<
-    "data" | "attention" | "no_target"
-  >("data");
+  const [dashboardTab, setDashboardTab] = useState<PulseDashboardTab>("data");
   const [filterService, setFilterService] = useState<
     "all" | "ppc_google" | "ppc_meta" | "seo" | "campaign"
   >("campaign");
@@ -140,9 +134,6 @@ export function CampaignPulseDashboard({
   const [callLogTarget, setCallLogTarget] =
     useState<PulseClientCallTarget | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [savingTargetKey, setSavingTargetKey] = useState<string | null>(null);
-  const [targetEditor, setTargetEditor] =
-    useState<PulseTargetEditorContext | null>(null);
   const periodBounds = useMemo(() => getPulsePeriodBounds(period), [period]);
   const campaignTrendBounds = useMemo(
     () => pulseTrendWindows(jerusalemYmd()),
@@ -362,23 +353,7 @@ export function CampaignPulseDashboard({
     staleTime: 30_000,
   });
 
-  // The tenant's pulse rules: the cost thresholds for campaigns without a target
-  // (manager.cost) must match what the snapshot used. Defaults when unreadable.
-  const { data: pulseAlertRules = null } = useQuery({
-    queryKey: ["pulse-dash-alert-rules", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      const { data, error } = await supabase
-        .from("tenant_heartbeat_settings")
-        .select("pulse_alert_rules")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (error) return null;
-      return (data?.pulse_alert_rules ?? null) as unknown;
-    },
-    enabled: !!tenantId,
-    staleTime: 300_000,
-  });
+  const pulseAlertRules = usePulseAlertRules(tenantId);
 
   const { data: pulseCampaignTables = [], refetch: refetchPulseTables } =
     useQuery({
@@ -806,108 +781,13 @@ export function CampaignPulseDashboard({
     return map;
   }, [pulseCampaignTables]);
 
-  const tableTypeById = useMemo(
-    () =>
-      new Map(
-        pulseCampaignTables.map((table) => [
-          table.id,
-          table.integration_type ?? null,
-        ]),
-      ),
-    [pulseCampaignTables],
-  );
-
-  const missingTargetGroups = useMemo(
-    () =>
-      listCampaignsWithoutTarget({
-        campaignRows: visibleCampaignRows,
-        tables: pulseCampaignTables,
-      }),
-    [visibleCampaignRows, pulseCampaignTables],
-  );
-
-  const missingTargetCampaignCount = useMemo(
-    () =>
-      missingTargetGroups.reduce(
-        (total, group) => total + group.campaigns.length,
-        0,
-      ),
-    [missingTargetGroups],
-  );
-
-  /** Every report table of the client × platform: a platform target goes to all. */
-  function platformTableIds(
-    clientId: string,
-    platform: "meta" | "google",
-  ): string[] {
-    return (tablesByClient.get(clientId) ?? [])
-      .filter((table) =>
-        platform === "google"
-          ? table.integration_type === "google_ads"
-          : table.integration_type === "facebook_insights" ||
-            table.integration_type === "facebook_ecommerce",
-      )
-      .map((table) => table.id);
-  }
-
-  function openTargetEditorFromAttention(row: PulseAttentionRow) {
-    setTargetEditor({
-      clientId: row.clientId,
-      clientName: row.clientName,
-      platform: row.platform,
-      primaryGoal: row.primaryGoal,
-      platformTableIds: platformTableIds(row.clientId, row.platform),
-      baselineEfficiency7d: row.baselineEfficiency7d,
-    });
-  }
-
-  function openTargetEditorForClient(
-    clientId: string,
-    platform: "meta" | "google",
-    goal: PulseCampaignGoal,
-  ) {
-    setTargetEditor({
-      clientId,
-      clientName: clientMetaById.get(clientId)?.name ?? "לקוח",
-      platform,
-      primaryGoal: goal,
-      platformTableIds: platformTableIds(clientId, platform),
-    });
-  }
-
-  const targetEditorCampaigns = useMemo(
-    () =>
-      targetEditor
-        ? visibleCampaignRows.filter(
-            (row) =>
-              row.client_id === targetEditor.clientId &&
-              row.platform === targetEditor.platform,
-          )
-        : [],
-    [targetEditor, visibleCampaignRows],
-  );
-
-  /** Saves an approved target (platform or one campaign) on the table settings. */
-  async function savePulseTarget(input: PulseTargetSaveInput) {
-    setSavingTargetKey(pulseTargetSaveKey(input));
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      await savePulseTargetToTables(
-        supabase as unknown as PulseTargetStore,
-        input,
-        user?.id ?? null,
-      );
-      toast.success(input.value === null ? "היעד הוסר" : "היעד נשמר");
-      await refetchPulseTables();
-      refetchPulseRecords();
-    } catch (error: any) {
-      toast.error(error?.message ?? "שמירת היעד נכשלה");
-    } finally {
-      setSavingTargetKey(null);
-    }
-  }
+  const targetEditor = usePulseTargetEditor({
+    tables: pulseCampaignTables,
+    campaignRows: visibleCampaignRows,
+    clientMetaById,
+  });
+  const { save: savePulseTarget, savingKey: savingTargetKey } =
+    useSavePulseTarget(tenantId);
 
   const availablePlatforms = useMemo(() => {
     const types = new Set(
@@ -927,14 +807,14 @@ export function CampaignPulseDashboard({
       campaignCount: visibleCampaignRows.length,
       unclassifiedCount: unclassifiedCampaignRows.length,
       attentionCount: attentionRows.length,
-      missingTargetCount: missingTargetCampaignCount,
+      missingTargetCount: targetEditor.missingCount,
     }),
     [
       clientRawViews.length,
       visibleCampaignRows.length,
       unclassifiedCampaignRows.length,
       attentionRows.length,
-      missingTargetCampaignCount,
+      targetEditor.missingCount,
     ],
   );
 
@@ -1249,9 +1129,11 @@ export function CampaignPulseDashboard({
 
       <Tabs
         value={dashboardTab}
-        onValueChange={(value) =>
-          setDashboardTab(value as "data" | "attention" | "no_target")
-        }
+        onValueChange={(value) => {
+          if (isPulseDashboardTab(value)) {
+            setDashboardTab(value);
+          }
+        }}
         dir="rtl"
         className="space-y-3"
       >
@@ -1382,8 +1264,7 @@ export function CampaignPulseDashboard({
           <PulseAttentionTable
             rows={attentionRows}
             onOpenClient={openClientCard}
-            onEditTargets={openTargetEditorFromAttention}
-            savingTableId={savingTargetKey}
+            onEditTargets={targetEditor.openFromAttention}
           />
         </TabsContent>
 
@@ -1393,23 +1274,25 @@ export function CampaignPulseDashboard({
             ולא יעד שוק של כרמן.
           </p>
           <PulseMissingTargetsList
-            groups={missingTargetGroups}
+            groups={targetEditor.missingGroups}
             clientMetaById={clientMetaById}
             onOpenClient={openClientCard}
-            onSetTargets={openTargetEditorForClient}
+            onSetTargets={targetEditor.openForClient}
           />
         </TabsContent>
       </Tabs>
 
       <PulseTargetEditorDialog
-        open={!!targetEditor}
+        open={!!targetEditor.context}
         onOpenChange={(open) => {
-          if (!open) setTargetEditor(null);
+          if (!open) {
+            targetEditor.close();
+          }
         }}
-        context={targetEditor}
-        campaigns={targetEditorCampaigns}
+        context={targetEditor.context}
+        campaigns={targetEditor.campaigns}
         tableSettingsById={tableSettingsById}
-        tableTypeById={tableTypeById}
+        tableTypeById={targetEditor.tableTypeById}
         savingKey={savingTargetKey}
         onSave={savePulseTarget}
       />

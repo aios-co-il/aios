@@ -5,14 +5,19 @@ import {
   voteSpend,
 } from "./pulse/resolve-campaign-goals.ts";
 import {
-  evaluateTargetlessCostTrend,
-  resolvePulseCostRules,
-} from "./pulse-cost-rules.mjs";
+  addCampaignPlace,
+  campaignPlaces,
+  campaignTarget,
+  campaignTargetFields,
+  compareCampaignItems,
+} from "./pulse/campaign-target.ts";
+import { resolvePulseCostRules } from "./pulse/cost-rules.ts";
 import {
-  pulseTableTypeRank,
-  pulseTargetSourceLabel,
-  resolvePulseTargetAcross,
-} from "./pulse-targets.mjs";
+  measureBaselineGuard,
+  noResultsIn3Days,
+  targetStatusReasons,
+  targetlessStatus,
+} from "./pulse/targetless-status.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -689,46 +694,6 @@ function platformForIntegration(type) {
   return "unknown";
 }
 
-/** Duplicate Meta tables: the one built for the goal reads it best. */
-function tableTypeRank(table, goal) {
-  return pulseTableTypeRank(table?.integration_type, goal);
-}
-
-/**
- * Which of two rows of one campaign represents it (negative: `a`). The best scored
- * row wins; ties go to the goal's own table type, then table id, then the latest
- * day, then campaign id, so the pick never depends on the order the records came in.
- */
-function compareCampaignItems(a, b, goal) {
-  return (
-    b.score - a.score ||
-    tableTypeRank(a.table, goal) - tableTypeRank(b.table, goal) ||
-    String(a.table.id).localeCompare(String(b.table.id)) ||
-    String(b.record.data.date || "").localeCompare(
-      String(a.record.data.date || ""),
-    ) ||
-    String(a.identity.id ?? "").localeCompare(String(b.identity.id ?? ""))
-  );
-}
-
-/**
- * The target that applies to a campaign, over every table (and that table's own
- * campaign id and name) the campaign is read from, so duplicate report tables give
- * the same answer whichever of them the row was sampled from.
- */
-function campaignTarget(places, goal) {
-  return resolvePulseTargetAcross(
-    places.map(({ table, identity }) => ({
-      tableId: table.id,
-      integrationType: table.integration_type ?? null,
-      settings: table.integration_settings || {},
-      campaignId: identity.id,
-      campaignName: identity.name === "ללא שם" ? null : identity.name,
-    })),
-    goal,
-  );
-}
-
 function aggregate(rows, goal, outcomeKind) {
   let spend = 0;
   let outcomes = 0;
@@ -815,11 +780,6 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
-function targetMetricLabel(kind) {
-  if (kind === "cost_per_result") return "עלות לתוצאה";
-  return String(kind || "").toUpperCase();
-}
-
 function classifyStatus({
   goal,
   current3,
@@ -879,8 +839,6 @@ function classifyStatus({
     target?.kind === "roas" ? current7.roas : current7.efficiency;
   const current3Efficiency =
     target?.kind === "roas" ? current3.roas : current3.efficiency;
-  // An approved target and Carmen's market target alert the same way; the reason
-  // says which one it was, so people know when the bar is Carmen's estimate.
   if (target && currentEfficiency !== null) {
     const bad7 =
       target.direction === "minimum"
@@ -891,15 +849,12 @@ function classifyStatus({
       (target.direction === "minimum"
         ? current3Efficiency < target.value
         : current3Efficiency > target.value);
-    const market = target.source === "carmen_market";
-    const marketLabel = pulseTargetSourceLabel("carmen_market");
+    const reasons = targetStatusReasons(target);
     if (bad7 && bad3) {
       return {
         status: "critical",
         tier: "exception",
-        reason: market
-          ? `חריגה מתמשכת מול ${marketLabel} (${targetMetricLabel(target.kind)} ${target.value})`
-          : `חריגה מתמשכת מהיעד המאושר (${target.kind.toUpperCase()} ${target.value})`,
+        reason: reasons.breach,
         alertEligible: true,
       };
     }
@@ -907,30 +862,22 @@ function classifyStatus({
       return {
         status: "warning",
         tier: "watch",
-        reason: market
-          ? `חריגה מול ${marketLabel} ב־7 ימים; נדרשת התמדה לפני התראה`
-          : `חריגה מהיעד המאושר ב־7 ימים; נדרשת התמדה לפני התראה`,
+        reason: reasons.drift,
         alertEligible: false,
       };
     }
     return {
       status: "healthy",
       tier: "normal",
-      reason: market ? `התוצאה בתוך ${marketLabel}` : "התוצאה בתוך היעד המאושר",
+      reason: reasons.within,
       alertEligible: false,
     };
   }
 
   const useRoas = goal === "ecommerce" && target?.kind !== "cpa";
   const lowerIsBetter = !useRoas;
-  // Spend with no result at all in the last 3 days has no cost per result, and is
-  // worse than any rise: count it past every threshold (the 7-day window, minimum
-  // spend and baseline guards still decide). A day with 0 leads reads as "no
-  // value" (pulseCampaignOutcome), so 3 such days aggregate to null, not 0; the
-  // 7-day window has results here (the cases without any returned above).
-  const noResults3 =
-    !useRoas && current3.spend > 0 && !(Number(current3.outcomes) > 0);
-  const trend3 = noResults3
+  // The 7-day window has results here (the cases without any returned above).
+  const trend3 = noResultsIn3Days(current3, useRoas)
     ? Number.POSITIVE_INFINITY
     : pct(
         useRoas ? current3.roas : current3.efficiency,
@@ -942,50 +889,16 @@ function classifyStatus({
     useRoas ? baseline7.roas : baseline7.efficiency,
     lowerIsBetter,
   );
-  const metric = useRoas
-    ? "roas"
-    : goal === "ecommerce"
-      ? "cpa"
-      : goal === "leads"
-        ? "cpl"
-        : "cost_per_result";
-  const verdict = evaluateTargetlessCostTrend({
-    metric,
+  return targetlessStatus({
+    goal,
+    useRoas,
     trend3,
     trend7,
     spend7d: current7.spend,
-    baselineOutcomes: baselineGuard.outcomes,
-    baselineDays: baselineGuard.days,
+    guard: baselineGuard,
     rules: costRules,
+    target,
   });
-  if (verdict.level === "exception") {
-    // Red only when the alert is sent: while the tenant keeps target-less alerts
-    // off, the exception is yellow everywhere (dashboard, digest, client status).
-    return {
-      status: verdict.alertEligible ? "critical" : "warning",
-      tier: "exception",
-      reason: verdict.reason,
-      alertEligible: verdict.alertEligible,
-    };
-  }
-  if (verdict.level === "watch") {
-    return {
-      status: "warning",
-      tier: "watch",
-      reason: verdict.reason,
-      alertEligible: false,
-    };
-  }
-  return {
-    status: "healthy",
-    tier: "normal",
-    reason: target
-      ? target.source === "carmen_market"
-        ? `בתוך ${pulseTargetSourceLabel("carmen_market")}`
-        : "בתוך היעד המאושר"
-      : "לא זוהתה חריגה; אין יעד להשוואה",
-    alertEligible: false,
-  };
 }
 
 function datesBetween(start, end) {
@@ -1000,6 +913,7 @@ function datesBetween(start, end) {
  * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
  * snapshot and the dashboard pass the same value, so the cost thresholds for
  * campaigns without a target (manager.cost) are the same on both sides.
+ * @param {{ records?: Array<{ table_id: string, data?: object | null }>, tables?: object[], nowYmd: string, alertRules?: unknown }} input
  */
 export function buildPulseCampaignRows({
   records = [],
@@ -1061,9 +975,6 @@ export function buildPulseCampaignRows({
     })),
   );
 
-  // Every table (with its own campaign id and name) each campaign is read from,
-  // including tables whose daily rows lose the per-day pick below: a target stored
-  // on any of them applies to the campaign.
   const placesByCampaign = new Map();
   for (const item of usable) {
     const { record, table, platform, identity } = item;
@@ -1075,10 +986,7 @@ export function buildPulseCampaignRows({
       goal,
       identity,
     );
-    const places = placesByCampaign.get(campaignKey) || new Map();
-    const placeKey = `${table.id}:${identity.id ?? ""}:${identity.name}`;
-    if (!places.has(placeKey)) places.set(placeKey, { table, identity });
-    placesByCampaign.set(campaignKey, places);
+    addCampaignPlace(placesByCampaign, campaignKey, { table, identity });
 
     const mergeKey = `${campaignKey}:${data.date}`;
     const candidate = {
@@ -1168,25 +1076,17 @@ export function buildPulseCampaignRows({
       outcome.kind,
       current7Dates,
     );
-    // The baseline must be solid before a trend without a target can alert:
-    // real (unscaled) outcomes and the number of days that actually spent.
-    const baselineRaw = aggregate(
+    const baselineGuard = measureBaselineGuard(
       baselineRows,
-      classification.goal,
-      outcome.kind,
+      aggregate(baselineRows, classification.goal, outcome.kind).outcomes,
+      (row) => numberValue(row.data, ["spend", "cost"]),
     );
-    const baselineDays = new Set(
-      baselineRows
-        .filter((row) => numberValue(row.data, ["spend", "cost"]) > 0)
-        .map((row) => row.data.date),
-    ).size;
     const tableSettings = sample.table.integration_settings || {};
     const deliveryStatus = resolveCampaignDeliveryStatus(
       sample.record.data,
       tableSettings,
     );
-    // The resolver breaks ties itself, so the order of the places does not matter.
-    const places = [...(placesByCampaign.get(campaignKey)?.values() || [])];
+    const places = campaignPlaces(placesByCampaign, campaignKey);
     const target = campaignTarget(places, classification.goal);
     const status = classifyStatus({
       goal: classification.goal,
@@ -1194,7 +1094,7 @@ export function buildPulseCampaignRows({
       current7,
       baseline3,
       baseline7,
-      baselineGuard: { outcomes: baselineRaw.outcomes, days: baselineDays },
+      baselineGuard,
       target,
       deliveryStatus,
       costRules: rules,
@@ -1245,20 +1145,7 @@ export function buildPulseCampaignRows({
       status_tier: status.tier,
       status_reason: status.reason,
       alert_eligible: status.alertEligible,
-      target_value: target?.value ?? null,
-      target_kind: target?.kind ?? null,
-      target_source: target?.source ?? null,
-      target_scope: target?.scope ?? null,
-      // Where the target is stored (a duplicate table may hold it) and Carmen's
-      // reasoning for a market estimate, so the editor shows what the pulse used.
-      target_table_id: target?.table_id ?? null,
-      target_campaign_id: target?.campaign_id ?? null,
-      target_rationale: target?.rationale ?? null,
-      // Every table the campaign is read from (its target is resolved over these),
-      // so Carmen's set_market_target checks the same tables.
-      read_table_ids: [
-        ...new Set(places.map(({ table }) => String(table.id))),
-      ].sort(),
+      ...campaignTargetFields(target, places),
       spend_3d: round(current3.spend),
       outcomes_3d: round(current3.outcomes),
       efficiency_3d: round(efficiency3),
@@ -1268,8 +1155,8 @@ export function buildPulseCampaignRows({
       efficiency_7d: round(efficiency7),
       baseline_efficiency_3d: round(baselineEfficiency3),
       baseline_efficiency_7d: round(baselineEfficiency7),
-      baseline_outcomes: round(baselineRaw.outcomes),
-      baseline_days: baselineDays,
+      baseline_outcomes: round(baselineGuard.outcomes),
+      baseline_days: baselineGuard.days,
       trend_3d_pct: round(
         pct(efficiency3, baselineEfficiency3, lowerIsBetter),
         1,

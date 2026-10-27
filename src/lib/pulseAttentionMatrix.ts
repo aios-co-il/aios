@@ -3,15 +3,10 @@ import type {
   PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
 import {
-  buildPlatformTargetPatch as buildPatch,
   buildPulseAttentionRows as buildRows,
   evaluateEfficiencyIssue as evaluateEfficiency,
-  platformTargetFieldKey as targetFieldKey,
-  readApprovedPlatformTarget as readApproved,
-  readPlatformTarget as readTarget,
-  resolvePlatformTarget as resolveTarget,
 } from "../../supabase/functions/_shared/pulse-attention-matrix.mjs";
-import type { PulseTarget } from "@/lib/pulseTargets";
+import type { PulseTarget } from "../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 export type PulseAttentionIssueLevel = "ok" | "watch" | "alert";
 
@@ -19,9 +14,6 @@ export type PulseAttentionIssue = {
   level: PulseAttentionIssueLevel;
   label: string;
 };
-
-/** An approved target or Carmen's market estimate; never a baseline. */
-export type PulsePlatformTarget = PulseTarget;
 
 export type PulseAttentionClientContext = {
   clientId: string;
@@ -41,7 +33,8 @@ export type PulseAttentionRow = {
   platform: "meta" | "google";
   tableId: string | null;
   primaryGoal: PulseCampaignGoal;
-  target: PulsePlatformTarget | null;
+  /** An approved target or Carmen's market estimate; never a baseline. */
+  target: PulseTarget | null;
   currentEfficiency: number | null;
   /** Spend-weighted 7-day efficiency of the 28-day baseline, as a hint only. */
   baselineEfficiency7d: number | null;
@@ -63,23 +56,6 @@ type PlatformTable = {
   integration_settings?: Record<string, unknown> | null;
 };
 
-export const readApprovedPlatformTarget = readApproved as (
-  settings?: Record<string, unknown>,
-  goal?: PulseCampaignGoal,
-) => PulsePlatformTarget | null;
-
-export const readPlatformTarget = readTarget as (
-  settings: Record<string, unknown> | null | undefined,
-  goal: PulseCampaignGoal,
-) => PulsePlatformTarget | null;
-
-/** @deprecated The baseline argument is ignored; use readPlatformTarget. */
-export const resolvePlatformTarget = resolveTarget as (
-  settings: Record<string, unknown> | null | undefined,
-  goal: PulseCampaignGoal,
-  baselineEfficiency7d?: number | null,
-) => PulsePlatformTarget | null;
-
 /** Efficiency cell from the campaign rows' own classification (same as the snapshot). */
 export const evaluateEfficiencyIssue = evaluateEfficiency as (input: {
   campaignRows: PulseCampaignGoalRow[];
@@ -90,14 +66,3 @@ export const buildPulseAttentionRows = buildRows as (input: {
   tables: PlatformTable[];
   clients: PulseAttentionClientContext[];
 }) => PulseAttentionRow[];
-
-export const platformTargetFieldKey = targetFieldKey as (
-  goal: PulseCampaignGoal,
-) => "cpl" | "roas" | "cost_per_result";
-
-export const buildPlatformTargetPatch = buildPatch as (
-  existingSettings: Record<string, unknown>,
-  goal: PulseCampaignGoal,
-  value: number | null,
-  meta?: { setBy?: string | null },
-) => Record<string, unknown>;

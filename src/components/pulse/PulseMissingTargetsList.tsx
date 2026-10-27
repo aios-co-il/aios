@@ -3,37 +3,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatPulseMoney, goalLabel } from "@/lib/pulseDashboard";
-import type { PulseCampaignGoal } from "@/lib/pulseCampaignGoals";
-import type { PlatformWithoutTarget } from "@/lib/pulseTargets";
+import type {
+  PulseCampaignGoal,
+  PulseCampaignGoalRow,
+} from "@/lib/pulseCampaignGoals";
+import {
+  pulsePlatformName,
+  type PulsePlatform,
+} from "../../../supabase/functions/_shared/pulse/platforms.ts";
+import { isPulseTargetGoal } from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
+import type { PlatformWithoutTarget } from "../../../supabase/functions/_shared/pulse/targets/missing.ts";
 
 type ClientMeta = { name: string; campaignerName: string };
 
 type PulseMissingTargetsListProps = {
-  groups: PlatformWithoutTarget[];
+  groups: PlatformWithoutTarget<PulseCampaignGoalRow>[];
   clientMetaById: Map<string, ClientMeta>;
   onOpenClient: (clientId: string) => void;
   onSetTargets: (
     clientId: string,
-    platform: "meta" | "google",
+    platform: PulsePlatform,
     goal: PulseCampaignGoal,
   ) => void;
 };
 
 const MAX_CAMPAIGNS_SHOWN = 4;
-
-/** The goal with the most spend among a group's campaigns without a target. */
-function dominantGoal(group: PlatformWithoutTarget): PulseCampaignGoal {
-  const spendByGoal = new Map<PulseCampaignGoal, number>();
-  for (const campaign of group.campaigns) {
-    spendByGoal.set(
-      campaign.goal,
-      (spendByGoal.get(campaign.goal) ?? 0) + campaign.spend_7d,
-    );
-  }
-  return (
-    [...spendByGoal.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "leads"
-  );
-}
 
 /**
  * "לקוחות בלי יעד": clients × platforms whose spending lead or ecommerce campaigns
@@ -46,7 +40,10 @@ export function PulseMissingTargetsList({
   onOpenClient,
   onSetTargets,
 }: PulseMissingTargetsListProps) {
-  const visible = groups.filter((group) => clientMetaById.has(group.client_id));
+  const visible = groups.flatMap((group) => {
+    const meta = clientMetaById.get(group.client_id);
+    return meta ? [{ group, meta }] : [];
+  });
   if (visible.length === 0) {
     return (
       <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
@@ -57,8 +54,7 @@ export function PulseMissingTargetsList({
 
   return (
     <div className="space-y-2">
-      {visible.map((group) => {
-        const meta = clientMetaById.get(group.client_id)!;
+      {visible.map(({ group, meta }) => {
         const shown = group.campaigns.slice(0, MAX_CAMPAIGNS_SHOWN);
         const hidden = group.campaigns.length - shown.length;
         return (
@@ -80,7 +76,7 @@ export function PulseMissingTargetsList({
                       {group.platform === "meta" ? (
                         <Facebook className="h-3.5 w-3.5 text-blue-600" />
                       ) : null}
-                      {group.platform === "meta" ? "Meta" : "Google Ads"}
+                      {pulsePlatformName(group.platform)}
                     </span>
                     <span>·</span>
                     <span>הוצאה 7 ימים {formatPulseMoney(group.spend_7d)}</span>
@@ -112,9 +108,11 @@ export function PulseMissingTargetsList({
                       {campaign.campaign_name}
                     </span>
                     <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <Badge variant="outline" className="text-[10px]">
-                        {goalLabel(campaign.goal as "leads" | "ecommerce")}
-                      </Badge>
+                      {isPulseTargetGoal(campaign.goal) ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          {goalLabel(campaign.goal)}
+                        </Badge>
+                      ) : null}
                       {formatPulseMoney(campaign.spend_7d)}
                     </span>
                   </li>
@@ -130,5 +128,21 @@ export function PulseMissingTargetsList({
         );
       })}
     </div>
+  );
+}
+
+/** The goal with the most spend among a group's campaigns without a target. */
+function dominantGoal(
+  group: PlatformWithoutTarget<PulseCampaignGoalRow>,
+): PulseCampaignGoal {
+  const spendByGoal = new Map<PulseCampaignGoal, number>();
+  for (const campaign of group.campaigns) {
+    spendByGoal.set(
+      campaign.goal,
+      (spendByGoal.get(campaign.goal) ?? 0) + campaign.spend_7d,
+    );
+  }
+  return (
+    [...spendByGoal.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "leads"
   );
 }

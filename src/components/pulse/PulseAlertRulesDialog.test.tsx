@@ -15,20 +15,16 @@ describe("PulseAlertRulesDialog thresholds without a target", () => {
         onSave={onSave}
       />,
     );
-    const trend = screen.getByLabelText(
-      "עליית CPL/CPA (%)",
-    ) as HTMLInputElement;
+    const trend = screen.getByLabelText("עליית CPL/CPA (%)");
     fireEvent.change(trend, { target: { value: "" } });
-    expect(trend.value).toBe(""); // no snap back to 40 while typing
+    expect(trend).toHaveDisplayValue(""); // no snap back to 40 while typing
     fireEvent.change(trend, { target: { value: "35" } });
-    expect(trend.value).toBe("35");
+    expect(trend).toHaveDisplayValue("35");
 
-    const minSpend = screen.getByLabelText(
-      "הוצאה מינ׳ ב־7 ימים",
-    ) as HTMLInputElement;
+    const minSpend = screen.getByLabelText("הוצאה מינ׳ ב־7 ימים");
     fireEvent.change(minSpend, { target: { value: "" } });
     fireEvent.blur(minSpend);
-    expect(minSpend.value).toBe("400"); // leaving it empty restores the value
+    expect(minSpend).toHaveDisplayValue("400"); // leaving it empty restores the value
 
     fireEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));

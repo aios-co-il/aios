@@ -67,9 +67,9 @@ import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
   PULSE_TARGET_TOOLS,
   PULSE_TARGET_TOOL_NAMES,
-  executePulseTargetTool,
   isPulseTargetTool,
-} from "../_shared/carmen-pulse-target-tools.ts";
+} from "../_shared/carmen/pulse-targets/tool-defs.ts";
+import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
 import {
   spawnSubagent,
   getSubagentResult,
@@ -783,7 +783,6 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
-  // Pulse targets (AIO-236): read, Carmen's market estimate, approved via the queue.
   ...PULSE_TARGET_TOOL_NAMES,
   ...NATIVE_DEV_TASK_TOOLS,
 ]);

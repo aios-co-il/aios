@@ -1,4 +1,4 @@
-import { Facebook, Loader2, Pencil } from "lucide-react";
+import { Facebook, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,17 +15,17 @@ import type {
   PulseAttentionRow,
 } from "@/lib/pulseAttentionMatrix";
 import type { PulseCampaignGoal } from "@/lib/pulseCampaignGoals";
+import { formatPulseTargetValue } from "@/components/pulse/formatPulseTargetValue";
 import {
   pulseTargetKindLabel,
   pulseTargetSourceLabel,
-} from "@/lib/pulseTargets";
+} from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 type PulseAttentionTableProps = {
   rows: PulseAttentionRow[];
   onOpenClient: (clientId: string) => void;
   /** Opens the target editor (platform + per-campaign) for this row. */
   onEditTargets: (row: PulseAttentionRow) => void;
-  savingTableId: string | null;
 };
 
 const platformLabel = (platform: PulseAttentionRow["platform"]) =>
@@ -70,7 +70,6 @@ export function PulseAttentionTable({
   rows,
   onOpenClient,
   onEditTargets,
-  savingTableId,
 }: PulseAttentionTableProps) {
   if (rows.length === 0) {
     return (
@@ -112,9 +111,7 @@ export function PulseAttentionTable({
             {rows.map((row) => {
               // A CPA target on an ecommerce platform is money, not a ROAS ratio.
               const targetLabel = row.target
-                ? row.target.kind === "roas"
-                  ? row.target.value.toFixed(2)
-                  : formatPulseMoney(row.target.value)
+                ? formatPulseTargetValue(row.target.kind, row.target.value)
                 : "אין יעד";
               return (
                 <TableRow key={`${row.clientId}:${row.platform}`}>
@@ -181,14 +178,9 @@ export function PulseAttentionTable({
                           size="icon"
                           className="h-7 w-7 shrink-0"
                           aria-label="עריכת יעדים"
-                          disabled={savingTableId === row.tableId}
                           onClick={() => onEditTargets(row)}
                         >
-                          {savingTableId === row.tableId ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Pencil className="h-3.5 w-3.5" />
-                          )}
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       ) : null}
                     </div>

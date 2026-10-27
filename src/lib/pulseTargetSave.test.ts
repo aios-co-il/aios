@@ -1,60 +1,106 @@
-import { describe, expect, it } from "vitest";
-import {
-  pulseTargetSaveKey,
-  savePulseTargetToTables,
-  type PulseTargetStore,
-} from "./pulseTargetSave";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pulseTargetSaveKey, savePulseTargetToTables } from "./pulseTargetSave";
 
 type Settings = Record<string, Record<string, Record<string, unknown>>>;
 
-/** crm_tables in memory, with every read and write recorded in order. */
-function fakeStore(rows: Record<string, Record<string, unknown>>) {
+/** crm_tables rows by id (with their tenant), and every read and write in order. */
+const store = vi.hoisted(() => {
+  const rows: Record<string, { tenant_id: string; settings: unknown }> = {};
   const log: string[] = [];
-  const store = {
-    from: () => ({
-      select: () => ({
-        eq: (_column: string, id: string) => ({
-          maybeSingle: async () => {
-            log.push(`read ${id}`);
-            return {
-              data: id in rows ? { integration_settings: rows[id] } : null,
-              error: null,
-            };
-          },
-        }),
-      }),
-      update: (patch: { integration_settings: Record<string, unknown> }) => ({
-        eq: async (_column: string, id: string) => {
-          log.push(`write ${id}`);
-          rows[id] = patch.integration_settings;
-          return { data: null, error: null };
+  return { rows, log };
+});
+
+vi.mock("@/integrations/supabase/client", () => {
+  /** Records the eq filters of one query and finds the row they select. */
+  const query = () => {
+    const filters: Record<string, unknown> = {};
+    const row = () => {
+      const found = store.rows[String(filters.id)];
+      return found && found.tenant_id === filters.tenant_id ? found : null;
+    };
+    const chain = {
+      eq: (column: string, value: unknown) => {
+        filters[column] = value;
+        return chain;
+      },
+      maybeSingle: async () => {
+        store.log.push(`read ${filters.id}`);
+        const found = row();
+        return {
+          data: found ? { integration_settings: found.settings } : null,
+          error: null,
+        };
+      },
+      filters,
+      row,
+    };
+    return chain;
+  };
+  return {
+    supabase: {
+      from: () => ({
+        select: () => query(),
+        update: (patch: { integration_settings: unknown }) => {
+          const chain = query();
+          return {
+            eq: (column: string, value: unknown) => {
+              chain.eq(column, value);
+              return {
+                eq: async (nextColumn: string, nextValue: unknown) => {
+                  chain.eq(nextColumn, nextValue);
+                  store.log.push(`write ${chain.filters.id}`);
+                  const found = chain.row();
+                  if (found) {
+                    found.settings = patch.integration_settings;
+                  }
+                  return { data: null, error: null };
+                },
+              };
+            },
+          };
         },
       }),
-    }),
-  } as unknown as PulseTargetStore;
-  return { store, rows, log };
+    },
+  };
+});
+
+/** The stored settings of one table. */
+function settingsOf(id: string): Settings {
+  const settings = store.rows[id]?.settings;
+  return settings && typeof settings === "object" ? { ...settings } : {};
 }
+
+beforeEach(() => {
+  store.rows = {};
+  store.log = [];
+});
 
 describe("savePulseTargetToTables", () => {
   it("writes an approved target over the stored settings of each table", async () => {
     // Stored settings, as a sync just wrote them (not the dashboard's cached copy).
-    const { store, rows, log } = fakeStore({
+    store.rows = {
       g1: {
-        last_sync_at: "2026-10-26T05:00:00Z",
-        pulse_platform_targets: {
-          leads: { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" },
+        tenant_id: "tenant-1",
+        settings: {
+          last_sync_at: "2026-10-26T05:00:00Z",
+          pulse_platform_targets: {
+            leads: { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" },
+          },
         },
       },
-      g2: { last_sync_at: "2026-10-26T05:01:00Z" },
-    });
+      g2: {
+        tenant_id: "tenant-1",
+        settings: { last_sync_at: "2026-10-26T05:01:00Z" },
+      },
+    };
     await savePulseTargetToTables(
-      store,
       { tableIds: ["g1", "g2"], goal: "leads", kind: "cpl", value: 70 },
+      "tenant-1",
       "user-1",
     );
-    expect(log).toEqual(["read g1", "write g1", "read g2", "write g2"]);
+    expect(store.log).toEqual(["read g1", "write g1", "read g2", "write g2"]);
     for (const id of ["g1", "g2"]) {
-      const settings = rows[id] as Settings;
+      const settings = settingsOf(id);
       expect(settings.last_sync_at).toMatch(/^2026-10-26/);
       expect(settings.pulse_platform_targets.leads).toMatchObject({
         cpl: 70,
@@ -66,9 +112,8 @@ describe("savePulseTargetToTables", () => {
   });
 
   it("saves a campaign target under its id and stops on a missing table", async () => {
-    const { store, rows } = fakeStore({ t1: {} });
+    store.rows = { t1: { tenant_id: "tenant-1", settings: {} } };
     await savePulseTargetToTables(
-      store,
       {
         tableIds: ["t1"],
         goal: "ecommerce",
@@ -77,27 +122,41 @@ describe("savePulseTargetToTables", () => {
         campaignId: "c9",
         campaignName: "Sale",
       },
+      "tenant-1",
       null,
     );
-    expect((rows.t1 as Settings).pulse_targets.c9).toMatchObject({
+    expect(settingsOf("t1").pulse_targets.c9).toMatchObject({
       roas: 3,
       source: "approved",
       goal: "ecommerce",
     });
     await expect(
       savePulseTargetToTables(
-        store,
         { tableIds: ["missing"], goal: "leads", kind: "cpl", value: 50 },
+        "tenant-1",
         null,
       ),
     ).rejects.toThrow("הטבלה לא נמצאה");
     await expect(
       savePulseTargetToTables(
-        store,
         { tableIds: [], goal: "leads", kind: "cpl", value: 50 },
+        "tenant-1",
         null,
       ),
     ).rejects.toThrow();
+  });
+
+  it("never reads or writes a table of another tenant", async () => {
+    store.rows = { t1: { tenant_id: "tenant-2", settings: { keep: true } } };
+    await expect(
+      savePulseTargetToTables(
+        { tableIds: ["t1"], goal: "leads", kind: "cpl", value: 50 },
+        "tenant-1",
+        null,
+      ),
+    ).rejects.toThrow("הטבלה לא נמצאה");
+    expect(store.log).toEqual(["read t1"]);
+    expect(settingsOf("t1")).toEqual({ keep: true });
   });
 
   it("keys a platform save by its tables and a campaign save by its slot", () => {

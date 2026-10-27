@@ -6,6 +6,11 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import {
+  alertTargetText,
+  baselineTrendLines,
+  spentWithoutResults3d,
+} from "./pulse/instant-alert-lines.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -173,25 +178,8 @@ export function evaluatePulseInstantAlerts(
 
     for (const campaign of campaignBreakdown) {
       if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
-      const target =
-        campaign.target_value === null || campaign.target_value === undefined
-          ? "אין יעד"
-          : `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${campaign.target_source === "carmen_market" ? " · יעד שוק (כרמן)" : ""}`;
-      // Spend with no result in the last 3 days has no cost per result to show
-      // (a lead day with 0 leads is stored as no value, so outcomes_3d is null).
-      const noResults3 =
-        campaign.efficiency_3d == null &&
-        !(Number(campaign.outcomes_3d) > 0) &&
-        Number(campaign.spend_3d) > 0;
-      // Without a target the comparison is the baseline: show how far it moved.
-      const baselineTrendLine =
-        campaign.target_value == null &&
-        campaign.trend_7d_pct != null &&
-        (campaign.trend_3d_pct != null || noResults3)
-          ? [
-              `החמרה מול הבסיס: 3 ימים ${noResults3 ? "אין תוצאות" : `${campaign.trend_3d_pct}%`} · 7 ימים ${campaign.trend_7d_pct}%`,
-            ]
-          : [];
+      const target = alertTargetText(campaign);
+      const noResults3 = spentWithoutResults3d(campaign);
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -234,7 +222,7 @@ export function evaluatePulseInstantAlerts(
           `סיבה: ${campaign.status_reason || "חריגה מתמשכת"}`,
           `יעד: ${target}`,
           `3 ימים: ${campaign.efficiency_3d ?? (noResults3 ? "אין תוצאות" : "חסר")} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
-          ...baselineTrendLine,
+          ...baselineTrendLines(campaign),
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",

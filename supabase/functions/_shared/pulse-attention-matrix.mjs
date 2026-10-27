@@ -4,13 +4,7 @@ import {
   tableReportGoal,
 } from "./pulse-campaign-goals.mjs";
 import { isConfirmedGoogleSalesCampaign } from "./pulse/google-sales-campaign.ts";
-import {
-  buildPulseTargetPatch,
-  pulseTargetKindsForGoal,
-  pulseTargetSourceLabel,
-  resolvePulseTarget,
-  resolvePulseTargetAcross,
-} from "./pulse-targets.mjs";
+import { resolvePulseTargetAcross } from "./pulse/targets/resolve.ts";
 
 const MOOD_STATUS_LABELS = {
   happy: "😊 מבסוט / תקין",
@@ -196,26 +190,6 @@ function aggregatePlatformMetrics(rows, configuredGoal = null) {
   };
 }
 
-/**
- * The platform-level target for a goal: approved or Carmen's market estimate.
- * There is no 30-day-baseline "target" any more: the snapshot never had one, and
- * a campaign without a target is judged by the shared cost rules instead.
- */
-export function readPlatformTarget(settings = {}, goal) {
-  return resolvePulseTarget(settings || {}, goal, null);
-}
-
-/** Only a target a person approved (legacy name kept for callers). */
-export function readApprovedPlatformTarget(settings = {}, goal) {
-  const target = readPlatformTarget(settings, goal);
-  return target && target.source === "approved" ? target : null;
-}
-
-/** Kept for callers; the baseline argument is ignored (see readPlatformTarget). */
-export function resolvePlatformTarget(settings, goal, _baselineEfficiency7d) {
-  return readPlatformTarget(settings, goal);
-}
-
 const STATUS_RANK = { exception: 2, watch: 1 };
 
 /**
@@ -224,6 +198,7 @@ const STATUS_RANK = { exception: 2, watch: 1 };
  * classification the snapshot stores and alerts on — so the dashboard turns red
  * exactly when a WhatsApp alert is due (alert_eligible), and shows an exception that
  * does not alert (a campaign without a target while those alerts are off) as watch.
+ * @param {{ campaignRows?: object[] }} [input]
  */
 export function evaluateEfficiencyIssue({ campaignRows = [] } = {}) {
   const flagged = campaignRows
@@ -239,7 +214,9 @@ export function evaluateEfficiencyIssue({ campaignRows = [] } = {}) {
         (STATUS_RANK[b.status_tier] ?? 0) - (STATUS_RANK[a.status_tier] ?? 0) ||
         (b.spend_7d ?? 0) - (a.spend_7d ?? 0),
     );
-  if (!flagged.length) return null;
+  if (!flagged.length) {
+    return null;
+  }
   const worst = flagged[0];
   const others = flagged.length - 1;
   const more =
@@ -428,25 +405,3 @@ export function buildPulseAttentionRows({
       String(a.platform).localeCompare(String(b.platform)),
   );
 }
-
-export function platformTargetFieldKey(goal) {
-  return pulseTargetKindsForGoal(goal)[0] || "cpl";
-}
-
-/** Platform-level save from the dashboard: always an approved target. */
-export function buildPlatformTargetPatch(
-  existingSettings = {},
-  goal,
-  value,
-  meta = {},
-) {
-  return buildPulseTargetPatch(existingSettings, {
-    goal,
-    value,
-    kind: platformTargetFieldKey(goal),
-    source: "approved",
-    setBy: meta.setBy ?? null,
-  });
-}
-
-export { pulseTargetSourceLabel };
