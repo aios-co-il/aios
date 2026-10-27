@@ -1,4 +1,5 @@
-import { dataDeletionStatusLabel } from "./dataDeletionStatus";
+import { format } from "date-fns";
+import { DATA_DELETION_STATUS_LABELS } from "./dataDeletionStatus";
 import { PrivacyEmailLink } from "./PrivacyEmailLink";
 import { useDeletionStatus, type DeletionLookup } from "./useDeletionStatus";
 
@@ -25,10 +26,12 @@ function LookupResult({ result }: { result: DeletionLookup }) {
   return (
     <>
       <p>
-        סטטוס: <strong>{dataDeletionStatusLabel(result.status.status)}</strong>
+        סטטוס:{" "}
+        <strong>{DATA_DELETION_STATUS_LABELS[result.status.status]}</strong>
       </p>
       <p className="text-sm text-muted-foreground">
-        התקבלה ב-{new Date(result.status.created_at).toLocaleString("he-IL")}
+        התקבלה ב-
+        {format(new Date(result.status.created_at), "dd/MM/yyyy HH:mm")}
       </p>
     </>
   );

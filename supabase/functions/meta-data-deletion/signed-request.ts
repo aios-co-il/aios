@@ -1,8 +1,6 @@
 // Meta `signed_request` parsing (Data Deletion Request Callback, Deauthorize
 // Callback). Format: `<base64url(signature)>.<base64url(json payload)>`, where
 // the signature is HMAC-SHA256 of the encoded payload with the app secret.
-// Runtime-neutral: uses only WebCrypto, atob and TextEncoder/TextDecoder so the
-// module runs on Deno and under `node --test`.
 
 export const META_SIGNED_REQUEST_ALGORITHM = "HMAC-SHA256";
 

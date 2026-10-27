@@ -13,7 +13,7 @@ create table if not exists public.meta_data_deletion_requests (
   created_at timestamptz not null default now()
 );
 
--- Status values are mirrored in src/components/DataDeletionPage/dataDeletionStatus.ts (page labels).
+-- Status values are mirrored in supabase/functions/meta-data-deletion/contract.ts.
 do $$
 begin
   if not exists (

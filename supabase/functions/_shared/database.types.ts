@@ -9257,6 +9257,33 @@ export type Database = {
           },
         ];
       };
+      meta_data_deletion_requests: {
+        Row: {
+          confirmation_code: string;
+          created_at: string;
+          fb_user_id: string | null;
+          id: string;
+          issued_at: string | null;
+          status: string;
+        };
+        Insert: {
+          confirmation_code: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          confirmation_code?: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Relationships: [];
+      };
       meta_whatsapp_tenant_credentials: {
         Row: {
           access_token: string;

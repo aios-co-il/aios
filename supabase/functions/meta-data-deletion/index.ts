@@ -9,16 +9,14 @@
 // match against `user_id` from the signed request. Tokens are revoked by Meta
 // when the app is removed; the logged request is processed manually (see
 // /data-deletion and privacy@aios.co.il).
-//
-// Request handling lives in _shared/meta-data-deletion.ts (node-tested).
 
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { createServiceClient } from "../_shared/supabase-admin.ts";
+import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
+import { readDeletionRequestStatus } from "./contract.ts";
 import {
   type DeletionRequestStore,
   type MetaDataDeletionDeps,
   handleMetaDataDeletion,
-} from "../_shared/meta-data-deletion.ts";
+} from "./handler.ts";
 
 // Same convention as google-*-auth and trigger-automation: APP_URL is the
 // per-environment site origin; production is the fallback.
@@ -28,7 +26,7 @@ const APP_BASE = (Deno.env.get("APP_URL") || "https://aios.co.il").replace(
 );
 const STATUS_PAGE = `${APP_BASE}/data-deletion`;
 
-function supabaseStore(supabase: SupabaseClient): DeletionRequestStore {
+function supabaseStore(supabase: DbClient): DeletionRequestStore {
   return {
     async findByCode(code) {
       const { data, error } = await supabase
@@ -37,7 +35,10 @@ function supabaseStore(supabase: SupabaseClient): DeletionRequestStore {
         .eq("confirmation_code", code)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      const row = readDeletionRequestStatus(data);
+      if (!row) throw new Error(`Unexpected deletion status: ${data.status}`);
+      return row;
     },
     async insert(row) {
       const { error } = await supabase
@@ -49,7 +50,7 @@ function supabaseStore(supabase: SupabaseClient): DeletionRequestStore {
 }
 
 const deps: MetaDataDeletionDeps = {
-  store: supabaseStore(createServiceClient()),
+  store: supabaseStore(serviceClient()),
   appSecret:
     Deno.env.get("FACEBOOK_APP_SECRET") ?? Deno.env.get("META_APP_SECRET"),
   statusPage: STATUS_PAGE,

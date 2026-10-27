@@ -1,15 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-
-export interface DeletionStatus {
-  confirmation_code: string;
-  status: string;
-  created_at: string;
-}
+import {
+  type DeletionRequestStatus,
+  readDeletionRequestStatus,
+} from "../../../supabase/functions/meta-data-deletion/contract.ts";
 
 export type DeletionLookup =
-  | { kind: "found"; status: DeletionStatus }
+  | { kind: "found"; status: DeletionRequestStatus }
   | { kind: "not_found" }
   | { kind: "unavailable" };
 
@@ -22,7 +20,7 @@ export function useDeletionStatus(code: string) {
   return useQuery({
     queryKey: ["meta-data-deletion-status", code],
     queryFn: async (): Promise<DeletionLookup> => {
-      const { data, error } = await supabase.functions.invoke<DeletionStatus>(
+      const { data, error } = await supabase.functions.invoke(
         `meta-data-deletion?code=${encodeURIComponent(code)}`,
         { method: "GET" },
       );
@@ -33,8 +31,8 @@ export function useDeletionStatus(code: string) {
             : undefined;
         return { kind: status === 404 ? "not_found" : "unavailable" };
       }
-      if (!data) return { kind: "unavailable" };
-      return { kind: "found", status: data };
+      const found = readDeletionRequestStatus(data);
+      return found ? { kind: "found", status: found } : { kind: "unavailable" };
     },
     retry: false,
     refetchOnWindowFocus: false,
