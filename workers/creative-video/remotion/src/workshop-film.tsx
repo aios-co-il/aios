@@ -8,7 +8,6 @@ import {
   OffthreadVideo,
   Sequence,
   interpolate,
-  spring,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
@@ -20,10 +19,18 @@ import {
   type WorkshopMusicLoop,
   type WorkshopScene,
 } from "./manifest";
-import { KaraokeCaptions } from "./workshop-captions";
+import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
 import { EndCard } from "./workshop-end-card";
 import { Kicker } from "./workshop-kicker";
-import { edgeFade, enterStyle } from "./workshop-transition";
+import { MotionCaptions } from "./workshop-motion-captions";
+import { SkinFlash, SkinSweep } from "./workshop-skin";
+import { TitleCard } from "./workshop-title-card";
+import {
+  edgeFade,
+  enterStyle,
+  skinEnter,
+  skinExit,
+} from "./workshop-transition";
 
 export type {
   WorkshopFilmProps,
@@ -68,15 +75,19 @@ const Clip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
   return video(false);
 };
 
+type TitleMode = "none" | "kicker" | "card";
+
 const Picture: React.FC<{
   scene: WorkshopScene;
   enter: number;
+  /** Frames of the next scene's skin switch over this scene's end (0 for another cut). */
+  exitFrames: number;
   accent: string;
   showCaption: boolean;
-  showKicker: boolean;
-}> = ({ scene, enter, accent, showCaption, showKicker }) => {
+  title: TitleMode;
+}> = ({ scene, enter, exitFrames, accent, showCaption, title }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, fps, height } = useVideoConfig();
+  const { durationInFrames, fps } = useVideoConfig();
   const progress = interpolate(
     frame,
     [0, Math.max(1, durationInFrames - 1)],
@@ -85,93 +96,78 @@ const Picture: React.FC<{
   );
   const { scale, x, y } = camera(scene.move || "push", progress);
   const sheen = interpolate(progress, [0, 1], [-40, 140]);
-  const appear = spring({
-    frame: frame - enter,
-    fps,
-    config: { damping: 16, mass: 0.55 },
-  });
   const caption = showCaption ? (scene.caption || "").trim() : "";
-  const kicker = showKicker ? (scene.kicker || "").trim() : "";
-  const fontSize = Math.round(height * 0.032);
+  const kicker = title !== "none" ? (scene.kicker || "").trim() : "";
+  const skin =
+    scene.transition === "skin" && enter > 0
+      ? skinEnter(frame, enter, fps)
+      : null;
+  const out = skinExit(frame, durationInFrames, exitFrames);
+  const punch = (skin?.scale ?? 1) * out.scale;
+  const blur = Math.max(skin?.blur ?? 0, out.blur);
+  const filters = [
+    out.brightness !== 1 ? `brightness(${out.brightness.toFixed(3)})` : "",
+    blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : "",
+  ].filter(Boolean);
   return (
-    <AbsoluteFill
-      style={{
-        background: "#07111c",
-        ...enterStyle(scene.transition || "crossfade", frame, enter),
-      }}
-    >
-      <AbsoluteFill style={{ overflow: "hidden" }}>
+    <AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          background: "#07111c",
+          ...(skin
+            ? { opacity: skin.shown ? 1 : 0 }
+            : enterStyle(scene.transition || "crossfade", frame, enter)),
+        }}
+      >
         <AbsoluteFill
-          style={{ transform: `scale(${scale}) translate(${x}%, ${y}%)` }}
+          style={{
+            overflow: "hidden",
+            ...(punch !== 1 ? { transform: `scale(${punch.toFixed(4)})` } : {}),
+            ...(filters.length ? { filter: filters.join(" ") } : {}),
+          }}
         >
-          {scene.clip ? (
-            <Clip scene={scene} />
-          ) : scene.still ? (
-            <Img src={staticFile(scene.still)} style={cover} />
-          ) : (
+          <AbsoluteFill
+            style={{ transform: `scale(${scale}) translate(${x}%, ${y}%)` }}
+          >
+            {scene.clip ? (
+              <Clip scene={scene} />
+            ) : scene.still ? (
+              <Img src={staticFile(scene.still)} style={cover} />
+            ) : (
+              <AbsoluteFill
+                style={{
+                  background:
+                    "radial-gradient(circle at 50% 30%, #164257, #07111c 70%)",
+                }}
+              />
+            )}
+          </AbsoluteFill>
+          {scene.lipsync ? null : (
             <AbsoluteFill
               style={{
-                background:
-                  "radial-gradient(circle at 50% 30%, #164257, #07111c 70%)",
+                background: `linear-gradient(115deg, transparent ${sheen - 18}%, rgba(255,255,255,0.18) ${sheen}%, transparent ${sheen + 18}%)`,
+                mixBlendMode: "soft-light",
               }}
             />
           )}
-        </AbsoluteFill>
-        {scene.lipsync ? null : (
           <AbsoluteFill
             style={{
-              background: `linear-gradient(115deg, transparent ${sheen - 18}%, rgba(255,255,255,0.18) ${sheen}%, transparent ${sheen + 18}%)`,
-              mixBlendMode: "soft-light",
+              background:
+                "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0.15) 58%, rgba(0,0,0,0.78) 100%)",
             }}
           />
-        )}
-        <AbsoluteFill
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0.15) 58%, rgba(0,0,0,0.78) 100%)",
-          }}
-        />
+          {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
+        </AbsoluteFill>
+        {caption ? (
+          <SceneCaption text={caption} enter={enter} accent={accent} />
+        ) : null}
+        {kicker && title === "kicker" ? (
+          <Kicker text={kicker} enter={enter} accent={accent} />
+        ) : null}
+        {kicker && title === "card" ? (
+          <TitleCard text={kicker} enter={enter} accent={accent} />
+        ) : null}
       </AbsoluteFill>
-      {caption ? (
-        <div
-          dir="rtl"
-          style={{
-            position: "absolute",
-            right: "6%",
-            bottom: "8%",
-            width: "88%",
-            transform: `translateY(${(1 - appear) * 28}px)`,
-            opacity: appear,
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              right: 0,
-              width: 5,
-              background: accent,
-              transform: `scaleY(${appear})`,
-              transformOrigin: "bottom",
-            }}
-          />
-          <div
-            style={{
-              background: "rgba(6,16,28,0.78)",
-              color: "white",
-              fontWeight: 700,
-              fontSize,
-              lineHeight: 1.25,
-              textAlign: "right",
-              padding: "16px 22px 16px 18px",
-            }}
-          >
-            {caption}
-          </div>
-        </div>
-      ) : null}
-      {kicker ? <Kicker text={kicker} enter={enter} accent={accent} /> : null}
       {scene.voice ? (
         <Sequence from={enter} layout="none">
           <Audio src={staticFile(scene.voice)} />
@@ -211,6 +207,7 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   effects,
   effectsEnvelope,
   captions,
+  captionStyle,
   brand,
   endCardFrames,
 }) => {
@@ -220,7 +217,10 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   const fontFamily = brand?.fontFamily
     ? `"${brand.fontFamily}", Heebo, Arial, sans-serif`
     : "Heebo, Arial, sans-serif";
-  const karaoke = (captions ?? []).filter((c) => c.words.length);
+  const spoken = (captions ?? []).filter((c) => c.words.length);
+  // Motion graphics when the manifest asks for them; karaoke lines for older films.
+  const motion = captionStyle === "motion";
+  const title: TitleMode = !spoken.length ? "none" : motion ? "card" : "kicker";
   const musicVolume = (f: number) => {
     const fade = Math.min(
       interpolate(f, [0, 18], [0, 1], clamp),
@@ -240,11 +240,18 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
       ? interpolate(f, env.frames, env.volumes, clamp)
       : 0.5;
   };
+  const starts: number[] = [];
   let cursor = 0;
-  const pictures = scenes.map((scene) => {
-    const start = cursor;
+  for (const scene of scenes) {
+    starts.push(cursor);
     cursor += scene.durationFrames;
-    const enter = Math.max(0, Math.min(start, scene.transitionFrames ?? 0));
+  }
+  const enterOf = (index: number) =>
+    Math.max(0, Math.min(starts[index], scenes[index].transitionFrames ?? 0));
+  const pictures = scenes.map((scene, index) => {
+    const start = starts[index];
+    const enter = enterOf(index);
+    const next = scenes[index + 1];
     return (
       <Sequence
         key={scene.id}
@@ -254,9 +261,10 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         <Picture
           scene={scene}
           enter={enter}
+          exitFrames={next?.transition === "skin" ? enterOf(index + 1) : 0}
           accent={accent}
-          showCaption={!karaoke.length}
-          showKicker={karaoke.length > 0}
+          showCaption={!spoken.length}
+          title={title}
         />
       </Sequence>
     );
@@ -274,13 +282,33 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         }
       `}</style>
       {pictures}
-      {karaoke.length ? (
+      {spoken.length && motion ? (
+        <MotionCaptions
+          captions={spoken}
+          accent={accent}
+          fontFamily={fontFamily}
+        />
+      ) : spoken.length ? (
         <KaraokeCaptions
-          captions={karaoke}
+          captions={spoken}
           accent={accent}
           fontFamily={fontFamily}
         />
       ) : null}
+      {scenes.map((scene, index) => {
+        const enter = enterOf(index);
+        if (scene.transition !== "skin" || enter <= 0) return null;
+        return (
+          <Sequence
+            key={`flash-${scene.id}`}
+            from={starts[index] - enter}
+            durationInFrames={enter + 8}
+            layout="none"
+          >
+            <SkinFlash frames={enter} accent={accent} />
+          </Sequence>
+        );
+      })}
       {endFrames && brand ? (
         <Sequence
           from={cursor - endEnter}

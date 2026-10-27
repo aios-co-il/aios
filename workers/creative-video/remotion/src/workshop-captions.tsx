@@ -82,6 +82,63 @@ const Line: React.FC<{
   );
 };
 
+/**
+ * A scene's own caption when the film has no word timings: a boxed line at the bottom, in from
+ * below after the scene's transition, with an accent bar on its right.
+ */
+export const SceneCaption: React.FC<{
+  text: string;
+  enter: number;
+  accent: string;
+}> = ({ text, enter, accent }) => {
+  const frame = useCurrentFrame();
+  const { fps, height } = useVideoConfig();
+  const appear = spring({
+    frame: frame - enter,
+    fps,
+    config: { damping: 16, mass: 0.55 },
+  });
+  return (
+    <div
+      dir="rtl"
+      style={{
+        position: "absolute",
+        right: "6%",
+        bottom: "8%",
+        width: "88%",
+        transform: `translateY(${(1 - appear) * 28}px)`,
+        opacity: appear,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          right: 0,
+          width: 5,
+          background: accent,
+          transform: `scaleY(${appear})`,
+          transformOrigin: "bottom",
+        }}
+      />
+      <div
+        style={{
+          background: "rgba(6,16,28,0.78)",
+          color: "white",
+          fontWeight: 700,
+          fontSize: Math.round(height * 0.032),
+          lineHeight: 1.25,
+          textAlign: "right",
+          padding: "16px 22px 16px 18px",
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+};
+
 /** Karaoke-style Hebrew captions: the spoken word lights up in the brand colour. */
 export const KaraokeCaptions: React.FC<{
   captions: WorkshopCaption[];
