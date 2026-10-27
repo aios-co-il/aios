@@ -80,7 +80,6 @@ Deno.test(
       "list_facebook_campaigns",
       "get_marketing_work_item",
       "create_social_post",
-      "generate_ad_image",
       "save_memory",
       "kb_search",
       "edit_scene",
@@ -88,6 +87,22 @@ Deno.test(
     ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
     }
+  },
+);
+
+Deno.test(
+  "paid tools outside the project budget are blocked inside the workshop only",
+  () => {
+    // A picture in the workshop is made by workshop_make_creative or workshop_make_stills, which
+    // ask for the budget; the studio's own buttons have their own cost window, outside it.
+    for (const name of ["generate_ad_image", "studio_ui_action"]) {
+      assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
+      assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
+    }
+    assertMatch(
+      workshopBlockedResult("generate_ad_image").message,
+      /workshop_make_creative/,
+    );
   },
 );
 
