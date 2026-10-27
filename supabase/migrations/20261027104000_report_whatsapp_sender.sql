@@ -11,9 +11,9 @@
 -- 2. report_schedules.whatsapp_integration_id is a schedule's own line. NULL
 --    follows the tenant default.
 -- 3. report_whatsapp_sender_usable(tenant, line, user) is the one rule for
---    "this member may send this tenant's reports from this line". It keeps
---    the line privacy of the chat: a private line serves only its owner and
---    the members it was granted to. The file send functions call it too.
+--    "this member may send this tenant's reports from this line". Inside the
+--    tenant it defers to user_has_integration_permission, the app's line
+--    privacy rule. The send functions apply it to a member's own calls.
 -- 4. set_report_whatsapp_sender lets tenant owners (and super admins) set the
 --    default, a line every member may use.
 -- 5. list_report_whatsapp_senders returns the lines a member (or a
@@ -70,13 +70,20 @@ COMMENT ON COLUMN public.report_schedules.whatsapp_integration_id IS
 -- Green API or Manus line the tenant owns or was shared. Any signed-in user
 -- can write a tenant_integrations row with any tenant_id (its RLS checks only
 -- user_id, AIO-245), so a row counts only when the user it belongs to is a
--- member of its tenant (or a super admin). Inside the tenant a line keeps
--- the privacy the chat applies (ChatView, sendCrmWhatsapp): a line another
--- tenant shared, an organization line (no owner) or one opened to the
--- organization (connection_visibility 'org') serves every member; any other
--- line serves its owner and the members granted it in
--- integration_user_permissions. A NULL p_user_id asks whether every member
--- may use the line, as the tenant default must.
+-- member of its tenant (or a super admin). A line another tenant shared
+-- serves every member. A line of the tenant's own follows
+-- user_has_integration_permission: its owner, every member for an
+-- organization line (no owner) or one opened to the organization
+-- (connection_visibility 'org'), the members granted it while it is shared
+-- with specific users ('shared'), and super admins. A NULL p_user_id asks
+-- whether every member may use the line, as the tenant default must: the
+-- organization lines of that same rule.
+--
+-- Earlier revisions of this migration, applied on PR 963's Preview branch,
+-- created the two-argument version. CREATE OR REPLACE with a new argument
+-- list would keep it as an overload, so it is dropped first.
+DROP FUNCTION IF EXISTS public.report_whatsapp_sender_usable(uuid, uuid);
+
 CREATE OR REPLACE FUNCTION public.report_whatsapp_sender_usable(
   p_tenant_id uuid,
   p_integration_id uuid,
@@ -106,15 +113,11 @@ AS $$
       )
       AND (
         ti.tenant_id <> p_tenant_id
-        OR ti.user_id IS NULL
-        OR ti.connection_visibility = 'org'
-        OR ti.user_id = p_user_id
-        OR EXISTS (
-          SELECT 1
-          FROM public.integration_user_permissions AS iup
-          WHERE iup.integration_id = ti.id
-            AND iup.user_id = p_user_id
-        )
+        OR CASE
+          WHEN p_user_id IS NULL
+            THEN (ti.user_id IS NULL OR ti.connection_visibility = 'org')
+          ELSE public.user_has_integration_permission(p_user_id, ti.id)
+        END
       )
   );
 $$;
@@ -209,7 +212,11 @@ GRANT EXECUTE ON FUNCTION public.set_report_whatsapp_sender(uuid, uuid)
 -- last4 is the end of the instance id, to tell lines apart. org_wide marks
 -- a line every member may use, the only kind the default may be. A line's
 -- group_chat_ids are only the ones of this tenant's own groups: a shared
--- Carmen line is in other tenants' groups too.
+-- Carmen line is in other tenants' groups too. The one-argument version of
+-- earlier revisions is dropped first: next to this one, the browser's call
+-- with p_tenant_id alone would be ambiguous.
+DROP FUNCTION IF EXISTS public.list_report_whatsapp_senders(uuid);
+
 CREATE OR REPLACE FUNCTION public.list_report_whatsapp_senders(
   p_tenant_id uuid,
   p_user_id uuid DEFAULT auth.uid()

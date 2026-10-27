@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import type { GuardResult } from "../_shared/integration-guard.ts";
-import type { SenderLine } from "../_shared/report-sender/line-access.ts";
+import type { SenderLine } from "../_shared/report-sender/line-store.ts";
 import type { DeliverInput } from "./gateway.ts";
 import { type FileSendDeps, handleFileSend } from "./handler.ts";
 
@@ -38,12 +38,15 @@ const ALLOW: GuardResult = {
   environment: "production",
 };
 
+/** What the steps that act were asked to do. */
+type Calls = { uploads: number; delivered: DeliverInput[]; records: number };
+
 /**
  * Deps over the fixture lines; records every step that acts. Carmen's line
  * serves every member, the colleague's private line only the colleague.
  */
 function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
-  const calls = { uploads: 0, delivered: [] as DeliverInput[], records: 0 };
+  const calls: Calls = { uploads: 0, delivered: [], records: 0 };
   const deps: FileSendDeps = {
     authenticate: async () => ({ kind: "user", userId: MEMBER }),
     store: {
@@ -53,6 +56,7 @@ function fakeDeps(overrides: Partial<FileSendDeps> = {}) {
         tenantId === TENANT &&
         (id === "carmen" ||
           (id === "colleaguePrivate" && userId === COLLEAGUE)),
+      tenantCanUse: async (tenantId, id) => lines[id]?.tenant_id === tenantId,
       isMember: async (tenantId, userId) =>
         tenantId === TENANT && (userId === MEMBER || userId === COLLEAGUE),
       isSuperAdmin: async () => false,
@@ -96,6 +100,21 @@ function reportRequest(fields: Record<string, string>): Request {
     method: "POST",
     headers: { Authorization: "Bearer user-jwt" },
     body: form,
+  });
+}
+
+/** A broadcast image: service role, JSON with a URL, sent as senderUserId. */
+function broadcastRequest(integrationId: string): Request {
+  return new Request("https://functions.local/send-manus-wa-file", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      imageUrl: "https://cdn.local/promo.png",
+      phoneNumber: "0501234567",
+      tenantId: TENANT,
+      integrationId,
+      senderUserId: MEMBER,
+    }),
   });
 }
 
@@ -158,32 +177,6 @@ Deno.test("handleFileSend refuses before anything is uploaded", async (t) => {
     assertEquals(calls, { uploads: 0, delivered: [], records: 0 });
   });
 
-  await t.step(
-    "a broadcast image from a private line its creator may not use",
-    async () => {
-      const { deps, calls } = fakeDeps({
-        authenticate: async () => ({ kind: "service", userId: null }),
-      });
-      const broadcast = new Request(
-        "https://functions.local/send-manus-wa-file",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            imageUrl: "https://cdn.local/promo.png",
-            phoneNumber: "0501234567",
-            tenantId: TENANT,
-            integrationId: "colleaguePrivate",
-            senderUserId: MEMBER,
-          }),
-        },
-      );
-      const result = await handleFileSend(broadcast, deps);
-      assertEquals(result.status, 403);
-      assertEquals(calls.delivered, []);
-    },
-  );
-
   await t.step("Staging blocks the recipient", async () => {
     const destinations: string[] = [];
     const { deps, calls } = fakeDeps({
@@ -245,6 +238,23 @@ Deno.test("handleFileSend sends from the resolved line", async (t) => {
     },
   );
 
+  await t.step(
+    "a broadcast image from any line of the tenant, as before",
+    async () => {
+      // The broadcast wizard offers every line of the tenant; the member's
+      // own rule applies to members' calls, not to broadcasts.
+      const { deps, calls } = fakeDeps({
+        authenticate: async () => ({ kind: "service", userId: null }),
+      });
+      const result = await handleFileSend(
+        broadcastRequest("colleaguePrivate"),
+        deps,
+      );
+      assertEquals(result.status, 200);
+      assertEquals(calls.delivered[0].apiKey, "key-colleague");
+    },
+  );
+
   await t.step("an unknown delivery is reported, not recorded", async () => {
     const { deps, calls } = fakeDeps({
       deliver: async () => ({ status: "unknown", detail: "TimeoutError" }),
@@ -255,5 +265,15 @@ Deno.test("handleFileSend sends from the resolved line", async (t) => {
     assertEquals(result.status, 202);
     assertEquals(result.body.delivered, "unknown");
     assertEquals(calls.records, 0);
+  });
+
+  await t.step("a gateway failure keeps the gateway's reply out", async () => {
+    const { deps } = fakeDeps({
+      deliver: async () => ({ status: "failed", detail: "upstream secret" }),
+    });
+    const result = await reply(
+      await handleFileSend(reportRequest({ integrationId: "carmen" }), deps),
+    );
+    assertEquals(result.body, { error: "Manus WA error", code: "send_failed" });
   });
 });

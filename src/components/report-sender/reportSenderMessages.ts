@@ -4,10 +4,17 @@ import type { NamedSenderSource } from "../../../supabase/functions/_shared/repo
 export const REPORT_SENDER_MESSAGES = {
   send_from: "שלח מ",
   sends_from: "יישלח מ:",
+  send_reports_from: "שלח דוחות מ",
+  reports_sent_from: "דוחות נשלחים מ:",
+  default_title: "טלפון ברירת המחדל לשליחת דוחות",
+  default_scope:
+    'משמש כברירת מחדל בכל שליחה חדשה, ובתזמונים שמוגדרים לשלוח לפי "ברירת המחדל של הארגון". תזמונים שנבחר להם טלפון משלהם ממשיכים לשלוח ממנו.',
+  no_fixed_sender: "בלי טלפון קבוע: הטלפון נבחר בכל שליחה ובכל תזמון",
   choose_phone: "בחרו טלפון",
   sender_gone: "הטלפון שנבחר כבר לא זמין",
   default_org_lines_only:
     "ברירת המחדל יכולה להיות רק טלפון שפתוח לכל הארגון. טלפון פרטי משמש רק את מי שחיבר אותו.",
+  settings_saved: "טלפון שליחת הדוחות נשמר",
   settings_save_failed: "שמירת טלפון ברירת המחדל נכשלה",
   loading: "טוען את טלפוני השליחה, נסו שוב בעוד רגע",
   load_failed: "לא הצלחנו לטעון את טלפוני השליחה",

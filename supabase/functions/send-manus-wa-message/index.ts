@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
+import { namedLineRefusal } from "../_shared/report-sender/refusals.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { toGatewayPhone } from "../_shared/telephony/phone.ts";
 
@@ -165,6 +168,20 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
+    }
+
+    const lineRefusal = await namedLineRefusal(lineStore(serviceClient()), {
+      isServiceRole,
+      tenantId,
+      userId,
+      integrationId,
+      type: "manus_wa",
+    });
+    if (lineRefusal) {
+      return new Response(JSON.stringify(lineRefusal.body), {
+        status: lineRefusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Find integration

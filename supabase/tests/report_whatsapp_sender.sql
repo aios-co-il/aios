@@ -15,6 +15,7 @@ DECLARE
   v_colleague uuid;
   v_manager uuid;
   v_stranger uuid;
+  v_admin uuid;
   v_member_line uuid;
   v_forged uuid;
   v_schedule uuid;
@@ -23,8 +24,10 @@ DECLARE
   v_known_chat text := 'qa-known-' || gen_random_uuid() || '@g.us';
   v_other_chat text := 'qa-other-' || gen_random_uuid() || '@g.us';
 BEGIN
+  -- The two members are not super admins, who may use every line of a tenant.
   SELECT tu.tenant_id INTO v_tenant
   FROM public.tenant_users AS tu
+  WHERE NOT public.is_super_admin(tu.user_id)
   GROUP BY tu.tenant_id
   HAVING count(*) >= 2
   ORDER BY tu.tenant_id
@@ -32,11 +35,22 @@ BEGIN
   SELECT id INTO v_other FROM public.tenants WHERE id <> v_tenant ORDER BY id LIMIT 1;
   SELECT id INTO v_client FROM public.clients ORDER BY id LIMIT 1;
   SELECT id INTO v_table FROM public.crm_tables ORDER BY id LIMIT 1;
-  SELECT user_id INTO v_member FROM public.tenant_users WHERE tenant_id = v_tenant ORDER BY user_id LIMIT 1;
+  SELECT user_id INTO v_member
+  FROM public.tenant_users
+  WHERE tenant_id = v_tenant AND NOT public.is_super_admin(user_id)
+  ORDER BY user_id
+  LIMIT 1;
   SELECT user_id INTO v_colleague
   FROM public.tenant_users
-  WHERE tenant_id = v_tenant AND user_id <> v_member
+  WHERE tenant_id = v_tenant
+    AND user_id <> v_member
+    AND NOT public.is_super_admin(user_id)
   ORDER BY user_id
+  LIMIT 1;
+  SELECT u.id INTO v_admin
+  FROM auth.users AS u
+  WHERE public.is_super_admin(u.id)
+  ORDER BY u.id
   LIMIT 1;
   SELECT u.id INTO v_manager
   FROM auth.users AS u
@@ -55,6 +69,13 @@ BEGIN
   IF v_tenant IS NULL OR v_other IS NULL OR v_client IS NULL OR v_table IS NULL
      OR v_colleague IS NULL OR v_manager IS NULL OR v_stranger IS NULL THEN
     RAISE EXCEPTION 'Requires a tenant with two members and a report-settings manager, a second tenant, a client, a table and a non-member';
+  END IF;
+
+  -- The earlier signatures are gone: next to the current ones, the
+  -- browser's list call with p_tenant_id alone would be ambiguous.
+  IF to_regprocedure('public.report_whatsapp_sender_usable(uuid, uuid)') IS NOT NULL
+     OR to_regprocedure('public.list_report_whatsapp_senders(uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'overloads: the earlier signatures must be dropped';
   END IF;
 
   -- Carmen's line has synced two groups; only one is a group of this tenant.
@@ -111,13 +132,25 @@ BEGIN
     RAISE EXCEPTION 'usable: a private line serves its owner only';
   END IF;
 
-  -- A grant opens it to that member alone; opening it to the organization
-  -- opens it to everyone.
+  -- A super admin may use it, as user_has_integration_permission allows.
+  IF v_admin IS NOT NULL
+     AND NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_admin) THEN
+    RAISE EXCEPTION 'usable: a super admin may use every line of the tenant';
+  END IF;
+
+  -- Shared with specific users, a grant opens it to that member alone; a
+  -- grant left over after it went back to private opens nothing. Opening it
+  -- to the organization opens it to everyone.
+  UPDATE public.tenant_integrations SET connection_visibility = 'shared' WHERE id = v_member_line;
   INSERT INTO public.integration_user_permissions (integration_id, user_id, granted_by)
   VALUES (v_member_line, v_colleague, v_member);
   IF NOT public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_colleague)
      OR public.report_whatsapp_sender_usable(v_tenant, v_member_line, NULL) THEN
     RAISE EXCEPTION 'usable: a granted line serves the granted member, not everyone';
+  END IF;
+  UPDATE public.tenant_integrations SET connection_visibility = 'private' WHERE id = v_member_line;
+  IF public.report_whatsapp_sender_usable(v_tenant, v_member_line, v_colleague) THEN
+    RAISE EXCEPTION 'usable: a grant on a private line must not count';
   END IF;
   DELETE FROM public.integration_user_permissions WHERE integration_id = v_member_line;
   UPDATE public.tenant_integrations SET connection_visibility = 'org' WHERE id = v_member_line;

@@ -37,12 +37,15 @@ export function ReportSenderDefaultSelect({
         }
         disabled={save.isPending}
       >
-        <SelectTrigger className="h-8 text-xs" aria-label="שלח דוחות מ">
+        <SelectTrigger
+          className="h-8 text-xs"
+          aria-label={REPORT_SENDER_MESSAGES.send_reports_from}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NO_DEFAULT}>
-            בלי טלפון קבוע: הטלפון נבחר בכל שליחה ובכל תזמון
+            {REPORT_SENDER_MESSAGES.no_fixed_sender}
           </SelectItem>
           <SenderOptions
             senders={orgWide}

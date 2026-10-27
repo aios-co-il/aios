@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import type { GuardResult } from "../_shared/integration-guard.ts";
-import type { SenderLine } from "../_shared/report-sender/line-access.ts";
+import type { SenderLine } from "../_shared/report-sender/line-store.ts";
 import {
   type GreenFileSendDeps,
   type GreenFileSendInput,
@@ -41,6 +41,7 @@ function deps(overrides: Partial<GreenFileSendDeps> = {}): GreenFileSendDeps {
       senderUsable: async (tenantId, id, userId) =>
         tenantId === TENANT &&
         (id === "own" || (id === "colleaguePrivate" && userId === COLLEAGUE)),
+      tenantCanUse: async (tenantId, id) => lines[id]?.tenant_id === tenantId,
       isMember: async (tenantId, userId) =>
         tenantId === TENANT && userId === MEMBER,
       isSuperAdmin: async () => false,

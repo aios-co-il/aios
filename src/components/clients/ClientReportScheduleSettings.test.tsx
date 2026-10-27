@@ -6,10 +6,18 @@ import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
 
-const backend = vi.hoisted(() => ({
-  senders: [] as ReportSender[],
-  tenantDefault: null as string | null,
-  schedule: null as Record<string, unknown> | null,
+type Backend = {
+  senders: ReportSender[];
+  tenantDefault: string | null;
+  schedule: Record<string, unknown> | null;
+  update: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+};
+
+const backend = vi.hoisted((): Backend => ({
+  senders: [],
+  tenantDefault: null,
+  schedule: null,
   update: vi.fn(),
   insert: vi.fn(),
 }));

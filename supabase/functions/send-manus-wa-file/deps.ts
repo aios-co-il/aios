@@ -1,7 +1,7 @@
 // The handler's dependencies in production: the service-role client, the
 // caller's JWT, the Staging guard and the Manus gateway.
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import { lineStore } from "../_shared/report-sender/line-access.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { deliverManusMedia } from "./gateway.ts";

@@ -19,32 +19,49 @@ export async function resolveTenantId(
   if (request.tenantId) {
     return request.tenantId;
   }
-  const recordTenant = request.clientId
-    ? await tenantOf(
-        admin
-          .from("clients")
-          .select("tenant_id")
-          .eq("id", request.clientId)
-          .maybeSingle(),
-      )
-    : request.leadId
-      ? await tenantOf(
-          admin
-            .from("leads")
-            .select("tenant_id")
-            .eq("id", request.leadId)
-            .maybeSingle(),
-        )
-      : null;
   return (
-    recordTenant ??
-    tenantOf(
+    (await recordTenantId(admin, request)) ??
+    (await activeTenantId(admin, userId))
+  );
+}
+
+/** The tenant of the client or lead the send is for, if it names one. */
+async function recordTenantId(
+  admin: DbClient,
+  request: FileSendRequest,
+): Promise<string | null> {
+  if (request.clientId) {
+    return tenantOf(
       admin
-        .from("user_active_tenant")
+        .from("clients")
         .select("tenant_id")
-        .eq("user_id", userId)
+        .eq("id", request.clientId)
         .maybeSingle(),
-    )
+    );
+  }
+  if (request.leadId) {
+    return tenantOf(
+      admin
+        .from("leads")
+        .select("tenant_id")
+        .eq("id", request.leadId)
+        .maybeSingle(),
+    );
+  }
+  return null;
+}
+
+/** The caller's active tenant. */
+function activeTenantId(
+  admin: DbClient,
+  userId: string,
+): Promise<string | null> {
+  return tenantOf(
+    admin
+      .from("user_active_tenant")
+      .select("tenant_id")
+      .eq("user_id", userId)
+      .maybeSingle(),
   );
 }
 

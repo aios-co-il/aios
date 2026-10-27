@@ -6,12 +6,20 @@ import { reportSender } from "../../../supabase/functions/_shared/report-sender/
 import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ReportSenderDefaultCard } from "./ReportSenderDefaultCard";
+import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 
-const backend = vi.hoisted(() => ({
-  senders: [] as ReportSender[],
-  tenantDefault: null as string | null,
+type Backend = {
+  senders: ReportSender[];
+  tenantDefault: string | null;
+  setDefault: ReturnType<typeof vi.fn>;
+  setError: { message: string } | null;
+};
+
+const backend = vi.hoisted((): Backend => ({
+  senders: [],
+  tenantDefault: null,
   setDefault: vi.fn(),
-  setError: null as { message: string } | null,
+  setError: null,
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -119,7 +127,7 @@ describe("ReportSenderDefaultCard", () => {
     backend.senders = [carmen({ is_shared: true })];
     renderCard();
     expect(
-      await screen.findByText(/אין טלפון קבוע לדוחות/),
+      await screen.findByText(REPORT_SENDER_MESSAGES.no_fixed_sender),
     ).toBeInTheDocument();
   });
 

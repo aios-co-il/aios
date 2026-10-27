@@ -1,31 +1,52 @@
-// Server-side check of the line a file send names (AIO-255). Used by
-// send-green-api-file and send-manus-wa-file, which run with the service role
-// once the caller is known, so they must check tenant access themselves.
-import type { Json, Tables } from "../database.types.ts";
-import type { DbClient } from "../supabase-clients.ts";
+// Server-side checks of the line a send names (AIO-255). The report file and
+// text senders run with the service role once the caller is known, so they
+// check tenant access themselves.
+import type { Json } from "../database.types.ts";
+import type { LineStore, SenderLine } from "./line-store.ts";
 import type { ReportSenderType } from "./types.ts";
 
-/** A sending line with the credentials an executor needs. */
-export type SenderLine = Pick<
-  Tables<"tenant_integrations">,
-  "id" | "tenant_id" | "user_id" | "api_key" | "settings"
->;
+/** Who asked for the send: a signed-in user, or a function (service role). */
+export type SendCaller = "user" | "service";
 
-/** The reads the access checks need; lineStore() backs them with the DB. */
-export type LineStore = {
-  findActiveLine(
-    id: string,
-    type: ReportSenderType,
-  ): Promise<SenderLine | null>;
-  /** report_whatsapp_sender_usable, the rule the line list uses too. */
-  senderUsable(
-    tenantId: string,
-    integrationId: string,
-    userId: string,
-  ): Promise<boolean>;
-  isMember(tenantId: string, userId: string): Promise<boolean>;
-  isSuperAdmin(userId: string): Promise<boolean>;
-};
+/** Why a send has no line: the named one is refused, or none is set up. */
+export type LineError = "sender_not_allowed" | "not_configured";
+
+export type LineChoice = { line: SenderLine } | { error: LineError };
+
+/**
+ * The line a file send goes out from. A named line is never swapped for
+ * another: an invalid choice used to fall back silently to a different
+ * phone. A user's call may name only a line loadSenderLine gives them. A
+ * service-role call (broadcasts) keeps the tenant check it always had, a
+ * line the tenant owns or was shared: those callers pick the line
+ * themselves. Without a named line, `fallback` gives the line older callers
+ * relied on.
+ */
+export async function resolveSenderLine(
+  store: LineStore,
+  input: {
+    caller: SendCaller;
+    tenantId: string;
+    userId: string;
+    integrationId: string | null;
+    type: ReportSenderType;
+  },
+  fallback: () => Promise<SenderLine | null>,
+): Promise<LineChoice> {
+  const { integrationId } = input;
+  if (!integrationId) {
+    const line = await fallback();
+    return line && lineIsReady(line) ? { line } : { error: "not_configured" };
+  }
+  const line =
+    input.caller === "user"
+      ? await loadSenderLine(store, { ...input, integrationId })
+      : await loadTenantLine(store, { ...input, integrationId });
+  if (!line) {
+    return { error: "sender_not_allowed" };
+  }
+  return lineIsReady(line) ? { line } : { error: "not_configured" };
+}
 
 /** Whether userId may send for tenantId: a member of it, or a super admin. */
 export async function callerMaySendForTenant(
@@ -47,10 +68,11 @@ export async function callerMaySendForTenant(
  * The line an explicit integrationId names, when userId may send the
  * tenant's reports from it: active, of the expected type, and usable by the
  * same SQL rule that lists lines (owned by the tenant through a member, or
- * shared with it, and not another member's private line). Null otherwise,
- * and the caller refuses the send rather than pick another line. Super
- * admins get no exception: a line never sends for a tenant that neither
- * owns it nor was given it, nor for a member its owner kept it from.
+ * shared with it, and within user_has_integration_permission inside the
+ * tenant, so never another member's private line). Null otherwise, and the
+ * caller refuses the send rather than pick another line. A super admin may
+ * use any line of the tenant, never one the tenant neither owns nor was
+ * given.
  */
 export async function loadSenderLine(
   store: LineStore,
@@ -90,53 +112,14 @@ export function lineIsReady(line: SenderLine): boolean {
   return !!line.api_key && !!lineSetting(line.settings, "instance_id");
 }
 
-/** LineStore over the service-role client. */
-export function lineStore(admin: DbClient): LineStore {
-  return {
-    async findActiveLine(id, type) {
-      const { data, error } = await admin
-        .from("tenant_integrations")
-        .select("id, tenant_id, user_id, api_key, settings")
-        .eq("id", id)
-        .eq("integration_type", type)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (error) {
-        throw error;
-      }
-      return data;
-    },
-    async senderUsable(tenantId, integrationId, userId) {
-      const { data, error } = await admin.rpc("report_whatsapp_sender_usable", {
-        p_tenant_id: tenantId,
-        p_integration_id: integrationId,
-        p_user_id: userId,
-      });
-      if (error) {
-        throw error;
-      }
-      return data === true;
-    },
-    async isMember(tenantId, userId) {
-      const { data, error } = await admin
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error) {
-        throw error;
-      }
-      return !!data;
-    },
-    async isSuperAdmin(userId) {
-      const { data, error } = await admin.rpc("is_super_admin", {
-        _user_id: userId,
-      });
-      if (error) {
-        throw error;
-      }
-      return data === true;
-    },
-  };
+/** The named line when the tenant owns it or was shared it, whoever sends. */
+async function loadTenantLine(
+  store: LineStore,
+  input: { tenantId: string; integrationId: string; type: ReportSenderType },
+): Promise<SenderLine | null> {
+  const line = await store.findActiveLine(input.integrationId, input.type);
+  if (!line) {
+    return null;
+  }
+  return (await store.tenantCanUse(input.tenantId, line.id)) ? line : null;
 }

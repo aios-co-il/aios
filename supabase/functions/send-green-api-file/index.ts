@@ -5,10 +5,8 @@ import {
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import {
-  lineSetting,
-  lineStore,
-} from "../_shared/report-sender/line-access.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { internalError } from "../_shared/telephony/response.ts";

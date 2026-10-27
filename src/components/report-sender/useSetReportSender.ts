@@ -23,7 +23,7 @@ export function useSetReportSender(tenantId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reportSendersKey(tenantId) });
-      toast.success("טלפון שליחת הדוחות נשמר");
+      toast.success(REPORT_SENDER_MESSAGES.settings_saved);
     },
     onError: (error: Error) => {
       toast.error(

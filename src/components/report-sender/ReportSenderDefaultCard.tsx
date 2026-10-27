@@ -9,10 +9,6 @@ import { reportSenderLabel } from "./reportSenderLabel";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 import { type ReportSenderOptions, useReportSenders } from "./useReportSenders";
 
-/** What the default covers once schedules store their own line. */
-const DEFAULT_SCOPE =
-  'משמש כברירת מחדל בכל שליחה חדשה, ובתזמונים שמוגדרים לשלוח לפי "ברירת המחדל של הארגון". תזמונים שנבחר להם טלפון משלהם ממשיכים לשלוח ממנו.';
-
 /**
  * The organization's default report phone: preselected in every new send and
  * used by schedules set to follow it, while a schedule with its own line
@@ -29,9 +25,13 @@ export function ReportSenderDefaultCard({ tenantId }: { tenantId: string }) {
     <div className="space-y-2 rounded-lg border bg-card p-3" dir="rtl">
       <div className="flex items-center gap-2">
         <Smartphone className="h-4 w-4 text-primary" />
-        <p className="text-sm font-medium">טלפון ברירת המחדל לשליחת דוחות</p>
+        <p className="text-sm font-medium">
+          {REPORT_SENDER_MESSAGES.default_title}
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">{DEFAULT_SCOPE}</p>
+      <p className="text-xs text-muted-foreground">
+        {REPORT_SENDER_MESSAGES.default_scope}
+      </p>
       <DefaultLine tenantId={tenantId} options={data} />
     </div>
   );
@@ -90,6 +90,6 @@ function inUseText(options: ReportSenderOptions): string {
     tenantDefaultId: options.tenantDefaultId,
   });
   return "error" in pick
-    ? "אין טלפון קבוע לדוחות: הטלפון נבחר בכל שליחה ובכל תזמון"
-    : `דוחות נשלחים מ: ${reportSenderLabel(pick.sender)}`;
+    ? REPORT_SENDER_MESSAGES.no_fixed_sender
+    : `${REPORT_SENDER_MESSAGES.reports_sent_from} ${reportSenderLabel(pick.sender)}`;
 }
