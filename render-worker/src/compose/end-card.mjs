@@ -7,8 +7,15 @@
 
 export const MAX_CTA_CHARS = 120;
 export const MAX_CTA_LINES = 3;
-/** Seconds the ffmpeg card lasts (Remotion's END_CARD_FRAMES at 30 fps). */
+/** Seconds the card lasts with a one-line call to action. */
 export const END_CARD_S = 2.5;
+
+/**
+ * Seconds the card stays on screen: one more second for each extra line of the call to
+ * action, so a three-line sentence can be read to the end (Remotion and ffmpeg alike).
+ */
+export const endCardSeconds = (lines) =>
+  END_CARD_S + Math.max(0, (Array.isArray(lines) ? lines.length : 0) - 1);
 /** Width of a bold Hebrew glyph, in ems, on average (Heebo / DejaVu Sans Bold). */
 const GLYPH_EM = 0.56;
 

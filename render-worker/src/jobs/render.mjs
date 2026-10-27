@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
 import { brandFromPayload } from "../compose/brand.mjs";
+import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
@@ -351,8 +352,12 @@ export async function renderFilm({
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;
-    if (!remotion) await assembleFilm(timeline, output);
-    else
+    if (!remotion) {
+      await assembleFilm(timeline, output);
+      // The ffmpeg edit closes on the end card after the scenes.
+      if (hasEndCard(timeline.brand))
+        durationS += endCardSeconds(ctaLines(timeline.brand.ctaText));
+    } else
       durationS =
         (await assembleWithRemotion(timeline, output, dir)).durationS ||
         durationS;

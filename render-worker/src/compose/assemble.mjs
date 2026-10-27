@@ -3,10 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
 import {
-  END_CARD_S,
   ctaFontPx,
   ctaLines,
   endCardBackground,
+  endCardSeconds,
   endCardTextFilters,
   hasEndCard,
 } from "./end-card.mjs";
@@ -190,7 +190,7 @@ async function endCardSegment(timeline, index, dir) {
     fontFile: FONT(),
     centreShare: logo ? 0.62 : 0.5,
   });
-  const duration = END_CARD_S.toFixed(3);
+  const duration = endCardSeconds(lines).toFixed(3);
   const background = `color=c=${endCardBackground(brand)}:s=${width}x${height}:r=${timeline.fps}:d=${duration}`;
   const graph = logo
     ? `[1:v]scale=${Math.round(width * 0.58)}:${Math.round(height * 0.24)}:force_original_aspect_ratio=decrease[logo];[0:v][logo]overlay=x=(W-w)/2:y=H*0.34-h/2${text.length ? `,${text.join(",")}` : ""},fade=t=in:st=0:d=0.4[v]`
@@ -381,7 +381,9 @@ export async function assembleFilm(timeline, outputPath) {
     ]);
     return outputPath;
   }
-  const duration = (scenesS + (endCard ? END_CARD_S : 0)).toFixed(3);
+  const duration = (
+    scenesS + (endCard ? endCardSeconds(ctaLines(timeline.brand.ctaText)) : 0)
+  ).toFixed(3);
   const inputs = ["-i", picture];
   const filters = [];
   const beds = [];

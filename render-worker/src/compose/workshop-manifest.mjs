@@ -1,7 +1,7 @@
 /** The edit Remotion renders. A mock clip is a still with a zoom, so the
  * composition animates the still. A real video clip is placed on the timeline as-is. */
 import { brandColor, brandFont } from "./brand.mjs";
-import { MAX_CTA_CHARS, ctaLines } from "./end-card.mjs";
+import { MAX_CTA_CHARS, ctaLines, endCardSeconds } from "./end-card.mjs";
 import { lineFrames } from "./line-sync.mjs";
 import {
   captionChunks,
@@ -22,7 +22,6 @@ import {
 
 export const WORKSHOP_FPS = 30;
 export const WORKSHOP_SCHEMA = 3;
-export const END_CARD_FRAMES = 75;
 const TAIL_FRAMES = 15;
 export const WORKSHOP_MOVES = [
   "push",
@@ -229,7 +228,10 @@ export function buildWorkshopManifest(timeline) {
   const brand = brandOf(timeline.brand, files);
   const endCard =
     brand && timeline.brand?.endCard !== false && (brand.logo || brand.ctaText)
-      ? { startFrame: scenesEnd, frameCount: END_CARD_FRAMES }
+      ? {
+          startFrame: scenesEnd,
+          frameCount: Math.round(endCardSeconds(brand.ctaLines ?? []) * fps),
+        }
       : null;
   const totalFrames = scenesEnd + (endCard?.frameCount ?? 0);
 

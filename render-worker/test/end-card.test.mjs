@@ -9,6 +9,7 @@ import {
   END_CARD_S,
   ctaFontPx,
   ctaLines,
+  endCardSeconds,
   hasEndCard,
 } from "../src/compose/end-card.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
@@ -17,6 +18,14 @@ import { probe } from "../src/ffmpeg.mjs";
 
 const WAITLIST =
   "הירשמו לרשימת ההמתנה — 1000 הנרשמים הראשונים יקבלו את חבילת הבסיס בחינם לכל החיים!";
+const CARD_S = endCardSeconds(ctaLines(WAITLIST));
+
+test("the end card stays longer for each extra line of the call to action", () => {
+  expect(endCardSeconds(["בואו"])).toBe(END_CARD_S);
+  expect(endCardSeconds([])).toBe(END_CARD_S);
+  expect(endCardSeconds(["א", "ב"])).toBe(END_CARD_S + 1);
+  expect(CARD_S).toBe(END_CARD_S + 2);
+});
 
 test("a whole-sentence call to action wraps into three even lines, in reading order", () => {
   const lines = ctaLines(WAITLIST);
@@ -57,7 +66,8 @@ test("the brand keeps the whole sentence and the Remotion card gets its lines", 
   });
   expect(manifest.brand.ctaText).toBe(WAITLIST);
   expect(manifest.brand.ctaLines).toStrictEqual(ctaLines(WAITLIST));
-  expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 75 });
+  // Three lines stay on screen 2 s longer than one, so the sentence can be read.
+  expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 135 });
   expect(hasEndCard({ ctaText: WAITLIST })).toBe(true);
   expect(hasEndCard({ ctaText: WAITLIST, endCard: false })).toBe(false);
   expect(hasEndCard({ primaryColor: "#123456" })).toBe(false);
@@ -102,7 +112,7 @@ test.skipIf(!hasFfmpeg)(
         output,
       );
       const info = await probe(output);
-      expect(Math.abs(info.duration - (1 + END_CARD_S))).toBeLessThan(0.15);
+      expect(Math.abs(info.duration - (1 + CARD_S))).toBeLessThan(0.15);
       // The card is drawn: its frame is far from the flat background colour.
       const frame = join(dir, "card.png");
       const grab = spawnSync("ffmpeg", [
@@ -111,7 +121,7 @@ test.skipIf(!hasFfmpeg)(
         "error",
         "-y",
         "-ss",
-        String(1 + END_CARD_S - 0.5),
+        String(1 + CARD_S - 0.5),
         "-i",
         output,
         "-frames:v",
@@ -129,7 +139,7 @@ test.skipIf(!hasFfmpeg)(
         spawnSync("ffmpeg", [
           "-y",
           "-ss",
-          String(1 + END_CARD_S - 0.5),
+          String(1 + CARD_S - 0.5),
           "-i",
           output,
           "-frames:v",
