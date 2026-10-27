@@ -35,7 +35,8 @@ export function pulseTargetSaveKey(
  * change; an atomic jsonb_set RPC would need a migration, and saves are rare. A
  * platform target goes to every table of the client × platform, as Carmen's
  * set_pulse_target does, so the pulse finds the same target whichever table it
- * reads the campaigns from.
+ * reads the campaigns from. A table the user may read but not update stops the
+ * save with a permission error; the tables before it keep the new target.
  */
 export async function savePulseTargetToTables(
   input: PulseTargetSaveInput,
@@ -67,13 +68,20 @@ export async function savePulseTargetToTables(
       campaignName: input.campaignName ?? null,
       setBy,
     });
-    const { error } = await supabase
+    // RLS lets some users read a table they may not update (a report table
+    // shared between orgs, a read-only role): the update then matches no row and
+    // returns no error, so the saved row is selected back to tell.
+    const { data: updated, error } = await supabase
       .from("crm_tables")
       .update({ integration_settings: next })
       .eq("id", tableId)
-      .eq("tenant_id", tenantId);
+      .eq("tenant_id", tenantId)
+      .select("id");
     if (error) {
       throw error;
+    }
+    if (!updated?.length) {
+      throw new Error("אין לך הרשאה לעדכן את היעד בטבלה הזו");
     }
   }
 }

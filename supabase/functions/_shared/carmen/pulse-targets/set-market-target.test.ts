@@ -9,6 +9,7 @@ import { at } from "../../pulse/test-fixtures.ts";
 import { fakeDb } from "./fake-db.ts";
 import { setMarketTarget } from "./set-market-target.ts";
 import { NOW, RATIONALE, ctx, seed, settingsOf } from "./test-fixtures.ts";
+import { TABLE_NOT_WRITTEN } from "./write-table-settings.ts";
 
 const LEADS_TARGET = {
   client_id: "client-1",
@@ -122,6 +123,24 @@ Deno.test(
     });
     assertStrictEquals(at(result, "success"), false);
     assertStrictEquals(at(result, "error"), "crm_tables update failed");
+    assertEquals(at(result, "written_before_error"), []);
+  },
+);
+
+Deno.test(
+  "a table write that matches no row is not reported as set",
+  async () => {
+    const db = fakeDb(seed(), {
+      table: "crm_tables",
+      op: "update",
+      noMatch: true,
+    });
+    const result = await setMarketTarget(db, ctx(), {
+      ...LEADS_TARGET,
+      value: 60,
+    });
+    assertStrictEquals(at(result, "success"), false);
+    assertStrictEquals(at(result, "error"), TABLE_NOT_WRITTEN);
     assertEquals(at(result, "written_before_error"), []);
   },
 );

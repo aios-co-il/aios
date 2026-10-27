@@ -1,6 +1,7 @@
 import type { Json, Tables } from "../_shared/database.types.ts";
 import type { PulseTargetDb } from "../_shared/carmen/pulse-targets/context.ts";
 import { parseTargetInput } from "../_shared/carmen/pulse-targets/parse-target-input.ts";
+import { writeTableSettings } from "../_shared/carmen/pulse-targets/write-table-settings.ts";
 import { isJsonObject } from "../_shared/pulse/json.ts";
 import { PULSE_PLATFORM_INTEGRATION_TYPES } from "../_shared/pulse/platforms.ts";
 import { pulseTargetKindLabel } from "../_shared/pulse/targets/kinds.ts";
@@ -61,7 +62,8 @@ export async function handlePulseTargetApproval(
 
 /**
  * Writes the approved target to the tables named in the request, and only those
- * that still belong to the client in the row's tenant.
+ * that still belong to the client in the row's tenant. A table that fails or
+ * takes no write fails the request, naming the tables already written.
  */
 export async function applyApprovedPulseTarget(
   db: PulseTargetDb,
@@ -110,15 +112,15 @@ export async function applyApprovedPulseTarget(
       approvedBy,
       setAt,
     });
-    const { error: updateError } = await db
-      .from("crm_tables")
-      .update({ integration_settings: next })
-      .eq("id", table.id)
-      .eq("tenant_id", row.tenant_id);
+    const updateError = await writeTableSettings(db, {
+      tableId: table.id,
+      tenantIds: [row.tenant_id],
+      settings: next,
+    });
     if (updateError) {
       return {
         ok: false,
-        result: { error: updateError.message, written_before_error: written },
+        result: { error: updateError, written_before_error: written },
       };
     }
     written.push(table.id);

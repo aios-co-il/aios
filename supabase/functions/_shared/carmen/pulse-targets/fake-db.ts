@@ -10,7 +10,7 @@ type Write = { table: string; op: Op; rows: Row[]; filters: string[] };
 
 /** The chainable query the fake returns from `from()`. */
 type Query = {
-  select: () => Query;
+  select: (columns?: string) => Query;
   order: () => Query;
   limit: () => Query;
   eq: (column: string, value: unknown) => Query;
@@ -26,8 +26,12 @@ type Query = {
   ) => Promise<unknown>;
 };
 
-/** One table operation the fake answers with a database error. */
-export type FailOn = { table: string; op: Op };
+/**
+ * One table operation the fake answers with a database error or, with
+ * `noMatch`, with success and no row (an update of a row deleted since it was
+ * read, or one RLS hides).
+ */
+export type FailOn = { table: string; op: Op; noMatch?: boolean };
 
 /**
  * crm_tables, snapshots, clients and the approval queue in memory. Updates and
@@ -43,10 +47,14 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
     const filtered: string[] = [];
     let op: Op = "select";
     let payload: Row = {};
+    let returning = false;
     const run = (): Result => {
       if (failOn?.table === name && failOn.op === op) {
-        // supabase-js reports a database error as an Error (PostgrestError).
-        return { data: null, error: new Error(`${name} ${op} failed`) };
+        if (!failOn.noMatch) {
+          // supabase-js reports a database error as an Error (PostgrestError).
+          return { data: null, error: new Error(`${name} ${op} failed`) };
+        }
+        filters.push(() => false);
       }
       if (op === "insert") {
         const row = { id: `row-${nextId++}`, ...payload };
@@ -62,6 +70,8 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
           Object.assign(row, structuredClone(payload));
         }
         writes.push({ table: name, op, rows: matched, filters: filtered });
+        // supabase-js returns the updated rows only when .select() asks for them.
+        return { data: returning ? matched : null, error: null };
       }
       return { data: matched, error: null };
     };
@@ -71,7 +81,10 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
       return { data: rows[0] ?? null, error: result.error };
     };
     const api: Query = {
-      select: () => api,
+      select() {
+        returning = op !== "select";
+        return api;
+      },
       order: () => api,
       limit: () => api,
       eq(column, value) {

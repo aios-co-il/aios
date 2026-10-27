@@ -1,84 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pulseTargetSaveKey, savePulseTargetToTables } from "./pulseTargetSave";
+import { crmTables } from "./pulseTargetSaveFake";
+
+vi.mock(
+  "@/integrations/supabase/client",
+  () => import("./pulseTargetSaveFake"),
+);
 
 type Settings = Record<string, Record<string, Record<string, unknown>>>;
 
-/** crm_tables rows by id (with their tenant), and every read and write in order. */
-const store = vi.hoisted(() => {
-  const rows: Record<string, { tenant_id: string; settings: unknown }> = {};
-  const log: string[] = [];
-  return { rows, log };
-});
-
-vi.mock("@/integrations/supabase/client", () => {
-  /** Records the eq filters of one query and finds the row they select. */
-  const query = () => {
-    const filters: Record<string, unknown> = {};
-    const row = () => {
-      const found = store.rows[String(filters.id)];
-      return found && found.tenant_id === filters.tenant_id ? found : null;
-    };
-    const chain = {
-      eq: (column: string, value: unknown) => {
-        filters[column] = value;
-        return chain;
-      },
-      maybeSingle: async () => {
-        store.log.push(`read ${filters.id}`);
-        const found = row();
-        return {
-          data: found ? { integration_settings: found.settings } : null,
-          error: null,
-        };
-      },
-      filters,
-      row,
-    };
-    return chain;
-  };
-  return {
-    supabase: {
-      from: () => ({
-        select: () => query(),
-        update: (patch: { integration_settings: unknown }) => {
-          const chain = query();
-          return {
-            eq: (column: string, value: unknown) => {
-              chain.eq(column, value);
-              return {
-                eq: async (nextColumn: string, nextValue: unknown) => {
-                  chain.eq(nextColumn, nextValue);
-                  store.log.push(`write ${chain.filters.id}`);
-                  const found = chain.row();
-                  if (found) {
-                    found.settings = patch.integration_settings;
-                  }
-                  return { data: null, error: null };
-                },
-              };
-            },
-          };
-        },
-      }),
-    },
-  };
-});
-
 /** The stored settings of one table. */
 function settingsOf(id: string): Settings {
-  const settings = store.rows[id]?.settings;
+  const settings = crmTables.rows[id]?.settings;
   return settings && typeof settings === "object" ? { ...settings } : {};
 }
 
 beforeEach(() => {
-  store.rows = {};
-  store.log = [];
+  crmTables.rows = {};
+  crmTables.log = [];
 });
 
 describe("savePulseTargetToTables", () => {
   it("writes an approved target over the stored settings of each table", async () => {
     // Stored settings, as a sync just wrote them (not the dashboard's cached copy).
-    store.rows = {
+    crmTables.rows = {
       g1: {
         tenant_id: "tenant-1",
         settings: {
@@ -98,7 +43,12 @@ describe("savePulseTargetToTables", () => {
       "tenant-1",
       "user-1",
     );
-    expect(store.log).toEqual(["read g1", "write g1", "read g2", "write g2"]);
+    expect(crmTables.log).toEqual([
+      "read g1",
+      "write g1",
+      "read g2",
+      "write g2",
+    ]);
     for (const id of ["g1", "g2"]) {
       const settings = settingsOf(id);
       expect(settings.last_sync_at).toMatch(/^2026-10-26/);
@@ -112,7 +62,7 @@ describe("savePulseTargetToTables", () => {
   });
 
   it("saves a campaign target under its id and stops on a missing table", async () => {
-    store.rows = { t1: { tenant_id: "tenant-1", settings: {} } };
+    crmTables.rows = { t1: { tenant_id: "tenant-1", settings: {} } };
     await savePulseTargetToTables(
       {
         tableIds: ["t1"],
@@ -147,7 +97,9 @@ describe("savePulseTargetToTables", () => {
   });
 
   it("never reads or writes a table of another tenant", async () => {
-    store.rows = { t1: { tenant_id: "tenant-2", settings: { keep: true } } };
+    crmTables.rows = {
+      t1: { tenant_id: "tenant-2", settings: { keep: true } },
+    };
     await expect(
       savePulseTargetToTables(
         { tableIds: ["t1"], goal: "leads", kind: "cpl", value: 50 },
@@ -155,7 +107,24 @@ describe("savePulseTargetToTables", () => {
         null,
       ),
     ).rejects.toThrow("הטבלה לא נמצאה");
-    expect(store.log).toEqual(["read t1"]);
+    expect(crmTables.log).toEqual(["read t1"]);
+    expect(settingsOf("t1")).toEqual({ keep: true });
+  });
+
+  it("rejects a table the org may only read and keeps its settings", async () => {
+    // A report table shared from another org: RLS lets the read through, and
+    // the update matches no row without an error.
+    crmTables.rows = {
+      t1: { tenant_id: "tenant-1", settings: { keep: true }, readOnly: true },
+    };
+    await expect(
+      savePulseTargetToTables(
+        { tableIds: ["t1"], goal: "leads", kind: "cpl", value: 50 },
+        "tenant-1",
+        null,
+      ),
+    ).rejects.toThrow("אין לך הרשאה לעדכן את היעד בטבלה הזו");
+    expect(crmTables.log).toEqual(["read t1", "write t1"]);
     expect(settingsOf("t1")).toEqual({ keep: true });
   });
 

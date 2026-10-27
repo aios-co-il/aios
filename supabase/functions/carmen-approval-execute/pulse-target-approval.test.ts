@@ -7,6 +7,7 @@ import {
   seed,
   settingsOf,
 } from "../_shared/carmen/pulse-targets/test-fixtures.ts";
+import { TABLE_NOT_WRITTEN } from "../_shared/carmen/pulse-targets/write-table-settings.ts";
 import { at } from "../_shared/pulse/test-fixtures.ts";
 import {
   applyApprovedPulseTarget,
@@ -129,6 +130,33 @@ Deno.test(
     assertStrictEquals(failed.status, 400);
     assertStrictEquals(db.tables.agent_approval_queue[0].status, "failed");
     assertStrictEquals(db.tables.agent_approval_queue[0].approved_by, "user-1");
+  },
+);
+
+Deno.test(
+  "a target write that matches no table records failed, never executed",
+  async () => {
+    // The table was deleted after it was read: the update returns no error and
+    // no row.
+    const db = dbWithQueuedRow({
+      table: "crm_tables",
+      op: "update",
+      noMatch: true,
+    });
+    const response = await handlePulseTargetApproval(
+      db,
+      queuedRow(),
+      "approval-1",
+      "owner-1",
+      HEADERS,
+      () => NOW,
+    );
+    assertStrictEquals(response.status, 400);
+    const body = await response.json();
+    assertStrictEquals(body.success, false);
+    assertStrictEquals(at(body, "result", "error"), TABLE_NOT_WRITTEN);
+    assertEquals(at(body, "result", "written_before_error"), []);
+    assertStrictEquals(db.tables.agent_approval_queue[0].status, "failed");
   },
 );
 
