@@ -1,9 +1,12 @@
 import {
   googleCampaignGoalOf,
-  type GoogleReportCampaignGoal,
   type GoogleReportRecord,
   type GoogleReportTable,
 } from "@/lib/googleCampaignGoals";
+import {
+  googleGoalPresence,
+  googleReportFallbackGoal,
+} from "@/lib/googleGoalPresence";
 import type {
   GoogleAdsCampaignSummary,
   GoogleAdsCampaignSummaryRow,
@@ -20,35 +23,29 @@ export function summarizeGoogleAdsCampaigns(
   records: GoogleReportRecord[],
   tables: GoogleReportTable[],
 ): GoogleAdsCampaignSummary {
-  const fallbackGoal: GoogleReportCampaignGoal = tables.some(
-    (table) =>
-      table.integration_type === "google_ads" &&
-      table.integration_settings?.campaign_type === "ecommerce",
-  )
-    ? "ecommerce"
-    : "leads";
+  const fallbackGoal = googleReportFallbackGoal(tables);
   const { goalOf } = googleCampaignGoalOf(records, tables, fallbackGoal);
 
   const map = new Map<string, GoogleAdsCampaignSummaryRow>();
   for (const record of records) {
     const data = record.data || {};
     const name = data.campaign_name || data.campaign || "ללא שם";
-    const key = data.campaign_id || name;
+    const key = String(data.campaign_id || name);
     let row = map.get(key);
     if (!row) {
       row = {
         name,
-        campaign_id: data.campaign_id || "",
+        campaign_id: String(data.campaign_id || ""),
         goal: goalOf(data),
         ...emptyTotals(),
       };
       map.set(key, row);
     }
-    row.impressions += data.impressions || 0;
-    row.clicks += data.clicks || 0;
-    row.spend += data.cost || data.spend || 0;
-    row.conversions += data.conversions || 0;
-    row.conversions_value += data.conversions_value || 0;
+    row.impressions += Number(data.impressions) || 0;
+    row.clicks += Number(data.clicks) || 0;
+    row.spend += Number(data.cost) || Number(data.spend) || 0;
+    row.conversions += Number(data.conversions) || 0;
+    row.conversions_value += Number(data.conversions_value) || 0;
   }
 
   const campaigns = [...map.values()].sort((a, b) => b.spend - a.spend);
@@ -59,13 +56,11 @@ export function summarizeGoogleAdsCampaigns(
     addTotals(totals, row);
     addTotals(row.goal === "ecommerce" ? ecommerce : leads, row);
   }
-  const hasEcommerce = campaigns.length
-    ? campaigns.some((row) => row.goal === "ecommerce")
-    : fallbackGoal === "ecommerce";
-  const hasLeads = campaigns.length
-    ? campaigns.some((row) => row.goal === "leads")
-    : fallbackGoal === "leads";
-  return { campaigns, totals, ecommerce, leads, hasEcommerce, hasLeads };
+  const presence = googleGoalPresence(
+    campaigns.map((row) => row.goal),
+    fallbackGoal,
+  );
+  return { campaigns, totals, ecommerce, leads, ...presence };
 }
 
 /** Zeroed metric totals. */

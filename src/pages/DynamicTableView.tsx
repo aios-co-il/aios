@@ -3,10 +3,9 @@ import { toPng } from "html-to-image";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  googleCampaignGoalOf,
-  type GoogleReportCampaignGoal,
-} from "@/lib/googleCampaignGoals";
+import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
+import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
 import {
   GoogleGoalCell,
@@ -4128,15 +4127,14 @@ export default function DynamicTableView({
               )}
               <Card className="mb-4 overflow-hidden">
                 {(() => {
-                  const tableIsEcommerce =
-                    table?.integration_settings?.campaign_type === "ecommerce";
+                  const fallbackGoal = googleReportFallbackGoal([table]);
                   const { goalOf } = googleCampaignGoalOf(
                     filteredRecords.map((record) => ({
                       table_id: table.id,
                       data: record.data,
                     })),
                     [table],
-                    tableIsEcommerce ? "ecommerce" : "leads",
+                    fallbackGoal,
                   );
                   const entityColumnLabel =
                     adsEntityLevel === "ad"
@@ -4196,7 +4194,7 @@ export default function DynamicTableView({
                       string,
                       {
                         name: string;
-                        goal: GoogleReportCampaignGoal;
+                        goal: GoogleCampaignGoal;
                         impressions: number;
                         clicks: number;
                         conversions: number;
@@ -4241,7 +4239,7 @@ export default function DynamicTableView({
 
                   const goalSplit = splitGoogleGroupsByGoal(
                     Object.values(campaignGroups),
-                    tableIsEcommerce,
+                    fallbackGoal,
                   );
                   const { mixedGoals, isEcommerce } = goalSplit;
 

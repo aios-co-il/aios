@@ -1,23 +1,31 @@
+import {
+  googleGoalPresence,
+  type GoogleGoalPresence,
+} from "@/lib/googleGoalPresence";
 import { classifyPulseCampaignGoal } from "@/lib/pulseCampaignGoals";
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import {
   type CampaignGoalVote,
   resolveCampaignGoals,
+  voteSpend,
 } from "../../supabase/functions/_shared/pulse/resolve-campaign-goals.ts";
 
-export type GoogleReportCampaignGoal = "ecommerce" | "leads";
-
-/** The fields of a Google Ads report row's `data` that reports read, as the sync writes them. */
+/**
+ * The fields of a Google Ads report row's `data` that reports read. Rows written
+ * by Make or the webhook can hold numeric ids and numeric strings, so readers
+ * parse ids with String() and metrics with Number().
+ */
 export type GoogleAdsRowData = {
-  campaign_id?: string;
+  campaign_id?: string | number;
   campaign_name?: string;
   campaign?: string;
-  impressions?: number;
-  clicks?: number;
-  cost?: number;
-  spend?: number;
-  conversions?: number;
-  conversions_value?: number;
-  conversion_goal?: GoogleReportCampaignGoal;
+  impressions?: number | string;
+  clicks?: number | string;
+  cost?: number | string;
+  spend?: number | string;
+  conversions?: number | string;
+  conversions_value?: number | string;
+  conversion_goal?: GoogleCampaignGoal;
 };
 
 export type GoogleReportRecord = {
@@ -35,10 +43,8 @@ export type GoogleReportTable = {
   category?: string | null;
 };
 
-export type GoogleCampaignGoalLookup = {
-  goalOf: (data?: GoogleAdsRowData | null) => GoogleReportCampaignGoal;
-  hasEcommerce: boolean;
-  hasLeads: boolean;
+export type GoogleCampaignGoalLookup = GoogleGoalPresence & {
+  goalOf: (data?: GoogleAdsRowData | null) => GoogleCampaignGoal;
 };
 
 /**
@@ -50,18 +56,17 @@ export type GoogleCampaignGoalLookup = {
 export function googleCampaignGoalOf(
   records: GoogleReportRecord[],
   tables: GoogleReportTable[],
-  fallback: GoogleReportCampaignGoal,
+  fallback: GoogleCampaignGoal,
 ): GoogleCampaignGoalLookup {
   const goals = googleCampaignGoalsForRecords(records, tables);
   const goalOf = (data?: GoogleAdsRowData | null) =>
     goals.get(googleReportCampaignKey(data)) ?? fallback;
-  const recordGoals = new Set(records.map((record) => goalOf(record.data)));
   return {
     goalOf,
-    hasEcommerce: records.length
-      ? recordGoals.has("ecommerce")
-      : fallback === "ecommerce",
-    hasLeads: records.length ? recordGoals.has("leads") : fallback === "leads",
+    ...googleGoalPresence(
+      records.map((record) => goalOf(record.data)),
+      fallback,
+    ),
   };
 }
 
@@ -73,7 +78,7 @@ export function googleCampaignGoalOf(
 export function googleCampaignGoalsForRecords(
   records: GoogleReportRecord[],
   tables: GoogleReportTable[],
-): Map<string, GoogleReportCampaignGoal> {
+): Map<string, GoogleCampaignGoal> {
   const allTables = [...tables];
   const googleTables = tables.filter(
     (table) => table.integration_type === "google_ads",
@@ -103,32 +108,24 @@ export function googleCampaignGoalsForRecords(
 export function googleReportCampaignGoals(
   records: Array<{ table_id: string; data?: GoogleAdsRowData | null }>,
   tables: GoogleReportTable[],
-): Map<string, GoogleReportCampaignGoal> {
+): Map<string, GoogleCampaignGoal> {
   const tableMap = new Map(tables.map((table) => [table.id, table]));
   const votes: CampaignGoalVote[] = [];
   for (const record of records) {
     const data = record.data || {};
     const table = tableMap.get(record.table_id);
-    if (!table || table.integration_type !== "google_ads") {
-      continue;
-    }
     const key = googleReportCampaignKey(data);
-    if (!key) {
+    if (table?.integration_type !== "google_ads" || !key) {
       continue;
     }
-    const classification = classifyPulseCampaignGoal(data, {
+    const { goal, source } = classifyPulseCampaignGoal(data, {
       integration_type: table.integration_type,
       integration_settings: table.integration_settings || {},
       category: table.category,
     });
-    votes.push({
-      key,
-      goal: classification.goal,
-      source: classification.source,
-      spend: data.spend ?? data.cost ?? 0,
-    });
+    votes.push({ key, goal, source, spend: voteSpend(data) });
   }
-  const result = new Map<string, GoogleReportCampaignGoal>();
+  const result = new Map<string, GoogleCampaignGoal>();
   for (const [key, goal] of resolveCampaignGoals(votes)) {
     result.set(key, goal === "ecommerce" ? "ecommerce" : "leads");
   }
@@ -139,5 +136,5 @@ export function googleReportCampaignGoals(
 export function googleReportCampaignKey(
   data?: GoogleAdsRowData | null,
 ): string {
-  return data?.campaign_id || data?.campaign_name || "";
+  return String(data?.campaign_id || data?.campaign_name || "");
 }

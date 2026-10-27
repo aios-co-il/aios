@@ -1,6 +1,5 @@
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1488,8 +1487,9 @@ export default function DashboardView() {
       ),
     [platformFilter, displayAllRecords, tables],
   );
-  const googleAdsCampaignType: GoogleReportCampaignGoal =
-    googleAdsSummary.hasEcommerce ? "ecommerce" : "leads";
+  const googleAdsCampaignType = googleAdsSummary.hasEcommerce
+    ? "ecommerce"
+    : "leads";
 
   const googleAdsTableSettings = useMemo(() => {
     const gaTables = (tables || []).filter(

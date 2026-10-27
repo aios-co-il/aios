@@ -18,7 +18,10 @@ const googleTable = (
   category,
 });
 
-const googleRow = (table_id: string, date: string, data: GoogleAdsRowData) => ({
+/** Legacy Make/webhook rows also carry the table type per row. */
+type LegacyRowData = GoogleAdsRowData & { campaign_type?: string };
+
+const googleRow = (table_id: string, date: string, data: LegacyRowData) => ({
   table_id,
   data: { date, entity_level: "campaign", ...data },
 });
@@ -61,6 +64,25 @@ describe("googleReportCampaignGoals", () => {
     expect(goals.get("pmax-shop")).toBe("ecommerce");
     expect(goals.get("pmax-leads")).toBe("leads");
     expect(goals.get("search")).toBe("ecommerce");
+  });
+
+  it("weighs numeric-string spend as numbers", () => {
+    const goals = googleReportCampaignGoals(
+      [
+        googleRow("g", "2026-10-20", {
+          campaign_id: "legacy",
+          campaign_type: "ecommerce",
+          spend: "20",
+        }),
+        googleRow("g", "2026-10-21", {
+          campaign_id: "legacy",
+          campaign_type: "lead",
+          spend: "100",
+        }),
+      ],
+      [googleTable("g")],
+    );
+    expect(goals.get("legacy")).toBe("leads");
   });
 });
 
@@ -123,5 +145,9 @@ describe("googleReportCampaignKey", () => {
     expect(googleReportCampaignKey({ campaign_name: "A" })).toBe("A");
     expect(googleReportCampaignKey({ campaign: "A" })).toBe("");
     expect(googleReportCampaignKey(null)).toBe("");
+  });
+
+  it("keys a numeric campaign id like its string form", () => {
+    expect(googleReportCampaignKey({ campaign_id: 77 })).toBe("77");
   });
 });

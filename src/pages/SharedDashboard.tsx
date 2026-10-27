@@ -1,6 +1,5 @@
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1194,8 +1193,9 @@ export default function SharedDashboard({
       ),
     [records, tables],
   );
-  const googleAdsCampaignType: GoogleReportCampaignGoal =
-    googleAdsSummary.hasEcommerce ? "ecommerce" : "leads";
+  const googleAdsCampaignType = googleAdsSummary.hasEcommerce
+    ? "ecommerce"
+    : "leads";
 
   const googleAdsTableSettings = useMemo(() => {
     const gaTables = (tables || []).filter(

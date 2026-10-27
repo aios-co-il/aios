@@ -1,5 +1,5 @@
 import { TableCell, TableRow } from "@/components/ui/table";
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { ratio } from "./ratio";
 import type {
   GoogleAdsFormatters,
@@ -8,7 +8,7 @@ import type {
 } from "./types";
 
 type Props = GoogleAdsFormatters & {
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
 };

@@ -1,9 +1,9 @@
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 
 export type GoogleAdsCampaignSummaryRow = {
   name: string;
   campaign_id: string;
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
   impressions: number;
   clicks: number;
   spend: number;

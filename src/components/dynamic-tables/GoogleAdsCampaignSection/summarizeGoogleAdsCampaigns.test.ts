@@ -53,4 +53,18 @@ describe("summarizeGoogleAdsCampaigns", () => {
     expect(summary.campaigns[0].goal).toBe("ecommerce");
     expect(summary.hasLeads).toBe(false);
   });
+
+  it("merges numeric and string ids of one campaign and parses numeric strings", () => {
+    const summary = summarizeGoogleAdsCampaigns(
+      [
+        row({ campaign_id: 77, campaign_name: "PMax", cost: "10" }),
+        row({ campaign_id: "77", campaign_name: "PMax", cost: 5, clicks: "3" }),
+      ],
+      [table],
+    );
+    expect(summary.campaigns).toHaveLength(1);
+    expect(summary.campaigns[0].campaign_id).toBe("77");
+    expect(summary.campaigns[0].spend).toBe(15);
+    expect(summary.totals.clicks).toBe(3);
+  });
 });

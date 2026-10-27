@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
 import { ratio } from "./ratio";
 import type {
@@ -20,7 +20,7 @@ import type {
 
 type Props = GoogleAdsFormatters & {
   rows: GoogleAdsCampaignSummaryRow[];
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
   mixed: boolean;

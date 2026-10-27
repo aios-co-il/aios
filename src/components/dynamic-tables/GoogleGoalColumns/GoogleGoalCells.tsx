@@ -1,4 +1,4 @@
-import type { GoogleReportCampaignGoal } from "@/lib/googleCampaignGoals";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import type { GoogleGoalSplit } from "./splitGoogleGroupsByGoal";
 
 /** The 'יעד' header, shown only when the table mixes goals. */
@@ -12,7 +12,7 @@ export function GoogleGoalCell({
   goal,
 }: {
   mixed: boolean;
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
 }) {
   if (!mixed) {
     return null;
@@ -59,7 +59,7 @@ export function GoogleGoalValueCells({
   costPerConversion,
 }: {
   split: GoogleGoalSplit;
-  goal: GoogleReportCampaignGoal;
+  goal: GoogleCampaignGoal;
   currency: string;
   conversionsValue: number;
   roas: number;

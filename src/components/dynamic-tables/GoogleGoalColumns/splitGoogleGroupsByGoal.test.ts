@@ -16,7 +16,7 @@ describe("splitGoogleGroupsByGoal", () => {
         group("leads", 60, 3, 3),
         group("ecommerce", 40, 1, 200),
       ],
-      false,
+      "leads",
     );
     expect(split.mixedGoals).toBe(true);
     expect(split.isEcommerce).toBe(false);
@@ -32,14 +32,16 @@ describe("splitGoogleGroupsByGoal", () => {
     });
   });
 
-  it("is ecommerce only when every row is a sales row, or by table type when empty", () => {
+  it("is ecommerce only when every row is a sales row, or by the fallback goal when empty", () => {
     expect(
-      splitGoogleGroupsByGoal([group("ecommerce", 1, 1, 1)], false).isEcommerce,
+      splitGoogleGroupsByGoal([group("ecommerce", 1, 1, 1)], "leads")
+        .isEcommerce,
     ).toBe(true);
     expect(
-      splitGoogleGroupsByGoal([group("leads", 1, 1, 1)], true).isEcommerce,
+      splitGoogleGroupsByGoal([group("leads", 1, 1, 1)], "ecommerce")
+        .isEcommerce,
     ).toBe(false);
-    expect(splitGoogleGroupsByGoal([], true).isEcommerce).toBe(true);
-    expect(splitGoogleGroupsByGoal([], true).mixedGoals).toBe(false);
+    expect(splitGoogleGroupsByGoal([], "ecommerce").isEcommerce).toBe(true);
+    expect(splitGoogleGroupsByGoal([], "ecommerce").mixedGoals).toBe(false);
   });
 });
