@@ -1,6 +1,13 @@
 export type CreativeReferenceRole =
   "continuity" | "technique" | "talent" | "revision" | "character";
 
+/**
+ * Why the lock is worded this way: the image API garbles Hebrew, so type is
+ * composited later as layers. The prompt must not reserve a headline strip, CTA
+ * pill or logo pad (the retired caption template) and must leave one quiet
+ * atmospheric pocket for type instead. Keep that intent when editing; the
+ * composition locks are covered by `compositions.test.ts`.
+ */
 export const NO_TEXT_ON_IMAGE = [
   "ZERO GLYPHS ON THE PNG.",
   "Do not paint, stamp, carve, neon, collage, or engrave any letters, digits, words, captions, headlines, CTAs, watermarks, buttons, or fake UI.",
