@@ -7,6 +7,7 @@ import { USER_SEND_KINDS } from "../../../_shared/client-card/send-kind.ts";
 import type { Database } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
+import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
 
 type Functions = Database["public"]["Functions"];
 
@@ -42,10 +43,6 @@ export const MONITORED_PROVIDER = "green_api";
 
 /** Messages per thread: enough to see the client's wait and the last reply. */
 export const PER_THREAD = 15;
-
-/** PostgREST returns at most this many rows per request. */
-const PAGE_ROWS = 1_000;
-const MAX_PAGES = 20;
 
 /**
  * Recent messages of every client-linked thread, oldest first per thread.

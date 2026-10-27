@@ -6,6 +6,7 @@
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { clip } from "./clip.ts";
+import { isJsonObject } from "./json-object.ts";
 
 export type ChatVerdict = {
   needs_reply: boolean;
@@ -16,8 +17,6 @@ export type ChatVerdict = {
   summary_he: string;
   confidence: number;
 };
-
-type JsonObject = { [key: string]: Json | undefined };
 
 const MAX_SUMMARY = 200;
 /** Below this confidence a verdict adds nothing to the markers. */
@@ -34,7 +33,7 @@ export function parseModelVerdict(
 ): ChatVerdict | null {
   const value = parseJson(text);
   const fields = verdictFields(value);
-  if (!fields || !isObject(value)) {
+  if (!fields || !isJsonObject(value)) {
     return null;
   }
   const lines = Array.isArray(value.complaint_lines)
@@ -51,7 +50,7 @@ export function parseModelVerdict(
 /** A verdict as carmen_chat_thread_reviews keeps it, or null when malformed. */
 export function parseStoredVerdict(raw: Json): ChatVerdict | null {
   const fields = verdictFields(raw);
-  if (!fields || !isObject(raw)) {
+  if (!fields || !isJsonObject(raw)) {
     return null;
   }
   const ids = Array.isArray(raw.complaint_ids) ? raw.complaint_ids : [];
@@ -81,7 +80,7 @@ export function verdictComplaints(verdict: ChatVerdict | null): string[] {
 function verdictFields(
   value: Json | null,
 ): Omit<ChatVerdict, "complaint_ids"> | null {
-  if (!isObject(value)) {
+  if (!isJsonObject(value)) {
     return null;
   }
   const { needs_reply, is_request, urgency, summary_he } = value;
@@ -101,11 +100,6 @@ function verdictFields(
       typeof summary_he === "string" ? clip(summary_he, MAX_SUMMARY) : "",
     confidence: Math.min(1, Math.max(0, confidence)),
   };
-}
-
-/** True for a JSON object (not an array or null). */
-function isObject(value: Json | null | undefined): value is JsonObject {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 /** JSON.parse that returns null instead of throwing. */

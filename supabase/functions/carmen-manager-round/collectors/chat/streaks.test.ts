@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { il, row, staffRow, thread } from "../../tests/chat-fixtures.ts";
-import { clientStreaks, latestClientTurn } from "./streaks.ts";
+import { clientStreaks } from "./streaks.ts";
 
 Deno.test("clientStreaks", async (t) => {
   await t.step("client turns between staff turns, oldest first", () => {
@@ -20,7 +20,6 @@ Deno.test("clientStreaks", async (t) => {
         [["c"], true],
       ],
     );
-    assertEquals(latestClientTurn(built)?.id, "c");
   });
 
   await t.step("a thread staff spoke last still has its client streaks", () => {
@@ -28,7 +27,9 @@ Deno.test("clientStreaks", async (t) => {
       row({ message_id: "a", created_at: il("09:00") }),
       row({ direction: "outbound", created_at: il("09:05") }),
     ]);
-    assertEquals(clientStreaks(built).length, 1);
-    assertEquals(latestClientTurn(built)?.id, "a");
+    assertEquals(
+      clientStreaks(built).map((streak) => streak.turns.map((turn) => turn.id)),
+      [["a"]],
+    );
   });
 });

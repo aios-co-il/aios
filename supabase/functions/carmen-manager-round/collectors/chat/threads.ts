@@ -113,7 +113,7 @@ function messageTurn(row: ActivityRow, staffKeys: ReadonlySet<string>): Turn {
     at: new Date(row.created_at),
     by: staff ? "staff" : "client",
     via: "message",
-    text: row.message_text ?? "",
+    text: row.message_text,
     unsure: !staff && row.sender_lid_unmapped === true,
   };
 }

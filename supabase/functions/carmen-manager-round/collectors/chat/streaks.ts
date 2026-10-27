@@ -33,8 +33,3 @@ export function clientStreaks(thread: Thread): ClientStreak[] {
   }
   return streaks;
 }
-
-/** The client's latest turn in the thread, or undefined when there is none. */
-export function latestClientTurn(thread: Thread): Turn | undefined {
-  return thread.turns.findLast((turn) => turn.by === "client");
-}

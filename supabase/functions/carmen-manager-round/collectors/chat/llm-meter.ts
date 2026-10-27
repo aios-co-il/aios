@@ -14,12 +14,13 @@ import type { ManagerSettings } from "../../../_shared/manager-round/settings.ts
 import { jerusalemLocalTimeToUtc } from "../../../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
-
-/** ai_usage_log.source of the chat classification. */
-export const CHAT_LLM_SOURCE = "manager_round:chat";
+import { isJsonObject } from "./json-object.ts";
 
 /** Every source of the round starts with this. */
 const ROUND_SOURCE_PREFIX = "manager_round:";
+
+/** ai_usage_log.source of the chat classification. */
+export const CHAT_LLM_SOURCE = `${ROUND_SOURCE_PREFIX}chat`;
 const DEFAULT_DAILY_USD = 1;
 
 export type LlmLimits = {
@@ -107,7 +108,7 @@ async function monthlyBudget(
 
 /** A positive settings.monthly_budget_usd, or null. */
 function budgetOf(settings: Json): number | null {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+  if (!isJsonObject(settings)) {
     return null;
   }
   const value = Number(settings.monthly_budget_usd);

@@ -10,6 +10,7 @@ import type { Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
+import { isJsonObject } from "./json-object.ts";
 
 /** The numbers of the tenants' Manus and Green API lines. */
 export async function linePhones(
@@ -61,7 +62,7 @@ async function lineWid(
 
 /** settings.phone_number of a line, or null. */
 function settingsPhone(settings: Json): string | null {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+  if (!isJsonObject(settings)) {
     return null;
   }
   const phone = settings.phone_number;

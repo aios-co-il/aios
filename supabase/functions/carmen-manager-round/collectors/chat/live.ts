@@ -16,6 +16,7 @@ import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 import type { FindingCandidate } from "../types.ts";
 import type { LiveChatFinding } from "./gate.ts";
+import { isJsonObject } from "./json-object.ts";
 
 const LIVE = `(${FINDING_LIVE_STATUSES.join(",")})`;
 
@@ -39,7 +40,7 @@ export async function loadLiveChatFindings(
     if (!isFindingKind(kind) || !isFindingSeverity(severity)) {
       return [];
     }
-    const evidence = record(row.evidence);
+    const evidence = isJsonObject(row.evidence) ? row.evidence : {};
     const stored: FindingCandidate = { ...row, kind, severity, evidence };
     return [
       {
@@ -68,13 +69,6 @@ export async function loadClosedChatKeys(
     .gte("source_event_at", since.toISOString());
   throwIf(error, "carmen_findings chat closed");
   return new Set((data ?? []).map((row) => `${row.kind}|${row.fingerprint}`));
-}
-
-/** A JSON object's keys, or an empty object. */
-function record(value: Json): { [key: string]: Json | undefined } {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : {};
 }
 
 /** A parseable date string, or null. */
