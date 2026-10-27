@@ -20,7 +20,8 @@ import {
 import {
   ECOMMERCE_PULSE_SKILL_ROW,
   PULSE_CHECK_SKILL_ROW,
-} from "../carmen-pulse-rules.mjs";
+  type PulseSkillRow,
+} from "./pulse-skill-rows.ts";
 
 export interface CarmenSkill {
   id: string;
@@ -49,19 +50,8 @@ interface DbSkillRow {
 
 // ────────── Hardcoded fallbacks (used only if DB read fails) ──────────
 
-// pulse_check and ecommerce_pulse share their text with the global ai_skills
-// rows written by migration 20261026131000 and with Carmen's pulse-rules block
-// (carmen-pulse-rules.mjs), so the fallback renders exactly like the DB row.
-function fallbackFromSkillRow(row: {
-  slug: string;
-  goal: string | null;
-  system_prompt: string | null;
-  constraints: string | null;
-  steps: string | null;
-  output_template: string | null;
-  allowed_tools: readonly string[];
-  triggers: readonly string[];
-}): CarmenSkill {
+/** Builds a registry fallback from a canonical global ai_skills row (pulse-skill-rows.ts), so it renders exactly like the DB row written by migration 20261026131000. */
+function fallbackFromSkillRow(row: PulseSkillRow): CarmenSkill {
   const skill = rowToSkill({
     ...row,
     allowed_tools: [...row.allowed_tools],

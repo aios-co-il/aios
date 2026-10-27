@@ -29,19 +29,21 @@ import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
+import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
+import { CALLER_ROLE_PRIORITY } from "./caller-roles.ts";
+import { buildPulseRefreshDigestReply } from "./pulse-refresh/note.ts";
 import {
   decidePulseRefreshRouting,
-  isCachedPulseRequest,
-} from "../_shared/pulse-request.mjs";
+  pulseRefreshToolChoice,
+} from "./pulse-refresh/routing.ts";
 import {
   appendCarmenPulseRules,
   CARMEN_PULSE_RULES_VERSION,
-} from "../_shared/carmen-pulse-rules.mjs";
+} from "./pulse-refresh/rules-block.ts";
 import {
-  buildPulseRefreshDigestReply,
-  createPulseRefreshDeps,
-  runCampaignPulseRefresh,
-} from "../_shared/carmen-pulse-refresh.mjs";
+  executeRefreshCampaignPulse,
+  REFRESH_CAMPAIGN_PULSE_TOOL,
+} from "./pulse-refresh/tool.ts";
 import {
   classifyDirectTool,
   directToolPool,
@@ -789,7 +791,6 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
-  // Carmen refreshes the pulse in chat (AIO-237).
   "refresh_campaign_pulse",
   ...NATIVE_DEV_TASK_TOOLS,
 ]);
@@ -1912,21 +1913,7 @@ const ALL_TOOLS = [
       },
     },
   },
-  {
-    name: "refresh_campaign_pulse",
-    description:
-      'רענון בדיקת הדופק: מחשב מחדש את הדופק של הארגון מהנתונים שכבר סונכרנו ומחזיר אותו כמו get_latest_campaign_pulse, עם refresh_note. לא שולח הודעות ולא מריץ סנכרון מול Meta או Google. מרענן לכל היותר פעם ב-10 דקות לארגון; אחרת מחזיר את הבדיקה הקיימת. לבקשות כמו "רענני דופק", "דופק עדכני", "בדיקת דופק מלאה ועדכנית".',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "לקוח אחד (רק לקוח שמותר למשתמש לראות)",
-        },
-        client_name: { type: "string", description: "חיפוש חלקי בשם הלקוח" },
-      },
-    },
-  },
+  REFRESH_CAMPAIGN_PULSE_TOOL,
   // MASKYOO CALLS REPORTING
   {
     name: "get_maskyoo_calls_report",
@@ -7622,48 +7609,36 @@ async function executeTool(
       };
     }
     case "refresh_campaign_pulse": {
-      // AIO-237: recompute this tenant's snapshot (no digest, no instant
-      // alerts, rate-limited), then answer like get_latest_campaign_pulse.
-      const pulseArgs = {
-        client_id: args.client_id || undefined,
-        client_name: args.client_name || undefined,
-      };
-      return await runCampaignPulseRefresh(
+      return await executeRefreshCampaignPulse(
         {
+          args,
+          supabase,
           tenantId,
-          clientId: args.client_id,
           surface,
           callerCampaignerId,
-          callerUserId: actorUserId,
+          actorUserId,
+          accessibleTenantIds,
+          assertCallerCanAccessClient: (clientId: string) =>
+            assertCallerCanAccessClient(supabase, clientId, callerScope),
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_ROLE_KEY,
         },
-        {
-          ...createPulseRefreshDeps({
+        (pulseArgs) =>
+          executeTool(
+            "get_latest_campaign_pulse",
+            pulseArgs,
             supabase,
             tenantId,
-            accessibleTenantIds,
-            assertCallerCanAccessClient: (clientId: string) =>
-              assertCallerCanAccessClient(supabase, clientId, callerScope),
-            requestedBy: actorUserId,
-            supabaseUrl: Deno.env.get("SUPABASE_URL"),
-            serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-          }),
-          loadPulse: () =>
-            executeTool(
-              "get_latest_campaign_pulse",
-              pulseArgs,
-              supabase,
-              tenantId,
-              userId,
-              callerCampaignerId,
-              agentId,
-              callerRole,
-              callerManagedAgencyIds,
-              callerPhone,
-              waNotify,
-              surface,
-              conversationId,
-            ),
-        },
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          ),
       );
     }
     case "analyze_campaign_performance": {
@@ -13798,18 +13773,7 @@ async function handleRunAgent(
         .eq("user_id", callerUserId);
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
-      const order = [
-        "super_admin",
-        "owner",
-        "agency_owner",
-        "agency_manager",
-        "team_manager",
-        "campaigner",
-        "sales_person",
-        "seo",
-        "viewer",
-      ];
-      for (const r of order) {
+      for (const r of CALLER_ROLE_PRIORITY) {
         if (roleList.includes(r)) {
           callerRole = r;
           break;
@@ -14938,8 +14902,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Only unqualified summaries use empty tool args; scoped requests must
     // retain their client/agency filters through normal tool routing.
     const isStoredPulseRequest = !pinSkillsOnly && isCachedPulseRequest(cmd);
-    // "רענני דופק" / "דופק עדכני" / the voice "בדיקת דופק מלאה ועדכנית" (AIO-237):
-    // staff only; the digest shortcut only for a bare request.
     const pulseRefreshRoute = decidePulseRefreshRouting({
       text: cmd,
       isCarmen,
@@ -15728,17 +15690,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             function: { name: "get_latest_campaign_pulse" },
           };
         }
-        if (
-          round === 0 &&
-          pulseRefreshRoute.forceRefresh &&
-          cappedTools.some(
-            (t: any) => t.function?.name === "refresh_campaign_pulse",
-          )
-        ) {
-          payload.tool_choice = {
-            type: "function",
-            function: { name: "refresh_campaign_pulse" },
-          };
+        const refreshChoice = pulseRefreshToolChoice(
+          pulseRefreshRoute,
+          cappedTools,
+        );
+        if (round === 0 && refreshChoice) {
+          payload.tool_choice = refreshChoice;
         }
         if (
           round === 0 &&

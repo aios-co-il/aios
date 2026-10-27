@@ -6,9 +6,9 @@
 --    that loses the claim gets the stored snapshot. The refresh itself calls
 --    campaign-pulse-snapshot with deliver:false, skip_instant_alerts:true and
 --    preview_only:true, so it sends no digest and no instant alert.
--- 2. The global pulse_check and ecommerce_pulse skins get the text of Carmen's
---    versioned pulse-rules block (supabase/functions/_shared/carmen-pulse-rules.mjs,
---    which is also the registry fallback; a Deno test keeps them identical).
+-- 2. The global pulse_check and ecommerce_pulse skins get their canonical text
+--    from supabase/functions/_shared/skills/pulse-skill-rows.ts (also the
+--    registry fallback; pulse-skill-rows.test.ts keeps the two identical).
 --    The upsert inserts a missing row and overwrites an existing one, keeping
 --    trigger phrases added in the UI and the row's is_active flag. Triggers
 --    are stored sorted on both paths, so re-running it does not bump version. The
@@ -42,7 +42,7 @@ GRANT ALL ON TABLE public.campaign_pulse_refresh_claims TO service_role;
 -- see the fresh claim and get false.
 CREATE OR REPLACE FUNCTION public.claim_campaign_pulse_refresh(
   p_tenant_id uuid,
-  p_min_interval_seconds integer DEFAULT 600,
+  p_min_interval_seconds integer,
   p_requested_by uuid DEFAULT NULL
 )
 RETURNS boolean
@@ -52,11 +52,12 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_interval interval := make_interval(
-    secs => GREATEST(COALESCE(p_min_interval_seconds, 600), 60)
+    secs => GREATEST(p_min_interval_seconds, 60)
   );
   v_claimed boolean;
 BEGIN
   IF p_tenant_id IS NULL THEN
+    RAISE NOTICE 'claim_campaign_pulse_refresh: null tenant';
     RETURN false;
   END IF;
 
@@ -82,7 +83,7 @@ REVOKE ALL ON FUNCTION public.claim_campaign_pulse_refresh(uuid, integer, uuid)
 GRANT EXECUTE ON FUNCTION public.claim_campaign_pulse_refresh(uuid, integer, uuid)
   TO service_role;
 
--- Global pulse skins (text from carmen-pulse-rules.mjs).
+-- Global pulse skins (text from _shared/skills/pulse-skill-rows.ts).
 INSERT INTO public.ai_skills AS skills
   (slug, scope, tenant_id, name, description, goal, system_prompt, constraints, steps, output_template, allowed_tools, triggers, is_active, created_by_agent)
 VALUES (

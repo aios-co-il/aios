@@ -126,3 +126,9 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 - **Held for Saturday only:** pulse instant alerts and `fb-campaign-monitor` WhatsApp, for every alert type not in `_shared/shabbat/critical-alerts.ts` (add a new critical kind there); a pulse `connection_lost` goes out only for a real connection loss. `agent-heartbeat` skips the Saturday anomaly digest. No other sender is gated.
 - **Recurring task reminders** go out at 08:30 on the occurrence's own Israel date; one-off tasks keep the day-before reminder.
 - **Pulse instant alerts** run only when `instantPulseAlertsGate` (`campaign-pulse-snapshot/instant-alerts-gate.ts`) allows it. Send `skip_instant_alerts: true` to refresh pulse numbers without alerting the team.
+
+## Pulse refresh (AIO-237)
+
+- **Rules:** Carmen's pulse rules live in `run-ai-agent/pulse-refresh/rules-block.ts`, appended to every Carmen prompt; bump `CARMEN_PULSE_RULES_VERSION` on any change to them.
+- **Skins:** `_shared/skills/pulse-skill-rows.ts` holds the global `pulse_check` and `ecommerce_pulse` text; change it together with a migration that writes the same text, which `pulse-skill-rows.test.ts` checks.
+- **Refresh:** `refresh_campaign_pulse` recomputes the tenant's snapshot from synced data at most once per tenant per `PULSE_REFRESH_MIN_INTERVAL_SECONDS` (10 minutes, `pulse-refresh/snapshot.ts`) and sends nothing. Only staff callers (a campaigner, or a user with a staff role) get the forced refresh; on WhatsApp and task surfaces the tool refuses a caller with no campaigner and no user.

@@ -1,54 +1,24 @@
-// Carmen's campaign-pulse rules (AIO-237): one versioned block for every prompt
-// path, plus the canonical text of the pulse_check and ecommerce_pulse skins.
-//
-// run-ai-agent appends the block after the V1/V2 prompt is built, outside the
-// identity, so it reaches V1 with an empty or a custom ai_agents.system_prompt
-// and V2 alike. The skin rows below are the registry fallbacks and the text the
-// 20261026131000 migration writes to the global ai_skills rows; a test keeps
-// the three in sync. Bump CARMEN_PULSE_RULES_VERSION whenever the rules change.
+// The canonical text of the global pulse_check and ecommerce_pulse skins.
+// Migration 20261026131000 writes the same text to ai_skills, which stays the
+// owner at runtime; registry.ts renders these rows as its fallback, and
+// pulse-skill-rows.test.ts keeps them equal to the migration.
 
-export const CARMEN_PULSE_RULES_VERSION = "2026-10-26.2";
-
-const BLOCK_MARKER = "=== כללי דופק קמפיינים";
-
-const WHATSAPP_DIGEST_SURFACES = new Set(["whatsapp", "task"]);
-
-/** The pulse rules every Carmen prompt ends with. */
-export function buildCarmenPulseRulesBlock({ surface } = {}) {
-  const lines = [
-    `${BLOCK_MARKER} (גרסה ${CARMEN_PULSE_RULES_VERSION}) — גוברים על כל כלל דופק קודם בפרומפט, בסקין או בזיכרון ===`,
-    '• "דופק", "בדיקת דופק" או "מצב קמפיינים" בלי בקשה לרענן — get_latest_campaign_pulse: הבדיקה האחרונה שנשמרה. זו הדרך המהירה, ולא מרעננים בלי סיבה.',
-    '• "רענני דופק", "דופק עדכני", "בדיקת דופק מלאה ועדכנית" או בקשה מפורשת לדופק מעודכן — refresh_campaign_pulse (עם client_id או client_name כשמדובר בלקוח אחד). הכלי מחשב את הדופק מחדש מהנתונים שכבר סונכרנו, לא שולח הודעה לאף אחד, ומרענן לכל היותר פעם ב-10 דקות לארגון. אם הוא החזיר את הבדיקה הקיימת — אמרי מתי היא חושבה.',
-    '• "בדיקת תקינות" (מערכות, חיבורים, חשבונות מודעות) היא health probe — לא דופק. אל תערבבי ביניהן.',
-    "• כשמבקשים ממך לנהל, לבדוק או לעקוב אחרי קמפיינים — מותר לך להתחיל בעצמך בסקירת דופק: get_latest_campaign_pulse, ו-refresh_campaign_pulse אם הבדיקה השמורה חושבה לפני יותר מ-12 שעות. משם אפשר להמשיך לניתוח של לקוח שהדופק מסמן (analyze_campaign_performance עם client_id).",
-    '• כל שינוי בקמפיין — תקציב, כיבוי או הדלקה, יצירה, שכפול, החלפת טופס, תזמון — רק אחרי אישור מפורש של המשתמש על הסיכום (pending_approval ואז "כן"). סקירה לא מחליפה אישור.',
-    "• כל מספר מגיע מפלט הכלי. אסור להשלים נתונים מהזיכרון, ואסור להריץ analyze_campaign_performance במקום הדופק.",
-    "• אם אין בדיקת דופק שמורה — אמרי זאת והציעי לרענן.",
-  ];
-  if (WHATSAPP_DIGEST_SURFACES.has(surface)) {
-    lines.push(
-      '• בוואטסאפ ובמשימות מתוזמנות: אחרי הכלי החזירי את whatsapp_digest כלשונו, כולל בלוק "🔴 דורש טיפול" כשיש ושורת הקישור לדשבורד. אחרי refresh_campaign_pulse פתחי בשורת refresh_note מהכלי. בלי הקדמה, בלי סיכום נוסף, בלי טבלת Markdown, בלי פירוט לקוח-לקוח ובלי שורות שלא הופיעו בפלט.',
-    );
-  }
-  return lines.join("\n");
-}
-
-/**
- * Appends the pulse block to a finished Carmen prompt. Non-Carmen agents,
- * isolated pin_skills_only sessions (they have no tools) and a prompt that
- * already carries the block come back unchanged.
- */
-export function appendCarmenPulseRules(
-  systemPrompt,
-  { isCarmen, surface, pinSkillsOnly = false } = {},
-) {
-  const base = String(systemPrompt ?? "");
-  if (!isCarmen || pinSkillsOnly || base.includes(BLOCK_MARKER)) return base;
-  return `${base}\n\n${buildCarmenPulseRulesBlock({ surface })}`;
-}
+/** A global ai_skills row as the migration writes it. */
+export type PulseSkillRow = {
+  slug: string;
+  name: string;
+  description: string;
+  goal: string;
+  system_prompt: string;
+  constraints: string;
+  steps: string;
+  output_template: string | null;
+  allowed_tools: readonly string[];
+  triggers: readonly string[];
+};
 
 /** Global ai_skills row for slug pulse_check (also the registry fallback). */
-export const PULSE_CHECK_SKILL_ROW = Object.freeze({
+export const PULSE_CHECK_SKILL_ROW: PulseSkillRow = Object.freeze({
   slug: "pulse_check",
   name: "בדיקת דופק",
   description:
@@ -82,7 +52,7 @@ export const PULSE_CHECK_SKILL_ROW = Object.freeze({
 });
 
 /** Global ai_skills row for slug ecommerce_pulse (also the registry fallback). */
-export const ECOMMERCE_PULSE_SKILL_ROW = Object.freeze({
+export const ECOMMERCE_PULSE_SKILL_ROW: PulseSkillRow = Object.freeze({
   slug: "ecommerce_pulse",
   name: "דופק איקומרס",
   description:
@@ -104,8 +74,3 @@ export const ECOMMERCE_PULSE_SKILL_ROW = Object.freeze({
   ],
   triggers: ["איקומרס", "ecommerce", "e-commerce", "רכישות", "roas", "cpp"],
 });
-
-export const CARMEN_PULSE_SKILL_ROWS = Object.freeze([
-  PULSE_CHECK_SKILL_ROW,
-  ECOMMERCE_PULSE_SKILL_ROW,
-]);
