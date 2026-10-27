@@ -105,6 +105,8 @@ CREATE POLICY "Read reconcile runs of visible report tables"
     ))
   );
 
+-- Same visibility as reconcile_runs: the report table's readers; tenant-level
+-- rows for owners and super admins.
 DROP POLICY IF EXISTS "Read reconcile findings of visible report tables" ON public.reconcile_findings;
 CREATE POLICY "Read reconcile findings of visible report tables"
   ON public.reconcile_findings FOR SELECT TO authenticated

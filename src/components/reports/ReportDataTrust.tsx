@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -6,7 +6,7 @@ import {
   isReconciledIntegration,
   pickTrustRun,
   reportDataTrust,
-} from "@/lib/reportDataTrust";
+} from "./dataTrust";
 
 interface ReportDataTrustProps {
   tableId?: string | null;
@@ -20,29 +20,17 @@ export function ReportDataTrust({
   integrationType,
   className,
 }: ReportDataTrustProps) {
-  const enabled = !!tableId && isReconciledIntegration(integrationType);
+  const reconciled = isReconciledIntegration(integrationType);
   const { data: run } = useQuery({
     queryKey: ["report-data-trust", tableId],
-    enabled,
     staleTime: 10 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("reconcile_runs")
-        .select(
-          "status, started_at, finished_at, window_start, window_end, platform, summary",
-        )
-        .eq("table_id", tableId as string)
-        .order("started_at", { ascending: false })
-        // A few runs, so one a rate limit stopped does not hide the result before it.
-        .limit(10);
-      // The line is optional: any read problem just hides it.
-      if (error) return null;
-      return pickTrustRun(data);
-    },
+    queryFn: tableId && reconciled ? () => fetchTrustRun(tableId) : skipToken,
   });
 
-  const trust = enabled ? reportDataTrust(run) : null;
-  if (!trust) return null;
+  const trust = tableId && reconciled ? reportDataTrust(run) : null;
+  if (!trust) {
+    return null;
+  }
 
   return (
     <p
@@ -60,4 +48,21 @@ export function ReportDataTrust({
       {trust.label}
     </p>
   );
+}
+
+/** The run the line describes, from the table's recent runs (RLS limits them to readers of the table). */
+async function fetchTrustRun(tableId: string) {
+  const { data, error } = await supabase
+    .from("reconcile_runs")
+    .select(
+      "status, started_at, finished_at, window_start, window_end, platform, summary",
+    )
+    .eq("table_id", tableId)
+    .order("started_at", { ascending: false })
+    // A few runs, so one a rate limit stopped does not hide the result before it.
+    .limit(10);
+  if (error) {
+    throw error;
+  }
+  return pickTrustRun(data);
 }

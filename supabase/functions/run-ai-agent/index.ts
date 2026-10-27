@@ -34,11 +34,9 @@ import {
   classifyDirectTool,
   directToolPool,
 } from "../_shared/carmen-direct-tools.mjs";
-import {
-  listVerifyTables,
-  verifyReportVsMeta,
-} from "../_shared/reconcile-verify.ts";
-import { getReconciliationStatus } from "../_shared/reconcile-db.ts";
+import { listVerifyTables } from "./verify-tables.ts";
+import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
+import { reconciliationStatusTool } from "./reconciliation-status.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
@@ -10960,11 +10958,12 @@ async function executeTool(
         clientId: args.client_id || null,
         agencyName: args.agency_name || null,
       });
-      if (!tables.length)
+      if (!tables.length) {
         return {
           checked: 0,
           note: "לא נמצא דוח פייסבוק פעיל עם חשבון מודעות בסקופ",
         };
+      }
       return await verifyReportVsMeta({
         db: supabase,
         tables,
@@ -10973,25 +10972,11 @@ async function executeTool(
         fallbackTenantIds: accessibleTenantIds.slice(0, 1),
       });
     }
-    case "get_reconciliation_status": {
-      if (args.client_id)
-        await assertCallerCanAccessClient(
-          supabase,
-          args.client_id,
-          callerScope,
-        );
-      else if (!isManagerRole)
-        throw new Error(
-          "סטטוס ההתאמה לכל הלקוחות זמין למנהלים בלבד — העבירי client_id",
-        );
-      // Scoped inside: own tenant + shared-agency clients; account-level rows for owners only.
-      return await getReconciliationStatus(supabase, {
-        tenantId,
-        callerRole,
-        clientId: args.client_id || null,
-        sinceIso: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-      });
-    }
+    case "get_reconciliation_status":
+      return await reconciliationStatusTool(
+        { supabase, callerScope, isManagerRole, tenantId, callerRole },
+        args,
+      );
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
