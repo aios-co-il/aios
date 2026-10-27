@@ -79,7 +79,7 @@ export function whatsAppInboundRequest(data: Record<string, unknown>) {
 
 /**
  * run-ai-agent's caller resolution (2.5/2.6): the phone's campaigner profile wins
- * over user_id; the role comes from that user.
+ * over user_id; the role is that user's highest role here (each person holds one).
  */
 export function resolveRunCaller(body: Record<string, unknown>): {
   userId: string | null;
@@ -95,13 +95,13 @@ export function resolveRunCaller(body: Record<string, unknown>): {
       ? body.user_id
       : "";
   const userId = byPhone?.userId || claimed || null;
-  const role = PEOPLE.find((p) => p.userId === userId)?.role ?? null;
-  return { userId, role };
+  return { userId, role: rolesOf(userId)[0] ?? null };
 }
 
 /**
  * What run-ai-agent does with an approval reply: the fast path and the tools both
- * need runMayDecideApprovals; the row is picked for the resolved caller.
+ * need runMayDecideApprovals; the row is picked for the resolved caller with every
+ * role they hold in this tenant, as loadApprovalPick reads them.
  */
 export function approvalOutcome(body: Record<string, unknown>): {
   decided: string | null;
@@ -122,7 +122,7 @@ export function approvalOutcome(body: Record<string, unknown>): {
   const caller = resolveRunCaller(body);
   const pick = resolveApprovalConfirm([ownerRow], {
     userId: caller.userId,
-    roles: caller.role ? [caller.role] : [],
+    roles: rolesOf(caller.userId),
     code: reply.code,
     mode: reply.approve ? "approve" : "reject",
     nowMs: NOW,
@@ -133,11 +133,16 @@ export function approvalOutcome(body: Record<string, unknown>): {
   };
 }
 
-/** The staff whose phones run-ai-agent matches. */
+/** The staff whose phones run-ai-agent matches, with their user_roles in this tenant. */
 const PEOPLE = [
-  { userId: OWNER, phone: "050-1112222", role: "owner" },
-  { userId: INVOKER, phone: "052-3334444", role: "campaigner" },
+  { userId: OWNER, phone: "050-1112222", roles: ["owner"] },
+  { userId: INVOKER, phone: "052-3334444", roles: ["campaigner"] },
 ];
+
+/** The user's roles in this tenant; none for no one. */
+function rolesOf(userId: string | null): string[] {
+  return PEOPLE.find((p) => p.userId === userId)?.roles ?? [];
+}
 
 /** The last 9 digits, as run-ai-agent compares phones. */
 function last9(phone: string): string {
