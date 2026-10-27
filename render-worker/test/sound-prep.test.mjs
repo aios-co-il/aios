@@ -92,6 +92,8 @@ test("levelGain reaches the target and keeps peaks under the ceiling", () => {
 });
 
 test("prepareSound levels the bed and every effect's hit, and measures the voice", async () => {
+  // A temporary folder: CI cannot write to the file system root.
+  const out = await mkdtemp(join(tmpdir(), "sound-prep-"));
   const readings = {
     "/m.mp3": {
       integrated: -20,
@@ -111,18 +113,18 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
       effects: { whooshPath: "/w.mp3", impactPath: "/i.mp3" },
       scenes: [],
     },
-    "/out",
+    out,
     {
       measure: async (file) => readings[file],
-      normalize: async (file, out, gain) => written.push([file, out, gain]),
+      normalize: async (file, to, gain) => written.push([file, to, gain]),
       log: () => {},
     },
   );
-  expect(prepared.musicPath).toBe("/out/music-levelled.wav");
+  expect(prepared.musicPath).toBe(join(out, "music-levelled.wav"));
   expect(prepared.musicBodyS).toBe(38);
   expect(prepared.effects).toStrictEqual({
-    whooshPath: "/out/sfx-whoosh-levelled.wav",
-    impactPath: "/out/sfx-impact-levelled.wav",
+    whooshPath: join(out, "sfx-whoosh-levelled.wav"),
+    impactPath: join(out, "sfx-impact-levelled.wav"),
   });
   expect(prepared.voiceLufs).toBe(-19.1);
   const gains = Object.fromEntries(written.map(([f, , g]) => [f, g.gainDb]));
@@ -133,7 +135,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   // A file that cannot be measured or written keeps its own level.
   const kept = await prepareSound(
     { musicPath: "/m.mp3", effects: { whooshPath: "/w.mp3" }, scenes: [] },
-    "/out",
+    out,
     {
       measure: async (file) => {
         if (file === "/w.mp3") throw new Error("unreadable");
@@ -148,9 +150,12 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   expect(kept.musicPath).toBe("/m.mp3");
   expect(kept.effects.whooshPath).toBe("/w.mp3");
   expect(kept.voiceLufs).toBe(null);
+  await rm(out, { recursive: true, force: true });
 });
 
 test("an ordinary film's bed keeps its own level and is only measured for its loop", async () => {
+  // A temporary folder: CI cannot write to the file system root.
+  const out = await mkdtemp(join(tmpdir(), "sound-prep-"));
   const written = [];
   const options = {
     measure: async () => ({
@@ -159,12 +164,12 @@ test("an ordinary film's bed keeps its own level and is only measured for its lo
       maxMomentary: -10,
       bodyEndS: 30,
     }),
-    normalize: async (file, out, gain) => written.push([file, out, gain]),
+    normalize: async (file, to, gain) => written.push([file, to, gain]),
     log: () => {},
   };
   const plain = await prepareSound(
     { musicPath: "/m.mp3", narrationPath: "/n.mp3", scenes: [] },
-    "/out",
+    out,
     options,
   );
   expect(plain).toMatchObject({
@@ -176,9 +181,10 @@ test("an ordinary film's bed keeps its own level and is only measured for its lo
   // A trailer brief without effects still gets its bed levelled for the trailer mix.
   const trailer = await prepareSound(
     { musicPath: "/m.mp3", soundDesign: true, scenes: [] },
-    "/out",
+    out,
     options,
   );
-  expect(trailer.musicPath).toBe("/out/music-levelled.wav");
+  expect(trailer.musicPath).toBe(join(out, "music-levelled.wav"));
   expect(written.map(([, , gain]) => gain.gainDb)).toStrictEqual([-5]);
+  await rm(out, { recursive: true, force: true });
 });
