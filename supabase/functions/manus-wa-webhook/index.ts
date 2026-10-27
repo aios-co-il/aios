@@ -34,6 +34,7 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
+import { recordManusFallbackReply } from "./fallback-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1888,6 +1889,14 @@ Deno.serve(async (req) => {
                 ok: res.ok,
                 elapsedMs: Date.now() - started,
               });
+              await recordManusFallbackReply(res, {
+                db: supabase,
+                tenantId: groupTenantId,
+                chatId: groupChatId,
+                message,
+                connectionUserId,
+                integrationId: integ.id,
+              });
               return res.ok;
             } catch (err: any) {
               clearTimeout(timer);
@@ -2105,6 +2114,7 @@ Deno.serve(async (req) => {
                   phoneNumber: carmenTargetPhone,
                   senderUserId: connectionUserId,
                   message,
+                  sendKind: "carmen",
                 }),
               },
             );

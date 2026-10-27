@@ -5,6 +5,7 @@ import {
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,6 +111,12 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
+    // This function only serves signed-in users, so an unnamed kind is "chat".
+    const sendColumns = sendKindColumns({
+      sendKind: formData.get("sendKind"),
+      sendRef: formData.get("sendRef"),
+      isServiceRole: false,
+    });
 
     if (!rawFile) {
       return new Response(JSON.stringify({ error: "No file provided" }), {
@@ -313,6 +320,7 @@ Deno.serve(async (req) => {
             sent_by_user_id: user.id,
             raw_provider_data: responseData,
             sender_phone: !usedGroupChat ? chatId.replace("@c.us", "") : null,
+            ...sendColumns,
           }),
           CHAT_MESSAGES_INSERT_TIMEOUT_MS,
           "chat_messages_insert",
@@ -381,6 +389,7 @@ Deno.serve(async (req) => {
           sent_by_user_id: user.id,
           raw_provider_data: responseData,
           sender_phone: !usedGroupChat ? chatId.replace("@c.us", "") : null,
+          ...sendColumns,
         }),
         CHAT_MESSAGES_INSERT_TIMEOUT_MS,
         "chat_messages_insert",

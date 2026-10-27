@@ -1,4 +1,4 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import {
   HUMAN_REQUESTER_REQUIRED_HE,
@@ -30,12 +30,13 @@ Deno.test(
       }),
       OWNER_USER,
     );
-    for (const surface of ["task", "grok_bot", "agent_direct", null])
+    for (const surface of ["task", "grok_bot", "agent_direct", null]) {
       assertStrictEquals(
         resolveHumanRequesterUserId({ userId: OWNER_USER, surface }),
         null,
         String(surface),
       );
+    }
     assertStrictEquals(
       resolveHumanRequesterUserId({
         userId: "system",
@@ -87,6 +88,7 @@ Deno.test("planCarmenClientUpdate: other types never claim contact", () => {
     attributedUserId: null,
     countsAsContact: null,
   });
+
   assertEquals(
     planCarmenClientUpdate({
       updateType: "weekly_update",
@@ -100,12 +102,12 @@ Deno.test("planCarmenClientUpdate: other types never claim contact", () => {
       countsAsContact: null,
     },
   );
-  assertStrictEquals(
-    planCarmenClientUpdate({ updateType: "complaint" }).ok &&
-      (planCarmenClientUpdate({ updateType: "complaint" }) as any).source,
-    "carmen",
-  );
+
+  const complaint = planCarmenClientUpdate({ updateType: "complaint" });
+  assert(complaint.ok);
+  assertStrictEquals(complaint.source, "carmen");
+
   const bad = planCarmenClientUpdate({ updateType: "email" });
-  assertStrictEquals(bad.ok, false);
-  assertStrictEquals((bad as any).error, "invalid_update_type");
+  assert(!bad.ok);
+  assertStrictEquals(bad.error, "invalid_update_type");
 });

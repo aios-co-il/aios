@@ -3,78 +3,15 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   addClientUpdateFromCarmen,
   recordCarmenHealthCardEntry,
+  recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
+import { fakeCardRpc } from "./fake-card-rpc.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const CLIENT = "22222222-2222-4222-8222-222222222222";
 const CAMPAIGNER_USER = "33333333-3333-4333-8333-333333333333";
 const OWNER_USER = "44444444-4444-4444-8444-444444444444";
 const NOW = new Date("2026-10-26T09:15:00Z");
-
-/**
- * In-memory stand-in for record_client_card_entry that follows the SQL
- * contract: dedupe on (client, source, source_ref), and attribute to the named
- * person, else the client's campaigner, else the owner.
- */
-function fakeCardRpc(opts: {
-  campaignerUserId?: string | null;
-  ownerUserId?: string | null;
-  error?: { code: string; message: string };
-}) {
-  const rows: any[] = [];
-  const calls: any[] = [];
-  const supabase = {
-    rpc: async (name: string, args: any) => {
-      calls.push({ name, args });
-      if (opts.error) return { data: null, error: opts.error };
-      if (args.p_source_ref) {
-        const existing = rows.find(
-          (row) =>
-            row.client_id === args.p_client &&
-            row.source === args.p_source &&
-            row.source_ref === args.p_source_ref,
-        );
-        if (existing)
-          return {
-            data: [
-              {
-                entry_id: existing.id,
-                inserted: false,
-                attributed_user_id: existing.user_id,
-                attribution: "existing",
-              },
-            ],
-            error: null,
-          };
-      }
-      const [userId, attribution] = args.p_attributed_user
-        ? [args.p_attributed_user, "attributed"]
-        : opts.campaignerUserId
-          ? [opts.campaignerUserId, "campaigner"]
-          : [opts.ownerUserId, "owner"];
-      const row = {
-        id: `entry-${rows.length + 1}`,
-        client_id: args.p_client,
-        source: args.p_source,
-        source_ref: args.p_source_ref,
-        user_id: userId,
-      };
-      rows.push(row);
-      return {
-        data: [
-          {
-            entry_id: row.id,
-            inserted: true,
-            attributed_user_id: userId,
-            attribution,
-          },
-        ],
-        error: null,
-      };
-    },
-  };
-  return { supabase, rows, calls };
-}
 
 Deno.test(
   "add_client_update: a background call is refused without touching the card",
@@ -90,6 +27,25 @@ Deno.test(
     });
     assertStrictEquals(result.success, false);
     assertStrictEquals(result.error, "human_requester_required");
+    assertStrictEquals(calls.length, 0);
+  },
+);
+
+Deno.test(
+  "add_client_update: empty text is refused as invalid_input without an RPC call",
+  async () => {
+    const { supabase, calls } = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const result = await addClientUpdateFromCarmen(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      content: "   ",
+      now: NOW,
+    });
+    assertEquals(result, {
+      success: false,
+      error: "invalid_input",
+      message: "חסר תוכן לעדכון",
+    });
     assertStrictEquals(calls.length, 0);
   },
 );
@@ -142,7 +98,10 @@ Deno.test(
       content: "הלקוח ביקש דוח חודשי",
       now: NOW,
     });
-    assertStrictEquals(withCampaigner.calls[0].args.p_attributed_user, null);
+    assertStrictEquals(
+      withCampaigner.calls[0].args.p_attributed_user,
+      undefined,
+    );
     assertStrictEquals(withCampaigner.calls[0].args.p_source, "carmen");
     assertStrictEquals(a.attributed_user_id, CAMPAIGNER_USER);
     assertStrictEquals(a.attribution, "campaigner");
@@ -237,12 +196,34 @@ Deno.test(
     });
     assertStrictEquals(entry.attribution, "campaigner");
     assertStrictEquals(calls[0].args.p_source, "carmen");
-    assertStrictEquals(calls[0].args.p_attributed_user, null);
+    assertStrictEquals(calls[0].args.p_attributed_user, undefined);
     assertStrictEquals(
       calls[0].args.p_content,
       "[עדכון אוטומטי - כרמן] עלייה בעלות לליד",
     );
-    assertStrictEquals(calls[0].args.p_counts_as_contact, null);
+    assertStrictEquals(calls[0].args.p_counts_as_contact, undefined);
     assertStrictEquals(rows.length, 2);
+  },
+);
+
+Deno.test(
+  "health card entry: a card refusal is returned, not thrown, so the health update stands",
+  async () => {
+    const { supabase, calls } = fakeCardRpc({
+      error: {
+        code: "42501",
+        message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
+      },
+    });
+    const error = await recordHealthCardEntryAfterUpdate(supabase, {
+      tenantId: TENANT,
+      clientId: CLIENT,
+      note: "עלייה בעלות לליד",
+      moodStatus: "wavering",
+      tool: "batch_update_client_health",
+      now: NOW,
+    });
+    assertStrictEquals(calls.length, 1);
+    assertStrictEquals(error?.includes("is not in tenant"), true);
   },
 );

@@ -455,6 +455,8 @@ export function createClaudeNotifyHandler(deps: ClaudeNotifyDeps) {
       senderUserId: plan.senderUserId,
       phoneNumber: delivery.phoneNumber,
       message,
+      // A staff notification, never logged on a client card (AIO-242).
+      sendKind: "staff_alert",
     };
     if (transport.integrationId)
       sendBody.integrationId = transport.integrationId;

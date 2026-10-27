@@ -14,11 +14,13 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
+  readCardLogSystemSends,
   type PulseAlertRules,
   type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
 import type { ManagerMode } from "../../../supabase/functions/_shared/manager-round/modes.ts";
 import { resolveManagerSettings } from "../../../supabase/functions/_shared/manager-round/settings.ts";
+import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 import { ManagerModeSection } from "./manager-round/ManagerModeSection";
 
 type PulseAlertRulesDialogProps = {
@@ -34,7 +36,7 @@ type PulseAlertRulesDialogProps = {
     manager: PulseManagerSettings,
   ) => Promise<void> | void;
   saving?: boolean;
-  /** Tenant and agency owners see Carmen's manager mode. */
+  /** Tenant and agency owners see Carmen's manager settings (mode, card logging). */
   canManageManager?: boolean;
 };
 
@@ -50,6 +52,7 @@ export function PulseAlertRulesDialog({
     DEFAULT_PULSE_ALERT_RULES,
   );
   const [managerMode, setManagerMode] = useState<ManagerMode>("observe");
+  const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -57,6 +60,7 @@ export function PulseAlertRulesDialog({
     }
     setRules(parsePulseAlertRules(value));
     setManagerMode(resolveManagerSettings(value).mode);
+    setCardLogSystemSends(readCardLogSystemSends(value));
   }, [open, value]);
 
   return (
@@ -167,7 +171,16 @@ export function PulseAlertRulesDialog({
           </div>
 
           {canManageManager && (
-            <ManagerModeSection mode={managerMode} onChange={setManagerMode} />
+            <>
+              <ManagerModeSection
+                mode={managerMode}
+                onChange={setManagerMode}
+              />
+              <CardLogSystemSendsSwitch
+                checked={cardLogSystemSends}
+                onCheckedChange={setCardLogSystemSends}
+              />
+            </>
           )}
         </div>
 
@@ -180,7 +193,12 @@ export function PulseAlertRulesDialog({
             onClick={() =>
               onSave(
                 parsePulseAlertRules(rules),
-                canManageManager ? { mode: managerMode } : {},
+                canManageManager
+                  ? {
+                      mode: managerMode,
+                      card_log_system_sends: cardLogSystemSends,
+                    }
+                  : {},
               )
             }
           >

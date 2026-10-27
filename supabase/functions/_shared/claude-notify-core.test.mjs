@@ -494,6 +494,7 @@ Deno.test(
         senderUserId: DAVID_USER,
         phoneNumber: PHONE,
         message: "שלום",
+        sendKind: "staff_alert",
         integrationId: "manus-1",
       });
       assertStrictEquals(warnings.length, 0);

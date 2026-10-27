@@ -1,19 +1,20 @@
 // Carmen's client card writes (AIO-232): add_client_update and the card entry
 // written by update_client_health / batch_update_client_health. Both go
-// through client-card.ts; list_updates reads via client-card-list.ts.
+// through _shared/client-card/entry.ts; list_updates reads via list-updates.ts.
 
-import { asUuidOrNull } from "./uuid.mjs";
+import { asUuidOrNull } from "../_shared/uuid.mjs";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
 import {
   ClientCardEntryError,
-  hourlyDedupeRef,
-  recordClientCardEntry,
   type ClientCardEntryResult,
-} from "./client-card.ts";
+} from "../_shared/client-card/entry-types.ts";
+import { hourlyDedupeRef } from "./client-card-dedupe-ref.ts";
 import { planCarmenClientUpdate } from "./client-card-contact-policy.ts";
 
 /** Carmen's add_client_update tool. The caller checks callerScope first. */
 export async function addClientUpdateFromCarmen(
-  supabase: any,
+  supabase: Pick<DbClient, "rpc">,
   input: {
     tenantId: string;
     clientId: string;
@@ -25,15 +26,11 @@ export async function addClientUpdateFromCarmen(
   },
 ): Promise<Record<string, unknown>> {
   const plan = planCarmenClientUpdate(input);
-  if (!plan.ok)
+  if (!plan.ok) {
     return { success: false, error: plan.error, message: plan.message };
+  }
+  // An empty text is refused by recordClientCardEntry (invalid_input).
   const content = typeof input.content === "string" ? input.content.trim() : "";
-  if (!content)
-    return {
-      success: false,
-      error: "invalid_input",
-      message: "חסר תוכן לעדכון",
-    };
   try {
     const entry = await recordClientCardEntry(supabase, {
       tenantId: input.tenantId,
@@ -69,24 +66,50 @@ export async function addClientUpdateFromCarmen(
         : { note: "העדכון הזה כבר נרשם בשעה האחרונה, ולא נוצרה כפילות." }),
     };
   } catch (err) {
-    if (err instanceof ClientCardEntryError)
+    if (err instanceof ClientCardEntryError) {
       return { success: false, error: err.code, message: err.message };
+    }
     throw err;
+  }
+}
+
+type HealthCardEntryInput = {
+  tenantId: string;
+  clientId: string;
+  note: string;
+  moodStatus: string;
+  requesterUserId?: string | null;
+  tool: "update_client_health" | "batch_update_client_health";
+  now?: Date;
+};
+
+/**
+ * The card entry of a health update that is already written. A card refusal
+ * (no person to attribute it to, a read-only shared agency) is logged and
+ * returned as text, so the health update still reports success.
+ */
+export async function recordHealthCardEntryAfterUpdate(
+  supabase: Pick<DbClient, "rpc">,
+  input: HealthCardEntryInput,
+): Promise<string | null> {
+  try {
+    await recordCarmenHealthCardEntry(supabase, input);
+    return null;
+  } catch (error) {
+    if (!(error instanceof ClientCardEntryError)) {
+      throw error;
+    }
+    console.error(
+      `[${input.tool}] card entry for client ${input.clientId} not written: ${error.code} ${error.message}`,
+    );
+    return error.message;
   }
 }
 
 /** Card entry for update_client_health / batch_update_client_health. */
 export function recordCarmenHealthCardEntry(
-  supabase: any,
-  input: {
-    tenantId: string;
-    clientId: string;
-    note: string;
-    moodStatus: string;
-    requesterUserId?: string | null;
-    tool: "update_client_health" | "batch_update_client_health";
-    now?: Date;
-  },
+  supabase: Pick<DbClient, "rpc">,
+  input: HealthCardEntryInput,
 ): Promise<ClientCardEntryResult> {
   const requester = asUuidOrNull(input.requesterUserId);
   return recordClientCardEntry(supabase, {

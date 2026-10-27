@@ -46,12 +46,17 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
 export type PulseManagerSettings = {
   /** Carmen's rollout mode; owner-only (the database refuses others). */
   mode?: ManagerMode;
+  /**
+   * Log what AIOS sends to a client (reports, dashboard shares, meeting
+   * summaries, broadcasts, Carmen and automation messages, chat replies) on
+   * the client card automatically. Off unless an owner turns it on.
+   */
+  card_log_system_sends?: boolean;
 };
 
-function asRecord(raw: unknown): Record<string, unknown> {
-  return raw && typeof raw === "object" && !Array.isArray(raw)
-    ? { ...raw }
-    : {};
+/** Whether the tenant logs system sends on the client card (default false). */
+export function readCardLogSystemSends(raw: unknown): boolean {
+  return asRecord(asRecord(raw).manager).card_log_system_sends === true;
 }
 
 /**
@@ -79,4 +84,11 @@ export function mergePulseAlertRules(
     merged.manager = { ...block, ...Object.fromEntries(changes) };
   }
   return merged;
+}
+
+/** A copy of a JSON object, or {} for anything else (arrays included). */
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...raw }
+    : {};
 }

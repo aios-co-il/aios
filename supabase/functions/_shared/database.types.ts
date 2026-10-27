@@ -4584,6 +4584,8 @@ export type Database = {
           provider: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data: Json | null;
           read_at: string | null;
+          send_kind: string | null;
+          send_ref: string | null;
           sender_name: string | null;
           sender_phone: string | null;
           sent_by_user_id: string | null;
@@ -4607,6 +4609,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
@@ -4630,6 +4634,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
