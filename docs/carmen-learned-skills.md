@@ -44,9 +44,9 @@ MarketingCaptain (slug `marketingcaptain`) and
 
 ### 2026-10-27 — Learned conduct for every org's Carmen (AIO-262)
 
-- **Skin slug:** `group_response_only_when_addressed`, `wa_notify_never_group_session`, `carmen_session_keyed_by_chat_id`, `diagnose_campaign_pulse_status` (tenant: global)
-- **What Carmen can now do:** Every org's Carmen follows these four rules, which MarketingCaptain's Carmen learned first; as global skins they reach every tenant's agents that load skills. MarketingCaptain's own tenant rows stay and still win for its Carmen. `identity-guard` stays MarketingCaptain-only: its text is not in the repo, and an org-neutral global version waits on reading the Production row (follow-up issue named in PR #962).
-- **How:** Migration `20261027090000_carmen_learned_skins_for_every_org.sql` adds global rows whose text names no org's people, phones or clients; `supabase/tests/carmen_learned_skins_global.sql` checks them. `wa_voice_transcript_capability`, `team_roster_awareness` and `pulse_health_wa_digest_and_sync_truth` get no global row: `run-ai-agent` already gives every org's Carmen the voice-note rule (`buildVoiceCapabilityPromptRule`) and the team roster, and `get_latest_campaign_pulse` returns the WhatsApp digest rule with its result.
+- **Skin slug:** `group_response_only_when_addressed`, `wa_notify_never_group_session`, `carmen_session_keyed_by_chat_id`, `diagnose_campaign_pulse_status`, `identity-guard` (tenant: global)
+- **What Carmen can now do:** Every org's Carmen follows these five rules, which MarketingCaptain's Carmen learned first; as global skins they reach every tenant's agents that load skills. MarketingCaptain's own tenant rows stay and still win for its Carmen. Its `dmm_notify_recipient_routing` row is retired (`is_active=false`): DMM's pulse recipients come from the per-org recipients setting (AIO-260).
+- **How:** Migration `20261027090000_carmen_learned_skins_for_every_org.sql` adds global rows whose text names no org's people, phones or clients and retires that row; `supabase/tests/carmen_learned_skins_global.sql` checks both. `wa_voice_transcript_capability`, `team_roster_awareness` and `pulse_health_wa_digest_and_sync_truth` get no global row: `run-ai-agent` already gives every org's Carmen the voice-note rule (`buildVoiceCapabilityPromptRule`) and the team roster, and `get_latest_campaign_pulse` returns the WhatsApp digest rule with its result.
 - **Origin:** DMM parity audit — David: every fix must reach DMM's Carmen too.
 
 ### 2026-10-14 — משימות שהושלמו נשארות בלוח השנה

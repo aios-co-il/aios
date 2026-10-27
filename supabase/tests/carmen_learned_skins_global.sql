@@ -1,6 +1,7 @@
 -- Carmen's learned skins for every org (20261027090000_carmen_learned_skins_for_every_org):
 -- the skill registry gives each skin to a tenant with no row of its own, a
--- tenant row still wins, and the global text names no person, phone or tool.
+-- tenant row still wins, the global text names no person, phone or tool, and
+-- MarketingCaptain's dmm_notify_recipient_routing is inactive.
 -- Synthetic rows inside one transaction that is rolled back.
 BEGIN;
 DO $test$
@@ -9,7 +10,8 @@ DECLARE
     'group_response_only_when_addressed',
     'wa_notify_never_group_session',
     'carmen_session_keyed_by_chat_id',
-    'diagnose_campaign_pulse_status'
+    'diagnose_campaign_pulse_status',
+    'identity-guard'
   ];
   v_tenant uuid;
   v_new_tenant uuid := gen_random_uuid();
@@ -44,6 +46,19 @@ BEGIN
         ~* '[0-9]{6,}|דוד|פליקס|david|felix|cursor|claude|marketingcaptain';
   IF v_bad IS NOT NULL THEN
     RAISE EXCEPTION 'content: org-specific text in %', v_bad;
+  END IF;
+
+  -- DMM's pulse recipients come from the per-org setting (AIO-260), not this skin.
+  IF EXISTS (
+    SELECT 1
+    FROM public.ai_skills AS s
+    JOIN public.tenants AS t ON t.id = s.tenant_id
+    WHERE t.slug = 'marketingcaptain'
+      AND s.scope = 'tenant'
+      AND s.slug = 'dmm_notify_recipient_routing'
+      AND s.is_active
+  ) THEN
+    RAISE EXCEPTION 'retire: dmm_notify_recipient_routing is still active for marketingcaptain';
   END IF;
 
   -- A tenant row for the first slug, as MarketingCaptain has.

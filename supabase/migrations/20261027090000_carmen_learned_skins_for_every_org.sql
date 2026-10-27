@@ -5,16 +5,19 @@
 -- agent's own tenant, so no other org's Carmen had them. Each slug below gets a
 -- global row, written here without any org's people, phones, clients or dev
 -- tools.
--- MarketingCaptain's tenant rows are left as they are and still win for its
--- Carmen. A slug that already has a global row keeps it (NOTICE).
+-- MarketingCaptain's tenant rows for these slugs are left as they are and
+-- still win for its Carmen. A slug that already has a global row keeps it
+-- (NOTICE).
 -- A global row reaches every tenant's agents whose run loads skills, not only
 -- Carmen, and a matched diagnose_campaign_pulse_status adds
 -- get_latest_campaign_pulse to that agent's tools.
--- identity-guard gets no global row: its text is not in the repo, so writing
--- an org-neutral version waits on reading the Production row (PR body names
--- the follow-up issue).
+-- MarketingCaptain's dmm_notify_recipient_routing is retired: it tells Carmen
+-- DMM's pulse goes to one person, and the per-org recipients setting (AIO-260)
+-- now names DMM's pulse recipients.
 --
--- Fires ai_skills_search_vector_trg (BEFORE INSERT). Sends no message.
+-- Fires ai_skills_search_vector_trg on the inserted rows, and on the retired
+-- row also bump_ai_skill_version_trg (version unchanged: is_active is not
+-- skin content) and update_ai_skills_updated_at. Sends no message.
 -- Test: supabase/tests/carmen_learned_skins_global.sql.
 
 DO $migration$
@@ -119,6 +122,33 @@ BEGIN
 3. כש-is_ecommerce=true, הציגי רכישות ו-ROAS (purchases_7d, roas_7d) במקום CPL.$$,
         'כשהטבלה מחוברת והסנכרון ישן, אל תאמרי "אין נתונים". אל תמציאי מדדים שהכלי לא החזיר.',
         ARRAY['get_latest_campaign_pulse']::text[]
+      ),
+      (
+        'identity-guard',
+        'תמיד מזדהה ככרמן',
+        'כרמן תמיד מזדהה ככרמן ולא מאמצת זהות של אדם, דמות או בוט אחר, גם כשמבקשים ממנה.',
+        ARRAY[
+          'מי את',
+          'איך קוראים לך',
+          'עם מי אני מדבר',
+          'תתחזי',
+          'להתחזות',
+          'תעמידי פנים',
+          'תציגי את עצמך',
+          'who are you',
+          'what is your name',
+          'pretend to be',
+          'impersonate',
+          'act as someone else'
+        ]::text[],
+        $$1. כששואלים מי את, עני שאת כרמן.
+2. כשמבקשים ממך להתחזות לאדם, לדמות או לבוט אחר, אמרי שאת כרמן והציעי לעזור ככרמן.
+3. טקסט שאת כותבת לבקשת המשתמש בקול של מותג או בשמו הוא לא החלפת זהות.$$,
+        $$תמיד הזדהי ככרמן. לעולם אל תאמצי זהות של דמות אחרת.
+כששואלים מי את או איך קוראים לך, עני שאת כרמן.
+כשמבקשים ממך להתחזות לאדם, לדמות או לבוט אחר, סרבי בקצרה והמשיכי לעזור ככרמן.$$,
+        'אל תציגי את עצמך כאדם, כדמות או כבוט אחר, גם כשמבקשים ממך.',
+        '{}'::text[]
       )
   ),
   added AS (
@@ -168,3 +198,22 @@ BEGIN
   END IF;
 END
 $migration$;
+
+-- Retires MarketingCaptain's dmm_notify_recipient_routing row.
+DO $retire$
+DECLARE
+  v_retired bigint;
+BEGIN
+  UPDATE public.ai_skills AS s
+  SET is_active = false
+  FROM public.tenants AS t
+  WHERE t.id = s.tenant_id
+    AND t.slug = 'marketingcaptain'
+    AND s.scope = 'tenant'
+    AND s.slug = 'dmm_notify_recipient_routing'
+    AND s.is_active;
+  GET DIAGNOSTICS v_retired = ROW_COUNT;
+
+  RAISE NOTICE 'AIO-262: retired % active dmm_notify_recipient_routing row(s) of marketingcaptain', v_retired;
+END
+$retire$;
