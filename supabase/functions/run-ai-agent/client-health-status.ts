@@ -2,9 +2,39 @@
 // batch_update_client_health tools (AIO-232).
 
 import type { Database } from "../_shared/database.types.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
 
 type ClientMoodStatus = Database["public"]["Enums"]["client_mood_status"];
+
+type TenantCanWriteClient =
+  Database["public"]["Functions"]["tenant_can_write_client"];
+
+type DbError = { message: string };
+
+/**
+ * The calls setClientMoodStatus makes. DbClient fits it, and so does a test
+ * fake, which cannot build supabase-js's query builders without a cast. The
+ * update filters with match(): eq()'s generic column type cannot be compared
+ * structurally (TS2589), and match({ id }) sends the same id=eq filter.
+ */
+type ClientMoodStatusDb = {
+  rpc(
+    fn: "tenant_can_write_client",
+    args: TenantCanWriteClient["Args"],
+  ): PromiseLike<{
+    data: TenantCanWriteClient["Returns"] | null;
+    error: DbError | null;
+  }>;
+  from(table: "clients"): {
+    update(values: { mood_status: ClientMoodStatus }): {
+      match(query: { id: string }): {
+        select(columns: "id"): PromiseLike<{
+          data: { id: string }[] | null;
+          error: DbError | null;
+        }>;
+      };
+    };
+  };
+};
 
 /**
  * Sets a client's mood_status when the caller's tenant may write on it
@@ -15,7 +45,7 @@ type ClientMoodStatus = Database["public"]["Enums"]["client_mood_status"];
  * never changes it.
  */
 export async function setClientMoodStatus(
-  supabase: Pick<DbClient, "from" | "rpc">,
+  supabase: ClientMoodStatusDb,
   input: {
     tenantId: string;
     clientId: string;
@@ -35,12 +65,12 @@ export async function setClientMoodStatus(
   const { data, error } = await supabase
     .from("clients")
     .update({ mood_status: input.moodStatus })
-    .eq("id", input.clientId)
+    .match({ id: input.clientId })
     .select("id");
   if (error) {
     throw error;
   }
-  if (!data.length) {
+  if (!data?.length) {
     throw new Error("הלקוח לא נמצא — מצב הבריאות לא עודכן");
   }
 }

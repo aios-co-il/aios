@@ -3,8 +3,10 @@
 // through _shared/client-card/entry.ts; list_updates reads via list-updates.ts.
 
 import { asUuidOrNull } from "../_shared/uuid.mjs";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  type ClientCardEntryRpc,
+  recordClientCardEntry,
+} from "../_shared/client-card/entry.ts";
 import {
   ClientCardEntryError,
   type ClientCardEntryResult,
@@ -14,7 +16,7 @@ import { planCarmenClientUpdate } from "./client-card-contact-policy.ts";
 
 /** Carmen's add_client_update tool. The caller checks callerScope first. */
 export async function addClientUpdateFromCarmen(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: {
     tenantId: string;
     clientId: string;
@@ -97,7 +99,7 @@ export const HEALTH_CARD_ENTRY_ERROR_HINT =
  * Only an exception that is not a card error (a bug) is rethrown.
  */
 export async function recordHealthCardEntryAfterUpdate(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: HealthCardEntryInput,
 ): Promise<{ card_entry_error?: string }> {
   try {
@@ -116,7 +118,7 @@ export async function recordHealthCardEntryAfterUpdate(
 
 /** Card entry for update_client_health / batch_update_client_health. */
 export function recordCarmenHealthCardEntry(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: HealthCardEntryInput,
 ): Promise<ClientCardEntryResult> {
   const requester = asUuidOrNull(input.requesterUserId);
