@@ -136,6 +136,14 @@ Deno.serve(async (req) => {
   // table it would write "skipped" over that night's real results.
   if (useFixture && !tableIds?.length)
     return json({ error: "fixture source needs table_ids" }, 400);
+  // Only the unscoped nightly chain moves past the tables phase. A scoped or
+  // fixture call with phase "retry" would otherwise run on body.deferred,
+  // outside its table_ids, and could write canned results over real runs.
+  if ((useFixture || scoped) && phase !== "tables")
+    return json(
+      { error: "retry and accounts phases are only for the nightly chain" },
+      400,
+    );
 
   const google = {
     developerToken: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? "",
