@@ -6,7 +6,8 @@ import type { PulseTargetDb } from "./context.ts";
  * written, or null. The service role skips RLS, but a table deleted or moved to
  * another tenant since it was read still matches no row and returns no error, so
  * the updated row is selected back: a target is never reported saved on a table
- * that did not take it.
+ * that did not take it. A database error is logged; the reason returned is
+ * generic, since Carmen relays it and the approval row stores it.
  */
 export async function writeTableSettings(
   db: PulseTargetDb,
@@ -23,10 +24,17 @@ export async function writeTableSettings(
     .in("tenant_id", tenantIds)
     .select("id");
   if (error) {
-    return error.message;
+    console.error("pulse target: table write failed", {
+      table_id: tableId,
+      error: error.message,
+    });
+    return TABLE_WRITE_FAILED;
   }
   return data?.length ? null : TABLE_NOT_WRITTEN;
 }
+
+/** The reason Carmen relays when the database refused the write. */
+export const TABLE_WRITE_FAILED = "שמירת היעד בטבלת הקמפיינים נכשלה";
 
 /** The reason Carmen relays when the update matched no table. */
 export const TABLE_NOT_WRITTEN =

@@ -5,6 +5,7 @@ import {
   isPulsePlatform,
   pulsePlatformName,
   pulsePlatformOf,
+  pulsePlatformShortName,
 } from "./platforms.ts";
 
 Deno.test("report tables map to their ad platform", () => {
@@ -22,6 +23,8 @@ Deno.test("report tables map to their ad platform", () => {
 Deno.test("platforms are named as the pulse shows them", () => {
   assertStrictEquals(pulsePlatformName("meta"), "Meta");
   assertStrictEquals(pulsePlatformName("google"), "Google Ads");
+  assertStrictEquals(pulsePlatformShortName("meta"), "Meta");
+  assertStrictEquals(pulsePlatformShortName("google"), "Google");
   assertStrictEquals(isPulsePlatform("meta"), true);
   assertStrictEquals(isPulsePlatform("tiktok"), false);
 });

@@ -92,7 +92,11 @@ export async function applyApprovedPulseTarget(
       ...PULSE_PLATFORM_INTEGRATION_TYPES[parsed.platform],
     ]);
   if (error) {
-    return { ok: false, result: { error: error.message } };
+    // The row stores the result and the response returns it: keep the cause in the log.
+    console.error("carmen-approval-execute: set_pulse_target tables not read", {
+      error: error.message,
+    });
+    return { ok: false, result: { error: "campaign tables not read" } };
   }
   if (!tables?.length) {
     return { ok: false, result: { error: "no matching campaign table" } };

@@ -2,7 +2,7 @@
  * An in-memory crm_tables behind the supabase client module, for tests of the
  * dashboard's target save: only the calls savePulseTargetToTables and
  * useSavePulseTarget make. Tests swap it in with
- * `vi.mock("@/integrations/supabase/client", () => import("@/test/pulseTargetSaveFake"))`.
+ * `vi.mock("@/integrations/supabase/client", () => import("./pulseTargetSaveFake"))`.
  */
 
 /** One crm_tables row; RLS lets the user read a readOnly row but not update it. */

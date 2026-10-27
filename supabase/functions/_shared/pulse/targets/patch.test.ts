@@ -5,7 +5,7 @@ import {
 } from "jsr:@std/assert@1";
 
 import { at } from "../test-fixtures.ts";
-import { buildPulseTargetPatch, revertPulseTargetPatch } from "./patch.ts";
+import { buildPulseTargetPatch } from "./patch.ts";
 import { resolvePulseTarget } from "./resolve.ts";
 
 Deno.test(
@@ -125,40 +125,6 @@ Deno.test(
     );
     assertThrows(() =>
       buildPulseTargetPatch({}, { goal: "unknown", value: 1 }),
-    );
-  },
-);
-
-Deno.test(
-  "revertPulseTargetPatch restores the target key and keeps what a sync wrote since",
-  () => {
-    const before = {
-      last_sync_at: "2026-10-25",
-      pulse_platform_targets: { leads: { cpl: 90, source: "carmen_market" } },
-    };
-    const written = buildPulseTargetPatch(before, { goal: "leads", value: 70 });
-    const synced = { ...written, last_sync_at: "2026-10-26" };
-    assertEquals(revertPulseTargetPatch(synced, before, {}), {
-      ...before,
-      last_sync_at: "2026-10-26",
-    });
-  },
-);
-
-Deno.test(
-  "revertPulseTargetPatch removes a campaign map the save created",
-  () => {
-    // The first campaign write copies legacy campaign_targets into pulse_targets;
-    // removing pulse_targets again lets the readers fall back to the legacy map.
-    const before = { campaign_targets: { old: { cpl: 40 } } };
-    const written = buildPulseTargetPatch(before, {
-      goal: "leads",
-      value: 55,
-      campaignId: "c1",
-    });
-    assertEquals(
-      revertPulseTargetPatch(written, before, { campaignId: "c1" }),
-      before,
     );
   },
 );

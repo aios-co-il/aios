@@ -1,5 +1,8 @@
 import type { PulseSnapshotAlertInput } from "../pulse-instant-alerts.ts";
-import { pulseTargetSourceLabel } from "./targets/kinds.ts";
+import {
+  pulseTargetKindLabel,
+  pulseTargetSourceLabel,
+} from "./targets/kinds.ts";
 
 /** One campaign_breakdown row of a snapshot, as the instant alert reads it. */
 type AlertCampaign = NonNullable<
@@ -15,7 +18,7 @@ export function alertTargetText(campaign: AlertCampaign): string {
     campaign.target_source === "carmen_market"
       ? ` · ${pulseTargetSourceLabel("carmen_market")}`
       : "";
-  return `${(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${market}`;
+  return `${pulseTargetKindLabel(campaign.target_kind)} ${campaign.target_value}${market}`;
 }
 
 /**

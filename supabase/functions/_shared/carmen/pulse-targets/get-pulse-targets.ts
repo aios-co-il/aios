@@ -6,7 +6,8 @@ import { latestCampaignRows } from "./snapshot-rows.ts";
 
 /**
  * get_pulse_targets: what each client has (source, rationale, date) and which
- * spending campaigns have no target, most uncovered spend first.
+ * spending campaigns have no target, most uncovered spend first. The reads are
+ * capped; `truncated` and `note` say when a cap cut the answer.
  */
 export async function getPulseTargets(
   db: PulseTargetDb,
@@ -20,24 +21,37 @@ export async function getPulseTargets(
   if (clientIds && !clientIds.length) {
     return { clients: [], missing_count: 0, note: "אין לקוחות בהרשאה שלך" };
   }
-  const tables = await adTables(db, ctx, clientIds);
+  const read = await adTables(db, ctx, clientIds);
   const ids = [
-    ...new Set(tables.flatMap((t) => (t.client_id ? [t.client_id] : []))),
-  ];
+    ...new Set(read.tables.flatMap((t) => (t.client_id ? [t.client_id] : []))),
+  ].slice(0, MAX_CLIENT_IDS);
+  const readIds = new Set(ids);
+  const tables = read.tables.filter(
+    (t) => t.client_id !== null && readIds.has(t.client_id),
+  );
+  const partial = read.partial || tables.length < read.tables.length;
   const campaignRows = await latestCampaignRows(db, ctx, ids);
   const summary = summarizePulseTargets({ tables, campaignRows });
-  const nameById = await clientNames(db, ctx, ids);
-  const sorted = summary.clients
-    .map((client) => ({
+  const sorted = summary.clients.sort(
+    (a, b) => missingSpend(b.missing) - missingSpend(a.missing),
+  );
+  const shown = sorted.slice(0, MAX_CLIENTS_RETURNED);
+  const nameById = await clientNames(
+    db,
+    ctx,
+    shown.flatMap((client) =>
+      typeof client.client_id === "string" ? [client.client_id] : [],
+    ),
+  );
+  return {
+    clients: shown.map((client) => ({
       client_name: nameById.get(client.client_id) || null,
       ...client,
-    }))
-    .sort((a, b) => missingSpend(b.missing) - missingSpend(a.missing));
-  return {
-    clients: sorted.slice(0, MAX_CLIENTS_RETURNED),
+    })),
     clients_total: sorted.length,
     missing_count: summary.missing_count,
-    truncated: sorted.length > MAX_CLIENTS_RETURNED,
+    truncated: partial || sorted.length > MAX_CLIENTS_RETURNED,
+    ...(partial ? { note: PARTIAL_NOTE } : {}),
     sources: {
       approved: `${pulseTargetSourceLabel("approved")} — אדם קבע`,
       carmen_market: `${pulseTargetSourceLabel("carmen_market")} — הערכה של כרמן; מפעיל התראות כמו מאושר`,
@@ -46,6 +60,12 @@ export async function getPulseTargets(
 }
 
 const MAX_CLIENTS_RETURNED = 40;
+
+/** The most report tables, and clients, one call reads. */
+const MAX_TABLES = 1000;
+const MAX_CLIENT_IDS = 500;
+
+const PARTIAL_NOTE = `נקראו עד ${MAX_TABLES} טבלאות ו־${MAX_CLIENT_IDS} לקוחות, ולכן התשובה חלקית. לתמונה מלאה של לקוח — ציינו client_id.`;
 
 /**
  * The clients to report on: the one asked for (after an access check), every
@@ -89,7 +109,10 @@ async function requestedClientIds(
   return { error: "ציינו client_id — אין לך שיוך ללקוחות" };
 }
 
-/** The ad report tables of these clients (all clients when null) in the caller's tenants. */
+/**
+ * The ad report tables of these clients (all clients when null) in the caller's
+ * tenants; `partial` when a cap may have left some out.
+ */
 async function adTables(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
@@ -101,18 +124,23 @@ async function adTables(
     .in("tenant_id", ctx.accessibleTenantIds)
     .in("integration_type", [...PULSE_AD_INTEGRATION_TYPES])
     .not("client_id", "is", null)
-    .limit(1000);
+    .limit(MAX_TABLES);
   if (clientIds) {
-    query = query.in("client_id", clientIds.slice(0, 500));
+    query = query.in("client_id", clientIds.slice(0, MAX_CLIENT_IDS));
   }
   const { data, error } = await query;
   if (error) {
     throw error;
   }
-  return data || [];
+  const tables = data || [];
+  return {
+    tables,
+    partial:
+      tables.length >= MAX_TABLES || (clientIds?.length ?? 0) > MAX_CLIENT_IDS,
+  };
 }
 
-/** Client names by id, read in the caller's tenants. */
+/** The names of the clients shown, read in the caller's tenants. */
 async function clientNames(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
@@ -124,7 +152,7 @@ async function clientNames(
   const { data, error } = await db
     .from("clients")
     .select("id, name")
-    .in("id", ids.slice(0, 500))
+    .in("id", ids)
     .in("tenant_id", ctx.accessibleTenantIds);
   if (error) {
     throw error;

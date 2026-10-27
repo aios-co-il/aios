@@ -19,7 +19,8 @@ export type TargetRequestInput = {
  * The requester's open request for the same target place, kind and value, so a
  * repeat call reuses it instead of piling up. This is a select before the insert:
  * agent_approval_queue has no unique key on tool_input to upsert on, and a rare
- * duplicate row is still approved or expires on its own.
+ * duplicate row is still approved or expires on its own. A unique index or a
+ * reservation replaces it in AIO-???.
  */
 export async function findPendingTargetRequest(
   db: PulseTargetDb,

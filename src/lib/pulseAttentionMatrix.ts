@@ -2,10 +2,7 @@ import type {
   PulseCampaignGoal,
   PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
-import {
-  buildPulseAttentionRows as buildRows,
-  evaluateEfficiencyIssue as evaluateEfficiency,
-} from "../../supabase/functions/_shared/pulse-attention-matrix.mjs";
+import { buildPulseAttentionRows as buildRows } from "../../supabase/functions/_shared/pulse-attention-matrix.mjs";
 import type { PulseTarget } from "../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 export type PulseAttentionIssueLevel = "ok" | "watch" | "alert";
@@ -55,11 +52,6 @@ type PlatformTable = {
   integration_type: string | null;
   integration_settings?: Record<string, unknown> | null;
 };
-
-/** Efficiency cell from the campaign rows' own classification (same as the snapshot). */
-export const evaluateEfficiencyIssue = evaluateEfficiency as (input: {
-  campaignRows: PulseCampaignGoalRow[];
-}) => PulseAttentionIssue | null;
 
 export const buildPulseAttentionRows = buildRows as (input: {
   campaignRows: PulseCampaignGoalRow[];

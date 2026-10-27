@@ -9,7 +9,10 @@ import { at } from "../../pulse/test-fixtures.ts";
 import { fakeDb } from "./fake-db.ts";
 import { setMarketTarget } from "./set-market-target.ts";
 import { NOW, RATIONALE, ctx, seed, settingsOf } from "./test-fixtures.ts";
-import { TABLE_NOT_WRITTEN } from "./write-table-settings.ts";
+import {
+  TABLE_NOT_WRITTEN,
+  TABLE_WRITE_FAILED,
+} from "./write-table-settings.ts";
 
 const LEADS_TARGET = {
   client_id: "client-1",
@@ -122,7 +125,7 @@ Deno.test(
       value: 60,
     });
     assertStrictEquals(at(result, "success"), false);
-    assertStrictEquals(at(result, "error"), "crm_tables update failed");
+    assertStrictEquals(at(result, "error"), TABLE_WRITE_FAILED);
     assertEquals(at(result, "still_written"), []);
   },
 );

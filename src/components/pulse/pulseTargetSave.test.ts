@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { crmTables } from "@/test/pulseTargetSaveFake";
+import { crmTables } from "./pulseTargetSaveFake";
 import {
   pulseTargetSaveKey,
   savePulseTargetToTables,
@@ -8,7 +8,7 @@ import {
 
 vi.mock(
   "@/integrations/supabase/client",
-  () => import("@/test/pulseTargetSaveFake"),
+  () => import("./pulseTargetSaveFake"),
 );
 
 type Settings = Record<string, Record<string, Record<string, unknown>>>;

@@ -1,8 +1,8 @@
 import {
   buildPulseTargetPatch,
-  revertPulseTargetPatch,
   type PulseTargetPatchInput,
 } from "../../pulse/targets/patch.ts";
+import { revertPulseTargetPatch } from "../../pulse/targets/revert.ts";
 import type { PulseTargetDb } from "./context.ts";
 import { writeTableSettings } from "./write-table-settings.ts";
 
@@ -21,8 +21,8 @@ export type TargetTablesWrite =
  * write stops the loop, and each table already written gets its previous target
  * back: integration_settings is JSON on separate rows, so a compensating write
  * stands in for a transaction. Each write is a read-modify-write of the settings
- * read before the loop; a sync writing the same JSON in between can lose one
- * side's change, and an atomic jsonb_set RPC would need a migration.
+ * read before the loop, so a sync writing the same JSON in between can lose one
+ * side's change; an atomic jsonb_set RPC (a migration) replaces it in AIO-???.
  */
 export async function writeTargetToTables(
   db: PulseTargetDb,

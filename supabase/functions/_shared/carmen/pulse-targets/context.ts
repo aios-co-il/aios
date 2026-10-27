@@ -27,12 +27,18 @@ export type PulseTargetToolContext = {
 export type ToolRefusal = { error: string; message: string };
 
 /**
- * A refusal when the caller's role may not set targets. A caller with no role (an
- * automation, Carmen on her own) may still set a market target; set_pulse_target
- * checks for a person separately.
+ * A refusal when the caller's role may not set targets: managers (run-ai-agent's
+ * isManagerRole and isTeamManager) and campaigners may. A caller with no role (an
+ * automation, Carmen on her own, a user with no user_roles row) may still set a
+ * market target; set_pulse_target checks for a person separately.
  */
 export function roleProblem(ctx: PulseTargetToolContext): ToolRefusal | null {
-  if (!ctx.callerRole || TARGET_WRITER_ROLES.has(ctx.callerRole)) {
+  if (
+    !ctx.callerRole ||
+    ctx.isManagerRole ||
+    ctx.isTeamManager ||
+    ctx.callerRole === "campaigner"
+  ) {
     return null;
   }
   return {
@@ -41,13 +47,3 @@ export function roleProblem(ctx: PulseTargetToolContext): ToolRefusal | null {
       "רק מנהלים וקמפיינרים קובעים יעדי דופק. אפשר להציג את היעדים עם get_pulse_targets.",
   };
 }
-
-/** The people who can edit report tables in the UI. */
-const TARGET_WRITER_ROLES = new Set([
-  "super_admin",
-  "owner",
-  "agency_owner",
-  "agency_manager",
-  "team_manager",
-  "campaigner",
-]);

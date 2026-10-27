@@ -11,7 +11,10 @@ import {
   seed,
   settingsOf,
 } from "../_shared/carmen/pulse-targets/test-fixtures.ts";
-import { TABLE_NOT_WRITTEN } from "../_shared/carmen/pulse-targets/write-table-settings.ts";
+import {
+  TABLE_NOT_WRITTEN,
+  TABLE_WRITE_FAILED,
+} from "../_shared/carmen/pulse-targets/write-table-settings.ts";
 import { at } from "../_shared/pulse/test-fixtures.ts";
 import {
   applyApprovedPulseTarget,
@@ -54,6 +57,25 @@ function dbWithQueuedRow(failOn?: Parameters<typeof fakeDb>[1]) {
   tables.agent_approval_queue = [queuedRow()];
   return fakeDb(tables, failOn);
 }
+
+Deno.test(
+  "a failed table read answers 400 without the database's error text",
+  async () => {
+    const db = dbWithQueuedRow({ table: "crm_tables", op: "select" });
+    const response = await handlePulseTargetApproval(
+      db,
+      queuedRow(),
+      "approval-1",
+      "owner-1",
+      HEADERS,
+      () => NOW,
+    );
+    assertStrictEquals(response.status, 400);
+    const failed = { error: "campaign tables not read" };
+    assertEquals(at(await response.json(), "result"), failed);
+    assertEquals(db.tables.agent_approval_queue[0].execution_result, failed);
+  },
+);
 
 Deno.test(
   "an approved set_pulse_target replaces Carmen's market target",
@@ -211,7 +233,7 @@ Deno.test(
     );
     assertStrictEquals(response.status, 400);
     assertEquals(at(await response.json(), "result"), {
-      error: "crm_tables update failed",
+      error: TABLE_WRITE_FAILED,
       still_written: [],
     });
     assertEquals(at(settingsOf(db, "t-meta"), "pulse_targets", "c1"), {

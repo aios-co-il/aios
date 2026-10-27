@@ -4,11 +4,11 @@ import type {
   PulseCampaignGoal,
   PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
+import type { PulseCampaignTable } from "@/lib/pulseDashboard";
 import {
-  pulsePlatformKey,
-  type PulseCampaignTable,
-} from "@/lib/pulseDashboard";
-import type { PulsePlatform } from "../../../supabase/functions/_shared/pulse/platforms.ts";
+  pulsePlatformOf,
+  type PulsePlatform,
+} from "../../../supabase/functions/_shared/pulse/platforms.ts";
 import { listCampaignsWithoutTarget } from "../../../supabase/functions/_shared/pulse/targets/missing.ts";
 import type { PulseTargetEditorContext } from "./PulseTargetEditorDialog/PulseTargetEditorDialog";
 
@@ -93,7 +93,7 @@ export function platformTableIds(
     .filter(
       (table) =>
         table.client_id === clientId &&
-        pulsePlatformKey(table.integration_type) === platform,
+        pulsePlatformOf(table.integration_type) === platform,
     )
     .map((table) => table.id);
 }

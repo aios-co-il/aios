@@ -1,9 +1,13 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
+import { isJsonObject } from "../../pulse/json.ts";
 import { at } from "../../pulse/test-fixtures.ts";
 import { fakeDb, type FailOn } from "./fake-db.ts";
 import { seed, settingsOf } from "./test-fixtures.ts";
-import { TABLE_NOT_WRITTEN } from "./write-table-settings.ts";
+import {
+  TABLE_NOT_WRITTEN,
+  TABLE_WRITE_FAILED,
+} from "./write-table-settings.ts";
 import { writeTargetToTables } from "./write-target-tables.ts";
 
 const MARKET = { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" };
@@ -62,7 +66,7 @@ Deno.test(
       last_sync_at: "2026-10-26",
       pulse_platform_targets: { leads: MARKET },
     });
-    // The restore read the table again and wrote it once more.
+    // The restore wrote the table once more, within the tenant.
     const writes = db.writes.filter((w) => w.table === "crm_tables");
     assertEquals(
       writes.map((w) => w.filters),
@@ -87,7 +91,7 @@ Deno.test(
     try {
       assertEquals(await writeCpl70(db), {
         ok: false,
-        error: "crm_tables update failed",
+        error: TABLE_WRITE_FAILED,
         stillWritten: ["t-meta"],
       });
     } finally {
@@ -97,5 +101,38 @@ Deno.test(
       at(settingsOf(db, "t-meta"), "pulse_platform_targets", "leads", "cpl"),
       70,
     );
+  },
+);
+
+Deno.test(
+  "writeTargetToTables restores over the settings read again, keeping a sync's write",
+  async () => {
+    const db = twoMetaTables({
+      table: "crm_tables",
+      op: "update",
+      id: "t-meta-2",
+      noMatch: true,
+    });
+    // A sync writes t-meta right after the target did; the restore keeps it.
+    let synced = false;
+    db.hooks.afterWrite = (table, row) => {
+      if (table === "crm_tables" && row.id === "t-meta" && !synced) {
+        synced = true;
+        const settings = row.integration_settings;
+        row.integration_settings = {
+          ...(isJsonObject(settings) ? settings : {}),
+          last_sync_at: "2026-10-27",
+        };
+      }
+    };
+    assertEquals(await writeCpl70(db), {
+      ok: false,
+      error: TABLE_NOT_WRITTEN,
+      stillWritten: [],
+    });
+    assertEquals(settingsOf(db, "t-meta"), {
+      last_sync_at: "2026-10-27",
+      pulse_platform_targets: { leads: MARKET },
+    });
   },
 );

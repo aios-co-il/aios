@@ -20,6 +20,10 @@ Deno.test("the target text names a market target as Carmen's", () => {
     }),
     "ROAS 3 · יעד שוק (כרמן)",
   );
+  assertStrictEquals(
+    alertTargetText({ target_kind: "cost_per_result", target_value: 5 }),
+    "עלות לתוצאה 5",
+  );
 });
 
 Deno.test("3 days of spend without results is spotted", () => {

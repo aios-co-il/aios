@@ -3,7 +3,9 @@ import {
   isEcommerceReportTable,
   tableReportGoal,
 } from "./pulse-campaign-goals.mjs";
+import { evaluateEfficiencyIssue } from "./pulse/efficiency-issue.ts";
 import { isConfirmedGoogleSalesCampaign } from "./pulse/google-sales-campaign.ts";
+import { pulsePlatformOf } from "./pulse/platforms.ts";
 import { resolvePulseTargetAcross } from "./pulse/targets/resolve.ts";
 
 const MOOD_STATUS_LABELS = {
@@ -30,15 +32,13 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+/** The client's report tables of one ad platform, picked as the target editor picks them. */
 function platformTablesForClient(tables, clientId, platform) {
-  return tables.filter((table) => {
-    if (table.client_id !== clientId) return false;
-    if (platform === "google") return table.integration_type === "google_ads";
-    return (
-      table.integration_type === "facebook_insights" ||
-      table.integration_type === "facebook_ecommerce"
-    );
-  });
+  return tables.filter(
+    (table) =>
+      table.client_id === clientId &&
+      pulsePlatformOf(table.integration_type) === platform,
+  );
 }
 
 function platformConfiguredGoal(tables, clientId, platform) {
@@ -187,50 +187,6 @@ function aggregatePlatformMetrics(rows, configuredGoal = null) {
     baselineEfficiency7d:
       baselineWeight > 0 ? round(baselineWeighted / baselineWeight) : null,
     lastChangeAt,
-  };
-}
-
-const STATUS_RANK = { exception: 2, watch: 1 };
-
-/**
- * The efficiency cell of a client × platform, taken from its campaign rows. Each row
- * was classified by buildPulseCampaignRows with the tenant's cost rules — the same
- * classification the snapshot stores and alerts on — so the dashboard turns red
- * exactly when a WhatsApp alert is due (alert_eligible), and shows an exception that
- * does not alert (a campaign without a target while those alerts are off) as watch.
- * @param {{ campaignRows?: object[] }} [input]
- */
-export function evaluateEfficiencyIssue({ campaignRows = [] } = {}) {
-  const flagged = campaignRows
-    .filter(
-      (row) =>
-        // An exception is red when it alerts and yellow while its alerts are off.
-        row.status_tier === "exception" ||
-        (row.status === "warning" && row.status_tier === "watch"),
-    )
-    .sort(
-      (a, b) =>
-        Number(b.alert_eligible === true) - Number(a.alert_eligible === true) ||
-        (STATUS_RANK[b.status_tier] ?? 0) - (STATUS_RANK[a.status_tier] ?? 0) ||
-        (b.spend_7d ?? 0) - (a.spend_7d ?? 0),
-    );
-  if (!flagged.length) {
-    return null;
-  }
-  const worst = flagged[0];
-  const others = flagged.length - 1;
-  const more =
-    others === 1
-      ? " (ועוד קמפיין אחד)"
-      : others > 1
-        ? ` (ועוד ${others} קמפיינים)`
-        : "";
-  const name = worst.campaign_name ? `${worst.campaign_name}: ` : "";
-  const silentException =
-    worst.status_tier === "exception" && worst.alert_eligible !== true;
-  return {
-    level: worst.alert_eligible === true ? "alert" : "watch",
-    label: `${name}${worst.status_reason || "חריגה"}${silentException ? " · בלי התראה (התראות לקמפיינים בלי יעד כבויות)" : ""}${more}`,
   };
 }
 

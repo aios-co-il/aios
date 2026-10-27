@@ -1,5 +1,10 @@
 import { isJsonObject, type JsonObject, type JsonValue } from "../json.ts";
-import { campaignSlotKey, campaignTargets, readKind } from "./entries.ts";
+import {
+  campaignSlotKey,
+  campaignTargets,
+  readKind,
+  staleCampaignNameSlot,
+} from "./entries.ts";
 import {
   normalizeTargetSource,
   pulseTargetKindsForGoal,
@@ -64,32 +69,6 @@ export function buildPulseTargetPatch(
   };
 }
 
-/**
- * Undoes buildPulseTargetPatch, for a save that failed on a later table. The one
- * key the patch wrote (pulse_targets for a campaign, pulse_platform_targets for
- * a platform) gets its value from `previousSettings` back, or is removed when it
- * had none. Every other key keeps what `currentSettings` holds, so a sync that
- * wrote the table after the patch is not undone.
- */
-export function revertPulseTargetPatch(
-  currentSettings: unknown,
-  previousSettings: unknown,
-  input: Pick<PulseTargetPatchInput, "campaignId" | "campaignName">,
-): JsonObject {
-  const settings = isJsonObject(currentSettings) ? { ...currentSettings } : {};
-  const previous = isJsonObject(previousSettings) ? previousSettings : {};
-  const key = campaignSlotKey(input)
-    ? "pulse_targets"
-    : "pulse_platform_targets";
-  const value = previous[key];
-  if (value === undefined) {
-    delete settings[key];
-  } else {
-    settings[key] = value;
-  }
-  return settings;
-}
-
 /** The stored entry: value, source, Carmen's rationale and who set it when. */
 function targetEntry(
   input: PulseTargetPatchInput,
@@ -118,10 +97,7 @@ function campaignSlotPatch(
   // Keep a legacy campaign_targets map: the readers fall back to it only when
   // pulse_targets is missing, so the first write carries it over.
   const targets = { ...campaignTargets(settings) };
-  // The readers try the id before the name, so an entry under the name is stale
-  // once the id holds one, and removing must clear both.
-  const name = (input.campaignName || "").trim();
-  if (name && name !== slot && name !== "default") {
+  for (const name of staleCampaignNameSlot(input, slot)) {
     delete targets[name];
   }
   if (entry) {

@@ -4,11 +4,17 @@ import { roleProblem } from "./context.ts";
 import { ctx } from "./test-fixtures.ts";
 
 Deno.test("managers, campaigners and role-less callers may set targets", () => {
-  for (const callerRole of ["owner", "team_manager", "campaigner", null]) {
-    assertStrictEquals(roleProblem(ctx({ callerRole })), null);
+  const notManager = { isManagerRole: false, isTeamManager: false };
+  for (const caller of [
+    { callerRole: "owner", isManagerRole: true },
+    { ...notManager, callerRole: "team_manager", isTeamManager: true },
+    { ...notManager, callerRole: "campaigner" },
+    { ...notManager, callerRole: null },
+  ]) {
+    assertStrictEquals(roleProblem(ctx(caller)), null);
   }
   assertStrictEquals(
-    roleProblem(ctx({ callerRole: "sales_person" }))?.error,
+    roleProblem(ctx({ ...notManager, callerRole: "sales_person" }))?.error,
     "role_not_allowed",
   );
 });

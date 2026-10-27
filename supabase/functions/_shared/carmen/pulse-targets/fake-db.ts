@@ -35,7 +35,9 @@ export type FailOn = { table: string; op: Op; noMatch?: boolean; id?: string };
 
 /**
  * crm_tables, snapshots, clients and the approval queue in memory. Updates and
- * inserts are applied and recorded with the columns they filtered on.
+ * inserts are applied and recorded with the columns they filtered on. A test may
+ * set `hooks.afterWrite` to change a row right after an update wrote it (a sync
+ * landing between two steps).
  */
 export function fakeDb(
   seed: Record<string, Row[]>,
@@ -44,6 +46,7 @@ export function fakeDb(
   const tables: Record<string, Row[]> = structuredClone(seed);
   const writes: Write[] = [];
   const failures = [failOn].flat();
+  const hooks: { afterWrite?: (table: string, row: Row) => void } = {};
   let nextId = 1;
   function from(name: string): Query {
     tables[name] ??= [];
@@ -79,6 +82,7 @@ export function fakeDb(
       if (op === "update") {
         for (const row of matched) {
           Object.assign(row, structuredClone(payload));
+          hooks.afterWrite?.(name, row);
         }
         writes.push({ table: name, op, rows: matched, filters: filtered });
         // supabase-js returns the updated rows only when .select() asks for them.
@@ -138,7 +142,7 @@ export function fakeDb(
     };
     return api;
   }
-  return { from, tables, writes };
+  return { from, tables, writes, hooks };
 }
 
 /** The fake's state, as returned by fakeDb. */

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/requireTenantId";
 import {
   pulseTargetSaveKey,
   savePulseTargetToTables,
@@ -22,15 +23,13 @@ export function useSavePulseTarget(tenantId: string | null | undefined) {
   };
   const mutation = useMutation({
     mutationFn: async (input: PulseTargetSaveInput) => {
-      if (!tenantId) {
-        throw new Error("שמירת היעד נכשלה");
-      }
+      const tenant = requireTenantId(tenantId);
       // set_by records who approved the target, so a failed lookup stops the save.
       const { data, error } = await supabase.auth.getUser();
       if (error) {
         throw error;
       }
-      await savePulseTargetToTables(input, tenantId, data.user.id);
+      await savePulseTargetToTables(input, tenant, data.user.id);
     },
     onSuccess: async (_saved, input) => {
       toast.success(input.value === null ? "היעד הוסר" : "היעד נשמר");

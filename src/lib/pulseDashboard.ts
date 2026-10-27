@@ -1,6 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
 import {
+  pulsePlatformOf,
+  pulsePlatformShortName,
+  type PulsePlatform,
+} from "../../supabase/functions/_shared/pulse/platforms.ts";
+import {
   classificationDataFromStoredRow,
   classifyPulseCampaignGoal,
   integrationTypeToGoal,
@@ -170,7 +175,7 @@ export function clientHasConnectedCampaignTables(
 ): boolean {
   if (!Array.isArray(tables) || !tables.length) return false;
   return tables.some(
-    (table) => pulsePlatformKey(table.integration_type) !== null,
+    (table) => pulsePlatformOf(table.integration_type) !== null,
   );
 }
 
@@ -726,7 +731,7 @@ export function rollupCampaignRowsByClientGoal(input: {
       rowKey: key,
       client_id,
       platform,
-      platformLabel: pulsePlatformLabel(platform),
+      platformLabel: pulsePlatformShortName(platform),
       goal,
       status,
       status_reason: statusReason,
@@ -889,8 +894,6 @@ export function formatOperatorTouch(at: string | null): string {
   });
 }
 
-export type PulsePlatform = "meta" | "google";
-
 export type PulseCampaignTable = {
   id: string;
   client_id: string;
@@ -912,22 +915,6 @@ export type PulsePlatformDisplayRow = PulseGoalDisplayRow & {
 };
 
 const STALE_SYNC_MS = 30 * 60 * 60 * 1000;
-
-export function pulsePlatformLabel(platform: PulsePlatform): string {
-  return platform === "google" ? "Google" : "Meta";
-}
-
-export function pulsePlatformKey(
-  integrationType: string | null | undefined,
-): PulsePlatform | null {
-  if (integrationType === "google_ads") return "google";
-  if (
-    integrationType === "facebook_insights" ||
-    integrationType === "facebook_ecommerce"
-  )
-    return "meta";
-  return null;
-}
 
 function clientCampaignServices(
   services: string[] | null | undefined,
@@ -980,7 +967,7 @@ export function pickFreshestTablePerPlatform(
   const best = new Map<PulsePlatform, PulseCampaignTable>();
   for (const table of tables) {
     if (table.campaign_active === false) continue;
-    const key = pulsePlatformKey(table.integration_type);
+    const key = pulsePlatformOf(table.integration_type);
     if (!key) continue;
     const prev = best.get(key);
     if (!prev) {
@@ -1108,7 +1095,7 @@ function classifyPlatformGoalStatus(input: {
   lastClientCallAt?: string | null;
 }): { status: PulseStatus; flags: string[] } {
   const flags: string[] = [];
-  const platformName = pulsePlatformLabel(input.platform);
+  const platformName = pulsePlatformShortName(input.platform);
 
   if (!input.configuredTables.length || !input.activeTables.length) {
     flags.push("אין טבלת קמפיין מחוברת");
@@ -1118,7 +1105,7 @@ function classifyPlatformGoalStatus(input: {
   const stale = pickFreshestTablePerPlatform(input.activeTables)
     .filter((table) => isSyncStale(table))
     .map((table) =>
-      pulsePlatformLabel(pulsePlatformKey(table.integration_type) || "meta"),
+      pulsePlatformShortName(pulsePlatformOf(table.integration_type) || "meta"),
     );
   if (stale.length) {
     flags.push(`סנכרון ישן או חסר: ${stale.join(", ")}`);
@@ -1178,7 +1165,7 @@ function goalsForPlatform(
 ): CampaignGoal[] {
   const goals = new Set<CampaignGoal>();
   for (const table of tables) {
-    if (pulsePlatformKey(table.integration_type) !== platform) continue;
+    if (pulsePlatformOf(table.integration_type) !== platform) continue;
     const goal = integrationTypeToGoal(table.integration_type, table);
     if (goal) goals.add(goal);
   }
@@ -1192,7 +1179,7 @@ function platformsForClient(
 ): PulsePlatform[] {
   const platforms = new Set<PulsePlatform>();
   for (const table of [...activeTables, ...configuredTables]) {
-    const key = pulsePlatformKey(table.integration_type);
+    const key = pulsePlatformOf(table.integration_type);
     if (key) platforms.add(key);
   }
   if (!platforms.size) {
@@ -1221,7 +1208,7 @@ export function expandPulseToPlatformGoalRows(input: {
   // Many clients have connected report tables before ppc_* is set on client.services.
   if (!configuredTables.length) {
     configuredTables = tables.filter(
-      (table) => pulsePlatformKey(table.integration_type) !== null,
+      (table) => pulsePlatformOf(table.integration_type) !== null,
     );
   }
   const activeTables = configuredTables.filter(
@@ -1269,12 +1256,12 @@ export function expandPulseToPlatformGoalRows(input: {
   if (!clientId) return rows;
 
   for (const platform of platforms) {
-    const platformLabel = pulsePlatformLabel(platform);
+    const platformLabel = pulsePlatformShortName(platform);
     const platformActive = activeTables.filter(
-      (table) => pulsePlatformKey(table.integration_type) === platform,
+      (table) => pulsePlatformOf(table.integration_type) === platform,
     );
     const platformConfigured = configuredTables.filter(
-      (table) => pulsePlatformKey(table.integration_type) === platform,
+      (table) => pulsePlatformOf(table.integration_type) === platform,
     );
     const platformTableIds = new Set(platformActive.map((table) => table.id));
     const platformRecords = records.filter((record) =>
@@ -1981,7 +1968,7 @@ export function pulseGoalKeyForTable(
   integrationType: string,
   campaignType: "leads" | "ecommerce",
 ): { platform: PulsePlatform | null; goal: CampaignGoal } {
-  const platform = pulsePlatformKey(integrationType);
+  const platform = pulsePlatformOf(integrationType);
   const goal = integrationTypeToGoal(integrationType) || campaignType;
   return { platform, goal };
 }

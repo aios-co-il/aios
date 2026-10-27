@@ -54,6 +54,7 @@ import { PulseClientRawCard } from "@/components/pulse/PulseClientRawCard";
 import { PulseAttentionTable } from "@/components/pulse/PulseAttentionTable";
 import { PulseTargetEditorDialog } from "@/components/pulse/PulseTargetEditorDialog/PulseTargetEditorDialog";
 import { PulseMissingTargetsList } from "@/components/pulse/PulseMissingTargetsList";
+import { PulseDashboardTabTrigger } from "@/components/pulse/PulseDashboardTabTrigger";
 import { usePulseAlertRules } from "@/components/pulse/usePulseAlertRules";
 import { usePulseTargetEditor } from "@/components/pulse/usePulseTargetEditor";
 import { useSavePulseTarget } from "@/components/pulse/useSavePulseTarget";
@@ -1138,34 +1139,19 @@ export function CampaignPulseDashboard({
         className="space-y-3"
       >
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
-          <TabsTrigger value="data" className="gap-2">
-            <Table2 className="h-4 w-4" />
-            נתונים
-          </TabsTrigger>
-          <TabsTrigger value="attention" className="gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            תשומת לב
-            {listSummary.attentionCount > 0 ? (
-              <Badge
-                variant="secondary"
-                className="mr-1 text-[10px] px-1.5 py-0"
-              >
-                {listSummary.attentionCount}
-              </Badge>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="no_target" className="gap-2">
-            <Target className="h-4 w-4" />
-            בלי יעד
-            {listSummary.missingTargetCount > 0 ? (
-              <Badge
-                variant="secondary"
-                className="mr-1 text-[10px] px-1.5 py-0"
-              >
-                {listSummary.missingTargetCount}
-              </Badge>
-            ) : null}
-          </TabsTrigger>
+          <PulseDashboardTabTrigger value="data" icon={Table2} label="נתונים" />
+          <PulseDashboardTabTrigger
+            value="attention"
+            icon={AlertTriangle}
+            label="תשומת לב"
+            count={listSummary.attentionCount}
+          />
+          <PulseDashboardTabTrigger
+            value="no_target"
+            icon={Target}
+            label="בלי יעד"
+            count={listSummary.missingTargetCount}
+          />
         </TabsList>
 
         <TabsContent value="data" className="space-y-3 mt-0">

@@ -122,6 +122,19 @@ export function campaignSlots(campaign: CampaignRef): string[] {
   return [...new Set([id, name])].filter((slot) => slot && slot !== "default");
 }
 
+/**
+ * The campaign's name entry when its target sits under its id. The readers try
+ * the id before the name, so an entry under the name is stale once the id holds
+ * one, and removing must clear both.
+ */
+export function staleCampaignNameSlot(
+  campaign: { campaignName?: string | null },
+  slot: string,
+): string[] {
+  const name = (campaign.campaignName || "").trim();
+  return name && name !== slot && name !== "default" ? [name] : [];
+}
+
 /** The goal a stored campaign entry was written for (older entries carry none). */
 export function entryGoal(entry: unknown): string | null {
   if (!isJsonObject(entry)) {

@@ -1,9 +1,14 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import { fakeDb } from "./fake-db.ts";
 import { seed } from "./test-fixtures.ts";
 import {
   TABLE_NOT_WRITTEN,
+  TABLE_WRITE_FAILED,
   writeTableSettings,
 } from "./write-table-settings.ts";
 
@@ -47,10 +52,21 @@ Deno.test(
   },
 );
 
-Deno.test("writeTableSettings returns the database error", async () => {
-  const db = fakeDb(seed(), { table: "crm_tables", op: "update" });
-  assertStrictEquals(
-    await writeTableSettings(db, WRITE),
-    "crm_tables update failed",
-  );
-});
+Deno.test(
+  "writeTableSettings logs the database error and returns a generic reason",
+  async () => {
+    const db = fakeDb(seed(), { table: "crm_tables", op: "update" });
+    const logged: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => logged.push(args);
+    try {
+      assertStrictEquals(
+        await writeTableSettings(db, WRITE),
+        TABLE_WRITE_FAILED,
+      );
+    } finally {
+      console.error = originalError;
+    }
+    assertMatch(JSON.stringify(logged), /crm_tables update failed/);
+  },
+);

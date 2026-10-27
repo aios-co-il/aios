@@ -36,7 +36,7 @@ describe("mergePulseAlertRules", () => {
     });
   });
 
-  it("starts from the defaults when nothing usable is stored", () => {
+  it("starts from the defaults and adds manager only when it is set", () => {
     expect(mergePulseAlertRules(null, {})).toEqual({
       instant_wa_enabled: true,
       no_contact_enabled: true,
@@ -44,8 +44,18 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
-      manager: { cost: {} },
     });
+    expect(
+      mergePulseAlertRules(null, { manager: { cost: { trend_pct: 45 } } })
+        .manager,
+    ).toEqual({ cost: { trend_pct: 45 } });
+  });
+
+  it("keeps a stored manager block without cost as it is", () => {
+    const stored = { manager: { mode: "observe" } };
+    expect(
+      mergePulseAlertRules(stored, parsePulseAlertRules(stored)).manager,
+    ).toEqual({ mode: "observe" });
   });
 });
 

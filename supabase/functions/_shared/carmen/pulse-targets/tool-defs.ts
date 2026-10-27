@@ -1,3 +1,4 @@
+import { PULSE_PLATFORMS } from "../../pulse/platforms.ts";
 import {
   PULSE_TARGET_GOALS,
   pulseTargetKindsForGoal,
@@ -23,7 +24,7 @@ const targetParams = {
   client_id: { type: "string", description: "מזהה הלקוח" },
   platform: {
     type: "string",
-    enum: ["meta", "google"],
+    enum: [...PULSE_PLATFORMS],
     description: "meta (פייסבוק/אינסטגרם) או google (Google Ads)",
   },
   goal: {

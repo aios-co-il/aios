@@ -1,5 +1,5 @@
 import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { evaluateEfficiencyIssue } from "./pulse-attention-matrix.mjs";
+import { evaluateEfficiencyIssue } from "./efficiency-issue.ts";
 
 const breach = {
   campaign_name: "לידים",

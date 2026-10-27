@@ -2,6 +2,7 @@ import {
   assertEquals,
   assertRejects,
   assertStrictEquals,
+  assertStringIncludes,
 } from "jsr:@std/assert@1";
 
 import { at } from "../../pulse/test-fixtures.ts";
@@ -67,4 +68,21 @@ Deno.test("a caller with no client scope must name a client", async () => {
     {},
   );
   assertEquals(result, { error: "ציינו client_id — אין לך שיוך ללקוחות" });
+});
+
+Deno.test("a read cut by its cap says the answer is partial", async () => {
+  const tables = seed();
+  const [metaTable] = tables.crm_tables;
+  tables.crm_tables = Array.from({ length: 501 }, (_, i) => ({
+    ...metaTable,
+    id: `t-${i}`,
+    client_id: `client-${i}`,
+  }));
+  const result = await getPulseTargets(fakeDb(tables), ctx(), {});
+  assertStrictEquals(at(result, "truncated"), true);
+  assertStringIncludes(String(at(result, "note")), "התשובה חלקית");
+
+  const whole = await getPulseTargets(fakeDb(seed()), ctx(), {});
+  assertStrictEquals(at(whole, "truncated"), false);
+  assertStrictEquals(at(whole, "note"), undefined);
 });
