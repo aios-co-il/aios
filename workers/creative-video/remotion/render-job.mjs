@@ -72,7 +72,7 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom"];
+const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
@@ -124,7 +124,10 @@ const musicLoopsOf = (list) => {
   });
 };
 
-/** Karaoke lines: frame-timed words, at most 2000 lines of 12 words. */
+/**
+ * Caption lines: frame-timed words, at most 2000 lines of 12 words. A motion caption's word
+ * also says its line (0 or 1), whether it is the key word and whether it reads left to right.
+ */
 const captionsOf = (list) => {
   if (!Array.isArray(list)) return [];
   assert(list.length <= 2000, "Too many captions");
@@ -143,13 +146,20 @@ const captionsOf = (list) => {
       endFrame: line.endFrame,
       words: line.words.map((word) => {
         assert(
-          frameNo(word?.startFrame) && frameNo(word?.endFrame),
+          frameNo(word?.startFrame) &&
+            frameNo(word?.endFrame) &&
+            [undefined, 0, 1].includes(word.line) &&
+            [undefined, true, false].includes(word.key) &&
+            [undefined, true, false].includes(word.ltr),
           "Invalid caption word",
         );
         return {
           text: text(word.text, 40),
           startFrame: word.startFrame,
           endFrame: word.endFrame,
+          line: word.line === 1 ? 1 : 0,
+          key: word.key === true,
+          ltr: word.ltr === true,
         };
       }),
     };
@@ -279,6 +289,9 @@ if (manifest.schemaVersion === 1) {
     effectsEnvelope:
       v3 && effects.length ? envelopeOf(manifest.effectsEnvelope) : null,
     captions: v3 ? captionsOf(manifest.captions) : [],
+    // Motion-graphic captions (render-worker motion-captions.mjs); karaoke lines otherwise.
+    captionStyle:
+      v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({
@@ -291,7 +304,7 @@ if (manifest.schemaVersion === 1) {
       ...(v3
         ? {
             voice: scene.voice || null,
-            // The scene's short title over karaoke captions: at most 32 characters
+            // The scene's short title over the captions: at most 32 characters
             // (render-worker kicker.mjs KICKER_MAX_CHARS).
             kicker: scene.kicker ? text(scene.kicker, 32) : null,
             transition: scene.transition || "crossfade",

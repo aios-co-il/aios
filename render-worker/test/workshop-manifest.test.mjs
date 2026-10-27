@@ -121,9 +121,12 @@ test("word timings become karaoke captions and duck the music", () => {
     narrationPath: "/tmp/n.mp3",
     narrationAlignment: alignment,
     musicPath: "/tmp/m.mp3",
+    captionStyle: "karaoke",
     scenes: [scene("a", { durationS: 3 })],
   });
+  expect(manifest.captionStyle).toBe("karaoke");
   expect(manifest.captions.length).toBe(1);
+  expect("line" in manifest.captions[0].words[0]).toBe(false);
   expect(
     manifest.captions[0].words.map((w) => [w.text, w.startFrame, w.endFrame]),
   ).toStrictEqual([
@@ -134,6 +137,41 @@ test("word timings become karaoke captions and duck the music", () => {
     frames: [0, 30, 44, 90],
     volumes: [0.06, 0.06, 0.2, 0.2],
   });
+});
+
+test("a workshop film gets motion captions by default: phrases cut at scenes, title words key", () => {
+  // "שלום עולם" over scene a (0–1 s), "שלום כרמן" over scene b from 2 s.
+  const words = {
+    words: [
+      { text: "שלום", start: 0, end: 0.4 },
+      { text: "עולם", start: 0.5, end: 1 },
+      { text: "שלום", start: 2.1, end: 2.4 },
+      { text: "כרמן!", start: 2.5, end: 2.9 },
+    ],
+  };
+  const { manifest } = buildWorkshopManifest({
+    aspect: "9:16",
+    narrationPath: "/tmp/n.mp3",
+    narrationAlignment: words,
+    scenes: [
+      scene("a", { durationS: 2, overlayText: "עולם" }),
+      scene("b", { durationS: 2, overlayText: "פתיחה" }),
+    ],
+  });
+  expect(manifest.captionStyle).toBe("motion");
+  expect(
+    manifest.captions.map((c) =>
+      c.words.map((w) => `${w.key ? "*" : ""}${w.text}`),
+    ),
+  ).toStrictEqual([
+    ["שלום", "*עולם"],
+    ["שלום", "*כרמן!"],
+  ]);
+  // A phrase never runs over the cut into scene b.
+  expect(manifest.captions[0].endFrame).toBeLessThanOrEqual(
+    manifest.scenes[1].startFrame,
+  );
+  expect(manifest.captions[1].words.every((w) => w.line === 0)).toBe(true);
 });
 
 test("clip audio plays alone, sits under speech, and a lip-synced clip stays loud and still", () => {
