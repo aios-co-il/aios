@@ -106,6 +106,8 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_save_copy: "כותבת קופי",
   workshop_storyboard: "כותבת סטוריבורד",
   workshop_update_scene: "משנה סצנה",
+  workshop_edit_from_assets: "עורכת סרט מהחומרים",
+  workshop_choose_voice: "בוחרת קול",
   workshop_make_stills: "יוצרת תמונות לסצנות",
   workshop_produce_video: "מפיקה את הסרט",
   workshop_assign_client: "משייכת ללקוח",

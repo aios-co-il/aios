@@ -140,6 +140,9 @@ test("a prefill keeps what the user already typed and replaces an older scene", 
 
 test("workshop tools get a Hebrew line in the chat, others keep their name", () => {
   expect(workshopToolLabel("workshop_update_scene")).toBe("משנה סצנה");
+  expect(workshopToolLabel("workshop_edit_from_assets")).toBe(
+    "עורכת סרט מהחומרים",
+  );
   expect(workshopToolLabel("workshop_make_creative")).toBe("יוצרת תמונות");
   expect(workshopToolLabel("create_lead")).toBe("create_lead");
   expect(workshopToolLabel(undefined)).toBe(undefined);
