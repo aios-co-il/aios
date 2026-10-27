@@ -1,16 +1,25 @@
 /**
- * The film's sound, levelled on the local files before either edit mixes it. Each sound effect's
- * hit is brought to EFFECT_LUFS (an ElevenLabs impact came out 15 LU under its whoosh) and, in a
- * trailer, the music bed to MUSIC_LUFS, so the trailer mix's gains are loudness targets. An
- * ordinary film's bed keeps its own level under today's MIX; it is only measured, for where its
- * body ends (the loop hand-over). It runs at render time, so effects stored by earlier renders
- * are levelled too. The narration is only measured: the trailer mix sets the bed under it. A file
- * that cannot be read keeps its level.
+ * The film's sound, levelled on the local files before either edit mixes it. Each transition
+ * sound's hit is brought to EFFECT_LUFS and the impact's to IMPACT_LUFS, a little softer (an
+ * ElevenLabs impact came out 15 LU under its whoosh), and, in a trailer, the music bed to
+ * MUSIC_LUFS, so the trailer mix's gains are loudness targets. An ordinary film's bed keeps
+ * its own level under today's MIX; it is only measured, for where its body ends (the loop
+ * hand-over). It runs at render time, so effects stored by earlier renders are levelled too.
+ * A cut in a later round of the set gets its sound shifted by its round's pitch
+ * (transition-sounds.mjs ROUND_PITCH), then levelled like the others. The narration is only
+ * measured: the trailer mix sets the bed under it. A file that cannot be read keeps its level,
+ * and a sound that cannot be shifted plays as made.
  */
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { measureLoudness, normalizeAudio } from "../ffmpeg.mjs";
-import { EFFECT_LUFS, MUSIC_LUFS, isTrailer } from "./music-bed.mjs";
+import {
+  EFFECT_LUFS,
+  IMPACT_LUFS,
+  MUSIC_LUFS,
+  isTrailer,
+} from "./music-bed.mjs";
+import { pitchAudio } from "./sound-pitch.mjs";
 
 /** Peaks stay under this (dBTP); the limiter takes at most LIMITER_DB above it. */
 const CEILING_DB = -1;
@@ -42,8 +51,9 @@ const mean = (values) => {
 };
 
 /**
- * Returns the timeline with its music and effects levelled into `dir` (WAV), the music track's
- * musical end (musicBodyS, where a loop hands over) and the narration's loudness (voiceLufs).
+ * Returns the timeline with its music and effects levelled into `dir` (WAV), each cut's sound
+ * at its round's pitch (effects.cuts: { path }), the music track's musical end (musicBodyS,
+ * where a loop hands over) and the narration's loudness (voiceLufs).
  */
 export async function prepareSound(
   timeline,
@@ -51,6 +61,7 @@ export async function prepareSound(
   {
     measure = measureLoudness,
     normalize = normalizeAudio,
+    vary = pitchAudio,
     log = console.log,
   } = {},
 ) {
@@ -93,24 +104,55 @@ export async function prepareSound(
         )
       : (timeline.musicPath ?? null);
 
+  /** A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail. */
+  const levelHit = async (path, name, target) => {
+    const loudness = await read(path);
+    if (!loudness) return path;
+    return levelled(
+      path,
+      name,
+      levelGain({
+        measured: loudness.maxMomentary ?? loudness.integrated,
+        target,
+        peak: loudness.truePeak,
+      }),
+    );
+  };
+  /** `file` shifted by `pitch` semitones, or `file` itself when it cannot be. */
+  const pitched = async (file, name, pitch) => {
+    if (!pitch) return file;
+    const out = join(dir, `${name}-pitched.wav`);
+    try {
+      await vary(file, out, pitch);
+      return out;
+    } catch (error) {
+      log(`[sound] ${name} kept at its own pitch: ${error?.message ?? error}`);
+      return file;
+    }
+  };
   let effects = timeline.effects ?? null;
   if (effects) {
-    effects = { ...effects };
-    for (const name of ["whoosh", "impact"]) {
-      const path = effects[`${name}Path`];
-      const loudness = await read(path);
-      if (!loudness) continue;
-      // A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail.
-      effects[`${name}Path`] = await levelled(
-        path,
-        `sfx-${name}`,
-        levelGain({
-          measured: loudness.maxMomentary ?? loudness.integrated,
-          target: EFFECT_LUFS,
-          peak: loudness.truePeak,
-        }),
-      );
+    // Each sound at each pitch is made once, however many cuts play it.
+    const made = new Map();
+    const cuts = [];
+    for (const { path, pitch = 0 } of effects.cuts ?? []) {
+      const key = `${pitch}|${path}`;
+      if (!made.has(key)) {
+        const name = `sfx-cut-${made.size}`;
+        made.set(
+          key,
+          await levelHit(await pitched(path, name, pitch), name, EFFECT_LUFS),
+        );
+      }
+      cuts.push({ path: made.get(key) });
     }
+    effects = {
+      ...effects,
+      cuts,
+      impactPath: effects.impactPath
+        ? await levelHit(effects.impactPath, "sfx-impact", IMPACT_LUFS)
+        : null,
+    };
   }
 
   // Only the trailer mix sets the bed by the voice; an ordinary film's levels are fixed.

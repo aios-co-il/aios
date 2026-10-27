@@ -199,7 +199,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     talkingLine(scene.meta, scene.voiceover_text),
   );
   const withMusic = args.music !== false;
-  // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
+  // Trailer sound design (a transition sound at each cut, a soft hit on title and end card) and
   // the music bed both follow the film brief; the render worker reads video.sound_design and
   // makes the effects in this production's render only, so the quote includes them.
   const soundDesign = wantsSoundDesign(project.payload, {

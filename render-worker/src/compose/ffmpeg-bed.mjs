@@ -94,6 +94,28 @@ export function musicBedFilters({
   return { filters, loops };
 }
 
+/** Spoken spans in seconds as frames at `fps`. */
+const spanFrames = (spans, fps) =>
+  spans.map(([start, end]) => [Math.round(start * fps), Math.round(end * fps)]);
+
+/**
+ * The effects' level in the ffmpeg edit, an expression of t: the trailer mix's effect gains on
+ * the same envelope as the Remotion edit's effects (up with the bed between lines, down under
+ * every spoken span). Effects play only in a trailer.
+ */
+export function effectsVolume(timeline, spans, filmS, fps) {
+  const mix = mixProfile({
+    trailer: true,
+    voiceLufs: timeline.voiceLufs ?? null,
+  });
+  const envelope = musicEnvelope(
+    spanFrames(spans, fps),
+    Math.ceil(filmS * fps),
+    mix.fx,
+  );
+  return envelopeExpression(envelope, fps);
+}
+
 /**
  * The bed's level in the ffmpeg edit: the trailer mix ducks it under every spoken span like the
  * Remotion edit; an ordinary film keeps its steady level under the voice.
@@ -105,10 +127,7 @@ export function bedVolume(timeline, spans, filmS, fps) {
   });
   if (!mix.trailer) return MUSIC_STEADY;
   const envelope = musicEnvelope(
-    spans.map(([start, end]) => [
-      Math.round(start * fps),
-      Math.round(end * fps),
-    ]),
+    spanFrames(spans, fps),
     Math.ceil(filmS * fps),
     mix.bed,
   );

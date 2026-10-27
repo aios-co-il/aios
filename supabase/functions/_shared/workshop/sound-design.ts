@@ -1,7 +1,7 @@
 /**
  * How a film sounds beyond its voice: the music bed's prompt for ElevenLabs Music, and whether
- * the render adds trailer-style sound design (a whoosh at each cut, a low hit on the opening
- * title and on the end card; render-worker jobs/sound-effects.mjs). Both follow the film brief
+ * the render adds trailer-style sound design (a different gentle transition sound at each cut, a
+ * soft low hit on the opening title and on the end card; render-worker jobs/sound-effects.mjs). Both follow the film brief
  * (workshop_look.film and the brief's answers) and what the user wrote. Plain TypeScript.
  */
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";

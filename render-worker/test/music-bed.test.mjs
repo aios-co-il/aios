@@ -123,7 +123,6 @@ test("an ordinary film keeps today's mix; a trailer brings the bed up and 13.5 d
     trailer: false,
     music: MIX.music,
     musicDucked: MIX.musicDucked,
-    effects: MIX.effects,
     hold: 0,
   });
   expect(MIX.music).toBe(0.2);

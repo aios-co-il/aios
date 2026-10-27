@@ -99,12 +99,12 @@ export function costSceneOf(scene: {
 export const LIPSYNC_USD_PER_SECOND = 0.1;
 
 /**
- * Trailer sound design: one whoosh (1.2 s) and one low impact (2.5 s) made once per film with
- * ElevenLabs sound effects, in the production's own render (render-worker
- * jobs/sound-effects-catalog.mjs): 3.7 s at 40 credits a second at $0.0003 a credit is $0.0444,
- * rounded up to the cent. A render outside a production never pays for them.
+ * Trailer sound design: the whole set, made once per film with ElevenLabs sound effects in the
+ * production's own render (render-worker jobs/sound-effects-catalog.mjs): six gentle transition
+ * sounds (5.5 s together, a different one at each cut) and one soft impact (2 s). 7.5 s at 40
+ * credits a second at $0.0003 a credit is $0.09. A render outside a production never pays.
  */
-export const SOUND_EFFECTS_USD = 0.05;
+export const SOUND_EFFECTS_USD = 0.09;
 
 /** Engines whose clip speaks the line itself (Veo 3.1, Seedance 2.5), so no lip-sync pass. */
 export const speaksNatively = (engine: SceneEngine) =>

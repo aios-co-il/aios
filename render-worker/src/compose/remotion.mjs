@@ -61,17 +61,24 @@ async function measured(timeline, probeFile) {
     ? await read(timeline.narrationPath)
     : null;
   const music = timeline.musicPath ? await read(timeline.musicPath) : null;
-  const effects = timeline.effects
-    ? {
-        ...timeline.effects,
-        whooshDurationS: timeline.effects.whooshPath
-          ? (await read(timeline.effects.whooshPath))?.duration || 0
-          : 0,
-        impactDurationS: timeline.effects.impactPath
-          ? (await read(timeline.effects.impactPath))?.duration || 0
-          : 0,
-      }
-    : null;
+  let effects = null;
+  if (timeline.effects) {
+    // Each cut's sound with its length (a file two cuts share is read once).
+    const lengths = new Map();
+    const cuts = [];
+    for (const cut of timeline.effects.cuts ?? []) {
+      if (!lengths.has(cut.path))
+        lengths.set(cut.path, (await read(cut.path))?.duration || 0);
+      cuts.push({ ...cut, durationS: lengths.get(cut.path) });
+    }
+    effects = {
+      ...timeline.effects,
+      cuts,
+      impactDurationS: timeline.effects.impactPath
+        ? (await read(timeline.effects.impactPath))?.duration || 0
+        : 0,
+    };
+  }
   return {
     ...timeline,
     scenes,

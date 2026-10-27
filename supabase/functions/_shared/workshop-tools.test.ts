@@ -747,7 +747,7 @@ Deno.test(
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);
     // The effects are made in this production's render, so its quote includes them.
-    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.05);
+    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.09);
 
     const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
     assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
@@ -1823,7 +1823,7 @@ Deno.test(
       { defaultEngine: async () => "mock" as const },
     )) as Record<string, any>;
     assertStrictEquals(effects.needs_budget, true);
-    assertStrictEquals(effects.estimated_usd, 0.05);
+    assertStrictEquals(effects.estimated_usd, 0.09);
     assertStrictEquals(effects.with_sound_effects, true);
   },
 );

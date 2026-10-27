@@ -1,6 +1,8 @@
 /** The edit decision list the ffmpeg assembly renders. */
 import { captionStyleOf } from "./motion-captions.mjs";
 
+import { cutSoundPlan } from "./transition-sounds.mjs";
+
 export const FRAME_SIZE = {
   "16:9": [1280, 720],
   "9:16": [720, 1280],
@@ -13,6 +15,26 @@ export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
 /** A scene's planned seconds: the storyboard length, 3 s when unset, within 0.5–120 s. */
 export const sceneSeconds = (value) =>
   Math.min(120, Math.max(0.5, Number(value) || 3));
+
+/**
+ * The film's effects: the sound of each of its `cuts` cuts ({ path, pitch }: one of its
+ * transition sounds, a lone whooshPath being a set of one, and the semitones its round shifts
+ * it by; cutSoundPlan, drawn from `seed`) and its impact.
+ */
+function soundDesignEffects(effects, cuts) {
+  const transitionPaths = (
+    effects?.transitionPaths ?? [effects?.whooshPath]
+  ).filter(Boolean);
+  if (!transitionPaths.length && !effects?.impactPath) return null;
+  return {
+    cuts: cutSoundPlan(
+      transitionPaths.length,
+      cuts,
+      String(effects.seed ?? ""),
+    ).map(({ sound, pitch }) => ({ path: transitionPaths[sound], pitch })),
+    impactPath: effects.impactPath || null,
+  };
+}
 
 /**
  * Approved scenes, in storyboard order. A scene without a clip is skipped.
@@ -83,14 +105,10 @@ export function buildTimeline(
     narrationAlignment: narration ? narrationAlignment : null,
     brand,
     clipAudio: clipAudio !== false,
-    // Trailer sound design: a whoosh at each cut, an impact on the title and the end card.
-    effects:
-      effects?.whooshPath || effects?.impactPath
-        ? {
-            whooshPath: effects.whooshPath || null,
-            impactPath: effects.impactPath || null,
-          }
-        : null,
+    // Trailer sound design: a transition sound at each cut (a different one each time,
+    // transition-sounds.mjs, drawn from `seed`, the film's id) and an impact on the title and
+    // the end card.
+    effects: soundDesignEffects(effects, frames.length - 1),
     // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
     // also when its effects could not be made.
     soundDesign: soundDesign === true,

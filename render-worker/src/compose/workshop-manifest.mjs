@@ -357,7 +357,8 @@ export function buildWorkshopManifest(timeline) {
     voiceLufs: timeline.voiceLufs ?? null,
   });
 
-  // Trailer sound design, mixed under the voice: ducked like the music bed.
+  // Trailer sound design, mixed under the voice: ducked like the music bed. Each cut plays its
+  // own sound (the timeline's plan, transition-sounds.mjs); a file two cuts share is staged once.
   const fx = timeline.effects;
   const stage = (path, name) => {
     if (!path) return null;
@@ -365,18 +366,25 @@ export function buildWorkshopManifest(timeline) {
     files.push({ from: path, to });
     return to;
   };
-  const whoosh = fx ? stage(fx.whooshPath, "sfx-whoosh") : null;
+  const staged = new Map();
+  const cutSounds = (fx?.cuts ?? []).slice(0, scenes.length - 1).map((cut) => {
+    if (!staged.has(cut.path))
+      staged.set(cut.path, {
+        file: stage(cut.path, `sfx-cut-${staged.size}`),
+        frames: Math.ceil(seconds(cut.durationS) * fps),
+      });
+    return staged.get(cut.path);
+  });
   const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;
   const effects =
-    whoosh || impact
+    cutSounds.length || impact
       ? effectCues(scenes, {
           fps,
           totalFrames,
-          whoosh,
           impact,
-          whooshFrames: Math.ceil(seconds(fx.whooshDurationS) * fps),
           impactFrames: Math.ceil(seconds(fx.impactDurationS) * fps),
           endCardStart: endCard?.startFrame ?? null,
+          cutSounds,
         })
       : [];
   return {
@@ -394,10 +402,7 @@ export function buildWorkshopManifest(timeline) {
       ...(effects.length
         ? {
             effects,
-            effectsEnvelope: musicEnvelope(speech, totalFrames, {
-              base: mix.effects,
-              ducked: mix.effectsDucked,
-            }),
+            effectsEnvelope: musicEnvelope(speech, totalFrames, mix.fx),
           }
         : {}),
       captionStyle,

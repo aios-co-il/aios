@@ -1,4 +1,4 @@
--- Scene text edit (20261026103300_workshop_scene_text_edit): synthetic work items and scenes
+-- Scene text edit (20261026103240_workshop_scene_text_edit): synthetic work items and scenes
 -- inside one transaction that is rolled back. Only the texts given change, within their limits;
 -- meta keys written by others survive, and nothing is marked stale. Signed in as a tenant member
 -- (authenticated role), the scene of another tenant is not found and stays as it was.

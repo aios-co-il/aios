@@ -12,8 +12,8 @@ import {
 } from "./end-card.mjs";
 import { wordsFromAlignment } from "./captions.mjs";
 import { prepareSound } from "./sound-prep.mjs";
-import { bedVolume, musicBedFilters } from "./ffmpeg-bed.mjs";
-import { MIX, WHOOSH_LEAD } from "./workshop-edit.mjs";
+import { bedVolume, effectsVolume, musicBedFilters } from "./ffmpeg-bed.mjs";
+import { WHOOSH_LEAD } from "./workshop-edit.mjs";
 
 const ffmpeg = (args) =>
   new Promise((resolve, reject) => {
@@ -242,18 +242,20 @@ const TAIL_S = 0.5;
 
 /**
  * When each sound effect plays in the ffmpeg edit, in seconds: an impact at the opening title
- * and on the end card, a whoosh building into every cut.
+ * and on the end card, a whoosh building into every cut. `cutSounds` names each cut's own
+ * sound (one per cut in order); without it every cut plays the whoosh.
  */
 export function fallbackEffectCues(
   lengths,
-  { whoosh = false, impact = false, endCardS = null } = {},
+  { whoosh = false, impact = false, endCardS = null, cutSounds = null } = {},
 ) {
   const cues = [];
   if (impact) cues.push({ name: "impact", atS: 0 });
   let at = 0;
   for (const [index, length] of lengths.entries()) {
-    if (index > 0 && whoosh)
-      cues.push({ name: "whoosh", atS: Math.max(0, at - WHOOSH_LEAD) });
+    const name =
+      index > 0 ? (cutSounds?.[index - 1] ?? (whoosh ? "whoosh" : null)) : null;
+    if (name) cues.push({ name, atS: Math.max(0, at - WHOOSH_LEAD) });
     at += length;
   }
   if (impact && Number.isFinite(endCardS) && endCardS > 0)
@@ -267,37 +269,37 @@ export function fallbackEffectCues(
 const STEREO = "aformat=sample_rates=48000:channel_layouts=stereo";
 
 /**
- * The filter graph that lays the effects into the film. `index` maps an effect name to its
- * ffmpeg input. Every cue is a delayed copy of its effect; together they are ducked under the
- * speech (the scenes' audio, plus the narration when there is one) with a sidechain compressor,
- * the ffmpeg counterpart of the Remotion edit's effect envelope.
+ * The filter graph that lays the effects into the film as `[fx]`. `index` maps an effect name to
+ * its ffmpeg input. Every cue is a delayed copy of its effect; together they follow `volume` (a
+ * level, or an expression of t: effectsVolume's envelope, up between lines and down under the
+ * voice), the ffmpeg counterpart of the Remotion edit's effect envelope.
  */
-export function effectsGraph(cues, index, { narration = false } = {}) {
-  const filters = [
-    narration
-      ? `[0:a]${STEREO}[a0];[a0][n]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,asplit=2[speech][key]`
-      : `[0:a]${STEREO},asplit=2[speech][key]`,
-  ];
+export function effectsGraph(cues, index, { volume = 1 } = {}) {
+  const filters = [];
   const parts = [];
   for (const [name, input] of Object.entries(index)) {
     const mine = cues.filter((cue) => cue.name === name);
     if (!mine.length) continue;
-    const copies = mine.map((_, i) => `[${name}${i}]`);
+    const copies = mine.map((_, i) => `[${name}_${i}]`);
     filters.push(
-      `[${input}:a]${STEREO},volume=${MIX.effects},asplit=${mine.length}${copies.join("")}`,
+      `[${input}:a]${STEREO},asplit=${mine.length}${copies.join("")}`,
     );
     for (const [i, cue] of mine.entries()) {
       filters.push(
-        `${copies[i]}adelay=${Math.round(cue.atS * 1000)}:all=1[${name}d${i}]`,
+        `${copies[i]}adelay=${Math.round(cue.atS * 1000)}:all=1[${name}_d${i}]`,
       );
-      parts.push(`[${name}d${i}]`);
+      parts.push(`[${name}_d${i}]`);
     }
   }
+  const level =
+    typeof volume === "number"
+      ? `volume=${volume}`
+      : `volume='${volume}':eval=frame`;
+  // Sample-count timestamps after the mix, so the level's t is film time.
   filters.push(
-    `${parts.join("")}amix=inputs=${parts.length}:duration=longest:dropout_transition=0:normalize=0[fxraw]`,
-    "[fxraw][key]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=300[fx]",
+    `${parts.join("")}amix=inputs=${parts.length}:duration=longest:dropout_transition=0:normalize=0,asetpts=N/SR/TB,${level}[fx]`,
   );
-  return { filters, speech: "[speech]", effects: "[fx]" };
+  return { filters, effects: "[fx]" };
 }
 
 /**
@@ -385,10 +387,19 @@ export async function assembleFilm(
     "copy",
     picture,
   ]);
+  // Each cut plays its own sound (the timeline's plan), as in the Remotion edit; a file two
+  // cuts share is one input.
+  const sounds = new Map();
+  const cutSounds = (timeline.effects?.cuts ?? [])
+    .slice(0, lengths.length - 1)
+    .map(({ path }) => {
+      if (!sounds.has(path)) sounds.set(path, `cut${sounds.size}`);
+      return sounds.get(path);
+    });
   const cues = fallbackEffectCues(lengths, {
-    whoosh: Boolean(timeline.effects?.whooshPath),
     impact: Boolean(timeline.effects?.impactPath),
     endCardS: endCard ? scenesS : null,
+    cutSounds,
   });
   if (!timeline.narrationPath && !timeline.musicPath && !cues.length) {
     await ffmpeg([
@@ -434,23 +445,26 @@ export async function assembleFilm(
     );
     beds.push("[m]");
   }
-  let speech = "[0:a]";
   if (cues.length) {
     const index = {};
-    for (const name of ["whoosh", "impact"]) {
-      const path = timeline.effects?.[`${name}Path`];
+    const files = {
+      impact: timeline.effects?.impactPath,
+      ...Object.fromEntries([...sounds].map(([path, name]) => [name, path])),
+    };
+    for (const [name, path] of Object.entries(files)) {
       if (!path || !cues.some((cue) => cue.name === name)) continue;
       inputs.push("-i", path);
       index[name] = inputs.filter((arg) => arg === "-i").length - 1;
     }
-    // The effects duck under everything spoken: the scenes' own audio and the narration.
-    const narration = beds.includes("[n]");
-    if (narration) beds.splice(beds.indexOf("[n]"), 1);
-    const graph = effectsGraph(cues, index, { narration });
+    // The effects dip under everything spoken (the scenes' voices and the narration).
+    const graph = effectsGraph(cues, index, {
+      volume: effectsVolume(timeline, spans, filmS, timeline.fps),
+    });
     filters.push(...graph.filters);
-    speech = graph.speech;
     beds.push(graph.effects);
   }
+  // Each joined segment's audio runs a few ms past its slot (AAC framing): laid on its
+  // timestamps, so the film's narration, bed and effects stay on the cuts to the last scene.
   await ffmpeg([
     "-hide_banner",
     "-loglevel",
@@ -458,7 +472,7 @@ export async function assembleFilm(
     "-y",
     ...inputs,
     "-filter_complex",
-    `${filters.join(";")};${speech}${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
+    `${filters.join(";")};[0:a]aresample=async=1:first_pts=0[scenes];[scenes]${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
     "-map",
     "0:v",
     "-map",
