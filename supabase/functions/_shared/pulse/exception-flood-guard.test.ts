@@ -171,10 +171,13 @@ Deno.test("capExceptionMessages", async (t) => {
       { sent, summarized, summary_messages, skipped },
       { sent: 5, summarized: 2, summary_messages: 2, skipped: 0 },
     );
-    // One row per way an alert went out, with the phones it reached.
+    // One row per message an alert went out in, with the phones it reached:
+    // the owner's and the manager's summaries list different alerts.
     assertEquals(loggedDeliveries(supabase.log), [
-      `meta:id:a1 summary ${OWNER_PHONE},${MANAGER_PHONE}`,
-      `meta:id:a2 summary ${OWNER_PHONE},${MANAGER_PHONE}`,
+      `meta:id:a1 summary ${OWNER_PHONE}`,
+      `meta:id:a1 summary ${MANAGER_PHONE}`,
+      `meta:id:a2 summary ${OWNER_PHONE}`,
+      `meta:id:a2 summary ${MANAGER_PHONE}`,
       `meta:id:a3 own ${MANAGER_PHONE}`,
       `meta:id:a3 summary ${OWNER_PHONE}`,
       `meta:id:a4 own ${MANAGER_PHONE}`,

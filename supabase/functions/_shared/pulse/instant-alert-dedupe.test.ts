@@ -39,6 +39,37 @@ Deno.test("isInstantAlertSuppressed", async (t) => {
       assertStrictEquals(suppressed, true);
     },
   );
+
+  await t.step(
+    "an alert accepted earlier in the run suppresses the same finding before it is logged",
+    async () => {
+      const candidate = {
+        client_id: "c1",
+        client_name: "Acme",
+        rule_type: "connection_lost" as const,
+        message: "",
+        fingerprint: "connection_lost:c1:open",
+      };
+      const input = { supabase: fakeSupabase(), tenantId: "t1" };
+      const suppressed = (acceptedThisRun: Array<{ fingerprint: string }>) =>
+        isInstantAlertSuppressed(
+          input,
+          candidate,
+          24,
+          WEDNESDAY,
+          acceptedThisRun,
+        );
+      assertStrictEquals(await suppressed([]), false);
+      assertStrictEquals(
+        await suppressed([{ fingerprint: "connection_lost:c1:open" }]),
+        true,
+      );
+      assertStrictEquals(
+        await suppressed([{ fingerprint: "connection_lost:c1:other" }]),
+        false,
+      );
+    },
+  );
 });
 
 Deno.test("isSameInstantAlertFinding", async (t) => {

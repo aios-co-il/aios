@@ -1,10 +1,12 @@
 import {
   assertEquals,
+  assertMatch,
   assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
   consoleErrorsOf,
+  evidenceOf,
   exceptionCampaigns,
   exceptionSnapshot,
   isSummary,
@@ -60,27 +62,74 @@ Deno.test("buildExceptionSummaryMessage", async (t) => {
 
 Deno.test("sendExceptionSummaries", async (t) => {
   await t.step(
-    "alerts in a summary that is not queued are not logged and go out next run",
+    "a summary row logs the summary text the phone received, not the alert's own message",
+    async () => {
+      const supabase = fakeSupabase([], MANAGER_ON_AGENCY_A1);
+      const { sends } = await run(
+        supabase,
+        WEDNESDAY,
+        ownerAndManagerClients(),
+        {
+          rules: NO_CONTACT_OFF,
+          phraseException: async () => ({ summary: "הקמפיין מעל היעד" }),
+        },
+      );
+      const summaryTo = (phone: string) =>
+        sends.find((send) => send.phone === phone && isSummary(send.message))
+          ?.message;
+      const rowOf = (key: string, delivery: string, phone: string) =>
+        supabase.log.find(
+          (row) =>
+            row.campaign_key === key &&
+            (evidenceOf(row).delivery ?? "own") === delivery &&
+            row.recipient_phone === phone,
+        );
+
+      // a3 went out on its own to the manager, with model wording, and inside
+      // the owner's summary.
+      const own = rowOf("meta:id:a3", "own", MANAGER_PHONE);
+      const summary = rowOf("meta:id:a3", "summary", OWNER_PHONE);
+      assertMatch(String(own?.message), /סיכום כרמן: הקמפיין מעל היעד/);
+      assertStrictEquals(evidenceOf(own ?? {}).ai_wording !== undefined, true);
+      assertStrictEquals(summary?.message, summaryTo(OWNER_PHONE));
+      assertStrictEquals(evidenceOf(summary ?? {}).ai_wording, undefined);
+      assertStrictEquals(
+        rowOf("meta:id:a1", "summary", MANAGER_PHONE)?.message,
+        summaryTo(MANAGER_PHONE),
+      );
+    },
+  );
+
+  await t.step(
+    "alerts in a summary that is not queued are reported, not logged, and go out next run",
     async () => {
       const supabase = fakeSupabase();
       const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
       const sends: Array<{ message: string; phone: string | null }> = [];
-      const { result } = await run(supabase, WEDNESDAY, [snapshot], {
-        rules: NO_CONTACT_OFF,
-        queueWhatsApp: async (message, phone) => {
-          if (isSummary(message)) {
-            return false;
-          }
+      const errors = await consoleErrorsOf(async () => {
+        const { result } = await run(supabase, WEDNESDAY, [snapshot], {
+          rules: NO_CONTACT_OFF,
+          queueWhatsApp: async (message, phone) => {
+            if (isSummary(message)) {
+              return false;
+            }
 
-          sends.push({ message, phone });
-          return true;
-        },
+            sends.push({ message, phone });
+            return true;
+          },
+        });
+        assertStrictEquals(result.sent, 3);
+        assertStrictEquals(result.summarized, 0);
+        assertStrictEquals(result.summary_messages, 0);
+        assertStrictEquals(result.skipped, 4);
+      });
+      assertEquals(errors.length, 1);
+      assertMatch(String(errors[0][0]), /summary not queued/);
+      assertEquals(errors[0][1], {
+        tenant_id: "t1",
+        campaign_keys: ["meta:id:c4", "meta:id:c3", "meta:id:c2", "meta:id:c1"],
       });
       assertStrictEquals(sends.length, 3);
-      assertStrictEquals(result.sent, 3);
-      assertStrictEquals(result.summarized, 0);
-      assertStrictEquals(result.summary_messages, 0);
-      assertStrictEquals(result.skipped, 4);
       assertStrictEquals(supabase.log.length, 3);
 
       const next = await run(

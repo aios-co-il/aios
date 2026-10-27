@@ -16,9 +16,11 @@ const EXCEPTION_SUMMARY_MAX_LINES = 15;
 
 /**
  * Queues one summary message per phone over the cap, built by code. Each
- * alert listed in a queued summary is then logged once, for the phones whose
- * summary was queued (`evidence.delivery = "summary"`), so dedupe treats it
- * as delivered. An alert that reached no phone is not logged, so the next
+ * alert listed in a queued summary is then logged for the phones whose
+ * summary was queued (`evidence.delivery = "summary"`), with the summary
+ * text they received, so dedupe treats it as delivered. Phones that received
+ * different summaries get a row each. A summary that is not queued is
+ * reported, and an alert that reached no phone is not logged, so the next
  * run sends it. `summarized` counts the alerts that went out only inside a
  * summary.
  */
@@ -30,35 +32,45 @@ export async function sendExceptionSummaries(
   summaryByPhone: Map<string, PlannedInstantAlert[]>,
 ): Promise<{ summarized: number; summary_messages: number }> {
   let summaryMessages = 0;
-  const listed = new Set<PlannedInstantAlert>();
+  // Per listed alert: each summary text it went out in → the phones that got it.
+  const listed = new Map<PlannedInstantAlert, Map<string, string[]>>();
   for (const [phone, items] of summaryByPhone) {
-    const queued = await input.queueWhatsApp(
-      buildExceptionSummaryMessage(items.map((item) => item.candidate)),
-      phone,
+    const message = buildExceptionSummaryMessage(
+      items.map((item) => item.candidate),
     );
-    if (!queued) {
+    if (!(await input.queueWhatsApp(message, phone))) {
+      console.error(
+        "[pulse-instant-alerts] summary not queued; its alerts go out next run",
+        {
+          tenant_id: input.tenantId,
+          campaign_keys: items.map((item) => item.candidate.campaign_key),
+        },
+      );
       continue;
     }
 
     summaryMessages += 1;
     for (const item of items) {
       item.summarizedTo.push(phone);
-      listed.add(item);
+      const phonesByText = listed.get(item) ?? new Map<string, string[]>();
+      phonesByText.set(message, [...(phonesByText.get(message) ?? []), phone]);
+      listed.set(item, phonesByText);
     }
   }
 
-  for (const item of listed) {
-    const evidence = { ...item.candidate.evidence, delivery: "summary" };
-    await logInstantAlert(
-      input.supabase,
-      input.tenantId,
-      { ...item.candidate, evidence },
-      item.summarizedTo,
-    );
+  for (const [item, phonesByText] of listed) {
+    for (const [message, phones] of phonesByText) {
+      await logInstantAlert(
+        input.supabase,
+        input.tenantId,
+        summaryLogCandidate(item.candidate, message),
+        phones,
+      );
+    }
   }
 
   return {
-    summarized: [...listed].filter((item) => !item.sentTo.length).length,
+    summarized: [...listed.keys()].filter((item) => !item.sentTo.length).length,
     summary_messages: summaryMessages,
   };
 }
@@ -85,6 +97,23 @@ export function buildExceptionSummaryMessage(
     "",
     PULSE_ALERT_FOOTER,
   ].join("\n");
+}
+
+/**
+ * The alert as a summary phone received it: the summary text, and evidence
+ * without the model wording of its own message.
+ */
+function summaryLogCandidate(
+  candidate: PulseInstantAlertCandidate,
+  summaryMessage: string,
+): PulseInstantAlertCandidate {
+  const { ai_wording: _ownMessageWording, ...evidence } =
+    candidate.evidence ?? {};
+  return {
+    ...candidate,
+    message: summaryMessage,
+    evidence: { ...evidence, delivery: "summary" },
+  };
 }
 
 /**

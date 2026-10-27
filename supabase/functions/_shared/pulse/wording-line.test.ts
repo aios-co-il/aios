@@ -105,17 +105,34 @@ Deno.test("sanitizePulseWordingLine", async (t) => {
   await t.step(
     "a percentage or a number in words never passes, with or without a digit",
     () => {
-      for (const allowed of [new Set<string>(), new Set(["30", "52"])]) {
+      for (const allowed of [
+        new Set<string>(),
+        new Set(["30", "52", "3 ימים", "7 ימים"]),
+      ]) {
         for (const text of [
           "שלושים אחוז מעל היעד",
           "עלייה של עשרות אחוזים בעלות לליד",
           "ה-ROAS ירד בעשרות אחוזים",
           "העלות לליד כמעט כפולה מהיעד",
+          "הכפלת העלות לליד ביחס ליעד",
+          "העלות לליד הגיעה לכפל היעד",
+          "העלות לליד מוכפלת מהיעד",
+          "אפס לידים מאז השינוי",
           "שלושה ימים ברציפות מעל היעד",
+          "ששה ימים ברציפות מעל היעד",
+          "חמשה ימים ברציפות מעל היעד",
+          "שלשה ימים ברציפות",
+          "מאתים שקל",
+          "מליון שקל",
+          "עשירית מהיעד",
+          "ליד אחד בלבד מאז השינוי",
           "העלות לליד פי שניים מהיעד",
           "ירידה של 52 %",
           "ירידה של ٪ בהמרות",
           "ROAS down by thirty percent",
+          "CPL doubled vs target",
+          "twice the target",
+          "ROAS is half the target",
         ]) {
           assertEquals(
             sanitizePulseWordingLine(text, allowed),
@@ -123,6 +140,16 @@ Deno.test("sanitizePulseWordingLine", async (t) => {
             text,
           );
         }
+      }
+
+      // A multiplier stays a claim when its digit is a known value (a ROAS
+      // target of 3).
+      for (const text of ["ROAS פי3 מהיעד", "ROAS x3 מהיעד", "ROAS 3× מהיעד"]) {
+        assertEquals(
+          sanitizePulseWordingLine(text, new Set(["3"])),
+          { ok: false, reason: "invented_number" },
+          text,
+        );
       }
     },
   );

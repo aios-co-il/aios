@@ -3,8 +3,9 @@ import type { DbClient } from "../supabase-clients.ts";
 
 /**
  * Inserts the pulse_instant_alert_log row that dedupe reads, for the phones
- * the alert reached; cross-org dedupe trusts those phones. A failed insert
- * is reported, since the next run cannot see the alert and may send it again.
+ * the alert reached; cross-org dedupe trusts those phones. `candidate.message`
+ * is the text those phones received. A failed insert is reported, since the
+ * next run cannot see the alert and may send it again.
  */
 export async function logInstantAlert(
   supabase: Pick<DbClient, "from">,
