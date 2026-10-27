@@ -1,5 +1,5 @@
 import { hostLabel, isHttpUrl } from "../assets.ts";
-import { loadAssets, loadProject } from "../project-io.ts";
+import { loadAssets, loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
 
@@ -23,6 +23,8 @@ export async function workshopAddAssets(ctx: ToolContext) {
   let referenceCount = existing.filter(
     (a) => a.asset_type === "image" && a.use_as_reference,
   ).length;
+  // The picture the user named as the brand's logo: the film's end card and the ads use it.
+  let logoUrl: string | null = null;
   for (const entry of requested) {
     const item = asRecord(entry);
     const kind = String(item.kind ?? "");
@@ -31,6 +33,7 @@ export async function workshopAddAssets(ctx: ToolContext) {
       .slice(0, 120);
     const url = String(item.url ?? "").trim();
     let wantsReference = item.use_as_reference === true;
+    const wantsLogo = item.use_as_logo === true;
     if (kind === "text") {
       const text = String(item.text ?? "")
         .trim()
@@ -88,6 +91,7 @@ export async function workshopAddAssets(ctx: ToolContext) {
     }
     const known = byUrl.get(url);
     if (known) {
+      if (wantsLogo) logoUrl = known.url;
       if (wantsReference && !known.use_as_reference) {
         const marked = await supabase
           .from("workshop_assets")
@@ -124,16 +128,35 @@ export async function workshopAddAssets(ctx: ToolContext) {
       continue;
     }
     if (wantsReference) referenceCount += 1;
+    if (wantsLogo) logoUrl = imported.url;
     added.push({ title: title || hostLabel(url), type: "image" });
+  }
+  if (logoUrl) {
+    try {
+      await savePayload(supabase, tenantId, itemId, {
+        ...loaded.project.payload,
+        logo_url: logoUrl,
+      });
+    } catch (error) {
+      failed.push({
+        url: logoUrl,
+        reason: error instanceof Error ? error.message : "שמירת הלוגו נכשלה",
+      });
+      logoUrl = null;
+    }
   }
   return {
     success: failed.length < requested.length,
     added,
     failed,
-    message:
+    ...(logoUrl ? { logo_url: logoUrl } : {}),
+    message: `${
       added.length > 0
         ? `נוספו ${added.length} נכסים ללשונית הנכסים.${failed.length > 0 ? ` ${failed.length} לא נקלטו.` : ""}`
-        : "לא נוסף שום נכס. אמרי למשתמש למה בפשטות.",
+        : logoUrl
+          ? ""
+          : "לא נוסף שום נכס. אמרי למשתמש למה בפשטות."
+    }${logoUrl ? " הלוגו נשמר לפרויקט ויופיע בסגיר הסרט." : ""}`.trim(),
     workshop: { event: "artifacts", item_id: itemId },
   };
 }
