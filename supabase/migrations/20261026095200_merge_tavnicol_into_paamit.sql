@@ -8,9 +8,9 @@
 -- Move everything that references the duplicate onto פעמית עסקים:
 --   1. monthly SEO reports, only for months the target has no report yet;
 --   2. PBN articles (their monthly-report trigger dedupes by article id);
---   3. communication logs, client updates and Ahrefs reports.
--- The duplicate client row is left as it is (empty), because changing its status
--- fires the onboarding triggers. Archive it from the app.
+--   3. communication logs, client updates and Ahrefs reports;
+--   4. mark the empty duplicate inactive (the client status triggers act only on
+--      'onboarding' and 'active', and status automations run from the app, not here).
 --
 -- Clients are found by name, agency and tenant name, so the same migration works on
 -- every environment. It does nothing unless exactly one duplicate and exactly one
@@ -27,6 +27,7 @@ declare
   v_logs int;
   v_updates int;
   v_ahrefs int;
+  v_deactivated int;
 begin
   select t.id into v_tenant from public.tenants t where t.name = 'DMM';
   if v_tenant is null then
@@ -77,7 +78,13 @@ begin
   update public.ahrefs_reports set client_id = v_target where client_id = v_dup;
   get diagnostics v_ahrefs = row_count;
 
-  raise notice 'merge tavnicol: moved % reports, % articles, % logs, % updates, % ahrefs reports',
-    v_reports, v_articles, v_logs, v_updates, v_ahrefs;
+  update public.clients
+     set status = 'inactive'
+   where id = v_dup
+     and status is distinct from 'inactive';
+  get diagnostics v_deactivated = row_count;
+
+  raise notice 'merge tavnicol: moved % reports, % articles, % logs, % updates, % ahrefs reports; duplicate deactivated: %',
+    v_reports, v_articles, v_logs, v_updates, v_ahrefs, v_deactivated;
 end;
 $$;
