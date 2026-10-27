@@ -1,20 +1,13 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FunctionsHttpError } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  approvalEndpoint,
-  approvalOutcome,
-  approvalRequestBody,
-  type ApprovalDecision,
-} from "@/lib/approvalDecision";
+import { useApprovalDecision } from "./approvals/useApprovalDecision";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckCircle2, XCircle, Clock, ShieldAlert } from "lucide-react";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -50,43 +43,8 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
-/** Body of a non-2xx edge-function response, so the real reason reaches the user. */
-async function functionErrorBody(error: Error): Promise<unknown> {
-  if (
-    error instanceof FunctionsHttpError &&
-    error.context instanceof Response
-  ) {
-    const body: unknown = await error.context.json().catch(() => null);
-    if (body) return body;
-  }
-  return { error: error.message };
-}
-
 function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
-  const qc = useQueryClient();
-
-  // The server decides and runs the row (AIO-230): no status flip from the browser.
-  const decide = useMutation({
-    mutationFn: async (decision: ApprovalDecision) => {
-      const { data, error } = await supabase.functions.invoke(
-        approvalEndpoint(item),
-        { body: approvalRequestBody(item, decision) },
-      );
-      const outcome = approvalOutcome(
-        decision,
-        error ? await functionErrorBody(error) : data,
-      );
-      if (!outcome.ok) throw new Error(outcome.message);
-      return outcome.message;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["agent-approvals"] });
-      qc.invalidateQueries({ queryKey: ["agent-approvals-global"] });
-    },
-    onSuccess: (message) => toast.success(message),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
+  const decide = useApprovalDecision(item);
   const expired = item.expires_at && new Date(item.expires_at) < new Date();
 
   return (
@@ -177,8 +135,9 @@ export function ApprovalsTab({ agent }: { agent: any }) {
         .eq("agent_id", agent.id)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (tab === "pending") q = q.eq("status", "pending");
-      else
+      if (tab === "pending") {
+        q = q.eq("status", "pending");
+      } else {
         q = q.in("status", [
           "approved",
           "executing",
@@ -187,6 +146,8 @@ export function ApprovalsTab({ agent }: { agent: any }) {
           "failed",
           "expired",
         ]);
+      }
+
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

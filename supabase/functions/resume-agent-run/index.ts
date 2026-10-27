@@ -1,17 +1,9 @@
 // resume-agent-run — apply approval decision, log the outcome on the action trace,
 // and re-invoke run-ai-agent-v2 to continue the ReAct loop from the next step.
-//
-// AIO-230: only run-ai-agent-v2 run approvals (run_id set) are decided here. Carmen's
-// own approvals run through carmen-approval-execute. The reviewer is the caller's JWT
-// user (service callers may name reviewer_id), checked for tenant and approver role,
-// and the row is claimed atomically so a double click cannot run the tool twice.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// AIO-230: run steps only; reviewer gate and claim: ./authorize.ts.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
-import { asUuidOrNull } from "../_shared/uuid.ts";
-import {
-  authorizeApprovalActor,
-  claimApprovalRow,
-} from "../_shared/approval-approver.ts";
+import { authorizeRunDecision } from "./authorize.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,11 +17,10 @@ Deno.serve(async (req) => {
 
   try {
     const auth = await requireAuth(req);
-    if (!auth)
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!auth) {
+      return json(401, { error: "unauthorized" });
+    }
+
     const { approval_id, decision, reviewer_id } = await req.json();
     if (
       !approval_id ||
@@ -54,54 +45,18 @@ Deno.serve(async (req) => {
       .single();
     if (aErr || !approval) throw aErr ?? new Error("not found");
 
-    // Carmen approvals have no run; carmen-approval-execute runs them and checks the approver.
-    if (!approval.run_id) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "use_carmen_approval_execute" }),
-        {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // A signed-in caller decides as themselves; only service callers name the reviewer.
-    const reviewerId =
-      auth.kind === "user" ? auth.userId : asUuidOrNull(reviewer_id);
-    const authz = await authorizeApprovalActor(
+    const gate = await authorizeRunDecision(
       supabase,
+      auth,
       approval,
-      reviewerId,
-      decision === "rejected" ? "reject" : "execute",
+      decision,
+      reviewer_id,
     );
-    if (!authz.ok) {
-      return new Response(JSON.stringify({ ok: false, error: authz.error }), {
-        status: authz.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!gate.ok) {
+      return json(gate.status, gate.body);
     }
 
-    // Claim once (pending → approved/rejected) so the decision applies a single time.
-    const claimed =
-      approval.status === "pending"
-        ? await claimApprovalRow(supabase, approval_id, reviewerId, {
-            from: ["pending"],
-            to: decision,
-          })
-        : null;
-    if (!claimed) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "approval already decided",
-          status: approval.status,
-        }),
-        {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    const { reviewerId } = gate;
 
     let executionResult: any = null;
 
@@ -239,3 +194,11 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+/** JSON response with this function's CORS headers. */
+function json(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
