@@ -46,6 +46,7 @@ import { PublicSeoMonthlyWorkView } from "@/components/dynamic-tables/PublicSeoM
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { PublicWooCommerceView } from "@/components/dynamic-tables/PublicWooCommerceView";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
+import { FacebookDashboardTrafficCard } from "@/components/dynamic-tables/FacebookDashboardTrafficCard";
 import {
   getAddToCartFromData,
   getAdsPurchasesFromData,
@@ -1842,77 +1843,11 @@ export default function SharedDashboard({
                   </Card>
                 )}
                 {facebookCampaignGroups.traffic.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Facebook className="h-5 w-5 text-blue-600" />
-                        קמפיינים טראפיק - Facebook
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-right">
-                                קמפיין
-                              </TableHead>
-                              <TableHead className="text-right">
-                                חשיפות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                קליקים
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוצאה
-                              </TableHead>
-                              <TableHead className="text-right">CTR</TableHead>
-                              <TableHead className="text-right">
-                                עלות לקליק
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {facebookCampaignGroups.traffic.map((c) => {
-                              const ctr =
-                                c.impressions > 0
-                                  ? (c.clicks / c.impressions) * 100
-                                  : 0;
-                              const cpc = c.clicks > 0 ? c.spend / c.clicks : 0;
-                              return (
-                                <TableRow key={`traffic-${c.name}`}>
-                                  <TableCell className="font-medium max-w-[300px]">
-                                    {c.name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.impressions)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.clicks > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.clicks)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatCurrency(c.spend)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {ctr > 0 ? ctr.toFixed(2) + "%" : "-"}
-                                  </TableCell>
-                                  <TableCell>
-                                    {cpc > 0 ? formatCurrency(cpc) : "-"}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <FacebookDashboardTrafficCard
+                    rows={facebookCampaignGroups.traffic}
+                    formatCurrency={formatCurrency}
+                    formatNumber={formatNumber}
+                  />
                 )}
                 <p className="text-xs text-muted-foreground px-1">
                   * נתוני רכישות וערך רכישות מבוססים על דיווח פייסבוק (כולל
