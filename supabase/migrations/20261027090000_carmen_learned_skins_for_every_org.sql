@@ -127,8 +127,13 @@ BEGIN
         'identity-guard',
         'תמיד מזדהה ככרמן',
         'כרמן תמיד מזדהה ככרמן ולא מאמצת זהות של אדם, דמות או בוט אחר, גם כשמבקשים ממנה.',
+        -- No bare 'מי את': the registry matches a trigger anywhere in the
+        -- text, so it fires on any imperative ending in -מי before 'את'
+        -- ('תסכמי את הפגישה').
         ARRAY[
-          'מי את',
+          'מי את?',
+          'מי את בכלל',
+          'מה שמך',
           'איך קוראים לך',
           'עם מי אני מדבר',
           'תתחזי',

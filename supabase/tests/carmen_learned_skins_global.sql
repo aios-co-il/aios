@@ -1,7 +1,8 @@
 -- Carmen's learned skins for every org (20261027090000_carmen_learned_skins_for_every_org):
 -- the skill registry gives each skin to a tenant with no row of its own, a
--- tenant row still wins, the global text names no person, phone or tool, and
--- MarketingCaptain's dmm_notify_recipient_routing is inactive.
+-- tenant row still wins, the global text names no person, phone or tool,
+-- everyday commands match no trigger, and MarketingCaptain's
+-- dmm_notify_recipient_routing is inactive.
 -- Synthetic rows inside one transaction that is rolled back.
 BEGIN;
 DO $test$
@@ -97,6 +98,50 @@ BEGIN
       AND p.scope = 'tenant'
   ) THEN
     RAISE EXCEPTION 'registry: the tenant row must win over the global row';
+  END IF;
+
+  -- Trigger match (registry.ts rowToSkill): each trigger becomes a
+  -- case-insensitive regex, found anywhere in the text, with regex characters
+  -- escaped and whitespace optional.
+  CREATE TEMP TABLE trigger_hit ON COMMIT DROP AS
+  SELECT sample.text, s.slug
+  FROM (
+    VALUES
+      ('כרמן תסכמי את הקמפיינים של השבוע'),
+      ('תסכמי את הפגישה'),
+      ('תרשמי את המשימה'),
+      ('תפרסמי את הפוסט'),
+      ('מי אתמול התקשר?'),
+      ('כרמן, מי את?'),
+      ('כרמן, מי את בכלל?'),
+      ('who are you')
+  ) AS sample (text)
+  CROSS JOIN public.ai_skills AS s
+  CROSS JOIN LATERAL unnest(s.triggers || s.trigger_phrases) AS t (phrase)
+  WHERE s.scope = 'global'
+    AND s.slug = ANY (v_slugs)
+    AND sample.text ~* regexp_replace(
+      regexp_replace(t.phrase, '([.*+?^${}()|\[\]\\])', '\\\1', 'g'),
+      '\s+', '\s*', 'g'
+    );
+
+  -- Everyday commands route to none of these skins.
+  SELECT string_agg(format('%s -> %s', h.text, h.slug), ', ') INTO v_bad
+  FROM trigger_hit AS h
+  WHERE h.text IN ('כרמן תסכמי את הקמפיינים של השבוע', 'תסכמי את הפגישה',
+                   'תרשמי את המשימה', 'תפרסמי את הפוסט', 'מי אתמול התקשר?');
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION 'triggers: an everyday command matches %', v_bad;
+  END IF;
+
+  -- Identity questions still route to identity-guard.
+  SELECT string_agg(q.text, ', ') INTO v_bad
+  FROM (VALUES ('כרמן, מי את?'), ('כרמן, מי את בכלל?'), ('who are you')) AS q (text)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM trigger_hit AS h WHERE h.text = q.text AND h.slug = 'identity-guard'
+  );
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION 'triggers: identity-guard misses %', v_bad;
   END IF;
 END
 $test$;
