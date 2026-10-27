@@ -2,12 +2,14 @@
  * Recorded-shape Meta Graph API responses and a stored report table, for the
  * ads sync write tests. stubGraph replaces globalThis.fetch; restore it after.
  */
+import { isRecord } from "../is-record.ts";
 import { createFakeDb, type FakeDb, type Row } from "./fake-postgrest.ts";
 
 export const WINDOW = { startDate: "2026-10-24", endDate: "2026-10-26" };
 export const PREVIOUS_SYNC = "2026-10-25T04:40:00.000Z";
 export const RUN_AT = "2026-10-26T04:40:00.000Z";
 export const NOW = Date.parse("2026-10-26T05:00:00.000Z");
+export const TABLE = { tableId: "t1", tenantId: "tenant-1" };
 
 /** Recorded Graph API error (rate limit mid-pagination). */
 export const GRAPH_RATE_LIMIT = {
@@ -20,6 +22,7 @@ export const GRAPH_RATE_LIMIT = {
   },
 };
 
+/** One Graph insights row of `level` for `date`, in the recorded response shape. */
 export const insight = (level: string, date: string, spend: string) => ({
   campaign_id: "120200000000001",
   campaign_name: "לידים - חורף",
@@ -39,17 +42,17 @@ export const insight = (level: string, date: string, spend: string) => ({
 export function stubGraph(
   levels: Record<string, unknown[][] | "error-on-page-2">,
 ) {
-  globalThis.fetch = (async (input: string | URL) => {
+  const stub: typeof fetch = async (input) => {
     const url = String(input);
     const level =
-      url.match(/level=(\w+)/)?.[1] || url.match(/page2-(\w+)/)?.[1];
-    const spec = levels[level as string];
+      url.match(/level=(\w+)/)?.[1] || url.match(/page2-(\w+)/)?.[1] || "";
+    const spec = levels[level];
     const page2 = url.includes("page2-");
     if (spec === "error-on-page-2") {
       const body = page2
         ? GRAPH_RATE_LIMIT
         : {
-            data: [insight(level as string, "2026-10-24", "50")],
+            data: [insight(level, "2026-10-24", "50")],
             paging: { next: `https://graph.facebook.com/page2-${level}` },
           };
       return new Response(JSON.stringify(body));
@@ -57,9 +60,11 @@ export function stubGraph(
     return new Response(
       JSON.stringify({ data: (spec || [[]])[0], paging: {} }),
     );
-  }) as typeof fetch;
+  };
+  globalThis.fetch = stub;
 }
 
+/** A report table "t1" with campaign/adset/ad rows around WINDOW, last synced at PREVIOUS_SYNC. */
 export function storedTable(): FakeDb {
   const rec = (date: string, level: string | null, spend: number): Row => ({
     id: `seed-${date}-${level}`,
@@ -79,6 +84,7 @@ export function storedTable(): FakeDb {
     crm_tables: [
       {
         id: "t1",
+        tenant_id: "tenant-1",
         last_sync_at: PREVIOUS_SYNC,
         integration_settings: {
           currency: "USD",
@@ -88,4 +94,21 @@ export function storedTable(): FakeDb {
       },
     ],
   });
+}
+
+/** The stored crm_tables row, in the shape the freshness and pulse readers take. */
+export function storedTableRow(db: FakeDb) {
+  const row = db.tables.crm_tables[0];
+  return {
+    last_sync_at:
+      typeof row.last_sync_at === "string" ? row.last_sync_at : null,
+    last_sync_attempt_at: row.last_sync_attempt_at,
+    last_sync_outcome: row.last_sync_outcome,
+    integration_settings: settingsOf(row),
+  };
+}
+
+/** A row's integration_settings object; {} when it has none. */
+export function settingsOf(row: Row): Record<string, unknown> {
+  return isRecord(row.integration_settings) ? row.integration_settings : {};
 }

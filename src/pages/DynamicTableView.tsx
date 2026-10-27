@@ -2133,7 +2133,7 @@ export default function DynamicTableView({
             )}
             <ReportDataFreshness
               lastSyncAt={getReportLastSyncAt(table)}
-              syncProblem={getReportSyncProblem(table)}
+              syncProblem={getReportSyncProblem([table])}
               dataUpdatedAt={recordsUpdatedAt}
               isFetching={recordsFetching}
               className="mt-1"

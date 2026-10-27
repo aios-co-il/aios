@@ -755,7 +755,7 @@ export function ClientReportPanel({
     <div className="space-y-3 min-w-0" dir="rtl">
       <ReportDataFreshness
         lastSyncAt={getReportLastSyncAt(table)}
-        syncProblem={getReportSyncProblem(table)}
+        syncProblem={getReportSyncProblem([table])}
         className="px-1"
       />
       {/* Screenshot Preview */}

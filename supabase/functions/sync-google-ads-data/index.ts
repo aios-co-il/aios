@@ -5,19 +5,21 @@ import {
   type OperationalCampaignState,
 } from "../_shared/campaign-operational-health.ts";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
+import type { AdsEntityLevel } from "../_shared/ads-sync/levels.ts";
+import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { redactSyncError } from "../_shared/ads-sync/redact.ts";
+import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
-  type AdsLevel,
-  buildSyncOutcome,
-  redactSyncError,
-  scheduledMarkerPatch,
-} from "../_shared/sync-outcome.ts";
-import { saveSyncRun, syncAdsWindow } from "../_shared/ads-sync-write.ts";
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
 import {
-  replacedRecordsFilter,
   resolveAdsSyncWindow,
-  resolvePruneStart,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+
+const SOURCE = "sync-google-ads-data";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,7 +102,7 @@ Deno.serve(async (req) => {
 
   // Set once the table is known: a run that cannot fetch or write is recorded as
   // failed instead of leaving the previous outcome in place.
-  let recordFailure: ((message: string) => Promise<unknown>) | null = null;
+  let recordFailure: ((message: string) => Promise<void>) | null = null;
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -226,18 +228,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    const run = { tableId: table_id, tenantId: tableTenantId };
     // Operational-only scans write no report rows, so they leave the outcome alone.
     if (!operational_only) {
-      recordFailure = (message) =>
-        saveSyncRun(supabaseAdmin, table_id, {
-          outcome: buildSyncOutcome({
-            status: "failed",
-            error: message,
-            source: "sync-google-ads-data",
-          }),
-          catchup: update_last_sync === false,
-          fallbackSettings: settings,
-        }).catch(() => {});
+      recordFailure = failedRunRecorder(supabaseAdmin, {
+        ...run,
+        source: SOURCE,
+        catchup: update_last_sync === false,
+        fallbackSettings: settings,
+      });
     }
 
     // Resolve WHICH Google Ads connection to use.
@@ -985,7 +984,7 @@ Deno.serve(async (req) => {
     );
     const records: GoogleAdsRecord[] = parseGaqlResults(batchesArr, "campaign");
     // A failed ad group / ad query keeps that level's stored rows (syncAdsWindow).
-    const levelErrors: Partial<Record<AdsLevel, string>> = {};
+    const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
     try {
       const adGroupBatches = await runGaqlSearch(adGroupQuery);
@@ -994,12 +993,12 @@ Deno.serve(async (req) => {
         `[sync-google-ads] ad group rows: ${records.filter((r) => r.entity_level === "adset").length}`,
       );
     } catch (adGroupErr) {
-      levelErrors.adset = String(
-        adGroupErr instanceof Error ? adGroupErr.message : adGroupErr,
-      );
+      const message =
+        adGroupErr instanceof Error ? adGroupErr.message : String(adGroupErr);
+      levelErrors.adset = message;
       console.warn(
         "[sync-google-ads] ad group query failed (non-fatal):",
-        adGroupErr instanceof Error ? adGroupErr.message : adGroupErr,
+        message,
       );
     }
 
@@ -1010,11 +1009,9 @@ Deno.serve(async (req) => {
         `[sync-google-ads] ad rows: ${records.filter((r) => r.entity_level === "ad").length}`,
       );
     } catch (adErr) {
-      levelErrors.ad = String(adErr instanceof Error ? adErr.message : adErr);
-      console.warn(
-        "[sync-google-ads] ad query failed (non-fatal):",
-        adErr instanceof Error ? adErr.message : adErr,
-      );
+      const message = adErr instanceof Error ? adErr.message : String(adErr);
+      levelErrors.ad = message;
+      console.warn("[sync-google-ads] ad query failed (non-fatal):", message);
     }
 
     console.log(`[sync-google-ads] total records parsed: ${records.length}`);
@@ -1418,14 +1415,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    const byLevelCount = (level: AdsLevel) =>
+    const byLevelCount = (level: AdsEntityLevel) =>
       records.filter((r) => (r.entity_level || "campaign") === level).length;
+    const byLevel = {
+      campaign: byLevelCount("campaign"),
+      adset: byLevelCount("adset"),
+      ad: byLevelCount("ad"),
+    };
 
-    // Replace only the days (and levels) this run re-fetched (admin client to bypass
-    // RLS); rows older than the sync window are history a longer report window still
-    // needs. An empty run leaves the stored rows alone (far more likely a Google Ads
-    // hiccup than an account with no delivery), and a failed delete inserts nothing.
-    // table_id only — orphan rows from a previous tenant_id must not survive sync.
+    // Admin client bypasses RLS; what may be replaced (table_id-only): see syncAdsWindow.
     const outcome = await syncAdsWindow(
       { deleteClient: supabaseAdmin },
       {
@@ -1434,13 +1432,9 @@ Deno.serve(async (req) => {
         createdBy: user.id,
         window: syncWindow,
         records,
-        levelCounts: {
-          campaign: byLevelCount("campaign"),
-          adset: byLevelCount("adset"),
-          ad: byLevelCount("ad"),
-        },
+        levelCounts: byLevel,
         levelErrors,
-        source: "sync-google-ads-data",
+        source: SOURCE,
       },
     );
     console.log(
@@ -1451,7 +1445,7 @@ Deno.serve(async (req) => {
     // last_sync_at (column + settings) and the scheduled markers move only after a
     // successful write; catch-up chunks (update_last_sync=false) never stamp it.
     // Health/pulse read the freshest of column vs settings.
-    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, table_id, {
+    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
       catchup: update_last_sync === false,
       fallbackSettings: settings,
@@ -1462,36 +1456,22 @@ Deno.serve(async (req) => {
       }),
     });
 
-    const byLevel = {
-      campaign: records.filter(
-        (r) => (r.entity_level || "campaign") === "campaign",
-      ).length,
-      adset: records.filter((r) => r.entity_level === "adset").length,
-      ad: records.filter((r) => r.entity_level === "ad").length,
-    };
     console.log(`[sync-google-ads] by_level`, byLevel);
 
-    return new Response(
-      JSON.stringify({
-        success: outcome.status !== "failed",
-        ...(outcome.status === "failed" ? { error: outcome.error } : {}),
-        records_synced: outcome.rows,
-        by_level: byLevel,
-        outcome,
-        last_sync_at: lastSyncAt,
-        verified_against: verifiedSiteUrl,
-      }),
-      {
-        status: outcome.status === "failed" ? 502 : 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    const { body, status } = syncRunBody(outcome, lastSyncAt, {
+      by_level: byLevel,
+      verified_against: verifiedSiteUrl,
+    });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error: any) {
     console.error("Error in sync-google-ads-data:", error);
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
     );
-    // Upstream errors can print the request URL, Meta access token included.
+    // Upstream errors can print the request URL, access token included.
     return new Response(
       JSON.stringify({ error: redactSyncError(error?.message ?? error) }),
       {

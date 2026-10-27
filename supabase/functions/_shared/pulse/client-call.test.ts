@@ -7,7 +7,8 @@ import {
   normalizePulseRowClientCall,
   pulseRowHasNoRecentClientCall,
   resolveNoRecentClientCall,
-} from "./pulse-client-call.ts";
+  stripLegacyClientCallFlag,
+} from "./client-call.ts";
 
 const NOW = Date.parse("2026-10-26T09:00:00.000Z");
 const RECENT = "2026-10-20T09:00:00.000Z";
@@ -159,5 +160,27 @@ Deno.test(
       NOW,
     );
     assertStrictEquals(noData.status, "no_data");
+  },
+);
+
+Deno.test(
+  "stripping the legacy flag restores a call-only warning and adds no indicator",
+  () => {
+    const current = { status: "warning", flags: ["CPL עלה ב-40%"] };
+    assertStrictEquals(stripLegacyClientCallFlag(current), current);
+
+    const legacy = stripLegacyClientCallFlag({
+      status: "warning",
+      lead_goal_status: "warning",
+      ecommerce_goal_status: null,
+      flags: [LEGACY_FLAG],
+    });
+    assertEquals(legacy, {
+      status: "healthy",
+      lead_goal_status: "healthy",
+      ecommerce_goal_status: null,
+      flags: [],
+    });
+    assertStrictEquals("no_recent_client_call" in legacy, false);
   },
 );

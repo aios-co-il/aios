@@ -18,7 +18,7 @@ describe("ReportDataFreshness", () => {
     render(
       <ReportDataFreshness
         lastSyncAt={LAST_WRITE}
-        syncProblem={getReportSyncProblem(table)}
+        syncProblem={getReportSyncProblem([table])}
       />,
     );
     expect(screen.getByText(/עדכון מקור:/)).toBeInTheDocument();
@@ -54,10 +54,12 @@ describe("ReportDataFreshness", () => {
     rerender(
       <ReportDataFreshness
         lastSyncAt={LAST_WRITE}
-        syncProblem={getReportSyncProblem({
-          last_sync_at: LAST_WRITE,
-          last_sync_outcome: { status: "ok", rows: 12, at: LAST_WRITE },
-        })}
+        syncProblem={getReportSyncProblem([
+          {
+            last_sync_at: LAST_WRITE,
+            last_sync_outcome: { status: "ok", rows: 12, at: LAST_WRITE },
+          },
+        ])}
       />,
     );
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

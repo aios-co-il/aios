@@ -1,8 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildSyncOutcome } from "../_shared/sync-outcome.ts";
-import { saveSyncRun } from "../_shared/ads-sync-write.ts";
-
-const SOURCE = "webhook-google-ads-sync";
+import { fetchTableRecords } from "../_shared/ads-sync/campaign-records.ts";
+import { recordWebhookRun } from "./record-run.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -178,20 +176,8 @@ Deno.serve(async (req) => {
     }
 
     // === BATCH UPSERT: fetch all existing records ONCE ===
-    // Paged: one request stops at max_rows (1000), and a row missing from this map
-    // would be inserted a second time instead of updated.
-    const allExisting: { id: string; data: unknown }[] = [];
-    for (let from = 0; ; from += 1000) {
-      const { data: page, error: pageError } = await supabase
-        .from("crm_records")
-        .select("id, data")
-        .eq("table_id", table_id)
-        .order("id", { ascending: true })
-        .range(from, from + 999);
-      if (pageError) throw pageError;
-      allExisting.push(...(page || []));
-      if (!page || page.length < 1000) break;
-    }
+    // Paged: a row missing from this map would be inserted a second time instead of updated.
+    const allExisting = await fetchTableRecords(supabase, table_id);
 
     // Build lookup map: "campaign_id|date" -> record id
     const existingMap = new Map<string, string>();
@@ -334,21 +320,17 @@ Deno.serve(async (req) => {
         .from("crm_records")
         .update({ data: item.data, updated_at: new Date().toISOString() })
         .eq("id", item.id);
-      if (!error) updatedCount++;
-      else writeErrors++;
+      if (error) {
+        writeErrors++;
+        console.error("Record update error:", error.message);
+      } else {
+        updatedCount++;
+      }
     }
 
-    // last_sync_at moves only when everything received was written; the attempt
-    // and its outcome are always recorded.
-    const written = insertedCount + updatedCount;
-    await saveSyncRun(supabase, table_id, {
-      outcome: buildSyncOutcome({
-        status: writeErrors > 0 ? "failed" : written > 0 ? "ok" : "empty",
-        rows: written,
-        error: writeErrors > 0 ? `${writeErrors} writes failed` : null,
-        source: SOURCE,
-      }),
-      fallbackSettings: table.integration_settings || {},
+    await recordWebhookRun(supabase, table, {
+      written: insertedCount + updatedCount,
+      writeErrors,
     });
 
     console.log(

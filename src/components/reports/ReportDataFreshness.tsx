@@ -1,19 +1,20 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { SyncProblem } from "../../../supabase/functions/_shared/ads-sync/freshness.ts";
 
 interface ReportDataFreshnessProps {
   lastSyncAt?: string | null;
   /** The latest sync did not refresh the data (see getReportSyncProblem). */
-  syncProblem?: "failed" | "empty" | null;
+  syncProblem?: SyncProblem | null;
   dataUpdatedAt?: number;
   isFetching?: boolean;
   className?: string;
 }
 
-const SYNC_PROBLEM_LABEL = {
+const SYNC_PROBLEM_LABEL: Record<SyncProblem, string> = {
   failed: "הסנכרון האחרון נכשל — הנתונים לא עודכנו",
   empty: "הסנכרון האחרון לא החזיר נתונים",
-} as const;
+};
 
 function formatHebrewDateTime(value: string | number): string {
   const date = typeof value === "number" ? new Date(value) : new Date(value);
@@ -36,7 +37,9 @@ export function ReportDataFreshness({
     ? formatHebrewDateTime(dataUpdatedAt)
     : null;
 
-  if (!syncLabel && !loadedLabel && !isFetching && !syncProblem) return null;
+  if (!syncLabel && !loadedLabel && !isFetching && !syncProblem) {
+    return null;
+  }
 
   return (
     <p
