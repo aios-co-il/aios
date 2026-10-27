@@ -65,8 +65,20 @@ async function narrationLines(db, run) {
  * run before anything else can fail, so a retry reuses it. A failure after the provider
  * charged but before the upload is final rather than retried.
  */
-async function generateOnce({ db, run, path, generate }) {
+async function generateOnce({
+  db,
+  run,
+  path,
+  generate,
+  submitting = (work) => work(),
+}) {
   if (run.output?.audio_path === path) return run.output.audio_meta ?? {};
+  // The paid call and the save of its file run inside the worker's submit guard, so a stop
+  // never puts the run back to queued between the payment and the save (src/inflight.mjs).
+  return submitting(() => generateAndStore({ db, run, path, generate }));
+}
+
+async function generateAndStore({ db, run, path, generate }) {
   const result = await generate();
   try {
     await db.upload(
@@ -101,6 +113,7 @@ export async function generateVoice({
   googleKey = null,
   resolveOpenRouterKey = async () => null,
   log = console.log,
+  submitting,
 }) {
   const continuous = run.input?.continuous === true || !run.scene_id;
   const item = await loadRunItem(db, run);
@@ -126,6 +139,7 @@ export async function generateVoice({
     db,
     run,
     path,
+    submitting,
     generate: async () => {
       if (apiKey) {
         try {
@@ -294,6 +308,7 @@ export async function generateMusic({
   apiKey,
   sizeMusic = musicLengthMs,
   log = console.log,
+  submitting,
 }) {
   const item = await loadRunItem(db, run);
   const prompt = String(run.input?.prompt ?? "").trim();
@@ -310,6 +325,7 @@ export async function generateMusic({
     db,
     run,
     path,
+    submitting,
     generate: async () => {
       try {
         return {
