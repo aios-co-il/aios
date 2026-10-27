@@ -16,7 +16,10 @@ const TURN = "2026-10-27T10:00:00.000Z";
 const EARLIER = "2026-10-27T09:58:00.000Z";
 const LATER = "2026-10-27T10:00:05.000Z";
 const CHAT = "conv-1";
+const OFFER =
+  "פתחתי משימה ל-Cursor לתקן את הכפתור. [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]";
 const offered = {
+  id: "task-1",
   status: "draft",
   created_at: EARLIER,
   assigned_agent: "cursor",
@@ -31,6 +34,8 @@ const yes = (
   userText: "כן",
   turnStartedAt: TURN,
   conversationId: CHAT,
+  lastAssistantText: OFFER,
+  offeredTaskId: "task-1",
   ...over,
 });
 const reason = (input: WorkshopDevTaskInput) => {
@@ -238,4 +243,23 @@ Deno.test("each tier is told only what it may do in the workshop", () => {
   assertMatch(ana, /רק דיוויד/);
   assertMatch(ana, /בהודעה הבאה/);
   assertStrictEquals(/Cursor או ל-Claude|mcp_/.test(ana), false);
+});
+
+Deno.test("a yes approves only the task Carmen's last message offered", () => {
+  // Turn 1 offered the task, turn 2 was a no, turn 3 the designer asked to go on: the yes in
+  // turn 4 answers the designer. A plain question has no choice to tap; an older draft is not
+  // the one offered last.
+  for (const over of [
+    { lastAssistantText: "[[בחירה: להמשיך? | כן | לא]]" },
+    { lastAssistantText: "לשלוח את משימת הפיתוח?" },
+    { lastAssistantText: null },
+    { offeredTaskId: "task-2" },
+    { offeredTaskId: null },
+    { task: { ...offered, id: null } },
+  ])
+    assertStrictEquals(reason(yes(over)), "not_offered", JSON.stringify(over));
+  const decision = workshopDevTaskDecision(yes({ lastAssistantText: "" }));
+  if (!decision.ok)
+    assertMatch(decision.message, /\[\[בחירה: לשלוח את משימת הפיתוח\?/);
+  assertStrictEquals(decision.ok, false);
 });

@@ -195,8 +195,11 @@ import {
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
 import {
-  DEV_TASK_OFFER_TTL_MS,
+  declineOfferedDevTask,
+  findOfferedDevTask,
   isExplicitDevTaskApproval,
+  isExplicitDevTaskDecline,
+  offersDevTask,
   workshopDevTaskDecision,
   workshopDevTaskRule,
 } from "../_shared/dev-task-approval.ts";
@@ -5702,15 +5705,18 @@ async function tryCreateCalendarEventForTask(
 
 /**
  * In the workshop, why approve_dev_task / dispatch_dev_task may not act on this task now (the
- * user's yes in the app chat must answer a task offered earlier in this conversation); null
- * outside the workshop, where the dev-task flow is unchanged, or when it may.
+ * user's yes in the app chat must answer Carmen's previous message, which offered this task);
+ * null outside the workshop, where the dev-task flow is unchanged, or when it may.
  */
 async function workshopDevTaskRefusal(
   supabase: any,
   tenantId: string,
   taskId: string,
   conversationId: string | null,
-  gate: { turnStartedAt: string; appChatUser: boolean } | null | undefined,
+  gate:
+    | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
+    | null
+    | undefined,
   userText: string | null,
   approver: { id: string | null; tier: "full" | "bugfix" | null },
 ): Promise<{ error: string; message: string } | null> {
@@ -5723,12 +5729,21 @@ async function workshopDevTaskRefusal(
     .eq("id", taskId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  const offered = conversationId
+    ? await findOfferedDevTask(supabase, {
+        tenantId,
+        conversationId,
+        turnStartedAt: gate.turnStartedAt,
+      })
+    : null;
   const decision = workshopDevTaskDecision({
     task: task ?? null,
     appChatUser: gate.appChatUser,
     userText,
     turnStartedAt: gate.turnStartedAt,
     conversationId,
+    lastAssistantText: gate.lastAssistantText,
+    offeredTaskId: offered?.id ?? null,
     approver,
   });
   return decision.ok
@@ -5763,6 +5778,8 @@ async function executeTool(
       turnStartedAt: string;
       /** A signed-in user typed this turn in the app chat (internal_chat). */
       appChatUser: boolean;
+      /** Carmen's previous message; the user's yes answers its dev-task question only. */
+      lastAssistantText: string;
     } | null;
   } = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
@@ -15500,33 +15517,38 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
-    // In the workshop a yes answers the dev task Carmen offered earlier in this chat: name it,
-    // so she approves and sends that one (workshopDevTaskRefusal checks it again).
+    // In the workshop the user's yes or no answers the dev task Carmen offered in her previous
+    // message, and only when that message asked about it: a yes names the task, so she approves
+    // and sends that one (workshopDevTaskRefusal checks it again); a no cancels it.
+    const workshopUserText = String(command_text ?? "");
+    const devTaskYes = isExplicitDevTaskApproval(workshopUserText);
+    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(workshopUserText);
     if (
       isCarmen &&
       inWorkshopRequest &&
       canEscalateDevFixes &&
       serverConversationId &&
-      isExplicitDevTaskApproval(String(command_text ?? ""))
+      request.authKind === "user" &&
+      surface === "internal_chat" &&
+      (devTaskYes || devTaskNo) &&
+      offersDevTask(lastAssistantText(conversation_history))
     ) {
-      const { data: offeredTask } = await supabase
-        .from("dev_tasks")
-        .select("id, title, assigned_agent")
-        .eq("tenant_id", resolvedTenantId)
-        .eq("source_conversation_id", serverConversationId)
-        .eq("status", "draft")
-        .lt("created_at", turnStartedAt)
-        .gte(
-          "created_at",
-          new Date(
-            Date.parse(turnStartedAt) - DEV_TASK_OFFER_TTL_MS,
-          ).toISOString(),
-        )
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (offeredTask?.id)
-        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בשיחה הזו: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
+      const offeredTask = await findOfferedDevTask(supabase, {
+        tenantId: resolvedTenantId,
+        conversationId: serverConversationId,
+        turnStartedAt,
+      });
+      if (offeredTask && devTaskYes)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
+      else if (
+        offeredTask &&
+        (await declineOfferedDevTask(supabase, {
+          tenantId: resolvedTenantId,
+          taskId: offeredTask.id,
+          actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
+        }))
+      )
+        systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
     }
 
     // ─── WhatsApp Meta approval flow (smooth confirm → execute) ───
@@ -16181,6 +16203,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                       appChatUser:
                         request.authKind === "user" &&
                         surface === "internal_chat",
+                      lastAssistantText:
+                        lastAssistantText(conversation_history),
                     }
                   : null,
               },

@@ -10,6 +10,8 @@ import {
   isExplicitRejectionPhrase,
   normalizeApprovalText,
 } from "./wa-approval-flow.ts";
+import { logDevTaskEvent } from "./dev-tasks.ts";
+import { askedChoices } from "./workshop/tapped-answers.ts";
 
 /** Words that carry the yes: a confirm or an order to send or open the task. */
 const ANCHORS = new Set([
@@ -123,6 +125,37 @@ export function isExplicitDevTaskApproval(text: unknown): boolean {
   return list.every((word) => ANCHORS.has(word) || FILLERS.has(word));
 }
 
+/** A choice that asks whether to send a dev task ("לשלוח את משימת הפיתוח?", "לשלוח לקרסר?"). */
+const OFFER_LABEL =
+  /משימ(?:ת|ה|ות)\s+(?:ה)?פיתוח|לפיתוח|cursor|claude|קרסר|קורסור|קלוד/iu;
+
+/**
+ * Carmen's message asks the user whether to send a dev task: a tap-to-answer choice about the
+ * task with a yes option. The user's yes answers only this question, never another one (a
+ * designer's "[[בחירה: להמשיך? | כן | לא]]").
+ */
+export function offersDevTask(lastAssistant: unknown): boolean {
+  return askedChoices(String(lastAssistant ?? "")).some(
+    (choice) =>
+      OFFER_LABEL.test(choice.label) &&
+      choice.options.some((option) => isExplicitDevTaskApproval(option)),
+  );
+}
+
+const FIRST_NO = new Set(["לא", "אל", "בטלי", "תבטלי", "ביטול", "no", "nope"]);
+
+/**
+ * The user's message is a plain no to the offered dev task ("לא", "לא, עוד לא", "אל תשלחי"):
+ * it starts with a no and stays short. "לא יודעת, מה את ממליצה?" is a question, not a no.
+ */
+export function isExplicitDevTaskDecline(text: unknown): boolean {
+  const t = normalizeApprovalText(text);
+  if (!t || t.length > 80) return false;
+  if (isExplicitRejectionPhrase(t)) return true;
+  const list = words(t);
+  return list.length <= 4 && FIRST_NO.has(list[0]);
+}
+
 export type DevEscalationTier = "full" | "bugfix" | null;
 
 /** How long an offered task stays open to the user's yes. */
@@ -130,6 +163,7 @@ export const DEV_TASK_OFFER_TTL_MS = 30 * 60 * 1000;
 
 export interface WorkshopDevTaskInput {
   task: {
+    id?: string | null;
     status?: string | null;
     created_at?: string | null;
     assigned_agent?: string | null;
@@ -144,6 +178,10 @@ export interface WorkshopDevTaskInput {
   turnStartedAt?: string | Date | null;
   /** This chat's conversation; the task must have been offered in it. */
   conversationId?: string | null;
+  /** Carmen's previous message in this chat; it must ask whether to send the task. */
+  lastAssistantText?: string | null;
+  /** The newest open task of this conversation from before this turn: the one she offered. */
+  offeredTaskId?: string | null;
   /** Who says yes: a bug-fix caller (Ana) approves only her own Cursor tasks. */
   approver?: { id?: string | null; tier?: DevEscalationTier };
   maxAgeMs?: number;
@@ -157,6 +195,7 @@ export type DevTaskApprovalRefusal =
   | "other_conversation"
   | "expired"
   | "not_explicit"
+  | "not_offered"
   | "target_mismatch"
   | "bugfix_cursor_only"
   | "not_requester";
@@ -176,6 +215,7 @@ const REFUSAL_MESSAGES: Record<DevTaskApprovalRefusal, string> = {
   other_conversation: `המשימה לא הוצעה בשיחה הזו. ${ASK}`,
   expired: `עבר יותר מדי זמן מאז שהוצעה המשימה. ${ASK}`,
   not_explicit: `ההודעה של המשתמש היא לא אישור מפורש לשליחת המשימה. ${ASK}`,
+  not_offered: `ההודעה הקודמת שלך לא שאלה אם לשלוח את המשימה הזו, אז ה'כן' של המשתמש לא מאשר אותה. ${ASK}`,
   target_mismatch:
     "המשתמש ביקש סוכן אחר מזה שהמשימה מיועדת לו. ספרי לו למי היא מיועדת (Cursor או Claude); כדי להחליף, פתחי משימה חדשה עם הסוכן הנכון ושאלי שוב.",
   bugfix_cursor_only:
@@ -201,8 +241,9 @@ const agentOf = (task: { assigned_agent?: string | null }) =>
 
 /**
  * Whether approve_dev_task or dispatch_dev_task may act on this task now, in the workshop: the
- * user's message in the app chat is a plain yes, the task was offered in an earlier turn of this
- * conversation not long ago, and a yes that names an agent names this task's one.
+ * user's message in the app chat is a plain yes to Carmen's previous message, which asked whether
+ * to send this task (the newest one offered in this conversation, not long ago), and a yes that
+ * names an agent names this task's one.
  */
 export function workshopDevTaskDecision(
   input: WorkshopDevTaskInput,
@@ -232,6 +273,12 @@ export function workshopDevTaskDecision(
   if (started - created > (input.maxAgeMs ?? DEV_TASK_OFFER_TTL_MS))
     return refuse("expired");
   if (!isExplicitDevTaskApproval(input.userText)) return refuse("not_explicit");
+  if (
+    !offersDevTask(input.lastAssistantText) ||
+    !task.id ||
+    task.id !== input.offeredTaskId
+  )
+    return refuse("not_offered");
   const named = namedDevAgent(input.userText);
   if (named && named !== agentOf(task)) return refuse("target_mismatch");
   if (input.approver?.tier === "bugfix") {
@@ -245,7 +292,63 @@ export function workshopDevTaskDecision(
 
 const WORKSHOP_OFFER =
   "ספרי במשפט מה המשימה ולמי היא תישלח, ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. " +
-  "approve_dev_task ואז dispatch_dev_task רק אחרי 'כן' של המשתמש בהודעה הבאה; השרת מסרב באותה הודעה שבה נפתחה המשימה.";
+  "approve_dev_task ואז dispatch_dev_task רק אחרי 'כן' של המשתמש בהודעה הבאה, כתשובה לשאלה הזו; השרת מסרב באותה הודעה שבה נפתחה המשימה. " +
+  "'לא' של המשתמש מבטל את המשימה.";
+
+type Db = { from: (table: string) => any };
+
+/**
+ * The task Carmen offered in this conversation: the newest one still open to a yes (draft, or
+ * approved and not yet sent), opened before this turn and not long ago.
+ */
+export async function findOfferedDevTask(
+  supabase: Db,
+  args: { tenantId: string; conversationId: string; turnStartedAt: string },
+): Promise<{
+  id: string;
+  title?: string | null;
+  assigned_agent?: string | null;
+  status?: string | null;
+} | null> {
+  const started = Date.parse(args.turnStartedAt);
+  if (!Number.isFinite(started)) return null;
+  const { data } = await supabase
+    .from("dev_tasks")
+    .select("id, title, assigned_agent, status")
+    .eq("tenant_id", args.tenantId)
+    .eq("source_conversation_id", args.conversationId)
+    .in("status", ["draft", "approved"])
+    .lt("created_at", args.turnStartedAt)
+    .gte("created_at", new Date(started - DEV_TASK_OFFER_TTL_MS).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ? data : null;
+}
+
+/** The user said no to the offered task: cancel it, so no later yes can send it. */
+export async function declineOfferedDevTask(
+  supabase: Db,
+  args: { tenantId: string; taskId: string; actorUserId?: string | null },
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("dev_tasks")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", args.taskId)
+    .eq("tenant_id", args.tenantId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+  if (error || !data?.id) return false;
+  await logDevTaskEvent(supabase, {
+    devTaskId: args.taskId,
+    tenantId: args.tenantId,
+    eventType: "declined",
+    actorUserId: args.actorUserId ?? null,
+    detail: { via: "workshop_chat" },
+  });
+  return true;
+}
 
 /**
  * The dev-task rule in the workshop, in place of buildDevEscalationPromptRule: the workshop has
