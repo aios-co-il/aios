@@ -200,15 +200,19 @@ serve(async (req) => {
       .update({ payload: nextPayload })
       .eq("id", item.id);
 
-    await admin.from("seo_geo_programs").upsert(
-      {
+    // An existing program keeps its client: only its site changes.
+    if (program)
+      await admin
+        .from("seo_geo_programs")
+        .update({ wordpress_site_id: wpSite?.id ?? null })
+        .eq("work_item_id", item.id);
+    else
+      await admin.from("seo_geo_programs").insert({
         tenant_id: item.tenant_id,
         client_id: item.client_id,
         work_item_id: item.id,
         wordpress_site_id: wpSite?.id ?? null,
-      },
-      { onConflict: "work_item_id" },
-    );
+      });
 
     let planResult: unknown = null;
     if (run_research && mode === "carmen_full") {

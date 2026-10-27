@@ -31,6 +31,7 @@ export function WorkshopAssignControl({
     <ClientSelector
       tenantId={tenantId}
       value={item.client_id}
+      valueLabel={item.client_name}
       onChange={onAssign}
       allowGeneral
       generalLabel={UNASSIGNED_LABEL}
